@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Crowsnest
 
-## Getting Started
+Crowsnest is a personal, local-first research tool for short-form video creators. Track your favorite channels, automatically surface viral outliers (videos performing unusually well compared to each channel's baseline), study why they worked through AI-powered analysis, and remix their hooks and structure into new scripts tailored to your niche. Built for solo use on your Mac, no hosting required.
 
-First, run the development server:
+## Quickstart
 
 ```bash
+# 1. Install dependencies
+npm i
+
+# 2. Set up the database
+npm run db:migrate
+
+# 3. Populate with demo data
+npm run db:seed
+
+# 4. Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to get started.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Purpose |
+|---------|---------|
+| `npm run dev` | Start development server (hot reload) |
+| `npm run build` | Build for production |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint on the codebase |
+| `npm run test` | Run tests once (10 tests) |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run db:generate` | Generate Drizzle migrations from schema |
+| `npm run db:migrate` | Apply migrations to SQLite database |
+| `npm run db:seed` | Populate database with demo seed data |
 
-## Learn More
+## Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+All variables are **optional**. The app works keyless with seeded demo data and local transcript analysis.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `ANTHROPIC_API_KEY` | Claude API key for video analysis and script remix | `sk-ant-v7-...` |
+| `APIFY_TOKEN` | Apify token for channel sync (primary provider) | `apify_api_...` |
+| `GROQ_API_KEY` | Groq API key for transcript analysis fallback | `gsk_...` |
+| `HIKERAPI_KEY` | HikerAPI key for channel data fallback | `hiker_...` |
+| `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-4`) | `claude-opus-4` |
+| `CROWSNEST_DB_PATH` | Custom SQLite database file path | `/path/to/db.sqlite` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Architecture
 
-## Deploy on Vercel
+- **Stack**: Next.js 16 (App Router, TypeScript) + Tailwind CSS + shadcn/ui
+- **Database**: SQLite (better-sqlite3) with Drizzle ORM
+- **Data Providers**: Apify (primary), HikerAPI (fallback), yt-dlp (manual URL import, keyless)
+- **AI Analysis**: Claude API for video hook/structure analysis and script remixing
+- **Transcripts**: Local whisper.cpp (with Metal acceleration) or Groq API fallback
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Core Features
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Fleets**: Organize channels into named watchlists
+- **Outlier Feed**: Filter and sort videos by viral multiplier, timeframe, engagement
+- **Video Analysis**: AI-powered breakdown of hooks, structure, and why videos worked
+- **Vault**: Save reusable hook and style templates for rapid remixing
+- **Remix Studio**: Staged pipeline to transform viral hooks into scripts for your niche
+- **Dashboard**: KPI tiles, top outliers, and recently viewed videos
+
+## Documentation
+
+See `docs/` for more information:
+- `docs/PLAN.md` — Project goals, architecture, and development phases
+- `docs/design/DESIGN.md` — UI system and visual specifications
+- `docs/research/FEATURES.md` — Feature prioritization and scout research
+- `docs/research/DATA.md` — Data acquisition strategy and provider interfaces
+- `docs/superpowers/specs/2026-07-23-crowsnest-design.md` — Complete design specification
+
+## Development
+
+This is a strict TypeScript project. Before committing, ensure:
+
+```bash
+npm run build  # Must succeed
+npm run test   # Must pass all 10 tests
+npm run lint   # No ESLint errors
+git status     # Working tree clean
+```
+
+## License
+
+Private project.
