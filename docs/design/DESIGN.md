@@ -148,9 +148,9 @@ generic "Boards" concept entirely rather than extending it.
 │ Welcome back · Tue Jul 21          [Sync now]                   │
 ├─────────────────────────────────────────────────────────────────┤
 │ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐             │
-│ │ Channels │ │ New      │ │ Boarded  │ │ Scripts  │  KPI row     │
+│ │ Channels │ │ New      │ │ Vaulted  │ │ Scripts  │  KPI row     │
 │ │ tracked  │ │ outliers │ │ this wk  │ │ drafted  │  (stat tiles)│
-│ │   42     │ │  ↑ 12.9K │ │   18     │ │   7      │             │
+│ │   42     │ │  ↑ 12.9K │ │   11     │ │   7      │             │
 │ │ ⤴ +3 ⟋⟍⟋ │ │  this wk │ │          │ │          │             │
 │ └──────────┘ └──────────┘ └──────────┘ └──────────┘             │
 ├─────────────────────────────────────────────────────────────────┤
@@ -256,7 +256,7 @@ generic "Boards" concept entirely rather than extending it.
 │ Outlier history                                                  │
 │  ⟋⟍⟋⟍⟋●⟍⟋⟍●⟋⟍⟋   (line, muted; outlier spikes emphasized/amber)│ ← chart, §5
 ├─────────────────────────────────────────────────────────────────┤
-│ [Recent Reels] [Outliers Only] [In Boards]        ← Tabs        │
+│ [Recent Reels] [Outliers Only] [Vaulted]           ← Tabs        │
 │ [card][card][card][card]                                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -264,8 +264,13 @@ generic "Boards" concept entirely rather than extending it.
   to the live profile, Sync now + Untrack buttons.
 - Stat tile row (4 tiles, no sparkline needed here — the chart below covers trend).
 - Outlier history chart: see §5 for the full dataviz spec (emphasis form).
-- Tabs (shadcn `Tabs`): Recent Reels / Outliers Only / In Boards, each a grid of the
-  compact Outlier Card variant.
+- Tabs (shadcn `Tabs`): Recent Reels / Outliers Only / **Vaulted** — the third tab's
+  meaning shifted with §0.1's course-correction: it's no longer "videos saved to a
+  board," it's this channel's videos that have **at least one Vault template
+  extracted from them**, so Kai can see which of a channel's reels already fed the
+  Vault vs. which are still untapped. Each tab is a grid of the compact Outlier Card
+  variant; a small template-count chip on the card (e.g. "2 templates") replaces the
+  old bookmark-filled icon for this tab specifically.
 
 ### 2.4 Video Detail (`/feed/:videoId`)
 
@@ -279,8 +284,7 @@ generic "Boards" concept entirely rather than extending it.
 │  posted 3d ago │                                               │
 │                │                                               │
 │  @formfirst ↗  │                                               │
-│  [🔖 Save]     │                                               │
-│  [Similar] [⋯] │                                               │
+│  [🔖▾][✎][⋯]  │                                               │
 ├───────────────┴───────────────────────────────────────────────┤
 │                                          [ Remix this video → ]│ ← sticky footer
 └─────────────────────────────────────────────────────────────────┘
@@ -289,13 +293,22 @@ generic "Boards" concept entirely rather than extending it.
   centered play glyph — no real playback in v1 mock/spec), metric chips below (views,
   likes, comments, engagement rate, the multiplier badge at full size), channel chip
   linking to Channel Detail, posted date + platform icon, "View on Instagram ↗".
-- Actions (confirmed 4-action pattern from research, renamed/originalized): **Save to
-  board** (bookmark icon), **Similar outliers** (our take on "More Like This" —
-  pattern-similarity, not keyword match), overflow `⋯` → Copy link / Copy transcript
-  / **Copy as prompt** (small power-user affordance — packages the research into a
-  clipboard-ready block for pasting into any external LLM; secondary/tertiary action
-  since our primary path is the in-app Remix Studio below, unlike Sandcastles where
-  this substitutes for not having in-app generation at all).
+- Actions row (revised per §0.1 — confirmed 4-action pattern from research, renamed/
+  originalized, now three visible controls instead of icon+overflow-only):
+  - **Save to Vault** (`🔖▾`, bookmark icon + chevron opens a small `DropdownMenu`:
+    "Save as Hook" / "Save as Style" / "Save both" — saving is now a typed choice,
+    not a plain bookmark toggle, since a Vault item is an *extracted template*, not
+    a copy of the video itself. Each option kicks off the same AI extraction the
+    Remix Studio's Hook/Style stages use.).
+  - **Create Prompt** (`✎`, promoted out of the overflow menu to its own small
+    button per the leader's course-correction — copies a structured, paste-ready
+    prompt block (topic + hook strategy + story structure + style notes + key facts)
+    to the clipboard. This is the escape hatch for using a different LLM or tweaking
+    outside the app; our primary path is still the in-app Remix Studio below, unlike
+    Sandcastles where this substitutes for not having in-app generation at all).
+  - Overflow `⋯` → Copy link / Copy raw transcript / **Similar outliers** (our take
+    on "More Like This" — pattern-similarity, not keyword match; kept in overflow
+    since it's a discovery jump, not a same-video action).
 - Right column: `Tabs` — **Transcript** (scrollable, timestamped), **Hook &
   Structure** (annotated segments: Hook 0–3s / Build / Payoff / CTA), **Why it
   worked** (short analysis notes).
@@ -305,40 +318,97 @@ generic "Boards" concept entirely rather than extending it.
 
 ### 2.5 Remix Studio (`/feed/:videoId/remix`)
 
-```
-┌───────────────────────────┬─────────────────────────────────────┐
-│ Source (collapsed header) │ Template: [Hook Swap ▾]        [⚙]  │
-│ @formfirst · 12.4× · 2.4M │ [ Generate 3 variants ]              │
-│ ──────────────────────── │ ┌────────┬────────┬────────┐         │
-│ Transcript / structure    │ │Variant1│Variant2│Variant3│  Tabs   │
-│ (read-only, scrollable)   │ ├────────┴────────┴────────┤         │
-│                           │ │ editable Textarea         │        │
-│                           │ │                            │        │
-│                           │ ├────────────────────────────┤        │
-│                           │ │ [↻ Regenerate] [Copy] [→ Board]│    │
-└───────────────────────────┴─────────────────────────────────────┘
-   resizable divider (shadcn Resizable / react-resizable-panels)
-```
-- Left pane: read-only source panel — condensed metric header + the same
-  transcript/structure content from Video Detail, scrollable independently.
-- Right pane: prompt **template selector** (Select — "Hook Swap," "Niche Transplant,"
-  "Format Remix," + user-defined custom templates via a small management
-  `DropdownMenu`), variant-count control (default 3), primary "Generate" button.
-- Generated variants render as `Tabs` (or side-by-side `Card`s if ≤2) each with an
-  editable `Textarea`, a regenerate icon-button (redo just that one variant), copy
-  button, and "Send to board" (saves script + source link into a Board).
-- Loading state: see §6.
-- Panes are resizable (drag the divider) — this is the one screen dense enough to
-  need it.
+**Rebuilt per §0.1** as a 5-stage pipeline — scout's confirmed real flow is
+Prompt → Research → Hook → Style → Script, not a single two-pane "source | generate"
+workspace. The stepper persists across all 5 stages; only the content card below it
+changes:
 
-### 2.6 Boards (`/boards`) + Board Detail
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ ① Prompt ──● ② Research ── ③ Hook ── ④ Style ── ⑤ Script         │ ← stepper
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│                     (stage content, one Card, full width)        │
+│                                                                   │
+├─────────────────────────────────────────────────────────────────┤
+│                                    [ ← Back ]   [ Continue → ]   │ ← nav footer
+└─────────────────────────────────────────────────────────────────┘
+```
 
-- Boards list: `Card` grid, each board = a 2×2 thumbnail collage (up to 4 saved
-  items) + name + item count. "New board" via `Dialog`.
-- Board Detail: `Tabs` — **Videos** (compact Outlier Card grid) / **Scripts** (a
-  different card type: template name + first-line excerpt + source video chip).
-  Drag-to-reorder is out of scope for v1 (noted as a future nice-to-have, not
-  designed here).
+- **Stepper**: 5 segments, numbered circles joined by a hairline. Current stage:
+  `--primary` fill. Completed stages: `success` checkmark, still clickable to jump
+  back and edit. Future stages: dimmed, not clickable until reached. No shadcn
+  primitive covers this natively — build it from `Separator` + styled buttons, flag
+  it as a small custom composite for builders rather than hunting for a "Stepper" in
+  the library.
+- **① Prompt**: `Textarea` — "What's this script about?", pre-seeded from the source
+  video's caption (editable). A collapsed, read-only chip above it shows which niche
+  profile context (from Settings) will be injected — visible, not hidden magic.
+- **② Research**: read-only panel — this is where v0.1's "source transcript/structure
+  analysis" content lives: the source video's transcript, hook/structure breakdown,
+  and a short "Similar outliers" list for extra pattern context. Nothing to edit
+  here, just grounding for what comes next.
+- **③ Hook**: `Tabs` — **"Generate new"** (button produces 3 fresh hook options as
+  small selectable cards, each with a "Save to Vault" affordance so a good new hook
+  gets captured, not lost) vs. **"From Vault"** (a filtered grid of saved Hook
+  templates, "Use this" button per card). Exactly one hook gets selected to proceed;
+  it stays pinned at the top of the stage once picked.
+- **④ Style**: identical pattern to Hook, for Style templates (structure/pacing/
+  editing-style pattern) instead of hook lines.
+- **⑤ Script**: the composed output — `Tabs` for N variants (default 3), each an
+  editable `Textarea` with a regenerate icon-button (redo just that variant), a
+  length/tone `Select`, and a footer action row: **Copy**, **Create Prompt** (same
+  clipboard-export affordance as Video Detail, per the leader's course-correction —
+  useful for tweaking in a different tool), and **Save to Vault** (files the script
+  into Vault's Scripts tab, linked back to its source hook/style/video).
+- Loading state: see §6 (per-stage, not a single full-screen spinner).
+- No resizable two-pane layout in v0.2 — the stepper structure replaced the fixed
+  source|output split, so `Resizable` is no longer needed here (dropped from §3).
+
+### 2.6 Vault (`/vault`) — replaces v0.1's "Boards"
+
+Per §0.1: this is scout's confirmed differentiator — a library of hook/style
+**templates extracted from videos**, not a bookmarked-videos collection. One page,
+one grid, no separate detail route (a template's full text is short enough to show
+inline or in a quick `Sheet`, unlike a video which needed the full Video Detail page).
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ Vault                                             [+ New template]│
+├─────────────────────────────────────────────────────────────────┤
+│ [Hooks] [Styles] [Scripts]                          ← Tabs        │
+├─────────────────────────────────────────────────────────────────┤
+│ ┌────────────┐┌────────────┐┌────────────┐┌────────────┐        │
+│ │ "3 mistakes│ │ "POV: you  │ │ "What 2,4… │ │ ...        │      │
+│ │  killing…" │ │  finally…" │ │            │ │            │      │
+│ │ ────────── │ │ ────────── │ │            │ │            │      │
+│ │ ▶ @formfirst│ │ ▶ @dailyl…│ │            │ │            │      │
+│ │ [Use][⋯]   │ │ [Use][⋯]   │ │            │ │            │      │
+│ └────────────┘└────────────┘└────────────┘└────────────┘        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+- Tabs (shadcn `Tabs`): **Hooks** / **Styles** / **Scripts** — three tabs, no "All"
+  view, since each type is consumed differently downstream (Hook/Style feed Remix
+  Studio's ③/④ stages; Scripts are finished output). This is a scoping call, not a
+  scout-confirmed detail: I folded "organize scripts" into a Vault tab rather than
+  inventing a separate "Projects" surface scout's research describes as distinct in
+  the real product — flag for the leader if a dedicated Projects surface is wanted
+  later, but a 6th top-level nav item felt like more IA than v1 needs.
+- **Template card** (Hooks/Styles tabs): the extracted text/pattern as a 2–3 line
+  clamp (the actual hook line, or a short description of the style pattern), a
+  source-video chip (small play glyph + channel handle, click → Video Detail),
+  optional tags, created date, footer actions **"Use in Remix Studio"** (jumps into
+  the matching stage of a Remix Studio session — prompts "pick a video to remix"
+  first via `Command` if no session is active) + overflow `⋯` (edit, delete, view
+  source video).
+- **Script card** (Scripts tab): topic/title + first-line excerpt + source-video chip
+  + small chips for the hook/style templates it used + actions (Open/Edit, **Create
+  Prompt**, Export, Delete).
+- "New template" `Dialog`: manual entry (topic + type + text) — the secondary path;
+  the primary path into the Vault is "Save to Vault" from Video Detail (§2.4) or
+  "Save to Vault" from a Remix Studio Hook/Style stage (§2.5).
+- Drag-to-reorder is out of scope for v1 (future nice-to-have, not designed here).
 
 ### 2.7 Settings (`/settings`)
 
@@ -355,31 +425,34 @@ generic "Boards" concept entirely rather than extending it.
 
 | Concept | shadcn/ui primitive | Used on |
 |---|---|---|
-| Reel card, stat tile, board cover | `Card` | Feed, Dashboard, Channel Detail, Boards |
+| Reel card, stat tile, Vault template/script card | `Card` | Feed, Dashboard, Channel Detail, Vault |
 | Multiplier / platform / status chip | `Badge` (custom color classes, see §5) | everywhere |
 | All buttons (primary/secondary/ghost/icon) | `Button` | everywhere |
 | Channel avatar | `Avatar` | cards, tables, Channel/Video Detail |
-| Section tabs | `Tabs` | Video Detail, Channel Detail, Remix Studio, Boards, Settings |
+| Section tabs | `Tabs` | Video Detail, Channel Detail, Vault (Hooks/Styles/Scripts), Remix Studio (Hook/Style stage: Generate new vs. From Vault; Script stage: variants), Settings |
 | Quick-preview slide-over | `Sheet` | Feed card click |
-| Add channel / new board / new fleet / confirmations | `Dialog` | Channels, Boards |
+| Add channel / new fleet / new Vault item (manual) / confirmations | `Dialog` | Channels, Vault |
 | Channel table | `Table` | Channel Library |
 | Filter selects (score, views, timeframe, follower band, sort) | `Select` | Feed filter bar |
-| Fleet scope, channel search, ⌘K palette | `Command` (+ `Dialog` for the ⌘K shell) | Feed, global |
+| Fleet scope, channel search, ⌘K palette, "pick a video to remix" | `Command` (+ `Dialog` for the ⌘K shell) | Feed, global, Vault → Remix Studio jump |
 | Platform filter, grid/list toggle | `ToggleGroup` | Feed filter bar |
-| Loading placeholders | `Skeleton` | Feed, Remix Studio, Dashboard |
-| Horizontal card rows, transcript panel, source panel | `ScrollArea` | Dashboard, Video Detail, Remix Studio |
-| Section dividers | `Separator` | most pages |
-| Row/card overflow actions | `DropdownMenu` | Feed cards, Channel table, Remix templates |
+| Loading placeholders | `Skeleton` | Feed, Remix Studio (per-stage), Dashboard, Vault |
+| Horizontal card rows, transcript/research panel | `ScrollArea` | Dashboard, Video Detail, Remix Studio (Research stage) |
+| Section dividers, stepper rail | `Separator` | most pages; also the Remix Studio stepper (§2.5 — custom composite, no native "Stepper" primitive) |
+| Row/card overflow actions, save-to-Vault type picker | `DropdownMenu` | Feed cards, Video Detail (Save to Vault), Channel table, Vault card management |
 | Metric explanations, truncated text | `Tooltip` | cards, stat tiles |
-| Script editing | `Textarea` | Remix Studio, Settings (niche profile) |
+| Script/prompt editing | `Textarea` | Remix Studio (Prompt + Script stages), Settings (niche profile) |
 | Text fields | `Input` | Settings, Add channel, filters |
 | Toggles | `Switch` | Settings |
 | Field labels / validation | `Label`, `Form` | Settings |
-| Sync progress | `Progress` | sidebar sync status, manual sync run |
-| Two-pane Remix Studio | `Resizable` (react-resizable-panels-based) | Remix Studio |
+| Sync progress, generation-in-progress | `Progress` | sidebar sync status, manual sync run, Remix Studio Research/Script stages |
 | Custom date range | `Popover` (+ simple preset list per §5 filter-control spec) | Feed filter bar |
-| Missing API key / zero-result banners | `Alert` | Settings, Feed |
-| Sync complete / script saved confirmations | `Sonner` (toast) | global |
+| Missing API key / zero-result / empty-Vault banners | `Alert` | Settings, Feed, Vault, Remix Studio (failed variant) |
+| Sync complete / template saved / script saved confirmations | `Sonner` (toast) | global |
+
+Dropped from v0.1: `Resizable` — the two-pane Remix Studio layout it supported was
+replaced by the 5-stage stepper (§2.5); nothing else in the product needs a
+resizable split, so the primitive isn't needed anywhere in v0.2.
 
 ---
 
@@ -560,7 +633,9 @@ behind a `.dark` class — there is no light variant to fall back from in v1.
   filter chip, not repeated here — keeps the card quiet).
 - **Caption**: 2-line clamp, `text-secondary`.
 - **Metrics row**: eye icon + compact view count (`2.4M`), relative post date.
-- **Footer actions**: save-to-board icon button (bookmark, toggles filled/outline),
+- **Footer actions**: save-to-Vault icon button (bookmark + chevron opens the same
+  "Save as Hook / Save as Style / Save both" `DropdownMenu` as Video Detail — §2.4,
+  revised per §0.1: this is a typed extraction now, not a plain bookmark toggle),
   small secondary "Remix" button, overflow `⋯` (view on platform / copy link /
   similar outliers).
 
@@ -599,16 +674,30 @@ behind a `.dark` class — there is no light variant to fall back from in v1.
   pill skeleton where the badge sits. Never a spinner in place of the grid — the
   skeleton communicates layout while data loads.
 
-**Remix Studio**
-- *Before first generation*: template selector prominent, large "Generate scripts"
-  primary CTA, right pane otherwise just a quiet placeholder line — "Pick a template
-  and generate to see variants here." No illustration.
-- *Generating*: right pane shows a status line — "Writing variant 2 of 3…" — with a
-  small `Progress`/spinner, plus skeleton `Textarea` blocks for not-yet-done variants
-  so the layout doesn't jump when each variant completes.
+**Remix Studio** (revised for the §0.1 staged pipeline — states are per-stage, not
+one screen)
+- *Hook / Style stage, "From Vault" tab, empty*: "No saved [hooks/styles] yet —
+  generate one now, or save one from any video's detail page." CTA switches focus to
+  the "Generate new" tab rather than sending Kai away mid-flow.
+- *Generating (Research auto-pull, or Script variants)*: a status line — "Writing
+  variant 2 of 3…" — with a small `Progress`/spinner, plus skeleton `Textarea` blocks
+  for not-yet-done variants so the layout doesn't jump as each one completes.
 - *Generation failed*: inline `Alert` (destructive) in place of the failed variant
   only — "Couldn't generate this variant" + retry button — the other variants (if
   they succeeded) stay intact rather than failing the whole batch.
+- *Script stage, before first generation*: variant-count and length/tone controls
+  prominent, large "Write script" primary CTA, otherwise a quiet placeholder line —
+  "Generate to see variants here." No illustration.
+
+**Vault**
+- *Empty (no templates at all)*: "No templates yet — save a hook or style from any
+  video to start your Vault," primary button "Browse the Feed" (→ Outlier Feed, the
+  natural source of videos worth extracting from).
+- *A tab empty but others have items* (e.g. Styles has 3 items, Hooks has 0): tab-
+  local copy — "No hooks saved yet" — rather than the full empty state, since the
+  Vault as a whole isn't actually empty.
+- *Loading*: skeleton grid matching the template card shape (two text-line
+  skeletons + a source-chip skeleton), same pattern as the Feed's loading state.
 
 ---
 
