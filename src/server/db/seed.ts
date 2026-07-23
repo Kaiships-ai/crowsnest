@@ -19,6 +19,12 @@ const PLATFORMS: Platform[] = ["instagram", "youtube_shorts", "tiktok", "instagr
 // video index PLANT_VIDEO_INDEXES[0] (=2), its second entry overwrites index [1] (=15).
 const PLANT_VIDEO_INDEXES: [number, number] = [2, 15];
 
+// likeCount = 2-6% of (final) viewCount; commentCount = 1-4% of likeCount.
+const LIKE_RATIO_MIN = 0.02;
+const LIKE_RATIO_SPAN = 0.04;
+const COMMENT_RATIO_MIN = 0.01;
+const COMMENT_RATIO_SPAN = 0.03;
+
 interface GenVideo {
   id: string;
   channelIndex: number;
@@ -30,6 +36,8 @@ interface GenVideo {
   durationSec: number;
   viewCount: number;
   outlierScore: number | null;
+  likeCount: number;
+  commentCount: number;
 }
 
 interface Plant {
@@ -91,13 +99,14 @@ async function wipeAll(dbInstance: AppDb): Promise<void> {
 
 /**
  * Wipes and repopulates `dbInstance` with a deterministic demo dataset: 4 channels,
- * 20 videos each (80 total, view counts drawn from a per-channel lognormal), 8 planted
+ * 20 videos each (80 total, view counts drawn from a per-channel lognormal, with
+ * likeCount/commentCount derived from each video's final view count), 8 planted
  * outliers with pinned multipliers, 2 fleets, 2 system saved filters, 6 vault items,
  * 2 demo scripts, transcripts for the planted outliers, and one app_settings row.
  *
  * Deterministic: the PRNG is re-seeded (mulberry32(1337)) on every call, so two calls —
- * even two calls in the same process — produce identical view counts and scores.
- * Returns a one-line summary string (also what `npm run db:seed` prints).
+ * even two calls in the same process — produce identical view/like/comment counts and
+ * scores. Returns a one-line summary string (also what `npm run db:seed` prints).
  */
 export async function seedDatabase(dbInstance: AppDb): Promise<string> {
   await wipeAll(dbInstance);
@@ -143,6 +152,8 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
         durationSec,
         viewCount,
         outlierScore: null,
+        likeCount: 0, // placeholder — set from the *final* (post-plant) viewCount below
+        commentCount: 0,
       });
     }
   }
@@ -178,11 +189,20 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
     }
   }
 
-  // ---- final per-channel scoring (persisted alongside the insert) ----
+  // ---- final per-channel scoring + engagement counts (persisted alongside the insert) ----
+  // Engagement is derived from the *final* (post-plant) viewCount, drawn from the same
+  // mulberry32 stream (2 more rng() calls per video, after all view/duration draws above)
+  // so determinism holds end to end. shareCount is left null — no UI consumes it yet.
   for (let ch = 0; ch < SEED_CHANNELS.length; ch++) {
     const channelVideos = allVideos.filter((v) => v.channelIndex === ch);
     const scores = scoreVideos(channelVideos.map(toCalc), VIDEOS_PER_CHANNEL);
-    for (const v of channelVideos) v.outlierScore = scores.get(v.id) ?? null;
+    for (const v of channelVideos) {
+      v.outlierScore = scores.get(v.id) ?? null;
+      const likeRatio = LIKE_RATIO_MIN + rng() * LIKE_RATIO_SPAN; // 2-6% of views
+      v.likeCount = Math.round(v.viewCount * likeRatio);
+      const commentRatio = COMMENT_RATIO_MIN + rng() * COMMENT_RATIO_SPAN; // 1-4% of likes
+      v.commentCount = Math.round(v.likeCount * commentRatio);
+    }
   }
 
   await dbInstance.insert(tables.videos).values(
@@ -197,6 +217,8 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
       durationSec: v.durationSec,
       thumbnailUrl: null,
       viewCount: v.viewCount,
+      likeCount: v.likeCount,
+      commentCount: v.commentCount,
       outlierScore: v.outlierScore,
       firstSeenAt: now,
       lastRefreshedAt: now,

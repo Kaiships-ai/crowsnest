@@ -29,6 +29,20 @@ describe("seedDatabase", () => {
       expect(v.outlierScore).not.toBeUndefined();
     }
 
+    // every video has a deterministic, non-null likeCount strictly below its viewCount
+    // (likeCount = 2-6% of views), and a non-null commentCount (1-4% of likes)
+    for (const v of videos) {
+      expect(typeof v.likeCount).toBe("number");
+      expect(typeof v.commentCount).toBe("number");
+      expect(typeof v.viewCount).toBe("number");
+      if (typeof v.likeCount === "number" && typeof v.viewCount === "number") {
+        expect(v.likeCount).toBeLessThan(v.viewCount);
+      }
+      if (typeof v.commentCount === "number" && typeof v.likeCount === "number") {
+        expect(v.commentCount).toBeLessThan(v.likeCount);
+      }
+    }
+
     const highScorers = videos.filter((v) => (v.outlierScore ?? 0) >= 2.5);
     expect(highScorers.length).toBeGreaterThanOrEqual(8);
 
@@ -50,26 +64,29 @@ describe("seedDatabase", () => {
     expect(vaultItems.filter((v) => v.type === "style")).toHaveLength(3);
   });
 
-  test("is deterministic: running seedDatabase twice yields identical top-5 video view counts", async () => {
+  test("is deterministic: running seedDatabase twice yields identical top-5 video view/like/comment counts", async () => {
     const { db, tables } = await import("./index");
     const { migrate } = await import("./test-migrate");
     const { seedDatabase } = await import("./seed");
     migrate();
 
-    await seedDatabase(db);
-    const first = await db
-      .select({ viewCount: tables.videos.viewCount })
-      .from(tables.videos)
-      .orderBy(desc(tables.videos.viewCount))
-      .limit(5);
+    const top5 = () =>
+      db
+        .select({
+          viewCount: tables.videos.viewCount,
+          likeCount: tables.videos.likeCount,
+          commentCount: tables.videos.commentCount,
+        })
+        .from(tables.videos)
+        .orderBy(desc(tables.videos.viewCount))
+        .limit(5);
 
     await seedDatabase(db);
-    const second = await db
-      .select({ viewCount: tables.videos.viewCount })
-      .from(tables.videos)
-      .orderBy(desc(tables.videos.viewCount))
-      .limit(5);
+    const first = await top5();
 
-    expect(second.map((r) => r.viewCount)).toEqual(first.map((r) => r.viewCount));
+    await seedDatabase(db);
+    const second = await top5();
+
+    expect(second).toEqual(first);
   });
 });
