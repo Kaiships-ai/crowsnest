@@ -28,7 +28,7 @@ Open [http://localhost:3000](http://localhost:3000) to get started.
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint on the codebase |
-| `npm run test` | Run tests once (10 tests) |
+| `npm run test` | Run tests once (Vitest) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run db:generate` | Generate Drizzle migrations from schema |
 | `npm run db:migrate` | Apply migrations to SQLite database |
@@ -44,7 +44,7 @@ All variables are **optional**. The app works keyless with seeded demo data and 
 | `APIFY_TOKEN` | Apify token for channel sync (primary provider) | `apify_api_...` |
 | `GROQ_API_KEY` | Groq API key for transcript analysis fallback | `gsk_...` |
 | `HIKERAPI_KEY` | HikerAPI key for channel data fallback | `hiker_...` |
-| `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-4`) | `claude-opus-4` |
+| `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-5`) | `claude-opus-4-8` |
 | `CROWSNEST_DB_PATH` | Custom SQLite database file path | `/path/to/db.sqlite` |
 
 ## Architecture
@@ -79,7 +79,7 @@ This is a strict TypeScript project. Before committing, ensure:
 
 ```bash
 npm run build  # Must succeed
-npm run test   # Must pass all 10 tests
+npm run test   # Full suite must pass
 npm run lint   # No ESLint errors
 git status     # Working tree clean
 ```

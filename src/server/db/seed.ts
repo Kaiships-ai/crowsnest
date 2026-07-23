@@ -241,8 +241,8 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
 
   // ---- saved filters (system presets) ----
   await dbInstance.insert(tables.savedFilters).values([
-    { id: newId(), name: "Balanced", criteria: { minScore: 5, timeframeDays: 30 }, isSystem: true },
-    { id: newId(), name: "High Conviction", criteria: { minScore: 10, timeframeDays: 14, minViews: 500_000 }, isSystem: true },
+    { id: newId(), name: "Balanced", criteria: { minScore: 5, sinceDays: 30 }, isSystem: true },
+    { id: newId(), name: "High Conviction", criteria: { minScore: 10, sinceDays: 14, minViews: 500_000 }, isSystem: true },
   ]);
 
   // ---- vault items (3 hooks + 3 styles), some sourced from planted-outlier videos ----
