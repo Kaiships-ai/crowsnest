@@ -17,6 +17,9 @@
 - Every user-visible string original — no Sandcastles copy. Product name Crowsnest.
 - TS strict, no `any`. Every task: `npm run build && npm test` green → commit (conventional + `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`).
 - Follower bands: nano <10K, micro 10K–100K, mid 100K–1M, macro ≥1M (DESIGN.md §2.2).
+- **Test-DB pattern (phase-1 final-review M7):** the db singleton binds `CROWSNEST_DB_PATH` at import — every query test MUST copy `seed.test.ts`'s pattern (`beforeAll` sets env to `:memory:`, then dynamic `await import`, then `migrate()` from `test-migrate.ts`) or it will silently hit the real `data/crowsnest.db`.
+- **Channel Detail series (phase-1 final-review M8):** seed writes ZERO snapshot rows (only 2A's sync populates them). `ChannelDetail.series` MUST be built from the `videos` table (x = `postedAt`, y = `viewCount`, dot = `outlierScore`), NOT from `video_snapshots` — otherwise the chart is empty on seed data and Task 6's acceptance fails. Keep `medianViews`' snapshot-then-compute fallback as specced.
+- **Headings (M6):** the topbar already renders the page's h1; page-level headings in content use h2 (avoid dual h1 per route).
 
 ---
 
