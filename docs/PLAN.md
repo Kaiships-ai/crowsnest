@@ -14,7 +14,7 @@ Target user: Kai, solo. Target cost: ~$0/mo (local-first, no hosting). Feeds the
 
 | Decision | Choice | Why |
 |---|---|---|
-| Stack | Next.js 15 (App Router, TS) + Tailwind + shadcn/ui | Kai already ships Next.js; fastest path |
+| Stack | Next.js 16 (App Router, TS) + Tailwind + shadcn/ui | Kai already ships Next.js; fastest path. (Plan said 15; `create-next-app@latest` delivered 16.2.11 — accepted 2026-07-23) |
 | DB | SQLite (better-sqlite3) + Drizzle ORM | Local file, zero cost, no server |
 | Runtime | Local-first (`npm run dev` on Mac) | $0/mo constraint; deploy optional later |
 | AI remix | Claude API, default `claude-sonnet-5` | Quality/cost balance; key via `ANTHROPIC_API_KEY` |

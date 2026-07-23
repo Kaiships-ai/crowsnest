@@ -43,3 +43,6 @@ next-env.d.ts
 # local data + secrets
 data/
 .env.local
+
+# sdd scratch
+.superpowers/

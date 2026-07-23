@@ -41,7 +41,7 @@ Everything scout marked **must** (= the entire paid $49/mo value of the real pro
 ## 4. Architecture
 
 ```
-Next.js 15 App Router (TS, single process)
+Next.js 16 App Router (TS, single process — plan said 15, @latest delivered 16.2.11, accepted)
 ├─ app/                     routes per DESIGN.md §1 IA (with /vault)
 ├─ src/server/db            Drizzle + better-sqlite3 (file: data/crowsnest.db)
 ├─ src/server/providers     SocialProvider impls: apify (primary), hikerapi (fallback),
