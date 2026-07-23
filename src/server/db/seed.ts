@@ -219,6 +219,7 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
       viewCount: v.viewCount,
       likeCount: v.likeCount,
       commentCount: v.commentCount,
+      shareCount: null,
       outlierScore: v.outlierScore,
       firstSeenAt: now,
       lastRefreshedAt: now,
@@ -253,8 +254,8 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
       type: "hook",
       sourceVideoId: plants[0].videoId, // channel 0, 12.4x
       title: "Negative Warning Hook",
-      templateText: "{count} mistakes killing your {topic} before you even hit post",
-      tags: ["negative", "listicle"],
+      templateText: "you're falling behind because nobody's talking about this {topic} tool (yet)",
+      tags: ["warning", "curiosity"],
       createdAt: now,
     },
     {
@@ -323,13 +324,13 @@ export async function seedDatabase(dbInstance: AppDb): Promise<string> {
     },
     {
       id: newId(),
-      title: "3 Mistakes Killing Your Growth — Script Final",
+      title: "The Tool Everyone's Sleeping On — Script Final",
       content:
-        "HOOK: 3 mistakes killing your first 1,000 followers\n" +
-        "BEAT 1: posting without a hook in the first 2 seconds.\n" +
-        "BEAT 2: no consistent posting cadence — the algorithm forgets you.\n" +
-        "BEAT 3: never re-using what already worked.\n" +
-        "CTA: save this and audit your last 5 posts against it.",
+        "HOOK: you're falling behind because nobody's talking about this AI tool (yet)\n" +
+        "BEAT 1: I almost scrolled past it — buried in a random thread, zero hype.\n" +
+        "BEAT 2: it does in one prompt what used to take me an hour of manual editing.\n" +
+        "BEAT 3: the creators already using it aren't posting about it — that's exactly why it still works.\n" +
+        "CTA: save this before everyone else finds out.",
       sourceVideoId: plants[0].videoId,
       hookVaultItemId: hookIds[0],
       styleVaultItemId: styleIds[1],
