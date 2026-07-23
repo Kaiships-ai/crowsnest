@@ -63,6 +63,16 @@ brand-rule reason to switch. Same reasoning kept "Fleet" over "Watchlist." Every
 else below (brand rule, tokens, Outlier Feed layout, the mock file) is unchanged from
 v0.1 per the leader's explicit instruction.
 
+**Second alignment pass:** the leader's own synthesis doc,
+`docs/superpowers/specs/2026-07-23-crowsnest-design.md`, is canonical for Vault (its
+§6) and the Remix Studio pipeline (its §7) — my first v0.2 pass got the shape right
+(Vault as a template library, Remix as a staged pipeline) but missed several specifics
+that doc locks down: a persistent left context rail in Remix Studio, a "Quick Remix"
+fast path, an editable (not read-only) Research stage, 5 generated hooks seeded
+optionally by a Vault template rather than a strict generate/browse split, and exact
+terminology (`In Vault`, `Save script`). §2.5 and §2.6 below are corrected to match
+that doc exactly; nothing else changed in this pass.
+
 ---
 
 ## 1. IA / Sitemap
@@ -256,7 +266,7 @@ generic "Boards" concept entirely rather than extending it.
 │ Outlier history                                                  │
 │  ⟋⟍⟋⟍⟋●⟍⟋⟍●⟋⟍⟋   (line, muted; outlier spikes emphasized/amber)│ ← chart, §5
 ├─────────────────────────────────────────────────────────────────┤
-│ [Recent Reels] [Outliers Only] [Vaulted]           ← Tabs        │
+│ [Recent Reels] [Outliers Only] [In Vault]          ← Tabs        │
 │ [card][card][card][card]                                        │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -264,13 +274,14 @@ generic "Boards" concept entirely rather than extending it.
   to the live profile, Sync now + Untrack buttons.
 - Stat tile row (4 tiles, no sparkline needed here — the chart below covers trend).
 - Outlier history chart: see §5 for the full dataviz spec (emphasis form).
-- Tabs (shadcn `Tabs`): Recent Reels / Outliers Only / **Vaulted** — the third tab's
-  meaning shifted with §0.1's course-correction: it's no longer "videos saved to a
-  board," it's this channel's videos that have **at least one Vault template
-  extracted from them**, so Kai can see which of a channel's reels already fed the
-  Vault vs. which are still untapped. Each tab is a grid of the compact Outlier Card
-  variant; a small template-count chip on the card (e.g. "2 templates") replaces the
-  old bookmark-filled icon for this tab specifically.
+- Tabs (shadcn `Tabs`): Recent Reels / Outliers Only / **In Vault** (exact label per
+  the canonical spec's terminology sweep, §0.1) — the third tab's meaning shifted
+  with the Boards→Vault change: it's no longer "videos saved to a board," it's this
+  channel's videos that have **at least one Vault template extracted from them**, so
+  Kai can see which of a channel's reels already fed the Vault vs. which are still
+  untapped. Each tab is a grid of the compact Outlier Card variant; a small
+  template-count chip on the card (e.g. "2 templates") replaces the old
+  bookmark-filled icon for this tab specifically.
 
 ### 2.4 Video Detail (`/feed/:videoId`)
 
@@ -298,8 +309,9 @@ generic "Boards" concept entirely rather than extending it.
   - **Save to Vault** (`🔖▾`, bookmark icon + chevron opens a small `DropdownMenu`:
     "Save as Hook" / "Save as Style" / "Save both" — saving is now a typed choice,
     not a plain bookmark toggle, since a Vault item is an *extracted template*, not
-    a copy of the video itself. Each option kicks off the same AI extraction the
-    Remix Studio's Hook/Style stages use.).
+    a copy of the video itself. Each option opens an editable preview **prefilled
+    from the video's AI analysis** (title + template text) before the save commits —
+    never a silent auto-save; see §2.6 for the full Vault-side spec.).
   - **Create Prompt** (`✎`, promoted out of the overflow menu to its own small
     button per the leader's course-correction — copies a structured, paste-ready
     prompt block (topic + hook strategy + story structure + style notes + key facts)
@@ -318,52 +330,74 @@ generic "Boards" concept entirely rather than extending it.
 
 ### 2.5 Remix Studio (`/feed/:videoId/remix`)
 
-**Rebuilt per §0.1** as a 5-stage pipeline — scout's confirmed real flow is
-Prompt → Research → Hook → Style → Script, not a single two-pane "source | generate"
-workspace. The stepper persists across all 5 stages; only the content card below it
-changes:
+**Corrected to match the canonical spec's §7 exactly** (see §0.1) — a persistent left
+context rail plus a 5-stage stepper in the main area, not a full-width stepper alone:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│ ① Prompt ──● ② Research ── ③ Hook ── ④ Style ── ⑤ Script         │ ← stepper
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│                     (stage content, one Card, full width)        │
-│                                                                   │
-├─────────────────────────────────────────────────────────────────┤
-│                                    [ ← Back ]   [ Continue → ]   │ ← nav footer
-└─────────────────────────────────────────────────────────────────┘
+┌───────────┬───────────────────────────────────────────────────────┐
+│ Source    │ ① Prompt ──● ② Research ── ③ Hook ── ④ Style ── ⑤ Script│ ← stepper
+│ (rail)    ├───────────────────────────────────────────────────────┤
+│ 9:16 thumb│                                                        │
+│ 12.4×     │          (stage content, one Card, full width)         │
+│ @formfirst│                                                        │
+│ ↳ transcript                                                      │
+│           ├───────────────────────────────────────────────────────┤
+│           │                            [ ← Back ]   [ Continue → ]│ ← nav footer
+└───────────┴───────────────────────────────────────────────────────┘
+  ~220px       fluid — the rail is collapsed/condensed and persists
+  persistent   across all 5 stages; the stepper and stage content sit
+               in the remaining width
 ```
 
-- **Stepper**: 5 segments, numbered circles joined by a hairline. Current stage:
-  `--primary` fill. Completed stages: `success` checkmark, still clickable to jump
-  back and edit. Future stages: dimmed, not clickable until reached. No shadcn
-  primitive covers this natively — build it from `Separator` + styled buttons, flag
-  it as a small custom composite for builders rather than hunting for a "Stepper" in
-  the library.
-- **① Prompt**: `Textarea` — "What's this script about?", pre-seeded from the source
-  video's caption (editable). A collapsed, read-only chip above it shows which niche
-  profile context (from Settings) will be injected — visible, not hidden magic.
-- **② Research**: read-only panel — this is where v0.1's "source transcript/structure
-  analysis" content lives: the source video's transcript, hook/structure breakdown,
-  and a short "Similar outliers" list for extra pattern context. Nothing to edit
-  here, just grounding for what comes next.
-- **③ Hook**: `Tabs` — **"Generate new"** (button produces 3 fresh hook options as
-  small selectable cards, each with a "Save to Vault" affordance so a good new hook
-  gets captured, not lost) vs. **"From Vault"** (a filtered grid of saved Hook
-  templates, "Use this" button per card). Exactly one hook gets selected to proceed;
-  it stays pinned at the top of the stage once picked.
-- **④ Style**: identical pattern to Hook, for Style templates (structure/pacing/
-  editing-style pattern) instead of hook lines.
+- **Left context rail** (~220px, persists across all 5 stages): a condensed version
+  of Video Detail's left column — static thumbnail, the multiplier badge, channel
+  chip, and a "View full transcript" link that opens the transcript in a `Sheet`
+  rather than duplicating it inline. This replaced v0.1's mistaken read that the
+  stepper alone (no permanent source reference) was enough — the canonical spec is
+  explicit that source context should stay visible at every stage, not just in
+  Research.
+- **Stepper**: 5 segments, numbered circles joined by a hairline, sitting above the
+  stage content in the main (non-rail) column. Current stage: `--primary` fill.
+  Completed stages: `success` checkmark, still clickable to jump back and edit.
+  Future stages: dimmed, not clickable until reached. No shadcn primitive covers this
+  natively — build it from `Separator` + styled buttons, flagged as a small custom
+  composite for builders rather than hunting for a "Stepper" in the library.
+- **① Prompt**: `Textarea` — "What's this script about?", pre-filled with a suggested
+  topic that **transplants the source video's topic into Kai's niche** (from
+  Settings), not a verbatim copy of its caption. A collapsed, read-only chip shows
+  which niche-profile context will be injected. A **target length `Select`**
+  (30/45/60/90s) sits alongside the topic field. A secondary **"Quick Remix"**
+  button next to "Continue" runs all 5 stages with defaults end-to-end (the <60s
+  path from scout's research) and lands directly on stage ⑤ Script — every earlier
+  stage stays reachable and editable via the stepper afterward, it's a shortcut
+  through the defaults, not a different, unreviewable flow.
+- **② Research**: **editable**, not read-only (corrected from my first pass) —
+  auto-assembled from the source video's analysis + transcript, the **top 5 similar
+  tracked outliers** (via the `similar` service, DESIGN.md's take on "More Like
+  This"), plus a free-text **facts box** for anything Kai wants to add by hand before
+  it all feeds the Hook/Style/Script stages downstream.
+- **③ Hook**: an optional **"Seed from a Vault hook"** `Select` (defaults to none) —
+  if set, generation uses that template as a pattern; if left empty, generation falls
+  back to the source video's own hook pattern. A **"Generate 5 hooks"** button
+  produces 5 selectable option cards, each with **use / edit / save-to-Vault**
+  actions (not a generate-vs-browse tab split — the Vault template informs one
+  generation step rather than sitting in a separate parallel list). Exactly one hook
+  gets used to proceed; it stays pinned at the top of the stage once picked.
+- **④ Style**: the same seed-then-generate shape as Hook — choose **"Source video's
+  structure"** (default) or a **Vault style template**, then generate an editable
+  beat outline (segments with labels/timing, edited inline, not just picked as-is).
 - **⑤ Script**: the composed output — `Tabs` for N variants (default 3), each an
-  editable `Textarea` with a regenerate icon-button (redo just that variant), a
-  length/tone `Select`, and a footer action row: **Copy**, **Create Prompt** (same
-  clipboard-export affordance as Video Detail, per the leader's course-correction —
-  useful for tweaking in a different tool), and **Save to Vault** (files the script
-  into Vault's Scripts tab, linked back to its source hook/style/video).
+  editable `Textarea` with a regenerate icon-button (redo just that variant); a
+  per-variant failure shows an inline `Alert` + retry, successes stay untouched
+  (§6). Footer action row: **Copy**, **Create Prompt** (clipboard export per §8 —
+  same affordance as Video Detail, useful for tweaking in a different tool), and
+  **Save script** (writes to the `scripts` table, linked to its source video/hook/
+  style — renamed from my first pass's "Save to Vault," which was the wrong verb: a
+  script is its own entity, not a Vault item, even though it's browsable from the
+  Vault's Scripts tab, §2.6).
 - Loading state: see §6 (per-stage, not a single full-screen spinner).
-- No resizable two-pane layout in v0.2 — the stepper structure replaced the fixed
-  source|output split, so `Resizable` is no longer needed here (dropped from §3).
+- No resizable two-pane layout — the rail-plus-stepper structure replaced the fixed
+  source|output split, so `Resizable` isn't needed anywhere in the product (§3).
 
 ### 2.6 Vault (`/vault`) — replaces v0.1's "Boards"
 
@@ -395,19 +429,28 @@ inline or in a quick `Sheet`, unlike a video which needed the full Video Detail 
   inventing a separate "Projects" surface scout's research describes as distinct in
   the real product — flag for the leader if a dedicated Projects surface is wanted
   later, but a 6th top-level nav item felt like more IA than v1 needs.
-- **Template card** (Hooks/Styles tabs): the extracted text/pattern as a 2–3 line
-  clamp (the actual hook line, or a short description of the style pattern), a
-  source-video chip (small play glyph + channel handle, click → Video Detail),
-  optional tags, created date, footer actions **"Use in Remix Studio"** (jumps into
-  the matching stage of a Remix Studio session — prompts "pick a video to remix"
-  first via `Command` if no session is active) + overflow `⋯` (edit, delete, view
-  source video).
-- **Script card** (Scripts tab): topic/title + first-line excerpt + source-video chip
-  + small chips for the hook/style templates it used + actions (Open/Edit, **Create
-  Prompt**, Export, Delete).
-- "New template" `Dialog`: manual entry (topic + type + text) — the secondary path;
-  the primary path into the Vault is "Save to Vault" from Video Detail (§2.4) or
-  "Save to Vault" from a Remix Studio Hook/Style stage (§2.5).
+- **Template card** (Hooks/Styles tabs): a short **title** (e.g. "Mistake-Callout
+  Hook") above the **template text** — the reusable pattern itself, which can carry
+  `{topic}`-style slots (e.g. "3 mistakes killing your {topic} progress") so one
+  saved template restates across niches rather than being a one-off quote — shown as
+  a 2–3 line clamp, a source-video chip (small play glyph + channel handle, click →
+  Video Detail), optional tags, created date, footer actions **"Use in Remix"**
+  (jumps into the matching stage of a Remix Studio session — prompts "pick a video to
+  remix" first via `Command` if no session is active) + overflow `⋯` (edit, delete,
+  view source video).
+- **Script card** (Scripts tab): reads from the separate `scripts` table, not
+  `vault_items` (data model in the canonical spec) — topic/title + first-line
+  excerpt + source-video chip + small chips for the hook/style templates it used
+  (its `hookVaultItemId`/`styleVaultItemId`) + actions (Open/Edit, **Create Prompt**,
+  Export, Delete). The Scripts tab is a presentation choice — Kai browses scripts
+  alongside templates in one place — not a claim that scripts are Vault items.
+- **Saving into the Vault** — three paths: (a) Video Detail's "Save to Vault"
+  (§2.4) opens an editable preview **prefilled from the video's AI analysis**
+  (title + template text already drafted, both editable) before the save commits —
+  never a silent, un-reviewable auto-save; (b) a Remix Studio Hook/Style stage's
+  "save-to-Vault" action on a freshly generated option (§2.5); (c) the manual "New
+  template" `Dialog` (topic + type + text), the secondary path for typing one in
+  from scratch.
 - Drag-to-reorder is out of scope for v1 (future nice-to-have, not designed here).
 
 ### 2.7 Settings (`/settings`)
@@ -429,19 +472,19 @@ inline or in a quick `Sheet`, unlike a video which needed the full Video Detail 
 | Multiplier / platform / status chip | `Badge` (custom color classes, see §5) | everywhere |
 | All buttons (primary/secondary/ghost/icon) | `Button` | everywhere |
 | Channel avatar | `Avatar` | cards, tables, Channel/Video Detail |
-| Section tabs | `Tabs` | Video Detail, Channel Detail, Vault (Hooks/Styles/Scripts), Remix Studio (Hook/Style stage: Generate new vs. From Vault; Script stage: variants), Settings |
+| Section tabs | `Tabs` | Video Detail, Channel Detail, Vault (Hooks/Styles/Scripts), Remix Studio (Script stage variants only — Hook/Style stages use a Select seed-picker + Generate button, not tabs), Settings |
 | Quick-preview slide-over | `Sheet` | Feed card click |
 | Add channel / new fleet / new Vault item (manual) / confirmations | `Dialog` | Channels, Vault |
 | Channel table | `Table` | Channel Library |
-| Filter selects (score, views, timeframe, follower band, sort) | `Select` | Feed filter bar |
+| Filter selects (score, views, timeframe, follower band, sort); target length; Hook/Style "seed from Vault" pickers | `Select` | Feed filter bar; Remix Studio Prompt/Hook/Style stages |
 | Fleet scope, channel search, ⌘K palette, "pick a video to remix" | `Command` (+ `Dialog` for the ⌘K shell) | Feed, global, Vault → Remix Studio jump |
 | Platform filter, grid/list toggle | `ToggleGroup` | Feed filter bar |
 | Loading placeholders | `Skeleton` | Feed, Remix Studio (per-stage), Dashboard, Vault |
-| Horizontal card rows, transcript/research panel | `ScrollArea` | Dashboard, Video Detail, Remix Studio (Research stage) |
+| Horizontal card rows, left context rail's transcript link, Research stage | `ScrollArea` + `Sheet` (transcript expand) | Dashboard, Remix Studio (rail + Research stage) |
 | Section dividers, stepper rail | `Separator` | most pages; also the Remix Studio stepper (§2.5 — custom composite, no native "Stepper" primitive) |
 | Row/card overflow actions, save-to-Vault type picker | `DropdownMenu` | Feed cards, Video Detail (Save to Vault), Channel table, Vault card management |
 | Metric explanations, truncated text | `Tooltip` | cards, stat tiles |
-| Script/prompt editing | `Textarea` | Remix Studio (Prompt + Script stages), Settings (niche profile) |
+| Script/prompt editing, Research stage facts box | `Textarea` | Remix Studio (Prompt, Research, Script stages), Settings (niche profile) |
 | Text fields | `Input` | Settings, Add channel, filters |
 | Toggles | `Switch` | Settings |
 | Field labels / validation | `Label`, `Form` | Settings |
@@ -633,11 +676,12 @@ behind a `.dark` class — there is no light variant to fall back from in v1.
   filter chip, not repeated here — keeps the card quiet).
 - **Caption**: 2-line clamp, `text-secondary`.
 - **Metrics row**: eye icon + compact view count (`2.4M`), relative post date.
-- **Footer actions**: save-to-Vault icon button (bookmark + chevron opens the same
-  "Save as Hook / Save as Style / Save both" `DropdownMenu` as Video Detail — §2.4,
-  revised per §0.1: this is a typed extraction now, not a plain bookmark toggle),
-  small secondary "Remix" button, overflow `⋯` (view on platform / copy link /
-  similar outliers).
+- **Footer actions**: save-to-Vault icon button — `title`/tooltip text reads **"Save
+  to Vault"** (not "Save to board" — swept per §0.1), bookmark + chevron opens the
+  same "Save as Hook / Save as Style / Save both" `DropdownMenu` as Video Detail
+  (§2.4): this is a typed extraction now, not a plain bookmark toggle. Small
+  secondary "Remix" button, overflow `⋯` (view on platform / copy link / similar
+  outliers).
 
 **Dataviz cross-reference** (skill invoked before finalizing any of the above):
 - The multiplier badge is a **sequential/magnitude** encoding, one hue, four
@@ -676,9 +720,10 @@ behind a `.dark` class — there is no light variant to fall back from in v1.
 
 **Remix Studio** (revised for the §0.1 staged pipeline — states are per-stage, not
 one screen)
-- *Hook / Style stage, "From Vault" tab, empty*: "No saved [hooks/styles] yet —
-  generate one now, or save one from any video's detail page." CTA switches focus to
-  the "Generate new" tab rather than sending Kai away mid-flow.
+- *Hook / Style stage, no saved templates yet*: the "Seed from a Vault hook/style"
+  `Select` just shows "No saved [hooks/styles] yet" as a disabled option instead of a
+  dead end — generation still works with no seed selected (falls back to the source
+  video's own pattern), so an empty Vault never blocks the stage.
 - *Generating (Research auto-pull, or Script variants)*: a status line — "Writing
   variant 2 of 3…" — with a small `Progress`/spinner, plus skeleton `Textarea` blocks
   for not-yet-done variants so the layout doesn't jump as each one completes.
