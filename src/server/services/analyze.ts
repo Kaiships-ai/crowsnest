@@ -4,7 +4,9 @@ import { getLlm, resolveModel, type LlmClient } from "@/server/llm/client";
 import { VideoAnalysisSchema, type VideoAnalysis } from "@/server/llm/schemas";
 import { ANALYZE_SYSTEM, buildAnalyzeUser } from "./prompts/analyze-prompt";
 
-function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): VideoAnalysis {
+// Exported for reuse by remix.ts (Task 5), which needs the same video_analyses row ->
+// VideoAnalysis mapping to describe the source video's hook/structure to Claude.
+export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): VideoAnalysis {
   return {
     hookType: row.hookType ?? "",
     structureSegments: row.structureSegments ?? [],
