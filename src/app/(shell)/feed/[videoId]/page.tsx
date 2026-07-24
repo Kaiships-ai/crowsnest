@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { VideoDetail } from "@/components/video/video-detail";
 import { hasLlmKey } from "@/server/llm/client";
 import { getVideoDetail } from "@/server/queries/video";
+import { getSimilarOutliers } from "@/server/services/similar";
 
 // Both generateMetadata and the page component need the same fetch this request —
 // React's cache() dedupes them to a single DB round-trip.
@@ -42,10 +43,11 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ vi
   const { videoId } = await params;
   const detail = await getCachedVideoDetail(videoId);
   if (!detail) notFound();
+  const similar = await getSimilarOutliers(videoId);
 
   return (
     <div className="mx-auto h-full max-w-[1120px]">
-      <VideoDetail detail={detail} hasLlmKey={hasLlmKey()} />
+      <VideoDetail detail={detail} hasLlmKey={hasLlmKey()} similar={similar} />
     </div>
   );
 }

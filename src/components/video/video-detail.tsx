@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play, Sparkles } from "lucide-react";
+import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 
+import { OutlierCard } from "@/components/feed/outlier-card";
 import { OutlierBadge } from "@/components/feed/outlier-badge";
 import { PlatformChip, platformLabel } from "@/components/feed/platform-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -25,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
+import type { FeedItem } from "@/server/queries/feed";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
 // the query-layer type needs a different local name to avoid shadowing.
 import type { VideoDetail as VideoDetailData } from "@/server/queries/video";
@@ -117,7 +119,41 @@ function HookStructureTab({ analysis }: { analysis: VideoAnalysis }) {
   );
 }
 
-export function VideoDetail({ detail, hasLlmKey }: { detail: VideoDetailData; hasLlmKey: boolean }) {
+/**
+ * Task 3's "Similar outliers" section — a compact OutlierCard row scored by tag
+ * overlap (services/similar.ts), rendered as its own full-width section below the
+ * tabs rather than the DESIGN.md v0.1 overflow-menu jump (superseded per the plan).
+ */
+function SimilarOutliers({ items }: { items: FeedItem[] }) {
+  const router = useRouter();
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border px-6 py-4">
+      <h2 className="text-base font-semibold">Similar outliers</h2>
+      {items.length > 0 ? (
+        <div className="flex gap-3 overflow-x-auto pb-1">
+          {items.map((item) => (
+            <div key={item.videoId} className="w-40 shrink-0">
+              <OutlierCard item={item} variant="compact" onOpen={(id) => router.push(`/feed/${id}`)} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">Analyze more videos to see patterns</p>
+      )}
+    </div>
+  );
+}
+
+export function VideoDetail({
+  detail,
+  hasLlmKey,
+  similar,
+}: {
+  detail: VideoDetailData;
+  hasLlmKey: boolean;
+  similar: FeedItem[];
+}) {
   const { item } = detail;
   const hasTranscript = detail.transcript !== null;
 
@@ -177,12 +213,6 @@ export function VideoDetail({ detail, hasLlmKey }: { detail: VideoDetailData; ha
                 <Bookmark className="size-3.5" /> Save to Vault
               </TooltipTrigger>
               <TooltipContent>Vault arrives in phase 3</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                <Sparkles className="size-3.5" /> Similar
-              </TooltipTrigger>
-              <TooltipContent>Similar outliers arrive in phase 3</TooltipContent>
             </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" aria-label="More actions" />}>
@@ -256,6 +286,8 @@ export function VideoDetail({ detail, hasLlmKey }: { detail: VideoDetailData; ha
           </Tabs>
         </div>
       </div>
+
+      <SimilarOutliers items={similar} />
 
       <div className="sticky bottom-0 flex justify-end border-t border-border bg-background/95 p-4 backdrop-blur">
         <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
