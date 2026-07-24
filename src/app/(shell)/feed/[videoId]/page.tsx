@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { VideoDetail } from "@/components/video/video-detail";
+import { hasLlmKey } from "@/server/llm/client";
 import { getVideoDetail } from "@/server/queries/video";
 
 // Both generateMetadata and the page component need the same fetch this request —
@@ -44,7 +45,7 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ vi
 
   return (
     <div className="mx-auto h-full max-w-[1120px]">
-      <VideoDetail detail={detail} />
+      <VideoDetail detail={detail} hasLlmKey={hasLlmKey()} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
+import type { VideoAnalysis } from "@/server/llm/schemas";
 import { feedItemColumns, type FeedItem } from "./feed";
 
 export interface VideoDetail {
@@ -7,7 +8,17 @@ export interface VideoDetail {
   likeCount: number | null;
   commentCount: number | null;
   transcript: { text: string; source: string } | null;
-  hasAnalysis: boolean;
+  analysis: VideoAnalysis | null;
+}
+
+function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): VideoAnalysis {
+  return {
+    hookType: row.hookType ?? "",
+    structureSegments: row.structureSegments ?? [],
+    formatTags: row.formatTags ?? [],
+    styleTags: row.styleTags ?? [],
+    whyItWorked: row.whyItWorked ?? "",
+  };
 }
 
 export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
@@ -26,11 +37,7 @@ export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
     .where(eq(tables.transcripts.videoId, id))
     .limit(1);
 
-  const [analysisRow] = await db
-    .select({ videoId: tables.videoAnalyses.videoId })
-    .from(tables.videoAnalyses)
-    .where(eq(tables.videoAnalyses.videoId, id))
-    .limit(1);
+  const [analysisRow] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, id)).limit(1);
 
   const { likeCount, commentCount, ...item } = row;
 
@@ -39,6 +46,6 @@ export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
     likeCount,
     commentCount,
     transcript: transcriptRow ?? null,
-    hasAnalysis: Boolean(analysisRow),
+    analysis: analysisRow ? rowToAnalysis(analysisRow) : null,
   };
 }

@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierBadge } from "@/components/feed/outlier-badge";
 import { PlatformChip, platformLabel } from "@/components/feed/platform-chip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -18,15 +22,104 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { relativeTime } from "@/lib/format";
+import { formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { analyzeVideoAction } from "@/server/actions/analyze-actions";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
 // the query-layer type needs a different local name to avoid shadowing.
 import type { VideoDetail as VideoDetailData } from "@/server/queries/video";
+import type { VideoAnalysis } from "@/server/llm/schemas";
 import { MetricChips } from "./metric-chips";
 
-export function VideoDetail({ detail }: { detail: VideoDetailData }) {
+/**
+ * Shared "no analysis yet" gate rendered inside both the Hook & Structure and
+ * Why-it-worked tabs (Task 2) — one Claude call produces both, so whichever tab the
+ * user lands on first can trigger it. Three states, checked in order: transcript
+ * missing (quiet copy, no button — nothing to analyze yet), key missing (Alert per
+ * DESIGN.md §6 keyless-mode contract), otherwise the primary "Analyze this video"
+ * button.
+ */
+function AnalysisGate({ videoId, hasTranscript, hasKey }: { videoId: string; hasTranscript: boolean; hasKey: boolean }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  if (!hasTranscript) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Transcript needed first — import/sync provides it.
+      </p>
+    );
+  }
+
+  if (!hasKey) {
+    return (
+      <Alert>
+        <AlertTitle>Add your Claude API key</AlertTitle>
+        <AlertDescription>Add ANTHROPIC_API_KEY in Settings to enable analysis.</AlertDescription>
+      </Alert>
+    );
+  }
+
+  async function analyze() {
+    setPending(true);
+    const result = await analyzeVideoAction(videoId);
+    setPending(false);
+    if (result.ok) {
+      toast.success("Analysis complete");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <Button onClick={analyze} disabled={pending}>
+      {pending ? "Analyzing…" : "Analyze this video"}
+    </Button>
+  );
+}
+
+/** DESIGN.md §2.4: annotated segments (Hook 0–3s / Build / Payoff / CTA) + format/style tag Badges. */
+function HookStructureTab({ analysis }: { analysis: VideoAnalysis }) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="outline">{analysis.hookType}</Badge>
+        {analysis.formatTags.map((tag) => (
+          <Badge key={`format-${tag}`} variant="secondary">
+            {tag}
+          </Badge>
+        ))}
+        {analysis.styleTags.map((tag) => (
+          <Badge key={`style-${tag}`} variant="secondary">
+            {tag}
+          </Badge>
+        ))}
+      </div>
+      {analysis.structureSegments.length > 0 ? (
+        <ol className="flex flex-col gap-3">
+          {analysis.structureSegments.map((segment, i) => (
+            <li key={i} className="flex gap-3 border-l-2 border-border pl-3">
+              <span className="w-16 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
+              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{segment.label}</span>
+                <span className="text-sm text-muted-foreground">{segment.note}</span>
+              </div>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="text-sm text-muted-foreground">No structure segments returned.</p>
+      )}
+    </div>
+  );
+}
+
+export function VideoDetail({ detail, hasLlmKey }: { detail: VideoDetailData; hasLlmKey: boolean }) {
   const { item } = detail;
+  const hasTranscript = detail.transcript !== null;
 
   async function copyLink() {
     await navigator.clipboard.writeText(item.url);
@@ -136,15 +229,29 @@ export function VideoDetail({ detail }: { detail: VideoDetailData }) {
             </TabsContent>
 
             <TabsContent value="hook" className="pt-4">
-              <Card>
-                <CardContent className="text-sm text-muted-foreground">AI analysis lands in phase 3</CardContent>
-              </Card>
+              {detail.analysis ? (
+                <HookStructureTab analysis={detail.analysis} />
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-start gap-3">
+                    <AnalysisGate videoId={item.videoId} hasTranscript={hasTranscript} hasKey={hasLlmKey} />
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="why" className="pt-4">
-              <Card>
-                <CardContent className="text-sm text-muted-foreground">AI analysis lands in phase 3</CardContent>
-              </Card>
+              {detail.analysis ? (
+                <Card>
+                  <CardContent className="text-sm text-muted-foreground">{detail.analysis.whyItWorked}</CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="flex flex-col items-start gap-3">
+                    <AnalysisGate videoId={item.videoId} hasTranscript={hasTranscript} hasKey={hasLlmKey} />
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
           </Tabs>
         </div>
