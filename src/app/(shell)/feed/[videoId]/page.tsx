@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 import { VideoDetail } from "@/components/video/video-detail";
 import { hasLlmKey } from "@/server/llm/client";
-import { getVideoDetail } from "@/server/queries/video";
+import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
 import { getSimilarOutliers } from "@/server/services/similar";
 
 // Both generateMetadata and the page component need the same fetch this request —
@@ -44,6 +44,10 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ vi
   const detail = await getCachedVideoDetail(videoId);
   if (!detail) notFound();
   const similar = await getSimilarOutliers(videoId);
+  // Fire-and-forget (Task 1, phase 4): never await this — a slow/failing visit-track
+  // write must not delay rendering the page itself. Errors are already swallowed
+  // inside recordRecentlyViewed.
+  void recordRecentlyViewed(videoId);
 
   return (
     <div className="mx-auto h-full max-w-[1120px]">
