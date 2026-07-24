@@ -76,7 +76,24 @@ All variables are **optional**. The app works keyless with seeded demo data and 
 | `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-5`) | `claude-opus-4-8` |
 | `CROWSNEST_DB_PATH` | Custom SQLite database file path | `/path/to/db.sqlite` |
 
-For keyless local transcription and manual reel import: `brew install yt-dlp whisper-cpp`.
+For keyless local transcription and manual reel import: `brew install yt-dlp whisper-cpp`. That
+installs the `whisper-cli` binary only — it does **not** fetch the GGML model file whisper-cli
+needs to actually run. Download one to the default path (or set `WHISPER_MODEL_PATH` to wherever
+you put it):
+
+```bash
+mkdir -p ~/.cache/whisper
+curl -L -o ~/.cache/whisper/ggml-large-v3-turbo.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
+```
+
+Settings' Local Binaries section shows amber with the exact missing path if this step is skipped,
+so it's always recoverable — just not automatic yet.
+
+Before your first real sync with live keys, do one manual smoke check against a real channel:
+Apify/HikerAPI actor field shapes have drifted before and could again without your account being
+the one to catch it early. If a field goes missing, `APIFY_ACTOR_ID_IG_PROFILE` /
+`APIFY_ACTOR_ID_IG_REEL` (above) let you pin a different actor without a code change.
 
 ## Architecture
 
