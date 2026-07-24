@@ -5,6 +5,18 @@ import { fetchReelByUrl } from "../providers/ytdlp";
 import type { Platform, ProfileStats, SocialProvider, VideoStats } from "../providers/types";
 import { computeChannelMedian, scoreVideos, type VideoForCalc } from "./outlier-calc";
 
+// Side-effect imports: apify.ts / hikerapi.ts self-register into providers/registry.ts's
+// module-level Map at the bottom of each file, but nothing in the real module graph
+// (sync-actions.ts -> sync-engine.ts -> registry.ts) ever imported those two files, so
+// in production `getProviderChain()` always resolved empty regardless of which env keys
+// were set — real API keys were silently inert (whole-branch review finding C1). Fixing
+// it here (the consumer side), not in registry.ts: registry.ts importing apify.ts, which
+// imports registry.ts back, is a circular import that ESM hoists ahead of registry.ts's
+// own `const providers = new Map()`, crashing at module load. sync-engine.ts has no such
+// cycle — nothing imports these two lines back.
+import "../providers/apify";
+import "../providers/hikerapi";
+
 // ---- public types (DATA.md §5 / plan §Task 6 contract) ----
 
 export interface SyncGap {
@@ -250,11 +262,24 @@ async function syncOneChannel(
 }
 
 /**
- * Runs a sync pass per DATA.md §5: profiles-then-videos per channel, a small concurrency
- * pool with jitter, provider fallback chain with one 429/5xx retry, upsert-by-external-id,
- * per-channel score recompute + snapshots. Never throws for per-channel provider failures
- * (recorded as gaps instead) — only throws for invalid input, before any channel or job
- * row is touched.
+ * Runs a sync pass per DATA.md §5: a small concurrency pool with jitter, provider
+ * fallback chain with one 429/5xx retry, upsert-by-external-id, per-channel score
+ * recompute + snapshots. Never throws for per-channel provider failures (recorded as
+ * gaps instead) — only throws for invalid input, before any channel or job row is
+ * touched.
+ *
+ * Deliberate deviation from DATA.md §5.2 (accepted at whole-branch review, finding I2):
+ * that section specifies a *global* two-phase order — fetch every tracked channel's
+ * profile first, then fetch reels for all of them — so a renamed/deleted/private handle
+ * surfaces cheaply before any reel-fetch budget is spent on it. This implementation
+ * instead does profile-then-video *within* each channel's own pool-worker slot (see
+ * `syncOneChannel` below), so one channel's reel fetch can run concurrently with another
+ * channel's still-pending profile fetch. Tradeoff accepted: loses DATA.md's batch-wide
+ * "cheap scan before expensive spend" property, in exchange for a materially simpler
+ * implementation — one per-channel worker function, no separate global profile-fetch
+ * phase to sequence ahead of the pool. Output correctness is identical either way; this
+ * only affects how quickly a broken channel is detected relative to a healthy one's
+ * reel-fetch cost.
  */
 export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   if (opts.channelIds !== undefined) {
@@ -370,7 +395,10 @@ export async function importReelByUrl(
   fetchReel: (url: string) => Promise<VideoStats & { channelHandle: string }> = fetchReelByUrl
 ): Promise<{ videoId: string; channelId: string }> {
   const stats = await fetchReel(url);
-  const handle = stats.channelHandle;
+  // Normalize even though the real ytdlp.ts mapper already @-prefixes channelHandle —
+  // fetchReel is an injectable dependency (I1), so a future implementation returning a
+  // bare handle must not be able to silently duplicate a seeded/existing @-handle row.
+  const handle = normalizeHandle(stats.channelHandle);
 
   const existingChannel = await db
     .select({ id: tables.channels.id })

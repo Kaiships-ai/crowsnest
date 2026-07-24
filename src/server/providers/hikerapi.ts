@@ -95,20 +95,36 @@ export class HikerProvider implements SocialProvider {
     rateLimitPerHour: undefined,
   };
 
-  async getProfile(handle: string): Promise<ProfileStats> {
+  // Caches the pk resolved by the most recent getProfile call, per handle — syncOneChannel
+  // always calls getProfile then getRecentVideos back-to-back for the same channel, so
+  // without this a full channel sync cost 3 requests (user lookup x2 + clips) instead of
+  // 2 (user lookup x1 + clips). getRecentVideos falls back to its own lookup when called
+  // standalone (no prior getProfile for that handle), so it stays correct either way.
+  private readonly pkCache = new Map<string, string>();
+
+  private async fetchUser(handle: string): Promise<Record<string, unknown>> {
     const username = stripAt(handle);
     const data = asRecord(await hikerFetch(`${USER_BY_USERNAME_URL}?username=${encodeURIComponent(username)}`));
     if (!data.user) throw new Error(`hikerapi: no profile data returned for ${handle}`);
-    return mapHikerUser(data.user);
+    return asRecord(data.user);
+  }
+
+  async getProfile(handle: string): Promise<ProfileStats> {
+    const user = await this.fetchUser(handle);
+    const pk = str(user.pk);
+    if (pk) this.pkCache.set(handle, pk);
+    return mapHikerUser(user);
   }
 
   async getRecentVideos(handle: string, limit: number): Promise<VideoStats[]> {
-    // Resolve pk via the user call first — the clips endpoint is keyed by user_id, not
-    // username — one extra request per channel, same as the plan describes.
-    const username = stripAt(handle);
-    const profileData = asRecord(await hikerFetch(`${USER_BY_USERNAME_URL}?username=${encodeURIComponent(username)}`));
-    const user = asRecord(profileData.user);
-    const pk = str(user.pk);
+    // The clips endpoint is keyed by user_id, not username — reuse the pk a preceding
+    // getProfile(handle) call already resolved rather than looking the user up again.
+    let pk = this.pkCache.get(handle);
+    if (!pk) {
+      const user = await this.fetchUser(handle);
+      pk = str(user.pk);
+      if (pk) this.pkCache.set(handle, pk);
+    }
     if (!pk) throw new Error(`hikerapi: could not resolve pk for ${handle}`);
 
     const clipsData = asRecord(await hikerFetch(`${USER_CLIPS_URL}?user_id=${encodeURIComponent(pk)}&amount=${limit}`));

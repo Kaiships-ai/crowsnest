@@ -225,6 +225,42 @@ describe("runSync", () => {
     const { runSync } = await import("./sync-engine");
     await expect(runSync({ channelIds: [], sleep: noopSleep })).rejects.toThrow(/channelIds/);
   });
+
+  test("withRetry: a 429 on the first attempt is retried once (2s backoff) and succeeds (M3 regression)", async () => {
+    const { db, newId, nowIso, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+
+    const chId = newId();
+    await db.insert(tables.channels).values({ id: chId, platform: "instagram", handle: "@retrytest", trackedSince: nowIso() });
+
+    let profileCalls = 0;
+    const flakyThenOk = fakeProvider("apify-apidojo", {
+      profile: async (handle) => {
+        profileCalls += 1;
+        if (profileCalls === 1) {
+          const err = new Error("apify: HTTP 429 - rate limited") as Error & { status?: number };
+          err.status = 429;
+          throw err;
+        }
+        return { platform: "instagram", handle, followerCount: 4000, fetchedAt: nowIso() };
+      },
+      videos: async (handle) => makeFakeVideos(handle, 6),
+    });
+
+    const sleptMs: number[] = [];
+    const trackingSleep = async (ms: number) => {
+      sleptMs.push(ms);
+    };
+
+    const result = await runSync({ channelIds: [chId], providers: [flakyThenOk], sleep: trackingSleep });
+
+    expect(profileCalls).toBe(2); // one 429 + one successful retry, no fallback to another provider needed
+    expect(result.gaps).toEqual([]);
+    expect(result.channelsSynced).toBe(1);
+    expect(sleptMs).toContain(2000); // the retry's 2s backoff actually fired
+  });
 });
 
 describe("addChannel", () => {
@@ -336,5 +372,42 @@ describe("importReelByUrl", () => {
     expect(videoRows).toHaveLength(5); // 4 seeded + 1 imported
     const imported = videoRows.find((v) => v.externalId === "established-new");
     expect(imported?.outlierScore).not.toBeNull();
+  });
+
+  test("normalizes a bare (non-@-prefixed) channelHandle before dedupe lookup/insert (I1 regression)", async () => {
+    const { db, newId, nowIso, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { importReelByUrl } = await import("./sync-engine");
+    migrate();
+
+    // Seed an existing @-prefixed channel, as if already tracked via addChannel/sync.
+    const existingChannelId = newId();
+    await db.insert(tables.channels).values({
+      id: existingChannelId,
+      platform: "instagram",
+      handle: "@bareimport",
+      trackedSince: nowIso(),
+    });
+
+    // A fetchReel implementation that — unlike the real ytdlp.ts mapper, which always
+    // @-prefixes — returns a bare handle. importReelByUrl's fetchReel is an injectable
+    // dependency, so this is a legitimate input, not a contrived edge case.
+    const fakeFetchReelBareHandle = async (url: string) => ({
+      platform: "instagram" as const,
+      id: "bare-reel-1",
+      url,
+      postedAt: nowIso(),
+      viewCount: 12_345,
+      channelHandle: "bareimport", // no leading @
+    });
+
+    const result = await importReelByUrl("https://www.instagram.com/reel/bare-reel-1/", fakeFetchReelBareHandle);
+
+    // Must dedupe to the EXISTING @-prefixed channel, not silently create a second row.
+    expect(result.channelId).toBe(existingChannelId);
+    const channelRows = await db.select().from(tables.channels).where(eq(tables.channels.platform, "instagram"));
+    const matching = channelRows.filter((c) => c.handle === "@bareimport" || c.handle === "bareimport");
+    expect(matching).toHaveLength(1);
+    expect(matching[0].handle).toBe("@bareimport");
   });
 });

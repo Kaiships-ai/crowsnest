@@ -1,8 +1,15 @@
 import type { SocialProvider } from "./types";
 
 // Providers self-register at module init (see apify.ts / hikerapi.ts bottom-of-file
-// side effects). The registry itself never imports a provider module directly —
-// that would create a hard dependency and break the key-gated chain / test seams.
+// side effects) — something in the real module graph must import those files for that
+// side effect to ever run (see sync-engine.ts's top-of-file side-effect imports).
+// This file deliberately does NOT import them itself: `import "./apify"` here would
+// create a circular import (registry -> apify -> registry), and ESM hoists that import
+// ahead of this file's own `const providers = new Map()` below, crashing at module
+// load with "Cannot access 'providers' before initialization." Import the provider
+// modules from a *consumer* of this registry instead (a leaf, not something this file
+// itself depends on) — that also keeps registry.test.ts free to register pure fakes
+// without pulling in real provider implementations.
 const providers = new Map<string, SocialProvider>();
 
 /** Order the sync engine tries providers in, gated by which env keys are present. */
