@@ -42,10 +42,16 @@ All variables are **optional**. The app works keyless with seeded demo data and 
 |----------|---------|---------|
 | `ANTHROPIC_API_KEY` | Claude API key for video analysis and script remix | `sk-ant-v7-...` |
 | `APIFY_TOKEN` | Apify token for channel sync (primary provider) | `apify_api_...` |
+| `APIFY_ACTOR_ID_IG_PROFILE` | Override the Apify actor used for profile fetches (default: `apify/instagram-profile-scraper`) | `apidojo/instagram-profile-scraper` |
+| `APIFY_ACTOR_ID_IG_REEL` | Override the Apify actor used for recent-reels fetches (default: `apify/instagram-reel-scraper`) | `apidojo/instagram-reel-scraper` |
 | `GROQ_API_KEY` | Groq API key for transcript analysis fallback | `gsk_...` |
 | `HIKERAPI_KEY` | HikerAPI key for channel data fallback | `hiker_...` |
+| `WHISPER_CPP_BIN_PATH` | Path to the `whisper-cli` binary for local transcription (default: resolved from PATH) | `/opt/homebrew/bin/whisper-cli` |
+| `WHISPER_MODEL_PATH` | Path to the whisper.cpp GGML model file (default: `~/.cache/whisper/ggml-large-v3-turbo.bin`) | `/path/to/ggml-large-v3-turbo.bin` |
 | `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-5`) | `claude-opus-4-8` |
 | `CROWSNEST_DB_PATH` | Custom SQLite database file path | `/path/to/db.sqlite` |
+
+For keyless local transcription and manual reel import: `brew install yt-dlp whisper-cpp`.
 
 ## Architecture
 
