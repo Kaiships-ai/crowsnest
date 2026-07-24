@@ -60,7 +60,12 @@ function CommandDialog({
         )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        {/* `children` here is always CommandInput/CommandList/etc — cmdk sub-parts
+            that read from the root Command's own internal context. Without this
+            wrapper, CommandInput crashes with "Cannot read properties of undefined
+            (reading 'subscribe')" the instant the palette opens (QA sweep finding,
+            phase 4 Task 4) — it had no <Command> ancestor to read that context from. */}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   )
