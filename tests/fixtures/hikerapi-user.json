@@ -1,0 +1,13 @@
+{
+  "user": {
+    "pk": "1400000001",
+    "username": "buildinpublic.daily",
+    "full_name": "Build In Public Daily",
+    "follower_count": 342000,
+    "following_count": 512,
+    "media_count": 480,
+    "biography": "Shipping daily.",
+    "profile_pic_url": "https://example.com/avatar.jpg",
+    "is_verified": false
+  }
+}
