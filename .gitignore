@@ -46,3 +46,6 @@ data/
 
 # sdd scratch
 .superpowers/
+
+# agent worktrees
+.claude/worktrees/
