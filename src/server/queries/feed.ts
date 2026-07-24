@@ -128,7 +128,14 @@ export async function getOutlierFeed(f: FeedFilters): Promise<{ items: FeedItem[
   return { items, total: totalRows[0]?.count ?? 0 };
 }
 
-export async function getSavedFilters(): Promise<{ id: string; name: string; isSystem: boolean; criteria: Record<string, unknown> }[]> {
+export interface SavedFilterRow {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  criteria: Record<string, unknown>;
+}
+
+export async function getSavedFilters(): Promise<SavedFilterRow[]> {
   return db
     .select({
       id: tables.savedFilters.id,
