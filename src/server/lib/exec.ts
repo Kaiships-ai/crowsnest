@@ -1,5 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import path from "node:path";
 
 const execFileRaw = promisify(execFile);
 
@@ -37,4 +40,26 @@ export async function detectBinary(bin: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+const DEFAULT_TMP_DIR = "data/tmp";
+
+/**
+ * Downloads a remote media URL to a local tmp mp4 via yt-dlp. Shared by the transcript
+ * providers (whisper.cpp needs a local file to feed whisper-cli; Groq needs bytes to
+ * upload) — either may be handed a `videoUrlOrPath` that turns out to be a URL rather
+ * than an already-local path. Filename is a short hash of the URL so repeat calls for
+ * the same reel resolve to the same path instead of piling up randomly-named tmp files.
+ * Caller owns cleanup (delete the returned path when done).
+ */
+export async function downloadToTmp(url: string, destDir: string = DEFAULT_TMP_DIR): Promise<string> {
+  const bin = await detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp");
+  if (!bin) {
+    throw new Error("yt-dlp not found on PATH — needed to download remote media (install with `brew install yt-dlp`)");
+  }
+  await mkdir(destDir, { recursive: true });
+  const name = createHash("sha1").update(url).digest("hex").slice(0, 16);
+  const dest = path.join(destDir, `${name}.mp4`);
+  await execFileP(bin, ["-o", dest, "--no-warnings", "-f", "mp4/best", url]);
+  return dest;
 }
