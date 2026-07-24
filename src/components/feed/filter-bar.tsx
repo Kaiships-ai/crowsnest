@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -40,6 +41,11 @@ const VIEWS_OPTIONS = [
 ];
 const SINCE_OPTIONS = [
   { value: "7", label: "Last 7d" },
+  // The "High Conviction" saved preset (server/db/seed.ts) sets sinceDays:14, which
+  // had no matching option here — the Select rendered the bare unlabeled value "14"
+  // instead of a proper label once that preset was applied (QA sweep finding, phase 4
+  // Task 4). Filtering itself was never wrong, only the displayed label.
+  { value: "14", label: "Last 14d" },
   { value: "30", label: "Last 30d" },
   { value: "60", label: "Last 60d" },
   { value: "90", label: "Last 90d" },
@@ -189,16 +195,23 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>Saved views</DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuLabel>Saved views</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          {savedFilters.length === 0 && (
-            <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
-          )}
-          {savedFilters.map((f) => (
-            <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
-              {f.name}
-            </DropdownMenuItem>
-          ))}
+          {/* Base UI's Menu.GroupLabel (DropdownMenuLabel) throws "MenuGroupContext is
+              missing" unless it's inside a Menu.Group (DropdownMenuGroup) — this crashed
+              the whole Feed page the instant "Saved views" was opened (QA sweep finding,
+              phase 4 Task 4). Radix's equivalent doesn't enforce this, which is exactly
+              the "Base UI not Radix" trap the project's own backlog flagged. */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Saved views</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {savedFilters.length === 0 && (
+              <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
+            )}
+            {savedFilters.map((f) => (
+              <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
+                {f.name}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
 
