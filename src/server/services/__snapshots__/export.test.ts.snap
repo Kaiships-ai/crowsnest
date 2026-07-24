@@ -1,0 +1,108 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildScriptPrompt > snapshot: script linked to hook/style vault items and an analyzed source video 1`] = `
+"# Copy-as-Prompt — My Remixed Script
+
+## Topic framing
+My Remixed Script
+
+## Hook strategy
+you're falling behind on {topic}
+
+## Structure beats
+5 beats, CTA at end
+
+## Style notes
+Style: editing, listicle
+
+## Research facts
+Why it worked: The warning framing creates urgency.
+
+## Source metrics
+- Channel: @formfirst.fit
+- Views: 300K
+- Outlier multiplier: 9.1×
+- Duration: 30s
+- Posted: 2026-01-01T00:00:00.000Z
+
+## Script
+HOOK: you're falling behind...
+BUILD: here's why...
+CTA: follow for more.
+
+---
+
+Paste this into any LLM to draft your own version, or use Crowsnest's Remix Studio for a guided 5-stage flow."
+`;
+
+exports[`buildVideoPrompt > graceful degradation: no analysis yet — metrics + transcript still present, sections note analysis pending 1`] = `
+"# Copy-as-Prompt — a video with no analysis yet
+
+## Topic framing
+a video with no analysis yet
+Niche: AI tools for solo founders
+
+## Hook strategy
+Analysis pending — analyze this video first for a grounded hook strategy.
+
+## Structure beats
+Analysis pending.
+
+## Style notes
+Analysis pending.
+
+## Research facts
+Analysis pending.
+
+## Source metrics
+- Channel: @no-analysis-yet
+- Views: 50K
+- Outlier multiplier: 3.2×
+- Duration: 20s
+- Posted: 2026-01-01T00:00:00.000Z
+
+## Transcript
+Some transcript text for this unanalyzed video.
+
+---
+
+Paste this into any LLM to draft your own version, or use Crowsnest's Remix Studio for a guided 5-stage flow."
+`;
+
+exports[`buildVideoPrompt > snapshot: fully analyzed video with transcript, niche profile, and similar outliers 1`] = `
+"# Copy-as-Prompt — the AI tool nobody is talking about (yet)
+
+## Topic framing
+the AI tool nobody is talking about (yet)
+Niche: AI tools for solo founders
+
+## Hook strategy
+curiosity-gap — opens with a direct claim
+
+## Structure beats
+1. Hook (0-3s): opens with a direct claim
+2. Build (3-20s): explains the mechanism
+3. Payoff (20-34s): shows the before/after
+
+## Style notes
+Format: talking-head. Style: fast-cut, on-screen-text
+
+## Research facts
+Why it worked: The cold-open claim plus fast pacing kept retention high through the payoff.
+Similar tracked outliers:
+- @buildinpublic.daily (8.1×) — 3 mistakes killing your growth
+
+## Source metrics
+- Channel: @aitoolsforcreators
+- Views: 2.4M
+- Outlier multiplier: 12.4×
+- Duration: 34s
+- Posted: 2026-01-01T00:00:00.000Z
+
+## Transcript
+Here's the AI tool nobody is talking about yet...
+
+---
+
+Paste this into any LLM to draft your own version, or use Crowsnest's Remix Studio for a guided 5-stage flow."
+`;

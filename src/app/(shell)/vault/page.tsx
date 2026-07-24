@@ -1,17 +1,12 @@
 import Link from "next/link";
 
 import { NewTemplateDialog } from "@/components/vault/new-template-dialog";
+import { ScriptCard } from "@/components/vault/script-card";
 import { TemplateCard } from "@/components/vault/template-card";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { getScripts, getVaultItems, type VaultItemRow } from "@/server/queries/vault";
-
-function firstLine(content: string): string {
-  return content.split("\n")[0] ?? "";
-}
 
 /** DESIGN.md §6: the true-empty-Vault state (no hooks AND no styles at all) is
  * distinct copy from a single tab being empty while the Vault has other items. */
@@ -89,29 +84,7 @@ export default async function VaultPage({ searchParams }: { searchParams: Promis
           ) : (
             <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
               {scripts.map((script) => (
-                <Card key={script.id}>
-                  <CardContent className="flex flex-col gap-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-sm font-medium">{script.title}</h3>
-                      <Badge variant={script.status === "final" ? "default" : "outline"}>{script.status}</Badge>
-                    </div>
-                    <p className="line-clamp-2 text-sm text-muted-foreground">{firstLine(script.content)}</p>
-                    {(script.hookTitle || script.styleTitle) && (
-                      <div className="flex flex-wrap gap-1">
-                        {script.hookTitle && <Badge variant="secondary">{script.hookTitle}</Badge>}
-                        {script.styleTitle && <Badge variant="secondary">{script.styleTitle}</Badge>}
-                      </div>
-                    )}
-                    {script.sourceVideo && (
-                      <Link
-                        href={`/feed/${script.sourceVideo.videoId}`}
-                        className="w-fit text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        {script.sourceVideo.channelHandle}
-                      </Link>
-                    )}
-                  </CardContent>
-                </Card>
+                <ScriptCard key={script.id} script={script} />
               ))}
             </div>
           )}

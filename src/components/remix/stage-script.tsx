@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Copy, RefreshCw } from "lucide-react";
+import { Copy, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
@@ -115,9 +116,33 @@ export function StageScript({
     persistSuccesses(results);
   }
 
+  // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
+  // explicitly in both functions below so a failure surfaces as a toast instead of a
+  // silent unhandled rejection with no user feedback.
   async function copyVariant(text: string) {
-    await navigator.clipboard.writeText(text);
-    toast.success("Script copied");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Script copied");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
+  }
+
+  /** DESIGN.md §2.5 stage ⑤: "same affordance as Video Detail" — Copy-as-Prompt is
+   * scoped to the source video (services/export.ts's buildVideoPrompt), not the
+   * in-progress draft variant text. */
+  async function createPrompt() {
+    const result = await buildVideoPromptAction(session.sourceVideoId);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(result.prompt);
+      toast.success("Prompt copied — paste into any LLM");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
   }
 
   async function saveScript() {
@@ -211,6 +236,9 @@ export function StageScript({
       <div className="flex items-center gap-2 border-t border-border pt-4">
         <Button variant="outline" onClick={writeScript} disabled={!hasLlmKey}>
           Regenerate all
+        </Button>
+        <Button variant="outline" onClick={createPrompt}>
+          <Wand2 className="size-3.5" /> Create Prompt
         </Button>
         <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
           <DialogTrigger render={<Button disabled={typeof results[Number(activeTab)] !== "string"} />}>Save script</DialogTrigger>

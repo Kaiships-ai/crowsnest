@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
+import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
@@ -27,6 +27,7 @@ import { formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
+import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import type { FeedItem } from "@/server/queries/feed";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
 // the query-layer type needs a different local name to avoid shadowing.
@@ -169,6 +170,25 @@ export function VideoDetail({
     toast.success("Transcript copied");
   }
 
+  /** DESIGN.md §2.4 / spec §8: structured Copy-as-Prompt export (Task 7). Works
+   * regardless of analysis state — export.ts degrades gracefully section by section.
+   * Clipboard writes can reject (denied permission, insecure context, etc.) — caught
+   * explicitly so a failure surfaces as a toast instead of a silent unhandled
+   * rejection with no user feedback. */
+  async function createPrompt() {
+    const result = await buildVideoPromptAction(item.videoId);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(result.prompt);
+      toast.success("Prompt copied — paste into any LLM");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-1 gap-6 overflow-hidden p-6">
@@ -219,6 +239,9 @@ export function VideoDetail({
                 <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
               </Tooltip>
             )}
+            <Button variant="outline" size="sm" onClick={createPrompt}>
+              <Wand2 className="size-3.5" /> Create Prompt
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" aria-label="More actions" />}>
                 <MoreHorizontal className="size-4" />
@@ -230,13 +253,8 @@ export function VideoDetail({
                 <DropdownMenuItem onClick={copyTranscript} disabled={!detail.transcript}>
                   <Copy /> Copy transcript
                 </DropdownMenuItem>
-                {/* Same pointer-events-none conflict as Task 5/6's disabled items —
-                    explains itself on click instead of a hover tooltip that can't fire. */}
-                <DropdownMenuItem
-                  className="text-muted-foreground"
-                  onClick={() => toast.info("Copy as prompt arrives in phase 3")}
-                >
-                  Copy as prompt
+                <DropdownMenuItem onClick={createPrompt}>
+                  <Wand2 /> Copy as prompt
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
