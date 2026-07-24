@@ -38,20 +38,62 @@ import { MetricChips } from "./metric-chips";
 /**
  * Shared "no analysis yet" gate rendered inside both the Hook & Structure and
  * Why-it-worked tabs (Task 2) — one Claude call produces both, so whichever tab the
- * user lands on first can trigger it. Three states, checked in order: transcript
- * missing (quiet copy, no button — nothing to analyze yet), key missing (Alert per
- * DESIGN.md §6 keyless-mode contract), otherwise the primary "Analyze this video"
- * button.
+ * user lands on first can trigger it. Checked in order:
+ *  1. No transcript yet and no way to make one (`canTranscribe` false — neither
+ *     whisper.cpp nor Groq usable): an Alert with the brew/Settings hint, since
+ *     there's nothing a button click could do (final-review finding B1).
+ *  2. No transcript yet but transcription is possible: an active "Transcribe &
+ *     Analyze" button — `analyzeVideoAction` now transcribes on demand before
+ *     analyzing, and the transcribe half works fully keyless (whisper.cpp is local),
+ *     so this button is live even with no ANTHROPIC_API_KEY set; if analysis itself
+ *     then needs the key, that specific error surfaces from the same click.
+ *  3. Has a transcript, no Claude key: the original key-missing Alert (DESIGN.md §6
+ *     keyless-mode contract).
+ *  4. Otherwise: the original "Analyze this video" button.
  */
-function AnalysisGate({ videoId, hasTranscript, hasKey }: { videoId: string; hasTranscript: boolean; hasKey: boolean }) {
+function AnalysisGate({
+  videoId,
+  hasTranscript,
+  hasKey,
+  canTranscribe,
+}: {
+  videoId: string;
+  hasTranscript: boolean;
+  hasKey: boolean;
+  canTranscribe: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
+  async function runAnalysis() {
+    setPending(true);
+    const result = await analyzeVideoAction(videoId);
+    setPending(false);
+    if (result.ok) {
+      toast.success("Analysis complete");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  if (!hasTranscript && !canTranscribe) {
+    return (
+      <Alert>
+        <AlertTitle>No transcript available yet</AlertTitle>
+        <AlertDescription>
+          Install a local transcriber (<code>brew install yt-dlp whisper-cpp</code>, then download a GGML model —
+          see Settings for the exact missing path) or add GROQ_API_KEY in Settings, then try again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (!hasTranscript) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Transcript needed first — import/sync provides it.
-      </p>
+      <Button onClick={runAnalysis} disabled={pending}>
+        {pending ? "Transcribing…" : "Transcribe & Analyze"}
+      </Button>
     );
   }
 
@@ -64,20 +106,8 @@ function AnalysisGate({ videoId, hasTranscript, hasKey }: { videoId: string; has
     );
   }
 
-  async function analyze() {
-    setPending(true);
-    const result = await analyzeVideoAction(videoId);
-    setPending(false);
-    if (result.ok) {
-      toast.success("Analysis complete");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }
-
   return (
-    <Button onClick={analyze} disabled={pending}>
+    <Button onClick={runAnalysis} disabled={pending}>
       {pending ? "Analyzing…" : "Analyze this video"}
     </Button>
   );
@@ -150,10 +180,15 @@ function SimilarOutliers({ items }: { items: FeedItem[] }) {
 export function VideoDetail({
   detail,
   hasLlmKey,
+  canTranscribe,
   similar,
 }: {
   detail: VideoDetailData;
   hasLlmKey: boolean;
+  /** Whether at least one transcript provider (whisper.cpp locally, or Groq via
+   * GROQ_API_KEY) is actually usable right now — threaded down to AnalysisGate so it
+   * can offer a live "Transcribe & Analyze" button instead of a dead end. */
+  canTranscribe: boolean;
   similar: FeedItem[];
 }) {
   const { item } = detail;
@@ -288,7 +323,7 @@ export function VideoDetail({
                   <p className="whitespace-pre-wrap text-sm text-muted-foreground">{detail.transcript.text}</p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    No transcript yet — transcription arrives with the phase-2A sync engine
+                    No transcript yet — open Hook &amp; Structure or Why it worked and click Transcribe &amp; Analyze
                   </p>
                 )}
               </ScrollArea>
@@ -300,7 +335,12 @@ export function VideoDetail({
               ) : (
                 <Card>
                   <CardContent className="flex flex-col items-start gap-3">
-                    <AnalysisGate videoId={item.videoId} hasTranscript={hasTranscript} hasKey={hasLlmKey} />
+                    <AnalysisGate
+                      videoId={item.videoId}
+                      hasTranscript={hasTranscript}
+                      hasKey={hasLlmKey}
+                      canTranscribe={canTranscribe}
+                    />
                   </CardContent>
                 </Card>
               )}
@@ -314,7 +354,12 @@ export function VideoDetail({
               ) : (
                 <Card>
                   <CardContent className="flex flex-col items-start gap-3">
-                    <AnalysisGate videoId={item.videoId} hasTranscript={hasTranscript} hasKey={hasLlmKey} />
+                    <AnalysisGate
+                      videoId={item.videoId}
+                      hasTranscript={hasTranscript}
+                      hasKey={hasLlmKey}
+                      canTranscribe={canTranscribe}
+                    />
                   </CardContent>
                 </Card>
               )}

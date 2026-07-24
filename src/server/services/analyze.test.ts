@@ -11,6 +11,7 @@ let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let resolveModel: typeof import("@/server/llm/client")["resolveModel"];
 let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSchema"];
+let NoTranscriptProviderError: typeof import("@/server/transcribe")["NoTranscriptProviderError"];
 let getOrCreateAnalysis: typeof import("./analyze")["getOrCreateAnalysis"];
 
 beforeAll(async () => {
@@ -19,6 +20,7 @@ beforeAll(async () => {
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ resolveModel } = await import("@/server/llm/client"));
   ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
+  ({ NoTranscriptProviderError } = await import("@/server/transcribe"));
   ({ getOrCreateAnalysis } = await import("./analyze"));
 });
 
@@ -71,17 +73,17 @@ describe("getOrCreateAnalysis", () => {
     await db.insert(tables.videoAnalyses).values({ videoId, ...FAKE_ANALYSIS, model: "claude-sonnet-5", createdAt: nowIso() });
 
     const generateParsed = vi.fn();
-    const result = await getOrCreateAnalysis(videoId, fakeLlm(generateParsed));
+    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) });
 
     expect(generateParsed).not.toHaveBeenCalled();
     expect(result).toEqual(FAKE_ANALYSIS);
   });
 
-  test("cache miss calls generateParsed with VideoAnalysisSchema and upserts video_analyses with the resolved model", async () => {
+  test("cache miss with an existing transcript calls generateParsed with VideoAnalysisSchema and upserts video_analyses with the resolved model", async () => {
     const { videoId } = await seedVideo({ withTranscript: true });
     const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
 
-    const result = await getOrCreateAnalysis(videoId, fakeLlm(generateParsed));
+    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) });
 
     expect(result).toEqual(FAKE_ANALYSIS);
     expect(generateParsed).toHaveBeenCalledTimes(1);
@@ -96,13 +98,26 @@ describe("getOrCreateAnalysis", () => {
     expect(row.structureSegments).toEqual(FAKE_ANALYSIS.structureSegments);
   });
 
-  test("no transcript yet returns null and never calls the llm", async () => {
+  test("no transcript yet: creates one via the injected transcribe function, then analyzes with its text (final-review finding B1)", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
+    const transcribe = vi.fn().mockResolvedValue({ text: "a freshly transcribed line", source: "whisper-local", cached: false });
+
+    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), transcribe });
+
+    expect(transcribe).toHaveBeenCalledWith(videoId);
+    expect(result).toEqual(FAKE_ANALYSIS);
+    const call = generateParsed.mock.calls[0][0] as { user: string };
+    expect(call.user).toContain("a freshly transcribed line");
+  });
+
+  test("no transcript yet and no provider available: NoTranscriptProviderError propagates untouched, llm never called, no row persisted", async () => {
     const { videoId } = await seedVideo({ withTranscript: false });
     const generateParsed = vi.fn();
+    const boom = new NoTranscriptProviderError([{ name: "whisper-cpp-local", reason: "not installed" }]);
+    const transcribe = vi.fn().mockRejectedValue(boom);
 
-    const result = await getOrCreateAnalysis(videoId, fakeLlm(generateParsed));
-
-    expect(result).toBeNull();
+    await expect(getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), transcribe })).rejects.toBe(boom);
     expect(generateParsed).not.toHaveBeenCalled();
 
     const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
@@ -115,7 +130,7 @@ describe("getOrCreateAnalysis", () => {
     const boom = new FakeRateLimitError("rate limited");
     const generateParsed = vi.fn().mockRejectedValue(boom);
 
-    await expect(getOrCreateAnalysis(videoId, fakeLlm(generateParsed))).rejects.toBe(boom);
+    await expect(getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) })).rejects.toBe(boom);
 
     const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
     expect(rows).toHaveLength(0); // failed generation must not leave a partial row

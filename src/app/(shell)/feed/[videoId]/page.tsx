@@ -6,6 +6,7 @@ import { VideoDetail } from "@/components/video/video-detail";
 import { hasLlmKey } from "@/server/llm/client";
 import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
 import { getSimilarOutliers } from "@/server/services/similar";
+import { availableTranscriptProviders } from "@/server/transcribe";
 
 // Both generateMetadata and the page component need the same fetch this request —
 // React's cache() dedupes them to a single DB round-trip.
@@ -43,7 +44,11 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ vi
   const { videoId } = await params;
   const detail = await getCachedVideoDetail(videoId);
   if (!detail) notFound();
-  const similar = await getSimilarOutliers(videoId);
+  const [similar, transcriptProviders] = await Promise.all([
+    getSimilarOutliers(videoId),
+    availableTranscriptProviders(),
+  ]);
+  const canTranscribe = transcriptProviders.some((p) => p.available);
   // Fire-and-forget (Task 1, phase 4): never await this — a slow/failing visit-track
   // write must not delay rendering the page itself. Errors are already swallowed
   // inside recordRecentlyViewed.
@@ -51,7 +56,7 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ vi
 
   return (
     <div className="mx-auto h-full max-w-[1120px]">
-      <VideoDetail detail={detail} hasLlmKey={hasLlmKey()} similar={similar} />
+      <VideoDetail detail={detail} hasLlmKey={hasLlmKey()} canTranscribe={canTranscribe} similar={similar} />
     </div>
   );
 }
