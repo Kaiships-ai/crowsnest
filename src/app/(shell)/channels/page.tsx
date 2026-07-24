@@ -27,7 +27,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
         <div className="mb-4 flex justify-end">
           <AddChannelDialog />
         </div>
-        <ChannelTable channels={channels} />
+        <ChannelTable channels={channels} fleets={fleets} />
       </div>
     </div>
   );

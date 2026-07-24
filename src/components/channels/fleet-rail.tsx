@@ -2,12 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Plus } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { Fleet } from "@/server/queries/channels";
+import { NewFleetDialog } from "./new-fleet-dialog";
 
 export function FleetRail({ fleets, totalChannels }: { fleets: Fleet[]; totalChannels: number }) {
   const pathname = usePathname();
@@ -58,22 +56,7 @@ export function FleetRail({ fleets, totalChannels }: { fleets: Fleet[]; totalCha
         </Link>
       ))}
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled
-              focusableWhenDisabled
-              className="mt-1 justify-start gap-1.5 text-muted-foreground"
-            >
-              <Plus className="size-3.5" /> New fleet
-            </Button>
-          }
-        />
-        <TooltipContent>Coming with Vault phase</TooltipContent>
-      </Tooltip>
+      <NewFleetDialog />
     </aside>
   );
 }
