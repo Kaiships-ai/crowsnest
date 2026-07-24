@@ -40,6 +40,14 @@ export class LlmParseError extends Error {
 export interface LlmClient {
   generateText(opts: { system: string; user: string; maxTokens?: number }): Promise<string>;
   generateParsed<T>(opts: { system: string; user: string; schema: z.ZodType<T>; maxTokens?: number }): Promise<T>;
+  /**
+   * "Test connection" for the Settings page's API Keys section (Task 2, phase 4):
+   * a tiny `count_tokens` call — costs $0, doesn't consume any generation quota —
+   * that succeeds iff the configured key is valid and reachable. Throws (typed SDK
+   * errors, same as generateText/generateParsed) rather than returning a result, so
+   * callers reuse the same llm/error-message.ts mapping every other action already does.
+   */
+  ping(): Promise<void>;
 }
 
 const DEFAULT_MAX_TOKENS = 2048;
@@ -105,6 +113,13 @@ class AnthropicLlmClient implements LlmClient {
       }
     }
     throw new LlmParseError();
+  }
+
+  async ping(): Promise<void> {
+    await this.client.messages.countTokens({
+      model: resolveModel(),
+      messages: [{ role: "user" as const, content: "ping" }],
+    });
   }
 }
 

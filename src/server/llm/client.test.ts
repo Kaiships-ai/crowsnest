@@ -21,11 +21,13 @@ afterEach(() => {
 function fakeAnthropic(opts: {
   create?: (...args: unknown[]) => Promise<unknown>;
   parse?: (...args: unknown[]) => Promise<unknown>;
+  countTokens?: (...args: unknown[]) => Promise<unknown>;
 }): Anthropic {
   return {
     messages: {
       create: opts.create ?? vi.fn(async () => ({ content: [] })),
       parse: opts.parse ?? vi.fn(async () => ({ parsed_output: null })),
+      countTokens: opts.countTokens ?? vi.fn(async () => ({ input_tokens: 1 })),
     },
   } as unknown as Anthropic;
 }
@@ -142,5 +144,28 @@ describe("generateParsed", () => {
 
     const callArg = parse.mock.calls[0][0] as { output_config?: { format?: { type?: string } } };
     expect(callArg.output_config?.format?.type).toBe("json_schema");
+  });
+});
+
+describe("ping", () => {
+  test("calls countTokens with the resolved model and a minimal message, resolving on success", async () => {
+    process.env.CLAUDE_MODEL = "claude-opus-4-8";
+    const countTokens = vi.fn(async () => ({ input_tokens: 3 }));
+    const llm = _createLlm(fakeAnthropic({ countTokens }));
+
+    await expect(llm.ping()).resolves.toBeUndefined();
+
+    expect(countTokens).toHaveBeenCalledTimes(1);
+    expect(countTokens).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "claude-opus-4-8", messages: [{ role: "user", content: "ping" }] })
+    );
+  });
+
+  test("propagates a countTokens rejection untouched (e.g. an invalid-key error)", async () => {
+    const boom = new Error("invalid x-api-key");
+    const countTokens = vi.fn().mockRejectedValue(boom);
+    const llm = _createLlm(fakeAnthropic({ countTokens }));
+
+    await expect(llm.ping()).rejects.toBe(boom);
   });
 });
