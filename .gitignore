@@ -49,3 +49,4 @@ data/
 
 # agent worktrees
 .claude/worktrees/
+.gstack/

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { autosave } from "@/components/remix/autosave";
 import { ContextRail } from "@/components/remix/context-rail";
 import { resolveDeepLinkSeed } from "@/components/remix/deep-link";
 import { StageHook } from "@/components/remix/stage-hook";
@@ -61,7 +62,7 @@ export function RemixStudio({
   // there's nothing for react-hooks/set-state-in-effect to flag.
   useEffect(() => {
     if (deepLinkSeed.sessionPatch) {
-      void updateStageAction(initialSession.id, deepLinkSeed.sessionPatch);
+      autosave(updateStageAction(initialSession.id, deepLinkSeed.sessionPatch));
     }
   }, [initialSession.id, deepLinkSeed.sessionPatch]);
 

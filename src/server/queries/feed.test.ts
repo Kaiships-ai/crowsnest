@@ -108,6 +108,17 @@ describe("getOutlierFeed", () => {
     expect(craftResult.items.every((i) => craftIds.has(i.channel.id))).toBe(true);
   });
 
+  test("an empty-membership fleet scopes to zero results instead of throwing (backlog M2: never inArray(col, []))", async () => {
+    const emptyFleetId = newId();
+    await db.insert(tables.fleets).values({ id: emptyFleetId, name: "Empty Membership Fleet", createdAt: nowIso() });
+    // Deliberately zero fleet_channels rows for this fleet.
+
+    const result = await getOutlierFeed({ fleetId: emptyFleetId, sort: "recent", limit: 200, offset: 0 });
+
+    expect(result.total).toBe(0);
+    expect(result.items).toEqual([]);
+  });
+
   test("limit/offset paginate with a stable total and no overlap between pages", async () => {
     const all = await getOutlierFeed({ sort: "score", limit: 1000, offset: 0 });
     expect(all.total).toBe(80); // matches seed.test.ts's known invariant

@@ -50,7 +50,14 @@ export function Sidebar() {
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
-    getSyncStatusAction().then(setStatus);
+    // getSyncStatusAction has no try/catch of its own (queries/sync-status-action.ts
+    // is a bare passthrough) — a rejected promise here would otherwise leave `status`
+    // stuck at its initial `null` forever with no feedback. `.catch` re-affirms that
+    // same null (already the "never synced" fallback via STATUS_DOT/statusLabel's
+    // `?? "never"`), it just makes the fallback explicit rather than incidental.
+    getSyncStatusAction()
+      .then(setStatus)
+      .catch(() => setStatus(null));
   }, []);
 
   async function refresh() {
@@ -59,6 +66,7 @@ export function Sidebar() {
     if (!result.ok) toast.error(result.error);
     getSyncStatusAction()
       .then(setStatus)
+      .catch(() => setStatus(null))
       .finally(() => setPending(false));
   }
 

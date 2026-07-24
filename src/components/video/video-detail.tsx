@@ -159,15 +159,28 @@ export function VideoDetail({
   const { item } = detail;
   const hasTranscript = detail.transcript !== null;
 
+  // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
+  // explicitly in both functions below so a failure surfaces as a toast instead of a
+  // silent unhandled rejection with no user feedback (backlog item, matching the
+  // pattern Task 7's createPrompt/copyVariant handlers already use in this file and
+  // stage-script.tsx/script-card.tsx).
   async function copyLink() {
-    await navigator.clipboard.writeText(item.url);
-    toast.success("Link copied");
+    try {
+      await navigator.clipboard.writeText(item.url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
   }
 
   async function copyTranscript() {
     if (!detail.transcript) return;
-    await navigator.clipboard.writeText(detail.transcript.text);
-    toast.success("Transcript copied");
+    try {
+      await navigator.clipboard.writeText(detail.transcript.text);
+      toast.success("Transcript copied");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
   }
 
   /** DESIGN.md §2.4 / spec §8: structured Copy-as-Prompt export (Task 7). Works

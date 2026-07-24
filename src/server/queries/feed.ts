@@ -86,7 +86,11 @@ async function buildWhere(f: FeedFilters): Promise<SQL | undefined> {
       .select({ channelId: tables.fleetChannels.channelId })
       .from(tables.fleetChannels)
       .where(eq(tables.fleetChannels.fleetId, f.fleetId));
-    conditions.push(inArray(tables.videos.channelId, rows.map((r) => r.channelId)));
+    const channelIds = rows.map((r) => r.channelId);
+    // An empty-membership fleet must still scope the result to "nothing", but never
+    // via inArray(col, []) — an empty IN-list isn't guaranteed safe/well-defined SQL
+    // across dialects (backlog M2). `sql\`0\`` is an explicit, always-false condition.
+    conditions.push(channelIds.length > 0 ? inArray(tables.videos.channelId, channelIds) : sql`0`);
   }
 
   return conditions.length ? and(...conditions) : undefined;

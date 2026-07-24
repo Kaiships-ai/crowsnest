@@ -42,9 +42,17 @@ export function OutlierCard({
   const open = () => onOpen?.(item.videoId);
   const duration = formatDuration(item.durationSec);
 
+  // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
+  // explicitly so a failure surfaces as a toast instead of a silent unhandled
+  // rejection with no user feedback (backlog item, matching the pattern already used
+  // for Copy-as-Prompt handlers elsewhere in this app).
   async function copyLink() {
-    await navigator.clipboard.writeText(item.url);
-    toast.success("Link copied");
+    try {
+      await navigator.clipboard.writeText(item.url);
+      toast.success("Link copied");
+    } catch {
+      toast.error("Couldn't copy to clipboard — check browser permissions.");
+    }
   }
 
   return (

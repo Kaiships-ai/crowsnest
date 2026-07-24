@@ -521,6 +521,17 @@ WCAG contrast audit done in Python as the best available substitute.
 **Before shipping, re-run the actual validator** once Node is available in the build
 env: `node validate_palette.js "<hexes>" --mode dark --surface "#0B0D12"`.
 
+**2026-07-25 verification attempt (phase 4, backlog item 6):** Node is now available
+in the build env (this whole phase's `npm run build`/`test` ran on it), so the original
+blocker above is gone — but `validate_palette.js` itself was searched for across
+`~/.claude/skills/*`, `~/.claude/plugins/**` (cache + marketplaces + data, all
+installed plugins enumerated), and a broader filesystem search, and no `dataviz`
+skill or `validate_palette.js` script exists in this environment to run. Per the
+phase-4 plan's own escape hatch ("if truly absent, skip with note"), skipping rather
+than fabricating a result. The Python-computed WCAG contrast numbers above remain the
+best available substitute and are unchanged — nothing here reported a hard FAIL, so
+no token values were touched.
+
 | Role | Hex | HSL (for shadcn CSS vars) | vs. surface | Verdict |
 |---|---|---|---|---|
 | `background` | `#0B0D12` | `223 24% 6%` | — | base canvas |
