@@ -11,12 +11,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { autosave } from "@/components/remix/autosave";
 import { generateHooksAction, updateStageAction } from "@/server/actions/remix-actions";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
 import type { VaultItemRow } from "@/server/queries/vault";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 const NONE_VALUE = "__none__";
+const EMPTY_VALUE = "__empty__";
 
 /** DESIGN.md §2.5 stage ③: optional Vault-hook seed, "Generate 5 hooks" -> 5 editable
  * option Cards each with use/save-to-Vault actions; the chosen hook stays pinned at
@@ -25,16 +27,20 @@ export function StageHook({
   session,
   vaultHooks,
   hasLlmKey,
+  initialVaultItemId,
   onHooksChange,
   onChosenHookChange,
 }: {
   session: RemixSessionRow;
   vaultHooks: VaultItemRow[];
   hasLlmKey: boolean;
+  // Preselects this Vault hook's Select option when arriving via a Vault template
+  // card's "Use in Remix" deep link (?hook=<id>, review finding H2 — see deep-link.ts).
+  initialVaultItemId?: string;
   onHooksChange: (hooks: string[]) => void;
   onChosenHookChange: (hook: string) => void;
 }) {
-  const [vaultItemId, setVaultItemId] = useState(NONE_VALUE);
+  const [vaultItemId, setVaultItemId] = useState(initialVaultItemId ?? NONE_VALUE);
   const [generating, setGenerating] = useState(false);
   // Initialized once from the session prop (this component only mounts while the Hook
   // stage is active, so a fresh mount is exactly when `session.hookOptions` should be
@@ -67,12 +73,17 @@ export function StageHook({
 
   function chooseHook(text: string) {
     onChosenHookChange(text);
-    void updateStageAction(session.id, { chosenHook: text });
+    autosave(updateStageAction(session.id, { chosenHook: text }));
   }
 
-  const vaultOptions = [
+  // DESIGN.md §6: an empty Vault never blocks the stage — generation still falls back
+  // to the source video's own pattern — so the empty state is just a disabled option
+  // explaining why there's nothing else to pick, not a dead end.
+  const vaultOptions: { value: string; label: string; disabled?: boolean }[] = [
     { value: NONE_VALUE, label: "None — use source hook pattern" },
-    ...vaultHooks.map((item) => ({ value: item.id, label: item.title })),
+    ...(vaultHooks.length > 0
+      ? vaultHooks.map((item) => ({ value: item.id, label: item.title }))
+      : [{ value: EMPTY_VALUE, label: "No saved hooks yet", disabled: true }]),
   ];
 
   return (
@@ -93,7 +104,7 @@ export function StageHook({
             </SelectTrigger>
             <SelectContent>
               {vaultOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
                   {option.label}
                 </SelectItem>
               ))}

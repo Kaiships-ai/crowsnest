@@ -233,10 +233,11 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
   const client = opts?.llm ?? getLlm();
   const niche = await getNicheProfile();
   const topic = session.topic ?? video?.caption ?? "this topic";
+  const facts = session.researchNotes?.facts || undefined;
 
   const result = await client.generateParsed({
     system: HOOK_SYSTEM,
-    user: buildHookUser({ topic, niche, pattern }),
+    user: buildHookUser({ topic, niche, pattern, facts }),
     schema: HookOptionsSchema,
   });
 
@@ -266,10 +267,11 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
   const niche = await getNicheProfile();
   const topic = session.topic ?? video?.caption ?? "this topic";
   const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
+  const facts = session.researchNotes?.facts || undefined;
 
   const outline = await client.generateParsed({
     system: OUTLINE_SYSTEM,
-    user: buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure }),
+    user: buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }),
     schema: OutlineSchema,
   });
 
@@ -284,19 +286,33 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
 /**
  * Generates `count` (default 3) script variants in parallel via Promise.allSettled —
  * a rejected variant becomes `{ error }` at its own index while the rest are
- * unaffected (per-variant isolation, DESIGN.md §6). Only the successful strings are
- * persisted to `variants[]`; a failed variant leaves no trace in the DB, matching the
- * plan's "retry that one variant" UX (Task 6) rather than storing a placeholder.
+ * unaffected (per-variant isolation, DESIGN.md §6).
+ *
+ * Two persistence modes, both leaving a failed variant with no trace in the DB
+ * (matching the plan's "retry that one variant" UX, Task 6, rather than storing a
+ * placeholder):
+ *  - `opts.index` unset (the normal "Write script" / "Regenerate all" call): exactly
+ *    `count` variants are generated and the *whole* `variants[]` column is replaced
+ *    with whichever succeeded.
+ *  - `opts.index` set (a single-variant "Regenerate", review finding M2): exactly one
+ *    variant is generated and, on success, read-modify-written into the existing
+ *    persisted `variants[]` at that one slot — every other slot (including one being
+ *    autosaved concurrently from a manual edit elsewhere) is left untouched. On
+ *    failure the DB is not written at all, so the previous value at that slot survives.
  */
 export async function generateVariants(
   id: string,
-  opts?: { count?: number; llm?: LlmClient }
+  opts?: { count?: number; index?: number; llm?: LlmClient }
 ): Promise<(string | { error: string })[]> {
   const session = await getSession(id);
   const video = await getVideoRow(session.sourceVideoId);
-  const count = opts?.count ?? DEFAULT_VARIANT_COUNT;
+  const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
   const client = opts?.llm ?? getLlm();
   const niche = await getNicheProfile();
+  const facts = session.researchNotes?.facts || undefined;
+  const similar = session.researchNotes?.similar?.length
+    ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
+    : undefined;
 
   const user = buildScriptUser({
     topic: session.topic ?? video?.caption ?? "this topic",
@@ -304,6 +320,8 @@ export async function generateVariants(
     hook: session.chosenHook ?? "",
     outline: session.outline ?? { beats: [] },
     targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
+    facts,
+    similar,
   });
 
   const settled = await Promise.allSettled(
@@ -313,6 +331,19 @@ export async function generateVariants(
   const results: (string | { error: string })[] = settled.map((outcome) =>
     outcome.status === "fulfilled" ? outcome.value : { error: errorMessage(outcome.reason) }
   );
+
+  if (opts?.index !== undefined) {
+    const [result] = results;
+    if (typeof result === "string") {
+      const merged = [...(session.variants ?? [])];
+      merged[opts.index] = result;
+      await db
+        .update(tables.remixSessions)
+        .set({ variants: merged, updatedAt: nowIso() })
+        .where(eq(tables.remixSessions.id, id));
+    }
+    return results;
+  }
 
   const successes = results.filter((result): result is string => typeof result === "string");
   await db

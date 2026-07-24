@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { autosave } from "@/components/remix/autosave";
 import { formatMultiplier } from "@/lib/format";
 import { buildResearchAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { ResearchNotes } from "@/server/services/remix";
@@ -60,8 +61,9 @@ export function StageResearch({
   function commitFacts() {
     const updated = { ...notes, facts };
     onNotesChange(updated); // local sync in the orchestrator
-    void updateStageAction(session.id, { researchNotes: updated }); // buildResearch already
-    // persisted the rest; this is the one field the user can edit after the fact.
+    // buildResearch already persisted the rest; this is the one field the user can
+    // edit after the fact.
+    autosave(updateStageAction(session.id, { researchNotes: updated }));
   }
 
   return (

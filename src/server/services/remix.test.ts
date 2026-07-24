@@ -178,6 +178,20 @@ describe("generateHooks", () => {
     expect(call.user).toContain("a very distinctive template pattern {topic}");
     expect(call.user).not.toContain("curiosity-gap");
   });
+
+  test("grounds the prompt in researchNotes.facts when present (review finding H1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, {
+      researchNotes: { sourceAnalysis: null, transcriptExcerpt: null, similar: [], facts: "the giraffe eats 34kg of acacia daily" },
+    });
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
+  });
 });
 
 describe("generateOutline", () => {
@@ -214,6 +228,20 @@ describe("generateOutline", () => {
     const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("a very distinctive style description");
   });
+
+  test("grounds the prompt in researchNotes.facts when present (review finding H1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, {
+      researchNotes: { sourceAnalysis: null, transcriptExcerpt: null, similar: [], facts: "the giraffe eats 34kg of acacia daily" },
+    });
+    const llm = fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [] }) });
+
+    await generateOutline(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
+  });
 });
 
 describe("generateVariants", () => {
@@ -248,6 +276,49 @@ describe("generateVariants", () => {
 
     expect(results).toHaveLength(5);
     expect(llm.generateText).toHaveBeenCalledTimes(5);
+  });
+
+  test("grounds the prompt in researchNotes.facts when present (review finding H1)", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, {
+      researchNotes: { sourceAnalysis: null, transcriptExcerpt: null, similar: [], facts: "the giraffe eats 34kg of acacia daily" },
+    });
+    const llm = fakeLlm();
+
+    await generateVariants(session.id, { llm });
+
+    const call = (llm.generateText as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
+  });
+
+  test("index option merges a single regenerated slot into existing variants[] (read-modify-write), leaving siblings untouched (review finding M2)", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["script zero", "script one (stale)", "script two"] });
+
+    const llm = fakeLlm({ generateText: vi.fn().mockResolvedValue("script one (regenerated)") });
+    const results = await generateVariants(session.id, { llm, index: 1 });
+
+    expect(results).toEqual(["script one (regenerated)"]);
+    expect(llm.generateText).toHaveBeenCalledTimes(1); // exactly one call, not `count`-many
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.variants).toEqual(["script zero", "script one (regenerated)", "script two"]);
+  });
+
+  test("index option: a failing regenerate leaves the existing variants[] completely untouched (review finding M2)", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["script zero", "script one", "script two"] });
+
+    const llm = fakeLlm({ generateText: vi.fn().mockRejectedValue(new Error("rate limited")) });
+    const results = await generateVariants(session.id, { llm, index: 1 });
+
+    expect(results).toEqual([{ error: "rate limited" }]);
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.variants).toEqual(["script zero", "script one", "script two"]);
   });
 });
 

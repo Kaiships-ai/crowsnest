@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ContextRail } from "@/components/remix/context-rail";
+import { resolveDeepLinkSeed } from "@/components/remix/deep-link";
 import { StageHook } from "@/components/remix/stage-hook";
 import { StagePrompt } from "@/components/remix/stage-prompt";
 import { StageResearch } from "@/components/remix/stage-research";
@@ -30,6 +31,8 @@ export function RemixStudio({
   vaultHooks,
   vaultStyles,
   niche,
+  seedHookVaultItemId,
+  seedStyleVaultItemId,
 }: {
   detail: VideoDetail;
   initialSession: RemixSessionRow;
@@ -37,10 +40,30 @@ export function RemixStudio({
   vaultHooks: VaultItemRow[];
   vaultStyles: VaultItemRow[];
   niche: string;
+  // A Vault template card's "Use in Remix" deep link (?hook=<id> / ?style=<id>).
+  seedHookVaultItemId?: string;
+  seedStyleVaultItemId?: string;
 }) {
-  const [session, setSession] = useState(initialSession);
-  const [activeStage, setActiveStage] = useState<RemixStage>(initialSession.stage);
+  // Computed once from the initial props — see deep-link.ts. Mirrors the
+  // `useState(() => ...)` "compute once from props, no setter used" idiom already in
+  // stage-prompt.tsx's `defaultTopic`.
+  const [deepLinkSeed] = useState(() =>
+    resolveDeepLinkSeed({ session: initialSession, seedHookVaultItemId, seedStyleVaultItemId, vaultHooks, vaultStyles })
+  );
+  const [session, setSession] = useState<RemixSessionRow>(() => ({ ...initialSession, ...deepLinkSeed.sessionPatch }));
+  const [activeStage, setActiveStage] = useState<RemixStage>(deepLinkSeed.activeStage);
   const [quickRemixPending, setQuickRemixPending] = useState(false);
+
+  // Persists the deep-link seed once on mount — local `session`/`activeStage` state
+  // above already reflects it immediately, this just makes sure it survives past this
+  // render (a refresh, or the stepper's furthest-stage gate which reads
+  // `session.stage`). No setState call in this body (only the network call), so
+  // there's nothing for react-hooks/set-state-in-effect to flag.
+  useEffect(() => {
+    if (deepLinkSeed.sessionPatch) {
+      void updateStageAction(initialSession.id, deepLinkSeed.sessionPatch);
+    }
+  }, [initialSession.id, deepLinkSeed.sessionPatch]);
 
   const patchSession = useCallback((patch: Partial<RemixSessionRow>) => {
     setSession((prev) => ({ ...prev, ...patch }));
@@ -117,6 +140,7 @@ export function RemixStudio({
               session={session}
               vaultHooks={vaultHooks}
               hasLlmKey={hasLlmKey}
+              initialVaultItemId={deepLinkSeed.hookVaultItemId}
               onHooksChange={(hookOptions) => patchSession({ hookOptions })}
               onChosenHookChange={(chosenHook) => patchSession({ chosenHook })}
             />

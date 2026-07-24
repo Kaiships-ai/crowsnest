@@ -10,12 +10,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { autosave } from "@/components/remix/autosave";
 import { generateOutlineAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { Outline } from "@/server/llm/schemas";
 import type { VaultItemRow } from "@/server/queries/vault";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 const SOURCE_VALUE = "__source__";
+const EMPTY_VALUE = "__empty__";
 
 /** DESIGN.md §2.5 stage ④: same seed-then-generate shape as Hook — "Source video's
  * structure" (default) or a Vault style template, then an editable beat outline
@@ -45,7 +47,7 @@ export function StageStyle({
     setStyleChoice(value);
     const id = value === SOURCE_VALUE ? null : value;
     onStyleVaultItemChange(id);
-    void updateStageAction(session.id, { styleVaultItemId: id });
+    autosave(updateStageAction(session.id, { styleVaultItemId: id }));
   }
 
   async function generate() {
@@ -70,12 +72,17 @@ export function StageStyle({
   }
 
   function commitBeats() {
-    void updateStageAction(session.id, { outline: { beats } });
+    autosave(updateStageAction(session.id, { outline: { beats } }));
   }
 
-  const styleOptions = [
+  // DESIGN.md §6: an empty Vault never blocks the stage — generation still falls back
+  // to the source video's own structure — so the empty state is just a disabled
+  // option explaining why there's nothing else to pick, not a dead end.
+  const styleOptions: { value: string; label: string; disabled?: boolean }[] = [
     { value: SOURCE_VALUE, label: "Source video's structure" },
-    ...vaultStyles.map((item) => ({ value: item.id, label: item.title })),
+    ...(vaultStyles.length > 0
+      ? vaultStyles.map((item) => ({ value: item.id, label: item.title }))
+      : [{ value: EMPTY_VALUE, label: "No saved styles yet", disabled: true }]),
   ];
 
   return (
@@ -89,7 +96,7 @@ export function StageStyle({
             </SelectTrigger>
             <SelectContent>
               {styleOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
+                <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
                   {option.label}
                 </SelectItem>
               ))}

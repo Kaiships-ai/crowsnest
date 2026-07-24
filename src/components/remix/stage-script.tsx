@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { autosave } from "@/components/remix/autosave";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
@@ -73,10 +74,13 @@ export function StageScript({
     return () => clearInterval(interval);
   }, [pending]);
 
+  // Persists the *whole* array — used only for a manual variant-text edit
+  // (commitEditBlur below), where there's no single server-known "slot" the way a
+  // regenerate has. regenerate() below does NOT call this (see its comment, M2).
   function persistSuccesses(next: VariantResult[]) {
     const successes = next.filter((r): r is string => typeof r === "string");
     onVariantsChange(successes);
-    void updateStageAction(session.id, { variants: successes });
+    autosave(updateStageAction(session.id, { variants: successes }));
   }
 
   async function writeScript() {
@@ -94,7 +98,7 @@ export function StageScript({
 
   async function regenerate(index: number) {
     setRegeneratingIndex(index);
-    const result = await generateVariantsAction(session.id, 1);
+    const result = await generateVariantsAction(session.id, undefined, index);
     setRegeneratingIndex(null);
     if (!result.ok) {
       toast.error(result.error);
@@ -103,7 +107,12 @@ export function StageScript({
     const next = [...results];
     next[index] = result.variants[0] ?? { error: "No result returned" };
     setResults(next);
-    persistSuccesses(next);
+    // Local sync only — the server already read-modify-wrote this one slot into
+    // variants[] (remix.ts's generateVariants with `index` set, review finding M2),
+    // so re-persisting the whole client-side `next` array here (the old "repair
+    // hack") would risk clobbering a sibling slot's concurrent autosave with a stale
+    // copy instead of the merge the server already did correctly.
+    onVariantsChange(next.filter((r): r is string => typeof r === "string"));
   }
 
   function commitEdit(index: number, text: string) {

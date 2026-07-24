@@ -2,6 +2,7 @@
 
 import type { Outline } from "../llm/schemas";
 import { NoApiKeyError } from "../llm/client";
+import { llmErrorMessage } from "../llm/error-message";
 import {
   buildResearch,
   generateHooks,
@@ -27,7 +28,7 @@ type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: s
  */
 function errorMessage(err: unknown): string {
   if (err instanceof NoApiKeyError) return "Add ANTHROPIC_API_KEY in Settings to enable remix generation.";
-  return err instanceof Error ? err.message : String(err);
+  return llmErrorMessage(err);
 }
 
 export async function getOrCreateSessionAction(videoId: string): Promise<ActionResult<{ session: RemixSessionRow }>> {
@@ -77,10 +78,11 @@ export async function generateOutlineAction(id: string): Promise<ActionResult<{ 
 
 export async function generateVariantsAction(
   id: string,
-  count?: number
+  count?: number,
+  index?: number
 ): Promise<ActionResult<{ variants: (string | { error: string })[] }>> {
   try {
-    const variants = await generateVariants(id, { count });
+    const variants = await generateVariants(id, { count, index });
     return { ok: true, variants };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

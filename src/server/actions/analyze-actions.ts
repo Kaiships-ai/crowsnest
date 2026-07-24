@@ -1,6 +1,7 @@
 "use server";
 
 import { NoApiKeyError } from "../llm/client";
+import { llmErrorMessage } from "../llm/error-message";
 import { getOrCreateAnalysis } from "../services/analyze";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -9,12 +10,13 @@ type ActionResult = { ok: true } | { ok: false; error: string };
  * Thin "use server" wrapper around analyze.ts (Task 2): all real logic — caching,
  * transcript gating, the Claude call — lives in the service, which is already fully
  * covered by its own tests. This layer only translates errors into the ActionResult
- * shape (see sync-actions.ts) and gives NoApiKeyError a friendly, feature-specific
- * message instead of the generic one.
+ * shape (see sync-actions.ts): NoApiKeyError gets a friendly, feature-specific
+ * message, everything else goes through the shared typed-SDK-error mapping
+ * (llm/error-message.ts, review finding M1).
  */
 function errorMessage(err: unknown): string {
   if (err instanceof NoApiKeyError) return "Add ANTHROPIC_API_KEY in Settings to enable analysis.";
-  return err instanceof Error ? err.message : String(err);
+  return llmErrorMessage(err);
 }
 
 export async function analyzeVideoAction(videoId: string): Promise<ActionResult> {

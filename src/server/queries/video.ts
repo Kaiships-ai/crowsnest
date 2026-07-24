@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import type { VideoAnalysis } from "@/server/llm/schemas";
+// Shared with remix.ts (Task 5) — see analyze.ts's export comment. Review finding L1:
+// this file used to keep its own private copy of the same row -> VideoAnalysis
+// mapping instead of importing the one already exported for exactly this reuse.
+import { rowToAnalysis } from "@/server/services/analyze";
 import { feedItemColumns, type FeedItem } from "./feed";
 
 export interface VideoDetail {
@@ -9,16 +13,6 @@ export interface VideoDetail {
   commentCount: number | null;
   transcript: { text: string; source: string } | null;
   analysis: VideoAnalysis | null;
-}
-
-function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): VideoAnalysis {
-  return {
-    hookType: row.hookType ?? "",
-    structureSegments: row.structureSegments ?? [],
-    formatTags: row.formatTags ?? [],
-    styleTags: row.styleTags ?? [],
-    whyItWorked: row.whyItWorked ?? "",
-  };
 }
 
 export async function getVideoDetail(id: string): Promise<VideoDetail | null> {

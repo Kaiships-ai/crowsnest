@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { autosave } from "@/components/remix/autosave";
 import { updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
@@ -51,7 +52,7 @@ export function StagePrompt({
   useEffect(() => {
     if (session.topic === null) {
       onUpdate({ topic: defaultTopic });
-      void updateStageAction(session.id, { topic: defaultTopic });
+      autosave(updateStageAction(session.id, { topic: defaultTopic }));
     }
   }, [session.id, session.topic, defaultTopic, onUpdate]);
 
@@ -64,13 +65,13 @@ export function StagePrompt({
   }
 
   function persistTopic() {
-    void updateStageAction(session.id, { topic });
+    autosave(updateStageAction(session.id, { topic }));
   }
 
   function commitLength(value: string) {
     setTargetLengthSec(value);
     onUpdate({ targetLengthSec: Number(value) });
-    void updateStageAction(session.id, { targetLengthSec: Number(value) });
+    autosave(updateStageAction(session.id, { targetLengthSec: Number(value) }));
   }
 
   return (
