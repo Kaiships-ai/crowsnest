@@ -20,6 +20,31 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) to get started.
 
+## Using Crowsnest
+
+The demo seed data lets you explore every page immediately, keyless. The real workflow,
+once you're ready to track your own channels:
+
+1. **Add a channel** — Channels → `+ Channel`, track by handle. This just starts
+   tracking; it works with no keys set (the row appears with placeholder stats).
+2. **Sync** — Channels or the sidebar's "Sync now" pulls real profile/reel data for
+   every tracked channel. *Needs `APIFY_TOKEN`* (or `HIKERAPI_KEY` as a fallback) — with
+   neither set, Sync now still runs and reports a clear "no provider configured" gap
+   per channel instead of failing silently.
+3. **Browse outliers** — the Dashboard and Outlier Feed surface videos performing well
+   above their channel's baseline. No key needed.
+4. **Analyze** — open a video and hit "Analyze this video" for an AI breakdown of its
+   hook, structure, and why it worked. *Needs `ANTHROPIC_API_KEY`.*
+5. **Vault** — save a hook or style template from any analyzed video (or write one by
+   hand) for reuse. No key needed.
+6. **Remix** — the Remix Studio's staged pipeline (Prompt → Research → Hook → Style →
+   Script) turns a Vault template (or the source video's own pattern) into a new
+   script for your niche. *Needs `ANTHROPIC_API_KEY`* for every generation step; the
+   Research stage's auto-assembly is the one step that works keyless.
+7. **Export** — "Create Prompt" (Video Detail, the Remix Script stage, or a saved
+   script's Vault card) copies a structured markdown prompt to paste into any LLM, as
+   a keyless alternative to steps 4/6.
+
 ## Available Scripts
 
 | Command | Purpose |
@@ -78,6 +103,29 @@ See `docs/` for more information:
 - `docs/research/FEATURES.md` — Feature prioritization and scout research
 - `docs/research/DATA.md` — Data acquisition strategy and provider interfaces
 - `docs/superpowers/specs/2026-07-23-crowsnest-design.md` — Complete design specification
+
+## Known Issues
+
+- **Video Detail's not-found status stays 200.** A missing video renders the correct
+  not-found *content* in both `next dev` and a production build, but the HTTP status
+  code doesn't flip to 404 — a deeper interaction between `generateMetadata` and
+  `notFound()` in this Next version, not a missing `notFound()` call. Only matters if
+  something external checks the status code; the page itself is correct.
+- **Fleet search-within-a-fleet is deferred.** The Feed's Fleet filter scopes to a
+  whole Fleet; searching within one for a single channel isn't wired into the Select
+  yet, though the query layer (`FeedFilters.channelId`) already supports it.
+- **Saved scripts' `hookVaultItemId` is always null.** `remix_sessions` stores the
+  chosen hook as raw text, not a `vault_items.id` — there's no column to link a saved
+  script back to the specific Vault hook (if any) that seeded it without a schema
+  migration adding one.
+
+## Costs
+
+Everything in this app is free to run except two optional integrations you opt into
+per-feature: Claude API calls (analysis, remix generation) and channel-sync providers
+(Apify/HikerAPI). Estimated all-in monthly cost at moderate personal-use volume:
+**~$10–25/month** — see `docs/research/DATA.md` for the full breakdown and sourcing.
+Local transcription (whisper.cpp) and manual reel import (yt-dlp) are always free.
 
 ## Development
 
