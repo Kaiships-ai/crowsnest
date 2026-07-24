@@ -108,7 +108,13 @@ export async function getChannelsList(fleetId?: string): Promise<ChannelRow[]> {
   return Promise.all(channelRows.map(buildChannelRow));
 }
 
-export async function getFleets(): Promise<{ id: string; name: string; channelCount: number }[]> {
+export interface Fleet {
+  id: string;
+  name: string;
+  channelCount: number;
+}
+
+export async function getFleets(): Promise<Fleet[]> {
   const fleets = await db.select().from(tables.fleets);
   return Promise.all(
     fleets.map(async (f) => {
