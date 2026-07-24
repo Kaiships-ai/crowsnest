@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
 import type { FeedItem } from "@/server/queries/feed";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
@@ -208,12 +209,16 @@ export function VideoDetail({
           </a>
 
           <div className="mt-auto flex items-center gap-2 pt-2">
-            <Tooltip>
-              <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                <Bookmark className="size-3.5" /> Save to Vault
-              </TooltipTrigger>
-              <TooltipContent>Vault arrives in phase 3</TooltipContent>
-            </Tooltip>
+            {detail.analysis ? (
+              <SaveToVaultDialog videoId={item.videoId} analysis={detail.analysis} />
+            ) : (
+              <Tooltip>
+                <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
+                  <Bookmark className="size-3.5" /> Save to Vault
+                </TooltipTrigger>
+                <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
+              </Tooltip>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" aria-label="More actions" />}>
                 <MoreHorizontal className="size-4" />

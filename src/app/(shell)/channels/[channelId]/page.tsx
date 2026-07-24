@@ -6,9 +6,9 @@ import { ChannelHeader } from "@/components/channels/channel-header";
 import { ChannelVideoGrid } from "@/components/channels/channel-video-grid";
 import { OutlierHistoryChart } from "@/components/channels/outlier-history-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, formatMultiplier } from "@/lib/format";
 import { getChannelDetail } from "@/server/queries/channels";
+import { getVaultedVideoCounts } from "@/server/queries/vault";
 
 // Dataviz stat-tile contract (DESIGN.md §5): sentence-case label, semibold compact
 // value. No delta/sparkline here — the chart below already covers trend (§2.3).
@@ -31,6 +31,8 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   if (!detail) notFound();
 
   const outliersOnly = detail.videos.filter((v) => v.outlierScore !== null && v.outlierScore >= 2);
+  const templateCounts = await getVaultedVideoCounts();
+  const vaultedVideos = detail.videos.filter((v) => templateCounts.has(v.videoId));
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
@@ -56,12 +58,7 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
         <TabsList>
           <TabsTrigger value="recent">Recent Reels</TabsTrigger>
           <TabsTrigger value="outliers">Outliers Only</TabsTrigger>
-          <Tooltip>
-            <TooltipTrigger render={<TabsTrigger value="vault" className="text-muted-foreground/70" />}>
-              In Vault
-            </TooltipTrigger>
-            <TooltipContent>Coming in phase 3</TooltipContent>
-          </Tooltip>
+          <TabsTrigger value="vault">In Vault</TabsTrigger>
         </TabsList>
 
         <TabsContent value="recent">
@@ -71,9 +68,11 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
           <ChannelVideoGrid items={outliersOnly} emptyLabel="No outliers (2x+) yet." />
         </TabsContent>
         <TabsContent value="vault">
-          <p className="py-12 text-center text-sm text-muted-foreground">
-            In Vault view arrives in phase 3 — it&rsquo;ll show reels with at least one saved template.
-          </p>
+          <ChannelVideoGrid
+            items={vaultedVideos}
+            emptyLabel="No templates saved from this channel yet."
+            templateCounts={templateCounts}
+          />
         </TabsContent>
       </Tabs>
     </div>

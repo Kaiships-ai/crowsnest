@@ -30,10 +30,14 @@ export function OutlierCard({
   item,
   variant = "full",
   onOpen,
+  overlayBadge,
 }: {
   item: FeedItem;
   variant?: "full" | "compact";
   onOpen?: (id: string) => void;
+  /** Optional bottom-left thumbnail overlay (e.g. Channel Detail's Vaulted tab
+   * "2 templates" chip, DESIGN.md §2.3 v0.2) — mirrors the duration stamp's styling. */
+  overlayBadge?: string;
 }) {
   const open = () => onOpen?.(item.videoId);
   const duration = formatDuration(item.durationSec);
@@ -75,6 +79,11 @@ export function OutlierCard({
         {duration && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white backdrop-blur-sm">
             {duration}
+          </span>
+        )}
+        {overlayBadge && (
+          <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+            {overlayBadge}
           </span>
         )}
       </div>
