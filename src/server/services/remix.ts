@@ -44,8 +44,21 @@ export interface StagePatch {
   niche: string;
   targetLengthSec: number;
   chosenHook: string;
-  styleVaultItemId: string;
+  // Nullable (unlike the plan's original `string`): the Style stage's Vault-style
+  // Select must be able to revert to "use the source video's own structure", which
+  // clears this back to null — a plain optional string can't distinguish "clear it"
+  // from "leave it alone" the way `Partial<StagePatch>` already does for every field.
+  styleVaultItemId: string | null;
   stage: RemixStage;
+  // All three additive beyond the plan's original field list, surfaced by building
+  // the Task 6 UI: the Research stage's facts box, the Style stage's editable outline
+  // beats, and the Script stage's per-variant edit/regenerate all need to persist
+  // hand-edits after their initial generation, and researchNotes/outline/variants are
+  // real columns on this table — reusing updateStage's existing generic
+  // `.set({...patch})` rather than adding three bespoke setter functions.
+  researchNotes: ResearchNotes;
+  outline: Outline;
+  variants: string[];
 }
 
 const DEFAULT_TARGET_LENGTH_SEC = 45;
@@ -109,7 +122,10 @@ async function getVaultItemTemplateText(vaultItemId: string): Promise<string | n
   return row?.templateText ?? null;
 }
 
-async function getNicheProfile(): Promise<string> {
+// Exported for the Prompt stage's read-only niche chip (Task 6) — the same lookup
+// the service uses internally for prompt-building, so the UI display never drifts
+// from what's actually sent to Claude.
+export async function getNicheProfile(): Promise<string> {
   const [row] = await db.select().from(tables.appSettings).where(eq(tables.appSettings.key, "niche_profile")).limit(1);
   return row?.value ?? "general short-form content";
 }
@@ -148,9 +164,15 @@ export async function getOrCreateSession(videoId: string): Promise<RemixSessionR
 /** Persists whichever StagePatch fields are given — topic/niche/targetLengthSec/
  * chosenHook/styleVaultItemId/stage — on every stage move through the studio. */
 export async function updateStage(id: string, patch: Partial<StagePatch>): Promise<void> {
+  const { researchNotes, outline, ...rest } = patch;
   await db
     .update(tables.remixSessions)
-    .set({ ...patch, updatedAt: nowIso() })
+    .set({
+      ...rest,
+      ...(researchNotes !== undefined ? { researchNotes: researchNotes as unknown as Record<string, unknown> } : {}),
+      ...(outline !== undefined ? { outline: JSON.stringify(outline) } : {}),
+      updatedAt: nowIso(),
+    })
     .where(eq(tables.remixSessions.id, id));
 }
 

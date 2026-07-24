@@ -46,9 +46,13 @@ function TemplateGrid({ items, kind, vaultIsEmpty }: { items: VaultItemRow[]; ki
   );
 }
 
-export default async function VaultPage() {
-  const [hooks, styles, scripts] = await Promise.all([getVaultItems("hook"), getVaultItems("style"), getScripts()]);
+const VALID_TABS = ["hooks", "styles", "scripts"] as const;
+
+export default async function VaultPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+  const [hooks, styles, scripts, { tab }] = await Promise.all([getVaultItems("hook"), getVaultItems("style"), getScripts(), searchParams]);
   const vaultIsEmpty = hooks.length === 0 && styles.length === 0;
+  // Save Script's "View in Vault" link deep-links here with ?tab=scripts (Task 6).
+  const defaultTab = (VALID_TABS as readonly string[]).includes(tab ?? "") ? tab! : "hooks";
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
@@ -62,7 +66,7 @@ export default async function VaultPage() {
         <NewTemplateDialog />
       </div>
 
-      <Tabs defaultValue="hooks">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="hooks">Hooks</TabsTrigger>
           <TabsTrigger value="styles">Styles</TabsTrigger>

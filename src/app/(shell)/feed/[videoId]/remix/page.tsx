@@ -1,39 +1,32 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { notFound } from "next/navigation";
 
-export default async function RemixStudioPage({
-  params,
-}: {
-  params: Promise<{ videoId: string }>;
-}) {
+import { RemixStudio } from "@/components/remix/remix-studio";
+import { hasLlmKey } from "@/server/llm/client";
+import { getVaultItems } from "@/server/queries/vault";
+import { getVideoDetail } from "@/server/queries/video";
+import { getNicheProfile, getOrCreateSession } from "@/server/services/remix";
+
+export default async function RemixStudioPage({ params }: { params: Promise<{ videoId: string }> }) {
   const { videoId } = await params;
 
-  return (
-    <div className="flex flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Remix Studio</h1>
-        <p className="text-sm text-muted-foreground">
-          Staged pipeline — Prompt, Research, Hook, Style, and Script — for
-          turning an outlier into your own draft.
-        </p>
-      </div>
+  const detail = await getVideoDetail(videoId);
+  if (!detail) notFound();
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Remixing video {videoId}</CardTitle>
-          <CardDescription>
-            Phase 2/3 builds this — see docs/PLAN.md
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          The persistent source rail and the 5-stage stepper land here.
-        </CardContent>
-      </Card>
-    </div>
+  const [session, vaultHooks, vaultStyles, niche] = await Promise.all([
+    getOrCreateSession(videoId),
+    getVaultItems("hook"),
+    getVaultItems("style"),
+    getNicheProfile(),
+  ]);
+
+  return (
+    <RemixStudio
+      detail={detail}
+      initialSession={session}
+      hasLlmKey={hasLlmKey()}
+      vaultHooks={vaultHooks}
+      vaultStyles={vaultStyles}
+      niche={niche}
+    />
   );
 }
