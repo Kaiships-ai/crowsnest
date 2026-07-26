@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import type { z } from "zod";
+import { z } from "zod";
 
 /**
  * Thin wrapper around `@anthropic-ai/sdk` (Task 1, phase-3 plan) — every AI feature
@@ -123,16 +123,117 @@ class AnthropicLlmClient implements LlmClient {
   }
 }
 
+/**
+ * OpenAI-compat router mode (e.g. 9router at `ANTHROPIC_BASE_URL`). Local routers
+ * translate the Anthropic *streaming* wire format correctly but not the non-streaming
+ * one (raw provider JSON leaks through), and they ignore `output_config.format`
+ * entirely because the free backing models have no Anthropic structured-outputs
+ * support. So this client (a) always streams and reads the result via
+ * `finalMessage()`, and (b) implements `generateParsed` as prompt-engineered JSON:
+ * schema in the system prompt → fence-stripped `JSON.parse` → zod validation, with
+ * the same one-retry-then-`LlmParseError` contract as the native client.
+ */
+class CompatLlmClient implements LlmClient {
+  constructor(private readonly client: Anthropic) {}
+
+  private async streamText(opts: { system: string; user: string; maxTokens?: number }): Promise<string> {
+    const message = await this.client.messages
+      .stream({
+        model: resolveModel(),
+        max_tokens: opts.maxTokens ?? COMPAT_MAX_TOKENS,
+        system: opts.system,
+        messages: [{ role: "user" as const, content: opts.user }],
+      })
+      .finalMessage();
+
+    // Routed models emit `thinking` blocks before the answer — concatenate only
+    // text blocks, same narrowing as the native client.
+    let text = "";
+    for (const block of message.content) {
+      if (block.type === "text") text += block.text;
+    }
+    return text;
+  }
+
+  async generateText(opts: { system: string; user: string; maxTokens?: number }): Promise<string> {
+    return this.streamText(opts);
+  }
+
+  async generateParsed<T>(opts: {
+    system: string;
+    user: string;
+    schema: z.ZodType<T>;
+    maxTokens?: number;
+  }): Promise<T> {
+    const jsonSchema = JSON.stringify(z.toJSONSchema(opts.schema));
+    const system =
+      `${opts.system}\n\n` +
+      `Respond with a single JSON object that validates against this JSON Schema:\n${jsonSchema}\n` +
+      `Output ONLY the JSON object — no markdown fences, no commentary before or after.`;
+
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const raw = await this.streamText({ system, user: opts.user, maxTokens: opts.maxTokens });
+      const parsed = parseLooseJson(raw, opts.schema);
+      if (parsed.success) return parsed.data;
+    }
+    throw new LlmParseError();
+  }
+
+  async ping(): Promise<void> {
+    await this.client.messages.countTokens({
+      model: resolveModel(),
+      messages: [{ role: "user" as const, content: "ping" }],
+    });
+  }
+}
+
+/**
+ * Compat default is higher than the native 2048 because routed free models spend a
+ * large share of the budget on `thinking` tokens before the visible answer;
+ * callers passing an explicit `maxTokens` still win.
+ */
+const COMPAT_MAX_TOKENS = 8192;
+
+/**
+ * Tolerant JSON extraction for prompt-engineered structured outputs: strips markdown
+ * fences and any prose around the outermost `{...}` before `JSON.parse` + zod.
+ */
+function parseLooseJson<T>(raw: string, schema: z.ZodType<T>): { success: true; data: T } | { success: false } {
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) return { success: false };
+  try {
+    const candidate: unknown = JSON.parse(raw.slice(start, end + 1));
+    const result = schema.safeParse(candidate);
+    return result.success ? { success: true, data: result.data } : { success: false };
+  } catch {
+    return { success: false };
+  }
+}
+
+/**
+ * A base-URL override (`ANTHROPIC_BASE_URL`) means requests go through a local
+ * OpenAI-compat router rather than the real Anthropic API — see `CompatLlmClient`.
+ */
+export function isCompatMode(): boolean {
+  return Boolean(process.env.ANTHROPIC_BASE_URL);
+}
+
 let cachedClient: LlmClient | null = null;
 
 /**
  * Lazy singleton — throws `NoApiKeyError` if `ANTHROPIC_API_KEY` is unset so callers can
  * surface the keyless-mode Alert instead of crashing. `new Anthropic()` (zero-arg)
- * resolves credentials from the environment itself once a key is confirmed present.
+ * resolves credentials (and `ANTHROPIC_BASE_URL`) from the environment itself once a
+ * key is confirmed present.
  */
 export function getLlm(): LlmClient {
   if (!hasLlmKey()) throw new NoApiKeyError();
-  if (!cachedClient) cachedClient = new AnthropicLlmClient(new Anthropic());
+  if (!cachedClient) {
+    cachedClient = isCompatMode()
+      ? new CompatLlmClient(new Anthropic())
+      : new AnthropicLlmClient(new Anthropic());
+  }
   return cachedClient;
 }
 
@@ -144,4 +245,9 @@ export function getLlm(): LlmClient {
  */
 export function _createLlm(client: Anthropic): LlmClient {
   return new AnthropicLlmClient(client);
+}
+
+/** Test-only constructor seam for the compat-router client — same contract as `_createLlm`. */
+export function _createCompatLlm(client: Anthropic): LlmClient {
+  return new CompatLlmClient(client);
 }

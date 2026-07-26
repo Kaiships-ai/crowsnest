@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { NoApiKeyError, LlmParseError, getLlm, hasLlmKey, resolveModel, _createLlm } from "./client";
+import {
+  NoApiKeyError,
+  LlmParseError,
+  getLlm,
+  hasLlmKey,
+  isCompatMode,
+  resolveModel,
+  _createLlm,
+  _createCompatLlm,
+} from "./client";
 
 // Snapshot once at module load, restored after every test — this suite mutates
 // ANTHROPIC_API_KEY/CLAUDE_MODEL repeatedly and must never leak a fake key into other
@@ -144,6 +153,109 @@ describe("generateParsed", () => {
 
     const callArg = parse.mock.calls[0][0] as { output_config?: { format?: { type?: string } } };
     expect(callArg.output_config?.format?.type).toBe("json_schema");
+  });
+});
+
+describe("CompatLlmClient (OpenAI-compat router mode)", () => {
+  const Schema = z.object({ answer: z.string() });
+
+  /** Fakes `messages.stream(...).finalMessage()` — the only path the compat client uses for generation. */
+  function fakeStreamingAnthropic(finalMessages: Array<{ content: unknown[] }>) {
+    let call = 0;
+    const stream = vi.fn((params: { system: string; max_tokens: number }) => {
+      void params; // typed so tests can read stream.mock.calls; the fake ignores it
+      const message = finalMessages[Math.min(call, finalMessages.length - 1)];
+      call++;
+      return { finalMessage: async () => message };
+    });
+    const client = {
+      messages: {
+        stream,
+        countTokens: vi.fn(async () => ({ input_tokens: 1 })),
+      },
+    } as unknown as Anthropic;
+    return { client, stream };
+  }
+
+  test("isCompatMode reflects ANTHROPIC_BASE_URL presence", () => {
+    delete process.env.ANTHROPIC_BASE_URL;
+    expect(isCompatMode()).toBe(false);
+    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    expect(isCompatMode()).toBe(true);
+  });
+
+  test("generateText streams and concatenates only text blocks, skipping thinking blocks", async () => {
+    const { client, stream } = fakeStreamingAnthropic([
+      {
+        content: [
+          { type: "thinking", thinking: "hmm" },
+          { type: "text", text: "Hello " },
+          { type: "text", text: "world" },
+        ],
+      },
+    ]);
+    const llm = _createCompatLlm(client);
+
+    const result = await llm.generateText({ system: "sys", user: "hi" });
+
+    expect(result).toBe("Hello world");
+    expect(stream).toHaveBeenCalledTimes(1);
+  });
+
+  test("generateParsed parses fenced JSON from the streamed text and validates via zod", async () => {
+    const { client } = fakeStreamingAnthropic([
+      { content: [{ type: "text", text: 'Sure!\n```json\n{"answer": "42"}\n```' }] },
+    ]);
+    const llm = _createCompatLlm(client);
+
+    const result = await llm.generateParsed({ system: "sys", user: "hi", schema: Schema });
+
+    expect(result).toEqual({ answer: "42" });
+  });
+
+  test("generateParsed embeds the JSON schema in the system prompt", async () => {
+    const { client, stream } = fakeStreamingAnthropic([
+      { content: [{ type: "text", text: '{"answer": "x"}' }] },
+    ]);
+    const llm = _createCompatLlm(client);
+
+    await llm.generateParsed({ system: "base-sys", user: "hi", schema: Schema });
+
+    const callArg = stream.mock.calls[0][0];
+    expect(callArg.system).toContain("base-sys");
+    expect(callArg.system).toContain("JSON Schema");
+    expect(callArg.system).toContain('"answer"');
+  });
+
+  test("generateParsed retries once on malformed JSON, then returns the retry's result", async () => {
+    const { client, stream } = fakeStreamingAnthropic([
+      { content: [{ type: "text", text: "not json at all" }] },
+      { content: [{ type: "text", text: '{"answer": "retried"}' }] },
+    ]);
+    const llm = _createCompatLlm(client);
+
+    const result = await llm.generateParsed({ system: "sys", user: "hi", schema: Schema });
+
+    expect(result).toEqual({ answer: "retried" });
+    expect(stream).toHaveBeenCalledTimes(2);
+  });
+
+  test("generateParsed throws LlmParseError when both attempts fail schema validation", async () => {
+    const { client, stream } = fakeStreamingAnthropic([
+      { content: [{ type: "text", text: '{"wrong_key": true}' }] },
+    ]);
+    const llm = _createCompatLlm(client);
+
+    await expect(llm.generateParsed({ system: "sys", user: "hi", schema: Schema })).rejects.toThrow(
+      LlmParseError
+    );
+    expect(stream).toHaveBeenCalledTimes(2);
+  });
+
+  test("getLlm returns the compat client when ANTHROPIC_BASE_URL is set (no crash, no network)", () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-fake";
+    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    expect(() => getLlm()).not.toThrow();
   });
 });
 
