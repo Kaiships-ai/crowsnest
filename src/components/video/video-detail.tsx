@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { OutlierCard } from "@/components/feed/outlier-card";
 import { OutlierBadge } from "@/components/feed/outlier-badge";
 import { PlatformChip, platformLabel } from "@/components/feed/platform-chip";
+import { VideoThumb } from "@/components/feed/video-thumb";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -245,6 +246,7 @@ export function VideoDetail({
             <div className="absolute inset-0 flex items-center justify-center">
               <Play className="size-12 text-white/25" fill="currentColor" aria-hidden />
             </div>
+            <VideoThumb src={item.thumbnailUrl} />
             <div className="absolute top-2 right-2">
               <OutlierBadge score={item.outlierScore} size="lg" />
             </div>

@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
 import { PlatformChip, platformLabel } from "./platform-chip";
+import { VideoThumb } from "./video-thumb";
 
 // Faint diagonal hatch on the placeholder thumbnail (DESIGN.md §5) — a plain object so
 // it isn't reallocated on every render.
@@ -78,6 +79,7 @@ export function OutlierCard({
         <div className="absolute inset-0 flex items-center justify-center">
           <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
         </div>
+        <VideoThumb src={item.thumbnailUrl} />
         <div className="absolute left-2 top-2">
           <PlatformChip platform={item.channel.platform} />
         </div>
@@ -137,12 +139,16 @@ export function OutlierCard({
           <Tooltip>
             <TooltipTrigger
               render={
-                <Button variant="ghost" size="icon-sm" disabled focusableWhenDisabled aria-label="Save to Vault">
+                <Link
+                  href={`/feed/${item.videoId}`}
+                  aria-label="Open video to save to Vault"
+                  className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
+                >
                   <Bookmark className="size-4" />
-                </Button>
+                </Link>
               }
             />
-            <TooltipContent>Vault arrives in phase 3</TooltipContent>
+            <TooltipContent>Save to Vault — opens the video</TooltipContent>
           </Tooltip>
 
           <Link

@@ -7,6 +7,7 @@ import { Eye, Heart, MessageCircle, Play } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { VideoThumb } from "./video-thumb";
 import { formatCompact, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getVideoPreviewAction } from "@/server/queries/preview-action";
@@ -59,6 +60,7 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
                 </div>
+                <VideoThumb src={detail.item.thumbnailUrl} />
                 <div className="absolute left-2 top-2">
                   <PlatformChip platform={detail.item.channel.platform} />
                 </div>

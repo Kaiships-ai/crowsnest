@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, Play } from "lucide-react";
 
 import { OutlierBadge } from "@/components/feed/outlier-badge";
+import { VideoThumb } from "@/components/feed/video-thumb";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,6 +31,7 @@ export function ContextRail({ detail }: { detail: VideoDetail }) {
         <div className="absolute inset-0 flex items-center justify-center">
           <Play className="size-8 text-white/25" fill="currentColor" aria-hidden />
         </div>
+        <VideoThumb src={item.thumbnailUrl} />
         <div className="absolute top-2 right-2">
           <OutlierBadge score={item.outlierScore} />
         </div>
