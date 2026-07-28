@@ -41,7 +41,7 @@ const VIEWS_OPTIONS = [
 ];
 const SINCE_OPTIONS = [
   { value: "7", label: "Last 7d" },
-  // The "High Conviction" saved preset (server/db/seed.ts) sets sinceDays:14, which
+  // The "High Conviction" saved preset (server/db/bootstrap.ts) sets sinceDays:14, which
   // had no matching option here — the Select rendered the bare unlabeled value "14"
   // instead of a proper label once that preset was applied (QA sweep finding, phase 4
   // Task 4). Filtering itself was never wrong, only the displayed label.

@@ -4,8 +4,10 @@ import Link from "next/link";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCompact, relativeTime } from "@/lib/format";
+import { assetUrl } from "@/lib/media-url";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
+import { VideoThumb } from "./video-thumb";
 
 /** Table-like list-view row (DESIGN.md §2.2): 40px thumbnail, badge, caption, channel, views, date. */
 export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: string) => void }) {
@@ -15,8 +17,10 @@ export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: st
         type="button"
         onClick={() => onOpen?.(item.videoId)}
         aria-label={`Preview ${item.caption ?? item.channel.handle}`}
-        className="h-10 w-10 shrink-0 rounded-md bg-[#1E2230]"
-      />
+        className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-[#1E2230]"
+      >
+        <VideoThumb assetId={item.thumbnailAssetId} />
+      </button>
 
       <div className="w-16 shrink-0">
         <OutlierBadge score={item.outlierScore} />
@@ -32,7 +36,7 @@ export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: st
 
       <Link href={`/channels/${item.channel.id}`} className="flex w-40 shrink-0 items-center gap-2 hover:underline">
         <Avatar size="sm">
-          <AvatarImage src={item.channel.avatarUrl ?? undefined} alt="" />
+          <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
           <AvatarFallback>
             {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
           </AvatarFallback>

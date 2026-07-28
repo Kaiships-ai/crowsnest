@@ -3,13 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play, Wand2 } from "lucide-react";
+import { AlertTriangle, Bookmark, Copy, ExternalLink, Image as ImageIcon, MoreHorizontal, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
 import { OutlierBadge } from "@/components/feed/outlier-badge";
 import { PlatformChip, platformLabel } from "@/components/feed/platform-chip";
 import { VideoThumb } from "@/components/feed/video-thumb";
+import { CarouselViewer } from "@/components/video/carousel-viewer";
+import { VideoPlayer } from "@/components/video/video-player";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +27,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatDuration, relativeTime } from "@/lib/format";
+import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
@@ -240,14 +243,38 @@ export function VideoDetail({
 
   return (
     <div className="flex h-full flex-col">
+      {detail.deletedAt && (
+        <Alert variant="destructive" className="mx-6 mt-6">
+          <AlertTriangle />
+          <AlertTitle>No longer on {platformLabel(item.channel.platform)}</AlertTitle>
+          <AlertDescription>
+            This post was removed from the creator&rsquo;s timeline on {relativeTime(detail.deletedAt)}. It&rsquo;s
+            kept here because its transcript, analysis, and remix work still matter — the media below reflects the
+            last copy we downloaded.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="flex flex-1 gap-6 overflow-hidden p-6">
         <div className="flex w-[380px] shrink-0 flex-col gap-4 overflow-y-auto">
           <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-lg bg-[#1E2230]">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Play className="size-12 text-white/25" fill="currentColor" aria-hidden />
-            </div>
-            <VideoThumb src={item.thumbnailUrl} />
-            <div className="absolute top-2 right-2">
+            {item.mediaType === "carousel" ? (
+              <CarouselViewer items={detail.children} />
+            ) : item.mediaType === "video" ? (
+              <VideoPlayer
+                videoId={item.videoId}
+                videoAssetId={item.videoAssetId}
+                thumbnailAssetId={item.thumbnailAssetId}
+              />
+            ) : (
+              <>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <ImageIcon className="size-12 text-white/25" aria-hidden />
+                </div>
+                <VideoThumb assetId={item.thumbnailAssetId} />
+              </>
+            )}
+            <div className="absolute top-2 right-2 z-10">
               <OutlierBadge score={item.outlierScore} size="lg" />
             </div>
           </div>
@@ -256,7 +283,7 @@ export function VideoDetail({
 
           <Link href={`/channels/${item.channel.id}`} className="flex items-center gap-2 hover:underline">
             <Avatar size="sm">
-              <AvatarImage src={item.channel.avatarUrl ?? undefined} alt="" />
+              <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
               <AvatarFallback>
                 {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
               </AvatarFallback>

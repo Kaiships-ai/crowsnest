@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
+import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
@@ -79,7 +80,7 @@ export function OutlierCard({
         <div className="absolute inset-0 flex items-center justify-center">
           <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
         </div>
-        <VideoThumb src={item.thumbnailUrl} />
+        <VideoThumb assetId={item.thumbnailAssetId} />
         <div className="absolute left-2 top-2">
           <PlatformChip platform={item.channel.platform} />
         </div>
@@ -104,7 +105,7 @@ export function OutlierCard({
           className="flex items-center gap-2 hover:underline"
         >
           <Avatar size="sm">
-            <AvatarImage src={item.channel.avatarUrl ?? undefined} alt="" />
+            <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
             <AvatarFallback>
               {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
             </AvatarFallback>

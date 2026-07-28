@@ -60,7 +60,7 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
                 </div>
-                <VideoThumb src={detail.item.thumbnailUrl} />
+                <VideoThumb assetId={detail.item.thumbnailAssetId} />
                 <div className="absolute left-2 top-2">
                   <PlatformChip platform={detail.item.channel.platform} />
                 </div>
