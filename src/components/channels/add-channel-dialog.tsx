@@ -16,21 +16,18 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { bridgeAddChannel, bridgeImportReel } from "./sync-bridge";
 
-const PLATFORM_ITEMS = [
-  { value: "instagram", label: "Instagram" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "youtube_shorts", label: "YouTube Shorts" },
-];
+// The platform picker used to offer TikTok and YouTube Shorts. Nothing could ever sync
+// them — there is one data source now, Instagram — so choosing either produced a channel
+// row that silently never updated. An option that cannot work is worse than no option.
+// The `platform` column stays in the schema for a future second source.
 
 export function AddChannelDialog() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"handle" | "url">("handle");
   const [handle, setHandle] = useState("");
-  const [platform, setPlatform] = useState("instagram");
   const [reelUrl, setReelUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -49,7 +46,7 @@ export function AddChannelDialog() {
 
   async function submitHandle() {
     setPending(true);
-    const result = await bridgeAddChannel(handle, platform);
+    const result = await bridgeAddChannel(handle);
     setPending(false);
     if (result.ok) {
       toast.success(`${handle} tracked`);
@@ -94,28 +91,16 @@ export function AddChannelDialog() {
 
           <TabsContent value="handle" className="flex flex-col gap-3 pt-2">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="channel-handle">Handle</Label>
+              <Label htmlFor="channel-handle">Instagram handle</Label>
               <Input
                 id="channel-handle"
-                placeholder="@handle"
+                placeholder="@handle or instagram.com/handle"
                 value={handle}
                 onChange={(e) => setHandle(e.target.value)}
               />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="channel-platform">Platform</Label>
-              <Select items={PLATFORM_ITEMS} value={platform} onValueChange={(v) => setPlatform(v as string)}>
-                <SelectTrigger id="channel-platform">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLATFORM_ITEMS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-muted-foreground text-xs">
+                A profile URL works too — it&apos;s normalised to a handle.
+              </p>
             </div>
             <Button onClick={submitHandle} disabled={!handle || pending}>
               Track channel
