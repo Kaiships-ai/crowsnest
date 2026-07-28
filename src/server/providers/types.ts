@@ -1,7 +1,12 @@
 // SocialProvider.ts
-// Common contract every data source (Apify, HikerAPI, ScrapeCreators, yt-dlp,
-// a future TikTok/YouTube-Shorts provider) implements identically, so the sync
-// job and outlier math never know which vendor answered.
+// Legacy shared types for data acquisition. The vendor-chain abstraction this file was
+// built around is gone: Instagram data now comes from one place, the instagrapi sidecar
+// (src/server/ig/*), which has its own richer contract including carousels and raw
+// payloads.
+//
+// What survives here is the small shape `providers/ytdlp.ts` still speaks — the keyless
+// "paste a reel URL" import, which was never part of the sync chain. `Platform` also
+// remains the canonical union for the `platform` column.
 
 export type Platform = "instagram" | "tiktok" | "youtube_shorts";
 
@@ -49,7 +54,7 @@ export interface ProviderCapabilities {
 }
 
 export interface SocialProvider {
-  readonly name: string;             // "apify-apidojo" | "hikerapi" | "scrapecreators" | "yt-dlp" | ...
+  readonly name: string;             // "yt-dlp"
   readonly capabilities: ProviderCapabilities;
 
   getProfile(handle: string): Promise<ProfileStats>;
