@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
 
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
@@ -126,6 +127,18 @@ describe("getDashboardStats", () => {
     expect(stats.viewsSparkline).toHaveLength(12);
     expect(stats.viewsSparkline.reduce((a, b) => a + b, 0)).toBe(1000); // the far-outside video never counted
   });
+
+  test("newOutliers7d and viewsSparkline exclude soft-deleted videos (Instagram no longer shows them)", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { postedAt: isoDaysAgo(2), outlierScore: 5, viewCount: 1000 });
+    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(2), outlierScore: 99, viewCount: 999_999 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
+
+    const stats = await getDashboardStats();
+
+    expect(stats.newOutliers7d).toBe(1);
+    expect(stats.viewsSparkline.reduce((a, b) => a + b, 0)).toBe(1000);
+  });
 });
 
 describe("getTopOutliersToday", () => {
@@ -149,6 +162,22 @@ describe("getTopOutliersToday", () => {
 
     expect(items).toHaveLength(1);
     expect(items[0].outlierScore).toBe(15);
+  });
+
+  test("excludes soft-deleted videos from both the recent list and the all-time fallback", async () => {
+    const channelId = await seedChannel();
+    const liveId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 5 });
+    const deletedRecentId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedRecentId));
+
+    const recentItems = await getTopOutliersToday(6);
+    expect(recentItems.map((i) => i.videoId)).toEqual([liveId]);
+
+    // Now exercise the all-time fallback path too: delete the only remaining video and
+    // confirm the fallback query itself also filters deletedAt (not just the recent one).
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, liveId));
+    const fallbackItems = await getTopOutliersToday(6);
+    expect(fallbackItems).toEqual([]);
   });
 });
 
@@ -180,6 +209,23 @@ describe("getFleetSpikes", () => {
     expect(spikes.map((s) => s.fleetName)).toEqual(["Busy Fleet"]); // Quiet Fleet + Empty Fleet excluded
     expect(spikes[0].newOutliers7d).toBe(2);
   });
+
+  test("excludes soft-deleted videos from a fleet's newOutliers7d count and sparkline", async () => {
+    const channelId = await seedChannel();
+    const fleetId = newId();
+    await db.insert(tables.fleets).values({ id: fleetId, name: "Fleet With Deletions", createdAt: nowIso() });
+    await db.insert(tables.fleetChannels).values({ fleetId, channelId });
+
+    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 5, viewCount: 1000 });
+    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99, viewCount: 999_999 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
+
+    const spikes = await getFleetSpikes();
+
+    const spike = spikes.find((s) => s.fleetId === fleetId);
+    expect(spike?.newOutliers7d).toBe(1);
+    expect(spike?.sparkline.reduce((a, b) => a + b, 0)).toBe(1000);
+  });
 });
 
 describe("getRecentlyViewed", () => {
@@ -205,5 +251,17 @@ describe("getRecentlyViewed", () => {
     await db.insert(tables.appSettings).values({ key: "recently_viewed", value: "not json" });
 
     expect(await getRecentlyViewed()).toEqual([]);
+  });
+
+  test("a soft-deleted video referenced by a stored id is silently dropped from the resolved list", async () => {
+    const channelId = await seedChannel();
+    const liveId = await seedVideo(channelId, { postedAt: isoDaysAgo(1) });
+    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(2) });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
+    await db.insert(tables.appSettings).values({ key: "recently_viewed", value: JSON.stringify([deletedId, liveId]) });
+
+    const items = await getRecentlyViewed();
+
+    expect(items.map((i) => i.videoId)).toEqual([liveId]);
   });
 });

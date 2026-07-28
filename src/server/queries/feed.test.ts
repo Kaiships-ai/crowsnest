@@ -4,13 +4,16 @@ import { eq } from "drizzle-orm";
 // Test-DB pattern (phase-1 final-review M7): the db singleton binds CROWSNEST_DB_PATH
 // at import, so env must be set in beforeAll BEFORE any dynamic import of "@/server/db"
 // (or anything that imports it) — otherwise this suite would silently hit the real
-// data/crowsnest.db. Mirrors src/server/db/seed.test.ts's shape.
+// data/crowsnest.db.
+//
+// `src/server/db/seed.ts` (the old demo-data generator) was deleted as part of the
+// Instagram-sync rebuild, so — unlike this file's previous version — every test below
+// inserts exactly the rows it needs instead of relying on a shared 80-video fixture.
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
-let seedDatabase: typeof import("@/server/db/seed")["seedDatabase"];
 let getOutlierFeed: typeof import("./feed")["getOutlierFeed"];
 let getSavedFilters: typeof import("./feed")["getSavedFilters"];
 
@@ -18,94 +21,121 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ seedDatabase } = await import("@/server/db/seed"));
   ({ getOutlierFeed, getSavedFilters } = await import("./feed"));
 });
 
-// Reseed before every test so each test starts from the same deterministic 80-video
-// fixture with no cross-test pollution (some tests below insert extra rows).
+// Migrate once (idempotent) and wipe every mutable table before each test so counts/
+// order assertions never see rows left behind by an earlier test. FK-safe order:
+// children (fleet_channels, videos) before their parents (fleets, channels).
 beforeEach(async () => {
   migrate();
-  await seedDatabase(db);
+  await db.delete(tables.fleetChannels);
+  await db.delete(tables.fleets);
+  await db.delete(tables.videos);
+  await db.delete(tables.channels);
+  await db.delete(tables.savedFilters);
 });
 
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 86_400_000).toISOString();
+}
+
+async function seedChannel(opts: { followerCount?: number | null } = {}): Promise<string> {
+  const channelId = newId();
+  await db.insert(tables.channels).values({
+    id: channelId,
+    platform: "instagram",
+    handle: `@feed-test-${channelId}`,
+    followerCount: opts.followerCount ?? null,
+    trackedSince: nowIso(),
+  });
+  return channelId;
+}
+
+async function seedVideo(
+  channelId: string,
+  opts: { postedAt?: string; outlierScore?: number | null; viewCount?: number | null } = {}
+): Promise<string> {
+  const videoId = newId();
+  await db.insert(tables.videos).values({
+    id: videoId,
+    channelId,
+    platform: "instagram",
+    externalId: `feed-${videoId}`,
+    url: "https://example.com/v",
+    postedAt: opts.postedAt ?? nowIso(),
+    outlierScore: opts.outlierScore ?? null,
+    viewCount: opts.viewCount ?? null,
+    firstSeenAt: nowIso(),
+  });
+  return videoId;
+}
+
 describe("getOutlierFeed", () => {
-  test("default sort=score surfaces the true top scorer first (planted ~38.0x)", async () => {
-    const allVideos = await db.select().from(tables.videos);
-    const maxScore = Math.max(...allVideos.map((v) => v.outlierScore ?? -Infinity));
+  test("default sort=score surfaces the highest outlierScore first", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { outlierScore: 2 });
+    const topId = await seedVideo(channelId, { outlierScore: 38 });
+    await seedVideo(channelId, { outlierScore: 12.4 });
 
     const { items } = await getOutlierFeed({ sort: "score", limit: 1, offset: 0 });
 
-    expect(items[0].outlierScore).toBe(maxScore);
-    expect(maxScore).toBeGreaterThanOrEqual(37.5);
-    expect(maxScore).toBeLessThanOrEqual(38.5);
+    expect(items[0].videoId).toBe(topId);
+    expect(items[0].outlierScore).toBe(38);
   });
 
   test("minScore filters to only videos scoring at or above the threshold", async () => {
-    const allVideos = await db.select().from(tables.videos);
-    const expected = allVideos.filter((v) => (v.outlierScore ?? -Infinity) >= 10);
+    const channelId = await seedChannel();
+    const above = await seedVideo(channelId, { outlierScore: 12 });
+    const exact = await seedVideo(channelId, { outlierScore: 10 });
+    const below = await seedVideo(channelId, { outlierScore: 4 });
 
     const { items, total } = await getOutlierFeed({ minScore: 10, sort: "score", limit: 200, offset: 0 });
 
-    expect(total).toBe(expected.length);
-    expect(items).toHaveLength(expected.length);
-    expect(items.every((i) => (i.outlierScore ?? -Infinity) >= 10)).toBe(true);
-    // sanity: at least the 3 planted 10x+ outliers (12.4x, 38.0x, 22.4x) survive
-    expect(expected.length).toBeGreaterThanOrEqual(3);
+    expect(total).toBe(2);
+    expect(items.map((i) => i.videoId).sort()).toEqual([above, exact].sort());
+    expect(items.some((i) => i.videoId === below)).toBe(false);
   });
 
   test("sinceDays scopes to videos posted within the window, excluding older ones", async () => {
-    const cutoffMs = Date.now() - 30 * 86_400_000;
-    const allVideos = await db.select().from(tables.videos);
-    const expected = allVideos.filter((v) => new Date(v.postedAt).getTime() >= cutoffMs);
+    const channelId = await seedChannel();
+    const recent = await seedVideo(channelId, { postedAt: isoDaysAgo(5) });
+    const old = await seedVideo(channelId, { postedAt: isoDaysAgo(60) });
 
     const { items, total } = await getOutlierFeed({ sinceDays: 30, sort: "recent", limit: 200, offset: 0 });
 
-    expect(total).toBe(expected.length);
-    expect(items.every((i) => new Date(i.postedAt).getTime() >= cutoffMs)).toBe(true);
-    // sanity: the filter actually narrows the seed's 90-day spread
-    expect(expected.length).toBeLessThan(allVideos.length);
+    expect(total).toBe(1);
+    expect(items[0].videoId).toBe(recent);
+    expect(items.some((i) => i.videoId === old)).toBe(false);
   });
 
   test("followerBand scopes to channels within the band (micro: 10K-100K)", async () => {
-    const channels = await db.select().from(tables.channels);
-    const microIds = new Set(
-      channels.filter((c) => (c.followerCount ?? 0) >= 10_000 && (c.followerCount ?? 0) < 100_000).map((c) => c.id)
-    );
-    const allVideos = await db.select().from(tables.videos);
-    const expectedCount = allVideos.filter((v) => microIds.has(v.channelId)).length;
+    const microChannel = await seedChannel({ followerCount: 50_000 });
+    const nanoChannel = await seedChannel({ followerCount: 500 });
+    const microVideo = await seedVideo(microChannel);
+    const nanoVideo = await seedVideo(nanoChannel);
 
     const { items, total } = await getOutlierFeed({ followerBand: "micro", sort: "recent", limit: 200, offset: 0 });
 
-    expect(microIds.size).toBeGreaterThan(0); // sanity: seed has a micro-band channel
-    expect(total).toBe(expectedCount);
-    expect(items.every((i) => microIds.has(i.channel.id))).toBe(true);
+    expect(total).toBe(1);
+    expect(items[0].videoId).toBe(microVideo);
+    expect(items.some((i) => i.videoId === nanoVideo)).toBe(false);
   });
 
   test("fleetId scopes to only channels tracked in that fleet", async () => {
-    const fleets = await db.select().from(tables.fleets);
-    const aiNiche = fleets.find((f) => f.name === "AI Niche");
-    const craftRefs = fleets.find((f) => f.name === "Craft References");
-    expect(aiNiche).toBeDefined();
-    expect(craftRefs).toBeDefined();
+    const inFleetChannel = await seedChannel();
+    const outsideChannel = await seedChannel();
+    const fleetId = newId();
+    await db.insert(tables.fleets).values({ id: fleetId, name: "Test Fleet", createdAt: nowIso() });
+    await db.insert(tables.fleetChannels).values({ fleetId, channelId: inFleetChannel });
+    const inFleetVideo = await seedVideo(inFleetChannel);
+    const outsideVideo = await seedVideo(outsideChannel);
 
-    const memberIds = async (fleetId: string) => {
-      const rows = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.fleetId, fleetId));
-      return new Set(rows.map((r) => r.channelId));
-    };
-    const allVideos = await db.select().from(tables.videos);
+    const result = await getOutlierFeed({ fleetId, sort: "recent", limit: 200, offset: 0 });
 
-    const aiNicheIds = await memberIds(aiNiche!.id);
-    const aiNicheExpected = allVideos.filter((v) => aiNicheIds.has(v.channelId)).length;
-    const aiNicheResult = await getOutlierFeed({ fleetId: aiNiche!.id, sort: "recent", limit: 200, offset: 0 });
-    expect(aiNicheResult.total).toBe(aiNicheExpected);
-    expect(aiNicheResult.items.every((i) => aiNicheIds.has(i.channel.id))).toBe(true);
-
-    const craftIds = await memberIds(craftRefs!.id);
-    const craftExpected = allVideos.filter((v) => craftIds.has(v.channelId)).length;
-    const craftResult = await getOutlierFeed({ fleetId: craftRefs!.id, sort: "recent", limit: 200, offset: 0 });
-    expect(craftResult.total).toBe(craftExpected);
-    expect(craftResult.items.every((i) => craftIds.has(i.channel.id))).toBe(true);
+    expect(result.total).toBe(1);
+    expect(result.items[0].videoId).toBe(inFleetVideo);
+    expect(result.items.some((i) => i.videoId === outsideVideo)).toBe(false);
   });
 
   test("an empty-membership fleet scopes to zero results instead of throwing (backlog M2: never inArray(col, []))", async () => {
@@ -120,8 +150,13 @@ describe("getOutlierFeed", () => {
   });
 
   test("limit/offset paginate with a stable total and no overlap between pages", async () => {
+    const channelId = await seedChannel();
+    for (let i = 0; i < 25; i++) {
+      await seedVideo(channelId, { outlierScore: i, postedAt: isoDaysAgo(i) });
+    }
+
     const all = await getOutlierFeed({ sort: "score", limit: 1000, offset: 0 });
-    expect(all.total).toBe(80); // matches seed.test.ts's known invariant
+    expect(all.total).toBe(25);
 
     const page1 = await getOutlierFeed({ sort: "score", limit: 10, offset: 0 });
     const page2 = await getOutlierFeed({ sort: "score", limit: 10, offset: 10 });
@@ -138,21 +173,11 @@ describe("getOutlierFeed", () => {
   });
 
   test("null outlier scores: excluded when minScore is set, sorted last under sort=score, still present under sort=recent", async () => {
-    const [anyChannel] = await db.select().from(tables.channels);
-    const nullId = newId();
-    const now = nowIso();
-    await db.insert(tables.videos).values({
-      id: nullId,
-      channelId: anyChannel.id,
-      platform: anyChannel.platform,
-      externalId: "null-score-fixture",
-      url: "https://example.com/null-score-fixture",
-      caption: "null score fixture",
-      postedAt: now, // captured after seeding, so this is the single most-recent video
-      viewCount: null,
-      outlierScore: null,
-      firstSeenAt: now,
-    });
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { outlierScore: 5, postedAt: isoDaysAgo(10) });
+    // Posted after the scored video above, so this is the single most-recent video —
+    // proving sort=recent doesn't drop it even though it has no score to sort=score by.
+    const nullId = await seedVideo(channelId, { outlierScore: null, viewCount: null, postedAt: nowIso() });
 
     const filtered = await getOutlierFeed({ minScore: 2, sort: "score", limit: 200, offset: 0 });
     expect(filtered.items.some((i) => i.videoId === nullId)).toBe(false);
@@ -163,18 +188,40 @@ describe("getOutlierFeed", () => {
     const byRecent = await getOutlierFeed({ sort: "recent", limit: 200, offset: 0 });
     expect(byRecent.items[0]?.videoId).toBe(nullId);
   });
+
+  test("excludes soft-deleted videos — a post Instagram no longer shows must never appear as a live result", async () => {
+    const channelId = await seedChannel();
+    const liveId = await seedVideo(channelId, { outlierScore: 10 });
+    const deletedId = await seedVideo(channelId, { outlierScore: 50 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
+
+    const { items, total } = await getOutlierFeed({ sort: "score", limit: 200, offset: 0 });
+
+    expect(total).toBe(1);
+    expect(items.map((i) => i.videoId)).toEqual([liveId]);
+  });
 });
 
 describe("getSavedFilters", () => {
-  test("returns the two system presets seeded in phase 1, with matching FeedFilters-shaped criteria keys", async () => {
+  test("returns saved filters with system/non-system flags and criteria intact", async () => {
+    await db.insert(tables.savedFilters).values([
+      { id: newId(), name: "Balanced", isSystem: true, criteria: { minScore: 5, sinceDays: 30 } },
+      { id: newId(), name: "High Conviction", isSystem: true, criteria: { minScore: 10, sinceDays: 14, minViews: 500_000 } },
+      { id: newId(), name: "My Custom Filter", isSystem: false, criteria: { minScore: 3 } },
+    ]);
+
     const filters = await getSavedFilters();
+
     const system = filters.filter((f) => f.isSystem);
     expect(system.map((f) => f.name).sort()).toEqual(["Balanced", "High Conviction"]);
 
     const balanced = system.find((f) => f.name === "Balanced")!;
     expect(balanced.criteria).toEqual({ minScore: 5, sinceDays: 30 });
-
     const highConviction = system.find((f) => f.name === "High Conviction")!;
     expect(highConviction.criteria).toEqual({ minScore: 10, sinceDays: 14, minViews: 500_000 });
+
+    const custom = filters.find((f) => f.name === "My Custom Filter")!;
+    expect(custom.isSystem).toBe(false);
+    expect(custom.criteria).toEqual({ minScore: 3 });
   });
 });

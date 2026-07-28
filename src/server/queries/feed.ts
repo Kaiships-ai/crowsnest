@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lt, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, sql, type SQL } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 
 export type FeedSort = "score" | "recent" | "views";
@@ -20,7 +20,11 @@ export interface FeedItem {
   videoId: string;
   url: string;
   caption: string | null;
-  thumbnailUrl: string | null;
+  /** "photo" | "video" | "carousel" — a 30-day sync of a real creator returns all three. */
+  mediaType: string;
+  thumbnailAssetId: string | null;
+  /** Null until the file is fetched; videos download on first play, not during sync. */
+  videoAssetId: string | null;
   postedAt: string;
   durationSec: number | null;
   viewCount: number | null;
@@ -29,7 +33,7 @@ export interface FeedItem {
     id: string;
     handle: string;
     displayName: string | null;
-    avatarUrl: string | null;
+    avatarAssetId: string | null;
     followerCount: number | null;
     platform: string;
   };
@@ -38,12 +42,20 @@ export interface FeedItem {
 /**
  * Shared column shape for "a video joined with its channel" — the SQL-level source of
  * truth for FeedItem. Reused by video.ts's getVideoDetail so the two never drift.
+ *
+ * `thumbnailUrl`/`avatarUrl` no longer exist on the schema (expiring CDN URLs are never
+ * stored) — this selects the `*AssetId` foreign keys instead. Callers resolve them to a
+ * servable URL via `assetUrl()` from `src/lib/media-url.ts`; this layer never builds a
+ * URL string itself.
  */
 export const feedItemColumns = {
   videoId: tables.videos.id,
   url: tables.videos.url,
   caption: tables.videos.caption,
-  thumbnailUrl: tables.videos.thumbnailUrl,
+  mediaType: tables.videos.mediaType,
+  thumbnailAssetId: tables.videos.thumbnailAssetId,
+  // Null until the video is fetched — downloads happen on first play, not at sync time.
+  videoAssetId: tables.videos.videoAssetId,
   postedAt: tables.videos.postedAt,
   durationSec: tables.videos.durationSec,
   viewCount: tables.videos.viewCount,
@@ -52,7 +64,7 @@ export const feedItemColumns = {
     id: tables.channels.id,
     handle: tables.channels.handle,
     displayName: tables.channels.displayName,
-    avatarUrl: tables.channels.avatarUrl,
+    avatarAssetId: tables.channels.avatarAssetId,
     followerCount: tables.channels.followerCount,
     platform: tables.channels.platform,
   },
@@ -67,6 +79,10 @@ const FOLLOWER_BAND_BOUNDS: Record<NonNullable<FeedFilters["followerBand"]>, [nu
 
 async function buildWhere(f: FeedFilters): Promise<SQL | undefined> {
   const conditions: SQL[] = [];
+
+  // A soft-deleted post (Instagram no longer shows it) must never surface as a live
+  // result — unconditional, not a filter a caller can opt out of.
+  conditions.push(isNull(tables.videos.deletedAt));
 
   if (f.channelId) conditions.push(eq(tables.videos.channelId, f.channelId));
   if (f.platform) conditions.push(eq(tables.videos.platform, f.platform));

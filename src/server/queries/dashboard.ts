@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { feedItemColumns, type FeedItem } from "./feed";
 
@@ -68,7 +68,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.videos)
-      .where(and(gte(tables.videos.outlierScore, OUTLIER_MIN_SCORE), gte(tables.videos.postedAt, sevenDaysAgo))),
+      .where(
+        and(
+          gte(tables.videos.outlierScore, OUTLIER_MIN_SCORE),
+          gte(tables.videos.postedAt, sevenDaysAgo),
+          isNull(tables.videos.deletedAt)
+        )
+      ),
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.vaultItems)
@@ -77,7 +83,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     db
       .select({ postedAt: tables.videos.postedAt, viewCount: tables.videos.viewCount })
       .from(tables.videos)
-      .where(gte(tables.videos.postedAt, ninetyDaysAgo)),
+      .where(and(gte(tables.videos.postedAt, ninetyDaysAgo), isNull(tables.videos.deletedAt))),
   ]);
 
   return {
@@ -102,7 +108,7 @@ export async function getTopOutliersToday(limit = 6): Promise<FeedItem[]> {
     .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(gte(tables.videos.postedAt, daysAgoIso(SEVEN_DAYS)))
+    .where(and(gte(tables.videos.postedAt, daysAgoIso(SEVEN_DAYS)), isNull(tables.videos.deletedAt)))
     .orderBy(...orderBy)
     .limit(limit);
   if (recent.length > 0) return recent;
@@ -111,6 +117,7 @@ export async function getTopOutliersToday(limit = 6): Promise<FeedItem[]> {
     .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
+    .where(isNull(tables.videos.deletedAt))
     .orderBy(...orderBy)
     .limit(limit);
 }
@@ -149,7 +156,8 @@ export async function getFleetSpikes(): Promise<FleetSpike[]> {
           and(
             inArray(tables.videos.channelId, channelIds),
             gte(tables.videos.outlierScore, OUTLIER_MIN_SCORE),
-            gte(tables.videos.postedAt, sevenDaysAgo)
+            gte(tables.videos.postedAt, sevenDaysAgo),
+            isNull(tables.videos.deletedAt)
           )
         );
       const newOutliers7d = newOutliersRow?.count ?? 0;
@@ -158,7 +166,13 @@ export async function getFleetSpikes(): Promise<FleetSpike[]> {
       const recentVideos = await db
         .select({ postedAt: tables.videos.postedAt, viewCount: tables.videos.viewCount })
         .from(tables.videos)
-        .where(and(inArray(tables.videos.channelId, channelIds), gte(tables.videos.postedAt, ninetyDaysAgo)));
+        .where(
+          and(
+            inArray(tables.videos.channelId, channelIds),
+            gte(tables.videos.postedAt, ninetyDaysAgo),
+            isNull(tables.videos.deletedAt)
+          )
+        );
 
       return {
         fleetId: fleet.id,
@@ -198,7 +212,7 @@ export async function getRecentlyViewed(limit = RECENTLY_VIEWED_LIMIT): Promise<
     .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(inArray(tables.videos.id, videoIds as string[]));
+    .where(and(inArray(tables.videos.id, videoIds as string[]), isNull(tables.videos.deletedAt)));
 
   const byId = new Map(rows.map((r) => [r.videoId, r]));
   return (videoIds as string[])

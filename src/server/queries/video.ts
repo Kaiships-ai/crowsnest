@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
+import { log } from "@/server/lib/logger";
 import type { VideoAnalysis } from "@/server/llm/schemas";
 // Shared with remix.ts (Task 5) — see analyze.ts's export comment. Review finding L1:
 // this file used to keep its own private copy of the same row -> VideoAnalysis
@@ -7,17 +8,38 @@ import type { VideoAnalysis } from "@/server/llm/schemas";
 import { rowToAnalysis } from "@/server/services/analyze";
 import { feedItemColumns, type FeedItem } from "./feed";
 
+/** One slide of a carousel post. Instagram's child objects carry no caption or
+ *  timestamp of their own — those are inherited from the parent post. */
+export interface VideoChild {
+  position: number;
+  externalId: string;
+  mediaType: "photo" | "video";
+  thumbnailAssetId: string | null;
+  videoAssetId: string | null;
+}
+
 export interface VideoDetail {
   item: FeedItem;
   likeCount: number | null;
   commentCount: number | null;
+  /** Empty for single-media posts; ordered by position for carousels. */
+  children: VideoChild[];
+  /** Set when Instagram no longer shows this post. The Video Detail page (unlike
+   *  feeds/dashboards/similar-results) may still resolve a soft-deleted row by id — the
+   *  UI needs this flag to say so rather than presenting it as a live post. */
+  deletedAt: string | null;
   transcript: { text: string; source: string } | null;
   analysis: VideoAnalysis | null;
 }
 
 export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
   const [row] = await db
-    .select({ ...feedItemColumns, likeCount: tables.videos.likeCount, commentCount: tables.videos.commentCount })
+    .select({
+      ...feedItemColumns,
+      likeCount: tables.videos.likeCount,
+      commentCount: tables.videos.commentCount,
+      deletedAt: tables.videos.deletedAt,
+    })
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
     .where(eq(tables.videos.id, id))
@@ -33,12 +55,34 @@ export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
 
   const [analysisRow] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, id)).limit(1);
 
-  const { likeCount, commentCount, ...item } = row;
+  // `media_type` is a plain text column, but the sync engine only ever writes "photo"
+  // or "video" for a child (see IgChild). Narrowing happens here, at the boundary,
+  // rather than being asserted downstream in a component.
+  const childRows = await db
+    .select({
+      position: tables.videoChildren.position,
+      externalId: tables.videoChildren.externalId,
+      mediaType: tables.videoChildren.mediaType,
+      thumbnailAssetId: tables.videoChildren.thumbnailAssetId,
+      videoAssetId: tables.videoChildren.videoAssetId,
+    })
+    .from(tables.videoChildren)
+    .where(eq(tables.videoChildren.videoId, id))
+    .orderBy(tables.videoChildren.position);
+
+  const children: VideoChild[] = childRows.map((c) => ({
+    ...c,
+    mediaType: c.mediaType === "video" ? "video" : "photo",
+  }));
+
+  const { likeCount, commentCount, deletedAt, ...item } = row;
 
   return {
     item,
     likeCount,
     commentCount,
+    children,
+    deletedAt,
     transcript: transcriptRow ?? null,
     analysis: analysisRow ? rowToAnalysis(analysisRow) : null,
   };
@@ -78,8 +122,12 @@ export async function recordRecentlyViewed(videoId: string): Promise<void> {
     } else {
       await db.insert(tables.appSettings).values({ key: RECENTLY_VIEWED_KEY, value });
     }
-  } catch {
-    // Swallowed deliberately — see doc comment above. A tracking failure must never
-    // surface to the Video Detail page or its caller.
+  } catch (err) {
+    // Still swallowed deliberately — see doc comment above; a tracking failure must
+    // never surface to the Video Detail page or its caller. But it is no longer
+    // invisible: without this line a persistent fault here (a locked or unwritable
+    // database) leaves no trace anywhere, and "recently viewed is always empty" has no
+    // thread to pull. Logged at debug because it is genuinely not worth waking anyone.
+    log.debug("video.recently_viewed.failed", { videoId, message: err instanceof Error ? err.message : String(err) });
   }
 }

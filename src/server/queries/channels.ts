@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { computeChannelMedian } from "@/server/services/outlier-calc";
 import { getOutlierFeed } from "./feed";
@@ -7,7 +7,7 @@ export interface ChannelRow {
   id: string;
   handle: string;
   displayName: string | null;
-  avatarUrl: string | null;
+  avatarAssetId: string | null;
   platform: string;
   followerCount: number | null;
   medianViews: number | null;
@@ -32,7 +32,7 @@ const OUTLIERS_30D_WINDOW_DAYS = 30;
 /**
  * medianViews: latest channel_snapshots row when phase-2A sync has populated one,
  * falling back to computeChannelMedian over the videos table (phase-1 final-review
- * M8) — seed data writes zero snapshot rows, so the fallback is what's exercised
+ * M8) — a channel synced only once has no prior snapshot row, so the fallback is what's exercised
  * until the sync engine lands.
  */
 async function getMedianViews(channelId: string): Promise<number | null> {
@@ -47,7 +47,7 @@ async function getMedianViews(channelId: string): Promise<number | null> {
   const videos = await db
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)
-    .where(eq(tables.videos.channelId, channelId));
+    .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
   return computeChannelMedian(videos);
 }
 
@@ -60,7 +60,8 @@ async function countOutliers30d(channelId: string): Promise<number> {
       and(
         eq(tables.videos.channelId, channelId),
         gte(tables.videos.outlierScore, OUTLIERS_30D_MIN_SCORE),
-        gte(tables.videos.postedAt, cutoff)
+        gte(tables.videos.postedAt, cutoff),
+        isNull(tables.videos.deletedAt)
       )
     );
   return row?.count ?? 0;
@@ -84,7 +85,7 @@ async function buildChannelRow(channel: ChannelSelect): Promise<ChannelRow> {
     id: channel.id,
     handle: channel.handle,
     displayName: channel.displayName,
-    avatarUrl: channel.avatarUrl,
+    avatarAssetId: channel.avatarAssetId,
     platform: channel.platform,
     followerCount: channel.followerCount,
     medianViews,

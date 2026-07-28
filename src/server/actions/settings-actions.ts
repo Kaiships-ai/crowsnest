@@ -65,10 +65,11 @@ export async function saveNicheSettingsAction(niche: string, keywords: string[])
 }
 
 /**
- * API Keys section's "Test" button for Anthropic (the only one of the four keys with
- * a real client seam to test through) — a $0 `count_tokens` call via LlmClient.ping().
- * Apify/HikerAPI/Groq stay presence-only in this v1 (no client wrapper exists for
- * them yet); their status cards just show whether the env var is set.
+ * API Keys section's "Test" button for Anthropic (the only key with a real client seam
+ * to test through) — a $0 `count_tokens` call via LlmClient.ping(). Groq stays
+ * presence-only (no client wrapper exists for it yet); its status card just shows whether
+ * the env var is set. Instagram is not an API key at all any more — it authenticates
+ * through the sidecar's own Settings section.
  *
  * `llm` is an injectable seam purely for tests (mirrors remix.ts/analyze.ts's own
  * `{ llm? }` pattern) — the real "Test" button always calls this with no argument,
