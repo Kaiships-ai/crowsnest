@@ -226,6 +226,38 @@ npm run lint   # No ESLint errors
 git status     # Working tree clean
 ```
 
+`npx tsc --noEmit` has a known baseline of 4 pre-existing errors in `llm/client.test.ts`,
+`analyze.test.ts` and `remix.test.ts`. Those are unrelated to the sync work — add no new ones.
+
+### Testing conventions
+
+**Run `npm install` after pulling.** The suite gained `jsdom`, `@testing-library/react` and
+`@testing-library/dom` as devDependencies. Without them `use-sync-progress.test.ts` fails at
+import with a module-resolution error that looks nothing like the real cause.
+
+**Component tests must call Testing Library's `cleanup()` explicitly in `afterEach`.** RTL only
+auto-registers its cleanup when the test framework exposes `afterEach` as a global, and this repo
+imports vitest helpers by name — so the automatic path never fires. Without it, components from
+earlier tests stay mounted and their event listeners fire during later ones. That produced two
+phantom poll-cadence failures that cost real time to diagnose, and the symptom points at the
+component under test rather than at the leak. See `use-sync-progress.test.ts`.
+
+**The DOM environment is per-file, not global.** Use a `/** @vitest-environment jsdom */` docblock
+in the files that need it. The other 500-odd tests run in node and should stay there.
+
+**A mock must match the shape production actually returns.** `ig-actions.test.ts` mocked
+`igClient.health` with the sidecar's raw snake_case body, which the real client never returns
+because it maps first — so a drift test exercised a path production could not reach, and a real
+bug survived an adversarial audit. Type fixtures with `satisfies` against the interface.
+
+**A sweep that reports nothing must be proven able to report something.** Three dead-code sweeps
+gave wrong answers in a single session: two reported live code as dead (grepping cross-file
+importers cannot see same-file callers), one reported a clean tree it had never opened (an
+unquoted `$files` in a zsh `for` loop does not word-split). Plant a known-dead symbol and confirm
+the sweep finds it before trusting a clean result. Note also that *only tests reference it* is not
+the same as dead — `loadConfig` in `src/server/config.ts` is a deliberate seam that exists so a
+spec can assert the refuse-to-start behaviour without mutating `process.env`.
+
 ## License
 
 Private project.
