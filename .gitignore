@@ -52,3 +52,6 @@ data/
 # agent worktrees
 .claude/worktrees/
 .gstack/
+
+# personal per-machine Claude Code overrides
+.claude/settings.local.json
