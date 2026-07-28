@@ -8,6 +8,34 @@
       "when": 1784824124728,
       "tag": "0000_complete_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1785087015416,
+      "tag": "0001_add_media_assets",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1785087032619,
+      "tag": "0002_drop_cdn_url_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1785121755916,
+      "tag": "0003_sync_lock_key",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785198215120,
+      "tag": "0004_harsh_wendell_rand",
+      "breakpoints": true
     }
   ]
 }
