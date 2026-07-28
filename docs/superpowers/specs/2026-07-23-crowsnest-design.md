@@ -1,5 +1,7 @@
 # Crowsnest — Design Spec (v1)
 
+> **⚠️ Historical record.** The Apify/HikerAPI provider chain described here was removed on 2026-07-26 and replaced by a local `instagrapi` sidecar. See `docs/design/instagram-sync-brief.md`. Kept unedited as the record of what was built at the time.
+
 Date: 2026-07-23 · Author: team leader (synthesis of phase-0 research)
 Working name: **Crowsnest** (pending Kai's pick; find-replace safe).
 

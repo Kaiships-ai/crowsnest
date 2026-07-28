@@ -1,5 +1,23 @@
 # Instagram Data Acquisition — Research & Recommendation (2026)
 
+> ## ⚠️ SUPERSEDED 2026-07-26 — historical record, not current architecture
+>
+> This document recommended a **paid-vendor** route (Apify primary, HikerAPI fallback)
+> and explicitly rejected self-hosted `instagrapi` on ban-risk grounds. That
+> recommendation has been **reversed by direction**: Crowsnest now acquires Instagram
+> data exclusively through `instagrapi`, running in a local Python sidecar
+> (`services/ig/`), with no paid scraping vendor anywhere in the stack.
+>
+> The ban-risk analysis below was not wrong and has not been refuted — the risk is now
+> **accepted and disclosed** rather than outsourced to a vendor. See:
+> - `docs/design/instagram-sync-brief.md` — the approved replacement design
+> - `README.md` → "Instagram access: read this before connecting an account"
+> - `services/ig/README.md` — operational detail and recovery procedures
+>
+> Everything below is kept as the reasoning trail for *why* the vendor route was chosen
+> first. Its cost figures, actor IDs and provider comparisons no longer describe the
+> running system.
+
 Research for: personal-use IG outlier/remix tool. Scale: ~50 tracked public creator
 accounts, weekly sync, latest ~30 reels/channel + profile stats. Hard requirement:
 **per-reel play/view counts for OTHER people's accounts** — outlier score = views ÷

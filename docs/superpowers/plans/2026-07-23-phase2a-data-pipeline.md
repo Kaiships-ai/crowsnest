@@ -1,5 +1,7 @@
 # Crowsnest Phase 2A — Data Pipeline Implementation Plan
 
+> **⚠️ Historical record.** The Apify/HikerAPI provider chain described here was removed on 2026-07-26 and replaced by a local `instagrapi` sidecar. See `docs/design/instagram-sync-brief.md`. Kept unedited as the record of what was built at the time.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Real data in: `SocialProvider` implementations (Apify primary, HikerAPI fallback, yt-dlp manual import), transcript pipeline (whisper.cpp local, Groq fallback), and the sync engine that upserts channels/videos, writes snapshots, recomputes outlier scores, and records gaps.

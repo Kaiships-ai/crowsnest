@@ -5,32 +5,49 @@ Crowsnest is a personal, local-first research tool for short-form video creators
 ## Quickstart
 
 ```bash
-# 1. Install dependencies
+# 1. Install Node dependencies
 npm i
 
-# 2. Set up the database
+# 2. Configure the environment (every variable is documented in the template)
+cp .env.example .env.local
+#    -> set IG_SERVICE_TOKEN to any long random string
+#    -> set IG_USERNAME / IG_PASSWORD to a THROWAWAY Instagram account (see the
+#       ban-risk warning below before you do this)
+
+# 3. Set up the database and its built-in filter presets
 npm run db:migrate
+npm run db:bootstrap
 
-# 3. Populate with demo data
-npm run db:seed
+# 4. Install the Instagram sidecar (Python 3.12, managed by uv)
+cd services/ig && uv sync && cd ../..
 
-# 4. Start the development server
+# 5. Start the sidecar (separate terminal — the app's sync depends on it)
+npm run ig:service
+
+# 6. Start the development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to get started.
+Open [http://localhost:3000](http://localhost:3000), go to **Settings → Instagram** and
+connect the account, then add a channel and hit Sync.
+
+There is no demo data. The app starts empty and fills up with real posts from real
+channels you choose to track — the previous `db:seed` command generated fabricated
+channels and view counts and has been removed.
 
 ## Using Crowsnest
 
-The demo seed data lets you explore every page immediately, keyless. The real workflow,
-once you're ready to track your own channels:
+The app starts empty. The workflow:
 
-1. **Add a channel** — Channels → `+ Channel`, track by handle. This just starts
-   tracking; it works with no keys set (the row appears with placeholder stats).
-2. **Sync** — Channels or the sidebar's "Sync now" pulls real profile/reel data for
-   every tracked channel. *Needs `APIFY_TOKEN`* (or `HIKERAPI_KEY` as a fallback) — with
-   neither set, Sync now still runs and reports a clear "no provider configured" gap
-   per channel instead of failing silently.
+0. **Connect Instagram** — Settings → Instagram. The sidecar must be running
+   (`npm run ig:service`) and credentials must be in `.env.local`. If Instagram issues a
+   2FA prompt or a security challenge, the Settings page walks you through it.
+1. **Add a channel** — Channels → `+ Channel`, by handle or by profile URL.
+2. **Sync** — Channels or the sidebar's "Sync now" pulls the profile plus every post
+   from the last `LOOKBACK_DAYS` (default 30), downloads thumbnails to local storage,
+   and records real counters (`items_seen`, `items_created`, …) on a `sync_jobs` row.
+   Photos, videos and carousels are all captured; carousels keep their individual
+   slides as children.
 3. **Browse outliers** — the Dashboard and Outlier Feed surface videos performing well
    above their channel's baseline. No key needed.
 4. **Analyze** — open a video and hit "Analyze this video" for an AI breakdown of its
@@ -57,29 +74,80 @@ once you're ready to track your own channels:
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run db:generate` | Generate Drizzle migrations from schema |
 | `npm run db:migrate` | Apply migrations to SQLite database |
-| `npm run db:seed` | Populate database with demo seed data |
+| `npm run db:bootstrap` | Insert the built-in filter presets (idempotent) |
+| `npm run typecheck` | TypeScript check with no emit |
+| `npm run ig:service` | Start the Python Instagram sidecar (port 8765) |
+| `npm run verify:live -- @handle` | Sync a real channel and print the live evidence (see below) |
 
 ## Environment Variables
 
-All variables are **optional**. The app works keyless with seeded demo data and local transcript analysis.
+Copy `.env.example` to `.env.local` and fill it in. **Variables are validated at boot**
+(`src/server/config.ts`) — the app refuses to start with a missing or malformed required
+value instead of failing later on a click.
 
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `ANTHROPIC_API_KEY` | Claude API key for video analysis and script remix | `sk-ant-v7-...` |
-| `APIFY_TOKEN` | Apify token for channel sync (primary provider) | `apify_api_...` |
-| `APIFY_ACTOR_ID_IG_PROFILE` | Override the Apify actor used for profile fetches (default: `apify/instagram-profile-scraper`) | `apidojo/instagram-profile-scraper` |
-| `APIFY_ACTOR_ID_IG_REEL` | Override the Apify actor used for recent-reels fetches (default: `apify/instagram-reel-scraper`) | `apidojo/instagram-reel-scraper` |
-| `GROQ_API_KEY` | Groq API key for transcript analysis fallback | `gsk_...` |
-| `HIKERAPI_KEY` | HikerAPI key for channel data fallback | `hiker_...` |
-| `WHISPER_CPP_BIN_PATH` | Path to the `whisper-cli` binary for local transcription (default: resolved from PATH) | `/opt/homebrew/bin/whisper-cli` |
-| `WHISPER_MODEL_PATH` | Path to the whisper.cpp GGML model file (default: `~/.cache/whisper/ggml-large-v3-turbo.bin`) | `/path/to/ggml-large-v3-turbo.bin` |
-| `CLAUDE_MODEL` | Claude model to use (default: `claude-sonnet-5`) | `claude-opus-4-8` |
-| `CROWSNEST_DB_PATH` | Custom SQLite database file path | `/path/to/db.sqlite` |
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `IG_SERVICE_TOKEN` | **yes** | Shared secret between the app and the Python sidecar |
+| `IG_USERNAME` / `IG_PASSWORD` | for sync | Instagram credentials, read by the sidecar only |
+| `IG_SESSION_PATH` | no | Persisted session blob (default `data/ig-session.json`, mode 0600) |
+| `IG_DEVICE_SEED` | no | Pins the device fingerprint across restarts |
+| `IG_PROXY` | no | Proxy DSN for Instagram traffic |
+| `IG_SERVICE_URL` | no | Sidecar base URL (default `http://127.0.0.1:8765`) |
+| `IG_REQUEST_TIMEOUT_MS` / `IG_DOWNLOAD_TIMEOUT_MS` | no | Per-call timeouts (30s / 120s) |
+| `LOOKBACK_DAYS` | no | How far back a sync reaches (default 30) |
+| `MAX_ITEMS_PER_SYNC` | no | Safety cap per channel per run (default 200) |
+| `MEDIA_ROOT` | no | Local asset storage (default `data/media`) |
+| `EAGER_VIDEO_DOWNLOAD` | no | `true` downloads videos during sync instead of on first play |
+| `MEDIA_RETENTION_DAYS` | no | Asset prune threshold (default 90) |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` / `CLAUDE_MODEL` | for AI | Analysis + remix |
+| `WHISPER_CPP_BIN_PATH` / `WHISPER_MODEL_PATH` | no | Local transcription |
+| `CROWSNEST_DB_PATH` | no | SQLite path (default `data/crowsnest.db`) |
 
-For keyless local transcription and manual reel import: `brew install yt-dlp whisper-cpp`. That
-installs the `whisper-cli` binary only — it does **not** fetch the GGML model file whisper-cli
-needs to actually run. Download one to the default path (or set `WHISPER_MODEL_PATH` to wherever
-you put it):
+### ⚠️ Instagram access: read this before connecting an account
+
+Crowsnest analyses **other creators'** posts. That rules out the official API:
+Instagram's Basic Display API was shut down in December 2024, and the Graph API only
+reaches accounts you own or that have authorised your app — it cannot enumerate an
+arbitrary creator's media. There is no sanctioned way to do what this product does.
+
+So Crowsnest uses [instagrapi](https://subzeroid.github.io/instagrapi/), which drives
+Instagram's **private mobile API**. Consequences, stated plainly:
+
+- **It violates Meta's Terms of Service.**
+- **Accounts get challenged, rate-limited, and sometimes permanently banned.** Use a
+  throwaway account. Never your main one.
+- Mitigations are built in — one persistent session (no re-login storms), a pinned
+  device fingerprint, jittered pacing, exponential backoff with full jitter on
+  `feedback_required`, and optional proxy support — but **none of them are guarantees**.
+
+`services/ig/README.md` has the operational detail, including how to recover from a
+challenge.
+
+### Verifying a real sync
+
+Once the account is connected in Settings, one command syncs a real channel and prints
+the evidence straight out of the database, off the disk, and off the wire:
+
+```bash
+npm run verify:live -- @kallaway
+```
+
+It reports the `sync_jobs` row (`items_seen`, `items_created`, `stop_reason`), the stored
+posts with their real captions and timestamps, the downloaded assets with real byte
+sizes, a `curl -I` (200) and a `Range` request (206) against a genuinely
+Instagram-sourced asset, a scan for leaked CDN URLs in the rendered DOM, and a second
+consecutive sync proving `items_created = 0` with no duplicated media pks.
+
+It **never logs in itself** — if the sidecar has no session it stops and tells you to
+connect in Settings. A script that attempts a blind login is how accounts get
+challenged. It also fails loudly on a zero-byte asset or a leaked CDN URL rather than
+printing a reassuring summary.
+
+### Local transcription
+
+For keyless local transcription and manual reel import: `brew install yt-dlp whisper-cpp`.
+That installs the `whisper-cli` binary only — it does **not** fetch the GGML model file
+whisper-cli needs. Download one to the default path (or set `WHISPER_MODEL_PATH`):
 
 ```bash
 mkdir -p ~/.cache/whisper
@@ -87,19 +155,20 @@ curl -L -o ~/.cache/whisper/ggml-large-v3-turbo.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin
 ```
 
-Settings' Local Binaries section shows amber with the exact missing path if this step is skipped,
-so it's always recoverable — just not automatic yet.
-
-Before your first real sync with live keys, do one manual smoke check against a real channel:
-Apify/HikerAPI actor field shapes have drifted before and could again without your account being
-the one to catch it early. If a field goes missing, `APIFY_ACTOR_ID_IG_PROFILE` /
-`APIFY_ACTOR_ID_IG_REEL` (above) let you pin a different actor without a code change.
+Settings' Local Binaries section shows amber with the exact missing path if this step is
+skipped.
 
 ## Architecture
 
 - **Stack**: Next.js 16 (App Router, TypeScript) + Tailwind CSS + shadcn/ui
 - **Database**: SQLite (better-sqlite3) with Drizzle ORM
-- **Data Providers**: Apify (primary), HikerAPI (fallback), yt-dlp (manual URL import, keyless)
+- **Instagram data**: a Python sidecar (`services/ig/`) wrapping `instagrapi`, pinned to
+  2.18.9, holding one authenticated session. Node talks to it over localhost HTTP with a
+  shared-secret header and a timeout on every call.
+- **Media**: thumbnails/videos/avatars are downloaded to `MEDIA_ROOT`, content-addressed
+  by sha256, and served from `/api/media/<assetId>` with HTTP Range support. Instagram
+  CDN URLs expire within hours and are never stored or rendered.
+- **yt-dlp**: manual single-reel import by URL (keyless, not part of sync)
 - **AI Analysis**: Claude API for video hook/structure analysis and script remixing
 - **Transcripts**: Local whisper.cpp (with Metal acceleration) or Groq API fallback
 
@@ -138,11 +207,13 @@ See `docs/` for more information:
 
 ## Costs
 
-Everything in this app is free to run except two optional integrations you opt into
-per-feature: Claude API calls (analysis, remix generation) and channel-sync providers
-(Apify/HikerAPI). Estimated all-in monthly cost at moderate personal-use volume:
-**~$10–25/month** — see `docs/research/DATA.md` for the full breakdown and sourcing.
-Local transcription (whisper.cpp) and manual reel import (yt-dlp) are always free.
+Channel sync is now **free** — it runs through a local Python process against an
+Instagram account you supply, with no paid scraping vendor. The cost is paid in risk to
+that account rather than in dollars (see the warning above).
+
+The only paid integration left is Claude API usage for analysis and remix generation,
+and even that is optional (the "Create Prompt" export is a keyless alternative). Local
+transcription (whisper.cpp) and manual reel import (yt-dlp) are free.
 
 ## Development
 

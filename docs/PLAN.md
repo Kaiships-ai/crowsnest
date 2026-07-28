@@ -18,7 +18,7 @@ Target user: Kai, solo. Target cost: ~$0/mo (local-first, no hosting). Feeds the
 | DB | SQLite (better-sqlite3) + Drizzle ORM | Local file, zero cost, no server |
 | Runtime | Local-first (`npm run dev` on Mac) | $0/mo constraint; deploy optional later |
 | AI remix | Claude API, default `claude-sonnet-5` | Quality/cost balance; key via `ANTHROPIC_API_KEY` |
-| Data layer | Pluggable `SocialProvider`: **Apify** primary (apidojo actors — real 3rd-party play counts, no IG login), **HikerAPI** fallback, **yt-dlp** keyless manual escape | Official Graph API disqualified: no view counts for other creators. Vendor route = no personal-account ban risk |
+| Data layer | **instagrapi** via a local Python sidecar (`services/ig/`), **yt-dlp** keyless manual escape. *(Superseded 2026-07-26 — was: Apify primary, HikerAPI fallback)* | Official Graph API disqualified: cannot enumerate other creators' media. Vendor route dropped at Kai's direction — see the reversal note below |
 | Transcripts | **whisper.cpp + Metal** local (large-v3-turbo, ~3-6s per 60s reel, free); Groq Whisper API fallback | Free + fast on Apple Silicon; faster-whisper skipped (no Metal) |
 | Outlier score | views ÷ trailing median views of channel's last ~20 posts | Sandcastles' core metric, simple + robust |
 | Branding | Original, dark-only UI. Working name **Crowsnest** (designer rec; alts: Riptide, Spyglass) — Kai confirms | Clone features, not brand; nautical nod to kaiships |
@@ -41,7 +41,7 @@ Non-goals v1: rendering, auto-posting, scheduling (ksa-content-machine owns thes
 
 - Next.js app → server actions → services: `sync-engine`, `outlier-calc`, `remix-service`, `transcript-service`
 - `SocialProvider` interface isolates data acquisition (impl per datascout recommendation + manual URL-import fallback so app works keyless)
-- Transcripts: reel mp4 (Apify-returned URL, else yt-dlp) → whisper.cpp Metal (large-v3-turbo); Groq API fallback
+- Transcripts: the locally stored mp4 asset (downloaded by the sidecar, else yt-dlp) → whisper.cpp Metal (large-v3-turbo); Groq API fallback
 - Entities: Channel, Video, MetricSnapshot, Transcript, Board, BoardItem, RemixTemplate, Script, SyncJob
 
 ## Phases
@@ -60,11 +60,11 @@ Leader (this session): plan, dispatch, integrate, review gates. Teammates: `scou
 
 ## Open questions (phase 0 answers)
 
-- ~~Data route~~ — answered by datascout: Apify primary / HikerAPI fallback / yt-dlp keyless escape. ~$10–25/mo all-in at target scale (Apify free $5 credit covers a chunk). Medium ToS risk absorbed by vendors (no personal login). Self-hosted instagrapi with a real account rejected — confirmed ban reports even behind paid proxies. Later platforms: TikTok via Apify, YouTube Shorts via free official API.
+- ~~Data route~~ — **REVERSED 2026-07-26.** The original answer was Apify primary / HikerAPI fallback, explicitly rejecting "self-hosted instagrapi with a real account" because of confirmed ban reports even behind paid proxies. Kai directed the opposite trade: replace the paid vendors entirely with instagrapi. The ban risk that argument was built on is real and has **not** gone away — it is now accepted, disclosed in the README, and mitigated (throwaway account, persistent session, pinned device, jittered pacing, backoff, optional proxy) rather than outsourced. Cost drops to $0; the risk moves onto an Instagram account we control. Later platforms: TikTok/YouTube Shorts still need their own source — the `platform` column and `SocialProvider` shape remain for that.
 - ~~Transcripts~~ — answered: whisper.cpp Metal local primary, Groq hosted fallback
 - ~~Missing loop-critical features~~ — answered by scout: Vault + staged Scriptwriter were the misses, now in v1; exact channel caps per tier remain secondary-source-only (irrelevant to us)
 
 ## Setup Kai provides later
 
-- `ANTHROPIC_API_KEY` (remix) · `APIFY_TOKEN` (channel sync; $5/mo free credit) · optional `GROQ_API_KEY` (transcript fallback) · optional `HIKERAPI_KEY` (fallback provider)
+- `IG_SERVICE_TOKEN` + `IG_USERNAME`/`IG_PASSWORD` (channel sync, free) · `ANTHROPIC_API_KEY` (remix) · optional `GROQ_API_KEY` (transcript fallback) · full schema in `.env.example`
 - Keyless still works: demo seed data + yt-dlp manual reel import + local whisper.

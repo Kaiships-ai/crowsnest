@@ -1,5 +1,7 @@
 # Crowsnest Phase 1 — Foundation Implementation Plan
 
+> **⚠️ Historical record.** The Apify/HikerAPI provider chain described here was removed on 2026-07-26 and replaced by a local `instagrapi` sidecar. See `docs/design/instagram-sync-brief.md`. Kept unedited as the record of what was built at the time.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Scaffold the Crowsnest app — Next.js 15 + shadcn dark theme, full Drizzle/SQLite schema, outlier-score engine (TDD), deterministic demo seed, and the app shell with all routes — so phase 2A (data pipeline) and 2B (UI) can build in parallel on top.
