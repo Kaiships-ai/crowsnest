@@ -15,6 +15,19 @@ export class NoTranscriptProviderError extends Error {
   }
 }
 
+/**
+ * Thrown by getOrCreateTranscript when the video has no locally-downloaded video asset
+ * yet. `videos.videoUrl` (an expiring Instagram CDN URL) no longer exists on the schema
+ * — there is deliberately no remote-URL fallback here, so a caller can't silently get an
+ * empty transcript for a video sync hasn't downloaded bytes for yet.
+ */
+export class VideoNotDownloadedError extends Error {
+  constructor(videoId: string) {
+    super(`video ${videoId} has no downloaded video asset yet — sync must download it before it can be transcribed`);
+    this.name = "VideoNotDownloadedError";
+  }
+}
+
 const whisperProvider = new WhisperCppProvider();
 const groqProvider = new GroqProvider();
 
@@ -49,14 +62,28 @@ export async function getOrCreateTranscript(
   const videoRows = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
   const video = videoRows[0];
   if (!video) throw new Error(`getOrCreateTranscript: video ${videoId} not found`);
-  const mediaUrl = video.videoUrl ?? video.url;
+
+  // Resolve bytes from the local asset store — never from a remote URL. `videoAssetId`
+  // is only set once sync has actually downloaded the media, so its absence means
+  // exactly "not downloaded yet", not "unavailable transcript provider".
+  if (!video.videoAssetId) throw new VideoNotDownloadedError(videoId);
+  // Dynamic import (not a top-level one): `../media/store` pulls in `@/server/config`,
+  // which validates the environment at module load and throws if IG_SERVICE_TOKEN is
+  // missing. A top-level import would make that validation fire the moment anything
+  // merely imports this module (e.g. analyze.ts, for the NoTranscriptProviderError
+  // class) even when it never calls getOrCreateTranscript — deferring it to here means
+  // it only runs when a real local-asset lookup is actually about to happen.
+  const { getAsset, resolveAssetPath } = await import("../media/store");
+  const asset = await getAsset(video.videoAssetId);
+  if (!asset) throw new VideoNotDownloadedError(videoId);
+  const mediaPath = resolveAssetPath(asset.storagePath);
 
   const reasons: { name: string; reason: string }[] = [];
 
   const whisperAvail = await whisperAvailability();
   if (whisperAvail.available) {
     try {
-      const result = await whisperProvider.transcribe(mediaUrl);
+      const result = await whisperProvider.transcribe(mediaPath);
       return await persist(videoId, result.text, "whisper-local");
     } catch (err) {
       reasons.push({ name: whisperProvider.name, reason: errorMessage(err) });
@@ -68,7 +95,7 @@ export async function getOrCreateTranscript(
   const groqAvail = groqAvailability();
   if (groqAvail.available) {
     try {
-      const result = await groqProvider.transcribe(mediaUrl);
+      const result = await groqProvider.transcribe(mediaPath);
       return await persist(videoId, result.text, "groq");
     } catch (err) {
       reasons.push({ name: groqProvider.name, reason: errorMessage(err) });
