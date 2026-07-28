@@ -1,4 +1,4 @@
-import { eq, ne } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { feedItemColumns, type FeedItem } from "@/server/queries/feed";
 
@@ -79,7 +79,9 @@ export async function getSimilarOutliers(videoId: string, limit = DEFAULT_LIMIT)
     .from(tables.videoAnalyses)
     .innerJoin(tables.videos, eq(tables.videoAnalyses.videoId, tables.videos.id))
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(ne(tables.videoAnalyses.videoId, videoId));
+    // A soft-deleted candidate (Instagram no longer shows it) must never appear in
+    // "similar outliers" results — mirrors the guard in feed.ts's buildWhere.
+    .where(and(ne(tables.videoAnalyses.videoId, videoId), isNull(tables.videos.deletedAt)));
 
   return candidates
     .map((row) => {

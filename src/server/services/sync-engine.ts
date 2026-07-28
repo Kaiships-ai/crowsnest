@@ -1,171 +1,745 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
-import { getProviderChain } from "../providers/registry";
-import { fetchReelByUrl } from "../providers/ytdlp";
-import type { Platform, ProfileStats, SocialProvider, VideoStats } from "../providers/types";
+import { config } from "../config";
+import { log } from "../lib/logger";
+import { igClient, type IgClient, type IgMedia } from "../ig/client";
+import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
+import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelMedian, scoreVideos, type VideoForCalc } from "./outlier-calc";
+import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
-// Side-effect imports: apify.ts / hikerapi.ts self-register into providers/registry.ts's
-// module-level Map at the bottom of each file, but nothing in the real module graph
-// (sync-actions.ts -> sync-engine.ts -> registry.ts) ever imported those two files, so
-// in production `getProviderChain()` always resolved empty regardless of which env keys
-// were set — real API keys were silently inert (whole-branch review finding C1). Fixing
-// it here (the consumer side), not in registry.ts: registry.ts importing apify.ts, which
-// imports registry.ts back, is a circular import that ESM hoists ahead of registry.ts's
-// own `const providers = new Map()`, crashing at module load. sync-engine.ts has no such
-// cycle — nothing imports these two lines back.
-import "../providers/apify";
-import "../providers/hikerapi";
+/**
+ * Channel sync against the instagrapi sidecar.
+ *
+ * Shape of a run (design brief §6):
+ *   acquire DB lock -> fetch profile -> page media newest-first until the lookback
+ *   boundary -> upsert each post (+ carousel children) -> download thumbnails ->
+ *   soft-mark posts that vanished -> recompute outlier scores -> finalize the job row.
+ *
+ * Three properties worth stating because they were absent before:
+ *  - The stop condition is a DATE, not a count. `LOOKBACK_DAYS` decides how far back a
+ *    run reaches; `MAX_ITEMS_PER_SYNC` is only a safety cap.
+ *  - Concurrency is settled by the database (partial unique index on
+ *    sync_jobs(channel_id) WHERE status='running'), not by an in-process flag.
+ *  - Failure is isolated per level and COUNTED. A dead thumbnail costs one asset, not
+ *    the post; a dead post costs one item, not the channel.
+ */
 
-// ---- public types (DATA.md §5 / plan §Task 6 contract) ----
+/**
+ * The wire shape lives in `sync-types.ts` (see the note at the top of that file: the
+ * Server Action module that returns it cannot export a type). Re-exported here so
+ * existing callers of the engine keep one import.
+ */
+export type { StopReason, SyncGap, SyncPhase } from "./sync-types";
 
-export interface SyncGap {
-  channelId: string;
-  provider: string;
-  error: string;
+export interface SyncCounters {
+  itemsSeen: number;
+  itemsCreated: number;
+  itemsUpdated: number;
+  itemsFailed: number;
+  itemsDeleted: number;
+  assetsDownloaded: number;
+  assetsFailed: number;
 }
 
-export interface SyncResult {
+export interface SyncResult extends SyncCounters {
   jobId: string;
+  /** Read by `scripts/live-sync.ts` to decide whether a run achieved anything. */
   channelsSynced: number;
-  videosUpserted: number;
   gaps: SyncGap[];
+  stopReason: StopReason | null;
 }
+// `videosUpserted` and `reaped` were removed from this shape. The first had no reader
+// anywhere and was just `itemsCreated + itemsUpdated` restated; the second was read only
+// by the test that proves a reaped run cannot resurrect its own row, which asserts the
+// row itself — the stronger claim. The reap is still recorded, at error level, by
+// `sync.finalize.reaped`.
 
 export interface RunSyncOpts {
   channelIds?: string[];
-  providers?: SocialProvider[];
-  /** Test seam — overrides the 300-800ms per-request jitter sleep. */
+  client?: IgClient;
+  lookbackDays?: number;
+  maxItems?: number;
+  /** Test seam — overrides the inter-page jitter sleep. */
   sleep?: (ms: number) => Promise<void>;
+  /** Test seam for `ensureAsset`'s downloader. */
+  assetDeps?: EnsureAssetDeps;
+  /** Overrides "now" so lookback maths is testable without freezing the clock. */
+  now?: () => Date;
+  /**
+   * Fired once, synchronously, the moment the lock is genuinely won and before any
+   * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
+   * a real job id: the alternative was snapshotting job ids, kicking `runSync()` off
+   * un-awaited and polling `sync_jobs` for a new row while racing an early rejection to
+   * spot `SyncAlreadyRunningError` — a race reconstructing something the engine already
+   * knows. A losing run never fires it, so a fired callback always means an owned row.
+   */
+  onJobStarted?: (jobId: string) => void;
 }
 
 type ChannelRow = typeof tables.channels.$inferSelect;
 
-const POOL_SIZE = 3;
-const RECENT_VIDEOS_LIMIT = 30;
-const RETRY_BACKOFF_MS = 2000;
+const PAGE_JITTER_MIN_MS = 300;
+const PAGE_JITTER_SPAN_MS = 500;
 const SCORE_WINDOW = 20;
 
+/**
+ * Two thresholds hang off `SYNC_STALL_SECONDS`, and they are derived from it rather than
+ * chosen independently because they used to disagree by 20x: the UI called a run stalled
+ * after 90 s of silence while the reaper waited a flat 30 minutes to act.
+ *
+ *  - `HEARTBEAT_MAX_SILENCE_MS` — the engine promises never to go quiet for longer than
+ *    this. A third of the stall window, so the UI needs to miss three consecutive
+ *    flushes before it calls a healthy run dead.
+ *  - `LOCK_STALE_MS` — how long a 'running' row must be silent before another run may
+ *    STEAL its lock. Deliberately many stall windows: "the UI shows a warning" and "we
+ *    declare the process dead and let a second sync loose on the same channel" are very
+ *    different acts, and only the second one can corrupt a live run.
+ */
+const HEARTBEAT_MAX_SILENCE_MS = (SYNC_STALL_SECONDS * 1000) / 3;
+const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
+/** Ceiling on a single backoff, including one Instagram asked for. A five-minute wait is
+ *  already at the edge of what a user will sit through; beyond that, failing the channel
+ *  and letting them retry is the honest outcome. */
+const MAX_BACKOFF_MS = 300_000;
+
 function jitterMs(): number {
-  return 300 + Math.random() * 500;
+  return PAGE_JITTER_MIN_MS + Math.random() * PAGE_JITTER_SPAN_MS;
 }
 
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function zeroCounters(): SyncCounters {
+  return {
+    itemsSeen: 0,
+    itemsCreated: 0,
+    itemsUpdated: 0,
+    itemsFailed: 0,
+    itemsDeleted: 0,
+    assetsDownloaded: 0,
+    assetsFailed: 0,
+  };
+}
+
+function addCounters(a: SyncCounters, b?: SyncCounters): SyncCounters {
+  if (!b) return { ...a };
+  const sum = zeroCounters();
+  for (const k of Object.keys(sum) as (keyof SyncCounters)[]) sum[k] = a[k] + b[k];
+  return sum;
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-function normalizeHandle(handle: string): string {
-  const trimmed = handle.trim();
-  return trimmed.startsWith("@") ? trimmed : `@${trimmed}`;
+function errorCode(err: unknown): string {
+  if (err instanceof IgError) return err.code;
+  if (err instanceof SyncAlreadyRunningError) return err.code;
+  return "IG_UNKNOWN";
 }
 
 function toCalc(row: { id: string; viewCount: number | null; postedAt: string }): VideoForCalc {
   return { id: row.id, viewCount: row.viewCount, postedAt: row.postedAt };
 }
 
-/** Retryable iff the error looks like a 429 or 5xx — same-provider retry once, 2s backoff. */
-function isRetryable(err: unknown): boolean {
-  if (err && typeof err === "object" && "status" in err) {
-    const status = (err as { status: unknown }).status;
-    if (typeof status === "number") return status === 429 || status >= 500;
+/**
+ * Instagram handles only. Rejects the URL-as-handle mistake that put
+ * `@https://www.instagram.com/hormozi/` in the live database.
+ */
+export function normalizeHandle(input: string): string {
+  let h = input.trim();
+  const urlMatch = h.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
+  if (urlMatch) h = urlMatch[1];
+  if (h.startsWith("@")) h = h.slice(1);
+  h = h.replace(/\/+$/, "").trim();
+  if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) {
+    throw new Error(`Invalid Instagram handle: ${JSON.stringify(input)}`);
   }
-  const msg = err instanceof Error ? err.message : String(err);
-  return /\b429\b/.test(msg) || /\b5\d{2}\b/.test(msg);
+  return `@${h}`;
 }
 
-async function withRetry<T>(fn: () => Promise<T>, sleep: (ms: number) => Promise<void>): Promise<T> {
+// ---------------------------------------------------------------- locking
+
+/** Lock identity for a run. A whole-library run needs a concrete key, not NULL — see
+ *  the note on `syncJobs.lockKey`. */
+export const LIBRARY_LOCK_KEY = "__library__";
+
+/**
+ * Whether a failed write is the unique index refusing a duplicate.
+ *
+ * The driver's message text is the FALLBACK, not the test: matching only on
+ * "UNIQUE constraint failed" made "a sync is already running" depend on a string that
+ * drizzle wrapping, a driver swap, or (as here) renaming the index behind the constraint
+ * can change — and when it changes, a perfectly ordinary second click stops being a
+ * friendly message and becomes an unhandled 500. Same shape as `media/store.ts`.
+ *
+ * Exported for tests: the whole point of the finding is that the message path must not be
+ * the only path, and that is only provable by handing it an error with no usable message.
+ */
+export function isUniqueViolation(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && code.startsWith("SQLITE_CONSTRAINT")) return true;
+  return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+}
+
+/**
+ * THE CONCURRENCY INVARIANT
+ *
+ * Every run covers a set of channels: a run with `channel_id` set covers exactly that
+ * channel, and a run with `channel_id` NULL is treated as covering the WHOLE library.
+ * Two runs may hold locks at the same time only when their covered sets are disjoint —
+ * i.e. only when both are single-channel runs on different channels.
+ *
+ * The partial unique index alone cannot express that. It keys on `lock_key`, so a library
+ * run ('__library__') and a per-channel run ('chan1') are simply different keys and BOTH
+ * inserts succeed — while the library run walks chan1 too. Two runs on one channel is not
+ * a pacing problem, it is a corruption problem: `softDeleteMissing` compares the window
+ * against the `seenExternalIds` of ITS run, so posts the other run has not reached yet get
+ * marked "deleted from Instagram" and vanish from the feed. This codebase has already lost
+ * 8 live @kallaway posts to a soft-delete triggered by a different false premise.
+ *
+ * Arbitration stays in the database — an IMMEDIATE transaction takes SQLite's write lock
+ * at BEGIN, so the "is anything overlapping running?" check and the INSERT are atomic
+ * against every other writer, including a second Node process or a `tsx` script. The
+ * unique index stays as the backstop for the same-key case.
+ */
+function conflictingRun(
+  rows: { id: string; channelId: string | null }[],
+  channelId: string | null
+): { id: string; channelId: string | null } | undefined {
+  // A library run covers everything, so ANY running job overlaps it. A single-channel run
+  // overlaps a library run, or another run on the same channel.
+  if (channelId === null) return rows[0];
+  return rows.find((r) => r.channelId === null || r.channelId === channelId);
+}
+
+async function acquireLock(channelId: string | null, lookbackDays: number): Promise<string> {
+  await reapStaleLocks();
+  const jobId = newId();
   try {
-    return await fn();
+    db.transaction(
+      (tx) => {
+        const running = tx
+          .select({ id: tables.syncJobs.id, channelId: tables.syncJobs.channelId })
+          .from(tables.syncJobs)
+          .where(eq(tables.syncJobs.status, "running"))
+          .all();
+
+        const clash = conflictingRun(running, channelId);
+        if (clash) throw new SyncAlreadyRunningError(channelId);
+
+        tx.insert(tables.syncJobs)
+          .values({
+            id: jobId,
+            channelId,
+            lockKey: channelId ?? LIBRARY_LOCK_KEY,
+            startedAt: nowIso(),
+            heartbeatAt: nowIso(),
+            status: "running",
+            lookbackDays,
+          })
+          .run();
+      },
+      { behavior: "immediate" }
+    );
   } catch (err) {
-    if (!isRetryable(err)) throw err;
-    await sleep(RETRY_BACKOFF_MS);
-    return fn(); // one retry only; a second failure propagates to the caller
+    if (err instanceof SyncAlreadyRunningError) throw err;
+    if (isUniqueViolation(err)) throw new SyncAlreadyRunningError(channelId);
+    throw err;
+  }
+  return jobId;
+}
+
+async function reapStaleLocks(): Promise<void> {
+  const cutoff = new Date(Date.now() - LOCK_STALE_MS).toISOString();
+  const stale = await db
+    .select({ id: tables.syncJobs.id, channelId: tables.syncJobs.channelId })
+    .from(tables.syncJobs)
+    .where(and(eq(tables.syncJobs.status, "running"), lt(tables.syncJobs.heartbeatAt, cutoff)));
+  for (const row of stale) {
+    log.warn("sync.lock.reaped", { jobId: row.id, channelId: row.channelId, staleAfterSeconds: LOCK_STALE_MS / 1000 });
+    await db
+      .update(tables.syncJobs)
+      .set({ status: "failed", finishedAt: nowIso(), errorCode: "SYNC_ABANDONED", errorMessage: "Job had no heartbeat; assumed crashed" })
+      .where(eq(tables.syncJobs.id, row.id));
   }
 }
 
-/** Simple worker-pool: up to POOL_SIZE items processed concurrently off a shared queue. */
-async function runPool<T>(items: T[], worker: (item: T) => Promise<void>): Promise<void> {
-  const queue = [...items];
-  const workerCount = Math.min(POOL_SIZE, queue.length);
-  const workers = Array.from({ length: workerCount }, async () => {
-    for (;;) {
-      const item = queue.shift();
-      if (item === undefined) return;
-      await worker(item);
-    }
-  });
-  await Promise.all(workers);
+// ---------------------------------------------------------------- live progress
+
+type ProgressPatch = Partial<SyncCounters> & {
+  phase?: SyncPhase;
+  currentChannelHandle?: string | null;
+  channelsTotal?: number;
+  channelsDone?: number;
+  retries?: number;
+};
+
+/**
+ * The single writer of live progress. This replaced a `heartbeat()` that wrote only
+ * `heartbeat_at`: the counters reached `sync_jobs` exactly once, in the terminal update,
+ * so anything polling a run in flight read zeros and "Sync now" could only ever be an
+ * indeterminate spinner.
+ *
+ * Cost is one small UPDATE per page/channel boundary. Flushing per item would put a write
+ * between every post and is never worth it — the page boundary is already fine-grained
+ * enough for a 1 s poll. The one exception is `flushIfDue`, which adds a write inside the
+ * item loop only when the wall clock says the row has gone quiet for too long.
+ */
+async function progress(jobId: string, patch: ProgressPatch = {}): Promise<void> {
+  await db
+    .update(tables.syncJobs)
+    .set({ heartbeatAt: nowIso(), ...patch })
+    .where(eq(tables.syncJobs.id, jobId));
 }
 
-/** Inserts or updates a video keyed by (platform, externalId); returns the row id + the
- *  fields snapshots need, so callers don't have to re-query right after writing. */
+interface FlushPatch {
+  phase?: SyncPhase;
+  currentChannelHandle?: string | null;
+  channelsTotal?: number;
+  /** Counters of the channel currently in flight; added to the finished-channel totals. */
+  counters?: SyncCounters;
+}
+
+/** Run-scoped progress state. `totals` holds finished channels only, so a flush from
+ *  inside a channel adds that channel's running counters rather than double-counting. */
+interface RunTracker {
+  totals: SyncCounters;
+  channelsDone: number;
+  retries: number;
+  flush(patch?: FlushPatch): Promise<void>;
+  /** Flush only if the row has been quiet for `HEARTBEAT_MAX_SILENCE_MS`. Cheap to call
+   *  from inside the item loop: almost every call is a clock comparison and nothing else. */
+  flushIfDue(patch?: FlushPatch): Promise<void>;
+  noteRetry(): void;
+  isCancelRequested(): Promise<boolean>;
+}
+
+function createTracker(jobId: string, now: () => Date): RunTracker {
+  let lastFlushMs = now().getTime();
+
+  const tracker: RunTracker = {
+    totals: zeroCounters(),
+    channelsDone: 0,
+    retries: 0,
+    async flush(patch: FlushPatch = {}) {
+      const { counters, ...rest } = patch;
+      lastFlushMs = now().getTime();
+      await progress(jobId, {
+        ...addCounters(tracker.totals, counters),
+        channelsDone: tracker.channelsDone,
+        retries: tracker.retries,
+        ...rest,
+      });
+    },
+    async flushIfDue(patch: FlushPatch = {}) {
+      // A page is not a unit of time. One item can burn IG_DOWNLOAD_TIMEOUT_MS on the
+      // video and again on the thumbnail, so a single page of a few dozen items can be
+      // silent for tens of minutes — long enough for the reaper to declare this live run
+      // dead, release its lock and let a second sync loose on the same channel.
+      if (now().getTime() - lastFlushMs < HEARTBEAT_MAX_SILENCE_MS) return;
+      await tracker.flush(patch);
+    },
+    noteRetry() {
+      tracker.retries += 1;
+    },
+    async isCancelRequested() {
+      const rows = await db
+        .select({ cancelRequested: tables.syncJobs.cancelRequested })
+        .from(tables.syncJobs)
+        .where(eq(tables.syncJobs.id, jobId))
+        .limit(1);
+      return rows[0]?.cancelRequested === true;
+    },
+  };
+  return tracker;
+}
+
+/** What happened — ours to report whether or not we still own the row. */
+type JobFacts = ProgressPatch & {
+  finishedAt: string;
+  stopReason?: StopReason | null;
+  stats?: Record<string, number>;
+  gaps?: SyncGap[];
+};
+
+/** What it MEANS — only the owner of a 'running' row gets to write this. */
+interface JobVerdict {
+  status: SyncJobStatus;
+  errorCode?: string | null;
+  errorMessage?: string | null;
+}
+
+/**
+ * Writes the terminal job row, but ONLY if this run still owns it.
+ *
+ * The unconditional version could resurrect a job the reaper had already declared dead:
+ * the reap flipped the row to failed/SYNC_ABANDONED (releasing the partial unique index,
+ * so a second sync could take the lock and run alongside this one), and then this run
+ * finished and overwrote the row back to `success` — erasing the evidence and leaving no
+ * trace that two syncs had been racing on the same channel.
+ *
+ * On a lost row the counters are still recorded, because the work really did happen and
+ * throwing that away helps nobody — but `status`, `error_code` and `error_message` are
+ * left exactly as the reaper set them. Returns false so the caller knows it was reaped.
+ */
+async function finalizeJob(jobId: string, facts: JobFacts, verdict: JobVerdict): Promise<boolean> {
+  const result = await db
+    .update(tables.syncJobs)
+    .set({ ...facts, ...verdict })
+    .where(and(eq(tables.syncJobs.id, jobId), eq(tables.syncJobs.status, "running")));
+
+  if ((result as { changes?: number }).changes !== 0) return true;
+
+  await db.update(tables.syncJobs).set(facts).where(eq(tables.syncJobs.id, jobId));
+  log.error("sync.finalize.reaped", {
+    jobId,
+    reason: "job row was no longer 'running' when the run finished; a reaper or another writer took it",
+    withheldVerdict: verdict.status,
+  });
+  return false;
+}
+
+// ---------------------------------------------------------------- retry
+
+/**
+ * How many retries a given failure actually deserves.
+ *
+ * `IG_SERVICE_DOWN` means our own localhost sidecar refused the connection. That is a
+ * process that is either coming up right now or is not running at all — not a transient
+ * upstream condition, and the error's own user message is an instruction to go start it.
+ * One quick retry covers the "sidecar is mid-restart" case; an ever-doubling ladder just
+ * makes every channel in the run wait several seconds to deliver the same instruction.
+ */
+function retriesFor(code: IgErrorCode, maxRetries: number): number {
+  return code === "IG_SERVICE_DOWN" ? Math.min(1, maxRetries) : maxRetries;
+}
+
+function backoffMs(attempt: number, baseMs: number, err: IgError): { ms: number; hinted: boolean } {
+  // When Instagram rate-limits us the sidecar returns the wait it computed
+  // (detail.retry_after_sec). Guessing a shorter one just spends the quota again.
+  const hint = err.detail.retry_after_sec;
+  if (typeof hint === "number" && Number.isFinite(hint) && hint > 0) {
+    return { ms: Math.min(Math.round(hint * 1000), MAX_BACKOFF_MS), hinted: true };
+  }
+  const exponential = Math.min(baseMs * 2 ** attempt, MAX_BACKOFF_MS);
+  // Jittered so a blip that hits several channels doesn't make them all retry in lockstep.
+  return { ms: Math.round(exponential / 2 + Math.random() * (exponential / 2)), hinted: false };
+}
+
+/**
+ * How often a run looks up from what it is doing — to notice a cancel, and to prove it is
+ * still alive. Both signals cross a process boundary through the database (the UI sets
+ * `cancel_requested`; the UI reads `heartbeat_at`), so there is nothing in-process to
+ * signal on and polling is the mechanism. Two small statements per tick, and only while a
+ * call is actually outstanding.
+ */
+const CANCEL_POLL_SLICE_MS = 500;
+
+/**
+ * A run stopped by the user rather than by a failure. Deliberately NOT an `IgError`: it
+ * must never be retried, and the channel it interrupted is not a "gap" — nothing about
+ * that channel is broken, we just stopped asking.
+ */
+class SyncCancelledError extends Error {
+  constructor() {
+    super("Sync cancelled by the user");
+    this.name = "SyncCancelledError";
+  }
+}
+
+/**
+ * A `setTimeout` whose wait can be ended early. `clear()` both cancels the timer and
+ * releases whoever is awaiting it, so a watcher never outlives the call it watches — an
+ * armed timer per upstream call would keep the event loop alive after the work is done.
+ */
+function cancellableDelay(ms: number): { promise: Promise<void>; clear: () => void } {
+  let handle: ReturnType<typeof setTimeout>;
+  let release: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+    handle = setTimeout(resolve, ms);
+  });
+  return {
+    promise,
+    clear: () => {
+      clearTimeout(handle);
+      release();
+    },
+  };
+}
+
+/**
+ * Runs one upstream call while keeping the job row alive and watchable.
+ *
+ * The live run that motivated this: attempts were ~65 seconds apart, and almost all of
+ * that was ONE in-flight request to Instagram — not the ~1 s backoff between them. So the
+ * two things that must not be blocked by a slow call are:
+ *
+ *  - Cancel. The user clicked stop 13 seconds into a 65-second request; waiting for that
+ *    request to fail before noticing is a Cancel button that visibly does nothing.
+ *  - The heartbeat. A healthy run mid-request was measured at `heartbeat_age_s = 55`,
+ *    which at 90 s would have the UI declare a working sync dead and offer recovery for a
+ *    problem that does not exist.
+ *
+ * `tick` does both (flush-if-due, then report whether a cancel is pending) on a real
+ * timer — deliberately not the injectable `sleep` seam, which means pacing and backoff,
+ * not liveness.
+ *
+ * On cancel the in-flight promise is ABANDONED, not aborted: nothing downstream of the
+ * await runs, so no partial write can happen, and the request dies on its own existing
+ * `AbortSignal.timeout`. A true abort would mean threading a signal through `IgClient`
+ * (`ig/client.ts`, another pane's file, and an interface every test stub implements) for
+ * no additional safety on this path.
+ */
+async function withLiveness<T>(fn: () => Promise<T>, tick: () => Promise<boolean>): Promise<T> {
+  let done = false;
+  let napping: { clear: () => void } | null = null;
+  const call = fn().finally(() => {
+    done = true;
+    // Wake the watcher immediately rather than leaving its timer armed for another tick.
+    napping?.clear();
+  });
+
+  const watcher = (async () => {
+    for (;;) {
+      const nap = cancellableDelay(CANCEL_POLL_SLICE_MS);
+      napping = nap;
+      await nap.promise;
+      napping = null;
+      if (done) return false;
+      if (await tick()) return true;
+    }
+  })();
+
+  const cancelled = await Promise.race([call.then(() => false), watcher]);
+  if (!cancelled) return call;
+
+  // The orphan must not surface as an unhandled rejection when it eventually gives up.
+  call.catch(() => {});
+  throw new SyncCancelledError();
+}
+
+/** Returns true if the backoff wait was cut short by a cancel. */
+async function sleepUnlessCancelled(
+  totalMs: number,
+  sleep: (ms: number) => Promise<void>,
+  cancelled: () => Promise<boolean>
+): Promise<boolean> {
+  let remaining = totalMs;
+  while (remaining > 0) {
+    const slice = Math.min(remaining, CANCEL_POLL_SLICE_MS);
+    await sleep(slice);
+    remaining -= slice;
+    if (await cancelled()) return true;
+  }
+  return false;
+}
+
+/**
+ * Retries a single upstream call while `IgError.retryable` says it's worth it.
+ *
+ * That flag has existed since the sidecar was written and nothing ever acted on it, so
+ * one network blip cost a whole channel — and the user still had to wait out the rest of
+ * the run to be told. Everything else (IG_PRIVATE, IG_NOT_FOUND, a rejected token) fails
+ * fast on the first attempt: waiting cannot change the answer.
+ *
+ * Total time spent GUESSING at a backoff is capped at `baseMs * maxRetries`, so a dead
+ * upstream costs a bounded few seconds per call instead of an ever-doubling wait — the
+ * complaint being fixed here is "I don't want to wait hours just to receive a network
+ * error", and a retry loop is perfectly capable of recreating it. A wait Instagram
+ * actually asked for (retry_after_sec) is exempt: that number is not a guess.
+ *
+ * A cancel ends the ladder immediately, both between attempts and during a backoff. Two
+ * reasons, and the second is the stronger one: a Cancel button that visibly does nothing
+ * for a minute is the same broken promise as the old spinner, AND retrying after the user
+ * said stop means issuing more authenticated requests at Instagram — real ban risk spent
+ * on work nobody wants the result of. The original failure is rethrown, so the channel
+ * still reports why it was failing rather than a synthetic "cancelled" error.
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  o: {
+    maxRetries: number;
+    baseMs: number;
+    sleep: (ms: number) => Promise<void>;
+    cancelled: () => Promise<boolean>;
+    onRetry: (info: { attempt: number; delayMs: number; error: IgError }) => Promise<void>;
+    onAbandon: (info: { error: IgError; during: "wait" | "decision" }) => void;
+  }
+): Promise<T> {
+  const guessBudgetMs = o.baseMs * o.maxRetries;
+  let guessedSoFar = 0;
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!(err instanceof IgError) || !err.retryable || attempt >= retriesFor(err.code, o.maxRetries)) throw err;
+
+      // Checked BEFORE the retry is even scheduled: the remaining budget belongs to a run
+      // the user has not stopped.
+      if (await o.cancelled()) {
+        o.onAbandon({ error: err, during: "decision" });
+        throw err;
+      }
+
+      const backoff = backoffMs(attempt, o.baseMs, err);
+      let delayMs = backoff.ms;
+      if (!backoff.hinted) {
+        delayMs = Math.max(0, Math.min(delayMs, guessBudgetMs - guessedSoFar));
+        guessedSoFar += delayMs;
+      }
+      await o.onRetry({ attempt: attempt + 1, delayMs, error: err });
+
+      if (await sleepUnlessCancelled(delayMs, o.sleep, o.cancelled)) {
+        o.onAbandon({ error: err, during: "wait" });
+        throw err;
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- upsert
+
+function mediaUrl(m: IgMedia): string {
+  if (m.url) return m.url;
+  return m.shortcode ? `https://www.instagram.com/p/${m.shortcode}/` : "";
+}
+
+/**
+ * Inserts or updates one post keyed on (platform, external_id) — Instagram's media pk.
+ * Returns whether the row was newly created, so the caller can prove idempotence:
+ * a second consecutive sync must report itemsCreated = 0.
+ */
 async function upsertVideo(
   channelId: string,
-  v: VideoStats
-): Promise<{ id: string; viewCount: number | null; likeCount: number | null; commentCount: number | null }> {
+  m: IgMedia,
+  assets: { thumbnailAssetId: string | null; videoAssetId: string | null }
+): Promise<{ id: string; created: boolean; viewCount: number | null; likeCount: number | null; commentCount: number | null }> {
   const existing = await db
-    .select({ id: tables.videos.id })
+    .select({
+      id: tables.videos.id,
+      thumbnailAssetId: tables.videos.thumbnailAssetId,
+      videoAssetId: tables.videos.videoAssetId,
+      viewCount: tables.videos.viewCount,
+      likeCount: tables.videos.likeCount,
+      commentCount: tables.videos.commentCount,
+    })
     .from(tables.videos)
-    .where(and(eq(tables.videos.platform, v.platform), eq(tables.videos.externalId, v.id)))
+    .where(and(eq(tables.videos.platform, "instagram"), eq(tables.videos.externalId, m.externalId)))
     .limit(1);
 
-  const likeCount = v.likeCount ?? null;
-  const commentCount = v.commentCount ?? null;
+  const common = {
+    channelId,
+    shortcode: m.shortcode,
+    mediaType: m.mediaType,
+    productType: m.productType,
+    url: mediaUrl(m),
+    caption: m.caption,
+    postedAt: m.takenAt,
+    durationSec: m.durationSec == null ? null : Math.round(m.durationSec),
+    viewCount: m.viewCount,
+    likeCount: m.likeCount,
+    commentCount: m.commentCount,
+    rawPayload: m.raw,
+    rawFetchedAt: nowIso(),
+    // A post reappearing after being soft-deleted is undeleted rather than duplicated.
+    deletedAt: null,
+    lastRefreshedAt: nowIso(),
+  };
 
   if (existing[0]) {
-    const id = existing[0].id;
+    const row = existing[0];
+    // A metric Instagram withheld this time (null) must not erase one we already
+    // have. This is not hypothetical: Instagram returns 0 for other creators' play
+    // counts in many contexts, which wiped a genuine 2.27M-view figure on the first
+    // live run and would have zeroed every outlier score.
+    const viewCount = m.viewCount ?? row.viewCount;
+    const likeCount = m.likeCount ?? row.likeCount;
+    const commentCount = m.commentCount ?? row.commentCount;
     await db
       .update(tables.videos)
       .set({
-        caption: v.caption,
-        postedAt: v.postedAt,
-        durationSec: v.durationSec,
-        thumbnailUrl: v.thumbnailUrl,
-        videoUrl: v.videoUrl,
-        viewCount: v.viewCount,
+        ...common,
+        viewCount,
         likeCount,
         commentCount,
-        shareCount: v.shareCount ?? null,
-        lastRefreshedAt: nowIso(),
+        // Keep the asset we already have when this pass didn't fetch a new one, so a
+        // transient download failure can't wipe a good thumbnail.
+        thumbnailAssetId: assets.thumbnailAssetId ?? row.thumbnailAssetId,
+        videoAssetId: assets.videoAssetId ?? row.videoAssetId,
       })
-      .where(eq(tables.videos.id, id));
-    return { id, viewCount: v.viewCount, likeCount, commentCount };
+      .where(eq(tables.videos.id, row.id));
+    return { id: row.id, created: false, viewCount, likeCount, commentCount };
   }
 
   const id = newId();
-  const now = nowIso();
   await db.insert(tables.videos).values({
     id,
-    channelId,
-    platform: v.platform,
-    externalId: v.id,
-    url: v.url,
-    caption: v.caption,
-    postedAt: v.postedAt,
-    durationSec: v.durationSec,
-    thumbnailUrl: v.thumbnailUrl,
-    videoUrl: v.videoUrl,
-    viewCount: v.viewCount,
-    likeCount,
-    commentCount,
-    shareCount: v.shareCount ?? null,
-    firstSeenAt: now,
-    lastRefreshedAt: now,
+    platform: "instagram",
+    externalId: m.externalId,
+    ...common,
+    thumbnailAssetId: assets.thumbnailAssetId,
+    videoAssetId: assets.videoAssetId,
+    firstSeenAt: nowIso(),
   });
-  return { id, viewCount: v.viewCount, likeCount, commentCount };
+  return { id, created: true, viewCount: m.viewCount, likeCount: m.likeCount, commentCount: m.commentCount };
 }
 
-/** Recomputes outlierScore for a channel's full video set and writes it back; returns the
- *  channel's current median (for the channel_snapshots row). */
+/** Carousel children: one row per slide, keyed on (video_id, position). */
+async function upsertChildren(
+  videoId: string,
+  m: IgMedia,
+  downloadThumb: (url: string | null) => Promise<{ assetId: string | null; failed: boolean }>
+): Promise<{ assetsDownloaded: number; assetsFailed: number }> {
+  let assetsDownloaded = 0;
+  let assetsFailed = 0;
+
+  for (const child of m.children) {
+    const thumb = await downloadThumb(child.thumbnailUrl);
+    if (thumb.assetId) assetsDownloaded += 1;
+    if (thumb.failed) assetsFailed += 1;
+
+    const existing = await db
+      .select({ id: tables.videoChildren.id, thumbnailAssetId: tables.videoChildren.thumbnailAssetId })
+      .from(tables.videoChildren)
+      .where(and(eq(tables.videoChildren.videoId, videoId), eq(tables.videoChildren.externalId, child.externalId)))
+      .limit(1);
+
+    if (existing[0]) {
+      await db
+        .update(tables.videoChildren)
+        .set({
+          position: child.position,
+          mediaType: child.mediaType,
+          thumbnailAssetId: thumb.assetId ?? existing[0].thumbnailAssetId,
+          rawPayload: child.raw,
+        })
+        .where(eq(tables.videoChildren.id, existing[0].id));
+    } else {
+      await db.insert(tables.videoChildren).values({
+        id: newId(),
+        videoId,
+        position: child.position,
+        externalId: child.externalId,
+        mediaType: child.mediaType,
+        thumbnailAssetId: thumb.assetId,
+        rawPayload: child.raw,
+      });
+    }
+  }
+
+  return { assetsDownloaded, assetsFailed };
+}
+
 async function recomputeChannelScores(channelId: string): Promise<number | null> {
   const rows = await db
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)
-    .where(eq(tables.videos.channelId, channelId));
+    .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
   const calc = rows.map(toCalc);
   const scores = scoreVideos(calc, SCORE_WINDOW);
   for (const row of rows) {
@@ -174,236 +748,521 @@ async function recomputeChannelScores(channelId: string): Promise<number | null>
   return computeChannelMedian(calc, SCORE_WINDOW);
 }
 
-/** Syncs one channel through the provider fallback chain. Never throws — provider and
- *  DB errors alike become a gap so one broken channel can't abort the whole run. */
-async function syncOneChannel(
-  channel: ChannelRow,
-  providers: SocialProvider[],
-  sleep: (ms: number) => Promise<void>
-): Promise<{ gap?: SyncGap; videosUpserted: number }> {
-  if (providers.length === 0) {
-    const error = "no provider configured";
-    await db.update(tables.channels).set({ syncError: error }).where(eq(tables.channels.id, channel.id));
-    return { gap: { channelId: channel.id, provider: "none", error }, videosUpserted: 0 };
-  }
+/**
+ * Marks posts that were inside the lookback window but did not come back this run.
+ * Scoped to the window on purpose: older rows are out of this run's remit and must not
+ * be flagged deleted just because we didn't ask about them.
+ */
+async function softDeleteMissing(channelId: string, boundaryIso: string, seenExternalIds: string[]): Promise<number> {
+  const candidates = await db
+    .select({ id: tables.videos.id, externalId: tables.videos.externalId })
+    .from(tables.videos)
+    .where(
+      and(
+        eq(tables.videos.channelId, channelId),
+        gte(tables.videos.postedAt, boundaryIso),
+        isNull(tables.videos.deletedAt)
+      )
+    );
 
-  let profile: ProfileStats | null = null;
-  let videos: VideoStats[] | null = null;
-  let lastError: { provider: string; error: string } | null = null;
+  const seen = new Set(seenExternalIds);
+  const missing = candidates.filter((c) => !seen.has(c.externalId));
+  if (missing.length === 0) return 0;
 
-  for (const provider of providers) {
-    try {
-      await sleep(jitterMs());
-      profile = await withRetry(() => provider.getProfile(channel.handle), sleep);
-      await sleep(jitterMs());
-      videos = await withRetry(() => provider.getRecentVideos(channel.handle, RECENT_VIDEOS_LIMIT), sleep);
-      lastError = null;
-      break;
-    } catch (err) {
-      lastError = { provider: provider.name, error: errorMessage(err) };
-      profile = null;
-      videos = null;
-    }
-  }
-
-  if (!profile || !videos) {
-    const gap: SyncGap = {
-      channelId: channel.id,
-      provider: lastError?.provider ?? providers[providers.length - 1].name,
-      error: lastError?.error ?? "unknown error",
-    };
-    await db.update(tables.channels).set({ syncError: gap.error }).where(eq(tables.channels.id, channel.id));
-    return { gap, videosUpserted: 0 };
-  }
-
+  const now = nowIso();
   await db
-    .update(tables.channels)
-    .set({
-      externalId: profile.externalId,
-      displayName: profile.displayName,
-      avatarUrl: profile.avatarUrl,
-      followerCount: profile.followerCount,
-      followingCount: profile.followingCount,
-      mediaCount: profile.mediaCount,
-      bio: profile.bio,
-      isVerified: profile.isVerified ?? false,
-      syncError: null,
-      lastSyncedAt: nowIso(),
-    })
-    .where(eq(tables.channels.id, channel.id));
+    .update(tables.videos)
+    .set({ deletedAt: now })
+    .where(inArray(tables.videos.id, missing.map((m) => m.id)));
 
-  const upserted = [];
-  for (const v of videos) {
-    upserted.push(await upsertVideo(channel.id, v));
-  }
-
-  const medianViews = await recomputeChannelScores(channel.id);
-
-  await db.insert(tables.channelSnapshots).values({
-    id: newId(),
-    channelId: channel.id,
-    capturedAt: nowIso(),
-    followerCount: profile.followerCount,
-    medianViews,
-  });
-
-  for (const r of upserted) {
-    await db.insert(tables.videoSnapshots).values({
-      id: newId(),
-      videoId: r.id,
-      capturedAt: nowIso(),
-      viewCount: r.viewCount,
-      likeCount: r.likeCount,
-      commentCount: r.commentCount,
-    });
-  }
-
-  return { gap: undefined, videosUpserted: upserted.length };
+  log.info("sync.soft_deleted", { channelId, count: missing.length });
+  return missing.length;
 }
 
-/**
- * Runs a sync pass per DATA.md §5: a small concurrency pool with jitter, provider
- * fallback chain with one 429/5xx retry, upsert-by-external-id, per-channel score
- * recompute + snapshots. Never throws for per-channel provider failures (recorded as
- * gaps instead) — only throws for invalid input, before any channel or job row is
- * touched.
- *
- * Deliberate deviation from DATA.md §5.2 (accepted at whole-branch review, finding I2):
- * that section specifies a *global* two-phase order — fetch every tracked channel's
- * profile first, then fetch reels for all of them — so a renamed/deleted/private handle
- * surfaces cheaply before any reel-fetch budget is spent on it. This implementation
- * instead does profile-then-video *within* each channel's own pool-worker slot (see
- * `syncOneChannel` below), so one channel's reel fetch can run concurrently with another
- * channel's still-pending profile fetch. Tradeoff accepted: loses DATA.md's batch-wide
- * "cheap scan before expensive spend" property, in exchange for a materially simpler
- * implementation — one per-channel worker function, no separate global profile-fetch
- * phase to sequence ahead of the pool. Output correctness is identical either way; this
- * only affects how quickly a broken channel is detected relative to a healthy one's
- * reel-fetch cost.
- */
+// ---------------------------------------------------------------- per-channel
+
+async function syncOneChannel(
+  channel: ChannelRow,
+  opts: Required<Pick<RunSyncOpts, "lookbackDays" | "maxItems">> & {
+    client: IgClient;
+    sleep: (ms: number) => Promise<void>;
+    assetDeps: EnsureAssetDeps;
+    now: () => Date;
+    tracker: RunTracker;
+  }
+): Promise<{ gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null }> {
+  const counters = zeroCounters();
+  const { tracker } = opts;
+
+  const boundary = new Date(opts.now().getTime() - opts.lookbackDays * 86_400_000).toISOString();
+  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays });
+
+  const downloadThumb = async (url: string | null) =>
+    tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, opts.assetDeps);
+
+  /** Every upstream call that is worth retrying goes through here, so the retry count and
+   *  the "retrying" phase reach the job row the user is watching. */
+  const attempt = <T>(label: string, fn: () => Promise<T>): Promise<T> =>
+    withRetry(fn, {
+      maxRetries: config.SYNC_MAX_RETRIES,
+      baseMs: config.SYNC_RETRY_BASE_MS,
+      sleep: opts.sleep,
+      cancelled: () => tracker.isCancelRequested(),
+      onAbandon: ({ error, during }) => {
+        log.info("sync.retry.abandoned", {
+          channelId: channel.id,
+          handle: channel.handle,
+          call: label,
+          during,
+          code: error.code,
+          reason: "cancel requested; not spending more requests at Instagram on a run the user stopped",
+        });
+      },
+      onRetry: async ({ attempt: n, delayMs, error }) => {
+        tracker.noteRetry();
+        log.warn("sync.retry", {
+          channelId: channel.id,
+          handle: channel.handle,
+          call: label,
+          attempt: n,
+          of: config.SYNC_MAX_RETRIES,
+          delayMs,
+          code: error.code,
+        });
+        await tracker.flush({ phase: "retrying", counters });
+      },
+    });
+
+  /**
+   * One upstream call, retried when worthwhile, and watched while it is outstanding so a
+   * slow request can neither swallow a cancel nor let the row look dead. `phase` is what
+   * the row should say while this particular call is in flight.
+   */
+  const upstream = <T>(label: string, phase: SyncPhase, fn: () => Promise<T>): Promise<T> =>
+    attempt(label, () =>
+      withLiveness(fn, async () => {
+        await tracker.flushIfDue({ phase, counters });
+        return tracker.isCancelRequested();
+      })
+    );
+
+  try {
+    const profile = await upstream("profile", "profile", () => opts.client.profile(channel.handle));
+
+    const avatar = await tryEnsureAsset(profile.avatarUrl, "avatar", { channelHandle: channel.handle }, opts.assetDeps);
+    if (avatar.assetId) counters.assetsDownloaded += 1;
+    if (avatar.failed) counters.assetsFailed += 1;
+
+    await db
+      .update(tables.channels)
+      .set({
+        externalId: profile.externalId,
+        displayName: profile.displayName,
+        avatarAssetId: avatar.assetId ?? channel.avatarAssetId,
+        followerCount: profile.followerCount,
+        followingCount: profile.followingCount,
+        mediaCount: profile.mediaCount,
+        bio: profile.bio,
+        isVerified: profile.isVerified,
+        isPrivate: profile.isPrivate,
+        syncError: null,
+        syncErrorCode: null,
+        lastSyncedAt: nowIso(),
+      })
+      .where(eq(tables.channels.id, channel.id));
+
+    const seenExternalIds: string[] = [];
+    let cursor: string | undefined;
+    let stopReason: StopReason | null = null;
+
+    for (;;) {
+      await tracker.flush({ phase: "fetching", counters });
+      const pageCursor = cursor;
+      const page = await upstream("medias", "fetching", () =>
+        opts.client.medias({
+          handle: channel.handle,
+          sinceIso: boundary,
+          maxItems: opts.maxItems - counters.itemsSeen,
+          cursor: pageCursor,
+        })
+      );
+
+      for (const item of page.items) {
+        if (counters.itemsSeen >= opts.maxItems) {
+          stopReason = "cap";
+          break;
+        }
+        await tracker.flushIfDue({ phase: "saving", counters });
+        try {
+          const thumb = await downloadThumb(item.thumbnailUrl);
+          if (thumb.assetId) counters.assetsDownloaded += 1;
+          if (thumb.failed) counters.assetsFailed += 1;
+
+          // Videos are on-demand by default (brief §5 / Q3): the file is fetched on first
+          // play, not during sync. EAGER_VIDEO_DOWNLOAD flips that for users who would
+          // rather spend the disk.
+          let videoAssetId: string | null = null;
+          if (config.EAGER_VIDEO_DOWNLOAD && item.videoUrl) {
+            const vid = await tryEnsureAsset(item.videoUrl, "video", { videoExternalId: item.externalId }, opts.assetDeps);
+            videoAssetId = vid.assetId;
+            if (vid.assetId) counters.assetsDownloaded += 1;
+            if (vid.failed) counters.assetsFailed += 1;
+          }
+
+          const up = await upsertVideo(channel.id, item, { thumbnailAssetId: thumb.assetId, videoAssetId });
+          if (up.created) counters.itemsCreated += 1;
+          else counters.itemsUpdated += 1;
+
+          if (item.children.length > 0) {
+            const childAssets = await upsertChildren(up.id, item, downloadThumb);
+            counters.assetsDownloaded += childAssets.assetsDownloaded;
+            counters.assetsFailed += childAssets.assetsFailed;
+          }
+
+          await db.insert(tables.videoSnapshots).values({
+            id: newId(),
+            videoId: up.id,
+            capturedAt: nowIso(),
+            viewCount: up.viewCount,
+            likeCount: up.likeCount,
+            commentCount: up.commentCount,
+          });
+
+          seenExternalIds.push(item.externalId);
+          counters.itemsSeen += 1;
+        } catch (err) {
+          // One malformed or unwritable post must not end the channel's sync.
+          counters.itemsFailed += 1;
+          log.error("sync.item.failed", {
+            channelId: channel.id,
+            externalId: item.externalId,
+            code: errorCode(err),
+            message: errorMessage(err),
+          });
+        }
+      }
+
+      await tracker.flush({ phase: "saving", counters });
+
+      if (stopReason === "cap") break;
+      if (page.stopReason) {
+        stopReason = page.stopReason;
+        break;
+      }
+      if (!page.nextCursor) {
+        stopReason = "exhausted";
+        break;
+      }
+      // Cancel is checked only after the natural stop conditions, so a run that in fact
+      // finished its window is still reported as having finished it — and still gets to
+      // soft-delete. Reaching here means pages remained, i.e. work really was abandoned.
+      if (await tracker.isCancelRequested()) {
+        log.info("sync.cancelled", { channelId: channel.id, handle: channel.handle, itemsSeen: counters.itemsSeen });
+        stopReason = "cancelled";
+        break;
+      }
+      cursor = page.nextCursor;
+      await opts.sleep(jitterMs());
+    }
+
+    // Soft-delete is only sound when this run actually enumerated the WHOLE window.
+    // If we stopped at MAX_ITEMS_PER_SYNC, were cancelled, or bailed out, there are
+    // in-window posts we simply never asked about — marking those "deleted from
+    // Instagram" would be a fabrication, and on a prolific channel it would silently bury
+    // real posts. A cancelled run is the newest member of that family: it stops mid-walk
+    // by design, so it must land in the "not fully enumerated" branch below.
+    if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0) {
+      counters.itemsDeleted = await softDeleteMissing(channel.id, boundary, seenExternalIds);
+    } else if (counters.itemsSeen === 0) {
+      // A run that saw NOTHING cannot distinguish "the creator deleted everything"
+      // from "the fetch came back empty". Treating it as deletion is how a single
+      // upstream quirk buries a whole channel: this fired for real when pinned posts
+      // stopped the walk early, and soft-deleted 8 live @kallaway posts.
+      log.warn("sync.soft_delete.skipped", {
+        channelId: channel.id,
+        stopReason,
+        reason: "zero items seen; refusing to interpret an empty fetch as deletions",
+      });
+    } else {
+      log.info("sync.soft_delete.skipped", {
+        channelId: channel.id,
+        stopReason,
+        reason: "window not fully enumerated; cannot distinguish deleted from unfetched",
+      });
+    }
+
+    await tracker.flush({ phase: "scoring", counters });
+    const medianViews = await recomputeChannelScores(channel.id);
+    await db.insert(tables.channelSnapshots).values({
+      id: newId(),
+      channelId: channel.id,
+      capturedAt: nowIso(),
+      followerCount: profile.followerCount,
+      medianViews,
+    });
+
+    log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters });
+    return { counters, stopReason };
+  } catch (err) {
+    if (err instanceof SyncCancelledError) {
+      // Not a gap and not a channel error: nothing here is broken, the user stopped us
+      // mid-request. Recording it as a failure would put a red mark against a channel
+      // that was working, and would set `sync_error` the next run has to clear.
+      log.info("sync.channel.cancelled", { channelId: channel.id, handle: channel.handle, ...counters });
+      return { counters, stopReason: "cancelled" };
+    }
+    const code = errorCode(err);
+    const message = errorMessage(err);
+    log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message });
+    await db
+      .update(tables.channels)
+      .set({ syncError: message, syncErrorCode: code })
+      .where(eq(tables.channels.id, channel.id));
+    return {
+      // handle and code travel with the gap so the UI can name the channel and offer the
+      // right recovery ("reconnect in Settings" vs "retry") without a second query.
+      gap: {
+        channelId: channel.id,
+        handle: channel.handle,
+        provider: "instagrapi",
+        error: message,
+        code: err instanceof IgError ? err.code : null,
+      },
+      counters,
+      stopReason: "error",
+    };
+  }
+}
+
+// ---------------------------------------------------------------- public API
+
 export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   if (opts.channelIds !== undefined) {
     const invalid = opts.channelIds.length === 0 || opts.channelIds.some((id) => typeof id !== "string" || id.length === 0);
     if (invalid) throw new Error("runSync: channelIds must be a non-empty array of non-empty channel ids when provided");
   }
 
-  const providers = opts.providers ?? getProviderChain();
+  const client = opts.client ?? igClient;
   const sleep = opts.sleep ?? defaultSleep;
+  const now = opts.now ?? (() => new Date());
+  const lookbackDays = opts.lookbackDays ?? config.LOOKBACK_DAYS;
+  const maxItems = opts.maxItems ?? config.MAX_ITEMS_PER_SYNC;
+  // Asset downloads go through the SAME client as the rest of the run. Defaulting them
+  // to the module-level singleton instead would mean an injected client only covered
+  // half the outbound calls — which is both a testing lie and, in production, two
+  // different paths to the same sidecar.
+  const assetDeps = opts.assetDeps ?? { client };
 
-  const jobId = newId();
-  await db.insert(tables.syncJobs).values({ id: jobId, startedAt: nowIso(), status: "running" });
+  const singleChannelId = opts.channelIds?.length === 1 ? opts.channelIds[0] : null;
+  const jobId = await acquireLock(singleChannelId, lookbackDays);
+  if (opts.onJobStarted) {
+    // A listener that throws must not take down a run that already holds the lock —
+    // the lock would stay held until the reaper got to it.
+    try {
+      opts.onJobStarted(jobId);
+    } catch (err) {
+      log.error("sync.on_job_started.failed", { jobId, message: errorMessage(err) });
+    }
+  }
+  const tracker = createTracker(jobId, now);
+  await tracker.flush({ phase: "starting" });
 
+  const totals = tracker.totals;
   const gaps: SyncGap[] = [];
   let channelsSynced = 0;
-  let videosUpserted = 0;
+  let lastStopReason: StopReason | null = null;
+  let cancelObserved = false;
+  /** True only when cancelling actually left something undone — that is what separates a
+   *  'partial' cancelled run from one that had already finished everything. */
+  let cancelLeftWorkUndone = false;
 
   try {
     const channelRows = opts.channelIds
       ? await db.select().from(tables.channels).where(inArray(tables.channels.id, opts.channelIds))
-      : await db.select().from(tables.channels);
+      : await db.select().from(tables.channels).where(eq(tables.channels.platform, "instagram"));
 
-    await runPool(channelRows, async (channel) => {
-      const result = await syncOneChannel(channel, providers, sleep);
-      if (result.gap) {
-        gaps.push(result.gap);
-      } else {
-        channelsSynced += 1;
-        videosUpserted += result.videosUpserted;
+    log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
+    await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
+
+    // Sequential on purpose: one Instagram account is making these requests, and
+    // parallel bursts from a single session is what trips rate limiting. The pacing is
+    // the point, not a limitation.
+    for (const channel of channelRows) {
+      if (await tracker.isCancelRequested()) {
+        cancelObserved = true;
+        cancelLeftWorkUndone = true;
+        log.info("sync.cancelled", { jobId, before: channel.handle, channelsDone: tracker.channelsDone });
+        break;
       }
-    });
+      await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
 
-    const status: "success" | "partial" = gaps.length > 0 ? "partial" : "success";
-    await db
-      .update(tables.syncJobs)
-      .set({ finishedAt: nowIso(), status, stats: { channels: channelsSynced, videos: videosUpserted }, gaps })
-      .where(eq(tables.syncJobs.id, jobId));
+      const result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems });
+      for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
+      if (result.gap) gaps.push(result.gap);
+      else channelsSynced += 1;
+      lastStopReason = result.stopReason ?? lastStopReason;
+      if (result.stopReason === "cancelled") {
+        cancelObserved = true;
+        cancelLeftWorkUndone = true;
+      }
+      tracker.channelsDone += 1;
+      await tracker.flush();
+    }
 
-    return { jobId, channelsSynced, videosUpserted, gaps };
-  } catch (err) {
-    await db
-      .update(tables.syncJobs)
-      .set({
+    // A cancel can also land after the last page: it changed nothing, but the user still
+    // asked for it, so the run says so rather than silently reporting a clean finish.
+    if (!cancelObserved && (await tracker.isCancelRequested())) cancelObserved = true;
+
+    /**
+     * What a cancelled run reports, stated once so the UI and the next reader agree:
+     *
+     *  - `stop_reason` answers "why did it end" — 'cancelled' whenever the user asked,
+     *    even if the ask landed after the last page. The user pressed the button; the row
+     *    should not pretend otherwise.
+     *  - `status` answers "did the work get done" — independently. A cancel that arrived
+     *    too late to stop anything leaves `success`; one that abandoned channels or pages
+     *    leaves `partial`.
+     *
+     * So `success` + `cancelled` is a real, meaningful combination: "you asked to stop,
+     * and by then there was nothing left to stop".
+     */
+    const stopReason: StopReason | null = cancelObserved ? "cancelled" : lastStopReason;
+    // 'partial' has to mean partial. A run where every channel failed used to record
+    // 'partial' too, so the UI reported partial success for a total failure — the one
+    // status a user must be able to trust. Partial now requires a survivor.
+    const everythingFailed = gaps.length > 0 && channelsSynced === 0;
+    const status: SyncJobStatus = everythingFailed ? "failed" : gaps.length > 0 || cancelLeftWorkUndone ? "partial" : "success";
+    await tracker.flush({ phase: "finalizing", currentChannelHandle: null });
+    const owned = await finalizeJob(
+      jobId,
+      {
         finishedAt: nowIso(),
-        status: "failed",
-        stats: { channels: channelsSynced, videos: videosUpserted },
+        stopReason,
+        ...totals,
+        channelsDone: tracker.channelsDone,
+        retries: tracker.retries,
+        stats: { channels: channelsSynced, videos: totals.itemsCreated + totals.itemsUpdated },
         gaps,
-      })
-      .where(eq(tables.syncJobs.id, jobId));
+      },
+      {
+        status,
+        // With no channel left standing there is no "the rest worked" story to tell, so the
+        // job carries the first failure's code instead of a null the UI can't explain.
+        errorCode: everythingFailed ? gaps[0].code ?? "SYNC_ALL_CHANNELS_FAILED" : null,
+        errorMessage: everythingFailed ? gaps[0].error : null,
+      }
+    );
+
+    log.info("sync.finished", { jobId, status, stopReason, channelsSynced, retries: tracker.retries, reaped: !owned, ...totals });
+
+    return {
+      jobId,
+      channelsSynced,
+      gaps,
+      stopReason,
+      ...totals,
+    };
+  } catch (err) {
+    await finalizeJob(
+      jobId,
+      {
+        finishedAt: nowIso(),
+        ...totals,
+        // A run that died after fighting through retries should say so; the retry count
+        // is often the only clue that the upstream was already sick.
+        channelsDone: tracker.channelsDone,
+        retries: tracker.retries,
+        phase: "finalizing",
+        // Cleared for the same reason the success path clears it: a terminal row that
+        // still names a channel reads as though that channel is being worked on.
+        currentChannelHandle: null,
+        gaps,
+      },
+      { status: "failed", errorCode: errorCode(err), errorMessage: errorMessage(err) }
+    );
+    log.error("sync.failed", { jobId, code: errorCode(err), message: errorMessage(err) });
     throw err;
   }
 }
 
 /**
- * Adds a channel by handle, normalizing to the canonical @-prefixed form first. Returns
- * the existing row's id if (platform, handle) is already tracked. Otherwise tries the
- * provider chain for an immediate profile fetch (best-effort — a failure just leaves the
- * new row keyless-thin, syncError set, to be picked up by the next scheduled sync).
+ * Tracks a new channel. The profile fetch is best-effort: a failure leaves a thin row
+ * with syncError set rather than refusing to track the handle at all.
  */
 export async function addChannel(
-  input: { handle: string; platform: Platform },
-  providers: SocialProvider[] = getProviderChain()
+  input: { handle: string; platform?: "instagram" },
+  deps: { client?: IgClient; assetDeps?: EnsureAssetDeps } = {}
 ): Promise<{ channelId: string }> {
+  const client = deps.client ?? igClient;
+  const assetDeps = deps.assetDeps ?? { client };
   const handle = normalizeHandle(input.handle);
-  if (handle === "@") throw new Error("addChannel: handle is required");
 
   const existing = await db
     .select({ id: tables.channels.id })
     .from(tables.channels)
-    .where(and(eq(tables.channels.platform, input.platform), eq(tables.channels.handle, handle)))
+    .where(and(eq(tables.channels.platform, "instagram"), eq(tables.channels.handle, handle)))
     .limit(1);
   if (existing[0]) return { channelId: existing[0].id };
 
-  let profile: ProfileStats | null = null;
-  let lastError: string | null = null;
-  for (const provider of providers) {
-    try {
-      profile = await provider.getProfile(handle);
-      break;
-    } catch (err) {
-      lastError = errorMessage(err);
-    }
+  let profile: Awaited<ReturnType<IgClient["profile"]>> | null = null;
+  let error: { message: string; code: string } | null = null;
+  try {
+    profile = await client.profile(handle);
+  } catch (err) {
+    error = { message: errorMessage(err), code: errorCode(err) };
+    log.warn("channel.add.profile_failed", { handle, ...error });
+  }
+
+  let avatarAssetId: string | null = null;
+  if (profile?.avatarUrl) {
+    const avatar = await tryEnsureAsset(profile.avatarUrl, "avatar", { channelHandle: handle }, assetDeps);
+    avatarAssetId = avatar.assetId;
   }
 
   const id = newId();
   await db.insert(tables.channels).values({
     id,
-    platform: input.platform,
+    platform: "instagram",
     handle,
     externalId: profile?.externalId,
     displayName: profile?.displayName,
-    avatarUrl: profile?.avatarUrl,
+    avatarAssetId,
     followerCount: profile?.followerCount,
     followingCount: profile?.followingCount,
     mediaCount: profile?.mediaCount,
     bio: profile?.bio,
     isVerified: profile?.isVerified ?? false,
-    syncError: profile ? null : (lastError ?? "no provider configured"),
+    isPrivate: profile?.isPrivate ?? false,
+    syncError: error?.message ?? null,
+    syncErrorCode: error?.code ?? null,
     trackedSince: nowIso(),
     lastSyncedAt: profile ? nowIso() : null,
   });
 
+  log.info("channel.added", { channelId: id, handle, hadProfile: profile !== null });
   return { channelId: id };
 }
 
 /**
- * Manual single-reel import (the yt-dlp keyless escape hatch — not part of the sync
- * provider chain). Creates a minimal channel stub if the reel's owner isn't tracked yet,
- * upserts the video, and recomputes that channel's outlier scores.
+ * Manual single-reel import — the keyless yt-dlp escape hatch, deliberately NOT part of
+ * the sync path (design brief §9). Creates a thin channel stub if the reel's owner isn't
+ * tracked, downloads its thumbnail into our own storage, and upserts the post.
  */
 export async function importReelByUrl(
   url: string,
-  fetchReel: (url: string) => Promise<VideoStats & { channelHandle: string }> = fetchReelByUrl
+  deps: {
+    fetchReel?: (url: string) => Promise<VideoStatsFromYtdlp>;
+    assetDeps?: EnsureAssetDeps;
+  } = {}
 ): Promise<{ videoId: string; channelId: string }> {
+  const fetchReel = deps.fetchReel ?? (await import("../providers/ytdlp")).fetchReelByUrl;
   const stats = await fetchReel(url);
-  // Normalize even though the real ytdlp.ts mapper already @-prefixes channelHandle —
-  // fetchReel is an injectable dependency (I1), so a future implementation returning a
-  // bare handle must not be able to silently duplicate a seeded/existing @-handle row.
   const handle = normalizeHandle(stats.channelHandle);
 
   const existingChannel = await db
     .select({ id: tables.channels.id })
     .from(tables.channels)
-    .where(and(eq(tables.channels.platform, stats.platform), eq(tables.channels.handle, handle)))
+    .where(and(eq(tables.channels.platform, "instagram"), eq(tables.channels.handle, handle)))
     .limit(1);
 
   let channelId: string;
@@ -413,15 +1272,79 @@ export async function importReelByUrl(
     channelId = newId();
     await db.insert(tables.channels).values({
       id: channelId,
-      platform: stats.platform,
+      platform: "instagram",
       handle,
       syncError: null,
       trackedSince: nowIso(),
     });
   }
 
-  const upserted = await upsertVideo(channelId, stats);
+  const thumb = await tryEnsureAsset(stats.thumbnailUrl ?? null, "thumbnail", { channelHandle: handle }, deps.assetDeps ?? {});
+
+  const media: IgMedia = {
+    externalId: stats.id,
+    shortcode: null,
+    mediaType: "video",
+    productType: "clips",
+    url: stats.url,
+    caption: stats.caption ?? null,
+    takenAt: stats.postedAt,
+    durationSec: stats.durationSec ?? null,
+    viewCount: stats.viewCount,
+    likeCount: stats.likeCount ?? null,
+    commentCount: stats.commentCount ?? null,
+    thumbnailUrl: null,
+    videoUrl: null,
+    children: [],
+    raw: {},
+  };
+
+  const up = await upsertVideo(channelId, media, { thumbnailAssetId: thumb.assetId, videoAssetId: null });
   await recomputeChannelScores(channelId);
 
-  return { videoId: upserted.id, channelId };
+  log.info("reel.imported", { videoId: up.id, channelId, created: up.created });
+  return { videoId: up.id, channelId };
 }
+
+/** The subset of yt-dlp's mapped output this module consumes. */
+interface VideoStatsFromYtdlp {
+  id: string;
+  url: string;
+  caption?: string;
+  postedAt: string;
+  durationSec?: number;
+  thumbnailUrl?: string;
+  viewCount: number | null;
+  likeCount?: number | null;
+  commentCount?: number | null;
+  channelHandle: string;
+}
+
+/**
+ * Asks a running sync to stop. Co-operative by design: the engine notices at the next
+ * page or channel boundary, so an in-flight HTTP call is allowed to finish and everything
+ * already written stays written. Killing the process instead would leave the lock held
+ * and the job row stuck on 'running' until the reaper got to it.
+ *
+ * Returns false when there is nothing to cancel (unknown job, or one that already
+ * finished) so the caller can say so instead of pretending it worked.
+ */
+export async function requestCancel(jobId: string): Promise<boolean> {
+  const rows = await db
+    .select({ status: tables.syncJobs.status })
+    .from(tables.syncJobs)
+    .where(eq(tables.syncJobs.id, jobId))
+    .limit(1);
+  if (rows[0]?.status !== "running") return false;
+
+  await db.update(tables.syncJobs).set({ cancelRequested: true }).where(eq(tables.syncJobs.id, jobId));
+  log.info("sync.cancel.requested", { jobId });
+  return true;
+}
+
+// `getRunningJob` was removed here. Its only consumer, `getRunningSyncAction`, was itself
+// dead and has been deleted; the product finds a running job through `sync-actions.ts`
+// instead. What was left read like product API while nothing but tests called it — the
+// same shape as the orphaned transcription chain and the dead action it outlived. The
+// tests that need to observe a run in flight now query `sync_jobs` directly, which is
+// what they were really asserting.

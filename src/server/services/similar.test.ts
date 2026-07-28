@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
 import type { TagSet } from "./similar";
 
 let db: typeof import("@/server/db")["db"];
@@ -163,6 +164,45 @@ describe("getSimilarOutliers", () => {
 
     const result = await getSimilarOutliers(sourceId, 2);
     expect(result).toHaveLength(2);
+  });
+
+  test("excludes soft-deleted candidates — a post Instagram no longer shows must never appear as a similar result", async () => {
+    migrate();
+    const channelId = newId();
+    const now = nowIso();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: "@similar-deleted-test", trackedSince: now });
+
+    async function makeVideo(label: string) {
+      const videoId = newId();
+      await db.insert(tables.videos).values({
+        id: videoId, channelId, platform: "instagram", externalId: `similar-deleted-${label}-${videoId}`,
+        url: `https://example.com/${label}`, caption: label, postedAt: now, outlierScore: 1, firstSeenAt: now,
+      });
+      return videoId;
+    }
+    async function analyze(videoId: string) {
+      await db.insert(tables.videoAnalyses).values({
+        videoId, hookType: "curiosity-gap", structureSegments: [], formatTags: [], styleTags: [],
+        whyItWorked: "because", model: "claude-sonnet-5", createdAt: now,
+      });
+    }
+
+    const sourceId = await makeVideo("source-del");
+    await analyze(sourceId);
+    const liveCandidate = await makeVideo("live-candidate");
+    await analyze(liveCandidate);
+    const deletedCandidate = await makeVideo("deleted-candidate");
+    await analyze(deletedCandidate);
+    await db.update(tables.videos).set({ deletedAt: now }).where(eq(tables.videos.id, deletedCandidate));
+
+    // getSimilarOutliers ranks across every analyzed video in the table (not scoped to
+    // this test's channel), and earlier tests in this file leave their own analyzed
+    // videos behind — so assert membership rather than an exact array, with a limit
+    // generous enough to include everything tied on score.
+    const result = await getSimilarOutliers(sourceId, 100);
+
+    expect(result.some((v) => v.videoId === liveCandidate)).toBe(true);
+    expect(result.some((v) => v.videoId === deletedCandidate)).toBe(false);
   });
 
   test("returns [] when the source video has no analysis yet", async () => {

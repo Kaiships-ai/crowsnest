@@ -28,7 +28,7 @@ export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): Vi
  * `getOrCreateTranscript`'s cache-first whisper.cpp -> Groq chain instead of giving
  * up — before this fix, `transcribe/index.ts` had zero callers anywhere in
  * `app/`/`components/`/`actions/`, so Analyze was structurally dead on any
- * non-seeded video (sync and import never transcribe; DATA.md §7 always specified
+ * freshly synced video (sync and import never transcribe; DATA.md §7 always specified
  * transcription as on-demand, not automatic). A `NoTranscriptProviderError` from that
  * call (neither whisper.cpp nor Groq usable) propagates untouched — same as
  * `getLlm()`'s `NoApiKeyError` always has — for the action layer to map to a
