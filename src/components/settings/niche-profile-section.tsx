@@ -43,7 +43,7 @@ export function NicheProfileSection({
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h2 className="text-base font-semibold">Niche profile</h2>
+        <h2 className="text-lg font-semibold">Niche profile</h2>
         <p className="text-sm text-muted-foreground">Feeds every Remix generation — describe your audience and content style.</p>
       </div>
 

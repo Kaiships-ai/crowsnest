@@ -72,7 +72,7 @@ export function TemplateCard({ item }: { item: VaultItemRow }) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{item.title}</CardTitle>
+          <CardTitle className="text-lg font-semibold">{item.title}</CardTitle>
           <CardAction>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="More actions" />}>

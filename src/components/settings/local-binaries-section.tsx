@@ -14,7 +14,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="text-base font-semibold">Local binaries</h2>
+        <h2 className="text-lg font-semibold">Local binaries</h2>
         <p className="text-sm text-muted-foreground">
           Optional — enables keyless local transcription and manual reel import.
         </p>
@@ -24,9 +24,9 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
         {binaries.map((bin) => (
           <div key={bin.label} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
             {bin.available ? (
-              <CheckCircle2 className="size-4 shrink-0 text-[#34D399]" aria-hidden />
+              <CheckCircle2 className="size-4 shrink-0 text-[var(--pos)]" aria-hidden />
             ) : (
-              <AlertTriangle className="size-4 shrink-0 text-[#E8B23D]" aria-hidden />
+              <AlertTriangle className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             )}
             <span className="font-medium">{bin.label}</span>
             {!bin.available && bin.reason && <span className="text-xs text-muted-foreground">— {bin.reason}</span>}

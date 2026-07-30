@@ -41,14 +41,18 @@ export default async function SettingsPage() {
   const lastJob: LastSyncJobResult = latestJob.ok ? { ok: true, job: latestJob.job } : { ok: false, error: latestJob.error };
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-8 p-6">
-      <NicheProfileSection initialNiche={nicheSettings.niche} initialKeywords={nicheSettings.keywords} />
+    <div className="mx-auto flex max-w-[1120px] flex-col p-6">
+      <div className="border-b border-border pb-8">
+        <NicheProfileSection initialNiche={nicheSettings.niche} initialKeywords={nicheSettings.keywords} />
+      </div>
 
-      <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+      <div className="border-b border-border py-8">
+        <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+      </div>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3 border-b border-border py-8">
         <div>
-          <h2 className="text-base font-semibold">API keys</h2>
+          <h2 className="text-lg font-semibold">API keys</h2>
           <p className="text-sm text-muted-foreground">Keys live in .env.local — restart the dev server after editing.</p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -71,19 +75,23 @@ export default async function SettingsPage() {
         </p>
       </section>
 
-      <LocalBinariesSection binaries={binaries} />
+      <div className="border-b border-border py-8">
+        <LocalBinariesSection binaries={binaries} />
+      </div>
 
-      <SyncSection
-        config={{
-          lookbackDays: config.LOOKBACK_DAYS,
-          maxItemsPerSync: config.MAX_ITEMS_PER_SYNC,
-          eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
-          mediaRoot: config.MEDIA_ROOT,
-          mediaRetentionDays: config.MEDIA_RETENTION_DAYS,
-          syncIntervalMinutes: config.SYNC_INTERVAL_MINUTES,
-        }}
-        lastJob={lastJob}
-      />
+      <div className="pt-8">
+        <SyncSection
+          config={{
+            lookbackDays: config.LOOKBACK_DAYS,
+            maxItemsPerSync: config.MAX_ITEMS_PER_SYNC,
+            eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
+            mediaRoot: config.MEDIA_ROOT,
+            mediaRetentionDays: config.MEDIA_RETENTION_DAYS,
+            syncIntervalMinutes: config.SYNC_INTERVAL_MINUTES,
+          }}
+          lastJob={lastJob}
+        />
+      </div>
     </div>
   );
 }

@@ -47,7 +47,7 @@ export function ApiKeyStatusCard({
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-sm font-medium">
           {label}
-          <Badge variant={present ? "default" : "outline"}>{present ? "Configured" : "Not set"}</Badge>
+          <Badge variant={present ? "secondary" : "outline"}>{present ? "Configured" : "Not set"}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-3">

@@ -13,18 +13,19 @@ import { getScripts, getVaultItems, type VaultItemRow } from "@/server/queries/v
 function EmptyTemplates({ kind, vaultIsEmpty }: { kind: "hook" | "style"; vaultIsEmpty: boolean }) {
   if (vaultIsEmpty) {
     return (
-      <div className="flex flex-col items-center gap-3 py-12 text-center">
+      <div className="mx-auto flex max-w-[52ch] flex-col items-center gap-3 py-16 text-center">
+        <p className="text-lg font-medium">Nothing saved yet.</p>
         <p className="text-sm text-muted-foreground">
-          No templates yet — save a hook or style from any video to start your Vault.
+          Saving a hook or style keeps it with its source video, so a remix run can start from it later.
         </p>
-        <Link href="/feed" className={cn(buttonVariants({ variant: "default" }))}>
+        <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-2")}>
           Browse the Feed
         </Link>
       </div>
     );
   }
   return (
-    <p className="py-12 text-center text-sm text-muted-foreground">
+    <p className="py-16 text-center text-sm text-muted-foreground">
       No {kind === "hook" ? "hooks" : "styles"} saved yet.
     </p>
   );
@@ -50,11 +51,11 @@ export default async function VaultPage({ searchParams }: { searchParams: Promis
   const defaultTab = (VALID_TABS as readonly string[]).includes(tab ?? "") ? tab! : "hooks";
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
+    <div className="mx-auto flex max-w-[1120px] flex-col gap-10 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold">Vault</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-xl font-bold tracking-[-0.015em]">Vault</h1>
+          <p className="mt-3 font-mono text-xs text-faint">
             Your library of extracted hook and style templates, plus saved scripts.
           </p>
         </div>
@@ -62,23 +63,29 @@ export default async function VaultPage({ searchParams }: { searchParams: Promis
       </div>
 
       <Tabs defaultValue={defaultTab}>
-        <TabsList>
-          <TabsTrigger value="hooks">Hooks</TabsTrigger>
-          <TabsTrigger value="styles">Styles</TabsTrigger>
-          <TabsTrigger value="scripts">Scripts</TabsTrigger>
+        <TabsList variant="line" className="border-b border-border">
+          <TabsTrigger value="hooks" data-lab className="font-mono text-2xs">
+            Hooks
+          </TabsTrigger>
+          <TabsTrigger value="styles" data-lab className="font-mono text-2xs">
+            Styles
+          </TabsTrigger>
+          <TabsTrigger value="scripts" data-lab className="font-mono text-2xs">
+            Scripts
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="hooks" className="pt-4">
+        <TabsContent value="hooks" className="pt-6">
           <TemplateGrid items={hooks} kind="hook" vaultIsEmpty={vaultIsEmpty} />
         </TabsContent>
 
-        <TabsContent value="styles" className="pt-4">
+        <TabsContent value="styles" className="pt-6">
           <TemplateGrid items={styles} kind="style" vaultIsEmpty={vaultIsEmpty} />
         </TabsContent>
 
-        <TabsContent value="scripts" className="pt-4">
+        <TabsContent value="scripts" className="pt-6">
           {scripts.length === 0 ? (
-            <p className="py-12 text-center text-sm text-muted-foreground">
+            <p className="py-16 text-center text-sm text-muted-foreground">
               No scripts yet — write one in the Remix Studio.
             </p>
           ) : (

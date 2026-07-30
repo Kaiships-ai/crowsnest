@@ -71,7 +71,7 @@ export function NewTemplateDialog() {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>+ New template</DialogTrigger>
+      <DialogTrigger render={<Button variant="outline" size="sm" />}>+ New template</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New template</DialogTitle>
