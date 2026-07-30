@@ -24,17 +24,23 @@ export function OutlierBadge({
 }) {
   const tier = heatTier(score);
 
-  // "hero": the Outlier Feed card's own read of the score (feed.html line 80) — plain
-  // mono text, no pill chrome, sized to be the biggest thing on the card. Amber means
-  // one thing (beat the channel baseline), so anything under tier 1 reads in a quiet
-  // neutral tone rather than a duller amber that would blur that meaning.
+  // "hero": the Outlier Feed card's own read of the score (feed.html line 80), plain
+  // mono text, no pill chrome, sized to be the biggest thing on the card.
+  //
+  // Amber turns on at 1.0, not at the badge ramp's first tier. Amber means one thing in
+  // this design, that the post beat its channel, and beating it starts the moment the
+  // score passes 1.0. heatTier is a separate scale for how hard it beat, and its tier 1
+  // does not begin until 2.0, so reading the hero off tiers painted a 1.1x post grey
+  // while the detail screen painted the same post amber. Same number, two answers, and
+  // acceptance criterion 8 settles it at 1.0.
   if (size === "hero") {
+    const beatBaseline = score !== null && score >= 1;
     return (
       <span
         data-num="1"
         className={cn(
           "font-mono text-lg leading-none font-medium tracking-tight",
-          tier === 0 ? "text-faint" : "text-score"
+          beatBaseline ? "text-score" : "text-faint"
         )}
       >
         {formatMultiplier(score)}
