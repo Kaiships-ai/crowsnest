@@ -3,20 +3,47 @@ import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ChannelHeader } from "@/components/channels/channel-header";
+import { ChannelPostCalendar } from "@/components/channels/channel-post-calendar";
 import { ChannelVideoGrid } from "@/components/channels/channel-video-grid";
-import { OutlierHistoryChart } from "@/components/channels/outlier-history-chart";
+import { OutlierHistoryChart, ReachByPostBars } from "@/components/channels/outlier-history-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCompact, formatMultiplier } from "@/lib/format";
 import { getChannelDetail } from "@/server/queries/channels";
 import { getVaultedVideoCounts } from "@/server/queries/vault";
 
-// Dataviz stat-tile contract (DESIGN.md §5): sentence-case label, semibold compact
-// value. No delta/sparkline here — the chart below already covers trend (§2.3).
-function StatTile({ label, value }: { label: string; value: string }) {
+/**
+ * Mirrors `computeChannelMedian`'s MIN_USABLE in
+ * `src/server/services/outlier-calc.ts` — a display-only constant, not a second
+ * source of truth for the calculation itself. This page only needs the number to word
+ * the sample-size line honestly; the actual median is computed server-side and read
+ * off `detail.stats.medianViews` already.
+ */
+const MIN_USABLE_FOR_SCORE = 5;
+
+// Dataviz stat-tile contract, restyled to the "mine" prototype's big mono numeral —
+// every figure keeps its own sample-size caption underneath (own-channel figures
+// carry their sample size), and a null value is a dash, never a fabricated zero.
+function StatTile({
+  value,
+  label,
+  sub,
+  tone = "foreground",
+}: {
+  value: string;
+  label: string;
+  sub: string;
+  tone?: "foreground" | "score";
+}) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4">
-      <span className="text-sm text-muted-foreground">{label}</span>
-      <span className="text-xl font-semibold tabular-nums">{value}</span>
+    <div>
+      <span
+        data-num
+        className={`block font-mono text-xl leading-none tracking-tight ${tone === "score" ? "text-score" : "text-foreground"}`}
+      >
+        {value}
+      </span>
+      <span className="mt-3 block max-w-[19ch] text-sm text-muted-foreground">{label}</span>
+      <span className="mt-1 block font-mono text-2xs text-faint">{sub}</span>
     </div>
   );
 }
@@ -34,22 +61,59 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   const templateCounts = await getVaultedVideoCounts();
   const vaultedVideos = detail.videos.filter((v) => templateCounts.has(v.videoId));
 
+  // How many posts actually feed the median right now — the real gate from
+  // outlier-calc.ts, worded honestly instead of the prototype's fixed "8/30" flavor
+  // text (which belongs to a report gate that doesn't exist in this app yet).
+  const usableForScore = Math.min(detail.videos.filter((v) => v.viewCount !== null).length, 20);
+  const scoreGateMet = detail.stats.medianViews !== null;
+
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
       <Link href="/channels" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" /> Channels
       </Link>
 
-      <ChannelHeader channel={detail.channel} />
+      <ChannelHeader channel={detail.channel} postCount={detail.stats.videoCount} />
 
-      <div className="grid grid-cols-4 gap-4">
-        <StatTile label="Median views" value={formatCompact(detail.stats.medianViews)} />
-        <StatTile label="Best multiplier" value={formatMultiplier(detail.stats.bestScore)} />
-        <StatTile label="Outliers (30d)" value={String(detail.stats.outliers30d)} />
-        <StatTile label="Videos tracked" value={String(detail.stats.videoCount)} />
+      <div className="mt-10 grid grid-cols-2 gap-x-14 gap-y-10 sm:grid-cols-4">
+        <StatTile
+          value={formatCompact(detail.stats.medianViews)}
+          label="Median views"
+          sub={detail.stats.medianViews === null ? `needs ${MIN_USABLE_FOR_SCORE}+ measured posts` : `of ${usableForScore} posts`}
+        />
+        <StatTile
+          value={formatMultiplier(detail.stats.bestScore)}
+          label="Best score"
+          sub={`of ${detail.stats.videoCount} posts`}
+          tone="score"
+        />
+        <StatTile value={String(detail.stats.outliers30d)} label="Outliers, 30d" sub={`of ${detail.stats.videoCount} posts`} />
+        <StatTile value={String(detail.stats.videoCount)} label="Posts tracked" sub="all synced posts" />
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-4">
+        <div className="h-px max-w-[460px] flex-1 bg-border">
+          <div
+            className="h-px bg-muted-foreground"
+            style={{ width: scoreGateMet ? "100%" : `${Math.min(100, (usableForScore / MIN_USABLE_FOR_SCORE) * 100)}%` }}
+          />
+        </div>
+        <span className="whitespace-nowrap font-mono text-2xs text-faint">
+          {scoreGateMet
+            ? `score active, based on the last ${usableForScore} posts`
+            : `${usableForScore} / ${MIN_USABLE_FOR_SCORE} posts before a score appears`}
+        </span>
+      </div>
+
+      <div className="mt-4">
+        <ReachByPostBars videos={detail.videos} />
+      </div>
+
+      <div className="mt-4 border-t border-border pt-10">
+        <ChannelPostCalendar videos={detail.videos} />
+      </div>
+
+      <div className="flex flex-col gap-2 border-t border-border pt-10">
         <h2 className="text-base font-semibold">Outlier history</h2>
         <OutlierHistoryChart series={detail.series} />
       </div>

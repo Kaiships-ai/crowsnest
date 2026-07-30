@@ -32,19 +32,23 @@ import {
   type SyncTone,
 } from "./sync-progress-view";
 
-/** Same palette the sidebar's sync dot uses (DESIGN.md Task 7 Step 2) so one run reads
- *  as the same colour in both places. */
+/**
+ * Same palette the sidebar's sync dot uses (DESIGN.md Task 7 Step 2) so one run reads
+ * as the same colour in both places. Amber is reserved for the score everywhere else
+ * in this app (DESIGN.md's amber budget), so it never appears here even for "busy" —
+ * this dot uses only the two hues globals.css defines: neutral and destructive.
+ */
 const TONE_DOT: Record<SyncTone, string> = {
   idle: "bg-muted-foreground",
-  busy: "bg-[#E8B23D]",
-  ok: "bg-[#34D399]",
-  warn: "bg-[#E8B23D]",
-  bad: "bg-[#F1585C]",
+  busy: "bg-foreground animate-pulse",
+  ok: "bg-foreground",
+  warn: "bg-destructive/50",
+  bad: "bg-destructive",
 };
 
 function Counter({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
   return (
-    <div className="rounded-md border border-border px-3 py-2">
+    <div className="border border-border px-3 py-2">
       <div className={`font-mono text-sm tabular-nums ${bad && value > 0 ? "text-destructive" : ""}`}>{value}</div>
       <div className="text-[11px] text-muted-foreground">{label}</div>
     </div>
@@ -55,7 +59,7 @@ function GapRow({ gap, onRetry }: { gap: SyncGap; onRetry: (channelIds?: string[
   const retryLabel = gapRetryLabel(gap.code);
   const name = gapDisplayName(gap);
   return (
-    <li className="flex items-start gap-3 rounded-md border border-border px-3 py-2">
+    <li className="flex items-start gap-3 border border-border px-3 py-2">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{name}</p>
         <p className="text-xs text-muted-foreground">{gapMessage(gap)}</p>
@@ -101,7 +105,7 @@ export function SyncProgressPanel({ progress, stalled, onCancel, onRetry, pollEr
   }
 
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border p-4" aria-label="Sync progress">
+    <section className="flex flex-col gap-3 border border-border p-4" aria-label="Sync progress">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-2" role="status" aria-live="polite">
           <span className={`mt-1.5 size-2 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />
@@ -158,7 +162,7 @@ export function SyncProgressPanel({ progress, stalled, onCancel, onRetry, pollEr
 
           <p className="text-xs text-muted-foreground">{meta.join(" · ")}</p>
 
-          <div className="flex items-baseline gap-2 rounded-md border border-border px-3 py-2">
+          <div className="flex items-baseline gap-2 border border-border px-3 py-2">
             <span className="font-mono text-sm tabular-nums">{formatItemsAgainstCap(progress.itemsSeen, progress.maxItems)}</span>
             <span className="text-[11px] text-muted-foreground">
               posts seen — Instagram never says how many there are, so the per-sync cap is the only denominator

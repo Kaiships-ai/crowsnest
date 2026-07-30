@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { ChannelRow } from "@/server/queries/channels";
@@ -29,7 +29,7 @@ function channelProfileUrl(platform: string, handle: string): string {
   }
 }
 
-export function ChannelHeader({ channel }: { channel: ChannelRow }) {
+export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; postCount?: number }) {
   // Scoped to this channel: `start()` with no arguments syncs only this one, and the poll
   // answers "is a run covering THIS channel" from the `channel_id` column. `coverage`
   // replaced a comparison of `progress.currentChannelHandle` against this row's handle —
@@ -89,14 +89,20 @@ export function ChannelHeader({ channel }: { channel: ChannelRow }) {
           </AvatarFallback>
         </Avatar>
 
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{channel.handle}</h2>
-            <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-              {platformLabel(channel.platform)}
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">{formatCompact(channel.followerCount)} followers</p>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-lg font-semibold">{channel.handle}</h2>
+          {/* One mono meta line (mine.html's header), not a badge chip plus a caption —
+              platform, sync recency, followers and post count read as one fact together. */}
+          <p className="font-mono text-2xs tracking-[0.06em] text-faint">
+            {platformLabel(channel.platform)} · {channel.lastSyncedAt ? `synced ${relativeTime(channel.lastSyncedAt)}` : "never synced"} ·{" "}
+            <span data-num>{formatCompact(channel.followerCount)}</span> followers
+            {postCount !== undefined && (
+              <>
+                {" "}
+                · <span data-num>{postCount}</span> post{postCount === 1 ? "" : "s"}
+              </>
+            )}
+          </p>
         </div>
 
         <a

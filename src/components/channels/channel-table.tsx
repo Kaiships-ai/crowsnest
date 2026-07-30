@@ -24,6 +24,31 @@ import { assetUrl } from "@/lib/media-url";
 import type { ChannelRow, Fleet } from "@/server/queries/channels";
 import { EditChannelFleetsDialog } from "./edit-channel-fleets-dialog";
 
+/** A run older than this reads as "stale" rather than plain "synced N ago" — the
+ *  prototype's health line draws this distinction and a silently aging channel is
+ *  worse than one that was never synced, because it looks current when it isn't. */
+const STALE_HOURS = 24;
+
+type HealthTone = "faint" | "muted" | "stale" | "destructive";
+
+function syncHealth(channel: ChannelRow): { label: string; tone: HealthTone } {
+  if (channel.syncError) return { label: "Sync failed", tone: "destructive" };
+  if (channel.lastSyncedAt === null) return { label: "Never synced", tone: "faint" };
+  const hoursSince = (Date.now() - new Date(channel.lastSyncedAt).getTime()) / 3_600_000;
+  if (hoursSince > STALE_HOURS) return { label: `Stale · ${relativeTime(channel.lastSyncedAt)}`, tone: "stale" };
+  return { label: `Synced ${relativeTime(channel.lastSyncedAt)}`, tone: "muted" };
+}
+
+const HEALTH_CLASS: Record<HealthTone, string> = {
+  // Never synced reads as thin, not broken — same restraint the prototype gives a
+  // channel with too little data to say anything about yet.
+  faint: "text-faint",
+  muted: "text-muted-foreground",
+  // Aging data is a raised-surface chip, never amber — amber is reserved for the score.
+  stale: "bg-popover px-1.5 py-0.5 text-muted-foreground",
+  destructive: "text-destructive",
+};
+
 export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fleets: Fleet[] }) {
   const router = useRouter();
   // One shared dialog instance for the whole table, rather than one per row — keyed
@@ -72,14 +97,20 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
     <>
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead>Channel</TableHead>
-            <TableHead>Platform</TableHead>
-            <TableHead className="text-right">Followers</TableHead>
-            <TableHead className="text-right">Median views</TableHead>
-            <TableHead className="text-right">Outliers (30d)</TableHead>
-            <TableHead>Last synced</TableHead>
-            <TableHead className="w-10" />
+          <TableRow className="border-line-strong hover:bg-transparent">
+            <TableHead data-lab className="h-auto pb-3 text-2xs font-normal text-faint">
+              Channel
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Followers
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Median views
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Outliers (30d)
+            </TableHead>
+            <TableHead className="h-auto w-10 pb-3" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -101,6 +132,7 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
             // `sync_error` persisted on the channel row, so it wins the warning icon.
             const gap = progress?.gaps.find((g) => g.channelId === channel.id);
             const warning = gap !== undefined ? gapMessage(gap) : channel.syncError;
+            const health = syncHealth(channel);
 
             return (
               <TableRow
@@ -112,31 +144,28 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                 onKeyDown={(e) => {
                   if (e.key === "Enter") router.push(`/channels/${channel.id}`);
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer border-border"
               >
-                <TableCell>
-                  <div className="flex items-center gap-2">
+                <TableCell className="py-4">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Avatar size="sm">
                       <AvatarImage src={assetUrl(channel.avatarAssetId) ?? undefined} alt="" />
                       <AvatarFallback>
                         {(channel.displayName ?? channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{channel.handle}</span>
+                    <span className="truncate text-base">{channel.handle}</span>
+                    <span className="shrink-0 border border-border px-1.5 py-0.5 text-2xs text-faint">
+                      {platformLabel(channel.platform)}
+                    </span>
                   </div>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{platformLabel(channel.platform)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{formatCompact(channel.followerCount)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{formatCompact(channel.medianViews)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{channel.outliers30d}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
+                  <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs">
                     {syncing && progress !== null ? (
-                      <span className="tabular-nums text-foreground" aria-live="polite">
+                      <span data-num className="text-foreground" aria-live="polite">
                         {phaseLabel(progress.phase)} · {progress.itemsSeen} seen
                       </span>
                     ) : (
-                      <span>{channel.lastSyncedAt ? relativeTime(channel.lastSyncedAt) : "Never"}</span>
+                      <span className={HEALTH_CLASS[health.tone]}>{health.label}</span>
                     )}
                     {warning && (
                       <Tooltip>
@@ -146,7 +175,16 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                     )}
                   </div>
                 </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell data-num className="py-4 text-right font-mono text-sm">
+                  {formatCompact(channel.followerCount)}
+                </TableCell>
+                <TableCell data-num className="py-4 text-right font-mono text-sm text-muted-foreground">
+                  {formatCompact(channel.medianViews)}
+                </TableCell>
+                <TableCell data-num className="py-4 text-right font-mono text-sm text-muted-foreground">
+                  {channel.outliers30d}
+                </TableCell>
+                <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Channel actions" />}>
                       <MoreHorizontal className="size-4" />

@@ -19,12 +19,20 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
   ]);
   const channels = scopedChannels ?? allChannels;
 
+  const neverSynced = channels.filter((c) => c.lastSyncedAt === null).length;
+  const summary =
+    channels.length === 0
+      ? "No channels tracked yet"
+      : `${channels.length} channel${channels.length === 1 ? "" : "s"} tracked` +
+        (neverSynced > 0 ? ` · ${neverSynced} never synced` : "");
+
   return (
     <div className="mx-auto flex h-full max-w-[1120px]">
       <FleetRail fleets={fleets} totalChannels={allChannels.length} />
 
       <div className="flex-1 overflow-y-auto py-4 pl-6">
-        <div className="mb-4 flex justify-end">
+        <div className="mb-10 flex items-baseline justify-between gap-6">
+          <span className="font-mono text-2xs text-faint">{summary}</span>
           <AddChannelDialog />
         </div>
         <ChannelTable channels={channels} fleets={fleets} />

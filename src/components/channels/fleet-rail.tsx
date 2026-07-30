@@ -25,19 +25,23 @@ export function FleetRail({ fleets, totalChannels }: { fleets: Fleet[]; totalCha
 
   return (
     <aside className="flex w-[180px] shrink-0 flex-col gap-0.5 border-r border-border py-4 pr-3">
-      <p className="px-2 pb-1 text-xs font-medium text-muted-foreground">Fleets</p>
+      <p data-lab className="px-2 pb-2 text-2xs text-faint">
+        Fleets
+      </p>
 
       <Link
         href={hrefFor(null)}
         className={cn(
-          "flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+          "flex items-center justify-between px-2 py-1.5 text-sm",
           !activeFleet
-            ? "bg-secondary text-foreground"
-            : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+            ? "bg-popover text-foreground"
+            : "text-muted-foreground hover:bg-popover/60 hover:text-foreground"
         )}
       >
         <span>All channels</span>
-        <span className="text-xs tabular-nums">{totalChannels}</span>
+        <span data-num className="font-mono text-2xs text-muted-foreground">
+          {totalChannels}
+        </span>
       </Link>
 
       {fleets.map((fleet) => (
@@ -45,14 +49,16 @@ export function FleetRail({ fleets, totalChannels }: { fleets: Fleet[]; totalCha
           key={fleet.id}
           href={hrefFor(fleet.id)}
           className={cn(
-            "flex items-center justify-between rounded-md px-2 py-1.5 text-sm",
+            "flex items-center justify-between px-2 py-1.5 text-sm",
             activeFleet === fleet.id
-              ? "bg-secondary text-foreground"
-              : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+              ? "bg-popover text-foreground"
+              : "text-muted-foreground hover:bg-popover/60 hover:text-foreground"
           )}
         >
           <span className="truncate">{fleet.name}</span>
-          <span className="text-xs tabular-nums">{fleet.channelCount}</span>
+          <span data-num className="font-mono text-2xs text-muted-foreground">
+            {fleet.channelCount}
+          </span>
         </Link>
       ))}
 
