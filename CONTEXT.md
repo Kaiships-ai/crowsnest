@@ -72,6 +72,10 @@ _Avoid_: style, visual style, format, template
 A reusable Hook or Layout saved out of an Analysis, or written by hand, kept for future Remixes.
 _Avoid_: template, saved hook, swipe file entry
 
+**Saved post**:
+A whole Video kept in the Vault for later study or reuse, with an optional note on why it was kept. Distinct from a Vault item, which is a reusable Hook or Layout pulled out of a Video, not the Video itself. Its score and stats are always read live off the Video, never frozen at save time.
+_Avoid_: bookmark, favorite, starred post
+
 **Remix**:
 Turning a studied Video into a new script for Kai's niche, staged as Prompt, Research, Hook, Style, Script.
 _Avoid_: generation, rewrite, scriptwriting

@@ -1,8 +1,12 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import type { Outline } from "../llm/schemas";
 import { NoApiKeyError } from "../llm/client";
 import { llmErrorMessage } from "../llm/error-message";
+import { db, tables } from "../db";
+import { getPlansCarryingScript } from "../queries/planned-posts";
+import { getRemixRunLog, type RemixRunRow } from "../queries/remix-runs";
 import {
   buildResearch,
   generateHooks,
@@ -104,5 +108,66 @@ export async function quickRemixAction(id: string): Promise<SimpleResult> {
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * The run log a remix session has accumulated so far (v1-scope.md, Remix studio P0).
+ * Read only — every row is written by `generateHooks`/`generateOutline`/
+ * `generateVariants` themselves, on both success and failure, never by a user action.
+ * Restarting a session (`updateStageAction(id, { stage: "prompt" })`) clears the stage,
+ * not this history: the run log survives a restart and a page reload by construction,
+ * since it lives in its own table rather than a column on the session row.
+ */
+export async function getRemixRunLogAction(sessionId: string): Promise<ActionResult<{ runs: RemixRunRow[] }>> {
+  try {
+    const runs = await getRemixRunLog(sessionId);
+    return { ok: true, runs };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+type DeleteScriptResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error: string;
+      code?: "SCRIPT_NOT_FOUND" | "SCRIPT_CARRIED_BY_PLAN" | "SCRIPT_UNKNOWN";
+      /** Only set for SCRIPT_CARRIED_BY_PLAN, naming the plans and their dates so the
+       *  caller can offer "detach from each plan first, or delete the plans too". */
+      plans?: { id: string; title: string; plannedDate: string | null }[];
+    };
+
+/**
+ * Deletes a script, refusing when a planned post still carries it (V1 data contracts,
+ * contract 6). This is the delete-refusal half of the planner's "make the link real"
+ * requirement: a plan whose scriptId silently went null via the FK's `set null`
+ * default would degrade from "a finished cut, dated" to "a title on a calendar"
+ * without telling anyone — the same rot the planned-post link exists to prevent. The
+ * FK stays `set null` as a backstop for any path that bypasses this action, but this
+ * is where the honesty lives, mirroring contract 3's refusal pattern for system
+ * presets.
+ */
+export async function deleteScriptAction(id: string): Promise<DeleteScriptResult> {
+  try {
+    const [script] = await db.select({ id: tables.scripts.id }).from(tables.scripts).where(eq(tables.scripts.id, id)).limit(1);
+    if (!script) return { ok: false, error: "That script no longer exists.", code: "SCRIPT_NOT_FOUND" };
+
+    const carryingPlans = await getPlansCarryingScript(id);
+    if (carryingPlans.length > 0) {
+      const noun = carryingPlans.length === 1 ? "planned post" : "planned posts";
+      return {
+        ok: false,
+        error: `This script is carried by ${carryingPlans.length} ${noun}. Detach it from each plan first, or delete the plans too.`,
+        code: "SCRIPT_CARRIED_BY_PLAN",
+        plans: carryingPlans,
+      };
+    }
+
+    await db.delete(tables.scripts).where(eq(tables.scripts.id, id));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "SCRIPT_UNKNOWN" };
   }
 }

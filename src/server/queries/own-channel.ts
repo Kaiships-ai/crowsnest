@@ -94,7 +94,10 @@ const DEFAULT_WINDOW_DAYS = 30;
 
 type OwnPostInsightsRow = typeof tables.ownPostInsights.$inferSelect;
 
-interface JoinedOwnPost {
+/** Exported for queries/planned-posts.ts: the calendar's published cells need each own
+ *  post's date and latest reach, and this is already the one place that joins an own
+ *  post to its latest measurement — a second implementation is how the two drift. */
+export interface JoinedOwnPost {
   ownPostId: string;
   externalId: string;
   permalink: string;
@@ -123,7 +126,7 @@ interface JoinedOwnPost {
  * newest snapshot (see `queries/channels.ts`'s `getMedianViews`), and a single-user
  * account's post count never approaches a scale where that matters.
  */
-async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
+export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const posts = await db.select().from(tables.ownPosts).orderBy(desc(tables.ownPosts.postedAt));
   if (posts.length === 0) return [];
 
