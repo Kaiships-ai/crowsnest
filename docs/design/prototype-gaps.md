@@ -78,3 +78,14 @@ query work, which was out of scope for a rendering-layer pass.
 - The prototype labels view counts as reach throughout. Reach is an Insight,
   owned channel only, through the Graph API, and that work is not built (see
   `docs/design/ux-flows/04-ownchannel-system.md`). The screens say views.
+
+## Copy to revisit when the channel screen is rebuilt
+
+`channels/[channelId]/page.tsx` labels the posts tile "all synced posts". Since
+`videoCount` now counts live posts only, that label is no longer accurate once a
+channel has a removed post. `stats.removedCount` is available to say it properly,
+something like "8 posts, 2 removed".
+
+The same file hardcodes `MIN_USABLE_FOR_SCORE = 5`, which drifts the moment the
+setting changes. The correct read is `getSetting("scoreMinUsablePosts")` from
+`src/server/settings`.

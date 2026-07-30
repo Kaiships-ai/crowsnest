@@ -29,7 +29,25 @@ export interface ChannelRow {
 
 export interface ChannelDetail {
   channel: ChannelRow;
-  stats: { medianViews: number | null; bestScore: number | null; outliers30d: number; videoCount: number };
+  /**
+   * Which of these count a post Instagram has since removed:
+   * - `videoCount` counts live posts only.
+   * - `removedCount` is how many are gone, so a screen can say "8 posts, 2 removed"
+   *   instead of quietly reporting 10.
+   * - `medianViews` and `outliers30d` exclude removed posts, because both come from
+   *   the same filtered window the score itself is computed over. A baseline and the
+   *   number explaining it are never allowed to disagree.
+   * - `series` and `videos` DO include removed posts, carrying `deleted: true`. Their
+   *   views are real history, rows are never hard deleted, and the removed marker has
+   *   to be reachable for the screen to show it.
+   */
+  stats: {
+    medianViews: number | null;
+    bestScore: number | null;
+    outliers30d: number;
+    videoCount: number;
+    removedCount: number;
+  };
   series: { capturedAt: string; viewCount: number | null; outlierScore: number | null; videoId: string }[];
   videos: Awaited<ReturnType<typeof getOutlierFeed>>["items"];
 }
@@ -178,9 +196,20 @@ export async function getChannelDetail(id: string): Promise<ChannelDetail | null
     videoId: v.videoId,
   }));
 
+  // `videos` carries removed posts so the screen can mark them. A count that folded
+  // them in with the live ones would read as truth and be wrong, which is the quieter
+  // half of the same problem as a control that does nothing.
+  const removedCount = videos.reduce((n, v) => n + (v.deleted ? 1 : 0), 0);
+
   return {
     channel,
-    stats: { medianViews: channel.medianViews, bestScore, outliers30d: channel.outliers30d, videoCount: videos.length },
+    stats: {
+      medianViews: channel.medianViews,
+      bestScore,
+      outliers30d: channel.outliers30d,
+      videoCount: videos.length - removedCount,
+      removedCount,
+    },
     series,
     videos,
   };
