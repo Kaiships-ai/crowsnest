@@ -22,6 +22,16 @@ import { PlatformChip } from "./platform-chip";
 // state variable that could drift out of sync with `id`).
 type FetchResult = { id: string; detail: VideoDetail | null };
 
+// "Hatching for a well with no data in it" (globals.css) — same treatment as
+// outlier-card.tsx and carousel-viewer.tsx, so the feed grid and the detail screen
+// agree on what an empty media slot looks like. A plain object so it isn't
+// reallocated on every render.
+const EMPTY_WELL_HATCH: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
+  backgroundImage:
+    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+};
+
 export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const [result, setResult] = useState<FetchResult | null>(null);
   const loading = id !== null && result?.id !== id;
@@ -57,8 +67,9 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
           ) : (
             <>
               <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
+                <div aria-hidden className="absolute inset-0 opacity-40" style={EMPTY_WELL_HATCH} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
+                  <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
                 </div>
                 <VideoThumb assetId={detail.item.thumbnailAssetId} />
                 <div className="absolute left-2 top-2">
