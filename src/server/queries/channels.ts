@@ -77,14 +77,19 @@ const OUTLIERS_30D_WINDOW_DAYS = 30;
  * drift, same reasoning own-metrics.ts already states for reach vs views.
  */
 export async function getMedianViews(channelId: string): Promise<number | null> {
-  const [snapshot] = await db
-    .select({ medianViews: tables.channelSnapshots.medianViews })
-    .from(tables.channelSnapshots)
-    .where(eq(tables.channelSnapshots.channelId, channelId))
-    .orderBy(desc(tables.channelSnapshots.capturedAt))
-    .limit(1);
-  if (snapshot?.medianViews != null) return snapshot.medianViews;
-
+  // Always computed, never read back from channel_snapshots.
+  //
+  // This used to prefer the newest snapshot row and fall back to computing. That was
+  // safe while the baseline was a fixed 20-post median, and it stopped being safe the
+  // moment method and window became settings. A snapshot is whatever the sync that
+  // wrote it believed at the time, and changing a scoring setting rewrites every stored
+  // score without rewriting old snapshots. @kallaway showed it: the list read 198,637
+  // from a stale snapshot while the score on every card was computed against 224,403.5,
+  // which is the real median of the eight stored view counts.
+  //
+  // A displayed baseline that disagrees with the baseline the scores were divided by is
+  // the worst kind of wrong number here, because both look right on their own screen.
+  // Snapshots stay as history, which is what getChannelMedianHistory reads them for.
   const videos = await db
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)

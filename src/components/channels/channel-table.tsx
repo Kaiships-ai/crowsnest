@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-import { platformLabel } from "@/components/feed/platform-chip";
 import { gapMessage, phaseLabel } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -194,9 +193,6 @@ export function ChannelTable({
                       </AvatarFallback>
                     </Avatar>
                     <span className="truncate text-base">{channel.handle}</span>
-                    <span className="shrink-0 border border-border px-1.5 py-0.5 text-2xs text-faint">
-                      {platformLabel(channel.platform)}
-                    </span>
                   </div>
                   <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs">
                     {syncing && progress !== null ? (
@@ -227,7 +223,11 @@ export function ChannelTable({
                   {formatCompact(channel.medianViews)}
                 </TableCell>
                 <TableCell data-num className="py-4 text-right font-mono text-sm text-muted-foreground">
-                  {channel.outliers30d}
+                  {/* A channel that has never synced has no answer here, and zero is an
+                      answer. Follower count and median already read as dashes for the
+                      same reason, so a bare 0 in this column was the one number on the
+                      row claiming we had looked. */}
+                  {channel.lastSyncedAt === null ? "—" : channel.outliers30d}
                 </TableCell>
                 <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>

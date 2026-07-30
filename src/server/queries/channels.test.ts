@@ -198,6 +198,30 @@ describe("getFleets", () => {
   });
 });
 
+  // The list's median and the median the scores were actually divided by have to be the
+  // same number. They were not: getMedianViews preferred the newest channel_snapshots
+  // row, which is whatever the sync that wrote it believed, while scores are recomputed
+  // from the videos table whenever a scoring setting changes. A stale snapshot then
+  // showed one baseline on the channels list and another on the detail screen.
+  test("medianViews ignores a stale channel_snapshots row and computes from the videos table", async () => {
+    const channelId = await seedChannel();
+    for (const viewCount of [100, 200, 300, 400, 500]) {
+      await seedVideo(channelId, { viewCount });
+    }
+    // A snapshot that disagrees with the posts, the way a real one does after the
+    // baseline method or window has been changed.
+    await db.insert(tables.channelSnapshots).values({
+      id: newId(),
+      channelId,
+      capturedAt: nowIso(),
+      medianViews: 999_999,
+    });
+
+    const rows = await getChannelsList();
+
+    expect(rows.find((r) => r.id === channelId)?.medianViews).toBe(300);
+  });
+
 describe("getChannelDetail", () => {
   test("returns null for a nonexistent channel id", async () => {
     expect(await getChannelDetail("nonexistent")).toBeNull();

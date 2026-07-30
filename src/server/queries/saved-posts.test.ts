@@ -161,12 +161,31 @@ describe("getSavedPosts", () => {
 
   test("channelMedian reads live via the same baseline the Channels screen uses", async () => {
     const channelId = await seedChannel("@median-test");
-    const videoId = await seedVideo(channelId, { viewCount: 1000 });
+    // Enough posts to clear minUsable, so a baseline exists to read at all.
+    let videoId = "";
+    for (const viewCount of [100, 200, 300, 400, 500]) {
+      videoId = await seedVideo(channelId, { viewCount });
+    }
+    // A snapshot that disagrees with the posts, which is what a real one looks like
+    // once the baseline method or window has been changed since it was written.
     await db.insert(tables.channelSnapshots).values({ id: newId(), channelId, capturedAt: tsAt(0), medianViews: 4200 });
     await db.insert(tables.savedPosts).values({ id: newId(), videoId, createdAt: tsAt(0) });
 
     const [row] = await getSavedPosts();
-    expect(row.channelMedian).toBe(4200);
+    // 300, the real median of the posts, not 4200 from the snapshot. The vault, the
+    // channels list and the detail screen all have to divide by the same number.
+    expect(row.channelMedian).toBe(300);
+  });
+
+  test("channelMedian is null when the channel has too few posts to have a baseline", async () => {
+    const channelId = await seedChannel("@thin-channel");
+    const videoId = await seedVideo(channelId, { viewCount: 1000 });
+    await db.insert(tables.savedPosts).values({ id: newId(), videoId, createdAt: tsAt(0) });
+
+    const [row] = await getSavedPosts();
+    // One post is not a normal. A stale snapshot used to supply a number here, which
+    // made a thin channel look measured.
+    expect(row.channelMedian).toBeNull();
   });
 });
 
