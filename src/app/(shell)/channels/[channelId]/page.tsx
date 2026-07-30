@@ -8,17 +8,10 @@ import { ChannelVideoGrid } from "@/components/channels/channel-video-grid";
 import { OutlierHistoryChart, ReachByPostBars } from "@/components/channels/outlier-history-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCompact, formatMultiplier } from "@/lib/format";
-import { getChannelDetail } from "@/server/queries/channels";
+import { getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
 import { getVaultedVideoCounts } from "@/server/queries/vault";
-
-/**
- * Mirrors `computeChannelMedian`'s MIN_USABLE in
- * `src/server/services/outlier-calc.ts` — a display-only constant, not a second
- * source of truth for the calculation itself. This page only needs the number to word
- * the sample-size line honestly; the actual median is computed server-side and read
- * off `detail.stats.medianViews` already.
- */
-const MIN_USABLE_FOR_SCORE = 5;
+import { getSetting } from "@/server/settings";
+import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 
 // Dataviz stat-tile contract, restyled to the "mine" prototype's big mono numeral —
 // every figure keeps its own sample-size caption underneath (own-channel figures
@@ -58,7 +51,14 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   if (!detail) notFound();
 
   const outliersOnly = detail.videos.filter((v) => v.outlierScore !== null && v.outlierScore >= 2);
-  const templateCounts = await getVaultedVideoCounts();
+  // scoreMinUsablePosts is a real, editable setting (Settings, Wave 1) — reading it here
+  // instead of a hardcoded literal is the only way this page's wording can't drift the
+  // moment someone changes the setting.
+  const [templateCounts, minUsablePosts, medianBasis] = await Promise.all([
+    getVaultedVideoCounts(),
+    getSetting("scoreMinUsablePosts"),
+    getChannelMedianBasis(channelId),
+  ]);
   const vaultedVideos = detail.videos.filter((v) => templateCounts.has(v.videoId));
 
   // How many posts actually feed the median right now — the real gate from
@@ -66,6 +66,14 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   // text (which belongs to a report gate that doesn't exist in this app yet).
   const usableForScore = Math.min(detail.videos.filter((v) => v.viewCount !== null).length, 20);
   const scoreGateMet = detail.stats.medianViews !== null;
+
+  // Thin-sample note (v1-scope.md §2 Channels AC4): same medianConfidence/
+  // MEDIAN_CONFIDENCE_THRESHOLDS the channels list note reads, so the two screens can
+  // never quietly disagree about what "thin" means. This is a separate concept from
+  // the score gate above — minUsablePosts decides whether a score shows at all, this
+  // decides whether an already-showing score is still built on a thin sample.
+  const sampleSize = medianBasis?.sampleSize ?? 0;
+  const isThin = sampleSize > 0 && medianConfidence(sampleSize) === "low";
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
@@ -79,7 +87,7 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
         <StatTile
           value={formatCompact(detail.stats.medianViews)}
           label="Median views"
-          sub={detail.stats.medianViews === null ? `needs ${MIN_USABLE_FOR_SCORE}+ measured posts` : `of ${usableForScore} posts`}
+          sub={detail.stats.medianViews === null ? `needs ${minUsablePosts}+ measured posts` : `of ${usableForScore} posts`}
         />
         <StatTile
           value={formatMultiplier(detail.stats.bestScore)}
@@ -88,20 +96,36 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
           tone="score"
         />
         <StatTile value={String(detail.stats.outliers30d)} label="Outliers, 30d" sub={`of ${detail.stats.videoCount} posts`} />
-        <StatTile value={String(detail.stats.videoCount)} label="Posts tracked" sub="all synced posts" />
+        {/* videoCount is live posts only; removedCount is how many more Instagram has since
+            taken down (getChannelDetail's doc comment). Saying only videoCount here used to
+            read as "these are all the posts", which stopped being true the moment a post got
+            removed — the sub-label now says so instead of the old, now-inaccurate
+            "all synced posts". */}
+        <StatTile
+          value={String(detail.stats.videoCount)}
+          label="Posts tracked"
+          sub={detail.stats.removedCount > 0 ? `${detail.stats.removedCount} more removed, not counted` : "none removed"}
+        />
       </div>
+
+      {isThin && (
+        <p className="max-w-[52ch] text-sm text-muted-foreground">
+          Only {sampleSize} post{sampleSize === 1 ? "" : "s"} behind this median — a median needs about{" "}
+          {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
+        </p>
+      )}
 
       <div className="flex items-center gap-4">
         <div className="h-px max-w-[460px] flex-1 bg-border">
           <div
             className="h-px bg-muted-foreground"
-            style={{ width: scoreGateMet ? "100%" : `${Math.min(100, (usableForScore / MIN_USABLE_FOR_SCORE) * 100)}%` }}
+            style={{ width: scoreGateMet ? "100%" : `${Math.min(100, (usableForScore / minUsablePosts) * 100)}%` }}
           />
         </div>
         <span className="whitespace-nowrap font-mono text-2xs text-faint">
           {scoreGateMet
             ? `score active, based on the last ${usableForScore} posts`
-            : `${usableForScore} / ${MIN_USABLE_FOR_SCORE} posts before a score appears`}
+            : `${usableForScore} / ${minUsablePosts} posts before a score appears`}
         </span>
       </div>
 

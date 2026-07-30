@@ -22,20 +22,28 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import type { ChannelRow, Fleet } from "@/server/queries/channels";
+import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 import { EditChannelFleetsDialog } from "./edit-channel-fleets-dialog";
 
-/** A run older than this reads as "stale" rather than plain "synced N ago" — the
- *  prototype's health line draws this distinction and a silently aging channel is
- *  worse than one that was never synced, because it looks current when it isn't. */
-const STALE_HOURS = 24;
+/** A run older than this reads as "stale" rather than plain "synced N ago" — v1-scope.md
+ *  §2 Channels AC3 names the threshold in days, not hours: 30 days idle before a channel
+ *  is called stale. A silently aging channel is worse than one that was never synced,
+ *  because it looks current when it isn't — but calling anything past a day "stale"
+ *  overstates that on a tool that isn't syncing hourly to begin with. */
+const STALE_DAYS = 30;
 
 type HealthTone = "faint" | "muted" | "stale" | "destructive";
 
 function syncHealth(channel: ChannelRow): { label: string; tone: HealthTone } {
-  if (channel.syncError) return { label: "Sync failed", tone: "destructive" };
+  // Never-synced has to win even when a sync attempt already failed once (the profile
+  // fetch on add, or a first run that errored before finishing) — `last_synced_at` is
+  // still null either way, and "Never synced" is the state v1-scope.md §2 Channels AC1
+  // requires to be unmissable. The error itself still reaches the row via the warning
+  // icon below, it just doesn't get to overwrite this label.
   if (channel.lastSyncedAt === null) return { label: "Never synced", tone: "faint" };
-  const hoursSince = (Date.now() - new Date(channel.lastSyncedAt).getTime()) / 3_600_000;
-  if (hoursSince > STALE_HOURS) return { label: `Stale · ${relativeTime(channel.lastSyncedAt)}`, tone: "stale" };
+  if (channel.syncError) return { label: "Sync failed", tone: "destructive" };
+  const daysSince = (Date.now() - new Date(channel.lastSyncedAt).getTime()) / 86_400_000;
+  if (daysSince > STALE_DAYS) return { label: `Stale · ${relativeTime(channel.lastSyncedAt)}`, tone: "stale" };
   return { label: `Synced ${relativeTime(channel.lastSyncedAt)}`, tone: "muted" };
 }
 
@@ -49,7 +57,18 @@ const HEALTH_CLASS: Record<HealthTone, string> = {
   destructive: "text-destructive",
 };
 
-export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fleets: Fleet[] }) {
+export function ChannelTable({
+  channels,
+  fleets,
+  sampleSizeById,
+}: {
+  channels: ChannelRow[];
+  fleets: Fleet[];
+  /** channelId -> the sample `getChannelMedianBasis` computed the median from. Drives the
+   *  thin-sample note below, via the same `medianConfidence` the detail page reads, so the
+   *  two screens can't quietly disagree about what "thin" means. */
+  sampleSizeById: Record<string, number>;
+}) {
   const router = useRouter();
   // One shared dialog instance for the whole table, rather than one per row — keyed
   // by the currently-selected channel's id (final-review finding B2).
@@ -133,6 +152,13 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
             const gap = progress?.gaps.find((g) => g.channelId === channel.id);
             const warning = gap !== undefined ? gapMessage(gap) : channel.syncError;
             const health = syncHealth(channel);
+            const neverSynced = channel.lastSyncedAt === null;
+            // Thin note is a separate fact from "never synced" — a channel with zero
+            // sample gets the dedicated never-synced treatment above, not a note claiming
+            // "0 posts" (v1-scope.md §2 Channels AC1: never a zero). Only a channel that
+            // HAS synced and came back with a small-but-real sample reads as thin.
+            const sampleSize = sampleSizeById[channel.id] ?? 0;
+            const thin = !neverSynced && sampleSize > 0 && medianConfidence(sampleSize) === "low";
 
             return (
               <TableRow
@@ -145,6 +171,19 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                   if (e.key === "Enter") router.push(`/channels/${channel.id}`);
                 }}
                 className="cursor-pointer border-border"
+                // Never-synced gets a hatched row, not just a different label — v1-scope.md
+                // §2 Channels AC1 calls this out as its own visual state, the same hatch
+                // pattern the feed already uses for "a well with no data in it"
+                // (outlier-card.tsx, video-player.tsx) rather than a one-off style here.
+                style={
+                  neverSynced
+                    ? {
+                        backgroundColor: "var(--hatch-1)",
+                        backgroundImage:
+                          "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+                      }
+                    : undefined
+                }
               >
                 <TableCell className="py-4">
                   <div className="flex min-w-0 items-center gap-2">
@@ -174,6 +213,12 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                       </Tooltip>
                     )}
                   </div>
+                  {thin && (
+                    <span className="mt-1.5 block max-w-[42ch] text-2xs text-faint">
+                      Only {sampleSize} post{sampleSize === 1 ? "" : "s"} — a median needs about{" "}
+                      {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell data-num className="py-4 text-right font-mono text-sm">
                   {formatCompact(channel.followerCount)}

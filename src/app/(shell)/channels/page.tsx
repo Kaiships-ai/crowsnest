@@ -1,7 +1,7 @@
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ChannelTable } from "@/components/channels/channel-table";
 import { FleetRail } from "@/components/channels/fleet-rail";
-import { getChannelsList, getFleets } from "@/server/queries/channels";
+import { getChannelMedianBasis, getChannelsList, getFleets } from "@/server/queries/channels";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -19,6 +19,16 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
   ]);
   const channels = scopedChannels ?? allChannels;
 
+  // The thin-sample note (v1-scope.md §2 Channels AC4) reads the exact same sample the
+  // detail page's median is computed from — getChannelMedianBasis, already exported for
+  // that screen — rather than a second, list-only count. A plain object (not a Map)
+  // because this crosses the server/client boundary into <ChannelTable>.
+  const basisEntries = await Promise.all(channels.map((c) => getChannelMedianBasis(c.id)));
+  const sampleSizeById: Record<string, number> = {};
+  channels.forEach((c, i) => {
+    sampleSizeById[c.id] = basisEntries[i]?.sampleSize ?? 0;
+  });
+
   const neverSynced = channels.filter((c) => c.lastSyncedAt === null).length;
   const summary =
     channels.length === 0
@@ -35,7 +45,7 @@ export default async function ChannelsPage({ searchParams }: { searchParams: Pro
           <span className="font-mono text-2xs text-faint">{summary}</span>
           <AddChannelDialog />
         </div>
-        <ChannelTable channels={channels} fleets={fleets} />
+        <ChannelTable channels={channels} fleets={fleets} sampleSizeById={sampleSizeById} />
       </div>
     </div>
   );
