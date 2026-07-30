@@ -45,6 +45,7 @@
   --color-faint: var(--faint);
   --color-dim: var(--dim);
   --color-line-strong: var(--line-strong);
+  --color-pos: var(--pos);
 
   /* Six steps, the prototype uses no others. */
   --text-2xs: 0.8125rem;  /* 13px  mono labels, column heads, units */
@@ -113,6 +114,10 @@
   --destructive: #d9503f;
   --destructive-foreground: #0b0b0c;
   --destructive-wash: rgba(217, 80, 63, 0.12);
+
+  /* the healthy counterpart to destructive. Muted on purpose: a green that
+     shouted would compete with amber, and only amber is allowed to shout. */
+  --pos: #6fad86;
 
   /* focus is amber because nothing else competes for it */
   --ring: #e8a33d;

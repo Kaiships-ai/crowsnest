@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { useCommandMenu } from "@/components/layout/command-menu";
+import { Button } from "@/components/ui/button";
 
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Dashboard" },
@@ -27,20 +28,21 @@ export function Topbar() {
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-border px-6">
-      <h1 className="text-base font-semibold">{title}</h1>
+      <h1 className="text-lg font-semibold">{title}</h1>
 
       <div className="flex items-center gap-3">
-        <button
+        {/* Reuses the shared pill Button rather than a hand-rolled square trigger — every
+            clickable control in this app is a pill, this one included. */}
+        <Button
           type="button"
+          variant="outline"
           onClick={() => setOpen(true)}
-          className="flex h-8 w-64 items-center gap-2 rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
+          className="h-8 w-64 justify-start gap-2 px-3 font-normal text-muted-foreground"
         >
           <Search className="size-3.5 shrink-0" />
-          <span className="flex-1 text-left">Search…</span>
-          <kbd className="rounded border border-border bg-background px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
-            ⌘K
-          </kbd>
-        </button>
+          <span className="flex-1 text-left text-sm">Search…</span>
+          <kbd className="font-mono text-2xs text-faint">⌘K</kbd>
+        </Button>
         {/* Context action slot — later tasks inject a page-specific primary action here (e.g. "Add channel"). */}
       </div>
     </header>
