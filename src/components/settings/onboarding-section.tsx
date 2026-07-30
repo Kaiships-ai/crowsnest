@@ -63,7 +63,7 @@ export function OnboardingSection() {
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button onClick={replay} disabled={pending}>
+            <Button onClick={replay} disabled={pending} variant="outline">
               {pending ? "Resetting…" : "Replay first run"}
             </Button>
           </DialogFooter>

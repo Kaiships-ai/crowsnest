@@ -67,7 +67,7 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
         </SettingRow>
       </div>
 
-      <Button onClick={save} disabled={!dirty || saving} className="w-fit" size="sm">
+      <Button onClick={save} disabled={!dirty || saving} className="w-fit" size="sm" variant="outline">
         {saving ? "Saving…" : "Save"}
       </Button>
     </section>

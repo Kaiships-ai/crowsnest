@@ -81,7 +81,7 @@ function StatusRow({ tone, label, detail }: { tone: "ok" | "warn" | "bad" | "bus
     <div className="flex items-center gap-2 text-sm">
       <Icon className={`size-4 shrink-0 ${color} ${tone === "busy" ? "animate-spin" : ""}`} aria-hidden />
       <span className="font-medium">{label}</span>
-      {detail && <span className="text-xs text-muted-foreground">— {detail}</span>}
+      {detail && <span className="text-xs text-muted-foreground">({detail})</span>}
     </div>
   );
 }
@@ -265,7 +265,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="warn" label="No Instagram credentials configured" detail="service is running" />
             <p className="text-xs text-muted-foreground">
               Set <code>IG_USERNAME</code> and <code>IG_PASSWORD</code> in <code>.env.local</code> and restart the sidecar. They are read by
-              the sidecar process only — this app never receives them, never renders them, and no form here submits a password.
+              the sidecar process only. This app never receives them, never renders them, and no form here submits a password.
             </p>
           </>
         )}
@@ -275,7 +275,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="warn" label="Not connected" detail="credentials configured, no active session" />
             <p className="text-xs text-muted-foreground">
               Connect signs in with the credentials already in the sidecar&apos;s environment. Instagram may answer with a two-factor prompt
-              or a security challenge — you&apos;ll finish that here.
+              or a security challenge, and you&apos;ll finish that here.
             </p>
             <div>
               <Button size="sm" variant="secondary" onClick={connect}>
@@ -289,7 +289,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
           <>
             <StatusRow tone="busy" label="Connecting…" detail="signing in via the sidecar" />
             <p className="text-xs text-muted-foreground">
-              This can take up to two minutes — Instagram logins are deliberately rate-limited and the sidecar adds jitter.
+              This can take up to two minutes. Instagram logins are deliberately rate-limited and the sidecar adds jitter.
             </p>
           </>
         )}
@@ -378,7 +378,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="bad" label={shownFailure.error} detail={shownFailure.code} />
             <p className="text-xs text-muted-foreground">
               {shownFailure.retryable
-                ? "This one is worth retrying — it's a transient network, service or rate-limit condition."
+                ? "This one is worth retrying: it's a transient network, service or rate-limit condition."
                 : shownFailure.needsUserAction
                   ? "Retrying as-is won't help: something has to change first (credentials, or a challenge Instagram wants resolved)."
                   : "Retrying as-is is unlikely to help. Check the sidecar's logs for the full error."}
@@ -404,7 +404,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
           <p className="mt-1">
             <code>instagrapi</code> drives the same endpoints the mobile app uses. This violates Meta&apos;s Terms of Service. The account
             you connect can be challenged, restricted, or permanently banned, and there is no appeal path that acknowledges automated
-            access. Use a burner account you can afford to lose — never your main one. Sync is rate-limited with jitter and pins one device
+            access. Use a burner account you can afford to lose, never your main one. Sync is rate-limited with jitter and pins one device
             profile to reduce the odds, but nothing here removes the risk.
           </p>
         </div>

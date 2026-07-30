@@ -275,7 +275,7 @@ export function SyncSection({
         >
           <NumberField value={retention} onChange={setRetention} min={1} max={3650} suffix="days" ariaLabel="Media retention" />
         </SettingRow>
-        <Button onClick={saveSyncSettings} disabled={!settingsDirty || savingSettings} className="w-fit" size="sm">
+        <Button onClick={saveSyncSettings} disabled={!settingsDirty || savingSettings} className="w-fit" size="sm" variant="outline">
           {savingSettings ? "Saving…" : "Save"}
         </Button>
       </div>
