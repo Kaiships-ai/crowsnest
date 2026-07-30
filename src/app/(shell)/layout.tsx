@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
 import { CommandMenu } from "@/components/layout/command-menu";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { getFailureStrip } from "@/server/queries/failure-surface";
+import { getFirstRunGate } from "@/server/queries/first-run-gate";
 
 // Same reasoning as `(shell)/page.tsx`'s own `force-dynamic`: a layout has no route
 // param or searchParams of its own to implicitly opt out of static rendering, so without
@@ -19,6 +21,12 @@ export const dynamic = "force-dynamic";
 // mounted freshens the strip via `router.refresh()` in the sidebar (see the comment on
 // its terminal-transition effect) rather than by polling this layout itself.
 export default async function ShellLayout({ children }: { children: ReactNode }) {
+  // A fresh install (first_run_completed unset, zero channels) never sees the shell at
+  // all — see docs/product/v1-scope.md §2 "First run" AC 1. Checked before the failure
+  // strip read below so a redirect never pays for a query it's about to throw away.
+  const gate = await getFirstRunGate();
+  if (gate.redirectToFirstRun) redirect("/first-run");
+
   const strip = await getFailureStrip();
 
   return (

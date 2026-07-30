@@ -101,6 +101,32 @@ describe("getSettingsWithSource", () => {
   });
 });
 
+describe("getSettings — firstRunCompleted", () => {
+  test("defaults to false with no row", async () => {
+    const s = await settings.getSettings();
+    expect(s.firstRunCompleted).toBe(false);
+  });
+
+  test("a stored \"true\" row resolves to boolean true", async () => {
+    await writeRow("first_run_completed", "true");
+    const s = await settings.getSettings();
+    expect(s.firstRunCompleted).toBe(true);
+  });
+
+  test("a stored \"false\" row resolves to boolean false, not truthy-string true", async () => {
+    await writeRow("first_run_completed", "false");
+    const s = await settings.getSettings();
+    expect(s.firstRunCompleted).toBe(false);
+  });
+
+  test("validateSetting round-trips a boolean write to the same strings a read accepts", () => {
+    const written = settings.validateSetting("firstRunCompleted", true);
+    expect(written).toEqual({ ok: true, dbKey: "first_run_completed", dbValue: "true" });
+    const writtenFalse = settings.validateSetting("firstRunCompleted", false);
+    expect(writtenFalse).toEqual({ ok: true, dbKey: "first_run_completed", dbValue: "false" });
+  });
+});
+
 describe("getSetting", () => {
   test("returns a single resolved value, matching what getSettings returns for the same key", async () => {
     await writeRow("score_min_views_floor", "2500");

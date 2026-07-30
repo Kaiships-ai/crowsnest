@@ -66,6 +66,13 @@ export interface AppSettings {
   /** Days of media to retain. NOT CONSUMED — there is no reaper; `MEDIA_RETENTION_DAYS`
    *  is validated at boot today and nothing reads it afterwards. Same treatment. */
   mediaRetentionDays: number;
+  /** True once the first-run flow (`/first-run`) has been completed — set by the "Open
+   *  Crowsnest" button at the end of the first sync screen. Read by the `(shell)` route
+   *  guard: a fresh install (this false AND zero `channels` rows) redirects into
+   *  `/first-run` instead of showing the shell. Settings carries a control that clears
+   *  this back to false so the flow can be replayed; see docs/product/v1-scope.md §2
+   *  "First run" AC 1 and AC 14. */
+  firstRunCompleted: boolean;
 }
 
 /** Rows in `app_settings` are `key`/`value`, both TEXT. This is the `key` for each
@@ -81,6 +88,7 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   syncLookbackDays: "sync_lookback_days",
   syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
+  firstRunCompleted: "first_run_completed",
 };
 
 /** Every setting key's DB key, exported for tests and for the write action, which needs
@@ -90,6 +98,15 @@ export const APP_SETTING_KEYS = Object.keys(DB_KEY) as (keyof AppSettings)[];
 // z.coerce.number() accepts both a DB string ("12") and an already-typed number (12),
 // so the same schema validates a read (string in) and a write (typed value in).
 const posInt = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
+
+// Same read/write duality as posInt above, but for a boolean. z.coerce.boolean() is NOT
+// used here on purpose — it coerces on JS truthiness, so the stored string "false" would
+// coerce to true (a non-empty string), which is exactly backwards. This accepts the two
+// literal strings a `String(boolean)` write can ever produce, plus an already-typed
+// boolean for the write path itself, and rejects everything else.
+const boolLike = z
+  .union([z.boolean(), z.enum(["true", "false"])])
+  .transform((v) => v === true || v === "true");
 
 /** One zod schema per key. Used for both reading (validating a stored string) and
  *  writing (validating the caller's typed input) — see the module doc above. */
@@ -103,6 +120,7 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   syncLookbackDays: posInt(1, 3650),
   syncCadenceMinutes: posInt(0, 10_080),
   mediaRetentionDays: posInt(1, 3650),
+  firstRunCompleted: boolLike,
 };
 
 /** Built-in defaults, used only when there is no DB row AND (for the three keys below)
@@ -123,6 +141,7 @@ const DEFAULT: AppSettings = {
   syncLookbackDays: 30,
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
+  firstRunCompleted: false, // no row yet == first run has not happened
 };
 
 /** The only keys that predate `app_settings` and have a validated fallback in
@@ -147,6 +166,7 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   syncLookbackDays: true,
   syncCadenceMinutes: false,
   mediaRetentionDays: false,
+  firstRunCompleted: true, // read by the (shell) route guard — see src/server/queries/first-run-gate.ts
 };
 
 export type SettingSource = "db" | "env" | "default";
