@@ -98,15 +98,25 @@ export function RemixStudio({
   // own attempt (success or failure — `generateHooks`/`generateOutline`/
   // `generateVariants` all write a row on both) via the `onRunRecorded` callback
   // passed down below, so the panel and the proxy-down read stay live without the
-  // user reloading the page.
+  // user reloading the page. `refreshRunLog` is what stage callbacks call (an event
+  // handler, not an effect body, so calling it directly is fine there); the mount
+  // fetch below inlines the same call instead of invoking that function, matching
+  // stage-research.tsx's own cancelled-guarded effect shape rather than tripping
+  // react-hooks/set-state-in-effect on a function reference.
   const refreshRunLog = useCallback(async () => {
     const result = await getRemixRunLogAction(session.id);
     if (result.ok) setRuns(result.runs);
   }, [session.id]);
 
   useEffect(() => {
-    refreshRunLog();
-  }, [refreshRunLog]);
+    let cancelled = false;
+    getRemixRunLogAction(session.id).then((result) => {
+      if (!cancelled && result.ok) setRuns(result.runs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session.id]);
 
   // Grounded in the run log itself, not a separate ping (Wave 2 rendering-layer-only
   // rule — no new server action to actually reach the proxy): see
