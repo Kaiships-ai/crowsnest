@@ -421,7 +421,6 @@ export function VideoDetail({
               <span className="text-sm font-medium">{item.channel.handle}</span>
             </Link>
 
-
             <div className="flex items-center gap-4">
               <a
                 href={item.url}

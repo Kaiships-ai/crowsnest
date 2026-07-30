@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ export function SavePostButton({
   /** The row if this post is already kept, so the button reads its state without a fetch. */
   saved: { id: string; note: string | null } | null;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
@@ -45,6 +47,10 @@ export function SavePostButton({
         toast.success("Kept in the vault");
         setOpen(false);
         setNote("");
+        // The button's "saved" state is a prop straight off page.tsx's server fetch
+        // (getSavedPostByVideoId), not local state — refresh so it flips to "Kept"
+        // without Kai having to reload the page to see his own click take effect.
+        router.refresh();
       } else {
         toast.error(result.error);
       }
@@ -53,10 +59,30 @@ export function SavePostButton({
 
   function forget() {
     if (!saved) return;
+    const removed = saved;
     startTransition(async () => {
-      const result = await deleteSavedPostAction(saved.id);
-      if (result.ok) toast.success("Removed from the vault");
-      else toast.error(result.error);
+      const result = await deleteSavedPostAction(removed.id);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      router.refresh();
+      // Every destructive action in this app is undoable through its toast (Shell
+      // lock rule) — the Vault list's own remove button does the same re-create,
+      // matching saved-post-row.tsx.
+      toast.success("Removed from the vault", {
+        action: {
+          label: "Undo",
+          onClick: async () => {
+            const restored = await createSavedPostAction({ videoId, note: removed.note ?? undefined });
+            if (!restored.ok) {
+              toast.error(restored.error);
+              return;
+            }
+            router.refresh();
+          },
+        },
+      });
     });
   }
 
