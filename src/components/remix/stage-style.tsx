@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -11,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
+import { GenerationBlocked } from "@/components/remix/generation-blocked";
 import { generateOutlineAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { Outline } from "@/server/llm/schemas";
 import type { VaultItemRow } from "@/server/queries/vault";
@@ -26,14 +26,20 @@ export function StageStyle({
   session,
   vaultStyles,
   hasLlmKey,
+  proxyDown,
+  llmProxyUrl,
   onOutlineChange,
   onStyleVaultItemChange,
+  onRunRecorded,
 }: {
   session: RemixSessionRow;
   vaultStyles: VaultItemRow[];
   hasLlmKey: boolean;
+  proxyDown: boolean;
+  llmProxyUrl: string | null;
   onOutlineChange: (outline: Outline) => void;
   onStyleVaultItemChange: (id: string | null) => void;
+  onRunRecorded: () => void;
 }) {
   const [styleChoice, setStyleChoice] = useState(session.styleVaultItemId ?? SOURCE_VALUE);
   const [generating, setGenerating] = useState(false);
@@ -60,6 +66,7 @@ export function StageStyle({
     } else {
       toast.error(result.error);
     }
+    onRunRecorded();
   }
 
   // Local edits update state on every keystroke for responsiveness; persisting is
@@ -86,16 +93,10 @@ export function StageStyle({
   ];
 
   // Same posture as Hook/Script: block the whole stage rather than gray out a
-  // toolbar that can't do anything without a key.
-  if (!hasLlmKey) {
-    return (
-      <div className="flex flex-col items-start gap-6 py-16">
-        <p className="max-w-[38ch] text-lg text-foreground">Outline generation needs a Claude API key.</p>
-        <Button variant="secondary" render={<Link href="/settings" />}>
-          Add API key in Settings
-        </Button>
-      </div>
-    );
+  // toolbar that can't do anything, whether the reason is no key or the local
+  // proxy being unreachable (generation-blocked.tsx).
+  if (!hasLlmKey || proxyDown) {
+    return <GenerationBlocked reason={!hasLlmKey ? "no-key" : "proxy-down"} feature="Outline generation" proxyUrl={llmProxyUrl} />;
   }
 
   return (

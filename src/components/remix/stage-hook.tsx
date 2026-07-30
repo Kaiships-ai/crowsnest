@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Bookmark, Check } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { autosave } from "@/components/remix/autosave";
+import { GenerationBlocked } from "@/components/remix/generation-blocked";
 import { cn } from "@/lib/utils";
 import { generateHooksAction, updateStageAction } from "@/server/actions/remix-actions";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
@@ -20,25 +20,38 @@ import type { RemixSessionRow } from "@/server/services/remix";
 const NONE_VALUE = "__none__";
 const EMPTY_VALUE = "__empty__";
 
-/** DESIGN.md §2.5 stage ③: optional Vault-hook seed, "Generate 5 hooks" -> 5 editable
+/** DESIGN.md §2.5 stage ③: optional Vault-hook seed, "Generate hooks" -> 3-7 editable
  * option Cards each with use/save-to-Vault actions; the chosen hook stays pinned at
  * the top once picked. */
 export function StageHook({
   session,
   vaultHooks,
   hasLlmKey,
+  proxyDown,
+  llmProxyUrl,
   initialVaultItemId,
   onHooksChange,
   onChosenHookChange,
+  onRunRecorded,
 }: {
   session: RemixSessionRow;
   vaultHooks: VaultItemRow[];
   hasLlmKey: boolean;
+  // True when the run log's most recent attempt(s) look like the local model proxy
+  // is unreachable (run-log-view.ts's isProxyLikelyDown) — distinct from !hasLlmKey,
+  // which only means no key is configured at all. Both swap this stage for the same
+  // designed block instead of a live generate button that's doomed to fail again.
+  proxyDown: boolean;
+  llmProxyUrl: string | null;
   // Preselects this Vault hook's Select option when arriving via a Vault template
   // card's "Use in Remix" deep link (?hook=<id>, review finding H2 — see deep-link.ts).
   initialVaultItemId?: string;
   onHooksChange: (hooks: string[]) => void;
   onChosenHookChange: (hook: string) => void;
+  // Tells the studio to re-fetch the run log — every call below writes a row on
+  // both success and failure (services/remix.ts's recordRun), so the log and the
+  // proxy-down read stay live without a page reload.
+  onRunRecorded: () => void;
 }) {
   const [vaultItemId, setVaultItemId] = useState(initialVaultItemId ?? NONE_VALUE);
   const [generating, setGenerating] = useState(false);
@@ -58,6 +71,7 @@ export function StageHook({
     } else {
       toast.error(result.error);
     }
+    onRunRecorded();
   }
 
   async function saveAsTemplate(text: string) {
@@ -88,16 +102,10 @@ export function StageHook({
 
   // Generation is offline, not broken. This swaps the whole picker for the block —
   // the same posture as Style/Script — instead of graying out controls that can't do
-  // anything anyway.
-  if (!hasLlmKey) {
-    return (
-      <div className="flex flex-col items-start gap-6 py-16">
-        <p className="max-w-[38ch] text-lg text-foreground">Hook generation needs a Claude API key.</p>
-        <Button variant="secondary" render={<Link href="/settings" />}>
-          Add API key in Settings
-        </Button>
-      </div>
-    );
+  // anything anyway. Two distinct reasons (no key vs. proxy unreachable) share one
+  // surface; see generation-blocked.tsx.
+  if (!hasLlmKey || proxyDown) {
+    return <GenerationBlocked reason={!hasLlmKey ? "no-key" : "proxy-down"} feature="Hook generation" proxyUrl={llmProxyUrl} />;
   }
 
   return (
@@ -130,7 +138,7 @@ export function StageHook({
         {/* Secondary, not primary — Continue in the footer is the one amber action on
             this screen (brief: amber capped at one primary per screen). */}
         <Button variant="secondary" onClick={generate} disabled={generating}>
-          {generating ? "Generating…" : drafts.length > 0 ? "Regenerate 5 hooks" : "Generate 5 hooks"}
+          {generating ? "Generating…" : drafts.length > 0 ? "Regenerate hooks" : "Generate hooks"}
         </Button>
       </div>
 
@@ -174,7 +182,7 @@ export function StageHook({
           })}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">Generate 5 hooks to get started.</p>
+        <p className="text-sm text-muted-foreground">Generate hooks to get started.</p>
       )}
     </div>
   );

@@ -15,6 +15,7 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/feed$/, title: "Outlier Feed" },
   { pattern: /^\/channels\/[^/]+$/, title: "Channel Detail" },
   { pattern: /^\/channels$/, title: "Channels" },
+  { pattern: /^\/mine$/, title: "My channel" },
   { pattern: /^\/vault$/, title: "Vault" },
   { pattern: /^\/settings$/, title: "Settings" },
 ];

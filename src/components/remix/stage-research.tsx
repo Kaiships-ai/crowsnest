@@ -8,21 +8,31 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
-import { formatMultiplier } from "@/lib/format";
+import { formatCompact, formatMultiplier } from "@/lib/format";
 import { heatTier } from "@/lib/heat";
 import { cn } from "@/lib/utils";
 import { buildResearchAction, updateStageAction } from "@/server/actions/remix-actions";
+import type { SavedPostRow } from "@/server/queries/saved-posts";
 import type { ResearchNotes } from "@/server/services/remix";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 /** DESIGN.md §2.5 stage ②: auto-assembled on entry if empty (source analysis +
- * transcript + top-5 similar), editable facts box, similar-outliers list read-only.
- * buildResearch makes zero Claude calls, so this auto-build works in keyless mode. */
+ * transcript + top-5 similar), editable facts box, a live read of the Vault's saved
+ * posts, and the similar-outliers list, both read-only. buildResearch makes zero
+ * Claude calls, so this auto-build works in keyless mode. */
 export function StageResearch({
   session,
+  vaultSavedPosts,
   onNotesChange,
 }: {
   session: RemixSessionRow;
+  // queries/saved-posts.ts's getSavedPosts, most recent first — read live in
+  // page.tsx (a Server Component) rather than persisted onto researchNotes, so a
+  // later save/remove to the Vault shows up here on the next visit instead of a
+  // frozen copy from whenever this session's research was first assembled
+  // (v1-scope.md, Remix studio: "the point of saving a post is that it seeds the
+  // next remix").
+  vaultSavedPosts: SavedPostRow[];
   onNotesChange: (notes: ResearchNotes) => void;
 }) {
   // Initialized once from the session prop — this component only mounts while the
@@ -110,6 +120,39 @@ export function StageResearch({
           placeholder="Add anything you want the Hook/Style/Script stages to know about…"
           rows={4}
         />
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Saved from your vault</Label>
+        {vaultSavedPosts.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {vaultSavedPosts.map((row) => {
+              const tier = heatTier(row.item.outlierScore);
+              return (
+                <li key={row.id} className="flex items-center justify-between gap-2 border border-border p-2 text-sm">
+                  <Link href={`/feed/${row.item.videoId}`} className="min-w-0 flex-1 truncate hover:underline">
+                    <span className="font-medium">{row.item.channel.handle}</span>
+                    {row.item.caption && <span className="text-muted-foreground"> — {row.item.caption}</span>}
+                  </Link>
+                  <span className="shrink-0 font-mono text-2xs text-muted-foreground">
+                    {formatCompact(row.item.viewCount)} views · vs {formatCompact(row.channelMedian)} median
+                  </span>
+                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-score" : "text-muted-foreground")}>
+                    {formatMultiplier(row.item.outlierScore)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Your vault is empty.{" "}
+            <Link href="/feed" className="hover:underline">
+              Save a post from the feed
+            </Link>{" "}
+            to give research something to pull from.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-1.5">
