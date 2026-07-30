@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Bookmark, Check } from "lucide-react";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
+import { cn } from "@/lib/utils";
 import { generateHooksAction, updateStageAction } from "@/server/actions/remix-actions";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
 import type { VaultItemRow } from "@/server/queries/vault";
@@ -86,18 +87,34 @@ export function StageHook({
       : [{ value: EMPTY_VALUE, label: "No saved hooks yet", disabled: true }]),
   ];
 
+  // Generation is offline, not broken. This swaps the whole picker for the block —
+  // the same posture as Style/Script — instead of graying out controls that can't do
+  // anything anyway.
+  if (!hasLlmKey) {
+    return (
+      <div className="flex flex-col items-start gap-6 py-16">
+        <p className="max-w-[38ch] text-lg text-foreground">Hook generation needs a Claude API key.</p>
+        <Button variant="secondary" render={<Link href="/settings" />}>
+          Add API key in Settings
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       {session.chosenHook && (
-        <div className="rounded-lg border border-primary/40 bg-primary/5 p-3">
-          <p className="text-xs font-medium text-primary">Chosen hook</p>
+        <div className="border border-score-line bg-score-wash p-3">
+          <p className="font-mono text-2xs tracking-wide text-score uppercase">Chosen hook</p>
           <p className="text-sm">{session.chosenHook}</p>
         </div>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="hook-vault-select">Seed from a Vault hook</Label>
+          <Label htmlFor="hook-vault-select" className="font-mono text-2xs tracking-wide text-faint uppercase">
+            Seed from a Vault hook
+          </Label>
           <Select items={vaultOptions} value={vaultItemId} onValueChange={(v) => setVaultItemId(v as string)}>
             <SelectTrigger id="hook-vault-select" className="w-64">
               <SelectValue />
@@ -111,22 +128,17 @@ export function StageHook({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={generate} disabled={!hasLlmKey || generating}>
+        {/* Secondary, not primary — Continue in the footer is the one amber action on
+            this screen (brief: amber capped at one primary per screen). */}
+        <Button variant="secondary" onClick={generate} disabled={generating}>
           {generating ? "Generating…" : drafts.length > 0 ? "Regenerate 5 hooks" : "Generate 5 hooks"}
         </Button>
       </div>
 
-      {!hasLlmKey && (
-        <Alert>
-          <AlertTitle>Add your Claude API key</AlertTitle>
-          <AlertDescription>Add ANTHROPIC_API_KEY in Settings to generate hooks.</AlertDescription>
-        </Alert>
-      )}
-
       {generating ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-28 w-full" />
+            <Skeleton key={i} className="h-28 w-full rounded-none" />
           ))}
         </div>
       ) : drafts.length > 0 ? (
@@ -134,7 +146,7 @@ export function StageHook({
           {drafts.map((hook, i) => {
             const isChosen = session.chosenHook === hook;
             return (
-              <Card key={i} className={isChosen ? "ring-2 ring-primary" : undefined}>
+              <Card key={i} className={cn("rounded-none", isChosen && "bg-score-wash ring-2 ring-score-line")}>
                 <CardContent className="flex flex-col gap-2">
                   <Textarea
                     value={hook}
@@ -148,7 +160,7 @@ export function StageHook({
                     className="text-sm"
                   />
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant={isChosen ? "default" : "secondary"} onClick={() => chooseHook(hook)}>
+                    <Button size="sm" variant="secondary" onClick={() => chooseHook(hook)}>
                       {isChosen ? (
                         <>
                           <Check className="size-3.5" /> Selected

@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -85,11 +85,26 @@ export function StageStyle({
       : [{ value: EMPTY_VALUE, label: "No saved styles yet", disabled: true }]),
   ];
 
+  // Same posture as Hook/Script: block the whole stage rather than gray out a
+  // toolbar that can't do anything without a key.
+  if (!hasLlmKey) {
+    return (
+      <div className="flex flex-col items-start gap-6 py-16">
+        <p className="max-w-[38ch] text-lg text-foreground">Outline generation needs a Claude API key.</p>
+        <Button variant="secondary" render={<Link href="/settings" />}>
+          Add API key in Settings
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="style-select">Structure</Label>
+          <Label htmlFor="style-select" className="font-mono text-2xs tracking-wide text-faint uppercase">
+            Structure
+          </Label>
           <Select items={styleOptions} value={styleChoice} onValueChange={(v) => selectStyle(v as string)}>
             <SelectTrigger id="style-select" className="w-64">
               <SelectValue />
@@ -103,33 +118,27 @@ export function StageStyle({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={generate} disabled={!hasLlmKey || generating}>
+        {/* Secondary, not primary — Continue in the footer stays the one amber action. */}
+        <Button variant="secondary" onClick={generate} disabled={generating}>
           {generating ? "Generating…" : beats.length > 0 ? "Regenerate outline" : "Generate outline"}
         </Button>
       </div>
 
-      {!hasLlmKey && (
-        <Alert>
-          <AlertTitle>Add your Claude API key</AlertTitle>
-          <AlertDescription>Add ANTHROPIC_API_KEY in Settings to generate an outline.</AlertDescription>
-        </Alert>
-      )}
-
       {generating ? (
         <div className="flex flex-col gap-3">
           {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <Skeleton key={i} className="h-16 w-full rounded-none" />
           ))}
         </div>
       ) : beats.length > 0 ? (
         <ol className="flex flex-col gap-3">
           {beats.map((beat, i) => (
-            <li key={i} className="flex gap-3 rounded-lg border border-border p-3">
+            <li key={i} className="flex gap-3 border border-border p-3">
               <Input
                 value={String(beat.targetSec)}
                 onChange={(e) => updateBeat(i, { targetSec: Number(e.target.value) || 0 })}
                 onBlur={commitBeats}
-                className="w-16 shrink-0 text-center tabular-nums"
+                className="w-16 shrink-0 text-center font-mono tabular-nums"
                 aria-label={`Beat ${i + 1} target seconds`}
               />
               <div className="flex flex-1 flex-col gap-1.5">

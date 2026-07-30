@@ -76,25 +76,29 @@ export function StagePrompt({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="remix-topic">What&rsquo;s this script about?</Label>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="remix-topic" className="text-base font-normal text-foreground">
+          What&rsquo;s this script about?
+        </Label>
         <Input id="remix-topic" value={topic} onChange={(e) => commitTopic(e.target.value)} onBlur={persistTopic} />
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Niche</Label>
+        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Niche</Label>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="max-w-[320px]">
+          <Badge variant="secondary" className="max-w-[320px] rounded-none">
             <span className="truncate">{niche}</span>
           </Badge>
-          <Link href="/settings" className="text-xs text-muted-foreground hover:text-foreground">
+          <Link href="/settings" className="font-mono text-2xs tracking-wide text-faint uppercase hover:text-foreground">
             Edit in Settings
           </Link>
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="remix-length">Target length</Label>
+        <Label htmlFor="remix-length" className="font-mono text-2xs tracking-wide text-faint uppercase">
+          Target length
+        </Label>
         <Select items={LENGTH_ITEMS} value={targetLengthSec} onValueChange={(v) => commitLength(v as string)}>
           <SelectTrigger id="remix-length" className="w-28">
             <SelectValue />
@@ -110,7 +114,10 @@ export function StagePrompt({
       </div>
 
       {!hasLlmKey && (
-        <Alert>
+        // Blocked, not broken — the generation path is just offline, same as every
+        // other stage's key-gate. Prompt itself still works without it, so this stays
+        // an inline note rather than swallowing the whole stage.
+        <Alert className="rounded-none">
           <AlertTitle>Add your Claude API key</AlertTitle>
           <AlertDescription>Add ANTHROPIC_API_KEY in Settings to generate hooks, outlines, and scripts.</AlertDescription>
         </Alert>

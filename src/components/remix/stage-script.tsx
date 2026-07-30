@@ -172,19 +172,25 @@ export function StageScript({
     }
   }
 
+  // Script writing is offline, not broken — same block treatment as Hook/Style. This
+  // is the last stage (no footer Continue), so its own CTA gets to be the one amber
+  // action once the key comes back.
+  if (!hasLlmKey) {
+    return (
+      <div className="flex flex-col items-start gap-6 py-16">
+        <p className="max-w-[38ch] text-lg text-foreground">Script writing needs a Claude API key.</p>
+        <Button variant="secondary" render={<Link href="/settings" />}>
+          Add API key in Settings
+        </Button>
+      </div>
+    );
+  }
+
   if (results.length === 0 && !pending) {
     return (
       <div className="flex flex-col items-start gap-3">
-        {!hasLlmKey && (
-          <Alert>
-            <AlertTitle>Add your Claude API key</AlertTitle>
-            <AlertDescription>Add ANTHROPIC_API_KEY in Settings to write scripts.</AlertDescription>
-          </Alert>
-        )}
         <p className="text-sm text-muted-foreground">Generate to see variants here.</p>
-        <Button onClick={writeScript} disabled={!hasLlmKey}>
-          Write script
-        </Button>
+        <Button onClick={writeScript}>Write script</Button>
       </div>
     );
   }
@@ -192,9 +198,9 @@ export function StageScript({
   if (pending) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{PROGRESS_MESSAGES[progressIndex]}</p>
+        <p className="font-mono text-xs tracking-wide text-faint uppercase">{PROGRESS_MESSAGES[progressIndex]}</p>
         {Array.from({ length: DEFAULT_COUNT }, (_, i) => (
-          <Skeleton key={i} className="h-40 w-full" />
+          <Skeleton key={i} className="h-40 w-full rounded-none" />
         ))}
       </div>
     );
@@ -214,7 +220,7 @@ export function StageScript({
         {results.map((result, i) => (
           <TabsContent key={i} value={String(i)} className="flex flex-col gap-3 pt-3">
             {isError(result) ? (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="rounded-none">
                 <AlertTitle>Couldn&rsquo;t generate this variant</AlertTitle>
                 <AlertDescription>{result.error}</AlertDescription>
               </Alert>
@@ -228,7 +234,7 @@ export function StageScript({
               />
             )}
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={!hasLlmKey || regeneratingIndex === i}>
+              <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={regeneratingIndex === i}>
                 <RefreshCw className={regeneratingIndex === i ? "size-3.5 animate-spin" : "size-3.5"} />
                 {isError(result) ? "Retry" : "Regenerate"}
               </Button>
@@ -243,7 +249,7 @@ export function StageScript({
       </Tabs>
 
       <div className="flex items-center gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={writeScript} disabled={!hasLlmKey}>
+        <Button variant="outline" onClick={writeScript}>
           Regenerate all
         </Button>
         <Button variant="outline" onClick={createPrompt}>

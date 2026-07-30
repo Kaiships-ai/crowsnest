@@ -48,17 +48,19 @@ export function Stepper({
               onClick={() => onSelect(stage.key)}
               aria-current={isActive ? "step" : undefined}
               className={cn(
+                // Raised surface, never amber — active stage is a position marker, not
+                // the screen's one primary action (brief: progress bars/nav state ban amber).
                 "flex shrink-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed",
-                isActive && "bg-primary text-primary-foreground",
+                isActive && "bg-popover text-foreground",
                 !isActive && reachable && "text-foreground hover:bg-muted",
                 !reachable && "text-muted-foreground/50"
               )}
             >
               <span
                 className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full border text-xs tabular-nums",
-                  isActive && "border-primary-foreground/50",
-                  completed && "border-transparent bg-[#34D399] text-[#0B0D12]",
+                  "flex size-5 shrink-0 items-center justify-center rounded-full border font-mono text-2xs tabular-nums",
+                  isActive && "border-foreground/50",
+                  completed && "border-transparent bg-[var(--pos)] text-background",
                   !isActive && !completed && "border-current"
                 )}
               >

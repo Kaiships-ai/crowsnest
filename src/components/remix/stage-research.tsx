@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { formatMultiplier } from "@/lib/format";
+import { heatTier } from "@/lib/heat";
+import { cn } from "@/lib/utils";
 import { buildResearchAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { ResearchNotes } from "@/server/services/remix";
 import type { RemixSessionRow } from "@/server/services/remix";
@@ -50,8 +52,8 @@ export function StageResearch({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">Assembling research from the source video…</p>
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-24 w-full rounded-none" />
+        <Skeleton className="h-32 w-full rounded-none" />
       </div>
     );
   }
@@ -69,13 +71,15 @@ export function StageResearch({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <Label>Source analysis</Label>
+        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Source analysis</Label>
         {notes.sourceAnalysis ? (
-          <div className="flex flex-col gap-2 rounded-lg border border-border p-3 text-sm">
+          <div className="flex flex-col gap-2 border border-border p-3 text-sm">
             <div className="flex flex-wrap gap-1.5">
-              <Badge variant="outline">{notes.sourceAnalysis.hookType}</Badge>
+              <Badge variant="outline" className="rounded-none">
+                {notes.sourceAnalysis.hookType}
+              </Badge>
               {notes.sourceAnalysis.formatTags.map((tag) => (
-                <Badge key={tag} variant="secondary">
+                <Badge key={tag} variant="secondary" className="rounded-none">
                   {tag}
                 </Badge>
               ))}
@@ -88,14 +92,16 @@ export function StageResearch({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Transcript excerpt</Label>
-        <p className="line-clamp-4 rounded-lg border border-border p-3 text-sm text-muted-foreground">
+        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Transcript excerpt</Label>
+        <p className="line-clamp-4 border border-border p-3 text-sm text-muted-foreground">
           {notes.transcriptExcerpt ?? "No transcript available."}
         </p>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="research-facts">Facts &amp; notes</Label>
+        <Label htmlFor="research-facts" className="font-mono text-2xs tracking-wide text-faint uppercase">
+          Facts &amp; notes
+        </Label>
         <Textarea
           id="research-facts"
           value={facts}
@@ -107,18 +113,23 @@ export function StageResearch({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Similar tracked outliers</Label>
+        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Similar tracked outliers</Label>
         {notes.similar.length > 0 ? (
           <ul className="flex flex-col gap-2">
-            {notes.similar.map((item) => (
-              <li key={item.videoId} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2 text-sm">
-                <Link href={`/feed/${item.videoId}`} className="min-w-0 flex-1 truncate hover:underline">
-                  <span className="font-medium">{item.channelHandle}</span>
-                  {item.caption && <span className="text-muted-foreground"> — {item.caption}</span>}
-                </Link>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{formatMultiplier(item.outlierScore)}</span>
-              </li>
-            ))}
+            {notes.similar.map((item) => {
+              const tier = heatTier(item.outlierScore);
+              return (
+                <li key={item.videoId} className="flex items-center justify-between gap-2 border border-border p-2 text-sm">
+                  <Link href={`/feed/${item.videoId}`} className="min-w-0 flex-1 truncate hover:underline">
+                    <span className="font-medium">{item.channelHandle}</span>
+                    {item.caption && <span className="text-muted-foreground"> — {item.caption}</span>}
+                  </Link>
+                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-score" : "text-muted-foreground")}>
+                    {formatMultiplier(item.outlierScore)}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">Analyze more videos to see patterns here.</p>
