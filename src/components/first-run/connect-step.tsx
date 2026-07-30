@@ -45,7 +45,7 @@ type Failure = Extract<LoginResult, { ok: false }>;
 type Phase = "idle" | "connecting" | "two_factor" | "challenge_choice" | "challenge_code";
 
 const REQUIREMENTS = [
-  "Reads your posts through the sidecar's session — nothing here ever sees or stores a password.",
+  "Reads your posts through the sidecar's session. Nothing here ever sees or stores a password.",
   "Read-only. Nothing this app does writes to Instagram or posts on your behalf.",
   "Every channel you watch next is measured against this account's own numbers.",
 ];

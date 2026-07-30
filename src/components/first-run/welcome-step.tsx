@@ -3,10 +3,15 @@
 import { Button } from "@/components/ui/button";
 import { ONBOARDING_STEP_COUNT } from "./onboarding-view";
 
+// One line per step, and the count is read from ONBOARDING_STEPS rather than written
+// here, so the copy and the flow cannot drift. They had: this list merged choosing
+// channels with running the first sync, so the screen promised four steps and showed
+// three.
 const POINTS = [
   "Pick what you make, so the scoring and the suggestions start from your niche.",
-  "Connect the Instagram account the sidecar signs in with — read-only, nothing is posted.",
-  "Choose the channels to watch, then run the first sync and see what beat its own median.",
+  "Connect the Instagram account the sidecar signs in with. Read only, nothing is posted.",
+  "Choose the channels to watch.",
+  "Run the first sync, and see what beat its own median.",
 ];
 
 export function WelcomeStep({ onGetStarted }: { onGetStarted: () => void }) {
@@ -18,7 +23,7 @@ export function WelcomeStep({ onGetStarted }: { onGetStarted: () => void }) {
       </h1>
       <p className="mt-5 max-w-[46ch] text-sm leading-relaxed text-muted-foreground text-balance">
         Crowsnest watches a handful of Instagram channels and scores every post against that channel&apos;s own
-        median — so you see what over-performed, not just what is popular.
+        median, so you see what over-performed, not just what is popular.
       </p>
 
       <div className="mt-10 flex max-w-[460px] flex-col">

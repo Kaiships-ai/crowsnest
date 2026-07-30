@@ -60,7 +60,7 @@ export function FirstSyncStep({ channelIds, onOpenCrowsnest }: FirstSyncStepProp
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">{headline(status)}</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         {status === null
-          ? "Instagram rate-limits a cold session, so this first run is the one most likely to hit a snag. That's expected — whatever it gets back is real, and whatever it doesn't is shown honestly, not hidden."
+          ? "Instagram rate-limits a cold session, so this first run is the one most likely to hit a snag. That's expected. Whatever it gets back is real, and whatever it doesn't is shown honestly, not hidden."
           : "Every number below is read off this run's own record, not guessed on the client."}
       </p>
 
