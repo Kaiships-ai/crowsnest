@@ -48,7 +48,20 @@ export const channels = sqliteTable("channels", {
   syncErrorCode: text("sync_error_code"),
   trackedSince: text("tracked_since").notNull(),
   lastSyncedAt: text("last_synced_at"),
-}, (t) => [uniqueIndex("channels_platform_handle").on(t.platform, t.handle)]);
+  /**
+   * Marks the one tracked channel that is Kai's own account, so the app has a single
+   * place to answer "which channel is mine" instead of nothing at all. This channel row
+   * is still populated by the instagrapi sidecar sync same as any other; the Graph API
+   * insights in `own_post_insights` etc. are a completely separate table set keyed on
+   * the Graph account, not on this row's id, so a wrong or absent flag here never leaks
+   * into an insights number. The partial unique index below is the structural guarantee
+   * that "my own channel" cannot mean two different rows at once.
+   */
+  isOwn: integer("is_own", { mode: "boolean" }).notNull().default(false),
+}, (t) => [
+  uniqueIndex("channels_platform_handle").on(t.platform, t.handle),
+  uniqueIndex("channels_single_own").on(t.isOwn).where(sql`${t.isOwn} = 1`),
+]);
 
 export const fleets = sqliteTable("fleets", {
   id: text("id").primaryKey(),
@@ -295,3 +308,75 @@ export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+/**
+ * Own-channel Instagram Insights (V1 data contracts, contract 1). Reach, saves, shares
+ * and the rest of Kai's own performance data, pulled through the Graph API and kept
+ * deliberately separate from `channels` / `videos`.
+ *
+ * Why separate rather than a flag: a flag on `channels` would put own posts inside
+ * `getOutlierFeed`, `getDashboardStats` and `scoreVideos` by default, and every one of
+ * those would then need an exclusion clause somebody will eventually forget to add.
+ * Separation makes "own posts never appear in the outlier feed" a structural fact
+ * instead of a convention.
+ */
+
+export const ownAccountSnapshots = sqliteTable("own_account_snapshots", {
+  id: text("id").primaryKey(),
+  capturedAt: text("captured_at").notNull(),
+  externalId: text("external_id").notNull(),
+  username: text("username").notNull(),
+  followerCount: integer("follower_count"),
+  followsCount: integer("follows_count"),
+  mediaCount: integer("media_count"),
+}, (t) => [index("own_account_snapshots_captured").on(t.capturedAt)]);
+
+export const ownPosts = sqliteTable("own_posts", {
+  id: text("id").primaryKey(),
+  externalId: text("external_id").notNull(),
+  permalink: text("permalink").notNull(),
+  mediaType: text("media_type").notNull(), // raw IG value
+  productType: text("product_type"), // "REELS" | "FEED" | ...
+  format: text("format").notNull(), // "Reel" | "Carousel" | raw media type
+  caption: text("caption"),
+  postedAt: text("posted_at").notNull(),
+  durationSec: real("duration_sec"),
+  firstSeenAt: text("first_seen_at").notNull(),
+  lastMeasuredAt: text("last_measured_at"),
+  rawPayload: text("raw_payload", { mode: "json" }).$type<Record<string, unknown>>(),
+}, (t) => [
+  uniqueIndex("own_posts_external").on(t.externalId),
+  index("own_posts_posted").on(t.postedAt),
+]);
+
+export const ownPostInsights = sqliteTable("own_post_insights", {
+  id: text("id").primaryKey(),
+  ownPostId: text("own_post_id").notNull().references(() => ownPosts.id, { onDelete: "cascade" }),
+  capturedAt: text("captured_at").notNull(),
+  reach: integer("reach"),
+  saved: integer("saved"),
+  shares: integer("shares"),
+  totalInteractions: integer("total_interactions"),
+  comments: integer("comments"),
+  likes: integer("likes"),
+  views: integer("views"),
+  /** Unverified metrics. Nullable and never defaulted to 0: a zero is a measurement, and
+   *  these have never been measured (the ported client does not request them yet). */
+  profileVisits: integer("profile_visits"),
+  followsFromPost: integer("follows_from_post"),
+  watchTimeSec: real("watch_time_sec"),
+  /** Set when this post's insights call failed while the run as a whole succeeded. */
+  fetchError: text("fetch_error"),
+}, (t) => [index("own_post_insights_post_captured").on(t.ownPostId, t.capturedAt)]);
+
+export const ownComments = sqliteTable("own_comments", {
+  id: text("id").primaryKey(),
+  ownPostId: text("own_post_id").notNull().references(() => ownPosts.id, { onDelete: "cascade" }),
+  externalId: text("external_id").notNull(),
+  author: text("author"),
+  text: text("text").notNull(),
+  postedAt: text("posted_at"),
+  kind: text("kind").notNull(), // classifier output
+  classifierVersion: text("classifier_version").notNull(),
+  capturedAt: text("captured_at").notNull(),
+}, (t) => [uniqueIndex("own_comments_external").on(t.externalId)]);
