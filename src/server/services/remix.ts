@@ -69,6 +69,31 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * Writes one `remix_runs` row (v1-scope.md, Remix studio P0: "remix_sessions records
+ * no per-run history... without it a failed generation leaves no trace, and this
+ * pipeline fails often"). The only writer of that table — `queries/remix-runs.ts` is
+ * read only, matching contract 2's "the write is the engine's own bookkeeping, not a
+ * user action" pattern for `sync_channel_runs`.
+ *
+ * Called from inside each generation function's own try/catch so a run row is written
+ * on both outcomes, never only on success — a run log that only records what worked
+ * would defeat the reason this table exists.
+ */
+async function recordRun(o: { sessionId: string; stage: RemixStage; startedAt: string; startedAtMs: number; outcome: "success" | "error"; detail: string }): Promise<void> {
+  await db.insert(tables.remixRuns).values({
+    id: newId(),
+    sessionId: o.sessionId,
+    stage: o.stage,
+    outcome: o.outcome,
+    startedAt: o.startedAt,
+    finishedAt: nowIso(),
+    elapsedMs: Date.now() - o.startedAtMs,
+    detail: o.detail,
+    errorMessage: o.outcome === "error" ? o.detail : null,
+  });
+}
+
 function parseOutline(raw: string | null): Outline | null {
   if (!raw) return null;
   try {
@@ -114,7 +139,14 @@ async function getVideoRow(videoId: string) {
 
 async function getAnalysis(videoId: string): Promise<VideoAnalysis | null> {
   const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
-  return row ? rowToAnalysis(row) : null;
+  if (!row) return null;
+  // Strips the Layout section's provenance columns (contract 5) back off: the prompt
+  // builders below only ever read hookType/structureSegments/formatTags/styleTags/
+  // whyItWorked, and `researchNotes.sourceAnalysis` is typed and persisted as plain
+  // `VideoAnalysis` — layout has no business riding along into a remix prompt or a
+  // stored research note.
+  const { hookType, structureSegments, formatTags, styleTags, whyItWorked } = rowToAnalysis(row);
+  return { hookType, structureSegments, formatTags, styleTags, whyItWorked };
 }
 
 async function getVaultItemTemplateText(vaultItemId: string): Promise<string | null> {
@@ -223,30 +255,42 @@ export async function buildResearch(id: string): Promise<ResearchNotes> {
  */
 export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient }): Promise<string[]> {
   const session = await getSession(id);
-  const video = await getVideoRow(session.sourceVideoId);
-  const analysis = await getAnalysis(session.sourceVideoId);
+  const startedAt = nowIso();
+  const startedAtMs = Date.now();
 
-  const pattern = opts?.vaultItemId
-    ? (await getVaultItemTemplateText(opts.vaultItemId)) ?? describeSourceHookPattern(analysis)
-    : describeSourceHookPattern(analysis);
+  try {
+    const video = await getVideoRow(session.sourceVideoId);
+    const analysis = await getAnalysis(session.sourceVideoId);
 
-  const client = opts?.llm ?? getLlm();
-  const niche = await getNicheProfile();
-  const topic = session.topic ?? video?.caption ?? "this topic";
-  const facts = session.researchNotes?.facts || undefined;
+    const pattern = opts?.vaultItemId
+      ? (await getVaultItemTemplateText(opts.vaultItemId)) ?? describeSourceHookPattern(analysis)
+      : describeSourceHookPattern(analysis);
 
-  const result = await client.generateParsed({
-    system: HOOK_SYSTEM,
-    user: buildHookUser({ topic, niche, pattern, facts }),
-    schema: HookOptionsSchema,
-  });
+    const client = opts?.llm ?? getLlm();
+    const niche = await getNicheProfile();
+    const topic = session.topic ?? video?.caption ?? "this topic";
+    const facts = session.researchNotes?.facts || undefined;
 
-  await db
-    .update(tables.remixSessions)
-    .set({ hookOptions: result.hooks, updatedAt: nowIso() })
-    .where(eq(tables.remixSessions.id, id));
+    const result = await client.generateParsed({
+      system: HOOK_SYSTEM,
+      user: buildHookUser({ topic, niche, pattern, facts }),
+      schema: HookOptionsSchema,
+    });
 
-  return result.hooks;
+    await db
+      .update(tables.remixSessions)
+      .set({ hookOptions: result.hooks, updatedAt: nowIso() })
+      .where(eq(tables.remixSessions.id, id));
+
+    await recordRun({ sessionId: id, stage: "hook", startedAt, startedAtMs, outcome: "success", detail: `${result.hooks.length} hooks generated` });
+    return result.hooks;
+  } catch (err) {
+    // The previous hookOptions column is untouched — nothing above writes to it until
+    // generateParsed has already succeeded — so a failure here leaves the prior hook
+    // list intact, per the acceptance criteria, and only appends this row.
+    await recordRun({ sessionId: id, stage: "hook", startedAt, startedAtMs, outcome: "error", detail: errorMessage(err) });
+    throw err;
+  }
 }
 
 /**
@@ -256,31 +300,40 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
  */
 export async function generateOutline(id: string, opts?: { llm?: LlmClient }): Promise<Outline> {
   const session = await getSession(id);
-  const video = await getVideoRow(session.sourceVideoId);
-  const analysis = await getAnalysis(session.sourceVideoId);
+  const startedAt = nowIso();
+  const startedAtMs = Date.now();
 
-  const structure = session.styleVaultItemId
-    ? (await getVaultItemTemplateText(session.styleVaultItemId)) ?? describeSourceStructure(analysis)
-    : describeSourceStructure(analysis);
+  try {
+    const video = await getVideoRow(session.sourceVideoId);
+    const analysis = await getAnalysis(session.sourceVideoId);
 
-  const client = opts?.llm ?? getLlm();
-  const niche = await getNicheProfile();
-  const topic = session.topic ?? video?.caption ?? "this topic";
-  const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
-  const facts = session.researchNotes?.facts || undefined;
+    const structure = session.styleVaultItemId
+      ? (await getVaultItemTemplateText(session.styleVaultItemId)) ?? describeSourceStructure(analysis)
+      : describeSourceStructure(analysis);
 
-  const outline = await client.generateParsed({
-    system: OUTLINE_SYSTEM,
-    user: buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }),
-    schema: OutlineSchema,
-  });
+    const client = opts?.llm ?? getLlm();
+    const niche = await getNicheProfile();
+    const topic = session.topic ?? video?.caption ?? "this topic";
+    const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
+    const facts = session.researchNotes?.facts || undefined;
 
-  await db
-    .update(tables.remixSessions)
-    .set({ outline: JSON.stringify(outline), updatedAt: nowIso() })
-    .where(eq(tables.remixSessions.id, id));
+    const outline = await client.generateParsed({
+      system: OUTLINE_SYSTEM,
+      user: buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }),
+      schema: OutlineSchema,
+    });
 
-  return outline;
+    await db
+      .update(tables.remixSessions)
+      .set({ outline: JSON.stringify(outline), updatedAt: nowIso() })
+      .where(eq(tables.remixSessions.id, id));
+
+    await recordRun({ sessionId: id, stage: "style", startedAt, startedAtMs, outcome: "success", detail: `outline generated (${outline.beats.length} beats)` });
+    return outline;
+  } catch (err) {
+    await recordRun({ sessionId: id, stage: "style", startedAt, startedAtMs, outcome: "error", detail: errorMessage(err) });
+    throw err;
+  }
 }
 
 /**
@@ -305,6 +358,8 @@ export async function generateVariants(
   opts?: { count?: number; index?: number; llm?: LlmClient }
 ): Promise<(string | { error: string })[]> {
   const session = await getSession(id);
+  const startedAt = nowIso();
+  const startedAtMs = Date.now();
   const video = await getVideoRow(session.sourceVideoId);
   const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
   const client = opts?.llm ?? getLlm();
@@ -331,6 +386,22 @@ export async function generateVariants(
   const results: (string | { error: string })[] = settled.map((outcome) =>
     outcome.status === "fulfilled" ? outcome.value : { error: errorMessage(outcome.reason) }
   );
+  const successCount = results.filter((r) => typeof r === "string").length;
+
+  // Per-variant isolation means this call itself essentially never throws — a failed
+  // variant becomes `{ error }` at its own index instead. The run log still needs a run
+  // row on every call, so the "outcome" here is a judgment on the RESULT rather than on
+  // whether the call raised: zero successes out of however many were asked for is the
+  // same "this attempt didn't work" fact a caller of generateHooks/generateOutline gets
+  // from a thrown error, and it must not go unrecorded just because the mechanism here
+  // happens to be per-item rather than a single rejected promise.
+  const runOutcome: "success" | "error" = successCount > 0 ? "success" : "error";
+  const runDetail =
+    opts?.index !== undefined
+      ? typeof results[0] === "string"
+        ? `variant ${opts.index + 1} regenerated`
+        : `variant ${opts.index + 1} failed: ${(results[0] as { error: string }).error}`
+      : `${successCount} of ${count} variants succeeded`;
 
   if (opts?.index !== undefined) {
     const [result] = results;
@@ -342,6 +413,7 @@ export async function generateVariants(
         .set({ variants: merged, updatedAt: nowIso() })
         .where(eq(tables.remixSessions.id, id));
     }
+    await recordRun({ sessionId: id, stage: "script", startedAt, startedAtMs, outcome: runOutcome, detail: runDetail });
     return results;
   }
 
@@ -351,6 +423,7 @@ export async function generateVariants(
     .set({ variants: successes, updatedAt: nowIso() })
     .where(eq(tables.remixSessions.id, id));
 
+  await recordRun({ sessionId: id, stage: "script", startedAt, startedAtMs, outcome: runOutcome, detail: runDetail });
   return results;
 }
 
@@ -360,6 +433,13 @@ export async function generateVariants(
  * `remix_sessions.chosenHook` stores the picked hook's raw text, not a vault_items.id
  * — there is no column tracking which Vault hook (if any) seeded the generation that
  * produced it, so there is nothing valid to link here without a schema change.
+ *
+ * `remixSessionId` is set to this session's id (V1 data contracts, contract 6) — the
+ * planner's load-bearing link. The session itself is disposable working state (stage,
+ * hook options, variants) and can be deleted without cost: `content` above is already
+ * a COPY of the finished text, not a reference, so the script (and any planned post
+ * carrying it) keeps everything that matters when the session is gone. Only the
+ * "which run made this" provenance line is lost, via the column's `set null` FK.
  */
 export async function saveScript(id: string, content: string, title: string): Promise<{ scriptId: string }> {
   const session = await getSession(id);
@@ -373,6 +453,7 @@ export async function saveScript(id: string, content: string, title: string): Pr
     sourceVideoId: session.sourceVideoId,
     hookVaultItemId: null,
     styleVaultItemId: session.styleVaultItemId,
+    remixSessionId: id,
     status: "draft",
     createdAt: now,
     updatedAt: now,

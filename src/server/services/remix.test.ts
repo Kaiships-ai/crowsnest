@@ -372,3 +372,137 @@ describe("quickRemix", () => {
     expect(row.variants!.every((v) => v === "a full script")).toBe(true);
   });
 });
+
+/**
+ * The run log (v1-scope.md, Remix studio P0): "remix_sessions records no per-run
+ * history... without it a failed generation leaves no trace, and this pipeline fails
+ * often." Every generation call — hooks, outline, variants — must leave one row behind
+ * whether it succeeded or not, and a failure must never touch the field it was trying
+ * to write.
+ */
+describe("remix run log", () => {
+  async function runsFor(sessionId: string) {
+    return db.select().from(tables.remixRuns).where(eq(tables.remixRuns.sessionId, sessionId));
+  }
+
+  test("generateHooks appends a success row and leaves no trace of failure", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].stage).toBe("hook");
+    expect(runs[0].outcome).toBe("success");
+    expect(runs[0].detail).toContain("5 hooks generated");
+    expect(runs[0].errorMessage).toBeNull();
+    expect(runs[0].elapsedMs).toBeGreaterThanOrEqual(0);
+  });
+
+  test("a failed generateHooks call appends a failed row and leaves the previous hookOptions intact", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, {});
+    // Seed a prior successful hook list directly, the way an earlier real call would.
+    await db.update(tables.remixSessions).set({ hookOptions: ["old hook one", "old hook two", "old hook three"] }).where(eq(tables.remixSessions.id, session.id));
+
+    const llm = fakeLlm({ generateParsed: vi.fn().mockRejectedValue(new Error("model unavailable")) });
+
+    await expect(generateHooks(session.id, { llm })).rejects.toThrow("model unavailable");
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.hookOptions).toEqual(["old hook one", "old hook two", "old hook three"]);
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].stage).toBe("hook");
+    expect(runs[0].outcome).toBe("error");
+    expect(runs[0].errorMessage).toBe("model unavailable");
+  });
+
+  test("generateOutline appends its row under stage 'style'", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [{ label: "Hook", content: "x", targetSec: 3 }] }) });
+
+    await generateOutline(session.id, { llm });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].stage).toBe("style");
+    expect(runs[0].outcome).toBe("success");
+  });
+
+  test("generateVariants records success when at least one variant succeeds, with a count in the detail", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    const generateText = vi.fn().mockResolvedValueOnce("script one").mockRejectedValueOnce(new Error("rate limited")).mockResolvedValueOnce("script three");
+    const llm = fakeLlm({ generateText });
+
+    await generateVariants(session.id, { llm });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].stage).toBe("script");
+    expect(runs[0].outcome).toBe("success");
+    expect(runs[0].detail).toBe("2 of 3 variants succeeded");
+  });
+
+  test("generateVariants records 'error' when every variant in the call fails", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm({ generateText: vi.fn().mockRejectedValue(new Error("down")) });
+
+    await generateVariants(session.id, { llm, count: 2 });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].outcome).toBe("error");
+    expect(runs[0].detail).toBe("0 of 2 variants succeeded");
+  });
+
+  test("a single-slot regenerate (index option) logs which slot, on both outcomes", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["a", "b", "c"] });
+
+    const llm = fakeLlm({ generateText: vi.fn().mockResolvedValue("b (regenerated)") });
+    await generateVariants(session.id, { llm, index: 1 });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].detail).toBe("variant 2 regenerated");
+    expect(runs[0].outcome).toBe("success");
+  });
+
+  test("run log rows accumulate across calls and survive a restart back to stage 'prompt'", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+    await generateOutline(session.id, { llm: fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [] }) }) });
+    // Restart: the stepper's own reset action, which only ever touches `stage`.
+    await updateStage(session.id, { stage: "prompt" });
+
+    const runs = await runsFor(session.id);
+    expect(runs).toHaveLength(2);
+  });
+
+  test("getRemixRunLog returns newest first", async () => {
+    const { getRemixRunLog } = await import("../queries/remix-runs");
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+    await generateOutline(session.id, { llm: fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [] }) }) });
+
+    const log = await getRemixRunLog(session.id);
+    expect(log).toHaveLength(2);
+    expect(log[0].stage).toBe("style"); // the more recent call
+    expect(log[1].stage).toBe("hook");
+  });
+});

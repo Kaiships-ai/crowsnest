@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
+import type { VideoLayout } from "../llm/schemas";
 
 /**
  * Every binary we serve ourselves. Instagram CDN URLs are signed and expire within
@@ -177,6 +178,30 @@ export const videoAnalyses = sqliteTable("video_analyses", {
   whyItWorked: text("why_it_worked"),
   model: text("model"),
   createdAt: text("created_at").notNull(),
+
+  /**
+   * The Layout section (V1 data contracts, contract 5): what a video looks like rather
+   * than what it says. All five columns below are nullable and all five stay null
+   * together until a frame pass actually runs — there is no frame pass wired up yet
+   * (no image-input path on the LLM client, no frame sampler; see
+   * `docs/product/frame-pass-spike-prep.md`), so every row in this table has `layout:
+   * null` today. That is the correct, honest default, not a placeholder waiting to be
+   * filled by a stub: a null `layout` renders as four dashes and the "run frame pass"
+   * action, and it must never be backfilled from the transcript.
+   */
+  layout: text("layout", { mode: "json" }).$type<VideoLayout>(),
+  /** How many frames the pass actually sampled. The section's caption prints this
+   *  number, so it is data, not decoration. Null means no pass has run. */
+  framesSampled: integer("frames_sampled"),
+  /** The vision model that read the frames — deliberately separate from `model` above,
+   *  which names the text model that wrote hookType/structureSegments/whyItWorked. Two
+   *  different passes, two different provenances. */
+  frameModel: text("frame_model"),
+  framePassAt: text("frame_pass_at"),
+  /** Set when a pass was attempted and failed. Distinguishes "never run" (this column
+   *  and `layout` both null) from "run and came back empty" (this column set), which
+   *  need different copy and a different button. */
+  framePassError: text("frame_pass_error"),
 });
 
 export const vaultItems = sqliteTable("vault_items", {
@@ -197,6 +222,14 @@ export const scripts = sqliteTable("scripts", {
   hookVaultItemId: text("hook_vault_item_id").references(() => vaultItems.id, { onDelete: "set null" }),
   styleVaultItemId: text("style_vault_item_id").references(() => vaultItems.id, { onDelete: "set null" }),
   status: text("status").notNull().default("draft"), // "draft" | "final"
+  /**
+   * Which remix session produced this script, for provenance only ("straight out of
+   * remix run 04"). `set null` on delete: `content` above is already a COPY of the
+   * session's finished text (see `saveScript` in services/remix.ts), so a session
+   * being deleted never costs a script — or a planned post carrying that script — its
+   * actual content. Only the "which run made this" breadcrumb is lost.
+   */
+  remixSessionId: text("remix_session_id").references(() => remixSessions.id, { onDelete: "set null" }),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
@@ -224,6 +257,102 @@ export const remixSessions = sqliteTable("remix_sessions", {
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+/**
+ * The remix studio's run log (v1-scope.md, Remix studio P0: "remix_sessions records no
+ * per-run history. Add a remix_runs table. Without it a failed generation leaves no
+ * trace, and this pipeline fails often."). One row per generation attempt —
+ * `generateHooks`, `generateOutline`, `generateVariants` — success or failure, so a
+ * failed run is never invisible and a restart (which clears the session's stage back
+ * to "prompt") never erases the history of what was actually tried.
+ *
+ * Deliberately its own table rather than a JSON column on `remix_sessions`: a run log
+ * is an append-only sequence of independent facts, and a JSON blob would mean reading
+ * the whole history to append one row and would risk a lost-update race against the
+ * session's own frequent field writes.
+ */
+export const remixRuns = sqliteTable("remix_runs", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id").notNull().references(() => remixSessions.id, { onDelete: "cascade" }),
+  stage: text("stage").notNull(), // RemixStage: "prompt"|"research"|"hook"|"style"|"script"
+  outcome: text("outcome").notNull(), // "success" | "error"
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at").notNull(),
+  elapsedMs: integer("elapsed_ms").notNull(),
+  /** One line summarizing what actually happened — "5 hooks generated", "3 of 3
+   *  variants succeeded" — never fabricated, always derived from the real call's own
+   *  result. On failure this restates the error, so the row is legible without a join. */
+  detail: text("detail").notNull(),
+  errorMessage: text("error_message"),
+}, (t) => [index("remix_runs_session_started").on(t.sessionId, t.startedAt)]);
+
+/**
+ * A saved post (V1 data contracts, Vault). One row per Video Kai chose to keep for
+ * later reuse — the Vault screen's flat list, the detail screen's Save action, and the
+ * remix research stage's reference pool all read this table.
+ *
+ * Deliberately thin: `videoId` plus a "why kept" note and a timestamp, nothing else.
+ * Caption, views, duration, score and channel median are never copied here — they are
+ * read live through the join to `videos` / `channels` every time the Vault is rendered,
+ * so a later sync or re-score is reflected on the saved row instead of going stale next
+ * to a frozen number. A saved post is a bookmark, not a snapshot.
+ *
+ * `saved_posts_video` makes "save" a per-video toggle: at most one saved row per
+ * video, matching the detail screen's Save button flipping between "Save" and
+ * "Saved" rather than piling up duplicates on repeat clicks.
+ */
+export const savedPosts = sqliteTable("saved_posts", {
+  id: text("id").primaryKey(),
+  videoId: text("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
+  /** "Why kept", free text, optional. Renders as a dash when null — nothing here is
+   *  ever defaulted to an empty string standing in for "no reason given". */
+  note: text("note"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  uniqueIndex("saved_posts_video").on(t.videoId),
+  index("saved_posts_created").on(t.createdAt),
+]);
+
+/**
+ * A planned post (V1 data contracts, contract 6): a dated intention to publish,
+ * optionally carrying a Script. Lives only in Crowsnest — nothing here schedules,
+ * publishes, or reminds. Kai marks one published by hand via `publishedOwnPostId`, or
+ * it stays a plan and eventually reads as "missed" once its date passes.
+ *
+ * `state` only ever stores "draft" or "scheduled" — "missed" is derived on read
+ * (see queries/planned-posts.ts) rather than stored, because a stored "missed" needs
+ * something running to flip it and nothing here runs.
+ */
+export const plannedPosts = sqliteTable("planned_posts", {
+  id: text("id").primaryKey(),
+  state: text("state").notNull().default("draft"), // "draft" | "scheduled" — never "missed"
+  title: text("title").notNull(),
+  note: text("note"),
+  /** Null for an undated draft. Date only, no time zone handling: one Mac, one place. */
+  plannedDate: text("planned_date"),
+  plannedTime: text("planned_time"), // "HH:MM", null when only a date is set
+  targetLengthSec: integer("target_length_sec"),
+  /** The load-bearing link: a plan that carries a script is a plan with the work
+   *  already in it. `set null` — see the comment on `scripts.remixSessionId` above for
+   *  why deleting a script instead is refused at the action layer rather than left to
+   *  this FK's default. */
+  scriptId: text("script_id").references(() => scripts.id, { onDelete: "set null" }),
+  /** Provenance only, so the calendar can say "straight out of remix run 04". Never the
+   *  carrier of the content — the script's own `content` column already copied that
+   *  out of the session. `set null` on delete: losing this line loses one breadcrumb,
+   *  never the script. */
+  remixSessionId: text("remix_session_id").references(() => remixSessions.id, { onDelete: "set null" }),
+  sourceVideoId: text("source_video_id").references(() => videos.id, { onDelete: "set null" }),
+  /** Set by hand when Kai says a plan went out. Nothing sets this automatically —
+   *  there is no code path from this table to any network call. */
+  publishedOwnPostId: text("published_own_post_id"),
+  /** Set when a carried script was deliberately detached rather than the plan simply
+   *  never having had one. The calendar cell says the script is gone and when, instead
+   *  of rendering identically to a plan that was always just a title. */
+  scriptDetachedNote: text("script_detached_note"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [index("planned_posts_date").on(t.plannedDate)]);
 
 /**
  * One row per sync run per channel (`channelId` null = a whole-library run).
