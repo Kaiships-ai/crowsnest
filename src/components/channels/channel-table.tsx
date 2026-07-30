@@ -195,15 +195,6 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link href={`/channels/${channel.id}`} />}>View</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setEditingChannelId(channel.id)}>Edit fleets</DropdownMenuItem>
-                      {/* Base UI's disabled item styling sets pointer-events:none, which would
-                          also block a wrapping Tooltip's hover — so this explains itself via a
-                          toast on click instead, rather than a hover affordance that can't fire. */}
-                      <DropdownMenuItem
-                        className="text-muted-foreground"
-                        onClick={() => toast.info("Untrack arrives in a later phase")}
-                      >
-                        Untrack
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>

@@ -20,11 +20,12 @@ import type { SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
 
+// Instagram only in V1 (V1-BRIEF.md, Kai's ruling 2026-07-31) — TikTok and YT
+// Shorts pulled out. Sync can only ever write platform: "instagram", so those two
+// options returned zero rows every time, by construction.
 const PLATFORM_OPTIONS = [
   { value: "all", label: "All" },
   { value: "instagram", label: "IG" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "youtube_shorts", label: "YT Shorts" },
 ];
 const SCORE_OPTIONS = [
   { value: "any", label: "Any score" },

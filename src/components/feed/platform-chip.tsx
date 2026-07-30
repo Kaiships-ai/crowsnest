@@ -1,16 +1,18 @@
-import { Camera, Film, Music2, type LucideIcon } from "lucide-react";
+import { Camera, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// DESIGN.md §4.1: platform identity deliberately skips a 3-way categorical color
-// ramp — each chip carries its own recognizable glyph *shape* in a neutral monochrome
-// treatment instead (current-color icon in a translucent dark pill). lucide-react
-// ships no branded logos, which is exactly the point: shape reads as identity, not a
-// trademarked mark. Camera/Music/Film are stand-ins evoking each platform's format,
-// not literal brand icons.
+// Instagram only in V1 (V1-BRIEF.md, Kai's ruling 2026-07-31). This used to carry
+// TikTok and YouTube Shorts branches, but sync can only ever write platform:
+// "instagram", so those branches never rendered anything real. The schema column
+// stays multi-valued for a later platform (v1-scope.md), this component doesn't
+// need to guess ahead of it.
+//
+// DESIGN.md §4.1: platform identity deliberately skips a categorical color ramp —
+// the chip carries its own recognizable glyph shape in a neutral monochrome
+// treatment instead (current-color icon in a translucent dark pill). Camera is a
+// stand-in evoking the platform's format, not a literal brand icon.
 const PLATFORM_META: Record<string, { icon: LucideIcon; label: string }> = {
   instagram: { icon: Camera, label: "Instagram" },
-  tiktok: { icon: Music2, label: "TikTok" },
-  youtube_shorts: { icon: Film, label: "YouTube Shorts" },
 };
 
 export function platformLabel(platform: string): string {
@@ -19,7 +21,7 @@ export function platformLabel(platform: string): string {
 
 export function PlatformChip({ platform, className }: { platform: string; className?: string }) {
   const meta = PLATFORM_META[platform];
-  const Icon = meta?.icon ?? Film;
+  const Icon = meta?.icon ?? Camera;
 
   return (
     <span

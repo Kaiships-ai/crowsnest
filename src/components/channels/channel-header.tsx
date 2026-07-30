@@ -9,24 +9,19 @@ import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { ChannelRow } from "@/server/queries/channels";
 
 /** No stored profile URL in the schema — channels only carry handle+platform, so the
- * live-profile link is derived from the stored handle. */
-function channelProfileUrl(platform: string, handle: string): string {
+ * live-profile link is derived from the stored handle. Instagram only in V1
+ * (V1-BRIEF.md) — the TikTok and YouTube branches this used to have built links for
+ * platforms sync can never write, which is dead code that only risked a broken link
+ * if a row was ever miscategorised. */
+function channelProfileUrl(handle: string): string {
   const cleanHandle = handle.replace(/^@/, "");
-  switch (platform) {
-    case "tiktok":
-      return `https://www.tiktok.com/@${cleanHandle}`;
-    case "youtube_shorts":
-      return `https://www.youtube.com/@${cleanHandle}`;
-    default:
-      return `https://www.instagram.com/${cleanHandle}/`;
-  }
+  return `https://www.instagram.com/${cleanHandle}/`;
 }
 
 export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; postCount?: number }) {
@@ -106,7 +101,7 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
         </div>
 
         <a
-          href={channelProfileUrl(channel.platform, channel.handle)}
+          href={channelProfileUrl(channel.handle)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Open ${channel.handle} on ${platformLabel(channel.platform)}`}
@@ -148,13 +143,6 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
               <X className="size-4" />
             </Button>
           )}
-
-          <Tooltip>
-            <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-              Untrack
-            </TooltipTrigger>
-            <TooltipContent>Untrack arrives in a later phase</TooltipContent>
-          </Tooltip>
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Copy, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
@@ -29,7 +29,6 @@ import type { RemixSessionRow } from "@/server/services/remix";
 type VariantResult = string | { error: string };
 
 const DEFAULT_COUNT = 3;
-const PROGRESS_MESSAGES = ["Researching pacing…", "Writing variant 1…", "Writing variant 2…", "Writing variant 3…", "Polishing…"];
 
 function isError(result: VariantResult): result is { error: string } {
   return typeof result === "object";
@@ -54,25 +53,12 @@ export function StageScript({
   // needed (see stage-hook.tsx / stage-style.tsx for the same reasoning).
   const [results, setResults] = useState<VariantResult[]>(session.variants ?? []);
   const [pending, setPending] = useState(false);
-  const [progressIndex, setProgressIndex] = useState(0);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("0");
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState(session.topic ?? "Untitled script");
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
-
-  // Simulated per-stage progress (DESIGN.md §6's "Writing variant 2 of 3…") — Task 5's
-  // generateVariants is one atomic Promise.allSettled call with no incremental signal
-  // to observe, so this cycles a status line on a timer while the call is in flight
-  // rather than tracking real completion.
-  useEffect(() => {
-    if (!pending) return;
-    const interval = setInterval(() => {
-      setProgressIndex((i) => (i + 1) % PROGRESS_MESSAGES.length);
-    }, 1200);
-    return () => clearInterval(interval);
-  }, [pending]);
 
   // Persists the *whole* array — used only for a manual variant-text edit
   // (commitEditBlur below), where there's no single server-known "slot" the way a
@@ -85,7 +71,6 @@ export function StageScript({
 
   async function writeScript() {
     setPending(true);
-    setProgressIndex(0);
     const result = await generateVariantsAction(session.id, DEFAULT_COUNT);
     setPending(false);
     if (result.ok) {
@@ -196,9 +181,13 @@ export function StageScript({
   }
 
   if (pending) {
+    // generateVariantsAction is one atomic call with no incremental signal to
+    // observe (truth pass, v1-gap-inventory.md) — the old version cycled fake
+    // status lines like "Writing variant 2" on a timer, which is not knowable.
+    // An honest indeterminate state doesn't claim to know what it doesn't.
     return (
       <div className="flex flex-col gap-3">
-        <p className="font-mono text-xs tracking-wide text-faint uppercase">{PROGRESS_MESSAGES[progressIndex]}</p>
+        <p className="font-mono text-xs tracking-wide text-faint uppercase">Writing script…</p>
         {Array.from({ length: DEFAULT_COUNT }, (_, i) => (
           <Skeleton key={i} className="h-40 w-full rounded-none" />
         ))}

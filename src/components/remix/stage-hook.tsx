@@ -10,7 +10,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { cn } from "@/lib/utils";
 import { generateHooksAction, updateStageAction } from "@/server/actions/remix-actions";
@@ -148,17 +147,13 @@ export function StageHook({
             return (
               <Card key={i} className={cn("rounded-none", isChosen && "bg-score-wash ring-2 ring-score-line")}>
                 <CardContent className="flex flex-col gap-2">
-                  <Textarea
-                    value={hook}
-                    onChange={(e) => {
-                      const next = [...drafts];
-                      next[i] = e.target.value;
-                      setDrafts(next);
-                      onHooksChange(next);
-                    }}
-                    rows={3}
-                    className="text-sm"
-                  />
+                  {/* Read-only presentation, not an editable field — edits here never
+                      reached the server and were lost on reload (truth pass,
+                      v1-gap-inventory.md). "Use this hook" is the only way to commit
+                      a hook, so this can't look like a form that saves. */}
+                  <p className="min-h-16 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm">
+                    {hook}
+                  </p>
                   <div className="flex items-center gap-2">
                     <Button size="sm" variant="secondary" onClick={() => chooseHook(hook)}>
                       {isChosen ? (

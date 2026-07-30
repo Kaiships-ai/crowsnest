@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
+import { Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -11,12 +11,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
-import { PlatformChip, platformLabel } from "./platform-chip";
+import { platformLabel } from "./platform-chip";
 import { VideoThumb } from "./video-thumb";
 
 // "Hatching for a well with no data in it" (globals.css). Same treatment as
@@ -26,12 +25,6 @@ const THUMBNAIL_HATCH: React.CSSProperties = {
   backgroundColor: "var(--hatch-1)",
   backgroundImage:
     "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
-};
-
-// Scrim behind the hook headline, prototype feed.html line 75's gradient with --shade's
-// raw RGB triplet (11,11,12) — a gradient stop can't reference a Tailwind color token.
-const HOOK_SCRIM: React.CSSProperties = {
-  backgroundImage: "linear-gradient(rgba(11,11,12,.6) 0%, rgba(11,11,12,0) 42%, rgba(11,11,12,.7) 100%)",
 };
 
 // Thumbnail sits desaturated at rest and only picks up color on hover/focus (prototype
@@ -91,23 +84,22 @@ export function OutlierCard({
       >
         <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
+          <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
         </div>
         <VideoThumb assetId={item.thumbnailAssetId} className={THUMB_FILTER} />
         {/* Hook headline overlay (prototype feed.html line 76) — the grid card's own
             caption read, full variant only so compact rows (dashboard scroll, channel
-            tabs) stay uncluttered. */}
+            tabs) stay uncluttered. The headline gets its own opaque backing rather than
+            a page-length gradient: a gradient tuned to fade out where the text usually
+            sits reads fine against a dark thumbnail and unreadable against a bright one
+            (observed-bugs.md — a bright screen recording put white text on near-white).
+            A solid plate behind the text is correct for every thumbnail, not just the
+            one it was tuned against. */}
         {isFull && item.caption && (
-          <>
-            <div aria-hidden className="pointer-events-none absolute inset-0" style={HOOK_SCRIM} />
-            <p className="pointer-events-none absolute top-[14%] right-2 left-2 line-clamp-3 text-sm leading-snug font-semibold text-pretty text-white">
-              {item.caption}
-            </p>
-          </>
+          <p className="pointer-events-none absolute top-[14%] right-2 left-2 line-clamp-3 bg-black/70 px-1.5 py-1 text-sm leading-snug font-semibold text-pretty text-white backdrop-blur-sm">
+            {item.caption}
+          </p>
         )}
-        <div className="absolute top-2 left-2">
-          <PlatformChip platform={item.channel.platform} />
-        </div>
         {duration && (
           <span className="absolute right-2 bottom-2 bg-black/60 px-1.5 py-0.5 text-2xs font-medium text-white tabular-nums backdrop-blur-sm">
             {duration}
@@ -149,21 +141,11 @@ export function OutlierCard({
 
       {isFull && (
         <div className="flex items-center justify-between border-t border-border px-3 py-2">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Link
-                  href={`/feed/${item.videoId}`}
-                  aria-label="Open video to save to Vault"
-                  className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
-                >
-                  <Bookmark className="size-4" />
-                </Link>
-              }
-            />
-            <TooltipContent>Save to Vault — opens the video</TooltipContent>
-          </Tooltip>
-
+          {/* There is no save-from-feed path — saving to Vault requires an analysis,
+              which only exists on the video detail page. The old bookmark button here
+              was a "Save to Vault" tooltip on a link that saved nothing (truth pass,
+              v1-gap-inventory.md). The thumbnail is already a link to that page, so
+              removing this doesn't remove a way to get there. */}
           <Link
             href={`/feed/${item.videoId}/remix`}
             className={cn(buttonVariants({ variant: "secondary", size: "xs" }))}

@@ -106,7 +106,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         ) : (
           <>
             <p className="mb-3 text-xs text-muted-foreground">
-              <span data-num="1">{total}</span> results
+              <span data-num="1">{total}</span> result{total === 1 ? "" : "s"}
             </p>
             <FeedGrid items={items} />
             {hasMore && (

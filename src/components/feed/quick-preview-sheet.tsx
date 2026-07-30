@@ -103,9 +103,7 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
                 {detail.transcript ? (
                   <p className="line-clamp-4 text-sm text-muted-foreground">{detail.transcript.text}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No transcript yet — transcription arrives with the phase-2A sync engine
-                  </p>
+                  <p className="text-sm text-muted-foreground">No transcript yet — open the full page to transcribe</p>
                 )}
               </div>
 
