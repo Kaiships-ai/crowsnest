@@ -7,8 +7,10 @@ const SKELETON_COUNT = 8;
 export default function FeedLoading() {
   return (
     <div className="flex h-full flex-col">
-      <div className="sticky top-0 z-10 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+      <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+        <Skeleton className="h-8 max-w-md" />
         <Skeleton className="h-8 w-full max-w-4xl" />
+        <Skeleton className="h-7 w-72" />
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-4">

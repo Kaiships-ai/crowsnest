@@ -42,7 +42,12 @@ export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: st
         <OutlierBadge score={item.outlierScore} size="hero" />
       </div>
 
-      <span className="truncate pl-2 text-sm text-foreground">{item.caption ?? "—"}</span>
+      <span className="truncate pl-2 text-sm text-foreground">
+        {item.caption ?? "—"}
+        {/* Same "gone" marker as the grid card (v1-scope.md Feed AC 10) — a removed post
+            stays in the list, it just says so, in the negative color. */}
+        {item.deleted && <span className="ml-2 text-2xs text-destructive">removed</span>}
+      </span>
 
       <Link
         href={`/channels/${item.channel.id}`}

@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { getVideoPreviewAction } from "@/server/queries/preview-action";
 import type { VideoDetail } from "@/server/queries/video";
 import { OutlierBadge } from "./outlier-badge";
-import { PlatformChip } from "./platform-chip";
 
 // Keyed by the id it was fetched for, so `loading`/`notFound` are derived from
 // comparing `result.id` to the current `id` rather than tracked as separate state —
@@ -72,9 +71,9 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
                   <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
                 </div>
                 <VideoThumb assetId={detail.item.thumbnailAssetId} />
-                <div className="absolute left-2 top-2">
-                  <PlatformChip platform={detail.item.channel.platform} />
-                </div>
+                {/* No platform chip. V1 is Instagram only, so a chip naming the platform
+                    tells the reader something they already know, and this sheet opens
+                    straight off a feed card where the same rule applies. */}
                 <div className="absolute right-2 top-2">
                   <OutlierBadge score={detail.item.outlierScore} size="lg" />
                 </div>

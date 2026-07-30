@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Rows3, X } from "lucide-react";
+import { LayoutGrid, Rows3, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +14,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-import type { SavedFilterRow } from "@/server/queries/feed";
+import type { FeedBandCounts, SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
+
+// Debounce on the search box only — every other control here is a discrete menu pick
+// that should navigate the instant it's chosen. Free text needs the opposite: firing a
+// router.replace per keystroke would thrash the URL and refetch the feed mid-word.
+const SEARCH_DEBOUNCE_MS = 350;
 
 // Instagram only in V1 (V1-BRIEF.md, Kai's ruling 2026-07-31) — TikTok and YT
 // Shorts pulled out. Sync can only ever write platform: "instagram", so those two
@@ -75,7 +82,7 @@ const CRITERIA_TO_PARAM: Record<(typeof PRESET_CRITERIA_KEYS)[number], string> =
 
 // Every param a filter control can write — used to detect "any filter touched" for
 // the Clear-filters affordance and to wipe them all in one shot.
-const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band"] as const;
+const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band", "q"] as const;
 
 // Filters read as current state, not a form to fill in (brief): plain text with a
 // chevron, no input-style border, until opened or hovered. Matches the prototype's
@@ -84,10 +91,51 @@ const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since",
 const FILTER_TRIGGER_CLASS =
   "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
 
-export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilters: SavedFilterRow[] }) {
+export function FilterBar({
+  fleets,
+  savedFilters,
+  bandCounts,
+}: {
+  fleets: Fleet[];
+  savedFilters: SavedFilterRow[];
+  /** Real counts per follower band under every other active filter (v1-scope.md Feed
+   *  AC 6) — computed server-side by getFeedBandCounts, never re-derived client-side. */
+  bandCounts: FeedBandCounts;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const urlQuery = searchParams.get("q") ?? "";
+  // Local echo of the search box so typing feels instant; the URL (and therefore the
+  // feed refetch) only updates after SEARCH_DEBOUNCE_MS of no further keystrokes.
+  const [queryDraft, setQueryDraft] = useState(urlQuery);
+  // "Adjusting state when a prop changes" (react.dev) rather than an effect: when the
+  // URL's `q` moves for a reason outside this box — Clear filters, browser back/forward
+  // — the draft snaps to match, without fighting the debounce timer below. Tracking the
+  // last-seen URL value lets this run during render instead of after a commit.
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    setQueryDraft(urlQuery);
+  }
+
+  useEffect(() => {
+    if (queryDraft === urlQuery) return;
+    // A dedicated setter, not the generic `set` below: that one treats the literal
+    // string "any" as "clear this param" (its sentinel for every Select's placeholder
+    // option), which would wrongly wipe out a search for the word "any" itself.
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const trimmed = queryDraft.trim();
+      if (trimmed) params.set("q", trimmed);
+      else params.delete("q");
+      params.delete("limit");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryDraft]);
 
   function set(key: string, value: string, resetLimit = true) {
     const params = new URLSearchParams(searchParams.toString());
@@ -136,6 +184,22 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+      {/* Free-text search (v1-scope.md P0: "a conspicuous hole in a research tool").
+          Underline field, not a boxed input — matches the filter row's read-as-state
+          treatment rather than looking like a form. Searches caption, handle, and
+          display name server-side (queries/feed.ts). */}
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-faint" aria-hidden />
+        <Input
+          type="search"
+          value={queryDraft}
+          onChange={(e) => setQueryDraft(e.target.value)}
+          placeholder="Search captions and channels"
+          aria-label="Search captions and channels"
+          className="h-8 rounded-none border-0 border-b border-border bg-transparent pl-5 focus-visible:border-b-ring focus-visible:ring-0"
+        />
+      </div>
+
       <div className="flex flex-wrap items-center gap-1">
         <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
           <SelectTrigger size="sm" aria-label="Fleet" className={FILTER_TRIGGER_CLASS}>
@@ -281,7 +345,17 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
         >
           {BAND_OPTIONS.map((o) => (
             <ToggleGroupItem key={o.value} value={o.value} size="sm">
-              {o.label}
+              <span>{o.label}</span>
+              {/* "Any followers" is the clear-the-filter control, not a fifth band, so it
+                  carries no count of its own — real counts (v1-scope.md Feed AC 6) sit on
+                  the four bands whose sum they describe. A null-follower channel counts
+                  under none of them (getFeedBandCounts), which is why that sum can land
+                  under the feed's own total and is still correct. */}
+              {o.value !== "any" && (
+                <span className="ml-1.5 font-mono text-2xs tabular-nums text-faint" data-num="1">
+                  {bandCounts[o.value as keyof FeedBandCounts]}
+                </span>
+              )}
             </ToggleGroupItem>
           ))}
         </ToggleGroup>

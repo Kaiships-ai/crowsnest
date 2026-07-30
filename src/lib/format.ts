@@ -21,6 +21,17 @@ export function formatCompact(n: number | null): string {
 }
 
 /**
+ * 0.042 -> "4.2%", null -> "—". The query layer hands over a raw ratio (never a
+ * percentage, never rounded — see FeedItem.engagementRate) so this is the one place
+ * that multiplies by 100 and rounds. Only a null input prints the dash; a genuinely
+ * tiny but known rate still prints "0.0%" rather than being mistaken for "unknown".
+ */
+export function formatEngagementRate(rate: number | null): string {
+  if (rate === null) return "—";
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+/**
  * 12.4 -> "12.4×", null -> "—". Always exactly one decimal (unlike formatCompact) —
  * the multiplier badge numeral is set in tabular-nums (DESIGN.md §4.2) specifically
  * so magnitudes align scanning down a card grid; dropping a trailing zero (38.0 -> 38)

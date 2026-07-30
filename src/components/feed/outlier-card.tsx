@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
+import { formatCompact, formatDuration, formatEngagementRate, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
@@ -121,7 +121,7 @@ export function OutlierCard({
             given its own tab stop, so keyboard users reach `onOpen` via the thumbnail only. */}
         <div onClick={open} className={cn("flex flex-1 flex-col gap-1", onOpen && "cursor-pointer")}>
           <span className="text-2xs text-muted-foreground" data-num="1">
-            {formatCompact(item.viewCount)} views
+            {formatCompact(item.viewCount)} views · {formatEngagementRate(item.engagementRate)} eng
           </span>
           <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-faint">
             <Link
@@ -136,6 +136,15 @@ export function OutlierCard({
             <span aria-hidden>·</span>
             <span data-num="1">{relativeTime(item.postedAt)}</span>
           </span>
+          {/* Instagram no longer showing this post is real history, not a reason to hide
+              the card (v1-scope.md Feed AC 10) — same "no longer on <platform>" vocabulary
+              as the detail page's banner, in the negative color so it reads as a warning
+              rather than one more metadata line. */}
+          {item.deleted && (
+            <span className="text-2xs text-destructive" data-num="1">
+              No longer on {platformLabel(item.channel.platform)}
+            </span>
+          )}
         </div>
       </div>
 
