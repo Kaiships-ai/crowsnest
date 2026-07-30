@@ -196,7 +196,7 @@ export function SyncSection({ config, lastJob }: { config: SyncConfigSummary; la
         </p>
       </div>
 
-      <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 rounded-lg border border-border p-4 text-sm">
+      <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 border border-border p-4 text-sm">
         <ConfigRow label="Lookback window" value={`${config.lookbackDays} days`} note="LOOKBACK_DAYS" />
         <ConfigRow label="Per-sync cap" value={`${config.maxItemsPerSync} posts`} note="MAX_ITEMS_PER_SYNC" />
         <ConfigRow

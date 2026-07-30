@@ -248,7 +248,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+      <div className="flex flex-col gap-3 border border-border p-4">
         {view === "service_down" && (
           <>
             <StatusRow tone="bad" label="Instagram service isn't running" detail={shownFailure?.error} />
@@ -397,7 +397,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
         )}
       </div>
 
-      <div className="flex gap-2 rounded-lg border border-border bg-card p-3">
+      <div className="flex gap-2 border border-border bg-card p-3">
         <ShieldAlert className="size-4 shrink-0 text-destructive" aria-hidden />
         <div className="text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Risk: this uses Instagram&apos;s private API.</p>

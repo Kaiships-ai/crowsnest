@@ -22,7 +22,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
 
       <div className="flex flex-col gap-2">
         {binaries.map((bin) => (
-          <div key={bin.label} className="flex items-center gap-2 rounded-lg border border-border p-3 text-sm">
+          <div key={bin.label} className="flex items-center gap-2 border border-border p-3 text-sm">
             {bin.available ? (
               <CheckCircle2 className="size-4 shrink-0 text-[var(--pos)]" aria-hidden />
             ) : (

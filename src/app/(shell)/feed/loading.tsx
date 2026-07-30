@@ -15,7 +15,7 @@ export default function FeedLoading() {
         <Skeleton className="mb-3 h-4 w-20" />
         <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-5">
           {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
-            <div key={i} className="flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+            <div key={i} className="flex flex-col overflow-hidden border border-border bg-card">
               <div className="relative aspect-[9/16] w-full">
                 <Skeleton className="absolute inset-0 rounded-none" />
                 <Skeleton className="absolute right-2 top-2 h-6 w-12 rounded-full" />

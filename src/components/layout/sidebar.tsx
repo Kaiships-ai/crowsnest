@@ -284,7 +284,7 @@ export function Sidebar() {
                 type="button"
                 onClick={() => setPanelOpen(true)}
                 aria-label="Open sync details"
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-0.5 text-left transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[dot])} />
                 {/* min-w-0 as well as truncate: a flex child's min-width:auto would otherwise
