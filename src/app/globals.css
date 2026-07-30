@@ -4,11 +4,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/**
+ * Tokens taken from `Crowsnest Prototype.dc.html` (Claude Design project
+ * "Crowsnest UI Mockups"), which is the approved visual truth. Where the two written
+ * specs disagreed with it, the prototype wins. See docs/design/from-claude-design/.
+ *
+ * Amber means one thing: this beat its channel. It is allowed on the score, and on
+ * exactly one primary action per screen. It is banned on nav active state, toggles,
+ * secondary buttons, the logo, progress bars and sidebar count badges, which all use a
+ * raised surface instead. That budget is enforced by usage, not by the tokens.
+ */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
   --font-heading: var(--font-sans);
+  --font-mono: var(--font-mono), ui-monospace, SFMono-Regular, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -25,38 +36,94 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Crowsnest roles, not part of shadcn. Opt in by name. */
+  --color-score: var(--score);
+  --color-score-on: var(--score-on);
+  --color-score-wash: var(--score-wash);
+  --color-score-line: var(--score-line);
+  --color-faint: var(--faint);
+  --color-dim: var(--dim);
+  --color-line-strong: var(--line-strong);
+
+  /* Six steps, the prototype uses no others. */
+  --text-2xs: 0.8125rem;  /* 13px  mono labels, column heads, units */
+  --text-xs: 0.9375rem;   /* 15px  mono values, meta */
+  --text-sm: 1.0625rem;   /* 17px  body, captions */
+  --text-base: 1.1875rem; /* 19px  lead copy */
+  --text-lg: 1.5rem;      /* 24px  card and section titles */
+  --text-xl: 2.125rem;    /* 34px  page titles, the score at display size */
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
 }
 
 :root {
-  /* Dark-only app — no light mode, no .dark class gating (see DESIGN.md §4.0/§4.4). */
   color-scheme: dark;
 
-  --background: #0b0d12;
-  --foreground: #e7e9ee;
-  --card: #12151c;
-  --card-foreground: #e7e9ee;
-  --popover: #171b24;
-  --popover-foreground: #e7e9ee;
-  --primary: #6a5ae0;
-  --primary-foreground: #ffffff;
-  --secondary: #171b24;
-  --secondary-foreground: #e7e9ee;
-  --muted: #171b24;
-  --muted-foreground: #767d93;
-  --accent: #f5a524;
-  --accent-foreground: #14100a;
-  --destructive: #f1585c;
-  --border: #242938;
-  --input: #565e78;
-  --ring: #7c6cff;
-  --radius: 0.625rem;
+  /* ground */
+  --background: #0b0b0c;
+  --card: #141416;
+  --card-foreground: #f2f2f0;
+  --popover: #1c1c1f;
+  --popover-foreground: #f2f2f0;
+  --muted: #1c1c1f;
+  --accent: #1c1c1f;
+  --accent-foreground: #f2f2f0;
+
+  /* ink */
+  --foreground: #f2f2f0;
+  --muted-foreground: #9a9a96;
+  --faint: #6b6b68;
+  --dim: #55554f;
+
+  /* rules */
+  --border: #1f1f23;
+  --line-strong: #3e3e46;
+  --input: #3e3e46;
+
+  /**
+   * The primary action is amber filled, matching the prototype's `primary()` helper.
+   * The budget is enforced by usage, not by the token: 6 primary calls across 15
+   * screens there, against 24 ghost. So `variant="default"` appears at most once per
+   * screen and everything else is secondary, outline or ghost.
+   */
+  --primary: #e8a33d;
+  --primary-foreground: #0b0b0c;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #f2f2f0;
+
+  /* the score, and the only thing amber is allowed to mean */
+  --score: #e8a33d;
+  --score-on: #0b0b0c;
+  --score-wash: rgba(232, 163, 61, 0.12);
+  --score-line: rgba(232, 163, 61, 0.35);
+  --score-1: #e8a33d;
+  --score-2: #c0842f;
+  --score-3: #8f6524;
+  --score-4: #66481a;
+  --score-5: #463212;
+
+  /* failure, the only other hue */
+  --destructive: #d9503f;
+  --destructive-foreground: #0b0b0c;
+  --destructive-wash: rgba(217, 80, 63, 0.12);
+
+  /* focus is amber because nothing else competes for it */
+  --ring: #e8a33d;
+  --selection: rgba(232, 163, 61, 0.24);
+
+  /* hatching for a well with no data in it */
+  --hatch-1: rgba(145, 139, 133, 0.045);
+  --hatch-2: rgba(145, 139, 133, 0.16);
+  --shade: 11, 11, 12;
+
+  --radius: 0rem;
 }
 
 @layer base {
@@ -68,5 +135,26 @@
   }
   html {
     @apply font-sans;
+  }
+
+  ::selection {
+    background: var(--selection);
+  }
+
+  /* Every number is mono and tabular. This is the rule that makes it read as a tool. */
+  .tabular,
+  [data-num],
+  .font-mono {
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* Uppercase only ever appears on column heads and sidebar group labels. */
+  [data-lab] {
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  button:not(:disabled):active {
+    filter: brightness(0.9);
   }
 }

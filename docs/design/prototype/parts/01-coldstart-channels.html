@@ -1,0 +1,1025 @@
+<section class="flow" id="A1">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">A1</span>
+    <span class="flow-name">First run, empty app, nothing configured</span>
+    <span class="flow-tag tag-partial">partly built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Kai runs the dev server and lands on the Dashboard. There is no wizard and no redirect. Switch the state to compare the true-empty branch against the database he actually has, then click <b>Add your first channel</b> or the sync block at the bottom of the sidebar.</p>
+    <div class="p-states">
+      <button data-state="default">Empty database</button>
+      <button data-state="real">Real database, 2 channels</button>
+      <button data-state="broken">Database unmigrated</button>
+    </div>
+
+    <div class="p-screen" data-screen="dash">
+      <div class="p-app">
+        <aside class="p-side">
+          <div class="p-brand"><i></i>Crowsnest</div>
+          <a class="p-nav on">Dashboard</a>
+          <a class="p-nav">Feed</a>
+          <a class="p-nav" data-goto="channels">Channels</a>
+          <a class="p-nav">Vault</a>
+          <a class="p-nav">Settings</a>
+          <div class="p-sidefoot" data-goto="syncpanel">
+            <span class="p-mono p-dim">grey dot</span><br>Never synced<br>
+            <span class="p-mono">click to open the panel</span>
+          </div>
+        </aside>
+        <div class="p-body">
+          <header class="p-top">
+            <h4>Dashboard</h4>
+            <span class="p-sub" data-when="default">0 channels tracked</span>
+            <span class="p-sub" data-when="real">2 channels, 8 videos, 1 never synced</span>
+            <span class="p-sub" data-when="broken">route error</span>
+          </header>
+          <main class="p-main">
+            <div data-when="default">
+              <div class="p-empty">
+                <div class="big">+</div>
+                <p>No channels tracked yet.</p>
+                <button class="p-btn primary" data-goto="channels">Add your first channel</button>
+              </div>
+              <p class="p-mono p-dim">no KPI tiles, no outlier row, no fleet spikes, no recently viewed. Four stacked zero states read as a broken app.</p>
+            </div>
+            <div data-when="real">
+              <div class="p-stat">
+                <div><b>8</b><span>videos tracked</span></div>
+                <div><b>10.1x</b><span>best multiplier</span></div>
+                <div><b>0</b><span>outliers today</span></div>
+                <div><b>2</b><span>channels</span></div>
+              </div>
+              <div class="p-panel">
+                <div class="p-panel-k">top outlier today</div>
+                <p class="p-dim">Nothing scored in the last 24 hours. The 8 posts are older than the window.</p>
+              </div>
+              <p class="p-mono p-dim">this is the branch Kai actually sees. The empty branch never fires, because channelsTracked is 2.</p>
+            </div>
+            <div data-when="broken">
+              <div class="p-card">
+                <p class="p-err">getDashboardStats threw. No designed screen exists for this.</p>
+                <div class="p-code">SqliteError: no such table: channels
+  at getDashboardStats (src/server/queries/dashboard.ts)</div>
+                <p class="p-mono p-dim">unknown what the error boundary renders here today. This is the most likely genuine first-run failure.</p>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-screen" data-screen="syncpanel">
+      <div class="p-app p-app--bare">
+        <div class="p-body">
+          <header class="p-top"><h4>Sync progress</h4><span class="p-sub">dialog from the sidebar rail</span>
+            <button class="p-btn ghost" data-goto="dash">Close</button></header>
+          <main class="p-main">
+            <div class="p-card">
+              <p><span class="p-dim p-mono">grey</span> No sync has run yet</p>
+              <p class="p-dim">Nothing in sync_jobs to report.</p>
+            </div>
+            <p class="p-mono p-dim">sync_jobs is empty. Every previous run was deleted, so this is the real state.</p>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-screen" data-screen="channels">
+      <div class="p-app">
+        <aside class="p-side">
+          <div class="p-brand"><i></i>Crowsnest</div>
+          <a class="p-nav" data-goto="dash">Dashboard</a>
+          <a class="p-nav">Feed</a>
+          <a class="p-nav on">Channels</a>
+        </aside>
+        <div class="p-body">
+          <header class="p-top"><h4>Channels</h4><span class="p-sub">continues into B1</span>
+            <button class="p-btn primary" data-toast="B1 opens the Add a channel dialog">+ Channel</button></header>
+          <main class="p-main">
+            <div class="p-empty"><p>No channels in this fleet yet.</p></div>
+            <p class="p-mono p-dim">the button links to /channels, not into the dialog. Kai clicks twice.</p>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <p class="flow-note">Open question. Should first run route to Settings instead of the Dashboard? Nothing tells Kai the sidecar is down until a sync fails with IG_SERVICE_DOWN, and there is no first-run checklist. Second, the broken state above has no designed screen at all.</p>
+  </div>
+</section>
+
+<section class="flow" id="A2">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">A2</span>
+    <span class="flow-name">Connect the Instagram burner account</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">The Instagram panel in Settings, with all eight view states reachable. Use the state chips for what Kai finds when he arrives, then click <b>Connect</b> and follow either the two-factor branch or the two-step challenge branch.</p>
+    <div class="p-states">
+      <button data-state="out">Not connected</button>
+      <button data-state="nocreds">No credentials</button>
+      <button data-state="down">Service down</button>
+      <button data-state="err">Error</button>
+    </div>
+
+    <div class="p-screen" data-screen="start">
+      <div class="p-app p-app--bare">
+        <div class="p-body">
+          <header class="p-top"><h4>Instagram connection</h4><span class="p-sub">sync talks to a local Python instagrapi sidecar that holds the session</span>
+            <button class="p-btn ghost" data-toast="Re-read /health from the sidecar">Re-check</button></header>
+          <main class="p-main">
+            <div data-when="out">
+              <div class="p-card">
+                <p class="p-warn">Not connected</p>
+                <p class="p-dim">credentials configured, no active session</p>
+                <p class="p-cap">Connect signs in with the credentials already in the sidecar's environment. Instagram may answer with a two-factor prompt or a security challenge.</p>
+                <p></p>
+                <button class="p-btn primary" data-goto="connecting">Connect</button>
+              </div>
+            </div>
+            <div data-when="nocreds">
+              <div class="p-card">
+                <p class="p-warn">No Instagram credentials configured</p>
+                <p class="p-dim">service is running</p>
+                <p class="p-cap">Set IG_USERNAME and IG_PASSWORD in .env.local and restart the sidecar. These are read by the sidecar process only. The app never receives them, never renders them, and no form on this page submits a password.</p>
+                <p class="p-mono p-dim">true empty state. No buttons at all.</p>
+              </div>
+            </div>
+            <div data-when="down">
+              <div class="p-card">
+                <p class="p-err">Instagram service isn't running</p>
+                <p class="p-dim">connection refused at http://127.0.0.1:8765</p>
+                <div class="p-code">npm run ig:service</div>
+                <p class="p-mono p-dim">IG_SERVICE_DOWN routes here even when it happened mid-flow. The fix is to start a process, not to click Connect again.</p>
+              </div>
+            </div>
+            <div data-when="err">
+              <div class="p-card">
+                <p class="p-err">Instagram is throttling this account</p>
+                <p class="p-mono p-dim">IG_RATE_LIMITED</p>
+                <p class="p-cap">Worth retrying. This is a transient network, service or rate-limit condition.</p>
+                <p></p>
+                <button class="p-btn ghost" data-toast="Status re-read">Re-check status</button>
+                <button class="p-btn" data-toast="Fails again until the cooldown deadline elapses">Retry connect</button>
+                <p class="p-mono p-dim">other codes here: IG_SERVICE_UNAUTHORIZED and IG_BAD_CREDENTIALS show Re-check only, IG_PROXY_BLOCKED needs an .env.local edit, IG_NETWORK is retryable, IG_UNKNOWN prints the raw message.</p>
+              </div>
+            </div>
+            <div class="p-card">
+              <p class="p-warn">Risk. This uses Instagram's private API and violates Meta's Terms of Service.</p>
+              <p class="p-dim">The connected account can be challenged, restricted or permanently banned with no appeal path. Use a burner you can afford to lose. This callout does not disappear once connected.</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-screen" data-screen="connecting">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Connecting...</h4><span class="p-sub">signing in via the sidecar</span></header>
+        <main class="p-main"><div class="p-card">
+          <p class="p-cap">This can take up to two minutes. Instagram logins are rate-limited and the sidecar adds jitter.</p>
+          <p class="p-mono p-dim">no buttons in this phase, and Re-check is disabled. Pick what Instagram answers with:</p>
+          <button class="p-btn" data-goto="twofa">Two-factor prompt</button>
+          <button class="p-btn" data-goto="chal1">Security challenge</button>
+          <button class="p-btn" data-goto="connected">Straight through</button>
+          <button class="p-btn ghost" data-goto="start">Back to the panel</button>
+          <p class="p-mono p-dim">phase is what Kai just started, statusResult is what is actually true server-side, and the two are never collapsed. After every step that could have changed the session, /health is re-read.</p>
+        </div></main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="twofa">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Two-factor code required</h4><span class="p-sub">igTwoFactorAction(code)</span></header>
+        <main class="p-main"><div class="p-card">
+          <div class="p-field"><label class="p-label">6-digit code</label>
+            <input class="p-input p-mono" placeholder="123456"></div>
+          <p class="p-dim">From your authenticator app, or the SMS Instagram just sent.</p>
+          <button class="p-btn primary" data-goto="connected" data-toast="Session saved to data/ig-session.json">Submit</button>
+          <button class="p-btn ghost" data-goto="start">Cancel</button>
+          <p class="p-mono p-dim">Cancel does not tell the sidecar to abandon anything. It just re-reads the real server status.</p>
+        </div></main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="chal1">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Instagram issued a security challenge</h4><span class="p-sub">step 1 of 2</span></header>
+        <main class="p-main"><div class="p-card">
+          <p class="p-cap">Choose where Instagram should send the verification code.</p>
+          <button class="p-btn primary" data-goto="chal2">Email</button>
+          <button class="p-btn" data-goto="chal2">SMS</button>
+          <button class="p-btn ghost" data-goto="start">Cancel</button>
+          <p class="p-mono p-dim">igChallengeChooseAction. If the sidecar answers challenge_required again, the panel moves to step 2. Any other status means the challenge resolved without a code.</p>
+        </div></main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="chal2">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Instagram issued a security challenge</h4><span class="p-sub">step 2 of 2</span></header>
+        <main class="p-main"><div class="p-card">
+          <div class="p-field"><label class="p-label">Verification code</label>
+            <input class="p-input p-mono" placeholder="123456"></div>
+          <p class="p-dim">Sent to the channel you just picked.</p>
+          <button class="p-btn primary" data-goto="connected" data-toast="Challenge cleared">Submit</button>
+          <button class="p-btn ghost" data-goto="start">Cancel</button>
+          <p class="p-mono p-dim">a wrong code has no dedicated state. Whatever the sidecar returns lands in the error view and the form is gone.</p>
+        </div></main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="connected">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Connected as @burner</h4><span class="p-sub">green row</span>
+          <button class="p-btn danger" data-goto="start">Disconnect</button></header>
+        <main class="p-main"><div class="p-card">
+          <table class="p-table">
+            <tr><td>instagrapi version</td><td class="p-mono">2.1.2</td></tr>
+            <tr><td>session file</td><td class="p-mono">loaded from disk</td></tr>
+            <tr><td>service URL</td><td class="p-mono">http://127.0.0.1:8765</td></tr>
+            <tr><td>Rate-limit cooldown</td><td class="p-mono p-warn">2026-07-28T14:22:07Z</td></tr>
+          </table>
+          <p class="p-mono p-dim">the cooldown row prints a raw timestamp, not a countdown, and says nothing about what it means for sync.</p>
+        </div></main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. There is no in-app way to enter credentials by design, so first run needs a terminal and a file edit. Is that acceptable for v1? Also unknown whether a cancelled challenge can be resumed or must restart from Connect, and the cooldown shows a timestamp with no remaining time.</p>
+  </div>
+</section>
+
+<section class="flow" id="A3">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">A3</span>
+    <span class="flow-name">Connect the owned channel by Graph token</span>
+    <span class="flow-tag tag-new">not built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Proposed. No Graph code path exists in Crowsnest, but a working client for kaiships.ai already runs in Kai-Official-OS and is not to be rebuilt. Step through the token states with the chips, then click <b>Where to copy from</b>.</p>
+    <div class="p-states">
+      <button data-state="none">No token</button>
+      <button data-state="unver">Set, unverified</button>
+      <button data-state="ok">Verified</button>
+      <button data-state="soon">Expiring</button>
+      <button data-state="dead">Expired</button>
+    </div>
+
+    <div class="p-screen" data-screen="panel">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Your channel</h4><span class="p-sub">read through Instagram's official Graph API, a separate identity from the burner above</span>
+          <button class="p-btn ghost" data-goto="copy">Where to copy from</button></header>
+        <main class="p-main">
+          <div data-when="none">
+            <div class="p-card">
+              <p class="p-warn">No Graph token configured</p>
+              <div class="p-code">GRAPH_IG_ID=
+GRAPH_LONG_LIVED_TOKEN=
+GRAPH_APP_ID=
+GRAPH_APP_SECRET=</div>
+              <p class="p-dim">The app reads these and never writes them. No Verify button, because there is nothing to verify.</p>
+              <button class="p-btn" data-toast="Variable names copied">Copy variable names</button>
+            </div>
+          </div>
+          <div data-when="unver">
+            <div class="p-card">
+              <p class="p-warn">Token set, not yet verified</p>
+              <p class="p-cap">Presence is not proof. An expired long-lived token looks identical to a valid one in .env.local, so Verify makes one real call asking for username and followers_count.</p>
+              <button class="p-btn primary" data-toast="Graph call succeeded, connected as @kaiships.ai">Verify</button>
+            </div>
+          </div>
+          <div data-when="ok">
+            <div class="p-card">
+              <p class="p-ok">Connected as @kaiships.ai</p>
+              <table class="p-table">
+                <tr><td>IG_ID</td><td class="p-mono">from the copied env</td></tr>
+                <tr><td>token expiry</td><td class="p-mono">60 days from the copy, not from the refresh</td></tr>
+                <tr><td>last successful call</td><td class="p-mono">just now</td></tr>
+              </table>
+              <p class="p-mono p-dim">no disconnect button and no refresh button. The refresh lives in Kai-Official-OS (ig_publish.py refresh) by decision.</p>
+            </div>
+          </div>
+          <div data-when="soon">
+            <div class="p-card">
+              <p class="p-warn">Token expires in 9 days</p>
+              <p class="p-cap">Refresh it in Kai-Official-OS, then re-copy the value here. Crowsnest's job is to warn early and say where to go.</p>
+            </div>
+          </div>
+          <div data-when="dead">
+            <div class="p-card">
+              <p class="p-err">Token expired or rejected</p>
+              <p class="p-mono p-dim">GRAPH_TOKEN_EXPIRED</p>
+              <p class="p-cap">The stale copy is the failure this design is most exposed to. Kai refreshes in the other project, Crowsnest keeps the old value, and this goes red 60 days after the copy rather than 60 days after the refresh.</p>
+            </div>
+          </div>
+          <div class="p-card">
+            <p class="p-dim">Separation. The burner session and this token are never used for the same request. instagrapi never touches this account, and the Graph client never touches any other account.</p>
+          </div>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="copy">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Where the token comes from</h4><span class="p-sub">a copy, not a read of the other project</span>
+          <button class="p-btn ghost" data-goto="panel">Back</button></header>
+        <main class="p-main">
+          <div class="p-split">
+            <div class="p-panel">
+              <div class="p-panel-k">source, Kai-Official-OS</div>
+              <div class="p-code">.secrets/instagram.env
+  IG_ID
+  IG_LONG_LIVED_TOKEN
+  IG_APP_ID
+  IG_APP_SECRET</div>
+              <p class="p-dim">Instagram Login flow, so no Facebook Page link. Long lived, 60 day expiry.</p>
+            </div>
+            <div class="p-panel">
+              <div class="p-panel-k">why this cannot replace the burner</div>
+              <p class="p-cap">business_discovery exposes followers, bio, media count and recent media for other accounts, but not view_count or play_count, which are owner-account-only. The Graph API covers exactly one account. instagrapi still has to cover everyone else.</p>
+            </div>
+          </div>
+          <div class="p-panel">
+            <div class="p-panel-k">where the data lands, undecided</div>
+            <table class="p-table">
+              <tr><td>Same channels table, source marker</td><td class="p-dim">Feed, scoring and fleets work for free, but the platform = instagram sweep would hand it to instagrapi. That is the crossing that must never happen.</td></tr>
+              <tr><td>Separate table</td><td class="p-dim">No code path can reach it by accident, but every comparison view needs new plumbing.</td></tr>
+            </table>
+          </div>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Is A3 in v1 at all, given the client already exists and only the copy-and-surface work remains? If it is in, Kai picks the storage option above, decides whether to rename the copies out of the IG_ prefix, and says what he wants from his own channel: a baseline to compare against, or just a place to read his numbers.</p>
+  </div>
+</section>
+
+<section class="flow" id="A4">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">A4</span>
+    <span class="flow-name">Local binaries check</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">A read-only Settings section with two rows and no buttons. The states below are what the check can report, including the two it reports wrongly. The only repair is an edit and a reload, so click <b>Reload /settings</b> to re-run it.</p>
+    <div class="p-states">
+      <button data-state="model">Model missing</button>
+      <button data-state="none">Neither installed</button>
+      <button data-state="typo">WHISPER_MODEL_PATH typo</button>
+      <button data-state="lying">Reported wrongly</button>
+    </div>
+
+    <div class="p-screen" data-screen="sec">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Local binaries</h4><span class="p-sub">optional, enables keyless local transcription and manual reel import</span>
+          <button class="p-btn ghost" data-goto="fixed">Reload /settings</button></header>
+        <main class="p-main">
+          <div data-when="model typo lying">
+            <div class="p-card"><p class="p-ok">yt-dlp</p><p class="p-dim">found on PATH</p></div>
+          </div>
+          <div data-when="none">
+            <div class="p-card"><p class="p-warn">yt-dlp</p><p class="p-dim">not found on PATH</p></div>
+            <div class="p-card"><p class="p-warn">whisper-cli (+ model)</p><p class="p-dim">not found on PATH</p></div>
+          </div>
+          <div data-when="model">
+            <div class="p-card">
+              <p class="p-warn">whisper-cli (+ model)</p>
+              <p class="p-dim">whisper model not found at ~/.cache/whisper/ggml-large-v3-turbo.bin. brew install does not fetch it, download it separately.</p>
+              <p class="p-mono p-dim">the common case. The binary check passed, the existsSync on the model did not.</p>
+            </div>
+          </div>
+          <div data-when="typo">
+            <div class="p-card">
+              <p class="p-warn">whisper-cli (+ model)</p>
+              <p class="p-dim">whisper model not found at /Users/kai/models/ggml-large-v3-turbp.bin</p>
+              <p class="p-mono p-dim">the reason names the configured path, not the default, so the typo is visible.</p>
+            </div>
+          </div>
+          <div data-when="lying">
+            <div class="p-card">
+              <p class="p-warn">whisper-cli (+ model)</p>
+              <p class="p-dim">not found on PATH</p>
+              <p class="p-mono p-err">this row also renders when detectBinary itself failed, for example in a sandbox with no /bin/sh. The two are not distinguished.</p>
+            </div>
+            <div class="p-card">
+              <p class="p-ok">yt-dlp</p>
+              <p class="p-mono p-err">and a binary present but broken (wrong architecture, missing dylib) reports green, because detection is a PATH lookup and never runs the binary. It fails later as a raw exec error.</p>
+            </div>
+          </div>
+          <div class="p-code">brew install yt-dlp whisper-cpp</div>
+          <p class="p-mono p-dim">ffmpeg is not checked at all. No row, no detection call, no error message names it.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="fixed">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Local binaries</h4><span class="p-sub">after the model download and a reload</span>
+          <button class="p-btn ghost" data-goto="sec">Back to the broken state</button></header>
+        <main class="p-main">
+          <div class="p-card"><p class="p-ok">yt-dlp</p></div>
+          <div class="p-card"><p class="p-ok">whisper-cli (+ model)</p></div>
+          <div class="p-code">brew install yt-dlp whisper-cpp</div>
+          <p class="p-mono p-dim">the route is force-dynamic, so a reload re-runs detectBinary and whisperAvailability. There is no refresh button and no scripts/setup-local.sh, it was planned and never created.</p>
+          <p class="p-dim">Two green rows and an install hint Kai no longer needs.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Should ffmpeg be a third row, and is it required by any current code path or only a planned one? Should the section find a model at a non-default location and offer to set WHISPER_MODEL_PATH, or is an .env.local edit the intended repair for everything here? And should green rows collapse away once everything works?</p>
+  </div>
+</section>
+
+<section class="flow" id="B1">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B1</span>
+    <span class="flow-name">Add a channel by handle or profile URL</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">The Add a channel dialog, both tabs. Pick a submit outcome with the chips, then click <b>Track channel</b> to see where it lands: a real row, or a thin row plus a success toast that hides a failure.</p>
+    <div class="p-states">
+      <button data-state="ok">Handle resolves</button>
+      <button data-state="bad">Invalid handle</button>
+      <button data-state="notfound">IG_NOT_FOUND</button>
+      <button data-state="down">IG_SERVICE_DOWN</button>
+    </div>
+
+    <div class="p-screen" data-screen="dialog">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Add a channel</h4><span class="p-sub">track a channel by handle, or import a single reel by URL</span></header>
+        <main class="p-main">
+          <div class="p-chips">
+            <span class="p-chip on" data-toggle>By handle</span>
+            <span class="p-chip" data-goto="reel">Paste reel URL</span>
+          </div>
+          <div class="p-field"><label class="p-label">Instagram handle</label>
+            <input class="p-input" placeholder="@handle or instagram.com/handle"></div>
+          <p class="p-dim">A profile URL works too, it is normalised to a handle.</p>
+          <div data-when="bad">
+            <div class="p-card"><p class="p-err">Invalid Instagram handle: "https://www.instagram.com/hormozi/?hl=en"</p>
+              <p class="p-mono p-dim">normalizeHandle threw. The dialog stays open with the value intact. This exists because the old normalizer once created a row literally named @https://www.instagram.com/hormozi/.</p></div>
+          </div>
+          <p></p>
+          <button class="p-btn primary" data-goto="table" data-toast="@kallaway tracked">Track channel</button>
+          <button class="p-btn ghost" data-toast="Handle, URL, error and pending state reset">Close</button>
+          <p class="p-mono p-dim">no platform picker. TikTok and YouTube Shorts were removed, because nothing could ever sync them.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="reel">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Paste reel URL</h4><span class="p-sub">a separate path, deliberately not part of sync</span>
+          <button class="p-btn ghost" data-goto="dialog">By handle</button></header>
+        <main class="p-main">
+          <div class="p-field"><label class="p-label">Reel URL</label><input class="p-input" placeholder="https://..."></div>
+          <button class="p-btn primary" data-goto="table" data-toast="Reel imported">Import reel</button>
+          <p class="p-mono p-dim">shells out to yt-dlp, creates a thin channel stub if the owner is not tracked, downloads the thumbnail into our own storage, upserts one video row, rescores that channel.</p>
+          <div class="p-card"><p class="p-warn">With yt-dlp missing this throws with a message naming brew install yt-dlp, shown raw in the inline alert. A URL yt-dlp cannot resolve shows yt-dlp's own error text, also raw.</p></div>
+          <p class="p-mono p-dim">switching tabs clears the error and keeps both field values.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="table">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Channels</h4><span class="p-sub">after the add</span>
+          <button class="p-btn" data-goto="dialog">+ Channel</button></header>
+        <main class="p-main">
+          <table class="p-table">
+            <thead><tr><th>Channel</th><th>Followers</th><th>Median views</th><th>Last synced</th></tr></thead>
+            <tbody>
+              <tr><td>@kallaway</td><td>442,447</td><td>224,403</td><td>just now</td></tr>
+              <tr><td>@hormozi</td><td class="p-dim">unknown</td><td class="p-dim">unknown</td><td class="p-dim">Never</td></tr>
+              <tr data-when="notfound"><td class="p-err">@kallawy</td><td class="p-dim">unknown</td><td class="p-dim">unknown</td><td class="p-err">warning: this account no longer exists on Instagram</td></tr>
+              <tr data-when="down"><td class="p-warn">@kallaway2</td><td class="p-dim">unknown</td><td class="p-dim">unknown</td><td class="p-warn">warning: IG_SERVICE_DOWN, a later sync will fill it in</td></tr>
+            </tbody>
+          </table>
+          <div data-when="notfound">
+            <div class="p-card"><p class="p-err">The dialog still reported success and toasted "@kallawy tracked". A typo produces a tracked channel and a success toast, and Kai finds out from the warning icon.</p></div>
+          </div>
+          <div data-when="down">
+            <div class="p-card"><p class="p-warn">Same shape. Thin row, success toast, syncErrorCode written to the row. IG_PRIVATE and IG_RATE_LIMITED behave identically.</p></div>
+          </div>
+          <p class="p-mono p-dim">adding a channel does not start a sync. The row sits at Never until Kai syncs it. There is no track-and-sync-now affordance.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Four. Should a successful add kick off that channel's first sync? Should a profile fetch failure block the add rather than create a thin row, at least for IG_NOT_FOUND, where the handle is almost certainly a typo? Does the table even refresh after an add, since this dialog calls no router.refresh()? And should the empty copy differ between no channels at all and no channels in this fleet?</p>
+  </div>
+</section>
+
+<section class="flow" id="B2">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B2</span>
+    <span class="flow-name">First sync of a new channel, deep 90 day reach</span>
+    <span class="flow-tag tag-partial">partly built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Click <b>Sync now</b> and watch the seven phases and the bar run for real. The deep 90 day first sync does not exist yet: every run uses LOOKBACK_DAYS, which is 30. Switch the state to see which lookback the run would claim.</p>
+    <div class="p-states">
+      <button data-state="today">Today, 30 days for everyone</button>
+      <button data-state="deep">Proposed, 90 on first sync</button>
+    </div>
+
+    <div class="p-screen" data-screen="run">
+      <div class="p-app">
+        <aside class="p-side">
+          <div class="p-brand"><i></i>Crowsnest</div>
+          <a class="p-nav">Dashboard</a>
+          <a class="p-nav on">Channels</a>
+          <div class="p-sidefoot" data-goto="panel">
+            <span class="p-mono p-warn">amber dot</span><br>Syncing @kallaway<br>
+            <span class="p-mono">Channel 1 of 1</span>
+          </div>
+        </aside>
+        <div class="p-body">
+          <header class="p-top"><h4>@kallaway</h4><span class="p-sub">442,447 followers</span>
+            <button class="p-btn primary" data-run="4000" data-then="done" data-toast="Sync finished, 8 posts">Sync now</button></header>
+          <main class="p-main">
+            <div class="p-steps">
+              <span class="p-step">Starting up</span>
+              <span class="p-step">Reading the profile</span>
+              <span class="p-step">Fetching posts</span>
+              <span class="p-step">Saving posts and thumbnails</span>
+              <span class="p-step">Scoring outliers</span>
+              <span class="p-step">Finishing up</span>
+            </div>
+            <div class="p-progress"><i></i></div>
+            <div class="p-panel">
+              <div class="p-panel-k">live readout in the header</div>
+              <p>Fetching posts, 47 posts seen</p>
+              <p class="p-dim">Worded off coverage, which comes from sync_jobs.channel_id, never from guessing at the handle. A library run would read "Library sync running" instead, and the cancel X would not appear.</p>
+            </div>
+            <div class="p-panel">
+              <div class="p-panel-k">lookback this run claims</div>
+              <p data-when="today" class="p-mono">lookback_days = 30 (config.LOOKBACK_DAYS)</p>
+              <p data-when="deep" class="p-mono p-warn">lookback_days = 90, but the column is written once per run, so a library run with mixed lookbacks makes this column a lie</p>
+            </div>
+            <button class="p-btn ghost" data-toast="cancelSyncAction(jobId)">Cancel</button>
+            <button class="p-btn ghost" data-goto="panel">Open the full panel</button>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-screen" data-screen="panel">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Sync progress</h4><span class="p-sub">the same job row, full detail</span>
+          <button class="p-btn ghost" data-goto="run">Back</button></header>
+        <main class="p-main">
+          <div class="p-card">
+            <p class="p-warn">Syncing 1 channel</p>
+            <p class="p-dim">running for 0:38, lookback 30 days</p>
+            <p class="p-mono">47 / 200 (cap)</p>
+            <p class="p-dim">Instagram never says how many posts there are, so the per-sync cap is the only denominator. There is deliberately no percentage here.</p>
+            <div class="p-stat">
+              <div><b>6</b><span>created</span></div>
+              <div><b>2</b><span>updated</span></div>
+              <div><b>0</b><span>failed</span></div>
+              <div><b>0</b><span>deleted</span></div>
+              <div><b>8</b><span>assets saved</span></div>
+              <div><b>0</b><span>assets failed</span></div>
+            </div>
+          </div>
+          <p class="p-mono p-dim">before the run enumerates its channel list the bar is indeterminate and labelled "resolving channels", with a note saying there is no fraction to draw yet.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="done">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Sync finished</h4><span class="p-sub">took 0:52</span>
+          <button class="p-btn ghost" data-goto="run">Run it again</button></header>
+        <main class="p-main">
+          <div class="p-card">
+            <p class="p-ok">Success. 8 posts from @kallaway, stop reason exhausted.</p>
+            <p class="p-dim">softDeleteMissing ran, because the stop reason was exhausted and at least one item was seen. A stop reason of cap would have suppressed it, since the window was never fully enumerated and marking absent posts as deleted would be a fabrication.</p>
+          </div>
+          <div class="p-grid">
+            <div class="p-vid"><div class="p-thumb t2"><span class="p-score">10.1x</span><span class="p-dur">0:41</span></div>
+              <div class="p-meta"><b>@kallaway</b>2,272,877 views</div></div>
+            <div class="p-vid"><div class="p-thumb t1"><span class="p-score cold">1.4x</span></div>
+              <div class="p-meta"><b>@kallaway</b>314,911 views</div></div>
+            <div class="p-vid"><div class="p-thumb t5"><span class="p-score cold">1.0x</span></div>
+              <div class="p-meta"><b>@kallaway</b>224,403 views</div></div>
+            <div class="p-vid"><div class="p-thumb t3"><span class="p-score cold">0.6x</span></div>
+              <div class="p-meta"><b>@kallaway</b>141,220 views</div></div>
+          </div>
+          <p class="p-mono p-dim">recomputeChannelScores rescored a 20-video window against the channel median of 224,403, then one row went into channel_snapshots.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. The deep first sync needs Kai's final call. If it lands: does "first sync" mean lastSyncedAt IS NULL or no videos, given addChannel sets lastSyncedAt on a profile fetch alone? Should the 200 post cap rise for the deep run, since hitting cap suppresses the soft-delete? And should lookback_days become per-channel?</p>
+  </div>
+</section>
+
+<section class="flow" id="B3">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B3</span>
+    <span class="flow-name">Batch sync, the stalest channels per run</span>
+    <span class="flow-tag tag-new">not built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Proposed. There is no batching, no staleness ordering and no scheduler today: one click walks every Instagram channel in one job. Click <b>Sync next batch</b> to watch 4 of 12 run, and use the chips for the escape hatch and the zero-channel case.</p>
+    <div class="p-states">
+      <button data-state="batch">Batch of 4</button>
+      <button data-state="all">Sync all, escape hatch</button>
+      <button data-state="zero">No channels tracked</button>
+    </div>
+
+    <div class="p-screen" data-screen="queue">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Sync</h4>
+          <span class="p-sub" data-when="batch">Syncing 4 of 12 tracked channels, stalest first</span>
+          <span class="p-sub" data-when="all">Syncing all 12 tracked channels, this will take a while</span>
+          <span class="p-sub" data-when="zero">0 channels tracked</span>
+          <button class="p-btn primary" data-run="4000" data-then="after" data-toast="Batch finished, 4 channels">Sync next batch</button></header>
+        <main class="p-main">
+          <div class="p-steps">
+            <span class="p-step">@hormozi</span>
+            <span class="p-step">@kallaway</span>
+            <span class="p-step">channel 3</span>
+            <span class="p-step">channel 4</span>
+          </div>
+          <div class="p-progress"><i></i></div>
+          <div data-when="batch all">
+            <table class="p-table">
+              <thead><tr><th>Channel</th><th>Last synced</th><th>In this run</th></tr></thead>
+              <tbody>
+                <tr><td>@hormozi</td><td class="p-dim">Never</td><td class="p-warn">yes, nulls are maximally stale</td></tr>
+                <tr><td>@kallaway</td><td>6 days ago</td><td class="p-warn">yes</td></tr>
+                <tr><td>channel 3</td><td>5 days ago</td><td class="p-warn">yes</td></tr>
+                <tr><td>channel 4</td><td>4 days ago</td><td class="p-warn">yes</td></tr>
+                <tr><td class="p-dim">8 more</td><td class="p-dim">under 2 days</td><td class="p-dim">queued for the next cycle in a batch run</td></tr>
+              </tbody>
+            </table>
+            <p class="p-mono p-dim">selection: order by last_synced_at ascending, nulls first, limit N, platform = instagram. N is 3 to 5.</p>
+          </div>
+          <div data-when="zero">
+            <div class="p-card">
+              <p class="p-err">Real rendering bug the proposal has to handle. channelsTotal is 0, channelPercent returns null because total is not above 0, so the bar goes indeterminate with "resolving channels" forever until the run finalizes. A run with zero channels should say so.</p>
+            </div>
+          </div>
+          <p class="p-mono p-dim">SYNC_INTERVAL_MINUTES is validated at boot and read by nothing. The Settings row says "manual only" in red.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="after">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Batch finished</h4><span class="p-sub">what needs adding, and what it collides with</span>
+          <button class="p-btn ghost" data-goto="queue">Back</button>
+          <button class="p-btn" data-goto="concurrency">The concurrency problem</button></header>
+        <main class="p-main">
+          <div class="p-card">
+            <p class="p-ok">4 of 12 synced. 8 remain unsynced this cycle, stalest first next run.</p>
+            <p class="p-dim">Without a line naming what the run covers, a bar reading 2 / 4 in an app with 12 channels looks like a bug.</p>
+          </div>
+          <div class="p-card">
+            <p class="p-warn">If channel 2 of 4 hits IG_RATE_LIMITED, channels 3 and 4 fail too. The cooldown is account-wide, so the panel shows three identical "Instagram is throttling us" rows.</p>
+            <p class="p-dim">A batch should probably stop early and say so. Same for IG_AUTH_REQUIRED, IG_BAD_CREDENTIALS, IG_CHALLENGE, IG_TWO_FACTOR and IG_SERVICE_DOWN: all account-level or process-level, none of them different for the next channel.</p>
+          </div>
+          <p class="p-mono p-dim">there is no skipped concept in SyncGap today, so those channels would be recorded as failures.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="concurrency">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Three representations, Kai picks one</h4><span class="p-sub">this is what determines the amount of work</span>
+          <button class="p-btn ghost" data-goto="after">Back</button></header>
+        <main class="p-main">
+          <table class="p-table">
+            <thead><tr><th>Option</th><th>Cost</th></tr></thead>
+            <tbody>
+              <tr><td>Keep channel_id NULL</td><td class="p-dim">Simplest, matches today. But a batch registers as a library run and blocks every per-channel sync for its duration, so Kai cannot force-sync one channel while a batch walks.</td></tr>
+              <tr><td>sync_job_channels join table</td><td class="p-dim">conflictingRun() compares sets. Correct, and more work, and it touches the locking invariant.</td></tr>
+              <tr><td>One job per channel, staggered</td><td class="p-dim">channel_id stays exact and the invariant holds unchanged, but the progress panel loses its single-run view and the sidebar has N runs to summarise.</td></tr>
+            </tbody>
+          </table>
+          <p class="p-mono p-dim">pacing that already exists: sequential channels, 300 to 800 ms of jitter between pages. Unknown whether "staggered" means something stronger.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. The largest cluster in the document. Is N fixed at 3 to 5 or adaptive? Which concurrency representation? Does staggered mean a delay inside a run, between runs, or both, and how long? Should a batch stop early on an account-wide error and record the rest as skipped? And is there a scheduler in v1 at all, or is batching only about what one click does?</p>
+  </div>
+</section>
+
+<section class="flow" id="B4">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B4</span>
+    <span class="flow-name">Sync failure and recovery</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Kai never navigates here, a run he started fails and the failure finds him. Pick a failure class with the chips, then click through the three surfaces that word the same sync_jobs row differently: the panel, the channel header, the table.</p>
+    <div class="p-states">
+      <button data-state="rate">Rate limited</button>
+      <button data-state="auth">Session expired</button>
+      <button data-state="net">IG_NETWORK</button>
+      <button data-state="gone">Channel gone</button>
+      <button data-state="stall">Stalled run</button>
+    </div>
+
+    <div class="p-screen" data-screen="panel">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Sync progress</h4><span class="p-sub">sidebar dialog and Settings show the same panel</span>
+          <button class="p-btn" data-goto="header">Channel header</button>
+          <button class="p-btn ghost" data-goto="table">Channels table</button></header>
+        <main class="p-main">
+          <div data-when="rate">
+            <div class="p-card">
+              <p class="p-warn">Partial sync, 1 of 4 channels</p>
+              <p class="p-mono p-err">IG_RATE_LIMITED</p>
+              <p class="p-dim">Instagram is throttling us. Leave it a few minutes and retry.</p>
+              <p class="p-cap">Behind that sentence: full-jitter exponential backoff in the sidecar, base 60 seconds, cap 30 minutes, 5 attempts. Attempt 1 draws from 0 to 60 seconds, attempt 2 from 0 to 120. The deadline is persisted to a JSON file, so it survives a restart and restarting the sidecar does not reset the escalation.</p>
+              <p class="p-err">The cooldown is account-wide, not per channel. One throttled channel blocks everything.</p>
+              <button class="p-btn" data-toast="Retries the 3 failed channel ids">Retry 3 failed</button>
+            </div>
+          </div>
+          <div data-when="auth">
+            <div class="p-card">
+              <p class="p-err">Sync failed, 0 channels synced</p>
+              <p class="p-mono p-err">IG_AUTH_REQUIRED</p>
+              <p class="p-dim">Your Instagram session has expired. Re-import it in Settings, then retry this channel.</p>
+              <p class="p-cap">needsUserAction and not retryable, so withRetry gives up on the first attempt. Recovery is A2: Settings, Connect, clear any 2FA or challenge, come back and retry. Nothing clears sync_error except a later successful sync of that channel.</p>
+              <button class="p-btn primary" data-toast="Opens the Instagram section in Settings">Go to Settings</button>
+            </div>
+          </div>
+          <div data-when="net">
+            <div class="p-card">
+              <p class="p-warn">Partial sync, 3 of 4 channels</p>
+              <p class="p-mono p-err">IG_NETWORK</p>
+              <p class="p-dim">The network call to Instagram failed. This is usually transient.</p>
+              <p class="p-cap">Retryable, so withRetry already spent 3 attempts on a jittered backoff off 1000 ms. The total guessing budget is 3 seconds, so a dead upstream costs seconds rather than an ever-doubling wait. A wait Instagram actually asked for is exempt from that budget and capped at 300 seconds.</p>
+              <button class="p-btn" data-toast="start([channelId])">Retry</button>
+            </div>
+          </div>
+          <div data-when="gone">
+            <div class="p-card">
+              <p class="p-err">Sync failed, 0 channels synced</p>
+              <p class="p-mono p-err">IG_NOT_FOUND</p>
+              <p class="p-dim">This account no longer exists on Instagram. That is about the account, not about this app.</p>
+              <p class="p-cap">Not retryable and not needsUserAction. Nothing untracks the channel, because untrack does not exist, so a dead channel keeps a permanent warning icon in the table.</p>
+              <button class="p-btn ghost" data-toast="Nothing about a retry can change this outcome">Retry anyway</button>
+            </div>
+          </div>
+          <div data-when="stall">
+            <div class="p-card">
+              <p class="p-err">Sync stalled</p>
+              <p class="p-mono p-err">no heartbeat for 90 seconds</p>
+              <p class="p-dim">The run has probably died holding the lock, but it may yet recover.</p>
+              <p class="p-cap">The hedge is the point. The stale-lock reaper waits 900 seconds before stealing the lock, so inside that window a run that looks stalled can still be alive. When the reaper fires it writes failed with SYNC_ABANDONED. Stalled takes red rather than amber, because amber would read as "still going".</p>
+              <button class="p-btn" data-toast="start() with no ids, a fresh library run">Start a new sync</button>
+            </div>
+          </div>
+          <p class="p-mono p-dim">state machine: idle, running, stalled, cancelling, cancelled, success, partial, failed. Stalled outranks cancelling, because a dead process will never honour a cancel. And failed plus stop reason cancelled reports as a failure, not a cancellation.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="header">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>@kallaway</h4><span class="p-sub">only this channel's own failure appears here</span>
+          <button class="p-btn ghost" data-goto="panel">Panel</button>
+          <button class="p-btn ghost" data-goto="table">Table</button></header>
+        <main class="p-main">
+          <div data-when="rate"><div class="p-card"><p class="p-err">Instagram is throttling us. Leave it a few minutes and retry.</p><button class="p-btn" data-toast="start([channelId])">Retry</button></div></div>
+          <div data-when="auth"><div class="p-card"><p class="p-err">Your Instagram session has expired. Re-import it in Settings, then retry this channel.</p><button class="p-btn" data-toast="start([channelId])">Retry</button></div></div>
+          <div data-when="net"><div class="p-card"><p class="p-err">The network call to Instagram failed. This is usually transient.</p><button class="p-btn" data-toast="start([channelId])">Retry</button></div></div>
+          <div data-when="gone"><div class="p-card"><p class="p-err">This account no longer exists on Instagram.</p><button class="p-btn ghost" data-toast="Kept in case Kai knows something the app does not">Retry anyway</button></div></div>
+          <div data-when="stall"><div class="p-card"><p class="p-dim">Nothing renders here. A stalled library run is not this channel's failure, and a library run that gapped on somebody else is not repeated here either.</p></div></div>
+          <p class="p-mono p-dim">gap wording is deliberately different from the connection panel's, because the panel's tense is wrong next to a channel that has already failed.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="table">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Channels</h4><span class="p-sub">a red triangle next to Last synced, message in the tooltip</span>
+          <button class="p-btn ghost" data-goto="panel">Panel</button>
+          <button class="p-btn ghost" data-goto="header">Header</button></header>
+        <main class="p-main">
+          <table class="p-table">
+            <thead><tr><th>Channel</th><th>Median views</th><th>Last synced</th></tr></thead>
+            <tbody>
+              <tr><td>@kallaway</td><td>224,403</td>
+                <td><span class="p-err">6 days ago, warning</span></td></tr>
+              <tr><td>@hormozi</td><td class="p-dim">unknown</td><td class="p-dim">Never</td></tr>
+            </tbody>
+          </table>
+          <p class="p-mono p-warn" data-when="rate">tooltip: Instagram is throttling us. Code IG_RATE_LIMITED.</p>
+          <p class="p-mono p-warn" data-when="auth">tooltip: Your Instagram session has expired. Code IG_AUTH_REQUIRED.</p>
+          <p class="p-mono p-warn" data-when="net">tooltip: The network call to Instagram failed. Code IG_NETWORK.</p>
+          <p class="p-mono p-warn" data-when="gone">tooltip: This account no longer exists on Instagram. Code IG_NOT_FOUND.</p>
+          <p class="p-mono p-warn" data-when="stall">tooltip: nothing fresh. The row falls back to the sync_error persisted on the channel.</p>
+          <p class="p-mono p-dim">a gap from the run that just finished wins over the persisted sync_error, because it is fresher.</p>
+          <div class="p-card">
+            <p class="p-dim">Also here: a second sync while one is running throws SYNC_ALREADY_RUNNING and toasts once, deduped, because a poll error survives across polls and re-toasting every second would build a tower. And a poll failure keeps the last good row on screen with the error beside it, rather than blanking a half-rendered sync.</p>
+          </div>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Should the account-wide cooldown be visible outside the Instagram panel, since a rate limit reads as a per-channel gap while the real deadline can be 30 minutes? Nothing surfaces the attempt counter either, so Kai cannot tell attempt 1 of 5 from attempt 5 of 5. And should a channel that has failed N syncs in a row be flagged or auto-paused rather than retried forever?</p>
+  </div>
+</section>
+
+<section class="flow" id="B5">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B5</span>
+    <span class="flow-name">Channel detail, browsing one creator's catalog</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Click a row to open a channel. The tabs are the state chips, and all three lists are computed from one videos array already on the page, so switching never refetches. Compare @kallaway against @hormozi, which has never synced.</p>
+    <div class="p-states">
+      <button data-state="recent">Recent Reels</button>
+      <button data-state="outliers">Outliers Only</button>
+      <button data-state="vault">In Vault</button>
+    </div>
+
+    <div class="p-screen" data-screen="list">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Channels</h4><span class="p-sub">the whole row is a link, keyboard accessible with Enter</span></header>
+        <main class="p-main">
+          <div class="p-list">
+            <div class="p-row"><span class="p-av"></span><span>@kallaway</span>
+              <span class="p-mono p-dim">442,447 followers, 8 videos</span>
+              <button class="p-btn" data-goto="kallaway">View</button></div>
+            <div class="p-row"><span class="p-av"></span><span>@hormozi</span>
+              <span class="p-mono p-dim">followers unknown, never synced</span>
+              <button class="p-btn" data-goto="hormozi">View</button></div>
+          </div>
+          <p class="p-mono p-dim">route is /channels/&lt;channelId&gt;, the internal database id, not the handle.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="kallaway">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>@kallaway</h4><span class="p-sub">442,447 followers</span>
+          <button class="p-btn ghost" data-goto="list">Channels</button>
+          <button class="p-btn" data-toast="B2, useSyncProgress({channelId}).start()">Sync now</button></header>
+        <main class="p-main">
+          <div class="p-stat">
+            <div><b>224,403</b><span>median views</span></div>
+            <div><b>10.1x</b><span>best multiplier</span></div>
+            <div><b>0</b><span>outliers (30d)</span></div>
+            <div><b>8</b><span>videos tracked</span></div>
+          </div>
+          <div class="p-panel"><div class="p-panel-k">outlier history</div>
+            <div class="p-bars"><span class="ok"></span><span class="warn"></span><span class="ok"></span><span class="ok"></span><span class="warn"></span><span class="ok"></span></div>
+            <p class="p-dim">fed by channel_snapshots: follower count and median views, one row per sync.</p></div>
+          <div data-when="recent">
+            <div class="p-grid">
+              <div class="p-vid"><div class="p-thumb t2"><span class="p-score">10.1x</span></div><div class="p-meta"><b>2,272,877</b>views</div></div>
+              <div class="p-vid"><div class="p-thumb t1"><span class="p-score cold">1.4x</span></div><div class="p-meta"><b>314,911</b>views</div></div>
+              <div class="p-vid"><div class="p-thumb t5"><span class="p-score cold">1.0x</span></div><div class="p-meta"><b>224,403</b>views</div></div>
+              <div class="p-vid"><div class="p-thumb t3"><span class="p-score cold">0.6x</span></div><div class="p-meta"><b>141,220</b>views</div></div>
+              <div class="p-vid"><div class="p-thumb t0">no image</div><div class="p-meta"><b>98,140</b>thumbnail asset failed, the post survives</div></div>
+              <div class="p-vid"><div class="p-thumb t6"><span class="p-score cold">0.4x</span></div><div class="p-meta"><b>87,502</b>views</div></div>
+            </div>
+          </div>
+          <div data-when="outliers">
+            <div class="p-grid">
+              <div class="p-vid"><div class="p-thumb t2"><span class="p-score">10.1x</span></div><div class="p-meta"><b>2,272,877</b>views</div></div>
+            </div>
+            <p class="p-mono p-dim">filter is outlierScore not null and at least 2. The 2x threshold is hardcoded in this page and matches the label.</p>
+          </div>
+          <div data-when="vault">
+            <div class="p-empty"><p>No templates saved from this channel yet.</p></div>
+          </div>
+          <p class="p-mono p-dim">a metric Instagram withheld this time (null) never erases one already stored. Instagram returns 0 for other creators' play counts in many contexts, and that once wiped a genuine 2,272,877 view figure on the first live run.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="hormozi">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>@hormozi</h4><span class="p-sub">followers unknown</span>
+          <button class="p-btn ghost" data-goto="list">Channels</button>
+          <button class="p-btn" data-toast="the only affordance, and it does not look like one">Sync now</button></header>
+        <main class="p-main">
+          <div class="p-stat">
+            <div><b>0</b><span>median views</span></div>
+            <div><b>0</b><span>best multiplier</span></div>
+            <div><b>0</b><span>outliers (30d)</span></div>
+            <div><b>0</b><span>videos tracked</span></div>
+          </div>
+          <div class="p-panel"><div class="p-panel-k">outlier history</div>
+            <p class="p-dim">no series.</p></div>
+          <div data-when="recent"><div class="p-empty"><p>No reels tracked yet.</p></div></div>
+          <div data-when="outliers"><div class="p-empty"><p>No outliers (2x+) yet.</p></div></div>
+          <div data-when="vault"><div class="p-empty"><p>No templates saved from this channel yet.</p></div></div>
+          <p class="p-mono p-err">the stat tiles and the chart always render, even at zero. Nothing on this page says this channel has never been synced.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Should a never-synced channel get a distinct empty state the way the Dashboard does, instead of four zeroes and an empty chart? The 2x threshold is hardcoded in one route, but the outlier definition belongs to the product: configurable, and if so where? And untrack is promised by two pieces of UI copy that both say "a later phase". Is it in v1 or not?</p>
+  </div>
+</section>
+
+<section class="flow" id="B6">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">B6</span>
+    <span class="flow-name">Fleets, creating one and assigning channels</span>
+    <span class="flow-tag tag-built">built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">The fleet rail on /channels. Click <b>New fleet</b>, create one, then use a row dropdown to edit which fleets a channel belongs to. Two mutations exist and nothing else: no rename, no delete, no reorder, no multi-select.</p>
+    <div class="p-states">
+      <button data-state="none">No fleets</button>
+      <button data-state="one">One fleet</button>
+      <button data-state="dupe">Two with the same name</button>
+    </div>
+
+    <div class="p-screen" data-screen="rail">
+      <div class="p-app">
+        <aside class="p-side">
+          <div class="p-brand"><i></i>Fleets</div>
+          <a class="p-nav on">All channels <b>2</b></a>
+          <div data-when="one"><a class="p-nav" data-goto="filtered">Fitness Niche <b>1</b></a></div>
+          <div data-when="dupe"><a class="p-nav" data-goto="filtered">Fitness Niche <b>1</b></a></div>
+          <div data-when="dupe"><a class="p-nav">Fitness Niche <b>0</b></a></div>
+          <a class="p-nav" data-goto="new">+ New fleet</a>
+        </aside>
+        <div class="p-body">
+          <header class="p-top"><h4>Channels</h4><span class="p-sub">rail is the 180px left column, inside the 1120px container</span>
+            <button class="p-btn primary" data-toast="B1 opens here">+ Channel</button></header>
+          <main class="p-main">
+            <table class="p-table">
+              <thead><tr><th>Channel</th><th>Followers</th><th>Median views</th><th>Outliers (30d)</th><th>Last synced</th><th></th></tr></thead>
+              <tbody>
+                <tr><td>@kallaway</td><td>442,447</td><td>224,403</td><td>0</td><td>6 days ago</td>
+                  <td><button class="p-btn ghost" data-goto="edit">Edit fleets</button></td></tr>
+                <tr><td>@hormozi</td><td class="p-dim">unknown</td><td class="p-dim">unknown</td><td>0</td><td class="p-dim">Never</td>
+                  <td><button class="p-btn ghost" data-goto="edit">Edit fleets</button></td></tr>
+              </tbody>
+            </table>
+            <div data-when="dupe">
+              <div class="p-card"><p class="p-warn">Duplicate names succeed silently. There is no uniqueness constraint, so the rail shows two identical-looking rows distinguished only by their counts, and a fleet named by mistake is permanent.</p></div>
+            </div>
+            <p class="p-mono p-dim">a fleet param naming no fleet returns an empty list, so the table reads "No channels in this fleet yet." with no rail row highlighted and no message saying that fleet does not exist.</p>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-screen" data-screen="new">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>New fleet</h4><span class="p-sub">group channels into a named watchlist</span></header>
+        <main class="p-main">
+          <div class="p-field"><label class="p-label">Name</label><input class="p-input" placeholder="Fitness Niche"></div>
+          <button class="p-btn primary" data-goto="rail" data-toast="Fleet created">Create</button>
+          <button class="p-btn ghost" data-goto="rail">Cancel</button>
+          <p class="p-mono p-dim">Create is disabled until the name is non-empty after trimming, so the action's own validation is a backstop rather than the path Kai hits. On success: toast, close, router.refresh(), and the rail shows it immediately.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="edit">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Edit fleets for @kallaway</h4><span class="p-sub">choose which fleets this channel belongs to</span></header>
+        <main class="p-main">
+          <div data-when="none">
+            <div class="p-card"><p class="p-dim">No fleets yet, create one from the Fleets rail first.</p>
+              <button class="p-btn" data-goto="new">New fleet</button>
+              <p class="p-mono p-dim">Save is disabled here, and there is no way to create a fleet from inside this dialog.</p></div>
+          </div>
+          <div data-when="one dupe">
+            <div class="p-list">
+              <div class="p-row"><span class="p-chip on" data-toggle>Fitness Niche</span><span class="p-dim">checked from current membership</span></div>
+            </div>
+            <button class="p-btn primary" data-goto="rail" data-toast="Fleets updated">Save</button>
+          </div>
+          <button class="p-btn ghost" data-goto="rail">Cancel</button>
+          <p class="p-mono p-dim">Save replaces the whole membership set: delete every fleet_channels row for this channel, then insert one per checked fleet. Not wrapped in a transaction, so a failure between the two leaves the channel in no fleets.</p>
+          <p class="p-mono p-dim">one shared dialog instance for the table, keyed by the selected channel id, rather than one per row.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <div class="p-screen" data-screen="filtered">
+      <div class="p-app p-app--bare"><div class="p-body">
+        <header class="p-top"><h4>Channels, Fitness Niche</h4><span class="p-sub">/channels?fleet=&lt;id&gt;</span>
+          <button class="p-btn ghost" data-goto="rail">All channels</button></header>
+        <main class="p-main">
+          <table class="p-table">
+            <thead><tr><th>Channel</th><th>Followers</th><th>Median views</th><th>Last synced</th></tr></thead>
+            <tbody><tr><td>@hormozi</td><td class="p-dim">unknown</td><td class="p-dim">unknown</td><td class="p-dim">Never</td></tr></tbody>
+          </table>
+          <p class="p-mono p-dim">the rail preserves every other search param when building the href, and deletes the fleet param for All channels. Fleets already feed the Feed filter and the Dashboard fleet spike row, so a fleet made here changes both.</p>
+        </main>
+      </div></div>
+    </div>
+
+    <p class="flow-note">Open question. Is one fleet per channel the mental model, or many? Schema and UI both support many, but nothing explains what two fleets means for the Feed filter or the spike row. Rename and delete are missing. Assigning one channel at a time through a row dropdown does not scale past a handful. And should fleets affect sync at all, for example "sync this fleet", which would fit the B3 batching proposal.</p>
+  </div>
+</section>
