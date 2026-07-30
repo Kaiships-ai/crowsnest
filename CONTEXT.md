@@ -1,6 +1,6 @@
 # Crowsnest
 
-A single user research tool for short form video. It watches Instagram creators, finds the posts that beat their own baseline, explains why they worked, and turns the pattern into a new script for Kai's niche. This file is the glossary. It holds vocabulary only, no design and no implementation.
+A single user research tool for short form video. It watches Instagram creators, finds the posts that beat their own baseline, explains why they worked, turns the pattern into a new script for Kai's niche, and holds the plan for when that script goes out. Filming and publishing stay outside it. This file is the glossary. It holds vocabulary only, no design and no implementation.
 
 ## Accounts and identity
 
@@ -77,8 +77,12 @@ Turning a studied Video into a new script for Kai's niche, staged as Prompt, Res
 _Avoid_: generation, rewrite, scriptwriting
 
 **Script**:
-The finished text Crowsnest hands off. The end of this tool's job. Filming and publishing belong elsewhere.
+The finished text a Remix produces. Filming and publishing belong elsewhere.
 _Avoid_: draft, content, copy
+
+**Planned post**:
+A dated intention to publish, optionally carrying a Script. Lives only in Crowsnest and never touches Instagram: nothing schedules, nothing publishes, nothing reminds. Kai marks one published by hand or it stays a plan.
+_Avoid_: scheduled post, queue item, calendar entry, campaign
 
 ## Operations
 

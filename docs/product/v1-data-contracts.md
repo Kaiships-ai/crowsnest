@@ -11,6 +11,12 @@ paragraph is not an appendix, it is half the contract.
 
 No code here. No migrations run. Contracts only.
 
+**Scope rulings folded in, 2026-07-31.** Graph API env variables are optional and
+never required, so a machine with no token still boots. Scheduling is in V1 as a
+manual planner with no publish path. Multi platform is cut, Instagram only, with
+the `platform` columns left untouched so adding one later stays additive. All
+seven contracts are unblocked.
+
 ## How to read this
 
 Each contract has the same six parts.
@@ -1442,16 +1448,32 @@ database grows without the product growing. This is the only item in this
 document where the fix might be a deletion, and a deletion here would be
 destructive, so it needs an explicit decision rather than a cleanup pass.
 
-### 7f. The platform column promises three platforms
+### 7f. Multi platform: cut. Instagram only in V1
 
-`schema.ts` documents `channels.platform` as
-`"instagram" | "tiktok" | "youtube_shorts"` and the feed ships chips for all
-three, while the only ingestion path is instagrapi against Instagram.
-`observed-bugs.md` already has this and `V1-BRIEF.md` calls it a bug with
-priority over any missing feature. From the data layer side the note is narrow:
-the schema anticipating a platform is not the product having it, and no contract
-in this document adds a second platform. Whichever way scope rules, the data
-layer does not change.
+**Ruled by Kai on 2026-07-31.** No TikTok, no YT Shorts, no ingestion for
+either, no per-platform baseline maths, nothing. The chips come out of the feed,
+which is the bug `observed-bugs.md` and `V1-BRIEF.md` both already name as
+higher priority than any missing feature.
+
+**The `platform` column stays exactly as it is.** `channels.platform` and
+`videos.platform` keep their current text type and their current documented
+values `"instagram" | "tiktok" | "youtube_shorts"`. Nothing is narrowed to a
+literal type, nothing is constrained by a check, nothing is dropped. Narrowing
+it now would buy no correctness at runtime, since the column is text either way,
+and would cost a migration to widen again later. Adding a platform after V1 is
+then additive: a new ingestion path writes a new value into a column that
+already accepts it.
+
+Three consequences for the data layer, all of them subtractive:
+
+- `FeedFilters.platform` keeps its type and its filter clause. The filter works;
+  it simply has one value to offer. This is a UI change, not a query change.
+- `SavedFilterCriteria` in contract 3 keeps `platform` optional with the same
+  three values, so a saved view written today stays readable if a platform is
+  added later.
+- No contract in this document adds a second platform, and no baseline,
+  median or score in this document is per platform. Medians are per channel, as
+  they already are.
 
 ---
 
@@ -1464,8 +1486,9 @@ layer does not change.
 | Saved views | `saved_filters` plus `created_at`, `updated_at`, both nullable | yes | no |
 | Channel median history | none | n/a | n/a |
 | Frame layout analysis | `video_analyses` plus `layout`, `frames_sampled`, `frame_model`, `frame_pass_at`, `frame_pass_error`, all nullable | yes | no |
-| Planned posts | `planned_posts`, new, only if ruled in | yes | no |
+| Planned posts | `planned_posts`, new, plus `scripts.remix_session_id`, nullable | yes | no |
 | Dismiss control | `videos` plus `dismissed_at`, nullable | yes | no |
+| Multi platform cut | none. `platform` columns are left exactly as they are | n/a | n/a |
 
 Nothing in this document drops a column, renames a column, or changes a type on
 an existing column. Nothing needs a data backfill, and nothing can be

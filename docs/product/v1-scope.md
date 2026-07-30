@@ -637,11 +637,21 @@ without it the flow is untestable after the first run.
 profile feeds every remix prompt. If you would rather Kai type it once in
 Settings, focus drops to P1 and first run becomes three steps.
 
+I am holding this ruling after the other two landed. The scheduling ruling makes
+it stronger rather than weaker: the planner adds a second thing a new install has
+to be told about, and telling him during setup costs nothing extra once the flow
+exists.
+
 ## Decision 2: multi platform
 
-**Ruling: V1 is Instagram only. The chips come out.**
+**Kai's ruling: V1 is Instagram only. The chips come out of `filter-bar.tsx` and
+`platform-chip.tsx`. The schema column stays so a later platform is additive.
+Removing a dead control is a bug fix, so it lands in the truth pass at P0 and is
+not counted as a cut.**
 
-Priced both.
+This matches the recommendation I brought, so there is no disagreement to record.
+The pricing is kept below because it is the argument for the second half of the
+ruling, the part that says keep the column.
 
 **Cost of taking the chips out.** Two entries in `PLATFORM_OPTIONS` in
 `filter-bar.tsx`, two icon branches in `platform-chip.tsx`, two URL builders in
@@ -671,10 +681,68 @@ away from it. The prototype has no platform filter, no platform chip, and one
 mention of the word Instagram anywhere: a channel row subtitle. Kai's
 "100 percent the prototype" instruction and this decision point the same way.
 
-*A call you can overturn:* if the plan within six months is to watch YouTube
+*Still worth an answer:* if the plan within six months is to watch YouTube
 Shorts, say so now and the sync engine gets its provider seam widened during V1
 rather than retrofitted. That costs a few days now against a week later. TikTok
 I would argue against in any timeframe.
+
+## Decision 3: scheduling
+
+**Kai's ruling: a manual planner is in V1. `planned_posts` with draft, scheduled,
+and missed states, optionally linked to a remix session. No publishing and no
+reminders, ever.**
+
+This overturns what I had. My first draft cut scheduling to P2 on the grounds
+that it was a second product. That reasoning was aimed at a publishing scheduler:
+a queue, a job runner, a write integration with Instagram, and a whole class of
+failure that can get an account banned. Kai's ruling explicitly excludes every one
+of those. What is left is a table, a calendar interaction, and a date on a script.
+That is a fortnight, not a second product, and my P2 call did not survive contact
+with the narrower definition. I withdraw it.
+
+It does extend the product past `CONTEXT.md`, which says of the Script: "The
+finished text Crowsnest hands off. The end of this tool's job. Filming and
+publishing belong elsewhere." Kai made that call knowingly. Two notes on it.
+
+First, the line survives more of the ruling than it looks. It names filming and
+publishing as out. A planner does neither. The most defensible reading is that
+the calendar is where a finished script waits for its date, and the handoff still
+happens the moment Kai opens the plan and goes to film. On that reading the
+planner sits inside the line rather than across it.
+
+Second, that reading only holds if the plan carries the script. Take the script
+away and the calendar is a date with a title on it, which is a notepad inside a
+research tool, competing with every real calendar Kai already owns and losing.
+It will be abandoned inside a month and then it is dead weight on every future
+change to the my-channel screen. So:
+
+**The condition I attach to the ruling.** A planned post is a script with a date,
+not a note with a date. Concretely, and enforced by acceptance criteria 1 to 5 in
+the Planner section:
+
+- Remix stage 5 offers a date and, when taken, writes `script_id` and
+  `remix_session_id` on the row. This is the intended path in.
+- A plan created by hand on the calendar with no script requires an explicit
+  acknowledgement and renders visibly different from one carrying a script. The
+  weaker kind is never allowed to look like the stronger kind.
+- A no-script plan older than 30 days is surfaced as stale. The failure mode of
+  a planner is silent accumulation, so the app has to notice it out loud.
+- Opening a plan reaches the script and, through it, the outlier that produced
+  it. Calendar cell to source post in two clicks, or the loop is not closed.
+
+If those four do not hold on the day the planner ships, the planner has already
+rotted and shipping it makes the product worse rather than better.
+
+**Consequence for `CONTEXT.md`.** The glossary now understates the product. It
+needs a Plan entry and an amendment to the Script entry, both of which are
+vocabulary work, not design work. Whoever owns the glossary should do that before
+the planner is built, so the schema and the UI use the same words.
+
+**What the ruling costs elsewhere.** The my-channel calendar moves from P1 to P0
+and grows the interactions listed in the Planner P0 table. The remix studio grows
+one stage-5 branch. The own-channel Graph sync grows a reconciliation step, since
+a plan cannot resolve to published without knowing what actually published. That
+last one is the least obvious cost of the ruling and the easiest to forget.
 
 ---
 
@@ -716,6 +784,12 @@ query, no UI.
    section, remix run log.
 7. Scoring engine reads the settings module instead of constants. Blocks: every
    score on every screen behaving correctly when the settings change.
+8. `planned_posts` table plus its queries, including the computed missed state
+   and the plan-to-published reconciliation. Blocks: the whole planner, remix
+   stage 5, and the my-channel calendar. Land the computed missed state and the
+   reconciliation in the same change as the table, not after. Both are rules
+   about what the data means, and a planner that stores missed as a field is
+   the wrong shape from its first migration.
 
 ### Wave 2, screens, parallel across teams
 
@@ -736,7 +810,24 @@ Each of these depends only on wave 1 and can run beside the others.
   screen existing.
 - Detail layout section and Run frame pass. Depends on the wave 0 spike
   answering yes, and on the `video_analyses` columns.
-- My channel. Depends on the Graph port landing.
+- My channel stats, reach bars, and post list. Depends on the Graph port landing.
+- Planner: calendar cells, create, re-date, delete, agenda view. Depends on
+  `planned_posts` from wave 1, and on the my-channel screen existing to host it.
+
+### Wave 3b, the planner join
+
+Runs immediately after wave 3 and is called out separately because it is the
+step most likely to be quietly skipped under time pressure, and it is the one
+that decides whether the planner is worth having.
+
+- Remix stage 5 writes a plan carrying its script and its session.
+- Opening a plan reaches the script and the source outlier.
+- The no-script plan state, its visual distinction, and its stale rule.
+- Reconciliation: an own-channel sync resolves a scheduled plan to published.
+
+None of this is a screen. It is four joins and a rule. If the schedule slips,
+this is not the thing to cut, because cutting it leaves the planner shipped and
+useless, which is worse than not shipping it. Cut the agenda view instead.
 
 ### Wave 4, last
 
@@ -756,8 +847,10 @@ Each of these depends only on wave 1 and can run beside the others.
   the end of wave 1, and it develops against a seeded local database, not
   against fixtures. Seeded means real rows produced by a real sync, so a screen
   that looks wrong on real data looks wrong in development too.
-- The only true serial chain in the whole plan is: Graph port, then My channel.
-  It starts on day one for that reason.
+- There are now two serial chains, and both start early for that reason. Graph
+  port, then my channel, then plan reconciliation. And `planned_posts`, then the
+  calendar, then the remix stage 5 join. They meet at reconciliation, which is
+  the last thing built and the thing that proves both chains landed.
 
 ---
 
@@ -794,3 +887,20 @@ instruction is to port it. The risk that remains is the token and permission pat
 which no amount of engineering effort accelerates. Confirm the token is in hand
 on day one. If it is not, My channel drops to P1 and the "reach" vocabulary stays
 "views" across every screen until it is.
+
+This risk grew with the scheduling ruling. A plan cannot resolve from scheduled
+to published without knowing what actually published on the owned channel, and
+that read now sits behind the same Graph path. If the Graph work slips, the
+planner ships with a state it can enter and never leave, and every plan Kai makes
+turns into a permanent missed cell. If that happens, the fallback is to resolve
+plans against the owned channel's `videos` rows from the private-API sync rather
+than against Insights, which gives the right published state with the wrong
+reach figure next to it. Reach then renders as a dash until the Graph lands.
+Uglier, honest, and it keeps the planner from lying about Kai's own month.
+
+Third: the planner rots. Not a technical risk and not one a spike can settle. It
+is the risk that the four joins in wave 3b get deferred under schedule pressure,
+the calendar ships as dates with titles, and six weeks later nobody opens it.
+The mitigation is written into the acceptance criteria rather than left to
+judgement: criteria 1 to 5 in the Planner section fail if the script link is not
+real, and they are not optional.
