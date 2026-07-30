@@ -42,7 +42,7 @@ export function NicheProfileSection({
     <section className="flex flex-col gap-4">
       <div>
         <h2 className="text-lg font-semibold">Niche profile</h2>
-        <p className="text-sm text-muted-foreground">Feeds every Remix generation — describe your audience and content style.</p>
+        <p className="text-sm text-muted-foreground">Feeds every Remix generation. Describe your audience and content style.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -50,7 +50,11 @@ export function NicheProfileSection({
         <Textarea id="niche-profile" value={niche} onChange={(e) => setNiche(e.target.value)} rows={4} />
       </div>
 
-      <Button onClick={save} disabled={saving || !niche} className="w-fit">
+      {/* Amber is the one-per-screen accent (WAVE2-BRIEF); the Scoring section's Save
+       *  claims it now, since a rescore-every-channel action is more consequential than
+       *  this one. This button steps down to outline so the page carries exactly one
+       *  amber primary action, not two. */}
+      <Button onClick={save} disabled={saving || !niche} className="w-fit" variant="outline">
         {saving ? "Saving…" : "Save"}
       </Button>
     </section>

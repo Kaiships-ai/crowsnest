@@ -16,7 +16,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
       <div>
         <h2 className="text-lg font-semibold">Local binaries</h2>
         <p className="text-sm text-muted-foreground">
-          Optional — enables keyless local transcription and manual reel import.
+          Optional. Enables keyless local transcription and manual reel import.
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
               <AlertTriangle className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             )}
             <span className="font-medium">{bin.label}</span>
-            {!bin.available && bin.reason && <span className="text-xs text-muted-foreground">— {bin.reason}</span>}
+            {!bin.available && bin.reason && <span className="text-xs text-muted-foreground">({bin.reason})</span>}
           </div>
         ))}
       </div>

@@ -1,10 +1,15 @@
 import { ApiKeyStatusCard } from "@/components/settings/api-key-status-card";
+import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
+import { GraphSection } from "@/components/settings/graph-section";
 import { InstagramSection } from "@/components/settings/instagram-section";
 import { LocalBinariesSection, type BinaryStatus } from "@/components/settings/local-binaries-section";
 import { NicheProfileSection } from "@/components/settings/niche-profile-section";
+import { OnboardingSection } from "@/components/settings/onboarding-section";
+import { ScoringSection } from "@/components/settings/scoring-section";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
+import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { getNicheSettings, testAnthropicKeyAction } from "@/server/actions/settings-actions";
+import { getAppSettingsAction, getNicheSettings, testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import { getLatestSyncJob } from "@/server/actions/sync-actions";
 import { config } from "@/server/config";
 import { detectBinary } from "@/server/lib/exec";
@@ -23,12 +28,17 @@ export default async function SettingsPage() {
   // ban is satisfied by construction). `getIgStatusAction` never throws — an unreachable
   // sidecar arrives as an `ok: false` result the section renders as "service isn't
   // running", which is why this Promise.all can't take the whole page down with it.
-  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob] = await Promise.all([
+  // `checkGraphTokenAction` is the same shape: documented to never throw, `ok: false`
+  // here would mean the action itself broke, not "no token" (that's `state:
+  // "not_configured"` inside an `ok: true` result).
+  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult] = await Promise.all([
     getNicheSettings(),
     detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp"),
     whisperAvailability(),
     getIgStatusAction(),
     getLatestSyncJob(),
+    getAppSettingsAction(),
+    checkGraphTokenAction(),
   ]);
 
   const binaries: BinaryStatus[] = [
@@ -40,6 +50,10 @@ export default async function SettingsPage() {
   // rendered as a read failure, never as "no sync has run yet".
   const lastJob: LastSyncJobResult = latestJob.ok ? { ok: true, job: latestJob.job } : { ok: false, error: latestJob.error };
 
+  const graphStatus = graphTokenResult.ok
+    ? graphTokenResult.status
+    : { configured: false, username: null, state: "unknown" as const, message: graphTokenResult.error, checkedAt: new Date().toISOString() };
+
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col p-6">
       <div className="border-b border-border pb-8">
@@ -50,10 +64,14 @@ export default async function SettingsPage() {
         <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
       </div>
 
+      <div className="border-b border-border py-8">
+        <GraphSection initialStatus={graphStatus} />
+      </div>
+
       <section className="flex flex-col gap-3 border-b border-border py-8">
         <div>
           <h2 className="text-lg font-semibold">API keys</h2>
-          <p className="text-sm text-muted-foreground">Keys live in .env.local — restart the dev server after editing.</p>
+          <p className="text-sm text-muted-foreground">Keys live in .env.local. Restart the dev server after editing.</p>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <ApiKeyStatusCard
@@ -79,18 +97,44 @@ export default async function SettingsPage() {
         <LocalBinariesSection binaries={binaries} />
       </div>
 
-      <div className="pt-8">
+      <div className="border-b border-border py-8">
+        <ScoringSection
+          initial={{
+            scoreBaselineMethod: appSettings.scoreBaselineMethod,
+            scoreBaselineWindow: appSettings.scoreBaselineWindow,
+            scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
+            scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
+          }}
+        />
+      </div>
+
+      <div className="border-b border-border py-8">
+        <FeedDefaultsSection
+          initial={{
+            feedDefaultMinScore: appSettings.feedDefaultMinScore,
+            feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
+          }}
+        />
+      </div>
+
+      <div className="border-b border-border py-8">
         <SyncSection
           config={{
-            lookbackDays: config.LOOKBACK_DAYS,
             maxItemsPerSync: config.MAX_ITEMS_PER_SYNC,
             eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
             mediaRoot: config.MEDIA_ROOT,
-            mediaRetentionDays: config.MEDIA_RETENTION_DAYS,
-            syncIntervalMinutes: config.SYNC_INTERVAL_MINUTES,
+          }}
+          settings={{
+            syncLookbackDays: appSettings.syncLookbackDays,
+            syncCadenceMinutes: appSettings.syncCadenceMinutes,
+            mediaRetentionDays: appSettings.mediaRetentionDays,
           }}
           lastJob={lastJob}
         />
+      </div>
+
+      <div className="pt-8">
+        <OnboardingSection />
       </div>
     </div>
   );
