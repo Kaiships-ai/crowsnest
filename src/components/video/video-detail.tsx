@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bookmark, Copy, ExternalLink, Image as ImageIcon, MoreHorizontal, Wand2 } from "lucide-react";
+import { AlertTriangle, Bookmark, Copy, ExternalLink, Image as ImageIcon, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
@@ -16,17 +16,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDuration, relativeTime } from "@/lib/format";
+import { formatCompact, formatDuration, formatMultiplier, relativeTime } from "@/lib/format";
+import { heatTier } from "@/lib/heat";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
@@ -117,40 +111,68 @@ function AnalysisGate({
   );
 }
 
-/** DESIGN.md §2.4: annotated segments (Hook 0–3s / Build / Payoff / CTA) + format/style tag Badges. */
-function HookStructureTab({ analysis }: { analysis: VideoAnalysis }) {
+/**
+ * DESIGN.md §2.4: hook type + format/style tags, then the beat-by-beat structure
+ * (Hook 0–3s / Build / Payoff / CTA). No "visual layout" section here (on-screen-text
+ * placement, cut rhythm, framing) — the prototype shows one, but video_analyses has no
+ * columns for it (schema.ts only has hookType/structureSegments/formatTags/styleTags/
+ * whyItWorked) and adding one means a src/server change outside this slice's file list.
+ * Dropped rather than faked, per the shared brief's disagreement rule.
+ */
+function HookStructureTab({ analysis, durationSec }: { analysis: VideoAnalysis; durationSec: number | null }) {
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-1.5">
-        <Badge variant="outline">{analysis.hookType}</Badge>
-        {analysis.formatTags.map((tag) => (
-          <Badge key={`format-${tag}`} variant="secondary">
-            {tag}
-          </Badge>
-        ))}
-        {analysis.styleTags.map((tag) => (
-          <Badge key={`style-${tag}`} variant="secondary">
-            {tag}
-          </Badge>
-        ))}
-      </div>
-      {analysis.structureSegments.length > 0 ? (
-        <ol className="flex flex-col gap-3">
-          {analysis.structureSegments.map((segment, i) => (
-            <li key={i} className="flex gap-3 border-l-2 border-border pl-3">
-              <span className="w-16 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
-                {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium">{segment.label}</span>
-                <span className="text-sm text-muted-foreground">{segment.note}</span>
-              </div>
-            </li>
+    <div className="flex flex-col gap-8">
+      <div>
+        <span data-lab className="font-mono text-2xs text-faint">
+          Hook
+        </span>
+        <div className="mt-3 flex flex-wrap gap-4">
+          <span className="font-mono text-xs text-foreground">{analysis.hookType}</span>
+          {analysis.formatTags.map((tag) => (
+            <Badge key={`format-${tag}`} variant="secondary">
+              {tag}
+            </Badge>
           ))}
-        </ol>
-      ) : (
-        <p className="text-sm text-muted-foreground">No structure segments returned.</p>
-      )}
+          {analysis.styleTags.map((tag) => (
+            <Badge key={`style-${tag}`} variant="secondary">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <span data-lab className="font-mono text-2xs text-faint">
+          Beats
+        </span>
+        {analysis.structureSegments.length > 0 ? (
+          <div className="mt-6 flex flex-col gap-6">
+            {analysis.structureSegments.map((segment, i) => {
+              const span = segment.endSec - segment.startSec;
+              // Real derived proportion (segment length / whole video), not a fabricated
+              // number — falls back to an even split when duration is unknown.
+              const widthPct = durationSec && durationSec > 0 ? Math.min((span / durationSec) * 100, 100) : null;
+              return (
+                <div key={i} className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-6">
+                  <span data-num className="font-mono text-2xs text-faint">
+                    {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
+                  </span>
+                  <div>
+                    <span className="text-sm font-semibold">{segment.label}</span>
+                    <span className="text-sm text-muted-foreground"> — {segment.note}</span>
+                    <div
+                      className="mt-3 h-0.5 bg-line-strong"
+                      style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-muted-foreground">No structure segments returned.</p>
+        )}
+      </div>
     </div>
   );
 }
@@ -255,9 +277,10 @@ export function VideoDetail({
         </Alert>
       )}
 
-      <div className="flex flex-1 gap-6 overflow-hidden p-6">
-        <div className="flex w-[380px] shrink-0 flex-col gap-4 overflow-y-auto">
-          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-lg bg-[#1E2230]">
+      <div className="flex flex-1 gap-16 overflow-hidden p-6">
+        {/* Left: the video and everything measured about it. */}
+        <div className="flex w-[320px] shrink-0 flex-col gap-8 overflow-y-auto">
+          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
             {item.mediaType === "carousel" ? (
               <CarouselViewer items={detail.children} />
             ) : item.mediaType === "video" ? (
@@ -269,7 +292,7 @@ export function VideoDetail({
             ) : (
               <>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <ImageIcon className="size-12 text-white/25" aria-hidden />
+                  <ImageIcon className="size-12 text-faint" aria-hidden />
                 </div>
                 <VideoThumb assetId={item.thumbnailAssetId} />
               </>
@@ -279,33 +302,149 @@ export function VideoDetail({
             </div>
           </div>
 
-          <MetricChips viewCount={item.viewCount} likeCount={detail.likeCount} commentCount={detail.commentCount} />
-
-          <Link href={`/channels/${item.channel.id}`} className="flex items-center gap-2 hover:underline">
-            <Avatar size="sm">
-              <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
-              <AvatarFallback>
-                {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium">{item.channel.handle}</span>
-          </Link>
-
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <PlatformChip platform={item.channel.platform} />
-            <span>{relativeTime(item.postedAt)}</span>
+          <div>
+            <span
+              data-num
+              className={cn(
+                "block font-mono text-xl font-medium leading-none",
+                heatTier(item.outlierScore) > 0 ? "text-score" : "text-foreground"
+              )}
+            >
+              {formatMultiplier(item.outlierScore)}
+            </span>
+            <span className="mt-3 block text-sm text-muted-foreground">
+              vs {item.channel.handle}&rsquo;s own median views
+            </span>
           </div>
 
-          <a
-            href={item.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            View on {platformLabel(item.channel.platform)} <ExternalLink className="size-3.5" />
-          </a>
+          {item.caption && (
+            <p className="max-w-[34ch] text-lg leading-snug font-semibold tracking-tight">{item.caption}</p>
+          )}
 
-          <div className="mt-auto flex items-center gap-2 pt-2">
+          <div className="flex flex-wrap gap-x-6 gap-y-1.5 font-mono text-xs">
+            <span data-num className="text-foreground">
+              {formatCompact(item.viewCount)} views
+            </span>
+            <span data-num className="text-foreground">
+              {formatDuration(item.durationSec) || "—"}
+            </span>
+            <span data-num className="text-muted-foreground">
+              {relativeTime(item.postedAt)}
+            </span>
+            <span data-num className="text-muted-foreground">
+              {formatCompact(item.channel.followerCount)} followers
+            </span>
+          </div>
+
+          <MetricChips viewCount={item.viewCount} likeCount={detail.likeCount} commentCount={detail.commentCount} />
+
+          <div className="flex flex-col gap-3">
+            <Link href={`/channels/${item.channel.id}`} className="flex items-center gap-2 hover:underline">
+              <Avatar size="sm">
+                <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
+                <AvatarFallback>
+                  {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-sm font-medium">{item.channel.handle}</span>
+            </Link>
+
+            <PlatformChip platform={item.channel.platform} />
+
+            <div className="flex items-center gap-4">
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                View on {platformLabel(item.channel.platform)} <ExternalLink className="size-3.5" />
+              </a>
+              <button
+                type="button"
+                onClick={copyLink}
+                className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+              >
+                <Copy className="size-3.5" /> Copy link
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: the analysis — hook, story beats, why it worked. overflow-y-auto so
+            the exit actions below the tabs stay reachable even when analysis content
+            (long transcript aside, that has its own ScrollArea) runs tall. */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+          <Tabs defaultValue="transcript" className="flex h-full flex-col">
+            <TabsList>
+              <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              <TabsTrigger value="hook">Hook &amp; structure</TabsTrigger>
+              <TabsTrigger value="why">Why it worked</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="transcript" className="min-h-0 flex-1">
+              {detail.transcript ? (
+                <div className="flex h-full flex-col">
+                  <div className="flex items-center justify-between gap-6 pt-4">
+                    <span data-lab className="font-mono text-2xs text-faint">
+                      Transcript · {detail.transcript.source}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={copyTranscript}>
+                      <Copy className="size-3.5" /> Copy transcript
+                    </Button>
+                  </div>
+                  <ScrollArea className="mt-4 h-full pr-4">
+                    <p className="max-w-[68ch] text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                      {detail.transcript.text}
+                    </p>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <p className="pt-4 text-sm text-muted-foreground">
+                  No transcript yet — open Hook &amp; structure or Why it worked and click Transcribe &amp; Analyze
+                </p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="hook" className="pt-4">
+              {detail.analysis ? (
+                <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
+              ) : (
+                <div className="flex flex-col items-start gap-6 py-16">
+                  <AnalysisGate
+                    videoId={item.videoId}
+                    hasTranscript={hasTranscript}
+                    hasKey={hasLlmKey}
+                    canTranscribe={canTranscribe}
+                  />
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="why" className="pt-4">
+              {detail.analysis ? (
+                <p className="max-w-[68ch] text-sm leading-relaxed text-muted-foreground">
+                  {detail.analysis.whyItWorked}
+                </p>
+              ) : (
+                <div className="flex flex-col items-start gap-6 py-16">
+                  <AnalysisGate
+                    videoId={item.videoId}
+                    hasTranscript={hasTranscript}
+                    hasKey={hasLlmKey}
+                    canTranscribe={canTranscribe}
+                  />
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {/* End of the reading path: exactly one amber exit (Remix). Save/Copy stay
+              on a raised (outline) surface per the amber-budget rule. */}
+          <div className="mt-16 flex items-center gap-4 border-t border-border pt-8">
+            <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
+              Remix this
+            </Link>
             {detail.analysis ? (
               <SaveToVaultDialog videoId={item.videoId} analysis={detail.analysis} />
             ) : (
@@ -317,93 +456,13 @@ export function VideoDetail({
               </Tooltip>
             )}
             <Button variant="outline" size="sm" onClick={createPrompt}>
-              <Wand2 className="size-3.5" /> Create Prompt
+              <Wand2 className="size-3.5" /> Copy as prompt
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="icon-sm" aria-label="More actions" />}>
-                <MoreHorizontal className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                <DropdownMenuItem onClick={copyLink}>
-                  <Copy /> Copy link
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={copyTranscript} disabled={!detail.transcript}>
-                  <Copy /> Copy transcript
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={createPrompt}>
-                  <Wand2 /> Copy as prompt
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </div>
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col">
-          <Tabs defaultValue="transcript" className="flex h-full flex-col">
-            <TabsList>
-              <TabsTrigger value="transcript">Transcript</TabsTrigger>
-              <TabsTrigger value="hook">Hook &amp; Structure</TabsTrigger>
-              <TabsTrigger value="why">Why it worked</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="transcript" className="min-h-0 flex-1">
-              <ScrollArea className="h-full pr-4">
-                {detail.transcript ? (
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">{detail.transcript.text}</p>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No transcript yet — open Hook &amp; Structure or Why it worked and click Transcribe &amp; Analyze
-                  </p>
-                )}
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="hook" className="pt-4">
-              {detail.analysis ? (
-                <HookStructureTab analysis={detail.analysis} />
-              ) : (
-                <Card>
-                  <CardContent className="flex flex-col items-start gap-3">
-                    <AnalysisGate
-                      videoId={item.videoId}
-                      hasTranscript={hasTranscript}
-                      hasKey={hasLlmKey}
-                      canTranscribe={canTranscribe}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="why" className="pt-4">
-              {detail.analysis ? (
-                <Card>
-                  <CardContent className="text-sm text-muted-foreground">{detail.analysis.whyItWorked}</CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="flex flex-col items-start gap-3">
-                    <AnalysisGate
-                      videoId={item.videoId}
-                      hasTranscript={hasTranscript}
-                      hasKey={hasLlmKey}
-                      canTranscribe={canTranscribe}
-                    />
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-          </Tabs>
         </div>
       </div>
 
       <SimilarOutliers items={similar} />
-
-      <div className="sticky bottom-0 flex justify-end border-t border-border bg-background/95 p-4 backdrop-blur">
-        <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
-          Remix this video →
-        </Link>
-      </div>
     </div>
   );
 }

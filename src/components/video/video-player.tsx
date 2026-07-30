@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { assetUrl } from "@/lib/media-url";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 
+// "Hatching for a well with no data in it" (globals.css) — same tokened placeholder
+// fill used by carousel-viewer.tsx's not-yet-downloaded slides, replacing the old
+// bg-[#1E2230] hex that predates the token system.
+const EMPTY_WELL: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
+  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+};
+
 /**
  * Download state machine for the "not downloaded yet" gate below. Modeled as one
  * tagged union (rather than a `pending` boolean plus a separate `error` string) so
@@ -86,16 +94,16 @@ export function VideoPlayer({
   const pending = state.kind === "pending";
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#1E2230] p-6 text-center">
+    <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center" style={EMPTY_WELL}>
       {pending ? (
         <>
-          <Loader2 className="size-8 animate-spin text-white/60" aria-hidden />
-          <p className="text-sm text-white/70">Downloading video…</p>
+          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+          <p className="text-sm text-muted-foreground">Downloading video…</p>
         </>
       ) : (
         <>
-          <Play className="size-8 text-white/25" fill="currentColor" aria-hidden />
-          <p className="text-sm text-white/70">Video not downloaded yet</p>
+          <Play className="size-8 text-faint" fill="currentColor" aria-hidden />
+          <p className="text-sm text-muted-foreground">Video not downloaded yet</p>
           <Button type="button" variant="outline" size="sm" onClick={download}>
             Download video
           </Button>

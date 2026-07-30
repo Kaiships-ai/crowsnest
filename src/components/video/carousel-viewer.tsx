@@ -7,6 +7,14 @@ import { VideoThumb } from "@/components/feed/video-thumb";
 import { Button } from "@/components/ui/button";
 import { assetUrl } from "@/lib/media-url";
 
+// "Hatching for a well with no data in it" (globals.css) — the tokened placeholder
+// fill for a slide that has nothing to show yet, replacing the old bg-[#1E2230] hex
+// that predates the token system. A plain object so it isn't reallocated on render.
+const EMPTY_WELL: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
+  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+};
+
 export interface CarouselChild {
   position: number;
   mediaType: "photo" | "video";
@@ -38,9 +46,9 @@ function CarouselSlide({ child }: { child: CarouselChild }) {
       );
     }
     return (
-      <div className="relative flex h-full w-full items-center justify-center bg-[#1E2230]">
+      <div className="relative flex h-full w-full items-center justify-center" style={EMPTY_WELL}>
         <VideoThumb assetId={child.thumbnailAssetId} />
-        <p className="relative z-10 rounded-md bg-black/60 px-2 py-1 text-xs font-medium text-white">
+        <p className="relative z-10 bg-black/60 px-2 py-1 text-xs font-medium text-white">
           Video not downloaded yet
         </p>
       </div>
@@ -50,7 +58,7 @@ function CarouselSlide({ child }: { child: CarouselChild }) {
   const photoSrc = assetUrl(child.thumbnailAssetId);
   if (!photoSrc) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#1E2230] text-xs text-white/50">
+      <div className="flex h-full w-full items-center justify-center text-xs text-faint" style={EMPTY_WELL}>
         Image not downloaded yet
       </div>
     );
@@ -91,14 +99,14 @@ export function CarouselViewer({ items }: { items: CarouselChild[] }) {
 
   if (ordered.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#1E2230] text-sm text-white/50">
+      <div className="flex h-full w-full items-center justify-center text-sm text-faint" style={EMPTY_WELL}>
         This carousel has no items.
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden rounded-lg bg-black">
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-black">
       <div className="relative min-h-0 flex-1 overflow-hidden">
         <CarouselSlide child={ordered[current]} />
       </div>
@@ -128,7 +136,7 @@ export function CarouselViewer({ items }: { items: CarouselChild[] }) {
         </Button>
       )}
 
-      <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white">
+      <span data-num className="absolute right-2 bottom-2 bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white">
         {current + 1} / {ordered.length}
       </span>
     </div>
