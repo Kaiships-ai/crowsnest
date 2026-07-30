@@ -77,4 +77,33 @@ describe("config", () => {
     expect(loadConfig({ ...MINIMAL, EAGER_VIDEO_DOWNLOAD: "1" }).EAGER_VIDEO_DOWNLOAD).toBe(true);
     expect(loadConfig({ ...MINIMAL, EAGER_VIDEO_DOWNLOAD: "false" }).EAGER_VIDEO_DOWNLOAD).toBe(false);
   });
+
+  /**
+   * The Instagram Graph API vars (own-channel insights, V1 data contracts §1) are the
+   * one place this file must NEVER throw on absence. Making them required would stop
+   * every existing dev machine — including Kai's — from booting over a feature that is
+   * allowed to be unconfigured.
+   */
+  describe("Graph API vars (own-channel insights)", () => {
+    test("boots with none of the three set, same as any other machine", () => {
+      const c = loadConfig(MINIMAL);
+      expect(c.IG_GRAPH_TOKEN).toBeUndefined();
+      expect(c.IG_GRAPH_USER_ID).toBeUndefined();
+    });
+
+    test("applies the documented default API version when unset", () => {
+      expect(loadConfig(MINIMAL).IG_GRAPH_API_VERSION).toBe("v21.0");
+    });
+
+    test("passes through a configured token, user id and API version", () => {
+      const c = loadConfig({ ...MINIMAL, IG_GRAPH_TOKEN: "tok_abc", IG_GRAPH_USER_ID: "17841400000000000", IG_GRAPH_API_VERSION: "v23.0" });
+      expect(c.IG_GRAPH_TOKEN).toBe("tok_abc");
+      expect(c.IG_GRAPH_USER_ID).toBe("17841400000000000");
+      expect(c.IG_GRAPH_API_VERSION).toBe("v23.0");
+    });
+
+    test("rejects an explicit empty string API version rather than silently defaulting", () => {
+      expect(() => loadConfig({ ...MINIMAL, IG_GRAPH_API_VERSION: "" })).toThrow(/IG_GRAPH_API_VERSION/);
+    });
+  });
 });

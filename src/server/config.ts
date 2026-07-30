@@ -57,6 +57,17 @@ const schema = z.object({
 
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),
+
+  // --- Instagram Graph API (own-channel insights, contract 1) ---
+  // Deliberately optional. This is a SEPARATE credential from IG_SERVICE_TOKEN above:
+  // that one is the shared secret for the instagrapi burner sidecar, this one is a
+  // long-lived Graph API token for Kai's own account. A machine with neither configured
+  // still boots — every own-channel query degrades to a designed "not connected" state
+  // instead of the process refusing to start. Making this required would stop every
+  // existing dev machine from booting over a feature that is allowed to be unconfigured.
+  IG_GRAPH_TOKEN: z.string().optional(),
+  IG_GRAPH_USER_ID: z.string().optional(),
+  IG_GRAPH_API_VERSION: z.string().min(1).optional().default("v21.0"),
 });
 
 export type Config = z.infer<typeof schema>;

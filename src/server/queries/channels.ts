@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
-import { computeChannelMedian } from "@/server/services/outlier-calc";
+import { computeChannelBaseline } from "@/server/services/outlier-calc";
+import { getScoringOptions } from "@/server/settings";
 import { getOutlierFeed } from "./feed";
 
 export interface ChannelRow {
@@ -15,6 +16,10 @@ export interface ChannelRow {
   lastSyncedAt: string | null;
   syncError: string | null;
   fleets: { id: string; name: string }[];
+  /** True for the one tracked channel marked as Kai's own (V1 data contracts: "the
+   *  own-channel concept"). At most one row can ever carry this — enforced by a
+   *  partial unique index on `channels.is_own`, not by application code alone. */
+  isOwn: boolean;
 }
 
 export interface ChannelDetail {
@@ -31,9 +36,15 @@ const OUTLIERS_30D_WINDOW_DAYS = 30;
 
 /**
  * medianViews: latest channel_snapshots row when phase-2A sync has populated one,
- * falling back to computeChannelMedian over the videos table (phase-1 final-review
+ * falling back to computeChannelBaseline over the videos table (phase-1 final-review
  * M8) — a channel synced only once has no prior snapshot row, so the fallback is what's exercised
  * until the sync engine lands.
+ *
+ * The field is still named "medianViews" for every existing caller, but the number it
+ * holds is whatever `app_settings.score_baseline_method` says "normal" means — median by
+ * default, but mean or a trimmed mean if that setting has been changed. Renaming the
+ * field to match is a UI-facing change across every screen that reads it and is out of
+ * scope here; flagged for whoever next touches the channels screens.
  */
 async function getMedianViews(channelId: string): Promise<number | null> {
   const [snapshot] = await db
@@ -48,7 +59,7 @@ async function getMedianViews(channelId: string): Promise<number | null> {
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)
     .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
-  return computeChannelMedian(videos);
+  return computeChannelBaseline(videos, await getScoringOptions());
 }
 
 async function countOutliers30d(channelId: string): Promise<number> {
@@ -93,6 +104,7 @@ async function buildChannelRow(channel: ChannelSelect): Promise<ChannelRow> {
     lastSyncedAt: channel.lastSyncedAt,
     syncError: channel.syncError,
     fleets,
+    isOwn: channel.isOwn,
   };
 }
 
@@ -107,6 +119,14 @@ export async function getChannelsList(fleetId?: string): Promise<ChannelRow[]> {
     : await db.select().from(tables.channels);
 
   return Promise.all(channelRows.map(buildChannelRow));
+}
+
+/** The tracked channel marked as Kai's own, if any. Null on a fresh install and on any
+ *  machine where no channel has been marked yet — never a thrown error, since "nobody
+ *  has set this up yet" is an ordinary, expected state here. */
+export async function getOwnChannel(): Promise<ChannelRow | null> {
+  const [row] = await db.select().from(tables.channels).where(eq(tables.channels.isOwn, true)).limit(1);
+  return row ? buildChannelRow(row) : null;
 }
 
 export interface Fleet {

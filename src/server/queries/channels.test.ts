@@ -9,16 +9,17 @@ let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
-let computeChannelMedian: typeof import("@/server/services/outlier-calc")["computeChannelMedian"];
+let computeChannelBaseline: typeof import("@/server/services/outlier-calc")["computeChannelBaseline"];
 let getChannelsList: typeof import("./channels")["getChannelsList"];
 let getFleets: typeof import("./channels")["getFleets"];
 let getChannelDetail: typeof import("./channels")["getChannelDetail"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
+  process.env.IG_SERVICE_TOKEN ??= "test-token"; // config.ts, read transitively via @/server/settings
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ computeChannelMedian } = await import("@/server/services/outlier-calc"));
+  ({ computeChannelBaseline } = await import("@/server/services/outlier-calc"));
   ({ getChannelsList, getFleets, getChannelDetail } = await import("./channels"));
 });
 
@@ -78,10 +79,11 @@ describe("getChannelsList", () => {
     expect(rows).toHaveLength(3);
   });
 
-  test("medianViews matches the computeChannelMedian fallback (zero channel_snapshots rows written)", async () => {
-    // computeChannelMedian requires >= 5 usable (non-null viewCount) videos before it
-    // will produce a number at all (MIN_USABLE) — fewer than that and it's null on both
-    // sides, which wouldn't actually exercise the median math.
+  test("medianViews matches the computeChannelBaseline fallback (zero channel_snapshots rows written)", async () => {
+    // computeChannelBaseline requires >= scoreMinUsablePosts (default 5, no app_settings
+    // row written in this test) usable (non-null viewCount) videos before it will
+    // produce a number at all — fewer than that and it's null on both sides, which
+    // wouldn't actually exercise the median math.
     const channelId = await seedChannel();
     for (const viewCount of [100, 200, 300, 400, 500]) {
       await seedVideo(channelId, { viewCount });
@@ -94,7 +96,10 @@ describe("getChannelsList", () => {
       .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
       .from(tables.videos)
       .where(eq(tables.videos.channelId, channelId));
-    const expectedMedian = computeChannelMedian(videos);
+    // Bare call (no options): only 5 videos exist, so the default 12-post window in
+    // production settings and this function's own 20-post default both include all 5 —
+    // the two paths agree here regardless of the window difference.
+    const expectedMedian = computeChannelBaseline(videos);
     expect(expectedMedian).toBe(300); // sanity: the fallback actually computed something
 
     const rows = await getChannelsList();
@@ -114,8 +119,8 @@ describe("getChannelsList", () => {
 
   test("medianViews and outliers30d exclude soft-deleted videos", async () => {
     const channelId = await seedChannel();
-    // 5 live videos (enough to clear computeChannelMedian's MIN_USABLE floor), 3 of
-    // which are scored outliers within the last 30 days.
+    // 5 live videos (enough to clear computeChannelBaseline's default minUsable floor),
+    // 3 of which are scored outliers within the last 30 days.
     await seedVideo(channelId, { postedAt: isoDaysAgo(2), outlierScore: 5, viewCount: 100 });
     await seedVideo(channelId, { postedAt: isoDaysAgo(3), outlierScore: 1, viewCount: 200 }); // score too low
     await seedVideo(channelId, { postedAt: isoDaysAgo(4), outlierScore: 5, viewCount: 300 });

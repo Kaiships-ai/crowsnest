@@ -1,0 +1,259 @@
+import { z } from "zod";
+import { db, tables } from "../db";
+import { config } from "../config";
+import type { WindowSpec } from "../services/outlier-calc";
+
+/**
+ * The single place the rest of the app reads configuration from.
+ *
+ * PRECEDENCE, in order, per key:
+ *
+ *   1. A row in `app_settings` (the database). This is what a person changed on the
+ *      Settings page. If the stored value fails validation (hand-edited, or written by
+ *      an older version of this module with a different shape), it is treated as
+ *      ABSENT — logged and skipped, never thrown, and never allowed to crash a read.
+ *   2. An environment variable, ONLY for the handful of keys that predate app_settings
+ *      and already have a validated env var in `src/server/config.ts`. See
+ *      `ENV_BACKED_KEYS` below for the exact list. A key with no env var skips straight
+ *      to step 3.
+ *   3. A built-in default, hardcoded in this file.
+ *
+ * Database beats environment beats built-in default. Once a setting has a database row,
+ * its env var (if it has one) is dead — exactly like `MEDIA_RETENTION_DAYS` and
+ * `SYNC_INTERVAL_MINUTES` are validated at boot and then ignored today, except now there
+ * is a way to actually change the value without a restart.
+ *
+ * This module never caches. Every call re-reads `app_settings`. That matches how the
+ * rest of this codebase already works — no query layer here caches, pages that need
+ * live state set `dynamic = "force-dynamic"` — and it is one table read, which is cheap
+ * on a local single-user SQLite database.
+ */
+
+// ---------------------------------------------------------------------------
+// The setting keys
+// ---------------------------------------------------------------------------
+
+export type ScoreBaselineMethod = "median" | "mean" | "trimmedMean";
+export type ScoreBaselineWindow = "last12Posts" | "last30Days" | "allHistory";
+export type FeedFollowerBand = "nano" | "micro" | "mid" | "macro" | "all";
+
+export interface AppSettings {
+  /** Which statistic defines "normal" for a channel. Consumed by the scoring engine. */
+  scoreBaselineMethod: ScoreBaselineMethod;
+  /** How far back the baseline looks. Consumed by the scoring engine. */
+  scoreBaselineWindow: ScoreBaselineWindow;
+  /** Fewer usable posts than this and a channel gets no score at all. Consumed by the
+   *  scoring engine. */
+  scoreMinUsablePosts: number;
+  /** Posts below this many views are excluded from the baseline calculation entirely.
+   *  0 means no floor. Consumed by the scoring engine. */
+  scoreMinViewsFloor: number;
+  /** The feed's default minimum score filter on first open. NOT YET CONSUMED — the feed
+   *  screen (Wave 2) has to read this; today the feed has no server-side default. */
+  feedDefaultMinScore: number;
+  /** The feed's default follower-band filter on first open. NOT YET CONSUMED, same
+   *  reason as feedDefaultMinScore. */
+  feedDefaultFollowerBand: FeedFollowerBand;
+  /** How many days back a sync looks by default when the caller doesn't specify one.
+   *  Consumed by `runSync` (falls back to this exactly where it used to fall back to
+   *  `config.LOOKBACK_DAYS`). */
+  syncLookbackDays: number;
+  /** Minutes between automatic syncs. NOT CONSUMED — there is no scheduler in this app;
+   *  every sync starts from a click. Kept here, DB-overridable, for the day a scheduler
+   *  exists, same honesty the Settings page's Sync section already applies to
+   *  `SYNC_INTERVAL_MINUTES`: the value is real and stored, but nothing acts on it. */
+  syncCadenceMinutes: number;
+  /** Days of media to retain. NOT CONSUMED — there is no reaper; `MEDIA_RETENTION_DAYS`
+   *  is validated at boot today and nothing reads it afterwards. Same treatment. */
+  mediaRetentionDays: number;
+}
+
+/** Rows in `app_settings` are `key`/`value`, both TEXT. This is the `key` for each
+ *  field above — deliberately snake_case to match every other key already in the
+ *  table (`niche_profile`, `niche_keywords`, `recently_viewed`, `first_run_completed`). */
+const DB_KEY: { [K in keyof AppSettings]: string } = {
+  scoreBaselineMethod: "score_baseline_method",
+  scoreBaselineWindow: "score_baseline_window",
+  scoreMinUsablePosts: "score_min_usable_posts",
+  scoreMinViewsFloor: "score_min_views_floor",
+  feedDefaultMinScore: "feed_default_min_score",
+  feedDefaultFollowerBand: "feed_default_follower_band",
+  syncLookbackDays: "sync_lookback_days",
+  syncCadenceMinutes: "sync_cadence_minutes",
+  mediaRetentionDays: "media_retention_days",
+};
+
+/** Every setting key's DB key, exported for tests and for the write action, which needs
+ *  to reject an unrecognized key by name. */
+export const APP_SETTING_KEYS = Object.keys(DB_KEY) as (keyof AppSettings)[];
+
+// z.coerce.number() accepts both a DB string ("12") and an already-typed number (12),
+// so the same schema validates a read (string in) and a write (typed value in).
+const posInt = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
+
+/** One zod schema per key. Used for both reading (validating a stored string) and
+ *  writing (validating the caller's typed input) — see the module doc above. */
+const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
+  scoreBaselineMethod: z.enum(["median", "mean", "trimmedMean"]),
+  scoreBaselineWindow: z.enum(["last12Posts", "last30Days", "allHistory"]),
+  scoreMinUsablePosts: posInt(1, 1000),
+  scoreMinViewsFloor: posInt(0, 1_000_000_000),
+  feedDefaultMinScore: z.coerce.number().min(0).max(1000),
+  feedDefaultFollowerBand: z.enum(["nano", "micro", "mid", "macro", "all"]),
+  syncLookbackDays: posInt(1, 3650),
+  syncCadenceMinutes: posInt(0, 10_080),
+  mediaRetentionDays: posInt(1, 3650),
+};
+
+/** Built-in defaults, used only when there is no DB row AND (for the three keys below)
+ *  no env var either.
+ *
+ *  scoreBaselineWindow defaults to "last12Posts", not the historical hardcoded 20-post
+ *  window. 12 is not a preserving choice — it is the closest of the three product-spec
+ *  options (last 12 posts / last 30 days / all history) to the old behaviour, and
+ *  scores will shift slightly on first deploy of this module as a result. That is a
+ *  real, visible behaviour change and is called out here rather than silently reproduced. */
+const DEFAULT: AppSettings = {
+  scoreBaselineMethod: "median",
+  scoreBaselineWindow: "last12Posts",
+  scoreMinUsablePosts: 5, // matches the historical MIN_USABLE constant exactly — no change
+  scoreMinViewsFloor: 0, // no floor — no change from today, which has never had one
+  feedDefaultMinScore: 0, // no filter — no change from today, which has no server-side default
+  feedDefaultFollowerBand: "all", // no filter — same reasoning
+  syncLookbackDays: 30,
+  syncCadenceMinutes: 0,
+  mediaRetentionDays: 90,
+};
+
+/** The only keys that predate `app_settings` and have a validated fallback in
+ *  `config.ts`. Every other key has no env layer: DB row, or built-in default, that's
+ *  the whole chain. */
+const ENV_FALLBACK: Partial<{ [K in keyof AppSettings]: () => AppSettings[K] }> = {
+  syncLookbackDays: () => config.LOOKBACK_DAYS,
+  syncCadenceMinutes: () => config.SYNC_INTERVAL_MINUTES,
+  mediaRetentionDays: () => config.MEDIA_RETENTION_DAYS,
+};
+
+/** True once a real code path reads this key and behaves differently because of it.
+ *  Exposed so a Settings UI can say "not wired yet" honestly instead of implying every
+ *  visible control does something, which the brief calls a bug, not a missing feature. */
+const WIRED: { [K in keyof AppSettings]: boolean } = {
+  scoreBaselineMethod: true,
+  scoreBaselineWindow: true,
+  scoreMinUsablePosts: true,
+  scoreMinViewsFloor: true,
+  feedDefaultMinScore: false,
+  feedDefaultFollowerBand: false,
+  syncLookbackDays: true,
+  syncCadenceMinutes: false,
+  mediaRetentionDays: false,
+};
+
+export type SettingSource = "db" | "env" | "default";
+
+export interface SettingWithSource<T> {
+  value: T;
+  source: SettingSource;
+  /** False means the value is stored and can be changed, but no code path reads it yet. */
+  wired: boolean;
+}
+
+export type AppSettingsView = { [K in keyof AppSettings]: SettingWithSource<AppSettings[K]> };
+
+async function readRows(): Promise<Map<string, string>> {
+  const wanted = Object.values(DB_KEY);
+  const rows = await db.select().from(tables.appSettings);
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    if (wanted.includes(row.key)) map.set(row.key, row.value);
+  }
+  return map;
+}
+
+function resolve<K extends keyof AppSettings>(key: K, raw: string | undefined): SettingWithSource<AppSettings[K]> {
+  if (raw !== undefined) {
+    const parsed = SCHEMA[key].safeParse(raw);
+    if (parsed.success) return { value: parsed.data, source: "db", wired: WIRED[key] };
+    // Corrupt or hand-edited row. Never thrown — this module is read constantly and a
+    // bad row must degrade to "as if absent", not take the app down.
+    console.warn(`[settings] app_settings.${DB_KEY[key]} = ${JSON.stringify(raw)} failed validation, falling back:`, parsed.error.issues[0]?.message);
+  }
+  const envFallback = ENV_FALLBACK[key];
+  if (envFallback) return { value: envFallback(), source: "env", wired: WIRED[key] };
+  return { value: DEFAULT[key], source: "default", wired: WIRED[key] };
+}
+
+/** The typed, resolved settings the rest of the app reads. Never throws — a database
+ *  read failure here would be a database problem everything else already has, and this
+ *  function does not swallow that; it lets it propagate like every other query in
+ *  `src/server/queries` does. */
+export async function getSettings(): Promise<AppSettings> {
+  const rows = await readRows();
+  const out = {} as AppSettings;
+  for (const key of APP_SETTING_KEYS) {
+    out[key] = resolve(key, rows.get(DB_KEY[key])).value as never;
+  }
+  return out;
+}
+
+/** Same as `getSettings`, plus where each value came from and whether anything reads
+ *  it yet. This is what the future Settings page (Wave 4) is built against — it is the
+ *  data behind the read-only marker the acceptance criteria ask for. */
+export async function getSettingsWithSource(): Promise<AppSettingsView> {
+  const rows = await readRows();
+  const out = {} as AppSettingsView;
+  for (const key of APP_SETTING_KEYS) {
+    out[key] = resolve(key, rows.get(DB_KEY[key])) as never;
+  }
+  return out;
+}
+
+/** Convenience single-key read, built on `getSettings`. No separate code path, so it
+ *  cannot drift from the bulk read's precedence rules. */
+export async function getSetting<K extends keyof AppSettings>(key: K): Promise<AppSettings[K]> {
+  return (await getSettings())[key];
+}
+
+/** Validates a caller-supplied value against the same schema a stored row is validated
+ *  against, and returns the DB key plus the string to store. Exported so the write
+ *  action (`src/server/actions/settings-actions.ts`) can validate-then-write without
+ *  duplicating the schema table. Returns `null` for an unknown key. */
+export function validateSetting<K extends keyof AppSettings>(
+  key: K,
+  value: unknown
+): { ok: true; dbKey: string; dbValue: string } | { ok: false; error: string } {
+  const schema = SCHEMA[key];
+  if (!schema) return { ok: false, error: `Unknown setting: ${String(key)}` };
+  const parsed = schema.safeParse(value);
+  if (!parsed.success) return { ok: false, error: `${String(key)}: ${parsed.error.issues[0]?.message ?? "invalid value"}` };
+  return { ok: true, dbKey: DB_KEY[key], dbValue: String(parsed.data) };
+}
+
+/** Translates the product-facing `scoreBaselineWindow` enum into the generic
+ *  `WindowSpec` the pure scoring functions in `outlier-calc.ts` understand. Kept here,
+ *  not in outlier-calc.ts, so the calculator stays free of any knowledge of
+ *  app_settings' naming. */
+export function windowSpecFor(window: ScoreBaselineWindow): WindowSpec {
+  if (window === "last12Posts") return { kind: "posts", count: 12 };
+  if (window === "last30Days") return { kind: "days", count: 30 };
+  return { kind: "all" };
+}
+
+/** The `BaselineOptions` the scoring engine should call `computeChannelBaseline` /
+ *  `scoreVideosAgainstBaseline` with, derived from the current settings. One place, so
+ *  every caller (sync-engine.ts, channels.ts, ...) builds the same options the same
+ *  way and cannot drift into passing a different window shape than another caller. */
+export async function getScoringOptions(): Promise<{
+  method: ScoreBaselineMethod;
+  window: WindowSpec;
+  minUsable: number;
+  minViewsFloor: number;
+}> {
+  const s = await getSettings();
+  return {
+    method: s.scoreBaselineMethod,
+    window: windowSpecFor(s.scoreBaselineWindow),
+    minUsable: s.scoreMinUsablePosts,
+    minViewsFloor: s.scoreMinViewsFloor,
+  };
+}

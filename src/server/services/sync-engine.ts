@@ -5,7 +5,8 @@ import { log } from "../lib/logger";
 import { igClient, type IgClient, type IgMedia } from "../ig/client";
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
-import { computeChannelMedian, scoreVideos, type VideoForCalc } from "./outlier-calc";
+import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
+import { getScoringOptions, getSetting } from "../settings";
 import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
 /**
@@ -81,7 +82,6 @@ type ChannelRow = typeof tables.channels.$inferSelect;
 
 const PAGE_JITTER_MIN_MS = 300;
 const PAGE_JITTER_SPAN_MS = 500;
-const SCORE_WINDOW = 20;
 
 /**
  * Two thresholds hang off `SYNC_STALL_SECONDS`, and they are derived from it rather than
@@ -735,17 +735,43 @@ async function upsertChildren(
   return { assetsDownloaded, assetsFailed };
 }
 
-async function recomputeChannelScores(channelId: string): Promise<number | null> {
+/**
+ * Exported (not just internal to a sync run) because it is also the recompute half of
+ * the settings write path: `updateAppSettingsAction` in
+ * `src/server/actions/settings-actions.ts` calls `recomputeAllChannelScores` below
+ * whenever a scoring setting changes, so a saved setting and the scores on screen can
+ * never disagree — see that module's doc comment for why recompute was chosen over
+ * invalidating or stamping.
+ */
+export async function recomputeChannelScores(channelId: string): Promise<number | null> {
   const rows = await db
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)
     .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
   const calc = rows.map(toCalc);
-  const scores = scoreVideos(calc, SCORE_WINDOW);
+  // Baseline method, window, minimum usable posts and views floor all come from
+  // app_settings (src/server/settings) — this is the one place scoring reads them, so a
+  // setting change takes effect on every channel's next sync without a code change.
+  const scoringOptions = await getScoringOptions();
+  const scores = scoreVideosAgainstBaseline(calc, scoringOptions);
   for (const row of rows) {
     await db.update(tables.videos).set({ outlierScore: scores.get(row.id) ?? null }).where(eq(tables.videos.id, row.id));
   }
-  return computeChannelMedian(calc, SCORE_WINDOW);
+  return computeChannelBaseline(calc, scoringOptions);
+}
+
+/**
+ * Rescans every channel's already-stored videos and recomputes `outlierScore` under
+ * whatever `app_settings` says right now. Pure local computation — no Instagram calls,
+ * no sync lock, no `sync_jobs` row — so it is safe to call outside of a sync run, and
+ * it is what keeps a stored score from silently going stale the moment a scoring
+ * setting changes.
+ */
+export async function recomputeAllChannelScores(): Promise<void> {
+  const channelRows = await db.select({ id: tables.channels.id }).from(tables.channels);
+  for (const { id } of channelRows) {
+    await recomputeChannelScores(id);
+  }
 }
 
 /**
@@ -1045,7 +1071,10 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   const client = opts.client ?? igClient;
   const sleep = opts.sleep ?? defaultSleep;
   const now = opts.now ?? (() => new Date());
-  const lookbackDays = opts.lookbackDays ?? config.LOOKBACK_DAYS;
+  // config.LOOKBACK_DAYS is still the env-only fallback UNDER the settings module (see
+  // src/server/settings), not read directly here any more — a DB-stored
+  // sync_lookback_days now wins over it without a restart.
+  const lookbackDays = opts.lookbackDays ?? (await getSetting("syncLookbackDays"));
   const maxItems = opts.maxItems ?? config.MAX_ITEMS_PER_SYNC;
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
