@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bookmark, Copy, ExternalLink, Image as ImageIcon, Wand2 } from "lucide-react";
+import { AlertTriangle, Bookmark, ChevronLeft, ChevronRight, Copy, ExternalLink, Image as ImageIcon, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
 import { OutlierBadge } from "@/components/feed/outlier-badge";
-import { PlatformChip, platformLabel } from "@/components/feed/platform-chip";
+import { platformLabel } from "@/components/feed/platform-chip";
 import { VideoThumb } from "@/components/feed/video-thumb";
 import { CarouselViewer } from "@/components/video/carousel-viewer";
 import { VideoPlayer } from "@/components/video/video-player";
@@ -19,19 +19,34 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCompact, formatDuration, formatMultiplier, relativeTime } from "@/lib/format";
-import { heatTier } from "@/lib/heat";
+import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
+import { SavePostButton } from "./save-post-button";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import type { FeedItem } from "@/server/queries/feed";
+import type { MedianBasis } from "@/server/queries/channels";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
 // the query-layer type needs a different local name to avoid shadowing.
 import type { VideoDetail as VideoDetailData } from "@/server/queries/video";
-import type { VideoAnalysis } from "@/server/llm/schemas";
+import type { StoredVideoAnalysis } from "@/server/services/analyze";
 import { MetricChips } from "./metric-chips";
+import { MedianBaseline } from "./median-baseline";
+import { LayoutSection } from "./layout-section";
+
+/** Adjacency within whatever ordering the caller resolved "the current feed" to be —
+ *  see the doc comment on FeedNav in page.tsx for how that's computed and its one
+ *  honest limitation. Null means there's nowhere to go (or nowhere to know to go). */
+export interface FeedNav {
+  backHref: string;
+  prevHref: string | null;
+  nextHref: string | null;
+  /** "N of Total", or null when this post's position inside the resolved order
+   *  couldn't be established (falls outside a truncated slice, or an empty feed). */
+  indexLabel: string | null;
+}
 
 /**
  * Shared "no analysis yet" gate rendered inside both the Hook & Structure and
@@ -113,13 +128,25 @@ function AnalysisGate({
 
 /**
  * DESIGN.md §2.4: hook type + format/style tags, then the beat-by-beat structure
- * (Hook 0–3s / Build / Payoff / CTA). No "visual layout" section here (on-screen-text
- * placement, cut rhythm, framing) — the prototype shows one, but video_analyses has no
- * columns for it (schema.ts only has hookType/structureSegments/formatTags/styleTags/
- * whyItWorked) and adding one means a src/server change outside this slice's file list.
- * Dropped rather than faked, per the shared brief's disagreement rule.
+ * (Hook 0–3s / Build / Payoff / CTA), then the Layout section (V1 data contracts
+ * contract 5, now that `video_analyses` carries its columns — see LayoutSection).
+ *
+ * `formatTags` come from the text analysis pass reading the transcript, the same
+ * source as `hookType` — a real reading, shown plain. `styleTags` describe visual
+ * style (pacing, shot type) that a text-only model can only guess at without ever
+ * having seen a frame, so every one renders muted with a "· unverified" marker until
+ * a real frame pass exists to confirm or replace them (prototype's own distinction,
+ * proto/tail-overlays.html's tagRow: verified tags plain, guessed ones flagged).
  */
-function HookStructureTab({ analysis, durationSec }: { analysis: VideoAnalysis; durationSec: number | null }) {
+function HookStructureTab({
+  videoId,
+  analysis,
+  durationSec,
+}: {
+  videoId: string;
+  analysis: StoredVideoAnalysis;
+  durationSec: number | null;
+}) {
   return (
     <div className="flex flex-col gap-8">
       <div>
@@ -134,9 +161,9 @@ function HookStructureTab({ analysis, durationSec }: { analysis: VideoAnalysis; 
             </Badge>
           ))}
           {analysis.styleTags.map((tag) => (
-            <Badge key={`style-${tag}`} variant="secondary">
-              {tag}
-            </Badge>
+            <span key={`style-${tag}`} className="font-mono text-2xs text-muted-foreground">
+              {tag} <span className="text-faint">· unverified</span>
+            </span>
           ))}
         </div>
       </div>
@@ -173,6 +200,8 @@ function HookStructureTab({ analysis, durationSec }: { analysis: VideoAnalysis; 
           <p className="mt-3 text-sm text-muted-foreground">No structure segments returned.</p>
         )}
       </div>
+
+      <LayoutSection videoId={videoId} analysis={analysis} />
     </div>
   );
 }
@@ -208,6 +237,9 @@ export function VideoDetail({
   hasLlmKey,
   canTranscribe,
   similar,
+  medianBasis,
+  feedNav,
+  savedPost,
 }: {
   detail: VideoDetailData;
   hasLlmKey: boolean;
@@ -216,9 +248,34 @@ export function VideoDetail({
    * can offer a live "Transcribe & Analyze" button instead of a dead end. */
   canTranscribe: boolean;
   similar: FeedItem[];
+  /** The sample the hero score was computed from — `getChannelMedianBasis`, keyed to
+   *  this video so its own bar can be picked out of the histogram. Null only if the
+   *  channel row vanished between the feed query and this render. */
+  medianBasis: MedianBasis | null;
+  feedNav: FeedNav;
+  /** The `saved_posts` row for this video, or null when it has not been kept. Read on
+   *  the server so the button shows its real state on first paint rather than flipping
+   *  after a fetch. */
+  savedPost: { id: string; note: string | null } | null;
 }) {
   const { item } = detail;
   const hasTranscript = detail.transcript !== null;
+  const router = useRouter();
+
+  // Reading twelve posts in a row is the daily loop (V1 scope §2, Video detail
+  // criterion 11) — arrow keys move without a trip back to the feed grid. Skipped
+  // while a text input has focus so the command palette's search box, or any future
+  // one, doesn't lose keystrokes to page navigation.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.key === "ArrowLeft" && feedNav.prevHref) router.push(feedNav.prevHref);
+      if (e.key === "ArrowRight" && feedNav.nextHref) router.push(feedNav.nextHref);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [router, feedNav.prevHref, feedNav.nextHref]);
 
   // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
   // explicitly in both functions below so a failure surfaces as a toast instead of a
@@ -265,6 +322,34 @@ export function VideoDetail({
 
   return (
     <div className="flex h-full flex-col">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-faint">
+        <Link href={feedNav.backHref} className="text-muted-foreground hover:text-foreground">
+          ← Feed
+        </Link>
+        <div className="flex items-center gap-5">
+          {feedNav.indexLabel && <span data-num>{feedNav.indexLabel}</span>}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto gap-1 p-0 text-2xs text-muted-foreground hover:bg-transparent hover:text-foreground disabled:opacity-40"
+            disabled={!feedNav.prevHref}
+            onClick={() => feedNav.prevHref && router.push(feedNav.prevHref)}
+          >
+            <ChevronLeft className="size-3.5" /> prev
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto gap-1 p-0 text-2xs text-muted-foreground hover:bg-transparent hover:text-foreground disabled:opacity-40"
+            disabled={!feedNav.nextHref}
+            onClick={() => feedNav.nextHref && router.push(feedNav.nextHref)}
+          >
+            next <ChevronRight className="size-3.5" />
+          </Button>
+          <span>←/→ keys work too</span>
+        </div>
+      </div>
+
       {detail.deletedAt && (
         <Alert variant="destructive" className="mx-6 mt-6">
           <AlertTriangle />
@@ -302,20 +387,7 @@ export function VideoDetail({
             </div>
           </div>
 
-          <div>
-            <span
-              data-num
-              className={cn(
-                "block font-mono text-xl font-medium leading-none",
-                heatTier(item.outlierScore) > 0 ? "text-score" : "text-foreground"
-              )}
-            >
-              {formatMultiplier(item.outlierScore)}
-            </span>
-            <span className="mt-3 block text-sm text-muted-foreground">
-              vs {item.channel.handle}&rsquo;s own median views
-            </span>
-          </div>
+          <MedianBaseline score={item.outlierScore} handle={item.channel.handle} basis={medianBasis} />
 
           {item.caption && (
             <p className="max-w-[34ch] text-lg leading-snug font-semibold tracking-tight">{item.caption}</p>
@@ -349,7 +421,6 @@ export function VideoDetail({
               <span className="text-sm font-medium">{item.channel.handle}</span>
             </Link>
 
-            <PlatformChip platform={item.channel.platform} />
 
             <div className="flex items-center gap-4">
               <a
@@ -408,7 +479,7 @@ export function VideoDetail({
 
             <TabsContent value="hook" className="pt-4">
               {detail.analysis ? (
-                <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
+                <HookStructureTab videoId={item.videoId} analysis={detail.analysis} durationSec={item.durationSec} />
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
                   <AnalysisGate
@@ -445,6 +516,7 @@ export function VideoDetail({
             <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
               Remix this
             </Link>
+            <SavePostButton videoId={item.videoId} saved={savedPost} />
             {detail.analysis ? (
               <SaveToVaultDialog videoId={item.videoId} analysis={detail.analysis} />
             ) : (
