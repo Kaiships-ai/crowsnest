@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Copy, Eye, ExternalLink, MoreHorizontal, Play } from "lucide-react";
+import { Bookmark, Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,19 +13,32 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
-import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
 import { PlatformChip, platformLabel } from "./platform-chip";
 import { VideoThumb } from "./video-thumb";
 
-// Faint diagonal hatch on the placeholder thumbnail (DESIGN.md §5) — a plain object so
-// it isn't reallocated on every render.
+// "Hatching for a well with no data in it" (globals.css). Same treatment as
+// carousel-viewer.tsx's EMPTY_WELL so the feed and the detail screen agree on what an
+// empty media slot looks like. A plain object so it isn't reallocated on every render.
 const THUMBNAIL_HATCH: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
 };
+
+// Scrim behind the hook headline, prototype feed.html line 75's gradient with --shade's
+// raw RGB triplet (11,11,12) — a gradient stop can't reference a Tailwind color token.
+const HOOK_SCRIM: React.CSSProperties = {
+  backgroundImage: "linear-gradient(rgba(11,11,12,.6) 0%, rgba(11,11,12,0) 42%, rgba(11,11,12,.7) 100%)",
+};
+
+// Thumbnail sits desaturated at rest and only picks up color on hover/focus (prototype
+// feed.html's article:hover rule: grayscale(1) contrast(1.2) brightness(1.06)) — the
+// grid reads as scannable data first, photo wall second.
+const THUMB_FILTER =
+  "grayscale contrast-[1.06] transition-[filter] duration-150 group-hover:contrast-[1.2] group-hover:brightness-[1.06] group-focus-visible:contrast-[1.2] group-focus-visible:brightness-[1.06]";
 
 export function OutlierCard({
   item,
@@ -43,6 +55,7 @@ export function OutlierCard({
 }) {
   const open = () => onOpen?.(item.videoId);
   const duration = formatDuration(item.durationSec);
+  const isFull = variant === "full";
 
   // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
   // explicitly so a failure surfaces as a toast instead of a silent unhandled
@@ -58,7 +71,7 @@ export function OutlierCard({
   }
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-input hover:shadow-lg">
+    <div className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg">
       {/* Thumbnail — the primary, keyboard-accessible trigger for onOpen. */}
       <div
         role={onOpen ? "button" : undefined}
@@ -72,7 +85,7 @@ export function OutlierCard({
         }}
         aria-label={onOpen ? `Preview ${item.caption ?? item.channel.handle}` : undefined}
         className={cn(
-          "relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-[#1E2230]",
+          "group relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card",
           onOpen && "cursor-pointer"
         )}
       >
@@ -80,62 +93,61 @@ export function OutlierCard({
         <div className="absolute inset-0 flex items-center justify-center">
           <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
         </div>
-        <VideoThumb assetId={item.thumbnailAssetId} />
-        <div className="absolute left-2 top-2">
+        <VideoThumb assetId={item.thumbnailAssetId} className={THUMB_FILTER} />
+        {/* Hook headline overlay (prototype feed.html line 76) — the grid card's own
+            caption read, full variant only so compact rows (dashboard scroll, channel
+            tabs) stay uncluttered. */}
+        {isFull && item.caption && (
+          <>
+            <div aria-hidden className="pointer-events-none absolute inset-0" style={HOOK_SCRIM} />
+            <p className="pointer-events-none absolute top-[14%] right-2 left-2 line-clamp-3 text-sm leading-snug font-semibold text-pretty text-white">
+              {item.caption}
+            </p>
+          </>
+        )}
+        <div className="absolute top-2 left-2">
           <PlatformChip platform={item.channel.platform} />
         </div>
-        <div className="absolute right-2 top-2">
-          <OutlierBadge score={item.outlierScore} />
-        </div>
         {duration && (
-          <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white backdrop-blur-sm">
+          <span className="absolute right-2 bottom-2 bg-black/60 px-1.5 py-0.5 text-2xs font-medium text-white tabular-nums backdrop-blur-sm">
             {duration}
           </span>
         )}
         {overlayBadge && (
-          <span className="absolute bottom-2 left-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm">
+          <span className="absolute bottom-2 left-2 bg-black/60 px-1.5 py-0.5 text-2xs font-medium text-white backdrop-blur-sm">
             {overlayBadge}
           </span>
         )}
       </div>
 
-      <div className="flex flex-1 flex-col gap-2 p-3">
-        <Link
-          href={`/channels/${item.channel.id}`}
-          className="flex items-center gap-2 hover:underline"
-        >
-          <Avatar size="sm">
-            <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
-            <AvatarFallback>
-              {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-sm font-medium text-foreground">{item.channel.handle}</span>
-            {item.channel.followerCount !== null && (
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {formatCompact(item.channel.followerCount)} followers
-              </span>
-            )}
-          </span>
-        </Link>
+      {/* Score is the hero: biggest, plainest read on the card, first thing under the
+          thumbnail (prototype feed.html line 80). */}
+      <div className={cn("flex flex-1 flex-col gap-1.5", isFull ? "p-3" : "p-2")}>
+        <OutlierBadge score={item.outlierScore} size="hero" />
 
         {/* Supplementary mouse click-target (same action as the thumbnail above) — not
             given its own tab stop, so keyboard users reach `onOpen` via the thumbnail only. */}
-        <div onClick={open} className={cn("flex flex-1 flex-col gap-2", onOpen && "cursor-pointer")}>
-          {variant === "full" && (
-            <p className="line-clamp-2 text-sm text-muted-foreground">{item.caption ?? ""}</p>
-          )}
-          <div className="mt-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Eye className="size-3.5 shrink-0" aria-hidden />
-            <span className="tabular-nums">{formatCompact(item.viewCount)}</span>
+        <div onClick={open} className={cn("flex flex-1 flex-col gap-1", onOpen && "cursor-pointer")}>
+          <span className="text-2xs text-muted-foreground" data-num="1">
+            {formatCompact(item.viewCount)} views
+          </span>
+          <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-faint">
+            <Link
+              href={`/channels/${item.channel.id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="truncate hover:text-foreground hover:underline"
+            >
+              {item.channel.handle}
+            </Link>
             <span aria-hidden>·</span>
-            <span>{relativeTime(item.postedAt)}</span>
-          </div>
+            <span data-num="1">{formatCompact(item.channel.followerCount)} followers</span>
+            <span aria-hidden>·</span>
+            <span data-num="1">{relativeTime(item.postedAt)}</span>
+          </span>
         </div>
       </div>
 
-      {variant === "full" && (
+      {isFull && (
         <div className="flex items-center justify-between border-t border-border px-3 py-2">
           <Tooltip>
             <TooltipTrigger

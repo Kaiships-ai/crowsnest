@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Rows3 } from "lucide-react";
+import { LayoutGrid, Rows3, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import type { SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
@@ -71,6 +72,17 @@ const CRITERIA_TO_PARAM: Record<(typeof PRESET_CRITERIA_KEYS)[number], string> =
   sinceDays: "since",
 };
 
+// Every param a filter control can write — used to detect "any filter touched" for
+// the Clear-filters affordance and to wipe them all in one shot.
+const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band"] as const;
+
+// Filters read as current state, not a form to fill in (brief): plain text with a
+// chevron, no input-style border, until opened or hovered. Matches the prototype's
+// filterBtn treatment (feed.html line 17: color var(--t3), hover bg var(--s1) color
+// var(--t1)) — dark: overrides neutralize the shadcn Select's own default input chrome.
+const FILTER_TRIGGER_CLASS =
+  "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
+
 export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilters: SavedFilterRow[] }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -102,6 +114,13 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
+  function clearFilters() {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of FILTER_PARAM_KEYS) params.delete(key);
+    params.delete("limit");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   const fleet = searchParams.get("fleet") ?? "all";
   const platform = searchParams.get("platform") ?? "all";
   const minScore = searchParams.get("minScore") ?? "any";
@@ -112,116 +131,17 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
   const view = searchParams.get("view") ?? "grid";
 
   const fleetItems = [{ value: "all", label: "All channels" }, ...fleets.map((f) => ({ value: f.id, label: f.name }))];
+  const hasActiveFilters = FILTER_PARAM_KEYS.some((key) => searchParams.has(key));
 
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
-      <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
-        <SelectTrigger size="sm" aria-label="Fleet">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {fleetItems.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <ToggleGroup
-        value={[platform]}
-        onValueChange={(vals) => set("platform", (vals[0] as string | undefined) ?? "all")}
-        aria-label="Platform"
-      >
-        {PLATFORM_OPTIONS.map((o) => (
-          <ToggleGroupItem key={o.value} value={o.value} size="sm">
-            {o.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-
-      <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
-        <SelectTrigger size="sm" aria-label="Minimum outlier score">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SCORE_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
-        <SelectTrigger size="sm" aria-label="Minimum views">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {VIEWS_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={SINCE_OPTIONS} value={since} onValueChange={(v) => set("since", v as string)}>
-        <SelectTrigger size="sm" aria-label="Timeframe">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SINCE_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={BAND_OPTIONS} value={band} onValueChange={(v) => set("band", v as string)}>
-        <SelectTrigger size="sm" aria-label="Follower band">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {BAND_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>Saved views</DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {/* Base UI's Menu.GroupLabel (DropdownMenuLabel) throws "MenuGroupContext is
-              missing" unless it's inside a Menu.Group (DropdownMenuGroup) — this crashed
-              the whole Feed page the instant "Saved views" was opened (QA sweep finding,
-              phase 4 Task 4). Radix's equivalent doesn't enforce this, which is exactly
-              the "Base UI not Radix" trap the project's own backlog flagged. */}
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Saved views</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {savedFilters.length === 0 && (
-              <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
-            )}
-            {savedFilters.map((f) => (
-              <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
-                {f.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <div className="ml-auto flex items-center gap-2">
-        <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
-          <SelectTrigger size="sm" aria-label="Sort">
+    <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-1">
+        <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
+          <SelectTrigger size="sm" aria-label="Fleet" className={FILTER_TRIGGER_CLASS}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SORT_OPTIONS.map((o) => (
+            {fleetItems.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
@@ -230,16 +150,139 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
         </Select>
 
         <ToggleGroup
-          value={[view]}
-          onValueChange={(vals) => set("view", (vals[0] as string | undefined) ?? "grid", false)}
-          aria-label="Layout"
+          value={[platform]}
+          onValueChange={(vals) => set("platform", (vals[0] as string | undefined) ?? "all")}
+          aria-label="Platform"
         >
-          <ToggleGroupItem value="grid" size="sm" aria-label="Grid view">
-            <LayoutGrid className="size-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" size="sm" aria-label="List view">
-            <Rows3 className="size-4" />
-          </ToggleGroupItem>
+          {PLATFORM_OPTIONS.map((o) => (
+            <ToggleGroupItem key={o.value} value={o.value} size="sm">
+              {o.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+
+        <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum outlier score" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SCORE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum views" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIEWS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={SINCE_OPTIONS} value={since} onValueChange={(v) => set("since", v as string)}>
+          <SelectTrigger size="sm" aria-label="Timeframe" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SINCE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="sm" className={cn(FILTER_TRIGGER_CLASS, "rounded-full")} />}
+          >
+            Saved views
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {/* Base UI's Menu.GroupLabel (DropdownMenuLabel) throws "MenuGroupContext is
+                missing" unless it's inside a Menu.Group (DropdownMenuGroup) — this crashed
+                the whole Feed page the instant "Saved views" was opened (QA sweep finding,
+                phase 4 Task 4). Radix's equivalent doesn't enforce this, which is exactly
+                the "Base UI not Radix" trap the project's own backlog flagged. */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Saved views</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {savedFilters.length === 0 && (
+                <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
+              )}
+              {savedFilters.map((f) => (
+                <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
+                  {f.name}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="rounded-full text-muted-foreground hover:text-foreground"
+          >
+            <X /> Clear filters
+          </Button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
+            <SelectTrigger size="sm" aria-label="Sort" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <ToggleGroup
+            value={[view]}
+            onValueChange={(vals) => set("view", (vals[0] as string | undefined) ?? "grid", false)}
+            aria-label="Layout"
+          >
+            <ToggleGroupItem value="grid" size="sm" aria-label="Grid view">
+              <LayoutGrid className="size-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list" size="sm" aria-label="List view">
+              <Rows3 className="size-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      </div>
+
+      {/* Follower band stays a first-class visible control, never tucked in a menu
+          (brief) — a persistent segmented row, not a Select. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-2xs text-faint" data-lab="1">
+          Followers
+        </span>
+        <ToggleGroup
+          value={[band]}
+          onValueChange={(vals) => set("band", (vals[0] as string | undefined) ?? "any")}
+          aria-label="Follower band"
+        >
+          {BAND_OPTIONS.map((o) => (
+            <ToggleGroupItem key={o.value} value={o.value} size="sm">
+              {o.label}
+            </ToggleGroupItem>
+          ))}
         </ToggleGroup>
       </div>
     </div>

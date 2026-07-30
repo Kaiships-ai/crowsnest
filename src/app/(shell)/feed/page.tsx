@@ -52,7 +52,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const { items, total } = await getOutlierFeed(filters);
 
   const trueEmpty = allChannels.length === 0;
-  const filteredZero = !trueEmpty && total === 0;
+  // Channels exist but not one of them has ever completed a sync — there is no
+  // median for anything to be measured against yet, distinct from "channels exist,
+  // this filter slice just came back empty" (prototype feed.html's noPosts vs
+  // feedEmpty split, lines 42-55).
+  const neverSynced = !trueEmpty && total === 0 && allChannels.every((c) => c.lastSyncedAt === null);
+  const filteredZero = !trueEmpty && !neverSynced && total === 0;
   const hasMore = items.length < total;
 
   const loadMoreParams = new URLSearchParams();
@@ -68,22 +73,41 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {trueEmpty ? (
-          <div className="flex flex-col items-center gap-3 py-24 text-center">
-            <p className="text-sm text-muted-foreground">No outliers yet — track a channel to get started</p>
-            <Link href="/channels" className={cn(buttonVariants({ variant: "default" }))}>
-              Add your first channel
+          <div className="max-w-[48ch] py-16">
+            <p className="text-lg text-foreground">Nothing to score yet.</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Add a channel and run a sync — posts appear here once they have a median to be measured against.
+            </p>
+            <Link href="/channels" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
+              Add a channel
+            </Link>
+          </div>
+        ) : neverSynced ? (
+          <div className="max-w-[48ch] py-16">
+            <p className="text-lg text-foreground">Nothing to score yet.</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {allChannels.length} channel{allChannels.length === 1 ? "" : "s"} added, none synced yet — run a sync
+              from Channels to pull posts and build a baseline.
+            </p>
+            <Link href="/channels" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
+              Go to channels
             </Link>
           </div>
         ) : filteredZero ? (
-          <div className="flex flex-col items-center gap-3 py-24 text-center">
-            <p className="text-sm text-muted-foreground">No outliers match these filters</p>
-            <Link href="/feed" className={cn(buttonVariants({ variant: "outline" }))}>
+          <div className="max-w-[52ch] py-16">
+            <p className="text-lg text-foreground">No post matches this slice.</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Try widening the score threshold, timeframe, or follower band.
+            </p>
+            <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
               Clear filters
             </Link>
           </div>
         ) : (
           <>
-            <p className="mb-3 text-sm text-muted-foreground">{total} results</p>
+            <p className="mb-3 text-xs text-muted-foreground">
+              <span data-num="1">{total}</span> results
+            </p>
             <FeedGrid items={items} />
             {hasMore && (
               <div className="mt-6 flex justify-center">

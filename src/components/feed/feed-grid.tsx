@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import type { FeedItem } from "@/server/queries/feed";
-import { FeedListRow } from "./feed-list-row";
+import { FEED_LIST_ROW_GRID, FeedListRow } from "./feed-list-row";
 import { OutlierCard } from "./outlier-card";
 import { QuickPreviewSheet } from "./quick-preview-sheet";
 
@@ -22,7 +22,17 @@ export function FeedGrid({ items }: { items: FeedItem[] }) {
           ))}
         </div>
       ) : (
-        <div className="flex flex-col divide-y divide-border rounded-lg border border-border">
+        <div className="flex flex-col">
+          <div
+            data-lab="1"
+            className={`${FEED_LIST_ROW_GRID} gap-4 border-b border-border pb-3 text-2xs text-faint`}
+          >
+            <span className="text-right">Score</span>
+            <span className="pl-2">Post</span>
+            <span>Channel</span>
+            <span className="text-right">Views</span>
+            <span className="text-right">Posted</span>
+          </div>
           {items.map((item) => (
             <FeedListRow key={item.videoId} item={item} onOpen={setPreviewId} />
           ))}

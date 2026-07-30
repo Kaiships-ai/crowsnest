@@ -56,7 +56,7 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
             <p className="text-sm text-muted-foreground">This video couldn&rsquo;t be found.</p>
           ) : (
             <>
-              <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-lg bg-[#1E2230]">
+              <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
                 </div>
