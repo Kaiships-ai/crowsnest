@@ -34,12 +34,14 @@ export interface ChannelDetail {
    * - `videoCount` counts live posts only.
    * - `removedCount` is how many are gone, so a screen can say "8 posts, 2 removed"
    *   instead of quietly reporting 10.
-   * - `medianViews` and `outliers30d` exclude removed posts, because both come from
-   *   the same filtered window the score itself is computed over. A baseline and the
-   *   number explaining it are never allowed to disagree.
-   * - `series` and `videos` DO include removed posts, carrying `deleted: true`. Their
-   *   views are real history, rows are never hard deleted, and the removed marker has
-   *   to be reachable for the screen to show it.
+   * - `medianViews`, `outliers30d`, and `bestScore` all exclude removed posts. The first
+   *   two come from their own filtered queries; `bestScore` is filtered the same way here
+   *   so a channel's "current best" can never quietly be a post the grid marks removed —
+   *   that figure changing meaning without saying so is the exact defect `videoCount` had.
+   * - `series` and `videos` DO include removed posts, each carrying `deleted: true`. Their
+   *   views are real history, rows are never hard deleted, and the removed marker has to
+   *   be reachable for the screen to show it — a caller that wants a live-only series can
+   *   filter on that flag itself.
    */
   stats: {
     medianViews: number | null;
@@ -48,7 +50,7 @@ export interface ChannelDetail {
     videoCount: number;
     removedCount: number;
   };
-  series: { capturedAt: string; viewCount: number | null; outlierScore: number | null; videoId: string }[];
+  series: { capturedAt: string; viewCount: number | null; outlierScore: number | null; videoId: string; deleted: boolean }[];
   videos: Awaited<ReturnType<typeof getOutlierFeed>>["items"];
 }
 
@@ -183,9 +185,17 @@ export async function getChannelDetail(id: string): Promise<ChannelDetail | null
   const channel = await buildChannelRow(channelRaw);
   // Reuses the feed query (not video_snapshots — M8) so "a video joined with its
   // channel" has exactly one implementation; series is derived from the same rows.
+  // `videos` carries removed posts (deleted: true) so the screen can mark them — see
+  // ChannelDetail's doc comment for which of the fields below include them and which don't.
   const { items: videos } = await getOutlierFeed({ channelId: id, sort: "recent", limit: 10_000, offset: 0 });
 
-  const bestScore = videos.reduce<number | null>(
+  const liveVideos = videos.filter((v) => !v.deleted);
+  const removedCount = videos.length - liveVideos.length;
+
+  // Matches outliers30d and medianViews: a removed post's score is real history, but a
+  // channel's "current best" figure staying live-only, like its siblings, beats a
+  // bestScore that can point at a post the grid marks removed.
+  const bestScore = liveVideos.reduce<number | null>(
     (max, v) => (v.outlierScore != null && (max === null || v.outlierScore > max) ? v.outlierScore : max),
     null
   );
@@ -194,12 +204,8 @@ export async function getChannelDetail(id: string): Promise<ChannelDetail | null
     viewCount: v.viewCount,
     outlierScore: v.outlierScore,
     videoId: v.videoId,
+    deleted: v.deleted,
   }));
-
-  // `videos` carries removed posts so the screen can mark them. A count that folded
-  // them in with the live ones would read as truth and be wrong, which is the quieter
-  // half of the same problem as a control that does nothing.
-  const removedCount = videos.reduce((n, v) => n + (v.deleted ? 1 : 0), 0);
 
   return {
     channel,
@@ -207,7 +213,7 @@ export async function getChannelDetail(id: string): Promise<ChannelDetail | null
       medianViews: channel.medianViews,
       bestScore,
       outliers30d: channel.outliers30d,
-      videoCount: videos.length - removedCount,
+      videoCount: liveVideos.length,
       removedCount,
     },
     series,

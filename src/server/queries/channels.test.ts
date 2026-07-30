@@ -259,6 +259,30 @@ describe("getChannelDetail", () => {
     expect(detail!.stats.bestScore).toBe(27);
   });
 
+  test("stats.bestScore excludes removed posts, matching outliers30d and medianViews — a removed post's score never reads as the channel's current best", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { outlierScore: 9 });
+    const removedTopScorer = await seedVideo(channelId, { outlierScore: 99 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, removedTopScorer));
+
+    const detail = await getChannelDetail(channelId);
+
+    expect(detail!.stats.bestScore).toBe(9);
+  });
+
+  test("series carries a deleted flag per point, so a consumer can tell a removed post's history apart without a second query", async () => {
+    const channelId = await seedChannel();
+    const liveId = await seedVideo(channelId, { outlierScore: 1 });
+    const removedId = await seedVideo(channelId, { outlierScore: 2 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, removedId));
+
+    const detail = await getChannelDetail(channelId);
+    const byId = new Map(detail!.series.map((p) => [p.videoId, p]));
+
+    expect(byId.get(liveId)?.deleted).toBe(false);
+    expect(byId.get(removedId)?.deleted).toBe(true);
+  });
+
   test("channel.fleets and top-level channel fields match getChannelsList for the same channel", async () => {
     const channelId = await seedChannel();
     const fleetId = newId();

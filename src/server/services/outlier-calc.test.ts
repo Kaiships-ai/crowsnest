@@ -1,5 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { median, mean, trimmedMean, computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
+import {
+  median,
+  mean,
+  trimmedMean,
+  computeChannelBaseline,
+  scoreVideosAgainstBaseline,
+  selectBaselineWindow,
+  medianConfidence,
+  MEDIAN_CONFIDENCE_THRESHOLDS,
+  type VideoForCalc,
+} from "./outlier-calc";
 
 const vid = (id: string, views: number | null, daysAgo: number): VideoForCalc => ({
   id, viewCount: views, postedAt: new Date(Date.now() - daysAgo * 864e5).toISOString(),
@@ -95,6 +105,47 @@ describe("computeChannelBaseline", () => {
     expect(computeChannelBaseline(vids)).toBe(1100); // no floor: the two near-zero posts pull the median down from 1200
     expect(computeChannelBaseline(vids, { minViewsFloor: 500 })).toBe(1200); // floor: only the 5 real posts count
     expect(computeChannelBaseline(vids, { minViewsFloor: 500, minUsable: 6 })).toBeNull(); // floor drops it below minUsable
+  });
+});
+
+describe("selectBaselineWindow", () => {
+  test("returns exactly the posts computeChannelBaseline used, newest first", () => {
+    const vids = Array.from({ length: 8 }, (_, i) => vid(`v${i}`, (i + 1) * 100, i + 1));
+    const window = selectBaselineWindow(vids, { window: { kind: "posts", count: 5 } });
+
+    expect(window.map((v) => v.id)).toEqual(["v0", "v1", "v2", "v3", "v4"]); // newest 5 by age
+    expect(computeChannelBaseline(vids, { window: { kind: "posts", count: 5 }, minUsable: 1 })).toBe(
+      median(window.map((v) => v.viewCount as number))
+    );
+  });
+
+  test("drops posts below minViewsFloor and posts with a null viewCount, matching computeChannelBaseline's own filter", () => {
+    const vids = [vid("a", null, 1), vid("b", 1, 2), vid("c", 100, 3)];
+    // Newest first: "b" (2 days ago) sorts before "c" (3 days ago); "a" has no viewCount.
+    expect(selectBaselineWindow(vids).map((v) => v.id)).toEqual(["b", "c"]);
+    expect(selectBaselineWindow(vids, { minViewsFloor: 50 }).map((v) => v.id)).toEqual(["c"]);
+  });
+
+  test("empty input, or every post filtered out, returns an empty array rather than throwing", () => {
+    expect(selectBaselineWindow([])).toEqual([]);
+    expect(selectBaselineWindow([vid("a", null, 1), vid("b", null, 2)])).toEqual([]);
+  });
+});
+
+describe("medianConfidence", () => {
+  test("below the low threshold reads low", () => {
+    expect(medianConfidence(0)).toBe("low");
+    expect(medianConfidence(MEDIAN_CONFIDENCE_THRESHOLDS.low - 1)).toBe("low");
+  });
+
+  test("at or above low but below medium reads medium", () => {
+    expect(medianConfidence(MEDIAN_CONFIDENCE_THRESHOLDS.low)).toBe("medium");
+    expect(medianConfidence(MEDIAN_CONFIDENCE_THRESHOLDS.medium - 1)).toBe("medium");
+  });
+
+  test("at or above the medium threshold reads high", () => {
+    expect(medianConfidence(MEDIAN_CONFIDENCE_THRESHOLDS.medium)).toBe("high");
+    expect(medianConfidence(1000)).toBe("high");
   });
 });
 

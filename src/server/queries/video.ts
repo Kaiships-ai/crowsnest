@@ -1,12 +1,13 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import type { VideoAnalysis } from "@/server/llm/schemas";
 // Shared with remix.ts (Task 5) — see analyze.ts's export comment. Review finding L1:
 // this file used to keep its own private copy of the same row -> VideoAnalysis
 // mapping instead of importing the one already exported for exactly this reuse.
-import { rowToAnalysis } from "@/server/services/analyze";
-import { feedItemColumns, type FeedItem } from "./feed";
+// `StoredVideoAnalysis` (not the narrower `VideoAnalysis`) is what the detail screen
+// needs: it is the type that also carries the Layout section's columns (contract 5).
+import { rowToAnalysis, type StoredVideoAnalysis } from "@/server/services/analyze";
+import { feedItemColumns, toFeedItem, type FeedItem } from "./feed";
 
 /** One slide of a carousel post. Instagram's child objects carry no caption or
  *  timestamp of their own — those are inherited from the parent post. */
@@ -29,17 +30,14 @@ export interface VideoDetail {
    *  UI needs this flag to say so rather than presenting it as a live post. */
   deletedAt: string | null;
   transcript: { text: string; source: string } | null;
-  analysis: VideoAnalysis | null;
+  analysis: StoredVideoAnalysis | null;
 }
 
 export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
+  // feedItemColumns already carries likeCount/commentCount/deletedAt as raw inputs (see
+  // its doc comment) — read straight off `row` below rather than selecting them twice.
   const [row] = await db
-    .select({
-      ...feedItemColumns,
-      likeCount: tables.videos.likeCount,
-      commentCount: tables.videos.commentCount,
-      deletedAt: tables.videos.deletedAt,
-    })
+    .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
     .where(eq(tables.videos.id, id))
@@ -75,10 +73,10 @@ export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
     mediaType: c.mediaType === "video" ? "video" : "photo",
   }));
 
-  const { likeCount, commentCount, deletedAt, ...item } = row;
+  const { likeCount, commentCount, deletedAt } = row;
 
   return {
-    item,
+    item: toFeedItem(row),
     likeCount,
     commentCount,
     children,
