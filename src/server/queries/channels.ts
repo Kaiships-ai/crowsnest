@@ -1,6 +1,11 @@
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
-import { computeChannelBaseline } from "@/server/services/outlier-calc";
+import {
+  computeChannelBaseline,
+  selectBaselineWindow,
+  type BaselineMethod,
+  type WindowSpec,
+} from "@/server/services/outlier-calc";
 import { getScoringOptions } from "@/server/settings";
 import { getOutlierFeed } from "./feed";
 
@@ -45,8 +50,13 @@ const OUTLIERS_30D_WINDOW_DAYS = 30;
  * default, but mean or a trimmed mean if that setting has been changed. Renaming the
  * field to match is a UI-facing change across every screen that reads it and is out of
  * scope here; flagged for whoever next touches the channels screens.
+ *
+ * Exported (only) for queries/saved-posts.ts: the Vault's "vs median" column needs the
+ * exact same number this file already computes for the Channels screen, read live
+ * rather than duplicated — two implementations of "one channel's normal" is how they
+ * drift, same reasoning own-metrics.ts already states for reach vs views.
  */
-async function getMedianViews(channelId: string): Promise<number | null> {
+export async function getMedianViews(channelId: string): Promise<number | null> {
   const [snapshot] = await db
     .select({ medianViews: tables.channelSnapshots.medianViews })
     .from(tables.channelSnapshots)
@@ -174,4 +184,105 @@ export async function getChannelDetail(id: string): Promise<ChannelDetail | null
     series,
     videos,
   };
+}
+
+/**
+ * Channel median histogram (V1 data contracts §4, plan Wave 1 item 3): the video
+ * detail screen's "what this median is made of" block.
+ *
+ * The baseline window and method are NOT hardcoded here — they come from
+ * `getScoringOptions()`, the same call `getMedianViews` above and the scoring engine
+ * both make. A histogram built under different settings than the score it explains
+ * would misrepresent that score, so `selectBaselineWindow` and `computeChannelBaseline`
+ * are handed the exact same options and therefore the exact same posts.
+ */
+export interface MedianBasis {
+  channelId: string;
+  handle: string;
+  /** Null below the settings module's minUsable posts, or when the baseline statistic
+   *  is exactly zero — computeChannelBaseline's own rule, evaluated under whatever
+   *  settings are configured right now. */
+  median: number | null;
+  /** Which statistic produced `median` — app_settings.score_baseline_method. Not
+   *  always "median"; the field is named for the common case. */
+  method: BaselineMethod;
+  /** Posts that contributed a view count to the baseline. Never larger than the
+   *  window, and this is the number the confidence word and the "N posts sampled"
+   *  copy are computed from. */
+  sampleSize: number;
+  /** Fewer usable posts than this and `median` is null — app_settings.score_min_usable_posts. */
+  minUsable: number;
+  /** The configured trailing window (posts / days / all) — app_settings.score_baseline_window. */
+  window: WindowSpec;
+  /** Oldest and newest postedAt among the sampled posts. Null when the sample is empty. */
+  spanFrom: string | null;
+  spanTo: string | null;
+  /** One bar each, oldest first — exactly the posts the baseline was computed over. The
+   *  clip threshold and bar heights are the component's business, not this query's. */
+  bars: { videoId: string; postedAt: string; viewCount: number; isSelf: boolean }[];
+}
+
+/** `selfVideoId` marks one bar as the post the detail page is showing, when that post
+ *  falls inside the sampled window. Pass nothing from the channels screen. */
+export async function getChannelMedianBasis(channelId: string, selfVideoId?: string): Promise<MedianBasis | null> {
+  const [channel] = await db.select().from(tables.channels).where(eq(tables.channels.id, channelId)).limit(1);
+  if (!channel) return null;
+
+  const videos = await db
+    .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
+    .from(tables.videos)
+    .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
+
+  const scoringOptions = await getScoringOptions();
+  const usable = selectBaselineWindow(videos, scoringOptions);
+  const median = computeChannelBaseline(videos, scoringOptions);
+
+  const bars = usable
+    .slice()
+    .reverse() // selectBaselineWindow returns newest-first; the histogram reads oldest-first
+    .map((v) => ({
+      videoId: v.id,
+      postedAt: v.postedAt,
+      viewCount: v.viewCount as number, // selectBaselineWindow already dropped null viewCounts
+      isSelf: v.id === selfVideoId,
+    }));
+
+  return {
+    channelId,
+    handle: channel.handle,
+    median,
+    method: scoringOptions.method,
+    sampleSize: usable.length,
+    minUsable: scoringOptions.minUsable,
+    window: scoringOptions.window,
+    spanFrom: bars[0]?.postedAt ?? null,
+    spanTo: bars.at(-1)?.postedAt ?? null,
+    bars,
+  };
+}
+
+export interface MedianHistoryPoint {
+  capturedAt: string;
+  medianViews: number | null;
+  followerCount: number | null;
+}
+
+const MEDIAN_HISTORY_DEFAULT_LIMIT = 30;
+
+/** From `channel_snapshots`, oldest first. Empty until this channel has completed at
+ *  least one sync — there is nothing to backfill this from, so an empty array is the
+ *  honest answer, not an error. */
+export async function getChannelMedianHistory(channelId: string, limit = MEDIAN_HISTORY_DEFAULT_LIMIT): Promise<MedianHistoryPoint[]> {
+  const rows = await db
+    .select({
+      capturedAt: tables.channelSnapshots.capturedAt,
+      medianViews: tables.channelSnapshots.medianViews,
+      followerCount: tables.channelSnapshots.followerCount,
+    })
+    .from(tables.channelSnapshots)
+    .where(eq(tables.channelSnapshots.channelId, channelId))
+    .orderBy(desc(tables.channelSnapshots.capturedAt))
+    .limit(limit);
+
+  return rows.reverse();
 }

@@ -187,13 +187,25 @@ function resolve<K extends keyof AppSettings>(key: K, raw: string | undefined): 
  *  read failure here would be a database problem everything else already has, and this
  *  function does not swallow that; it lets it propagate like every other query in
  *  `src/server/queries` does. */
-export async function getSettings(): Promise<AppSettings> {
-  const rows = await readRows();
+/** Pure — no I/O. Takes already-fetched `app_settings` rows (in whatever shape a
+ *  caller obtained them, sync or async) and applies the precedence rules. Split out
+ *  from `getSettings` so a caller that needs the resolved settings from INSIDE a
+ *  synchronous `db.transaction` callback (see `recomputeAllChannelScoresSync` and
+ *  `updateAppSettingsAction`, which reads its own just-written rows this way to keep a
+ *  settings write and the resulting score recompute in one atomic transaction) can call
+ *  this directly instead of going through the async `getSettings`, which a
+ *  better-sqlite3 transaction callback cannot `await` into. */
+export function resolveAllSettings(rows: { key: string; value: string }[]): AppSettings {
+  const map = new Map(rows.map((r) => [r.key, r.value]));
   const out = {} as AppSettings;
   for (const key of APP_SETTING_KEYS) {
-    out[key] = resolve(key, rows.get(DB_KEY[key])).value as never;
+    out[key] = resolve(key, map.get(DB_KEY[key])).value as never;
   }
   return out;
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return resolveAllSettings(await db.select().from(tables.appSettings));
 }
 
 /** Same as `getSettings`, plus where each value came from and whether anything reads
@@ -240,20 +252,30 @@ export function windowSpecFor(window: ScoreBaselineWindow): WindowSpec {
 }
 
 /** The `BaselineOptions` the scoring engine should call `computeChannelBaseline` /
- *  `scoreVideosAgainstBaseline` with, derived from the current settings. One place, so
- *  every caller (sync-engine.ts, channels.ts, ...) builds the same options the same
- *  way and cannot drift into passing a different window shape than another caller. */
-export async function getScoringOptions(): Promise<{
+ *  `scoreVideosAgainstBaseline` with. */
+export interface ScoringOptions {
   method: ScoreBaselineMethod;
   window: WindowSpec;
   minUsable: number;
   minViewsFloor: number;
-}> {
-  const s = await getSettings();
+}
+
+/** Pure — no I/O. The sync-side twin of `getScoringOptions`, for the same reason
+ *  `resolveAllSettings` exists: a caller inside a synchronous `db.transaction`
+ *  callback has already resolved `AppSettings` via `resolveAllSettings` and just needs
+ *  this shape out of it, with no further database access. */
+export function scoringOptionsFromSettings(s: AppSettings): ScoringOptions {
   return {
     method: s.scoreBaselineMethod,
     window: windowSpecFor(s.scoreBaselineWindow),
     minUsable: s.scoreMinUsablePosts,
     minViewsFloor: s.scoreMinViewsFloor,
   };
+}
+
+/** The scoring options derived from the current settings. One place, so every caller
+ *  (sync-engine.ts, channels.ts, ...) builds the same options the same way and cannot
+ *  drift into passing a different window shape than another caller. */
+export async function getScoringOptions(): Promise<ScoringOptions> {
+  return scoringOptionsFromSettings(await getSettings());
 }

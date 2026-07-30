@@ -220,3 +220,42 @@ describe("updateAppSettingsAction — a score-meaning setting recomputes stored 
     expect(bScore[0].outlierScore).toBe(10.0); // 500 / median(50) = 10.0
   });
 });
+
+describe("db.transaction rollback — the mechanism updateAppSettingsAction's atomicity depends on", () => {
+  test("a throw partway through a transaction rolls back every write already made in it, not just the one that failed", async () => {
+    // Same shape of writes updateAppSettingsAction makes inside its transaction: an
+    // app_settings upsert, then a videos update — then a throw simulating a mid-recompute
+    // failure on some later channel. This is not testing updateAppSettingsAction's own
+    // code (that's covered above); it is testing the exact primitive it relies on for
+    // its atomicity claim, isolated from everything else that could go wrong.
+    const channelId = newId();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@rollback-test-${channelId}`, trackedSince: nowIso() });
+    const videoId = newId();
+    await db.insert(tables.videos).values({
+      id: videoId,
+      channelId,
+      platform: "instagram",
+      externalId: `rollback-${videoId}`,
+      url: "https://example.com/v",
+      postedAt: nowIso(),
+      viewCount: 100,
+      outlierScore: 7,
+      firstSeenAt: nowIso(),
+    });
+
+    expect(() => {
+      db.transaction((tx) => {
+        tx.insert(tables.appSettings).values({ key: "score_baseline_method", value: "mean" }).run();
+        tx.update(tables.videos).set({ outlierScore: 99 }).where(eq(tables.videos.id, videoId)).run();
+        throw new Error("simulated failure partway through recompute");
+      });
+    }).toThrow("simulated failure partway through recompute");
+
+    // Neither write survived the rollback — the setting was never inserted, and the
+    // score-update that ran just before the throw was undone along with it.
+    const settingRows = await db.select().from(tables.appSettings).where(eq(tables.appSettings.key, "score_baseline_method"));
+    expect(settingRows).toHaveLength(0);
+    const videoRow = await db.select({ outlierScore: tables.videos.outlierScore }).from(tables.videos).where(eq(tables.videos.id, videoId));
+    expect(videoRow[0].outlierScore).toBe(7);
+  });
+});

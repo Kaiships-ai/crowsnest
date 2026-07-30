@@ -6,7 +6,7 @@ import { igClient, type IgClient, type IgMedia } from "../ig/client";
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
-import { getScoringOptions, getSetting } from "../settings";
+import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
 /**
@@ -736,12 +736,11 @@ async function upsertChildren(
 }
 
 /**
- * Exported (not just internal to a sync run) because it is also the recompute half of
- * the settings write path: `updateAppSettingsAction` in
- * `src/server/actions/settings-actions.ts` calls `recomputeAllChannelScores` below
- * whenever a scoring setting changes, so a saved setting and the scores on screen can
- * never disagree — see that module's doc comment for why recompute was chosen over
- * invalidating or stamping.
+ * Called after every channel sync, and by `importSingleReel` after a one-off import.
+ * Not the path a settings change uses — see `recomputeAllChannelScoresSync` below for
+ * that; this async version reads `app_settings` through the ordinary (non-transactional)
+ * `getScoringOptions`, which is exactly right here because a sync isn't racing a
+ * settings write for the same rows.
  */
 export async function recomputeChannelScores(channelId: string): Promise<number | null> {
   const rows = await db
@@ -760,17 +759,46 @@ export async function recomputeChannelScores(channelId: string): Promise<number 
   return computeChannelBaseline(calc, scoringOptions);
 }
 
+/** The transaction handle `db.transaction`'s callback receives — better-sqlite3's
+ *  driver requires that callback to be synchronous, so every function below that takes
+ *  one must use `.all()` / `.run()`, never `await`, exactly like `acquireLock` above. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function recomputeChannelScoresSync(tx: Tx, channelId: string, scoringOptions: ScoringOptions): void {
+  const rows = tx
+    .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
+    .from(tables.videos)
+    .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)))
+    .all();
+  const calc = rows.map(toCalc);
+  const scores = scoreVideosAgainstBaseline(calc, scoringOptions);
+  for (const row of rows) {
+    tx.update(tables.videos).set({ outlierScore: scores.get(row.id) ?? null }).where(eq(tables.videos.id, row.id)).run();
+  }
+}
+
 /**
- * Rescans every channel's already-stored videos and recomputes `outlierScore` under
- * whatever `app_settings` says right now. Pure local computation — no Instagram calls,
- * no sync lock, no `sync_jobs` row — so it is safe to call outside of a sync run, and
- * it is what keeps a stored score from silently going stale the moment a scoring
- * setting changes.
+ * The synchronous, transaction-safe twin of the recompute loop, for exactly one
+ * caller: `updateAppSettingsAction` in `src/server/actions/settings-actions.ts` runs
+ * this INSIDE the same `db.transaction` that writes the changed settings rows, so a
+ * settings save that changes what a score means is atomic — either the new settings
+ * and every recomputed score land together, or (on any error) better-sqlite3 rolls the
+ * whole transaction back and NOTHING changes, including the settings rows written
+ * earlier in the same transaction. There is no state where the setting is saved but
+ * only some channels' scores reflect it, and no state where a thrown error is silent:
+ * a rollback surfaces as the thrown error propagating out of `db.transaction`, which
+ * `updateAppSettingsAction` turns into `{ ok: false, error }`.
+ *
+ * `scoringOptions` is passed in, not re-derived here, because the caller has already
+ * resolved it (via `resolveAllSettings`/`scoringOptionsFromSettings`) from the rows it
+ * just wrote in this same transaction — recomputing it a second time from inside this
+ * function would either re-read those rows redundantly or, worse, invite a version that
+ * reads them a different way and drifts from the caller's own resolution.
  */
-export async function recomputeAllChannelScores(): Promise<void> {
-  const channelRows = await db.select({ id: tables.channels.id }).from(tables.channels);
+export function recomputeAllChannelScoresSync(tx: Tx, scoringOptions: ScoringOptions): void {
+  const channelRows = tx.select({ id: tables.channels.id }).from(tables.channels).all();
   for (const { id } of channelRows) {
-    await recomputeChannelScores(id);
+    recomputeChannelScoresSync(tx, id, scoringOptions);
   }
 }
 
@@ -1044,6 +1072,15 @@ async function syncOneChannel(
       .update(tables.channels)
       .set({ syncError: message, syncErrorCode: code })
       .where(eq(tables.channels.id, channel.id));
+    // Instagram's own retry-after hint (used above to size the backoff and then
+    // discarded) is copied onto the gap only when this is the code it actually applies
+    // to — see the doc comment on SyncGap.retryAfterSec. Omitted (not `undefined`-valued
+    // but genuinely absent from the object) whenever there is nothing honest to say, so
+    // a downstream reader can never mistake "we didn't ask" for "we don't know".
+    const retryAfterSec =
+      err instanceof IgError && err.code === "IG_RATE_LIMITED" && typeof err.detail.retry_after_sec === "number" && Number.isFinite(err.detail.retry_after_sec)
+        ? err.detail.retry_after_sec
+        : undefined;
     return {
       // handle and code travel with the gap so the UI can name the channel and offer the
       // right recovery ("reconnect in Settings" vs "retry") without a second query.
@@ -1053,6 +1090,7 @@ async function syncOneChannel(
         provider: "instagrapi",
         error: message,
         code: err instanceof IgError ? err.code : null,
+        ...(retryAfterSec !== undefined ? { retryAfterSec } : {}),
       },
       counters,
       stopReason: "error",

@@ -4,8 +4,8 @@ import { eq, inArray } from "drizzle-orm";
 import { db, tables } from "../db";
 import { getLlm, NoApiKeyError, type LlmClient } from "../llm/client";
 import { llmErrorMessage } from "../llm/error-message";
-import { getSettingsWithSource, validateSetting, type AppSettings, type AppSettingsView } from "../settings";
-import { recomputeAllChannelScores } from "../services/sync-engine";
+import { getSettingsWithSource, resolveAllSettings, scoringOptionsFromSettings, validateSetting, type AppSettings, type AppSettingsView } from "../settings";
+import { recomputeAllChannelScoresSync } from "../services/sync-engine";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
 
@@ -53,6 +53,22 @@ async function upsertSetting(key: string, value: string): Promise<void> {
     await db.update(tables.appSettings).set({ value }).where(eq(tables.appSettings.key, key));
   } else {
     await db.insert(tables.appSettings).values({ key, value });
+  }
+}
+
+/** The transaction handle `db.transaction`'s callback receives. Same type as
+ *  sync-engine.ts's private `Tx` — not shared across modules because it's derived
+ *  structurally from `db.transaction`'s own signature, not a type either module owns. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Synchronous twin of `upsertSetting`, for use inside a `db.transaction` callback
+ *  (better-sqlite3 requires that callback to be synchronous — see `updateAppSettingsAction`). */
+function upsertSettingSync(tx: Tx, key: string, value: string): void {
+  const existing = tx.select().from(tables.appSettings).where(eq(tables.appSettings.key, key)).limit(1).all();
+  if (existing[0]) {
+    tx.update(tables.appSettings).set({ value }).where(eq(tables.appSettings.key, key)).run();
+  } else {
+    tx.insert(tables.appSettings).values({ key, value }).run();
   }
 }
 
@@ -130,9 +146,9 @@ const SCORE_MEANING_KEYS: (keyof AppSettings)[] = [
  *
  * RECOMPUTE, not invalidate or stamp, for the four keys in `SCORE_MEANING_KEYS`: a score
  * on screen must always mean what the current settings say it means, full stop, so
- * saving a scoring setting synchronously walks every channel and recomputes
- * `videos.outlier_score` under the new settings before this action returns. There is
- * never a window where a stale score is displayed as current.
+ * saving a scoring setting recomputes `videos.outlier_score` for every channel under
+ * the new settings before this action returns. There is never a window where a stale
+ * score is displayed as current.
  *
  * Invalidating (nulling every score until the next sync) was rejected: a null score
  * already means "not enough usable posts" everywhere else in this app, so a null caused
@@ -148,6 +164,19 @@ const SCORE_MEANING_KEYS: (keyof AppSettings)[] = [
  * for example, an audit trail distinct from "the current live number" — that is an
  * additive column and a revisit of this decision, not a reason to leave today's numbers
  * silently stale in the meantime.
+ *
+ * ATOMIC, not best-effort: the settings row writes and the score recompute both happen
+ * inside one `db.transaction`. If anything in that transaction throws — a bad row, a
+ * mid-loop database error on channel 40 of 80, anything — better-sqlite3 rolls the whole
+ * transaction back. Nothing is left half done: not the settings (even the keys that
+ * validated fine), not the scores (even the channels already recomputed before the
+ * failure). The caller always gets one of two truths: `{ ok: true }` and every affected
+ * score already matches the new settings, or `{ ok: false, error }` and NOTHING changed,
+ * including rows that appeared to succeed earlier in the same call. A half-recomputed
+ * database — some channels under the old settings, some under the new, while the
+ * settings page reports the new ones as saved — is exactly the silent-wrongness bug this
+ * whole action exists to prevent, so it is not an acceptable failure mode here even as
+ * an edge case.
  */
 export async function updateAppSettingsAction(patch: Partial<AppSettings>): Promise<SimpleResult> {
   const entries = Object.entries(patch) as [keyof AppSettings, AppSettings[keyof AppSettings]][];
@@ -163,12 +192,20 @@ export async function updateAppSettingsAction(patch: Partial<AppSettings>): Prom
   const changesScoreMeaning = entries.some(([key]) => SCORE_MEANING_KEYS.includes(key));
 
   try {
-    for (const { key, value } of toWrite) {
-      await upsertSetting(key, value);
-    }
-    if (changesScoreMeaning) {
-      await recomputeAllChannelScores();
-    }
+    db.transaction((tx) => {
+      for (const { key, value } of toWrite) {
+        upsertSettingSync(tx, key, value);
+      }
+      if (changesScoreMeaning) {
+        // Read back what was just written, in the same transaction, rather than the
+        // caller's own `patch` — a patch can touch one scoring key while three others
+        // stay at whatever they already were, and the recompute has to run against the
+        // full resolved set, not just the fields that changed this call.
+        const rows = tx.select().from(tables.appSettings).all();
+        const scoringOptions = scoringOptionsFromSettings(resolveAllSettings(rows));
+        recomputeAllChannelScoresSync(tx, scoringOptions);
+      }
+    });
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

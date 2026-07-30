@@ -83,12 +83,15 @@ function statFor(method: BaselineMethod, values: number[]): number {
 }
 
 /**
- * The channel's baseline: whatever "normal" means for it under the given settings.
- * Null below `minUsable` usable posts, or when the computed statistic is exactly 0 — a
- * score computed against a zero baseline is a division by zero dressed as a number.
+ * The exact set of posts a baseline would be computed over: usable (non-null view
+ * count, at or above `minViewsFloor`), newest first, trimmed to `window`. Exported
+ * separately from `computeChannelBaseline` so a caller that needs to SHOW the sample
+ * (a histogram, a "what this median is made of" block) reads the identical selection
+ * the score itself was computed from, rather than reimplementing this filter and
+ * risking the two drifting apart.
  */
-export function computeChannelBaseline(videos: VideoForCalc[], opts: BaselineOptions = {}): number | null {
-  const { method, window, minUsable, minViewsFloor, now } = resolveOptions(opts);
+export function selectBaselineWindow(videos: VideoForCalc[], opts: BaselineOptions = {}): VideoForCalc[] {
+  const { window, minViewsFloor, now } = resolveOptions(opts);
 
   let usable = videos
     .filter((v) => v.viewCount !== null && v.viewCount >= minViewsFloor)
@@ -102,10 +105,38 @@ export function computeChannelBaseline(videos: VideoForCalc[], opts: BaselineOpt
   }
   // window.kind === "all": no trimming.
 
+  return usable;
+}
+
+/**
+ * The channel's baseline: whatever "normal" means for it under the given settings.
+ * Null below `minUsable` usable posts, or when the computed statistic is exactly 0 — a
+ * score computed against a zero baseline is a division by zero dressed as a number.
+ */
+export function computeChannelBaseline(videos: VideoForCalc[], opts: BaselineOptions = {}): number | null {
+  const { method, minUsable } = resolveOptions(opts);
+  const usable = selectBaselineWindow(videos, opts);
+
   if (usable.length < minUsable) return null;
 
   const stat = statFor(method, usable.map((v) => v.viewCount as number));
   return stat === 0 ? null : stat;
+}
+
+/**
+ * The word a histogram or a "thin sample" note should use for a given sample size.
+ * One exported source so the median bar, its copy, and the channels screen's
+ * thin-sample note can't quietly disagree about where "low" ends and "high" begins.
+ * Thresholds are not measured from this product's data — they mirror the "about ten
+ * posts before a median means anything" note already used elsewhere in the product
+ * docs, plus a second step at 30 for "settled".
+ */
+export const MEDIAN_CONFIDENCE_THRESHOLDS = { low: 10, medium: 30 } as const;
+export type MedianConfidence = "low" | "medium" | "high";
+export function medianConfidence(sampleSize: number): MedianConfidence {
+  if (sampleSize < MEDIAN_CONFIDENCE_THRESHOLDS.low) return "low";
+  if (sampleSize < MEDIAN_CONFIDENCE_THRESHOLDS.medium) return "medium";
+  return "high";
 }
 
 /** Every video's view count divided by the channel baseline, one decimal. Null when the
