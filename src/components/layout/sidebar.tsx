@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -114,6 +114,7 @@ const RAIL_COLLAPSED = "w-14";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
@@ -145,7 +146,14 @@ export function Sidebar() {
     if (progress.status === "success") toast.success(headline);
     else if (progress.status === "partial") toast.warning(headline);
     else toast.error(headline);
-  }, [progress]);
+
+    // The shell's failure strip (topbar.tsx) is fed by `getFailureStrip()` in a server
+    // component and only re-reads `sync_jobs` on navigation — it has no poll of its own,
+    // on purpose, so there's exactly one place in the shell that owns "is a sync running
+    // right now". A run this rail just watched finish is the one moment that snapshot is
+    // guaranteed stale, so it's refreshed here rather than teaching the strip to poll too.
+    router.refresh();
+  }, [progress, router]);
 
   const dot = progress === null ? "never" : VIEW_STATE_DOT[state];
   const railStatusLabel = railLabel(state, progress);

@@ -163,7 +163,7 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
 
       <div className="mt-2.5 flex justify-between gap-4 font-mono text-2xs tracking-wide text-faint">
         <span>
-          {basis.spanFrom && basis.spanTo ? `${shortDate(basis.spanFrom)} – ${shortDate(basis.spanTo)}` : "—"}
+          {basis.spanFrom && basis.spanTo ? `${shortDate(basis.spanFrom)} to ${shortDate(basis.spanTo)}` : "—"}
           {" · "}
           <span data-num>{basis.sampleSize}</span> posts sampled
         </span>
