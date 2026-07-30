@@ -28,7 +28,13 @@ export function formatCompact(n: number | null): string {
  */
 export function formatEngagementRate(rate: number | null): string {
   if (rate === null) return "—";
-  return `${(rate * 100).toFixed(1)}%`;
+  const pct = rate * 100;
+  // Below one percent, a single decimal is not precision, it is distortion: @kallaway's
+  // top post engages 0.05 percent and one decimal rounds that to 0.1, doubling it. Two
+  // decimals under 1 percent, one above, where a tenth is a real difference and a
+  // hundredth is noise.
+  if (pct > 0 && pct < 1) return `${pct.toFixed(2)}%`;
+  return `${pct.toFixed(1)}%`;
 }
 
 /**
