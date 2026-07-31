@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "db:generate": "drizzle-kit generate",
+    "db:backup": "tsx scripts/backup-db.ts",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "test": "vitest run",
     "test:watch": "vitest",
