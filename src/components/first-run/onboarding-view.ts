@@ -9,7 +9,26 @@
  * there is exactly one place that spells it out.
  */
 
+import type { getIgStatusAction } from "@/server/actions/ig-actions";
+
 export type OnboardingStep = "welcome" | "focus" | "connect" | "sources" | "sync";
+
+/** Shared with `onboarding-flow.tsx`'s own `OnboardingFlowProps.initialIgStatus` so both
+ *  files derive the same shape from the same action instead of each re-deriving it. */
+export type IgStatusResult = Awaited<ReturnType<typeof getIgStatusAction>>;
+
+/**
+ * Collapses the connect step's richer status (service unreachable vs. service reachable
+ * but nobody logged in) into the one distinction the sources step cares about: can a
+ * typed handle actually be checked against Instagram right now. The sidecar's `/profile`
+ * route requires a logged-in session (`services/ig/crowsnest_ig/session.py`'s
+ * `require_login`, called from every `manager.call`), so "service up, nobody logged in"
+ * fails a handle lookup the exact same way "service isn't running" does — from this
+ * step's point of view those two are one state, not two.
+ */
+export function canVerifyHandles(status: IgStatusResult): boolean {
+  return status.ok && status.status.loggedIn;
+}
 
 export interface StepMeta {
   key: Exclude<OnboardingStep, "welcome">;

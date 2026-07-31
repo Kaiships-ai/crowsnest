@@ -3,9 +3,10 @@
 /**
  * "Choose who to watch" — docs/product/v1-scope.md §2 AC 9–10. The prototype's version
  * of this screen toggles a pre-populated list of suggested channels on and off. This app
- * has no such list to suggest — inventing one would be exactly the fabricated data the
- * truth pass exists to remove — so this is a handle-in, handle-out list instead: type a
- * handle, add it to the pending list, remove one you didn't mean to add, then Continue
+ * has no such list to suggest — no search endpoint, no recommendation service, and
+ * inventing one would be exactly the fabricated data the truth pass exists to remove —
+ * so this is a handle-in, handle-out list instead: type or paste a handle (or several at
+ * once), add them to the pending list, remove one you didn't mean to add, then Continue
  * commits the whole list. Nothing is a `channels` row until Continue is pressed (AC 10),
  * built on the same `addChannelAction` the Channels page's own add-channel dialog uses.
  *
@@ -13,6 +14,24 @@
  * the existing row rather than erroring — see `bridgeAddChannel`'s own comment), so
  * re-pressing Continue after a partial failure is always safe: the handles that already
  * succeeded do not get a duplicate or an error the second time.
+ *
+ * Two honest concessions to "no suggestion service exists," both about what this screen
+ * can and can't confirm for you:
+ *
+ *  - `niche` (threaded down from the focus step via `onboarding-flow.tsx`) is echoed back
+ *    in the copy below, so the personalization the focus step promises visibly lands
+ *    somewhere instead of going nowhere. It does not filter or pre-fill anything — there
+ *    is nothing to filter a suggestion list from — it just proves the answer was heard.
+ *  - `canVerifyHandles` (derived from live Instagram status, not the page-load snapshot —
+ *    see `onboarding-flow.tsx`'s `onContinue` on the connect step) governs the copy under
+ *    the input, not what happens on Continue: `addChannelAction` behaves identically
+ *    either way. When it's `false`, the sidecar can't be asked whether a handle is real
+ *    (`/profile` needs a logged-in session — `services/ig/crowsnest_ig/session.py`'s
+ *    `require_login`), so `addChannel` catches that failure and still inserts a thin
+ *    channel row with `syncError` set rather than rejecting the handle — the malformed-
+ *    format check (`normalizeHandle`) is the only thing that can bounce a handle here.
+ *    Saying that plainly beats leaving the box looking like it verified something it
+ *    didn't.
  */
 
 import { useState } from "react";
@@ -22,6 +41,12 @@ import { Input } from "@/components/ui/input";
 import { addChannelAction } from "@/server/actions/sync-actions";
 
 export interface SourcesStepProps {
+  /** What the focus step's answer was — see the module doc above for why this screen
+   *  echoes it rather than acting on it. */
+  niche: string;
+  /** Whether the sidecar can currently look a handle up on Instagram. Copy-only; see
+   *  module doc. */
+  canVerifyHandles: boolean;
   onBack: () => void;
   onContinue: (channelIds: string[]) => void;
 }
@@ -30,23 +55,41 @@ function normalizeForDedupe(handle: string): string {
   return handle.trim().replace(/^@/, "").toLowerCase();
 }
 
-export function SourcesStep({ onBack, onContinue }: SourcesStepProps) {
+export function SourcesStep({ niche, canVerifyHandles, onBack, onContinue }: SourcesStepProps) {
   const [handles, setHandles] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [failed, setFailed] = useState<{ handle: string; error: string }[]>([]);
   const [pending, setPending] = useState(false);
 
-  function addHandle() {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    const key = normalizeForDedupe(trimmed);
-    if (handles.some((h) => normalizeForDedupe(h) === key)) {
-      setDraft("");
-      return;
-    }
-    setHandles((prev) => [...prev, trimmed]);
+  /**
+   * One handle typed and Enter-pressed is the common case, but the box also accepts a
+   * paste of several at once (comma-, space-, or newline-separated) — competitors rarely
+   * come one at a time, and re-typing "Add" per handle when you already have a list in
+   * hand is exactly the kind of friction this step shouldn't add on top of "no
+   * suggestions exist." Whatever's already in the pending list, or repeated within the
+   * same paste, is silently deduped rather than rejected.
+   */
+  function addHandles() {
+    const tokens = draft
+      .split(/[\s,]+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (tokens.length === 0) return;
+
+    setHandles((prev) => {
+      const seen = new Set(prev.map(normalizeForDedupe));
+      const next = [...prev];
+      for (const token of tokens) {
+        const key = normalizeForDedupe(token);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        next.push(token);
+      }
+      return next;
+    });
     setDraft("");
-    setFailed((prev) => prev.filter((f) => normalizeForDedupe(f.handle) !== key));
+    const addedKeys = new Set(tokens.map(normalizeForDedupe));
+    setFailed((prev) => prev.filter((f) => !addedKeys.has(normalizeForDedupe(f.handle))));
   }
 
   function removeHandle(handle: string) {
@@ -81,21 +124,29 @@ export function SourcesStep({ onBack, onContinue }: SourcesStepProps) {
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         Add the Instagram handles you compete with. You can add more later from Channels.
       </p>
+      <p className="mt-2 max-w-[48ch] text-xs text-muted-foreground">
+        Based on what you told us you make: <span className="text-foreground">{niche}</span>
+      </p>
 
       <div className="mt-11 flex max-w-[460px] items-center gap-2">
         <Input
-          placeholder="@handle"
+          placeholder="@handle, or paste several separated by commas"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === "Enter") addHandle();
+            if (e.key === "Enter") addHandles();
           }}
-          aria-label="Instagram handle"
+          aria-label="Instagram handles"
         />
-        <Button variant="outline" size="sm" onClick={addHandle} disabled={!draft.trim()}>
+        <Button variant="outline" size="sm" onClick={addHandles} disabled={!draft.trim()}>
           Add
         </Button>
       </div>
+      <p className="mt-2 max-w-[460px] text-xs text-muted-foreground">
+        {canVerifyHandles
+          ? "Checked against Instagram when you press Continue — a real handle's name and follower count show up on the Channels page right after; one that doesn't exist shows up there as \"Sync failed\" instead."
+          : "Instagram isn't connected right now, so only the handle's format gets checked here — whether the account actually exists is sorted out once you connect and sync."}
+      </p>
 
       {handles.length > 0 && (
         <ul className="mt-6 flex max-w-[460px] flex-col">

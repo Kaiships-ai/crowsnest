@@ -28,15 +28,19 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import type { getIgStatusAction } from "@/server/actions/ig-actions";
-import { ONBOARDING_STEP_COUNT, ONBOARDING_STEPS, stepNavState, type OnboardingStep } from "./onboarding-view";
+import {
+  canVerifyHandles,
+  ONBOARDING_STEP_COUNT,
+  ONBOARDING_STEPS,
+  stepNavState,
+  type IgStatusResult,
+  type OnboardingStep,
+} from "./onboarding-view";
 import { WelcomeStep } from "./welcome-step";
 import { FocusStep } from "./focus-step";
 import { ConnectStep } from "./connect-step";
 import { SourcesStep } from "./sources-step";
 import { FirstSyncStep } from "./first-sync-step";
-
-type IgStatusResult = Awaited<ReturnType<typeof getIgStatusAction>>;
 
 export interface OnboardingFlowProps {
   initialNiche: string;
@@ -49,6 +53,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
   const router = useRouter();
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [niche, setNiche] = useState(initialNiche);
+  const [igStatus, setIgStatus] = useState<IgStatusResult>(initialIgStatus);
   const [channelIds, setChannelIds] = useState<string[]>([]);
 
   function goTo(target: OnboardingStep) {
@@ -128,12 +133,21 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
               initialStatus={initialIgStatus}
               serviceUrl={serviceUrl}
               onBack={() => setStep("focus")}
-              onContinue={() => setStep("sources")}
+              onContinue={(status) => {
+                // The status this step leaves with, not the page-load snapshot: someone
+                // who connects (or whose sidecar comes up) during this step should have
+                // sources reflect that immediately, not the stale answer from before they
+                // acted.
+                setIgStatus(status);
+                setStep("sources");
+              }}
             />
           )}
 
           {step === "sources" && (
             <SourcesStep
+              niche={niche}
+              canVerifyHandles={canVerifyHandles(igStatus)}
               onBack={() => setStep("connect")}
               onContinue={(ids) => {
                 setChannelIds(ids);

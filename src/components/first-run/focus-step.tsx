@@ -68,7 +68,8 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
       <span className="font-mono text-2xs tracking-wide text-faint">01 · FOCUS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">What do you make?</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
-        This picks which channels get suggested next and the score the feed opens at. Changeable later in Settings.
+        This shapes the channels step right after this one, and every remix you generate. Changeable later in
+        Settings.
       </p>
 
       <div className="mt-11">

@@ -8,9 +8,9 @@ import { ONBOARDING_STEP_COUNT } from "./onboarding-view";
 // channels with running the first sync, so the screen promised four steps and showed
 // three.
 const POINTS = [
-  "Pick what you make, so the scoring and the suggestions start from your niche.",
+  "Pick what you make, so the scoring starts from your niche.",
   "Connect the Instagram account the sidecar signs in with. Read only, nothing is posted.",
-  "Choose the channels to watch.",
+  "Type in the channels to watch — there's no suggestion list, so bring their handles.",
   "Run the first sync, and see what beat its own median.",
 ];
 

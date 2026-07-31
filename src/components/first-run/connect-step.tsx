@@ -112,7 +112,11 @@ export interface ConnectStepProps {
   initialStatus: StatusResult;
   serviceUrl: string;
   onBack: () => void;
-  onContinue: () => void;
+  /** Carries the live status this screen ends on (not just whether it was pressed) so
+   *  the sources step next door — which needs to know whether a typed handle can
+   *  actually be checked against Instagram — doesn't have to re-derive it from a stale
+   *  page-load snapshot. */
+  onContinue: (status: StatusResult) => void;
 }
 
 export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: ConnectStepProps) {
@@ -267,7 +271,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
         <div className="mt-14">
           <span className="font-mono text-2xs text-primary">CONNECTED</span>
           <p className="mt-4 text-lg">{status.username ? `@${status.username}` : "—"}</p>
-          <Button className="mt-12" onClick={onContinue}>
+          <Button className="mt-12" onClick={() => onContinue(statusResult)}>
             Choose channels
           </Button>
         </div>
@@ -319,7 +323,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
                 Re-check
               </Button>
             )}
-            <Button variant="ghost" onClick={onContinue}>
+            <Button variant="ghost" onClick={() => onContinue(statusResult)}>
               Skip for now
             </Button>
           </div>
