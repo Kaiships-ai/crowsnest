@@ -1,7 +1,26 @@
-import { beforeEach, describe, expect, test } from "vitest";
-import { db, tables } from "@/server/db";
-import { migrate } from "@/server/db/test-migrate";
-import { insertLogEvent, queryLogEvents, redactLogFields, RETENTION_MAX } from "./store";
+import { beforeAll, beforeEach, describe, expect, test } from "vitest";
+
+let db: typeof import("@/server/db")["db"];
+let tables: typeof import("@/server/db")["tables"];
+let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+let insertLogEvent: typeof import("./store")["insertLogEvent"];
+let queryLogEvents: typeof import("./store")["queryLogEvents"];
+let redactLogFields: typeof import("./store")["redactLogFields"];
+let RETENTION_MAX: typeof import("./store")["RETENTION_MAX"];
+
+beforeAll(async () => {
+  // Must be set before @/server/db (and anything importing it, including
+  // ./store) is ever loaded — that module reads CROWSNEST_DB_PATH at import
+  // time and defaults to the real "data/crowsnest.db" when unset. A static
+  // top-level import here would run against the real dev database instead
+  // of an in-memory one. Same pattern as src/server/settings/index.test.ts.
+  process.env.CROWSNEST_DB_PATH = ":memory:";
+  process.env.IG_SERVICE_TOKEN ??= "test-token";
+
+  ({ db, tables } = await import("@/server/db"));
+  ({ migrate } = await import("@/server/db/test-migrate"));
+  ({ insertLogEvent, queryLogEvents, redactLogFields, RETENTION_MAX } = await import("./store"));
+});
 
 function make(overrides: Partial<Parameters<typeof insertLogEvent>[0]> = {}) {
   return {
