@@ -96,13 +96,18 @@ export function FailureStrip({ strip }: FailureStripProps) {
         </div>
       </div>
 
+      {/* Secondary, not amber. This strip renders on every screen, so an amber action
+          here would compete with whatever that screen's own primary action is: Remix on
+          the detail page, the rescore save on Settings. Amber means one thing in this
+          design, a post beat its channel, and it gets one primary per screen. A recovery
+          control that follows Kai everywhere cannot be that one. */}
       <div className="flex shrink-0 items-center gap-2">
         {action.kind === "settings" ? (
-          <Link href="/settings" className={buttonVariants({ size: "sm" })}>
+          <Link href="/settings" className={buttonVariants({ size: "sm", variant: "secondary" })}>
             {action.label}
           </Link>
         ) : action.kind !== "none" ? (
-          <Button size="sm" onClick={runAction} disabled={action.disabled}>
+          <Button size="sm" variant="secondary" onClick={runAction} disabled={action.disabled}>
             {action.label}
           </Button>
         ) : null}

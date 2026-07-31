@@ -12,7 +12,7 @@
  * on the *previous* run until a manual reload. It is now the monitoring surface: full
  * live panel while a run is in flight, the server-rendered summary the rest of the time.
  * Every prop it takes is still plain serializable data read on the server, except
- * `settings`, whose three fields are now editable app_settings rows (see below).
+ * `settings`, whose four fields are now editable app_settings rows (see below).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -28,27 +28,30 @@ import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import type { AppSettingsView } from "@/server/settings";
 
 export interface SyncConfigSummary {
-  maxItemsPerSync: number;
   eagerVideoDownload: boolean;
   mediaRoot: string;
 }
 
-/** The three `app_settings` keys this section now edits, matching Wave 1's contract
- *  (`src/server/settings/index.ts`) exactly: `syncLookbackDays` is read by `runSync`,
- *  `syncCadenceMinutes` and `mediaRetentionDays` are stored and DB-overridable but have
- *  no scheduler and no reaper behind them yet.
+/** The four `app_settings` keys this section now edits, matching Wave 1's contract
+ *  (`src/server/settings/index.ts`) exactly: `syncLookbackDays` and `maxItemsPerSync`
+ *  are both read by `runSync`, `syncCadenceMinutes` and `mediaRetentionDays` are stored
+ *  and DB-overridable but have no scheduler and no reaper behind them yet.
  *
- *  These three used to render as static config-derived text ("30 days", "manual only",
- *  "nothing is deleted") with no write path: hand-editing `.env.local` and restarting
- *  was the only way to change them. Wave 1 gave every one of them a real database row
- *  and a source ("db" | "env" | "default"); this section is the edit surface for that
- *  row. The two unwired keys keep their honest warning (a user who reads "90 days" next
- *  to "asset retention" must not conclude disk use is bounded), it just now sits next to
- *  an input instead of standing in for one. */
-type SyncSettings = Pick<AppSettingsView, "syncLookbackDays" | "syncCadenceMinutes" | "mediaRetentionDays">;
+ *  These four used to render as static config-derived text ("30 days", "200 posts",
+ *  "manual only", "nothing is deleted") with no write path: hand-editing `.env.local`
+ *  and restarting was the only way to change them. Wave 1 gave every one of them a real
+ *  database row and a source ("db" | "env" | "default"); this section is the edit
+ *  surface for that row. `maxItemsPerSync` was the last of the four still stuck in the
+ *  read-only config table below (a leftover from before it had a database row); it
+ *  belongs here, next to lookback, because both bound the same sync run and both are
+ *  now equally editable. The two genuinely unwired keys keep their honest warning (a
+ *  user who reads "90 days" next to "asset retention" must not conclude disk use is
+ *  bounded), it just now sits next to an input instead of standing in for one. */
+type SyncSettings = Pick<AppSettingsView, "syncLookbackDays" | "maxItemsPerSync" | "syncCadenceMinutes" | "mediaRetentionDays">;
 
 const ENV_VAR_NAME: Record<keyof SyncSettings, string> = {
   syncLookbackDays: "LOOKBACK_DAYS",
+  maxItemsPerSync: "MAX_ITEMS_PER_SYNC",
   syncCadenceMinutes: "SYNC_INTERVAL_MINUTES",
   mediaRetentionDays: "MEDIA_RETENTION_DAYS",
 };
@@ -163,12 +166,14 @@ export function SyncSection({
   const [starting, setStarting] = useState(false);
 
   const [lookback, setLookback] = useState(String(settings.syncLookbackDays.value));
+  const [maxItems, setMaxItems] = useState(String(settings.maxItemsPerSync.value));
   const [cadence, setCadence] = useState(String(settings.syncCadenceMinutes.value));
   const [retention, setRetention] = useState(String(settings.mediaRetentionDays.value));
   const [savingSettings, setSavingSettings] = useState(false);
 
   const settingsDirty =
     lookback !== String(settings.syncLookbackDays.value) ||
+    maxItems !== String(settings.maxItemsPerSync.value) ||
     cadence !== String(settings.syncCadenceMinutes.value) ||
     retention !== String(settings.mediaRetentionDays.value);
 
@@ -176,6 +181,7 @@ export function SyncSection({
     setSavingSettings(true);
     const result = await updateAppSettingsAction({
       syncLookbackDays: Number(lookback),
+      maxItemsPerSync: Number(maxItems),
       syncCadenceMinutes: Number(cadence),
       mediaRetentionDays: Number(retention),
     });
@@ -235,14 +241,13 @@ export function SyncSection({
       <div>
         <h2 className="text-lg font-semibold">Sync</h2>
         <p className="text-sm text-muted-foreground">
-          The three rows just below are still <code>.env.local</code>-only, validated at boot. A bad value there stops the app starting
-          rather than surfacing later as an empty sync. Lookback, cadence, and retention underneath those are stored in the database and
-          editable here.
+          The two rows just below are still <code>.env.local</code>-only, validated at boot. A bad value there stops the app starting
+          rather than surfacing later as an empty sync. Lookback, per-sync cap, cadence, and retention underneath those are stored in the
+          database and editable here.
         </p>
       </div>
 
       <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 border border-border p-4 text-sm">
-        <ConfigRow label="Per-sync cap" value={`${config.maxItemsPerSync} posts`} note="MAX_ITEMS_PER_SYNC" />
         <ConfigRow
           label="Video download"
           value={config.eagerVideoDownload ? "eager" : "on demand"}
@@ -258,6 +263,13 @@ export function SyncSection({
       <div className="flex flex-col gap-2">
         <SettingRow label="Lookback window" hint="How far back a sync looks by default." infoNote={envNote("syncLookbackDays")}>
           <NumberField value={lookback} onChange={setLookback} min={1} max={3650} suffix="days" ariaLabel="Sync lookback window" />
+        </SettingRow>
+        <SettingRow
+          label="Per-sync cap"
+          hint="Hard safety cap on items fetched across one sync run."
+          infoNote={envNote("maxItemsPerSync")}
+        >
+          <NumberField value={maxItems} onChange={setMaxItems} min={1} max={10_000} suffix="posts" ariaLabel="Per-sync cap" />
         </SettingRow>
         <SettingRow
           label="Sync cadence"
