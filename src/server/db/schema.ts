@@ -515,3 +515,27 @@ export const ownComments = sqliteTable("own_comments", {
   classifierVersion: text("classifier_version").notNull(),
   capturedAt: text("captured_at").notNull(),
 }, (t) => [uniqueIndex("own_comments_external").on(t.externalId)]);
+
+/**
+ * The system logs table (system logs feature, task 1): one row per stored
+ * `info` / `warn` / `error` event across backend, frontend and sidecar. `debug`
+ * is never inserted (see `insertLogEvent`). `fields` is a JSON string that has
+ * already been through `redactLogFields` before insert — nothing raw ever
+ * lands in this table. Retention is capped at `RETENTION_MAX` (50000) rows,
+ * pruned oldest-first on every insert.
+ */
+export const logEvents = sqliteTable(
+  "log_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ts: text("ts").notNull(),
+    level: text("level").notNull(), // "info" | "warn" | "error"
+    source: text("source").notNull(), // "backend" | "frontend" | "sidecar"
+    event: text("event").notNull(),
+    fields: text("fields").notNull(), // JSON string, already redacted
+  },
+  (t) => ({
+    byLevel: index("log_events_level_id").on(t.level, t.id),
+    bySource: index("log_events_source_id").on(t.source, t.id),
+  }),
+);
