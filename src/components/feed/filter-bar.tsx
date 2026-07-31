@@ -27,13 +27,13 @@ type Fleet = { id: string; name: string; channelCount: number };
 // router.replace per keystroke would thrash the URL and refetch the feed mid-word.
 const SEARCH_DEBOUNCE_MS = 350;
 
-// Instagram only in V1 (V1-BRIEF.md, Kai's ruling 2026-07-31) — TikTok and YT
-// Shorts pulled out. Sync can only ever write platform: "instagram", so those two
-// options returned zero rows every time, by construction.
-const PLATFORM_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "instagram", label: "IG" },
-];
+// No platform control at all. V1 is Instagram only (V1-BRIEF.md, Kai's ruling
+// 2026-07-31), so TikTok and YT Shorts came out first, and the All/IG toggle that
+// survived that pass was just as empty: both options return the same rows, because
+// sync can only ever write platform: "instagram". A control whose two settings are
+// indistinguishable is the same defect as one that does nothing.
+// The `platform` URL param and the schema column both stay, so a second platform
+// later is additive rather than a migration.
 const SCORE_OPTIONS = [
   { value: "any", label: "Any score" },
   { value: "2", label: "2×+" },
@@ -177,7 +177,6 @@ export function FilterBar({
   }
 
   const fleet = searchParams.get("fleet") ?? "all";
-  const platform = searchParams.get("platform") ?? "all";
   const minScore = searchParams.get("minScore") ?? (applied.minScore !== null ? String(applied.minScore) : "any");
   const minViews = searchParams.get("minViews") ?? (applied.minViews !== null ? String(applied.minViews) : "any");
   const since = searchParams.get("since") ?? (applied.sinceDays !== null ? String(applied.sinceDays) : "30");
@@ -219,18 +218,6 @@ export function FilterBar({
             ))}
           </SelectContent>
         </Select>
-
-        <ToggleGroup
-          value={[platform]}
-          onValueChange={(vals) => set("platform", (vals[0] as string | undefined) ?? "all")}
-          aria-label="Platform"
-        >
-          {PLATFORM_OPTIONS.map((o) => (
-            <ToggleGroupItem key={o.value} value={o.value} size="sm">
-              {o.label}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
 
         <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
           <SelectTrigger size="sm" aria-label="Minimum outlier score" className={FILTER_TRIGGER_CLASS}>
