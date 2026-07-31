@@ -95,7 +95,7 @@ function AnalysisGate({
       <Alert>
         <AlertTitle>No transcript available yet</AlertTitle>
         <AlertDescription>
-          Install a local transcriber (<code>brew install yt-dlp whisper-cpp</code>, then download a GGML model —
+          Install a local transcriber (<code>brew install yt-dlp whisper-cpp</code>, then download a GGML model,
           see Settings for the exact missing path) or add GROQ_API_KEY in Settings, then try again.
         </AlertDescription>
       </Alert>
@@ -186,7 +186,7 @@ function HookStructureTab({
                   </span>
                   <div>
                     <span className="text-sm font-semibold">{segment.label}</span>
-                    <span className="text-sm text-muted-foreground"> — {segment.note}</span>
+                    <span className="text-sm text-muted-foreground">, {segment.note}</span>
                     <div
                       className="mt-3 h-0.5 bg-line-strong"
                       style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
@@ -287,7 +287,7 @@ export function VideoDetail({
       await navigator.clipboard.writeText(item.url);
       toast.success("Link copied");
     } catch {
-      toast.error("Couldn't copy to clipboard — check browser permissions.");
+      toast.error("Couldn't copy to clipboard. Check browser permissions.");
     }
   }
 
@@ -297,7 +297,7 @@ export function VideoDetail({
       await navigator.clipboard.writeText(detail.transcript.text);
       toast.success("Transcript copied");
     } catch {
-      toast.error("Couldn't copy to clipboard — check browser permissions.");
+      toast.error("Couldn't copy to clipboard. Check browser permissions.");
     }
   }
 
@@ -314,9 +314,9 @@ export function VideoDetail({
     }
     try {
       await navigator.clipboard.writeText(result.prompt);
-      toast.success("Prompt copied — paste into any LLM");
+      toast.success("Prompt copied, paste into any LLM");
     } catch {
-      toast.error("Couldn't copy to clipboard — check browser permissions.");
+      toast.error("Couldn't copy to clipboard. Check browser permissions.");
     }
   }
 
@@ -356,7 +356,7 @@ export function VideoDetail({
           <AlertTitle>No longer on {platformLabel(item.channel.platform)}</AlertTitle>
           <AlertDescription>
             This post was removed from the creator&rsquo;s timeline on {relativeTime(detail.deletedAt)}. It&rsquo;s
-            kept here because its transcript, analysis, and remix work still matter — the media below reflects the
+            kept here because its transcript, analysis, and remix work still matter. The media below reflects the
             last copy we downloaded.
           </AlertDescription>
         </Alert>
@@ -471,7 +471,7 @@ export function VideoDetail({
                 </div>
               ) : (
                 <p className="pt-4 text-sm text-muted-foreground">
-                  No transcript yet — open Hook &amp; structure or Why it worked and click Transcribe &amp; Analyze
+                  No transcript yet. Open Hook &amp; structure or Why it worked and click Transcribe &amp; Analyze
                 </p>
               )}
             </TabsContent>

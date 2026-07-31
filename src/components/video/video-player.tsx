@@ -93,8 +93,24 @@ export function VideoPlayer({
 
   const pending = state.kind === "pending";
 
+  // The thumbnail is already on disk for anything that synced, and the feed card one
+  // click earlier renders it. Opening the post used to swap that for an empty hatch,
+  // so the screen where a post gets judged showed less than the card that led to it.
+  // The frame sits behind the download affordance now, dimmed so the controls stay
+  // legible. `poster` is null only when the post genuinely has no thumbnail.
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center" style={EMPTY_WELL}>
+    <div
+      className="relative flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center"
+      style={poster ? undefined : EMPTY_WELL}
+    >
+      {poster && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-40" />
+          <div aria-hidden className="absolute inset-0 bg-background/45" />
+        </>
+      )}
+      <div className={poster ? "relative flex flex-col items-center gap-3 bg-background/80 px-4 py-3" : "relative flex flex-col items-center gap-3"}>
       {pending ? (
         <>
           <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
@@ -114,6 +130,7 @@ export function VideoPlayer({
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

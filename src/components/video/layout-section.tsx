@@ -91,7 +91,7 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
         ) : (
           <>
             No vision-capable model is configured yet, so on-screen text, its position, cut rhythm, and framing can&rsquo;t
-            be read from frames. These four stay dashes until that&rsquo;s wired up — nothing above is a guess standing in
+            be read from frames. These four stay dashes until that&rsquo;s wired up. Nothing above is a guess standing in
             for a reading.
           </>
         )}
