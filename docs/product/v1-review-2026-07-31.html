@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crowsnest V1 review, layer by layer</title>
+<style>
+:root{
+  --background: oklch(0.97 0.005 260); --foreground: oklch(0.18 0.02 260);
+  --card: oklch(1 0 0); --card-foreground: oklch(0.18 0.02 260);
+  --muted: oklch(0.92 0.01 260); --muted-foreground: oklch(0.40 0.02 260);
+  --primary: oklch(0.50 0.25 280); --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.50 0.18 180); --accent: oklch(0.60 0.22 50);
+  --destructive: oklch(0.50 0.25 25); --success: oklch(0.45 0.20 150);
+  --warning: oklch(0.55 0.18 85);
+  --border: oklch(0.88 0.01 260); --code-bg: oklch(0.92 0.01 260);
+  --radius: 0.625rem;
+  --font-sans:'Inter',system-ui,-apple-system,sans-serif;
+  --font-mono:'JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --background: oklch(0.16 0.015 260); --foreground: oklch(0.95 0.005 260);
+    --card: oklch(0.21 0.018 260); --card-foreground: oklch(0.95 0.005 260);
+    --muted: oklch(0.27 0.018 260); --muted-foreground: oklch(0.68 0.015 260);
+    --primary: oklch(0.68 0.19 280); --primary-foreground: oklch(0.16 0.015 260);
+    --secondary: oklch(0.68 0.14 180); --accent: oklch(0.74 0.17 60);
+    --destructive: oklch(0.65 0.20 25); --success: oklch(0.68 0.16 150);
+    --warning: oklch(0.75 0.15 85);
+    --border: oklch(0.31 0.018 260); --code-bg: oklch(0.24 0.018 260);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--foreground);
+  font-family:var(--font-sans);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 96px}
+header{padding:56px 0 30px;border-bottom:1px solid var(--border)}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted-foreground);margin:0 0 14px}
+h1{font-family:var(--font-display);font-size:clamp(30px,5vw,46px);line-height:1.12;
+  margin:0 0 16px;letter-spacing:-.02em;font-weight:600}
+.sub{color:var(--muted-foreground);max-width:64ch;margin:0;font-size:17px}
+.promptbox{margin-top:24px;background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--primary);border-radius:var(--radius);padding:16px 18px}
+.promptbox p{margin:0 0 6px;font-size:14.5px;color:var(--muted-foreground)}
+.promptbox p:last-child{margin:0}
+nav{position:sticky;top:0;z-index:30;background:var(--background);
+  border-bottom:1px solid var(--border);margin-bottom:44px;overflow-x:auto}
+nav ul{display:flex;gap:2px;list-style:none;margin:0;padding:9px 0;min-width:max-content}
+nav a{font-family:var(--font-mono);font-size:12px;color:var(--muted-foreground);
+  text-decoration:none;padding:7px 12px;border-radius:6px;white-space:nowrap}
+nav a:hover{color:var(--foreground);background:var(--muted)}
+section{margin:0 0 68px;scroll-margin-top:64px}
+h2{font-family:var(--font-display);font-size:27px;margin:0 0 8px;font-weight:600;letter-spacing:-.01em}
+h2 .lyr{font-family:var(--font-mono);font-size:12px;color:var(--primary);
+  letter-spacing:.1em;display:block;margin-bottom:7px;font-weight:400}
+.lede{color:var(--muted-foreground);max-width:70ch;margin:0 0 24px}
+h3{font-size:16px;margin:30px 0 10px;font-weight:640}
+p{max-width:72ch}
+.kpis{display:grid;gap:13px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin:18px 0}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px}
+.kpi .lab{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted-foreground);margin-bottom:7px}
+.kpi .val{font-size:30px;font-weight:660;letter-spacing:-.02em;line-height:1}
+.kpi .val small{font-size:15px;color:var(--muted-foreground);font-weight:400}
+.kpi .note{font-size:12.5px;color:var(--muted-foreground);margin-top:6px}
+.kpi.good .val{color:var(--success)} .kpi.warn .val{color:var(--warning)}
+.kpi.bad .val{color:var(--destructive)}
+.scroll{overflow-x:auto;margin:16px 0;border:1px solid var(--border);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;min-width:600px;font-size:13.5px}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted-foreground);background:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:none}
+code{font-family:var(--font-mono);font-size:12.5px;background:var(--code-bg);
+  padding:1px 5px;border-radius:4px}
+.badge{display:inline-block;font-family:var(--font-mono);font-size:10.5px;
+  padding:2px 7px;border-radius:999px;letter-spacing:.05em;white-space:nowrap;font-weight:500}
+.b-match{background:color-mix(in oklab,var(--success) 18%,transparent);color:var(--success)}
+.b-close{background:color-mix(in oklab,var(--secondary) 18%,transparent);color:var(--secondary)}
+.b-part{background:color-mix(in oklab,var(--warning) 20%,transparent);color:var(--warning)}
+.b-abs{background:color-mix(in oklab,var(--destructive) 16%,transparent);color:var(--destructive)}
+.b-fixed{background:color-mix(in oklab,var(--success) 18%,transparent);color:var(--success)}
+.b-open{background:color-mix(in oklab,var(--destructive) 16%,transparent);color:var(--destructive)}
+.callout{border:1px solid var(--border);border-left:3px solid var(--muted-foreground);
+  background:var(--card);border-radius:var(--radius);padding:15px 18px;margin:18px 0;max-width:74ch}
+.callout.bad{border-left-color:var(--destructive)}
+.callout.good{border-left-color:var(--success)}
+.callout.warn{border-left-color:var(--warning)}
+.callout h4{margin:0 0 7px;font-size:14.5px;font-weight:640}
+.callout p{margin:0 0 8px;font-size:14.5px;color:var(--muted-foreground)}
+.callout p:last-child{margin:0}
+.bar{display:flex;align-items:center;gap:11px;margin:9px 0}
+.bar .nm{flex:0 0 190px;font-size:13.5px}
+.bar .track{flex:1;height:9px;background:var(--muted);border-radius:999px;overflow:hidden;min-width:90px}
+.bar .fill{height:100%;border-radius:999px}
+.bar .sc{flex:0 0 46px;font-family:var(--font-mono);font-size:12.5px;text-align:right;color:var(--muted-foreground)}
+.pipe{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:18px 0}
+.step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:10px 13px;font-size:13px;min-width:112px}
+.step .t{font-family:var(--font-mono);font-size:10.5px;color:var(--muted-foreground);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.step.ok{border-color:color-mix(in oklab,var(--success) 45%,var(--border))}
+.step.stop{border-color:var(--destructive);background:color-mix(in oklab,var(--destructive) 8%,var(--card))}
+.arrow{color:var(--muted-foreground);font-family:var(--font-mono)}
+ul.plain{padding-left:20px;max-width:72ch} ul.plain li{margin:8px 0}
+footer{border-top:1px solid var(--border);padding-top:22px;color:var(--muted-foreground);font-size:13px}
+@media (max-width:640px){ .bar .nm{flex-basis:120px;font-size:12.5px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Crowsnest V1 / independent review / 2026-07-31</p>
+  <h1>Can you use this tomorrow morning?</h1>
+  <p class="sub">Three reviewers worked the running app rather than the source. They found
+  four defects that a full day of typechecks, lint and 893 passing tests had cleared.
+  All four are fixed. The answer to the question is still no, and the reason is not the code.</p>
+  <div class="promptbox">
+    <p><strong>What you asked:</strong> compare V1 against the prototype, review layer by
+    layer, and score the product honestly.</p>
+    <p><strong>What you said:</strong> "I don't think our V1 could use now. The part setting
+    up the backend, the brain, I don't clear. On frontend also don't clear."</p>
+    <p>You were right on both counts. The brain diagnosis is in layer 4.</p>
+  </div>
+</header>
+
+<nav><ul>
+  <li><a href="#verdict">Verdict</a></li>
+  <li><a href="#l1">1. UI vs prototype</a></li>
+  <li><a href="#l2">2. Features</a></li>
+  <li><a href="#l3">3. Usability</a></li>
+  <li><a href="#l4">4. Backend and the brain</a></li>
+  <li><a href="#l5">5. Score</a></li>
+  <li><a href="#next">Next actions</a></li>
+</ul></nav>
+
+<section id="verdict">
+  <h2><span class="lyr">THE SHORT VERSION</span>What is actually wrong</h2>
+  <p class="lede">The product is built. It does not start itself, and until today it was
+  quietly lying on the one screen you open every day.</p>
+
+  <div class="kpis">
+    <div class="kpi good"><div class="lab">screens shipped</div><div class="val">10</div><div class="note">all render, all backed by real queries</div></div>
+    <div class="kpi good"><div class="lab">tests</div><div class="val">893</div><div class="note">55 files, all passing</div></div>
+    <div class="kpi bad"><div class="lab">manual steps before use</div><div class="val">2</div><div class="note">every session, both in a terminal</div></div>
+    <div class="kpi warn"><div class="lab">bugs found this review</div><div class="val">4</div><div class="note">all fixed, all invisible to static checks</div></div>
+  </div>
+
+  <div class="callout bad">
+    <h4>The worst one, now fixed</h4>
+    <p>Opening <code>/feed</code> silently applied a saved preset with a minimum score of 5.
+    The control next to it read "Any score". Seven of your eight posts were hidden with
+    nothing on screen explaining why, and the count said "1 result".</p>
+    <p>That is not a missing feature. It is the screen the product exists for telling you
+    the opposite of what it did. It survived a full day of review because it typechecks
+    perfectly. Fixed in <code>5b5a846</code>: the row now reads "5x+".</p>
+  </div>
+
+  <div class="callout warn">
+    <h4>Why you cannot use it tomorrow</h4>
+    <p>Getting from "open Crowsnest" to "have a script" needs two background processes you
+    start by hand, in a terminal, every session: the Instagram sidecar, and a working LLM
+    backend. Neither auto-starts. One carries real account-ban risk.</p>
+    <p>Everything downstream of those two works. The one job is built. It just does not
+    start itself.</p>
+  </div>
+</section>
+
+<section id="l1">
+  <h2><span class="lyr">LAYER 1</span>UI against the prototype</h2>
+  <p class="lede">Nine screens compared by loading both. Six known decisions (multi platform
+  cut, signin cut, thinner dashboard, no vision model, no Graph token, vault structure)
+  are excluded as settled, not counted as gaps.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Screen</th><th>Gap against prototype</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><code>/vault</code></td><td>Prototype's flat saved-post list, plus a tabbed template library the prototype does not have</td><td><span class="badge b-match">MATCH</span></td></tr>
+      <tr><td><code>/feed/&lt;id&gt;</code></td><td>Hero showed a placeholder instead of the frame the card already had. Two save buttons whose difference was not obvious</td><td><span class="badge b-close">CLOSE</span></td></tr>
+      <tr><td><code>/feed/&lt;id&gt;/remix</code></td><td>Same five stages, reference panel and run log. Style and Script unreachable while the model backend is down</td><td><span class="badge b-close">CLOSE</span></td></tr>
+      <tr><td><code>/channels</code></td><td>Per-channel 8-run sync-health sparkline is plain text. Fleets sidebar is a net-new addition</td><td><span class="badge b-close">CLOSE</span></td></tr>
+      <tr><td><code>/mine</code></td><td>Not-connected state instead of six stat tiles. Calendar and planner work</td><td><span class="badge b-close">CLOSE</span></td></tr>
+      <tr><td><code>/first-run</code></td><td>Suggested-channel picker replaced by a blank handle box. Cadence question dropped</td><td><span class="badge b-close">CLOSE</span></td></tr>
+      <tr><td><code>/feed</code></td><td>Layout close. Default filter state was mislabeled and hid most posts</td><td><span class="badge b-part">PARTIAL</span></td></tr>
+      <tr><td><code>/settings</code></td><td>One long page instead of tabbed nav. One section contradicted real feed behaviour</td><td><span class="badge b-part">PARTIAL</span></td></tr>
+      <tr><td><code>/</code></td><td>Four tiles and two rails against the prototype's dense analytics page. Deliberate</td><td><span class="badge b-part">PARTIAL</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The three gaps that cost the most in daily use</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Gap</th><th>Why it costs</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Feed default filter lied about itself</td><td>Hid 7 of 8 posts on the screen you open daily, while insisting nothing was filtered</td><td><span class="badge b-fixed">FIXED 5b5a846</span></td></tr>
+      <tr><td>2</td><td>Detail hero showed an empty well</td><td>The judging screen opened with less information than the card that led to it, every time</td><td><span class="badge b-fixed">FIXED 4d3a680</span></td></tr>
+      <tr><td>3</td><td>Onboarding lost its suggested-channel picker</td><td>Setup now needs you to already know exact handles. The niche you pick in step 1 feeds nothing</td><td><span class="badge b-open">OPEN</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Lower cost, still open: the sidebar's Post quick-nav and the persistent GET STARTED
+  checklist are absent, the channels sync-health sparkline is text, and the Focus step
+  dropped its posting-cadence question.</p>
+</section>
+
+<section id="l2">
+  <h2><span class="lyr">LAYER 2</span>Features, what exists against what was promised</h2>
+  <p class="lede">The one job is three things: take a post's hook, its script, and its
+  layout. Two of the three are built.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Capability</th><th>State</th><th>Blocked by</th></tr></thead>
+    <tbody>
+      <tr><td>Find posts that beat their channel baseline</td><td><span class="badge b-match">WORKS</span></td><td>Nothing. Scores are real and cross-check against the database</td></tr>
+      <tr><td>Explain a score (median, sample, confidence)</td><td><span class="badge b-match">WORKS</span></td><td>Nothing</td></tr>
+      <tr><td>Read the hook and story beats</td><td><span class="badge b-part">BLOCKED</span></td><td>Needs a transcript, which needs the sidecar running</td></tr>
+      <tr><td>Read the layout (on-screen text, cut rhythm, framing)</td><td><span class="badge b-abs">NOT BUILT</span></td><td>No image path on the LLM client, no frame sampler, no vision model</td></tr>
+      <tr><td>Remix into a new script</td><td><span class="badge b-part">BLOCKED</span></td><td>LLM backend, see layer 4</td></tr>
+      <tr><td>Keep posts, plan posts</td><td><span class="badge b-match">WORKS</span></td><td>Nothing. Research reads the vault correctly</td></tr>
+      <tr><td>Own-channel insights</td><td><span class="badge b-part">BLOCKED</span></td><td>No Graph API token</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout bad">
+    <h4>Layout is a third of the stated mission and it is not built</h4>
+    <p>The scope doc calls it P0 and argues that cutting it "cuts a third of the product's
+    stated purpose". The schema says plainly there is no frame pass wired up. Every row's
+    layout column is null, and the screen says so honestly rather than faking it.</p>
+    <p>This is a product decision to make, not a bug to file. But it is the largest gap
+    between what the brief calls non-negotiable and what ships.</p>
+  </div>
+</section>
+
+<section id="l3">
+  <h2><span class="lyr">LAYER 3</span>Usability</h2>
+  <p class="lede">Scored by a reviewer who walked the app as a new user, with the brief to
+  be critical rather than reassuring.</p>
+
+  <div class="bar"><span class="nm">Friendliness</span><span class="track"><span class="fill" style="width:80%;background:var(--success)"></span></span><span class="sc">8/10</span></div>
+  <div class="bar"><span class="nm">Usability</span><span class="track"><span class="fill" style="width:70%;background:var(--success)"></span></span><span class="sc">7/10</span></div>
+  <div class="bar"><span class="nm">Trust in the numbers</span><span class="track"><span class="fill" style="width:60%;background:var(--warning)"></span></span><span class="sc">6/10</span></div>
+  <div class="bar"><span class="nm">Completeness vs own scope</span><span class="track"><span class="fill" style="width:60%;background:var(--warning)"></span></span><span class="sc">6/10</span></div>
+  <div class="bar"><span class="nm">Value delivered today</span><span class="track"><span class="fill" style="width:50%;background:var(--destructive)"></span></span><span class="sc">5/10</span></div>
+
+  <div class="callout good">
+    <h4>The strongest thing in the product</h4>
+    <p>Failure states. The reviewer's words: the negative-state design is "genuinely better
+    than most V1 products ship, and it is consistent enough that I'd trust a new failure
+    state I hadn't seen yet to follow the same pattern."</p>
+    <p>Every dead end tells you what broke and what to do. "The Instagram service isn't
+    running. Start it with <code>npm run ig:service</code>." Not a toast, not a red bar.</p>
+  </div>
+
+  <h3>The walk from open to script</h3>
+  <div class="pipe">
+    <div class="step ok"><div class="t">works</div>Open dashboard</div><span class="arrow">&rarr;</span>
+    <div class="step ok"><div class="t">works</div>Feed, find outlier</div><span class="arrow">&rarr;</span>
+    <div class="step ok"><div class="t">works</div>Detail, read score</div><span class="arrow">&rarr;</span>
+    <div class="step stop"><div class="t">stops here</div>Transcribe</div><span class="arrow">&rarr;</span>
+    <div class="step stop"><div class="t">stops here</div>Remix</div><span class="arrow">&rarr;</span>
+    <div class="step"><div class="t">unreached</div>Script</div>
+  </div>
+  <p>Both stops are configuration, not code. Both are honest about themselves. Neither is
+  fixable from inside the app.</p>
+</section>
+
+<section id="l4">
+  <h2><span class="lyr">LAYER 4</span>Backend, and the brain you said was unclear</h2>
+  <p class="lede">You were right that the brain is unclear. It fails at two points, and
+  neither of them is Crowsnest.</p>
+
+  <div class="callout bad">
+    <h4>The brain, diagnosed</h4>
+    <p><strong>Point one.</strong> 9router was not running. Its launch agent was loaded but
+    exiting with status 78, a config error. I started it by hand and the proxy is up on
+    <code>:20128</code> now.</p>
+    <p><strong>Point two.</strong> With it up, the brain still cannot answer.
+    <code>CLAUDE_MODEL</code> is <code>nvidia/minimaxai/minimax-m2.7</code>, which returns
+    <strong>410 Gone, end of life</strong>. So does <code>nvidia/z-ai/glm4.7</code>. The 36
+    <code>cx/*</code> models return <strong>401, token expired, please sign in again</strong>.</p>
+    <p>Crowsnest is wired correctly: the key resolves, <code>ping</code> succeeds, the
+    request reaches the router. Your router's upstream auth expired and the model you
+    pointed at was retired. There is no fallback, because your
+    <code>ANTHROPIC_API_KEY</code> is a 35-character router token, not an
+    <code>sk-ant-</code> key.</p>
+  </div>
+
+  <h3>Engineering scores</h3>
+  <div class="bar"><span class="nm">Cost per sync and remix</span><span class="track"><span class="fill" style="width:80%;background:var(--success)"></span></span><span class="sc">8/10</span></div>
+  <div class="bar"><span class="nm">Test quality</span><span class="track"><span class="fill" style="width:80%;background:var(--success)"></span></span><span class="sc">8/10</span></div>
+  <div class="bar"><span class="nm">Scalability to 50 channels</span><span class="track"><span class="fill" style="width:60%;background:var(--warning)"></span></span><span class="sc">6/10</span></div>
+  <div class="bar"><span class="nm">Maintainability</span><span class="track"><span class="fill" style="width:60%;background:var(--warning)"></span></span><span class="sc">6/10</span></div>
+  <div class="bar"><span class="nm">Implementation tradeoffs</span><span class="track"><span class="fill" style="width:50%;background:var(--warning)"></span></span><span class="sc">5/10</span></div>
+  <div class="bar"><span class="nm">Correctness risk</span><span class="track"><span class="fill" style="width:40%;background:var(--destructive)"></span></span><span class="sc">4/10</span></div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Finding</th><th>Evidence</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Stored scores can go stale</td><td><code>outlier_score</code> is a column, not computed on read. Caused two real bugs today, both fixed with regression tests. Nothing structurally forces a future write path to recompute</td><td>A wrong number that looks right</td></tr>
+      <tr><td>N+1 on the channels screen</td><td><code>getChannelsList</code> runs 3 queries per channel with no cache. 150 queries at 50 channels. <code>getMedianViews</code> reads every video row for a channel with no LIMIT</td><td>Slow, not broken, at 50 channels</td></tr>
+      <tr><td>Two sources of truth for one idea</td><td><code>own-metrics.ts:24</code> hardcodes a minimum of 5 while <code>score_min_usable_posts</code> is configurable. They agree today by coincidence</td><td>Silent divergence the first time you change that setting</td></tr>
+      <tr><td>Sync is the least proven code</td><td>Every failure mode is tested against a mocked client. The one real run lasted 32 seconds and was cancelled</td><td>Your next action is probably a real sync</td></tr>
+      <tr><td>Migrations are forward-only</td><td>Three were applied to the live database today. No backup step exists in <code>db:migrate</code></td><td>No way back from a bad migration</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn">
+    <h4>The thing most likely to bite you first</h4>
+    <p>The sync engine is the most heavily tested code in the repo and the least proven
+    against reality. Rate limits, stale locks, cancel mid-request, retry budgets: all
+    covered against a mock, none exercised against the real sidecar for more than 32
+    seconds. Your next action is almost certainly a real multi-channel sync.</p>
+  </div>
+</section>
+
+<section id="l5">
+  <h2><span class="lyr">LAYER 5</span>Overall score</h2>
+  <p class="lede">Averaged across both reviewers, weighted toward what stops you using it
+  rather than what is missing from a chart.</p>
+
+  <div class="kpis">
+    <div class="kpi warn"><div class="lab">overall</div><div class="val">6.2<small>/10</small></div><div class="note">built, not yet usable unattended</div></div>
+    <div class="kpi good"><div class="lab">best</div><div class="val">8<small>/10</small></div><div class="note">friendliness, cost, tests</div></div>
+    <div class="kpi bad"><div class="lab">worst</div><div class="val">4<small>/10</small></div><div class="note">correctness risk</div></div>
+    <div class="kpi warn"><div class="lab">value today</div><div class="val">5<small>/10</small></div><div class="note">measurement works, creation blocked</div></div>
+  </div>
+
+  <div class="scroll"><table>
+    <thead><tr><th>Aspect</th><th>Score</th><th>One line</th></tr></thead>
+    <tbody>
+      <tr><td>Friendliness</td><td>8</td><td>Failure states are better than most shipped V1s</td></tr>
+      <tr><td>Cost</td><td>8</td><td>Sync is free, remix is 5 bounded calls, nothing loops unbounded</td></tr>
+      <tr><td>Test quality</td><td>8</td><td>Real behaviour, real regression tests, all against a mocked client</td></tr>
+      <tr><td>Usability</td><td>7</td><td>Navigation explains itself, setup does not</td></tr>
+      <tr><td>Trust</td><td>6</td><td>Numbers cross-check, but the feed was lying until today</td></tr>
+      <tr><td>Scalability</td><td>6</td><td>Fine at 2 channels, slow at 50, nothing crashes</td></tr>
+      <tr><td>Maintainability</td><td>6</td><td>Big files, genuinely good comments, three copies of the recompute</td></tr>
+      <tr><td>Completeness</td><td>6</td><td>Holds up on most acceptance criteria it set itself</td></tr>
+      <tr><td>Value delivered today</td><td>5</td><td>Half the job works. The creating half needs a working brain</td></tr>
+      <tr><td>Implementation tradeoffs</td><td>5</td><td>Layout unbuilt, two settings bypass the settings module</td></tr>
+      <tr><td>Correctness risk</td><td>4</td><td>Stored scores, no structural guard against a future stale write</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <h4>What the score means</h4>
+    <p>This is not a bad product. It is a nearly finished one with two unplugged cables and
+    a habit of trusting its own static checks. The measurement half is genuinely good and
+    the numbers survive cross-checking against the database. The creation half is complete
+    in code and unreachable in practice.</p>
+    <p>A 6.2 that becomes an 8 the moment two processes start is a different situation from
+    a 6.2 that needs another month of building.</p>
+  </div>
+</section>
+
+<section id="next">
+  <h2><span class="lyr">NEXT</span>What to do, in order</h2>
+
+  <h3>Yours, and nothing else can do them</h3>
+  <ul class="plain">
+    <li><strong>Re-authenticate 9router.</strong> Right-click its tray icon, open the
+    dashboard, sign in again. Then set <code>CLAUDE_MODEL</code> to a live <code>cx/*</code>
+    model. Every <code>nvidia/*</code> model on your router is retired. This single step
+    unblocks remix, the run log, and the frame pass question.</li>
+    <li><strong>Get a Graph API token</strong> with insights permissions. That is the whole
+    of <code>/mine</code>.</li>
+    <li><strong>Run one real multi-channel sync</strong> and watch it. It is the least
+    proven path in the app and the first thing you will actually do.</li>
+  </ul>
+
+  <h3>Mine, and worth doing before you rely on it</h3>
+  <ul class="plain">
+    <li>Make the app start its own dependencies, or say plainly on screen that they are
+    down with a one-click path. Two terminal commands per session is the single biggest
+    thing between this and daily use.</li>
+    <li>Restore the suggested-channel picker in onboarding, so picking a niche in step 1
+    feeds step 3 instead of a blank text box.</li>
+    <li>Pull <code>own-metrics.ts</code>'s hardcoded minimum and <code>MAX_ITEMS_PER_SYNC</code>
+    into the settings module, so there is one source of truth per idea.</li>
+    <li>Add a backup step to <code>db:migrate</code>. Three forward-only migrations went
+    onto the live database today with no snapshot.</li>
+  </ul>
+
+  <h3>Decide, do not build yet</h3>
+  <ul class="plain">
+    <li><strong>Layout reads.</strong> A third of the stated mission, and the answer changes
+    the product rather than the schedule. If your router cannot carry images, this needs a
+    different model and that is a cost decision. Nothing should be built on top of it until
+    the spike runs.</li>
+  </ul>
+</section>
+
+<footer>
+  Sources: three independent reviews in <code>docs/product/review-*.md</code>, the running
+  app at localhost:3000, and <code>data/crowsnest.db</code>. Every number came from a
+  command or a screen, not an estimate. Four defects found during this review are fixed and
+  committed; the rest are open and listed above.
+</footer>
+
+</div>
+</body>
+</html>
