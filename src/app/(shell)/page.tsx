@@ -8,8 +8,17 @@ import { ProducerDonut } from "@/components/dashboard/producer-donut";
 import { ReachScoreScatter } from "@/components/dashboard/reach-score-scatter";
 import { ScoreRankingList } from "@/components/dashboard/score-ranking-list";
 import { StatTile } from "@/components/dashboard/stat-tile";
+import { DependencyStatusPanel } from "@/components/status/dependency-status-panel";
+import {
+  classifyLlmStatus,
+  classifySidecarStatus,
+  LLM_PING_TIMEOUT_MS,
+  withTimeout,
+} from "@/components/status/dependency-status";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { getIgStatusAction } from "@/server/actions/ig-actions";
+import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import { getChannelsList } from "@/server/queries/channels";
 import {
   getDashboardStats,
@@ -18,6 +27,12 @@ import {
   getTopOutliersToday,
 } from "@/server/queries/dashboard";
 import { getOutlierFeed } from "@/server/queries/feed";
+import { hasLlmKey, isCompatMode } from "@/server/llm/client";
+
+// Read once, server-side, same reasoning as the Remix screen's own `LLM_PROXY_URL`
+// (`(shell)/feed/[videoId]/remix/page.tsx`): the one honest thing this app can say
+// about the model backend's location, since it has no mechanism to start one itself.
+const LLM_PROXY_URL = process.env.ANTHROPIC_BASE_URL ?? null;
 
 // Unlike every other route in this app, `/` has no searchParams and no dynamic route
 // segment to implicitly opt it out of static rendering — without this, `next build`
@@ -48,7 +63,8 @@ export const dynamic = "force-dynamic";
 //   Revisit once Wave 3 lands the routes and, if it's still wanted, a real "have you
 //   done X" query to back it.
 export default async function DashboardPage() {
-  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels] = await Promise.all([
+  const llmKeyConfigured = hasLlmKey();
+  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult] = await Promise.all([
     getDashboardStats(),
     getTopOutliersToday(),
     getFleetSpikes(),
@@ -60,8 +76,23 @@ export default async function DashboardPage() {
     // how many posts this app will ever hold, just headroom past today's handful.
     getOutlierFeed({ sort: "score", limit: 10_000, offset: 0 }),
     getChannelsList(),
+    // A4 (v1-to-product-backlog.html): the two out-of-process dependencies, checked
+    // before Kai clicks anything. The sidecar check is the same `getIgStatusAction`
+    // Settings already uses. The LLM check only runs when a key exists — no key means
+    // no client to ping, and `withTimeout` keeps a fully dead backend from stalling
+    // this page load (see dependency-status.ts's own doc on why that matters here).
+    getIgStatusAction(),
+    llmKeyConfigured ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
   ]);
   const allItems = allPosts.items;
+
+  const sidecarStatus = classifySidecarStatus(igStatusResult);
+  const llmStatus = classifyLlmStatus({
+    hasKey: llmKeyConfigured,
+    proxyUrl: LLM_PROXY_URL,
+    routedThroughProxy: isCompatMode(),
+    ping: llmPingResult ?? "timed_out",
+  });
 
   // True-empty (DESIGN.md §6 spirit): zero channels tracked means every KPI would
   // read 0 and every section would be empty — one clear "get started" state instead
@@ -72,6 +103,7 @@ export default async function DashboardPage() {
   if (stats.channelsTracked === 0) {
     return (
       <div className="mx-auto max-w-[1120px] p-6">
+        <DependencyStatusPanel sidecar={sidecarStatus} llm={llmStatus} hasLlmKey={llmKeyConfigured} />
         <div className="max-w-[48ch] pt-6 pb-24">
           <p className="text-lg text-foreground">No channels are being watched, so there is nothing to score.</p>
           <p className="mt-5 text-sm text-muted-foreground">
@@ -87,6 +119,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-24 p-6">
+      <DependencyStatusPanel sidecar={sidecarStatus} llm={llmStatus} hasLlmKey={llmKeyConfigured} />
+
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="Channels tracked"

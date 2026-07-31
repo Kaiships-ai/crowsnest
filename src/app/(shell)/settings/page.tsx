@@ -78,6 +78,7 @@ export default async function SettingsPage() {
             label="Anthropic"
             envVar="ANTHROPIC_API_KEY"
             present={Boolean(process.env.ANTHROPIC_API_KEY)}
+            proxied={Boolean(process.env.ANTHROPIC_BASE_URL)}
             onTest={testAnthropicKeyAction}
           />
           <ApiKeyStatusCard
