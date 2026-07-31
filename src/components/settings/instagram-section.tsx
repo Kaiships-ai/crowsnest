@@ -15,6 +15,7 @@ import {
   igLogoutAction,
   igTwoFactorAction,
 } from "@/server/actions/ig-actions";
+import { SidecarControl } from "@/components/settings/sidecar-control";
 
 type StatusResult = Awaited<ReturnType<typeof getIgStatusAction>>;
 type LoginResult = Awaited<ReturnType<typeof igLoginAction>>;
@@ -247,6 +248,8 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
           Re-check
         </Button>
       </div>
+
+      <SidecarControl health={statusResult} onHealthChange={refreshStatus} />
 
       <div className="flex flex-col gap-3 border border-border p-4">
         {view === "service_down" && (
