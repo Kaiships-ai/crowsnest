@@ -2,6 +2,7 @@ import {
   Archive,
   Flame,
   LayoutDashboard,
+  ScrollText,
   Settings,
   UserRound,
   Users,
@@ -38,5 +39,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/channels", label: "Channels", icon: Users, group: "Sources" },
   { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
   { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "System" },
+  { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
   { href: "/settings", label: "Settings", icon: Settings, group: "System" },
 ];
