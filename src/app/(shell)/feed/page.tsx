@@ -95,7 +95,12 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="flex h-full flex-col">
-      <FilterBar fleets={fleets} savedFilters={savedFilters} bandCounts={bandCounts} />
+      <FilterBar
+        fleets={fleets}
+        savedFilters={savedFilters}
+        bandCounts={bandCounts}
+        applied={{ minScore: filters.minScore ?? null, minViews: filters.minViews ?? null, sinceDays: filters.sinceDays ?? null }}
+      />
 
       <div className="flex-1 overflow-y-auto px-6 py-4">
         {trueEmpty ? (

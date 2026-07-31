@@ -95,12 +95,18 @@ export function FilterBar({
   fleets,
   savedFilters,
   bandCounts,
+  applied,
 }: {
   fleets: Fleet[];
   savedFilters: SavedFilterRow[];
   /** Real counts per follower band under every other active filter (v1-scope.md Feed
    *  AC 6) — computed server-side by getFeedBandCounts, never re-derived client-side. */
   bandCounts: FeedBandCounts;
+  /** What the page actually filtered by, which is not always what the URL says. A bare
+   *  /feed visit applies the "Balanced" preset server-side, so reading the URL alone
+   *  showed "Any score" while a minimum of 5 was hiding most of the library. The
+   *  controls read this instead, so the row always states the filter that ran. */
+  applied: { minScore: number | null; minViews: number | null; sinceDays: number | null };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -172,9 +178,9 @@ export function FilterBar({
 
   const fleet = searchParams.get("fleet") ?? "all";
   const platform = searchParams.get("platform") ?? "all";
-  const minScore = searchParams.get("minScore") ?? "any";
-  const minViews = searchParams.get("minViews") ?? "any";
-  const since = searchParams.get("since") ?? "30";
+  const minScore = searchParams.get("minScore") ?? (applied.minScore !== null ? String(applied.minScore) : "any");
+  const minViews = searchParams.get("minViews") ?? (applied.minViews !== null ? String(applied.minViews) : "any");
+  const since = searchParams.get("since") ?? (applied.sinceDays !== null ? String(applied.sinceDays) : "30");
   const band = searchParams.get("band") ?? "any";
   const sort = searchParams.get("sort") ?? "score";
   const view = searchParams.get("view") ?? "grid";
