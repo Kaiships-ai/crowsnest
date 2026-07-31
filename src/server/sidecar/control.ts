@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { log } from "@/server/lib/logger";
 import { getOrCreateServiceToken, getSecret } from "@/server/secrets/store";
 
 const PID_FILE = "data/sidecar.pid";
@@ -40,6 +41,17 @@ export function startSidecar(): void {
     env: childEnv(),
     detached: true,
     stdio: "ignore",
+  });
+  // The child is detached with stdio ignored, so a failure that only shows up after
+  // spawn() returns (a missing `uv` binary surfaces as ENOENT here, or a crash right at
+  // boot) arrives solely as an "error" event, never as a thrown exception in this
+  // function. Node treats an unhandled "error" event on a ChildProcess as a fatal
+  // exception in *this* process, the one serving the Settings page, so it must be
+  // handled even though there is nothing left to do here but log it: the detached child
+  // is on its own, and it's startSidecarAction's post-spawn health poll, not this
+  // handler, that actually decides whether Start succeeded.
+  child.on("error", (err) => {
+    log.error("sidecar.spawn.error", { error: err.message });
   });
   if (child.pid) writeFileSync(PID_FILE, String(child.pid));
   child.unref();
