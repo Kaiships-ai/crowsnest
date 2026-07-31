@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Rows3, Search, Settings2, X } from "lucide-react";
+import { Grid2x2, Grid3x3, LayoutGrid, Rows3, Search, Settings2, X } from "lucide-react";
 
 import { ManageSavedViewsDialog } from "@/components/feed/manage-saved-views-dialog";
 import { Button } from "@/components/ui/button";
@@ -185,6 +185,10 @@ export function FilterBar({
   const band = searchParams.get("band") ?? "any";
   const sort = searchParams.get("sort") ?? "score";
   const view = searchParams.get("view") ?? "grid";
+  // Comfortable is the implicit default (no param written for it), same convention as
+  // `view`'s "grid" — a bare /feed URL stays as short as possible, and only the
+  // non-default choice shows up in a saved view's query string.
+  const density = searchParams.get("density") === "compact" ? "compact" : "comfortable";
 
   const fleetItems = [{ value: "all", label: "All channels" }, ...fleets.map((f) => ({ value: f.id, label: f.name }))];
   const hasActiveFilters = FILTER_PARAM_KEYS.some((key) => searchParams.has(key));
@@ -339,6 +343,26 @@ export function FilterBar({
             </ToggleGroupItem>
             <ToggleGroupItem value="list" size="sm" aria-label="List view">
               <Rows3 className="size-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Same kind of control as the grid/list toggle above, so it sits right next
+              to it (prototype feed.html line 6: comfortable/compact chips beside the
+              grid/list chips). Persists as `?density=compact` in the URL, same
+              mechanism as `view`, so a reload or a saved view keeps it. Grid-only in
+              effect right now — FeedGrid packs more, smaller columns and switches
+              OutlierCard to its existing `variant="compact"` — list view is already a
+              dense table and doesn't have a second, denser row style. */}
+          <ToggleGroup
+            value={[density]}
+            onValueChange={(vals) => set("density", (vals[0] as string | undefined) ?? "comfortable", false)}
+            aria-label="Card density"
+          >
+            <ToggleGroupItem value="comfortable" size="sm" aria-label="Comfortable density">
+              <Grid2x2 className="size-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="compact" size="sm" aria-label="Compact density">
+              <Grid3x3 className="size-4" />
             </ToggleGroupItem>
           </ToggleGroup>
         </div>
