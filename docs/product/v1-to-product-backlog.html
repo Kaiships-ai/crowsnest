@@ -90,10 +90,11 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 
 <header>
   <p class="eyebrow">Crowsnest / V1 to product / 2026-07-31</p>
-  <h1>29 items, and only 6 of them stop you using it</h1>
-  <p class="sub">Everything still open, counted and grouped by what it costs you. The
-  separation that matters: three of the six blockers are configuration you own, not code
-  anyone has to write.</p>
+  <h1>21 items left, and only 4 of them stop you using it</h1>
+  <p class="sub">Everything still open, counted and grouped by what it costs you. Eight
+  items shipped since this list was written. Of the four blockers left, three are
+  credentials you own and one is a decision that cannot be made until the first of those
+  is done.</p>
   <div class="askbox">
     <p><strong>You asked:</strong> what we could enhance and fix for V1 to really become
     the product, and how many items that is.</p>
@@ -102,26 +103,26 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 
 <nav><ul>
   <li><a href="#count">The count</a></li>
-  <li><a href="#a">A. Blocks use (6)</a></li>
-  <li><a href="#b">B. Wrong (4)</a></li>
+  <li><a href="#a">A. Blocks use (4)</a></li>
+  <li><a href="#b">B. Wrong (0)</a></li>
   <li><a href="#c">C. Prototype gaps (7)</a></li>
-  <li><a href="#d">D. Not built (7)</a></li>
-  <li><a href="#e">E. Debt (5)</a></li>
+  <li><a href="#d">D. Not built (6)</a></li>
+  <li><a href="#e">E. Debt (4)</a></li>
   <li><a href="#order">Order</a></li>
 </ul></nav>
 
 <section id="count">
-  <h2><span class="cnt">TOTAL</span>29 open items</h2>
+  <h2><span class="cnt">TOTAL</span>21 open, 8 shipped</h2>
   <p class="lede">Counted from three independent reviews, the prototype gap inventory, and
   direct checks against the running app and database. Six defects found during the review
-  are already fixed and are not in this count.</p>
+  itself were fixed before this list existed and are not counted either.</p>
 
   <div class="kpis">
-    <div class="kpi bad"><div class="lab">A. blocks daily use</div><div class="val">6</div><div class="note">3 are yours, 3 are code</div></div>
-    <div class="kpi warn"><div class="lab">B. wrong or misleading</div><div class="val">4</div><div class="note">numbers that can drift or lie</div></div>
+    <div class="kpi bad"><div class="lab">A. blocks daily use</div><div class="val">4</div><div class="note">3 yours, 1 decision. 2 shipped</div></div>
+    <div class="kpi good"><div class="lab">B. wrong or misleading</div><div class="val">0</div><div class="note">all four shipped</div></div>
     <div class="kpi dim"><div class="lab">C. prototype gaps</div><div class="val">7</div><div class="note">visible, none blocking</div></div>
-    <div class="kpi dim"><div class="lab">D. not built</div><div class="val">7</div><div class="note">no backend behind them</div></div>
-    <div class="kpi dim"><div class="lab">E. engineering debt</div><div class="val">5</div><div class="note">will not bite this week</div></div>
+    <div class="kpi dim"><div class="lab">D. not built</div><div class="val">6</div><div class="note">channel removal shipped</div></div>
+    <div class="kpi dim"><div class="lab">E. engineering debt</div><div class="val">4</div><div class="note">the unrecoverable one shipped</div></div>
   </div>
 
   <div class="callout good">
@@ -133,7 +134,7 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 </section>
 
 <section id="a">
-  <h2><span class="cnt">GROUP A / 6 ITEMS</span>Blocks daily use</h2>
+  <h2><span class="cnt">GROUP A / 4 LEFT, 2 SHIPPED</span>Blocks daily use</h2>
   <p class="lede">Fix these and the product is usable. Nothing else on this page stops you
   opening Crowsnest tomorrow and getting a script.</p>
 
@@ -143,8 +144,8 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
       <tr><td class="id">A1</td><td>Re-authenticate 9router, point <code>CLAUDE_MODEL</code> at a live model</td><td>Every <code>nvidia/*</code> model returns 410 Gone. Every <code>cx/*</code> returns 401 expired. No remix, no analysis, no frame pass</td><td><span class="badge b-kai">YOURS</span></td></tr>
       <tr><td class="id">A2</td><td>Graph API token with insights permissions</td><td>The whole of <code>/mine</code> renders a not-connected state</td><td><span class="badge b-kai">YOURS</span></td></tr>
       <tr><td class="id">A3</td><td>Run one real multi-channel sync and watch it</td><td>The most tested and least proven path. One real run has ever happened, cancelled after 32 seconds</td><td><span class="badge b-kai">YOURS</span></td></tr>
-      <tr><td class="id">A4</td><td>App starts its own dependencies, or offers one in-app control</td><td>Two terminal commands before every session. This is the single biggest thing between launching a tool and opening one</td><td><span class="badge b-code">CODE</span></td></tr>
-      <tr><td class="id">A5</td><td>Suggested-channel picker in onboarding</td><td>Setup needs you to already know exact handles. The niche you pick in step 1 currently feeds nothing</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">A4 <span class="badge b-code">SHIPPED</span></td><td>App starts its own dependencies, or offers one in-app control</td><td>Two terminal commands before every session. This is the single biggest thing between launching a tool and opening one</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">A5 <span class="badge b-code">SHIPPED</span></td><td>Suggested-channel picker in onboarding</td><td>Setup needs you to already know exact handles. The niche you pick in step 1 currently feeds nothing</td><td><span class="badge b-code">CODE</span></td></tr>
       <tr><td class="id">A6</td><td>Layout reads: frame sampler, image path on the LLM client, vision model</td><td>A third of the stated mission. Hook and script work, layout does not exist</td><td><span class="badge b-dec">DECIDE FIRST</span></td></tr>
     </tbody>
   </table></div>
@@ -158,17 +159,17 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 </section>
 
 <section id="b">
-  <h2><span class="cnt">GROUP B / 4 ITEMS</span>Wrong or able to go wrong</h2>
+  <h2><span class="cnt">GROUP B / ALL 4 SHIPPED</span>Wrong or able to go wrong</h2>
   <p class="lede">None of these is visibly broken today. Each is a number that can quietly
   become untrue, which in a research tool is the only unrecoverable failure.</p>
 
   <div class="scroll"><table>
     <thead><tr><th>#</th><th>Item</th><th>What goes wrong</th><th>Owner</th></tr></thead>
     <tbody>
-      <tr><td class="id">B1</td><td>"Saved views" can be opened but never saved</td><td>No action writes <code>saved_filters</code>. It reads the two seeded presets and presents as if you could add one</td><td><span class="badge b-code">CODE</span></td></tr>
-      <tr><td class="id">B2</td><td><code>own-metrics.ts</code> hardcodes a minimum of 5</td><td>Second source of truth for <code>score_min_usable_posts</code>. They agree today by coincidence. Change the setting and tracked-channel scores move while own-channel silently does not</td><td><span class="badge b-code">CODE</span></td></tr>
-      <tr><td class="id">B3</td><td><code>MAX_ITEMS_PER_SYNC</code> bypasses the settings module</td><td>A real per-run safety cap that needs an env var and a restart, sitting beside five settings you can change from a page</td><td><span class="badge b-code">CODE</span></td></tr>
-      <tr><td class="id">B4</td><td>Nothing forces a future write path to recompute scores</td><td><code>outlier_score</code> is stored, not computed. Two call sites remember by convention. This shape already caused two bugs today</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B1 <span class="badge b-code">SHIPPED</span></td><td>"Saved views" can be opened but never saved</td><td>No action writes <code>saved_filters</code>. It reads the two seeded presets and presents as if you could add one</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B2 <span class="badge b-code">SHIPPED</span></td><td><code>own-metrics.ts</code> hardcodes a minimum of 5</td><td>Second source of truth for <code>score_min_usable_posts</code>. They agree today by coincidence. Change the setting and tracked-channel scores move while own-channel silently does not</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B3 <span class="badge b-code">SHIPPED</span></td><td><code>MAX_ITEMS_PER_SYNC</code> bypasses the settings module</td><td>A real per-run safety cap that needs an env var and a restart, sitting beside five settings you can change from a page</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B4 <span class="badge b-code">SHIPPED</span></td><td>Nothing forces a future write path to recompute scores</td><td><code>outlier_score</code> is stored, not computed. Two call sites remember by convention. This shape already caused two bugs today</td><td><span class="badge b-code">CODE</span></td></tr>
     </tbody>
   </table></div>
 </section>
@@ -192,14 +193,14 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 </section>
 
 <section id="d">
-  <h2><span class="cnt">GROUP D / 7 ITEMS</span>Not built, no backend behind them</h2>
+  <h2><span class="cnt">GROUP D / 6 LEFT, 1 SHIPPED</span>Not built, no backend behind them</h2>
   <p class="lede">Each was deliberately not faked during the build. Every one needs a
   server action or a query before its control can exist.</p>
 
   <div class="scroll"><table>
     <thead><tr><th>#</th><th>Item</th><th>Needs</th></tr></thead>
     <tbody>
-      <tr><td class="id">D1</td><td>Untrack or stop watching a channel</td><td>A remove-channel action. There is no way to remove a channel at all today</td></tr>
+      <tr><td class="id">D1 <span class="badge b-code">SHIPPED</span></td><td>Untrack or stop watching a channel</td><td>A remove-channel action. There is no way to remove a channel at all today</td></tr>
       <tr><td class="id">D2</td><td>Danger zone: discard analyses, purge media, reset database</td><td>Three actions. Buttons were deliberately not rendered without them</td></tr>
       <tr><td class="id">D3</td><td>Total posts column on the channels table</td><td>A post count on <code>ChannelRow</code>. Only a window-limited sample size exists</td></tr>
       <tr><td class="id">D4</td><td>Per-channel run history list</td><td><code>sync_jobs</code> attributed per channel. The failure surface reads the last job only</td></tr>
@@ -211,14 +212,14 @@ footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-for
 </section>
 
 <section id="e">
-  <h2><span class="cnt">GROUP E / 5 ITEMS</span>Engineering debt</h2>
+  <h2><span class="cnt">GROUP E / 4 LEFT, 1 SHIPPED</span>Engineering debt</h2>
   <p class="lede">None of this hurts at 2 channels and 8 videos. All of it hurts at 50 and
   5,000.</p>
 
   <div class="scroll"><table>
     <thead><tr><th>#</th><th>Item</th><th>When it bites</th></tr></thead>
     <tbody>
-      <tr><td class="id">E1</td><td><code>db:migrate</code> has no backup step</td><td>Now. Three forward-only migrations went onto the live database today with no snapshot</td></tr>
+      <tr><td class="id">E1 <span class="badge b-code">SHIPPED</span></td><td><code>db:migrate</code> has no backup step</td><td>Now. Three forward-only migrations went onto the live database today with no snapshot</td></tr>
       <tr><td class="id">E2</td><td>N+1 on the channels screen: 3 queries per channel, no cache</td><td>150 queries at 50 channels. Slow, not broken</td></tr>
       <tr><td class="id">E3</td><td><code>getMedianViews</code> has no LIMIT and is fetched twice per detail load</td><td>A channel with 2,000 posts sorts 2,000 rows in Node on every screen that asks</td></tr>
       <tr><td class="id">E4</td><td>Three implementations of the score recompute kept in lockstep by convention</td><td>The next person who adds a fourth</td></tr>
