@@ -146,7 +146,7 @@ describe("generateParsed", () => {
   });
 
   test("passes output_config.format built from the given zod schema", async () => {
-    const parse = vi.fn(async () => ({ parsed_output: { answer: "x" } }));
+    const parse = vi.fn(async (_opts: unknown) => ({ parsed_output: { answer: "x" } }));
     const llm = _createLlm(fakeAnthropic({ parse }));
 
     await llm.generateParsed({ system: "sys", user: "hi", schema: Schema });

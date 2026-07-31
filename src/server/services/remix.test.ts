@@ -40,6 +40,7 @@ function fakeLlm(overrides: Partial<LlmClient> = {}): LlmClient {
   return {
     generateText: vi.fn().mockResolvedValue("a generated script"),
     generateParsed: vi.fn().mockResolvedValue({ hooks: ["h1", "h2", "h3", "h4", "h5"] }),
+    ping: vi.fn(),
     ...overrides,
   };
 }
