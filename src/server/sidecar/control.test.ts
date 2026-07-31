@@ -6,7 +6,11 @@ import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 // a hoisted mock would intercept its real file reads along with control.ts's pid-file
 // calls. Instead the fs mock is installed with `vi.doMock` after migration has already
 // run, so it only ever affects the later, fresh import of `./control`.
-vi.mock("node:child_process", () => ({ spawn: vi.fn(() => ({ pid: 4242, unref: vi.fn() })) }));
+vi.mock("node:child_process", () => ({ spawn: vi.fn(() => ({ pid: 4242, unref: vi.fn(), on: vi.fn() })) }));
+
+// Keeps the "spawn failed asynchronously" test from actually printing a log line, and
+// gives a spy to assert against.
+vi.mock("@/server/lib/logger", () => ({ log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 let control: typeof import("./control");
 
@@ -45,6 +49,18 @@ describe("sidecar control", () => {
     const writeArgs = (fs.writeFileSync as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
     expect(writeArgs[0]).toBe("data/sidecar.pid");
     expect(writeArgs[1]).toBe("4242");
+  });
+
+  test("startSidecar registers an error handler, so an async spawn failure (e.g. ENOENT for a missing `uv`) is observed instead of crashing this process", async () => {
+    const { spawn } = await import("node:child_process");
+    const { log } = await import("@/server/lib/logger");
+    control.startSidecar();
+    const spawnMock = spawn as unknown as { mock: { results: { value: { on: ReturnType<typeof vi.fn> } }[] } };
+    const child = spawnMock.mock.results[0].value;
+    expect(child.on).toHaveBeenCalledWith("error", expect.any(Function));
+    const handler = child.on.mock.calls[0][1] as (err: Error) => void;
+    expect(() => handler(new Error("spawn uv ENOENT"))).not.toThrow();
+    expect(log.error).toHaveBeenCalled();
   });
 
   test("stopSidecar kills the tracked pid and removes the file", async () => {
