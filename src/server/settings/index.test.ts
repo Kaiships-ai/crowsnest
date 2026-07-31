@@ -9,9 +9,11 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   // config.ts refuses to boot without this — never actually contacted by these tests.
   process.env.IG_SERVICE_TOKEN ??= "test-token";
-  // Legacy env layer under test: LOOKBACK_DAYS/SYNC_INTERVAL_MINUTES/MEDIA_RETENTION_DAYS
-  // are read once at config.ts's module load, so they're set here, before any import.
+  // Legacy env layer under test: LOOKBACK_DAYS/MAX_ITEMS_PER_SYNC/SYNC_INTERVAL_MINUTES/
+  // MEDIA_RETENTION_DAYS are read once at config.ts's module load, so they're set here,
+  // before any import.
   process.env.LOOKBACK_DAYS = "45";
+  process.env.MAX_ITEMS_PER_SYNC = "350";
   process.env.SYNC_INTERVAL_MINUTES = "120";
   process.env.MEDIA_RETENTION_DAYS = "14";
 
@@ -42,9 +44,10 @@ describe("getSettings — precedence: default", () => {
 });
 
 describe("getSettings — precedence: env beats default", () => {
-  test("the three legacy keys fall back to their validated env var when no DB row exists", async () => {
+  test("the legacy keys fall back to their validated env var when no DB row exists", async () => {
     const s = await settings.getSettings();
     expect(s.syncLookbackDays).toBe(45); // process.env.LOOKBACK_DAYS
+    expect(s.maxItemsPerSync).toBe(350); // process.env.MAX_ITEMS_PER_SYNC
     expect(s.syncCadenceMinutes).toBe(120); // process.env.SYNC_INTERVAL_MINUTES
     expect(s.mediaRetentionDays).toBe(14); // process.env.MEDIA_RETENTION_DAYS
   });
@@ -55,6 +58,16 @@ describe("getSettings — precedence: DB beats env", () => {
     await writeRow("sync_lookback_days", "7");
     const s = await settings.getSettings();
     expect(s.syncLookbackDays).toBe(7);
+  });
+
+  // B3 (review-engineering-2026-07-31.md §3): MAX_ITEMS_PER_SYNC used to be read
+  // straight from config, bypassing this precedence chain entirely, so a change required
+  // an env var edit and a restart. This proves a DB row now wins over the env var here
+  // too, exactly like its sibling syncLookbackDays already did.
+  test("a stored row wins over the env var for max_items_per_sync too", async () => {
+    await writeRow("max_items_per_sync", "75");
+    const s = await settings.getSettings();
+    expect(s.maxItemsPerSync).toBe(75);
   });
 });
 
@@ -91,6 +104,7 @@ describe("getSettingsWithSource", () => {
 
     expect(view.scoreBaselineMethod).toEqual({ value: "trimmedMean", source: "db", wired: true });
     expect(view.syncLookbackDays).toEqual({ value: 45, source: "env", wired: true });
+    expect(view.maxItemsPerSync).toEqual({ value: 350, source: "env", wired: true });
     expect(view.scoreMinViewsFloor).toEqual({ value: 0, source: "default", wired: true });
 
     // These three are stored and readable, but nothing in the app consumes them yet —

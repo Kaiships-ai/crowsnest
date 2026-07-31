@@ -2,6 +2,7 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
 import { computeOwnMedianReach, indexAgainstOwnMedian, type OwnPostForCalc } from "@/server/services/own-metrics";
+import { getSetting } from "@/server/settings";
 
 /**
  * Own-channel Instagram Insights reads (V1 data contracts §1).
@@ -51,8 +52,8 @@ export interface OwnChannelOverview {
     followsFromPost: OwnMetric;
     watchTimeSec: OwnMetric;
   };
-  /** Null below 5 usable posts or when the median is zero, mirroring
-   *  computeOwnMedianReach's MIN_USABLE rule. */
+  /** Null below `scoreMinUsablePosts` usable posts or when the median is zero, mirroring
+   *  computeOwnMedianReach's minUsable rule. */
   medianReach: number | null;
   medianSampleSize: number;
 }
@@ -170,9 +171,10 @@ function toCalcInput(posts: JoinedOwnPost[]): OwnPostForCalc[] {
   return posts.map((p) => ({ ownPostId: p.ownPostId, reach: p.reach, postedAt: p.postedAt }));
 }
 
-/** Same trailing window `computeOwnMedianReach` uses internally (20 posts, min 5
- *  usable) — duplicated here only to report the sample size the median function
- *  itself does not return. */
+/** Same trailing window `computeOwnMedianReach` uses internally (20 posts),
+ *  duplicated here only to report the sample size the median function itself does not
+ *  return. Not gated by `minUsable`: this reports how many posts are IN the sample,
+ *  independent of whether that count clears the floor for a median to exist. */
 function medianSampleSizeOf(posts: OwnPostForCalc[], window = 20): number {
   return posts
     .filter((p) => p.reach !== null)
@@ -211,7 +213,7 @@ export async function getOwnChannelOverview(windowDays: number = DEFAULT_WINDOW_
       }
     : null;
 
-  const allPosts = await getPostsWithLatestInsights();
+  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
   const cutoff = new Date(Date.now() - windowDays * 86_400_000).toISOString();
   const inWindow = allPosts.filter((p) => p.postedAt >= cutoff);
 
@@ -235,7 +237,9 @@ export async function getOwnChannelOverview(windowDays: number = DEFAULT_WINDOW_
     },
     // Median is computed over the trailing post window regardless of `windowDays`,
     // mirroring the channel-side baseline's own post-count window rather than a day range.
-    medianReach: computeOwnMedianReach(calcInput),
+    // minUsable comes from the same `scoreMinUsablePosts` setting the channel-side
+    // scores use (B2, review-engineering-2026-07-31.md §3), not a separate hardcoded 5.
+    medianReach: computeOwnMedianReach(calcInput, { minUsable }),
     medianSampleSize: medianSampleSizeOf(calcInput),
   };
 }
@@ -244,8 +248,8 @@ export async function getOwnPosts(opts: { limit?: number; offset?: number } = {}
   const limit = opts.limit ?? 24;
   const offset = opts.offset ?? 0;
 
-  const allPosts = await getPostsWithLatestInsights();
-  const medianReach = computeOwnMedianReach(toCalcInput(allPosts));
+  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
+  const medianReach = computeOwnMedianReach(toCalcInput(allPosts), { minUsable });
 
   const items: OwnPostRow[] = allPosts.slice(offset, offset + limit).map((p) => ({
     ownPostId: p.ownPostId,

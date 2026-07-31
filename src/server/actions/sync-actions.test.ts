@@ -172,6 +172,28 @@ describe("getSyncProgressAction", () => {
     });
   });
 
+  // B3 (review-engineering-2026-07-31.md §3): maxItems used to echo config.MAX_ITEMS_PER_SYNC
+  // directly, so a value stored in app_settings had no way to reach this field. This proves
+  // a DB row now wins, matching lookbackDays's own precedence (which sync_jobs.lookback_days
+  // already proves by storing the value a past run actually used).
+  test("maxItems reads a stored app_settings row, not config.MAX_ITEMS_PER_SYNC", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { getSyncProgressAction } = await import("./sync-actions");
+    migrate();
+    await clearJobs();
+    await db.delete(tables.appSettings);
+    await db.insert(tables.appSettings).values({ key: "max_items_per_sync", value: "42" });
+
+    const jobId = await seedJob({ status: "success" });
+    const result = await getSyncProgressAction(jobId);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.progress?.maxItems).toBe(42);
+
+    await db.delete(tables.appSettings);
+  });
+
   test("with no jobId, a running run wins over a job that started later and finished", async () => {
     const { migrate } = await import("../db/test-migrate");
     const { getSyncProgressAction } = await import("./sync-actions");

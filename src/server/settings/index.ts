@@ -58,6 +58,11 @@ export interface AppSettings {
    *  Consumed by `runSync` (falls back to this exactly where it used to fall back to
    *  `config.LOOKBACK_DAYS`). */
   syncLookbackDays: number;
+  /** Hard per-run safety cap on items fetched, across the whole sync. Consumed by
+   *  `runSync` (falls back to this exactly where it used to fall back to
+   *  `config.MAX_ITEMS_PER_SYNC`) and by the progress reporters in
+   *  `src/server/actions/sync-actions.ts`. */
+  maxItemsPerSync: number;
   /** Minutes between automatic syncs. NOT CONSUMED — there is no scheduler in this app;
    *  every sync starts from a click. Kept here, DB-overridable, for the day a scheduler
    *  exists, same honesty the Settings page's Sync section already applies to
@@ -86,6 +91,7 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   feedDefaultMinScore: "feed_default_min_score",
   feedDefaultFollowerBand: "feed_default_follower_band",
   syncLookbackDays: "sync_lookback_days",
+  maxItemsPerSync: "max_items_per_sync",
   syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
   firstRunCompleted: "first_run_completed",
@@ -118,6 +124,7 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   feedDefaultMinScore: z.coerce.number().min(0).max(1000),
   feedDefaultFollowerBand: z.enum(["nano", "micro", "mid", "macro", "all"]),
   syncLookbackDays: posInt(1, 3650),
+  maxItemsPerSync: posInt(1, 10_000), // same bounds as config.ts's MAX_ITEMS_PER_SYNC schema
   syncCadenceMinutes: posInt(0, 10_080),
   mediaRetentionDays: posInt(1, 3650),
   firstRunCompleted: boolLike,
@@ -139,6 +146,7 @@ const DEFAULT: AppSettings = {
   feedDefaultMinScore: 0, // no filter — no change from today, which has no server-side default
   feedDefaultFollowerBand: "all", // no filter — same reasoning
   syncLookbackDays: 30,
+  maxItemsPerSync: 200, // matches config.ts's MAX_ITEMS_PER_SYNC default exactly, no change
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
   firstRunCompleted: false, // no row yet == first run has not happened
@@ -149,6 +157,7 @@ const DEFAULT: AppSettings = {
  *  the whole chain. */
 const ENV_FALLBACK: Partial<{ [K in keyof AppSettings]: () => AppSettings[K] }> = {
   syncLookbackDays: () => config.LOOKBACK_DAYS,
+  maxItemsPerSync: () => config.MAX_ITEMS_PER_SYNC,
   syncCadenceMinutes: () => config.SYNC_INTERVAL_MINUTES,
   mediaRetentionDays: () => config.MEDIA_RETENTION_DAYS,
 };
@@ -164,6 +173,7 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   feedDefaultMinScore: false,
   feedDefaultFollowerBand: false,
   syncLookbackDays: true,
+  maxItemsPerSync: true,
   syncCadenceMinutes: false,
   mediaRetentionDays: false,
   firstRunCompleted: true, // read by the (shell) route guard — see src/server/queries/first-run-gate.ts
