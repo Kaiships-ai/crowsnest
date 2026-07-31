@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CircleAlert, ExternalLink, RefreshCw, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CircleAlert, ExternalLink, RefreshCw, Trash2, X } from "lucide-react";
 
 import { platformLabel } from "@/components/feed/platform-chip";
 import { gapMessage, gapRetryLabel, phaseLabel, syncViewState } from "@/components/sync/sync-progress-view";
@@ -13,6 +14,7 @@ import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { ChannelRow } from "@/server/queries/channels";
+import { RemoveChannelDialog } from "./remove-channel-dialog";
 
 /** No stored profile URL in the schema — channels only carry handle+platform, so the
  * live-profile link is derived from the stored handle. Instagram only in V1
@@ -32,10 +34,12 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
   // engine has named a channel. A run scoped to a different channel is now correctly
   // invisible here rather than something to be filtered out after the fact.
   const { progress, coverage, stalled, error, start, cancel } = useSyncProgress({ channelId: channel.id });
+  const router = useRouter();
   // `start()` resolves once the job row exists; this covers the gap before it does, so a
   // second click can't race the DB lock and come back as "a sync is already running".
   // It is a pending state for the request, not a claim about the run's progress.
   const [starting, setStarting] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   const state = syncViewState(progress, stalled);
   const live = state === "running" || state === "cancelling";
@@ -143,6 +147,21 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
               <X className="size-4" />
             </Button>
           )}
+
+          {/* Kept separate from "Sync now" rather than folded into a menu — this is the
+              only other action on the page, and the amber budget's "one primary action"
+              rule is about competing calls to action, not about hiding every secondary
+              one. Ghost + destructive-on-hover keeps it from reading as a second primary
+              button next to Sync now. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setRemoveOpen(true)}
+            aria-label={`Remove ${channel.handle}`}
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
       </div>
 
@@ -165,6 +184,17 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
           </AlertDescription>
         </Alert>
       )}
+
+      <RemoveChannelDialog
+        channel={channel}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        // The table just refreshes the row in place; this page's route (/channels/[id])
+        // stops resolving the instant the channel is gone (getChannelDetail filters
+        // deletedAt), so staying here would be a page about to 404. Leaving for the list
+        // it just left is the only honest landing spot.
+        onRemoved={() => router.push("/channels")}
+      />
     </div>
   );
 }

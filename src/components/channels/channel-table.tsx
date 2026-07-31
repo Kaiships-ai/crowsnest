@@ -23,6 +23,7 @@ import { assetUrl } from "@/lib/media-url";
 import type { ChannelRow, Fleet } from "@/server/queries/channels";
 import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 import { EditChannelFleetsDialog } from "./edit-channel-fleets-dialog";
+import { RemoveChannelDialog } from "./remove-channel-dialog";
 
 /** A run older than this reads as "stale" rather than plain "synced N ago" — v1-scope.md
  *  §2 Channels AC3 names the threshold in days, not hours: 30 days idle before a channel
@@ -73,6 +74,9 @@ export function ChannelTable({
   // by the currently-selected channel's id (final-review finding B2).
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const editingChannel = channels.find((c) => c.id === editingChannelId) ?? null;
+  // Same one-shared-instance shape as the fleets dialog above, keyed by row id.
+  const [removingChannelId, setRemovingChannelId] = useState<string | null>(null);
+  const removingChannel = channels.find((c) => c.id === removingChannelId) ?? null;
 
   // ONE hook for the whole table, not one per row. A row-level hook would mean a
   // Server Action call per channel per second while a sync is running — 40 channels is
@@ -240,6 +244,9 @@ export function ChannelTable({
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link href={`/channels/${channel.id}`} />}>View</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setEditingChannelId(channel.id)}>Edit fleets</DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => setRemovingChannelId(channel.id)}>
+                        Remove channel
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -256,6 +263,20 @@ export function ChannelTable({
           open={editingChannel !== null}
           onOpenChange={(open) => {
             if (!open) setEditingChannelId(null);
+          }}
+        />
+      )}
+
+      {removingChannel && (
+        <RemoveChannelDialog
+          channel={removingChannel}
+          open={removingChannel !== null}
+          onOpenChange={(open) => {
+            if (!open) setRemovingChannelId(null);
+          }}
+          onRemoved={() => {
+            setRemovingChannelId(null);
+            router.refresh();
           }}
         />
       )}

@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Rows3, Search, X } from "lucide-react";
+import { LayoutGrid, Rows3, Search, Settings2, X } from "lucide-react";
 
+import { ManageSavedViewsDialog } from "@/components/feed/manage-saved-views-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -111,6 +112,7 @@ export function FilterBar({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [manageViewsOpen, setManageViewsOpen] = useState(false);
 
   const urlQuery = searchParams.get("q") ?? "";
   // Local echo of the search box so typing feels instant; the URL (and therefore the
@@ -186,6 +188,15 @@ export function FilterBar({
 
   const fleetItems = [{ value: "all", label: "All channels" }, ...fleets.map((f) => ({ value: f.id, label: f.name }))];
   const hasActiveFilters = FILTER_PARAM_KEYS.some((key) => searchParams.has(key));
+
+  // What "save this as a view" would persist — the same three criteria keys
+  // applyPreset reads back, built from the row's own already-resolved state so a save
+  // always matches exactly what the filter row is currently showing (URL param, or the
+  // applied fallback on a bare visit). minScore/minViews are omitted rather than saved
+  // as "any", the same way a system preset omits a key it doesn't constrain.
+  const currentViewCriteria: Record<string, unknown> = { sinceDays: Number(since) };
+  if (minScore !== "any") currentViewCriteria.minScore = Number(minScore);
+  if (minViews !== "any") currentViewCriteria.minViews = Number(minViews);
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
@@ -281,6 +292,14 @@ export function FilterBar({
                   {f.name}
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
+              {/* Saving the current filters as a new view is the main path here (brief)
+                  — it's the first thing this opens onto, not a buried settings screen.
+                  Rename/delete for existing (non-system) views live in the same dialog
+                  rather than cluttering this menu with per-row icon buttons. */}
+              <DropdownMenuItem onClick={() => setManageViewsOpen(true)}>
+                <Settings2 /> Save / manage views…
+              </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -353,6 +372,13 @@ export function FilterBar({
           ))}
         </ToggleGroup>
       </div>
+
+      <ManageSavedViewsDialog
+        open={manageViewsOpen}
+        onOpenChange={setManageViewsOpen}
+        savedFilters={savedFilters}
+        currentCriteria={currentViewCriteria}
+      />
     </div>
   );
 }
