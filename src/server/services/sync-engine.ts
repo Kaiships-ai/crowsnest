@@ -1111,7 +1111,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   const now = opts.now ?? (() => new Date());
   // config.LOOKBACK_DAYS and config.MAX_ITEMS_PER_SYNC are still the env-only fallback
   // UNDER the settings module (see src/server/settings), not read directly here any
-  // more — a DB-stored sync_lookback_days / max_items_per_sync now wins over either
+  // more. A DB-stored sync_lookback_days / max_items_per_sync now wins over either
   // without a restart (B3, review-engineering-2026-07-31.md §3).
   const lookbackDays = opts.lookbackDays ?? (await getSetting("syncLookbackDays"));
   const maxItems = opts.maxItems ?? (await getSetting("maxItemsPerSync"));

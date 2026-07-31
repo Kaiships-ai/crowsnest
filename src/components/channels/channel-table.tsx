@@ -47,6 +47,30 @@ function syncHealth(channel: ChannelRow): { label: string; tone: HealthTone } {
   return { label: `Synced ${relativeTime(channel.lastSyncedAt)}`, tone: "muted" };
 }
 
+// Sparkline gap (docs/product/review-ui-gap-2026-07-31.md, "Channels" finding): the
+// prototype draws an 8-run sync-health sparkline per channel; this table renders text
+// instead. That is deliberate, not a shortcut skipped for time.
+//
+// `sync_jobs.channel_id` CAN attribute a run to one channel (schema.ts: null means a
+// whole-library run, set means a single-channel run) — the column supports it. But on
+// this machine the whole table has exactly one row, total, across both tracked
+// channels. @kallaway's `last_synced_at` is four days older than that one row, which
+// belongs to @hormozi — so the job log does not even account for the sync history the
+// `channels` table itself implies already happened. There is no backfill and no second
+// source (channel_snapshots records values, not run outcomes). Drawing 8 bars per row
+// against that would mean rendering 7 (or 8) blank/invented bars as if "no data" were
+// itself a health signal, for every channel, every time — the opposite of honest.
+//
+// It also can't be built from this file alone: `ChannelRow` (server/queries/channels.ts)
+// carries no job history today, only `lastSyncedAt` / `syncError` off the `channels`
+// row. Reaching `sync_jobs` would mean a new query (group by channel_id, order by
+// started_at desc, limit 8) added there — out of scope for a rendering-layer change.
+//
+// What it would need to ship for real: that query, plus enough real run volume per
+// channel that a sparkline reads as history rather than as padding. Until then, the
+// improvement made here is textual: `neverSynced && warning` below surfaces a failed
+// attempt's reason inline instead of leaving it in a hover-only tooltip, from data this
+// component already has.
 const HEALTH_CLASS: Record<HealthTone, string> = {
   // Never synced reads as thin, not broken — same restraint the prototype gives a
   // channel with too little data to say anything about yet.
@@ -217,6 +241,18 @@ export function ChannelTable({
                     <span className="mt-1.5 block max-w-[42ch] text-2xs text-faint">
                       Only {sampleSize} post{sampleSize === 1 ? "" : "s"} — a median needs about{" "}
                       {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
+                    </span>
+                  )}
+                  {/* "Never synced" always wins the label (line 43) even over a failed attempt,
+                      so a channel that DID try and failed once looks identical, at a glance, to
+                      one nobody has touched yet — the only difference lives in a hover-only
+                      tooltip. This line surfaces that same reason without requiring a hover,
+                      same as the thin-sample note above does for a different fact. It reads off
+                      `channel.syncError` / the live `gap`, both already on the row — no new
+                      query, no invented history. */}
+                  {neverSynced && warning && (
+                    <span className="mt-1.5 block max-w-[42ch] text-2xs text-destructive">
+                      Last attempt failed: {warning}
                     </span>
                   )}
                 </TableCell>
