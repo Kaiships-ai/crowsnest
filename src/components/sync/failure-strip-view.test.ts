@@ -225,15 +225,24 @@ describe("failureStripAction", () => {
 
 describe("failureStripFacts", () => {
   test("drops fields that came back null instead of rendering them empty", () => {
-    const facts = failureStripFacts(strip({ errorCode: null, errorMessage: null, kept: null }));
+    const facts = failureStripFacts(strip({ kind: "failed", errorCode: null, errorMessage: null, kept: null }));
     expect(facts).toBe("Nothing was recorded as kept before the run stopped");
   });
 
   test("joins every present fact with the mono separator", () => {
     const facts = failureStripFacts(
-      strip({ errorCode: "IG_RATE_LIMITED", errorMessage: "please wait", kept: { itemsCreated: 1, itemsUpdated: 0, channelsSynced: 1, channelsTotal: 2 } }),
+      strip({ kind: "cooldown", errorCode: "IG_RATE_LIMITED", errorMessage: "please wait", kept: { itemsCreated: 1, itemsUpdated: 0, channelsSynced: 1, channelsTotal: 2 } }),
     );
     expect(facts).toBe("IG_RATE_LIMITED · please wait · 1 of 2 channels synced · 1 new, 0 updated");
+  });
+
+  // Seen on the running app once a real cancelled run existed: the strip printed
+  // "1 of 1 channels synced · 0 new, 0 updated" inside its sentence and again on the
+  // line below it. Partial is the only kind whose headline already carries the counts.
+  test("partial does not repeat the kept counts its own sentence already states", () => {
+    const s = strip({ kind: "partial", errorCode: null, errorMessage: null, kept: { itemsCreated: 0, itemsUpdated: 0, channelsSynced: 1, channelsTotal: 1 } });
+    expect(failureStripHeadline(s)).toContain("1 of 1 channels synced");
+    expect(failureStripFacts(s)).toBe("");
   });
 });
 

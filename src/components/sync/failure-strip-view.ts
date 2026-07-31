@@ -76,7 +76,7 @@ function partialHeadline(strip: FailureStrip): string {
   const n = strip.gaps.length;
   const channelWord = n === 1 ? "channel" : "channels";
   const lead = n > 0 ? `${n} ${channelWord} didn't finish this run.` : "This run didn't finish everything it started.";
-  return `${lead} The rest is intact — ${formatKeptCounts(strip.kept)}.`;
+  return `${lead} The rest is intact: ${formatKeptCounts(strip.kept)}.`;
 }
 
 /** The primary sentence, in the connection's voice — see the module doc for why this is
@@ -92,11 +92,11 @@ export function failureStripHeadline(strip: FailureStrip): string {
       // connection, never to whichever channel happened to surface it.
       return "Instagram paused the whole connection, not just one channel. It clears on its own.";
     case "offline":
-      return "The network call to Instagram failed. Everything already synced stays put — nothing can refresh until the connection is back.";
+      return "The network call to Instagram failed. Everything already synced stays put, and nothing can refresh until the connection is back.";
     case "partial":
       return partialHeadline(strip);
     case "failed":
-      return "Every channel failed on its own terms this run — the connection itself is fine.";
+      return "Every channel failed on its own terms this run. The connection itself is fine.";
     case "none":
     case "running":
       return "";
@@ -120,7 +120,7 @@ export function cooldownRemainingSec(strip: Pick<FailureStrip, "finishedAt" | "c
  *  otherwise the mm:ss still left. Three distinct sentences because they are three
  *  distinct facts, not one number in three states. */
 export function formatCooldownWait(remainingSec: number | null): string {
-  if (remainingSec === null) return "Instagram didn't say how long the pause lasts — no countdown to show.";
+  if (remainingSec === null) return "Instagram didn't say how long the pause lasts, so there is no countdown to show.";
   if (remainingSec === 0) return "The wait Instagram asked for has passed. The next sync will show if it actually cleared.";
   const m = Math.floor(remainingSec / 60);
   const s = remainingSec % 60;
@@ -173,7 +173,12 @@ export function failureStripAction(strip: FailureStrip, cooldownRemaining: numbe
  *  if it gave one, and what survived. Never fabricates a field that came back null —
  *  each piece is dropped rather than rendered empty. */
 export function failureStripFacts(strip: FailureStrip): string {
-  const parts = [strip.errorCode, strip.errorMessage, formatKeptCounts(strip.kept)].filter(
+  // `partial` already says what survived in its own sentence, so repeating the counts
+  // here printed the same line twice, once inside the headline and once under it.
+  // Every other kind leads with what broke rather than what was kept, so the counts
+  // still belong in this row for them.
+  const kept = strip.kind === "partial" ? null : formatKeptCounts(strip.kept);
+  const parts = [strip.errorCode, strip.errorMessage, kept].filter(
     (v): v is string => v !== null && v.length > 0,
   );
   return parts.join(" · ");
