@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, RefreshCw, X } from "lucide-react";
+import { ChevronLeft, RefreshCw, Video, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { GetStartedChecklist, type GetStartedItem } from "@/components/layout/get-started-checklist";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
 import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { phaseLabel, statusHeadline, syncViewState, type SyncViewState } from "@/components/sync/sync-progress-view";
@@ -112,7 +113,30 @@ function railDetail(progress: SyncProgress): string {
 const RAIL_EXPANDED = "w-60";
 const RAIL_COLLAPSED = "w-14";
 
-export function Sidebar() {
+/**
+ * The prototype's "Post" nav entry always points at whatever post is currently
+ * open — it has no meaning outside a live session. This app's closest honest
+ * equivalent is the same `recently_viewed` fact the Dashboard's "Recently
+ * viewed" rail already reads (queries/dashboard.ts's `getRecentlyViewed`): the
+ * single most-recently-opened post, real and already tracked, vs. a nav entry
+ * pointing at a top-level route that doesn't exist (`/feed/[videoId]` is a
+ * nested detail page, not a destination on its own). `label` is precomputed
+ * server-side (caption, falling back to the channel handle) so this stays a
+ * plain display prop.
+ */
+export interface LastViewedPost {
+  videoId: string;
+  label: string;
+}
+
+export interface SidebarProps {
+  /** Null for a fresh install — nothing has been opened yet, so the row is left
+   *  out entirely rather than pointing at a fake or empty target. */
+  lastViewedPost: LastViewedPost | null;
+  getStartedItems: GetStartedItem[];
+}
+
+export function Sidebar({ lastViewedPost, getStartedItems }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -232,10 +256,36 @@ export function Sidebar() {
                 <Icon className="size-4 shrink-0" />
                 {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
               </Link>
+              {/* "Post" sits under Feed in the prototype's RESEARCH group. Rendered here
+                  rather than as a NAV_ITEMS entry — its href is per-visitor data, not a
+                  fixed route, and NAV_ITEMS also feeds the ⌘K palette's static list, which
+                  a sometimes-there-sometimes-not entry doesn't fit. */}
+              {item.href === "/feed" && lastViewedPost && (
+                <Link
+                  href={`/feed/${lastViewedPost.videoId}`}
+                  title={`Post — ${lastViewedPost.label}`}
+                  aria-current={pathname === `/feed/${lastViewedPost.videoId}` ? "page" : undefined}
+                  className={cn(
+                    "mx-3 flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
+                    collapsed && "justify-center px-0",
+                    pathname === `/feed/${lastViewedPost.videoId}`
+                      ? "bg-popover font-semibold text-foreground"
+                      : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
+                  )}
+                >
+                  <Video className="size-4 shrink-0" />
+                  {!collapsed && <span className="min-w-0 flex-1 truncate">Post</span>}
+                </Link>
+              )}
             </div>
           );
         })}
       </nav>
+
+      {/* Own top-level row, not nested in the footer's px-3 wrapper below — that wrapper's
+          padding would stack with this component's own mx-3/px-6, throwing its rows out
+          of alignment with the nav links above. */}
+      {!collapsed && <GetStartedChecklist items={getStartedItems} />}
 
       <div className={cn("pb-4", collapsed ? "px-0" : "px-3")}>
         <Separator className="mb-3" />
