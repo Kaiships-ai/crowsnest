@@ -515,3 +515,9 @@ export const ownComments = sqliteTable("own_comments", {
   classifierVersion: text("classifier_version").notNull(),
   capturedAt: text("captured_at").notNull(),
 }, (t) => [uniqueIndex("own_comments_external").on(t.externalId)]);
+
+export const secrets = sqliteTable("secrets", {
+  name: text("name").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
