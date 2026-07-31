@@ -387,6 +387,13 @@ export const igClient = {
     return request("/login", { method: "POST", body: input, timeoutMs: 120_000 });
   },
 
+  /** Adopts a browser's already-signed-in session instead of a password login (design
+   *  brief §3). Performs no password authentication, so it never adds to the
+   *  failed-login count Instagram uses to checkpoint an account. */
+  loginBySession(sessionid: string): Promise<{ status: IgLoginStatus; detail?: unknown }> {
+    return request("/login-by-session", { method: "POST", body: { sessionid }, timeoutMs: 120_000 });
+  },
+
   resolveChallenge(input: { choice?: "email" | "sms"; code?: string }): Promise<{ status: IgLoginStatus }> {
     return request("/challenge/resolve", { method: "POST", body: input, timeoutMs: 120_000 });
   },

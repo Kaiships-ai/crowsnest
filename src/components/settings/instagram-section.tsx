@@ -12,6 +12,7 @@ import {
   igChallengeChooseAction,
   igChallengeCodeAction,
   igLoginAction,
+  igLoginBySessionAction,
   igLogoutAction,
   igTwoFactorAction,
 } from "@/server/actions/ig-actions";
@@ -149,6 +150,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
   const [failure, setFailure] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState("");
+  const [sessionid, setSessionid] = useState("");
 
   const view = viewStateOf(phase, statusResult, failure);
   const status = statusResult.ok ? statusResult.status : null;
@@ -181,6 +183,19 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
     const result = await igLoginAction();
     handleLoginResult(result);
     if (result.ok && result.status === "ok") await refreshStatus();
+  }
+
+  async function connectWithSession() {
+    const value = sessionid.trim();
+    if (!value) return;
+    setFailure(null);
+    setPhase("connecting");
+    const result = await igLoginBySessionAction(value);
+    handleLoginResult(result);
+    if (result.ok) {
+      setSessionid("");
+      await refreshStatus();
+    }
   }
 
   async function chooseChallengeChannel(choice: "email" | "sms") {
@@ -247,6 +262,45 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
           Re-check
         </Button>
       </div>
+
+      {view !== "connected" && (
+        <div className="flex flex-col gap-3 border border-border p-4">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold">Sign in with a session token</h3>
+            <Badge variant="secondary">Recommended</Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Open <code>instagram.com</code> in a browser you&apos;re already signed into that account with, open DevTools, go to
+            Application → Cookies, and copy the value of the <code>sessionid</code> cookie. This skips password login entirely, so it
+            can&apos;t trip the failed-login count Instagram uses to checkpoint an account.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="ig-sessionid">Session ID</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="ig-sessionid"
+                type="password"
+                value={sessionid}
+                onChange={(e) => setSessionid(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !busy && phase !== "connecting") void connectWithSession();
+                }}
+                autoComplete="off"
+                placeholder="paste the sessionid cookie value"
+                className="max-w-sm font-mono"
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => void connectWithSession()}
+                disabled={busy || phase === "connecting" || sessionid.trim().length === 0}
+              >
+                {phase === "connecting" ? "Connecting…" : "Connect"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 border border-border p-4">
         {view === "service_down" && (
