@@ -75,6 +75,39 @@ describe("log store", () => {
     expect(redactLogFields({ password: "hunter2", ok: 1 })).toEqual({ password_redacted: true, ok: 1 });
   });
 
+  test("redactLogFields matches keys case-insensitively", () => {
+    expect(redactLogFields({ Authorization: "Bearer x", Cookie: "a=b", ok: 1 })).toEqual({
+      Authorization_redacted: true,
+      Cookie_redacted: true,
+      ok: 1,
+    });
+  });
+
+  test("redactLogFields masks a secret nested one level deep", () => {
+    expect(redactLogFields({ req: { headers: { cookie: "a=b" }, ok: 1 } })).toEqual({
+      req: { headers: { cookie_redacted: true }, ok: 1 },
+    });
+  });
+
+  test("redactLogFields masks a secret nested two levels deep", () => {
+    expect(redactLogFields({ a: { b: { c: { token: "x", keep: 1 } } } })).toEqual({
+      a: { b: { c: { token_redacted: true, keep: 1 } } },
+    });
+  });
+
+  test("redactLogFields masks a secret inside an array of objects", () => {
+    expect(redactLogFields({ list: [{ token: "x" }, { ok: 1 }] })).toEqual({
+      list: [{ token_redacted: true }, { ok: 1 }],
+    });
+  });
+
+  test("redactLogFields masks the newly added sidecar-aligned keys", () => {
+    expect(redactLogFields({ verification_code: "123456", ok: 1 })).toEqual({
+      verification_code_redacted: true,
+      ok: 1,
+    });
+  });
+
   test("insert redacts before storing", () => {
     insertLogEvent(make({ fields: { token: "abc", jobId: "j1" } }));
     expect(queryLogEvents({ levels: ["error"] })[0].fields).toEqual({ token_redacted: true, jobId: "j1" });

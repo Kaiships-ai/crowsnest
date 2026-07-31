@@ -28,19 +28,47 @@ export interface LogQueryFilter {
 export const RETENTION_MAX = 50000;
 const DEFAULT_LIMIT = 200;
 
-/** Same rule as the stdout logger: a key in this set is never stored as a value. */
+/**
+ * A key in this set (case-insensitively) is never stored as a value, at any
+ * nesting depth. Union of this store's own keys and the Python sidecar's
+ * `_SECRET_KEYS` (services/ig/crowsnest_ig/logging.py) — one list, kept in
+ * sync by hand since the two run in different languages. All lowercase:
+ * matching lowercases the incoming key first, so `Authorization`, `COOKIE`,
+ * etc. are caught too.
+ */
 const REDACT_KEYS = new Set([
-  "password", "ig_password", "igPassword", "token", "igServiceToken",
-  "authorization", "cookie", "settings", "sessionid", "service_token",
+  "password", "ig_password", "igpassword", "token", "igservicetoken",
+  "authorization", "cookie", "cookies", "settings", "sessionid", "service_token",
+  "verification_code", "challenge_code", "two_factor_code", "security_code",
+  "authorization_data",
 ]);
 
-export function redactLogFields(fields: Record<string, unknown>): Record<string, unknown> {
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Recurses into nested plain objects and arrays so a secret buried inside
+ *  something like `{ req: { headers: { cookie: "..." } } }` is masked the
+ *  same as a top-level one. No cycle guard: log fields are JSON-shaped
+ *  (already round-tripped through JSON, or about to be), never a live
+ *  object graph with cycles. */
+function redactValue(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(redactValue);
+  if (isPlainObject(v)) return redactObject(v);
+  return v;
+}
+
+function redactObject(obj: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(fields)) {
-    if (REDACT_KEYS.has(k)) out[`${k}_redacted`] = true;
-    else out[k] = v;
+  for (const [k, v] of Object.entries(obj)) {
+    if (REDACT_KEYS.has(k.toLowerCase())) out[`${k}_redacted`] = true;
+    else out[k] = redactValue(v);
   }
   return out;
+}
+
+export function redactLogFields(fields: Record<string, unknown>): Record<string, unknown> {
+  return redactObject(fields);
 }
 
 export function insertLogEvent(input: LogEventInput): void {
