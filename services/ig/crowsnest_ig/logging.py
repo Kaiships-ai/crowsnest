@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 import time
 from typing import Any
 
+import httpx
+
 LOGGER_NAME = "crowsnest_ig"
+
+_LEVEL_NAME = {logging.INFO: "info", logging.WARNING: "warn", logging.ERROR: "error"}
 
 # NB: "code" is deliberately absent — it is the error-taxonomy code (IG_*), and
 # redacting it would blind the very logs Gate 3 reads. The secret-bearing
@@ -68,7 +73,27 @@ def configure() -> logging.Logger:
     return logger
 
 
+def _forward(event: str, level: int, fields: dict[str, Any]) -> None:
+    """POST one event to the Next ingest endpoint. Fire and forget: any failure
+    is swallowed because the line is already on stdout and logging must never
+    break the caller."""
+    url = os.environ.get("CROWSNEST_INGEST_URL", "http://127.0.0.1:3000/api/logs/ingest")
+    token = os.environ.get("IG_SERVICE_TOKEN", "")
+    body = {
+        "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + ".000Z",
+        "level": _LEVEL_NAME.get(level, "info"),
+        "source": "sidecar",
+        "event": event,
+        "fields": _redact(fields),
+    }
+    try:
+        httpx.post(url, json=body, headers={"X-IG-Token": token}, timeout=1.0)
+    except Exception:
+        pass
+
+
 def log_event(event: str, level: int = logging.INFO, **fields: Any) -> None:
     """Emit one structured event line."""
     logger = configure()
     logger.log(level, event, extra={"event": event, "fields": fields})
+    _forward(event, level, fields)
