@@ -149,18 +149,25 @@ export async function getChannelsList(fleetId?: string): Promise<ChannelRow[]> {
         .select({ channel: tables.channels })
         .from(tables.fleetChannels)
         .innerJoin(tables.channels, eq(tables.fleetChannels.channelId, tables.channels.id))
-        .where(eq(tables.fleetChannels.fleetId, fleetId))
+        .where(and(eq(tables.fleetChannels.fleetId, fleetId), isNull(tables.channels.deletedAt)))
         .then((rows) => rows.map((r) => r.channel))
-    : await db.select().from(tables.channels);
+    : await db.select().from(tables.channels).where(isNull(tables.channels.deletedAt));
 
   return Promise.all(channelRows.map(buildChannelRow));
 }
 
 /** The tracked channel marked as Kai's own, if any. Null on a fresh install and on any
  *  machine where no channel has been marked yet — never a thrown error, since "nobody
- *  has set this up yet" is an ordinary, expected state here. */
+ *  has set this up yet" is an ordinary, expected state here. `removeChannelAction`
+ *  already clears `isOwn` as part of removing a channel, so this `isNull(deletedAt)`
+ *  is a belt-and-suspenders read guard, not the only thing standing between a removed
+ *  channel and this result. */
 export async function getOwnChannel(): Promise<ChannelRow | null> {
-  const [row] = await db.select().from(tables.channels).where(eq(tables.channels.isOwn, true)).limit(1);
+  const [row] = await db
+    .select()
+    .from(tables.channels)
+    .where(and(eq(tables.channels.isOwn, true), isNull(tables.channels.deletedAt)))
+    .limit(1);
   return row ? buildChannelRow(row) : null;
 }
 
@@ -185,7 +192,10 @@ export async function getFleets(): Promise<Fleet[]> {
 
 export async function getChannelDetail(id: string): Promise<ChannelDetail | null> {
   const [channelRaw] = await db.select().from(tables.channels).where(eq(tables.channels.id, id)).limit(1);
-  if (!channelRaw) return null;
+  // A removed channel reads as not-found, same as one that never existed — it no
+  // longer has a screen to render, since `getChannelsList` already dropped it from
+  // the list this detail page would have been reached from.
+  if (!channelRaw || channelRaw.deletedAt) return null;
 
   const channel = await buildChannelRow(channelRaw);
   // Reuses the feed query (not video_snapshots — M8) so "a video joined with its

@@ -60,11 +60,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     [scriptsRow],
     recentVideos,
   ] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(tables.channels),
+    // Both counts exclude removed channels. Removal is soft, so an unfiltered count
+    // would keep reporting a channel the rest of the app no longer shows.
+    db.select({ count: sql<number>`count(*)` }).from(tables.channels).where(isNull(tables.channels.deletedAt)),
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.channels)
-      .where(gte(tables.channels.trackedSince, sevenDaysAgo)),
+      .where(and(gte(tables.channels.trackedSince, sevenDaysAgo), isNull(tables.channels.deletedAt))),
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.videos)

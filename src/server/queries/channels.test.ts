@@ -12,6 +12,7 @@ let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let computeChannelBaseline: typeof import("@/server/services/outlier-calc")["computeChannelBaseline"];
 let getChannelsList: typeof import("./channels")["getChannelsList"];
 let getFleets: typeof import("./channels")["getFleets"];
+let getOwnChannel: typeof import("./channels")["getOwnChannel"];
 let getChannelDetail: typeof import("./channels")["getChannelDetail"];
 let getChannelMedianBasis: typeof import("./channels")["getChannelMedianBasis"];
 let getChannelMedianHistory: typeof import("./channels")["getChannelMedianHistory"];
@@ -22,7 +23,7 @@ beforeAll(async () => {
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ computeChannelBaseline } = await import("@/server/services/outlier-calc"));
-  ({ getChannelsList, getFleets, getChannelDetail, getChannelMedianBasis, getChannelMedianHistory } = await import("./channels"));
+  ({ getChannelsList, getFleets, getOwnChannel, getChannelDetail, getChannelMedianBasis, getChannelMedianHistory } = await import("./channels"));
 });
 
 // Migrate once (idempotent) and wipe every mutable table before each test. FK-safe
@@ -171,6 +172,22 @@ describe("getChannelsList", () => {
     expect(rows.map((r) => r.id)).toEqual([memberChannel]);
     expect(rows.some((r) => r.id === outsideChannel)).toBe(false);
   });
+
+  test("excludes a removed (deletedAt set) channel, scoped and unscoped", async () => {
+    const liveChannel = await seedChannel();
+    const removedChannel = await seedChannel();
+    await db.update(tables.channels).set({ deletedAt: nowIso() }).where(eq(tables.channels.id, removedChannel));
+
+    const fleetId = newId();
+    await db.insert(tables.fleets).values({ id: fleetId, name: "Fleet", createdAt: nowIso() });
+    await db.insert(tables.fleetChannels).values({ fleetId, channelId: removedChannel });
+
+    const unscoped = await getChannelsList();
+    expect(unscoped.map((r) => r.id)).toEqual([liveChannel]);
+
+    const scoped = await getChannelsList(fleetId);
+    expect(scoped).toEqual([]);
+  });
 });
 
 describe("getFleets", () => {
@@ -222,9 +239,25 @@ describe("getFleets", () => {
     expect(rows.find((r) => r.id === channelId)?.medianViews).toBe(300);
   });
 
+describe("getOwnChannel", () => {
+  test("does not return a channel marked own that has since been removed", async () => {
+    const channelId = await seedChannel();
+    await db.update(tables.channels).set({ isOwn: true, deletedAt: nowIso() }).where(eq(tables.channels.id, channelId));
+
+    expect(await getOwnChannel()).toBeNull();
+  });
+});
+
 describe("getChannelDetail", () => {
   test("returns null for a nonexistent channel id", async () => {
     expect(await getChannelDetail("nonexistent")).toBeNull();
+  });
+
+  test("returns null for a removed (deletedAt set) channel, same as nonexistent", async () => {
+    const channelId = await seedChannel();
+    await db.update(tables.channels).set({ deletedAt: nowIso() }).where(eq(tables.channels.id, channelId));
+
+    expect(await getChannelDetail(channelId)).toBeNull();
   });
 
   test("builds series from the videos table, not video_snapshots (zero snapshot rows written)", async () => {

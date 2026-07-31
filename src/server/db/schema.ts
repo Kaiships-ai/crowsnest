@@ -59,6 +59,12 @@ export const channels = sqliteTable("channels", {
    * that "my own channel" cannot mean two different rows at once.
    */
   isOwn: integer("is_own", { mode: "boolean" }).notNull().default(false),
+  /** Set when Kai removes (untracks) this channel. Same convention as
+   *  `videos.deletedAt`: rows are never hard-deleted, because a channel's videos carry
+   *  transcripts, analyses, saved posts and planned posts that removal must not lose.
+   *  A removed channel is filtered out of the channels list and out of sync, but its
+   *  rows, and everything hanging off its videos, stay in the database untouched. */
+  deletedAt: text("deleted_at"),
 }, (t) => [
   uniqueIndex("channels_platform_handle").on(t.platform, t.handle),
   uniqueIndex("channels_single_own").on(t.isOwn).where(sql`${t.isOwn} = 1`),

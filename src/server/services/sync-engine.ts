@@ -1109,11 +1109,12 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   const client = opts.client ?? igClient;
   const sleep = opts.sleep ?? defaultSleep;
   const now = opts.now ?? (() => new Date());
-  // config.LOOKBACK_DAYS is still the env-only fallback UNDER the settings module (see
-  // src/server/settings), not read directly here any more — a DB-stored
-  // sync_lookback_days now wins over it without a restart.
+  // config.LOOKBACK_DAYS and config.MAX_ITEMS_PER_SYNC are still the env-only fallback
+  // UNDER the settings module (see src/server/settings), not read directly here any
+  // more — a DB-stored sync_lookback_days / max_items_per_sync now wins over either
+  // without a restart (B3, review-engineering-2026-07-31.md §3).
   const lookbackDays = opts.lookbackDays ?? (await getSetting("syncLookbackDays"));
-  const maxItems = opts.maxItems ?? config.MAX_ITEMS_PER_SYNC;
+  const maxItems = opts.maxItems ?? (await getSetting("maxItemsPerSync"));
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
   // half the outbound calls — which is both a testing lie and, in production, two
@@ -1144,9 +1145,18 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   let cancelLeftWorkUndone = false;
 
   try {
+    // A removed channel is never synced again, whether it was named explicitly or
+    // picked up by the platform sweep. Removal is soft, so without this filter the
+    // flag would set and the next run would go straight back to fetching it.
     const channelRows = opts.channelIds
-      ? await db.select().from(tables.channels).where(inArray(tables.channels.id, opts.channelIds))
-      : await db.select().from(tables.channels).where(eq(tables.channels.platform, "instagram"));
+      ? await db
+          .select()
+          .from(tables.channels)
+          .where(and(inArray(tables.channels.id, opts.channelIds), isNull(tables.channels.deletedAt)))
+      : await db
+          .select()
+          .from(tables.channels)
+          .where(and(eq(tables.channels.platform, "instagram"), isNull(tables.channels.deletedAt)));
 
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
