@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
+import { getSecret } from "@/server/secrets/store";
 
 /**
  * Thin wrapper around `@anthropic-ai/sdk` (Task 1, phase-3 plan) — every AI feature
@@ -63,7 +64,7 @@ export function resolveModel(): string {
 }
 
 export function hasLlmKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
+  return Boolean(getSecret("ANTHROPIC_API_KEY"));
 }
 
 class AnthropicLlmClient implements LlmClient {
@@ -223,18 +224,30 @@ let cachedClient: LlmClient | null = null;
 
 /**
  * Lazy singleton — throws `NoApiKeyError` if `ANTHROPIC_API_KEY` is unset so callers can
- * surface the keyless-mode Alert instead of crashing. `new Anthropic()` (zero-arg)
- * resolves credentials (and `ANTHROPIC_BASE_URL`) from the environment itself once a
- * key is confirmed present.
+ * surface the keyless-mode Alert instead of crashing. `new Anthropic()` (zero-arg) would
+ * read `ANTHROPIC_API_KEY` from `process.env` itself, which never sees a db-only key —
+ * the key resolved via `getSecret` (db-first, env fallback) is passed explicitly instead.
+ * `ANTHROPIC_BASE_URL` is not a managed secret, so it still reads straight from the env.
  */
 export function getLlm(): LlmClient {
   if (!hasLlmKey()) throw new NoApiKeyError();
   if (!cachedClient) {
-    cachedClient = isCompatMode()
-      ? new CompatLlmClient(new Anthropic())
-      : new AnthropicLlmClient(new Anthropic());
+    const apiKey = getSecret("ANTHROPIC_API_KEY");
+    const baseURL = process.env.ANTHROPIC_BASE_URL;
+    const anthropic = new Anthropic(baseURL ? { apiKey, baseURL } : { apiKey });
+    cachedClient = isCompatMode() ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
   }
   return cachedClient;
+}
+
+/**
+ * Nulls the cached client so the next `getLlm()` call re-resolves the API key (and
+ * compat-mode base URL) from scratch. Needed because a key change made through the
+ * Settings UI must take effect immediately, without a server restart — without this,
+ * a client cached against the old (or absent) key would keep serving forever.
+ */
+export function resetLlmClient(): void {
+  cachedClient = null;
 }
 
 /**

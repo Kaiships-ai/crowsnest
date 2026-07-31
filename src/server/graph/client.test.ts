@@ -7,6 +7,13 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
  * and `vi.resetModules()` in `beforeEach` forces `../config` to re-evaluate against the
  * current env each time — otherwise the Graph token state from one test would leak into
  * the next via Node's module cache.
+ *
+ * `./client` also now imports `../secrets/store`, which imports `@/server/db`
+ * unconditionally at module load and queries the `secrets` table for every
+ * `getSecret` call. `loadClient()` below sets CROWSNEST_DB_PATH=":memory:" and runs
+ * migrations before each dynamic import (`vi.resetModules()` means a brand new,
+ * unmigrated in-memory db is created on every import) so `getSecret` has a table to
+ * query against instead of throwing, and so the real on-disk db is never touched.
  */
 
 beforeEach(() => {
@@ -18,6 +25,9 @@ beforeEach(() => {
 });
 
 async function loadClient() {
+  process.env.CROWSNEST_DB_PATH = ":memory:";
+  const { migrate } = await import("@/server/db/test-migrate");
+  migrate();
   return import("./client");
 }
 

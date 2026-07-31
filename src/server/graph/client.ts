@@ -1,5 +1,6 @@
 import { config } from "../config";
 import { log } from "../lib/logger";
+import { getSecret } from "../secrets/store";
 import { GraphApiError, type GraphErrorCode } from "./errors";
 
 /**
@@ -334,14 +335,16 @@ async function graphGet<T>(path: string, params: Record<string, string | number 
  *  (which makes a live network call) because contract 1 requires every own-channel
  *  query to answer instantly from the database. */
 export function isGraphConfigured(): boolean {
-  return Boolean(config.IG_GRAPH_TOKEN && config.IG_GRAPH_USER_ID);
+  return Boolean(getSecret("IG_GRAPH_TOKEN") && getSecret("IG_GRAPH_USER_ID"));
 }
 
 function requireConfigured(): { token: string; userId: string } {
-  if (!config.IG_GRAPH_TOKEN || !config.IG_GRAPH_USER_ID) {
+  const token = getSecret("IG_GRAPH_TOKEN");
+  const userId = getSecret("IG_GRAPH_USER_ID");
+  if (!token || !userId) {
     throw new GraphApiError("GRAPH_NOT_CONFIGURED", "No Graph API token configured (IG_GRAPH_TOKEN / IG_GRAPH_USER_ID).");
   }
-  return { token: config.IG_GRAPH_TOKEN, userId: config.IG_GRAPH_USER_ID };
+  return { token, userId };
 }
 
 // ---------------------------------------------------------------- client
@@ -432,7 +435,7 @@ export const graphClient: GraphClient = {
     if (!isGraphConfigured()) {
       return { configured: false, username: null, state: "not_configured", message: null, checkedAt: new Date().toISOString() };
     }
-    const result = await graphGet<unknown>("me", { fields: "id,username" }, config.IG_GRAPH_TOKEN as string);
+    const result = await graphGet<unknown>("me", { fields: "id,username" }, getSecret("IG_GRAPH_TOKEN") as string);
     const checkedAt = new Date().toISOString();
     if (result.ok) {
       const acct = rec(result.data);

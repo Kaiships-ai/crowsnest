@@ -1,7 +1,18 @@
 import { beforeAll, describe, expect, test } from "vitest";
 
-beforeAll(() => {
+/**
+ * `./client`'s header-building path now calls `getOrCreateServiceToken()`
+ * (`@/server/secrets/store`), which imports `@/server/db` unconditionally at module
+ * load and queries the `secrets` table. CROWSNEST_DB_PATH must be ":memory:" and
+ * migrations must run before any dynamic `import("./client")` below, so that query has
+ * a table to read (env fallback still supplies the token via IG_SERVICE_TOKEN, so no
+ * row is ever written here) and the real on-disk db is never touched.
+ */
+beforeAll(async () => {
   process.env.IG_SERVICE_TOKEN ??= "test-token-long-enough";
+  process.env.CROWSNEST_DB_PATH = ":memory:";
+  const { migrate } = await import("@/server/db/test-migrate");
+  migrate();
 });
 
 /**

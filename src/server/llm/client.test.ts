@@ -1,21 +1,54 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import {
-  NoApiKeyError,
-  LlmParseError,
-  getLlm,
-  hasLlmKey,
-  isCompatMode,
-  resolveModel,
-  _createLlm,
-  _createCompatLlm,
-} from "./client";
+
+// `./client` now imports `@/server/secrets/store`, which imports `@/server/db`
+// unconditionally at module load — so, same as every other suite that touches a
+// secret-backed module, this file sets CROWSNEST_DB_PATH=":memory:" and dynamically
+// imports everything it needs from a `beforeAll`, rather than a static top-level
+// import that would open the real on-disk db before any test gets to configure it.
+let NoApiKeyError: typeof import("./client")["NoApiKeyError"];
+let LlmParseError: typeof import("./client")["LlmParseError"];
+let getLlm: typeof import("./client")["getLlm"];
+let hasLlmKey: typeof import("./client")["hasLlmKey"];
+let isCompatMode: typeof import("./client")["isCompatMode"];
+let resolveModel: typeof import("./client")["resolveModel"];
+let resetLlmClient: typeof import("./client")["resetLlmClient"];
+let _createLlm: typeof import("./client")["_createLlm"];
+let _createCompatLlm: typeof import("./client")["_createCompatLlm"];
+let db: typeof import("@/server/db")["db"];
+let tables: typeof import("@/server/db")["tables"];
+let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+let setSecret: typeof import("@/server/secrets/store")["setSecret"];
 
 // Snapshot once at module load, restored after every test — this suite mutates
 // ANTHROPIC_API_KEY/CLAUDE_MODEL repeatedly and must never leak a fake key into other
 // test files sharing this vitest worker (e.g. a later suite asserting keyless-mode UI).
 const ORIGINAL_ENV = { ...process.env };
+
+beforeAll(async () => {
+  process.env.CROWSNEST_DB_PATH = ":memory:";
+  ({ db, tables } = await import("@/server/db"));
+  ({ migrate } = await import("@/server/db/test-migrate"));
+  ({ setSecret } = await import("@/server/secrets/store"));
+  ({
+    NoApiKeyError,
+    LlmParseError,
+    getLlm,
+    hasLlmKey,
+    isCompatMode,
+    resolveModel,
+    resetLlmClient,
+    _createLlm,
+    _createCompatLlm,
+  } = await import("./client"));
+});
+
+beforeEach(async () => {
+  migrate();
+  await db.delete(tables.secrets);
+  resetLlmClient();
+});
 
 afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
@@ -57,6 +90,30 @@ describe("hasLlmKey / getLlm", () => {
   test("getLlm returns a client without throwing once a key is present (no network call made)", () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-fake";
     expect(() => getLlm()).not.toThrow();
+  });
+
+  test("hasLlmKey is true from a db-set key even with no ANTHROPIC_API_KEY in the env", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    expect(hasLlmKey()).toBe(false);
+    setSecret("ANTHROPIC_API_KEY", "sk-test-db-value");
+    expect(hasLlmKey()).toBe(true);
+  });
+
+  test("resetLlmClient nulls the cache so a key change via the store takes effect", () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    expect(() => getLlm()).toThrow(NoApiKeyError);
+
+    setSecret("ANTHROPIC_API_KEY", "sk-test-db-value");
+    // Without resetLlmClient this would still throw: getLlm's `!cachedClient` guard
+    // only re-checks the key when there's no cached client yet, but the failed call
+    // above never populated the cache, so this passes even before the reset — the
+    // real assertion is the next block, where a *populated* cache must be dropped.
+    expect(() => getLlm()).not.toThrow();
+
+    resetLlmClient();
+    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    expect(() => getLlm()).not.toThrow();
+    expect(isCompatMode()).toBe(true);
   });
 });
 

@@ -1,5 +1,6 @@
 import { config } from "../config";
 import { log } from "../lib/logger";
+import { getOrCreateServiceToken } from "../secrets/store";
 import { fromEnvelope, IgError } from "./errors";
 
 /**
@@ -338,7 +339,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     res = await fetch(url, {
       method: opts.method ?? "GET",
       headers: {
-        "X-IG-Token": config.IG_SERVICE_TOKEN,
+        "X-IG-Token": getOrCreateServiceToken(),
         ...(opts.body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
