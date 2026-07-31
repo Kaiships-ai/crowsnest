@@ -510,22 +510,39 @@ export function VideoDetail({
           </Tabs>
 
           {/* End of the reading path: exactly one amber exit (Remix). Save/Copy stay
-              on a raised (outline) surface per the amber-budget rule. */}
-          <div className="mt-16 flex items-center gap-4 border-t border-border pt-8">
+              on a raised (outline) surface per the amber-budget rule.
+              Keep-this-post and Save-to-Vault fill the single "Save" slot the
+              prototype has here, so the pair sits inside its own bracket (divider,
+              tighter gap, a destination caption under each) rather than reading as
+              a fourth peer action next to Remix and Copy — the icon swap in
+              SavePostButton (star, not bookmark) does the rest of the work of
+              telling them apart before anyone reads a label. */}
+          <div className="mt-16 flex items-start gap-4 border-t border-border pt-8">
             <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
               Remix this
             </Link>
-            <SavePostButton videoId={item.videoId} saved={savedPost} />
-            {detail.analysis ? (
-              <SaveToVaultDialog videoId={item.videoId} analysis={detail.analysis} />
-            ) : (
-              <Tooltip>
-                <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                  <Bookmark className="size-3.5" /> Save to Vault
-                </TooltipTrigger>
-                <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
-              </Tooltip>
-            )}
+
+            <div className="flex items-start gap-3 border-l border-border pl-4">
+              <div className="flex flex-col items-start gap-1.5">
+                <SavePostButton videoId={item.videoId} saved={savedPost} />
+                <span className="font-mono text-2xs text-faint">Vault → Saved posts</span>
+              </div>
+
+              <div className="flex flex-col items-start gap-1.5">
+                {detail.analysis ? (
+                  <SaveToVaultDialog videoId={item.videoId} analysis={detail.analysis} />
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
+                      <Bookmark className="size-3.5" /> Save to Vault
+                    </TooltipTrigger>
+                    <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
+                  </Tooltip>
+                )}
+                <span className="font-mono text-2xs text-faint">Vault → Hooks &amp; styles</span>
+              </div>
+            </div>
+
             <Button variant="outline" size="sm" onClick={createPrompt}>
               <Wand2 className="size-3.5" /> Copy as prompt
             </Button>

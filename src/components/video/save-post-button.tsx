@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Bookmark, BookmarkCheck } from "lucide-react";
+import { Star } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,12 @@ import { createSavedPostAction, deleteSavedPostAction } from "@/server/actions/s
  * template. This one keeps the post, in `saved_posts`, with a note saying why it was
  * worth keeping. Both are called saving and they are deliberately not one button: one
  * produces a template you write from, the other produces a shortlist you come back to.
+ *
+ * Deliberately not a bookmark icon: `SaveToVaultDialog` already owns that shape, and the
+ * two sitting side by side with the same glyph was the whole reason this pair read as
+ * one action wearing two labels. A star ("worth another look") is the closest wordless
+ * match for a shortlist, so it is the one thing that tells them apart before either
+ * label is read.
  *
  * Until this existed the Vault's saved-posts list had no way to be filled at all.
  */
@@ -89,7 +95,7 @@ export function SavePostButton({
   if (saved) {
     return (
       <Button variant="outline" size="sm" onClick={forget} disabled={pending}>
-        <BookmarkCheck className="size-3.5" /> Kept
+        <Star className="size-3.5" fill="currentColor" /> Kept
       </Button>
     );
   }
@@ -99,7 +105,7 @@ export function SavePostButton({
       <DialogTrigger
         render={
           <Button variant="outline" size="sm">
-            <Bookmark className="size-3.5" /> Keep this post
+            <Star className="size-3.5" /> Keep this post
           </Button>
         }
       />
