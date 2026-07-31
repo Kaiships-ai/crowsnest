@@ -2,12 +2,21 @@
 
 import { randomBytes } from "node:crypto";
 
+import { resetLlmClient } from "@/server/llm/client";
 import { clearSecret, MANAGED_SECRETS, secretStatus, setSecret, type ManagedSecret, type SecretStatus } from "@/server/secrets/store";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
 
 function isManaged(name: string): name is ManagedSecret {
   return (MANAGED_SECRETS as readonly string[]).includes(name);
+}
+
+/** The LLM client caches on first build and captures the key at that moment, so a
+ *  Replace/Clear/Regenerate of the Anthropic key must drop that cache or the change
+ *  would not take effect until a restart, defeating the runtime-update promise. Cheap
+ *  to call on any secret change: `getLlm()` rebuilds lazily on next use. */
+function invalidateSecretCaches(): void {
+  resetLlmClient();
 }
 
 /**
@@ -20,6 +29,7 @@ export async function setSecretAction(name: string, value: string): Promise<Simp
   if (!isManaged(name)) return { ok: false, error: "unknown secret" };
   try {
     setSecret(name, value);
+    invalidateSecretCaches();
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "failed to set secret" };
@@ -32,6 +42,7 @@ export async function setSecretAction(name: string, value: string): Promise<Simp
 export async function clearSecretAction(name: string): Promise<SimpleResult> {
   if (!isManaged(name)) return { ok: false, error: "unknown secret" };
   clearSecret(name);
+  invalidateSecretCaches();
   return { ok: true };
 }
 
@@ -51,5 +62,6 @@ export async function getSecretStatusAction(): Promise<SecretStatus[]> {
  */
 export async function regenerateServiceTokenAction(): Promise<SimpleResult> {
   setSecret("IG_SERVICE_TOKEN", randomBytes(32).toString("hex"));
+  invalidateSecretCaches();
   return { ok: true };
 }
