@@ -12,6 +12,7 @@ vi.hoisted(() => {
 const sidecar = vi.hoisted(() => ({
   health: vi.fn(),
   login: vi.fn(),
+  loginBySession: vi.fn(),
   resolveChallenge: vi.fn(),
   submitTwoFactor: vi.fn(),
   logout: vi.fn(),
@@ -19,11 +20,19 @@ const sidecar = vi.hoisted(() => ({
 
 vi.mock("../ig/client", () => ({ igClient: sidecar }));
 
+// igLoginBySessionAction persists the sessionid via the secrets store before calling the
+// sidecar. That store writes to a real sqlite db, which this file otherwise never touches
+// (every other action here is exercised purely through the mocked igClient) — mocking it
+// keeps the test isolated to the action's own logic instead of depending on db state.
+const secretsStore = vi.hoisted(() => ({ setSecret: vi.fn() }));
+vi.mock("../secrets/store", () => secretsStore);
+
 import {
   getIgStatusAction,
   igChallengeChooseAction,
   igChallengeCodeAction,
   igLoginAction,
+  igLoginBySessionAction,
   igLogoutAction,
   igTwoFactorAction,
 } from "./ig-actions";
@@ -215,6 +224,28 @@ describe("igLoginAction", () => {
     const result = await igLoginAction();
 
     expect(result).toMatchObject({ ok: false, code: "IG_RATE_LIMITED", retryable: true });
+  });
+});
+
+describe("igLoginBySessionAction", () => {
+  test("stores the sessionid and calls the sidecar", async () => {
+    sidecar.loginBySession.mockResolvedValue({ ...HEALTH, loggedIn: true, username: "kai" });
+
+    const result = await igLoginBySessionAction("SESSIONID_VALUE");
+
+    expect(result.ok).toBe(true);
+    expect(secretsStore.setSecret).toHaveBeenCalledWith("IG_SESSIONID", "SESSIONID_VALUE");
+    expect(sidecar.loginBySession).toHaveBeenCalledWith("SESSIONID_VALUE");
+  });
+
+  test("maps a sidecar error to a failure", async () => {
+    sidecar.loginBySession.mockRejectedValue(new IgError("IG_AUTH_REQUIRED", "bad session"));
+
+    const result = await igLoginBySessionAction("bad");
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    expect(result.code).toBe("IG_AUTH_REQUIRED");
   });
 });
 
