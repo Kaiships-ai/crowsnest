@@ -1,5 +1,6 @@
 import { readFile, unlink } from "node:fs/promises";
 import path from "node:path";
+import { getSecret } from "@/server/secrets/store";
 import { downloadToTmp } from "../lib/exec";
 import type { TranscriptProvider } from "./types";
 
@@ -11,8 +12,8 @@ function isUrl(s: string): boolean {
 }
 
 /** True iff GROQ_API_KEY is set — Groq has no local binary/model to detect. */
-export function groqAvailability(env: NodeJS.ProcessEnv = process.env): { available: boolean; reason?: string } {
-  return env.GROQ_API_KEY ? { available: true } : { available: false, reason: "GROQ_API_KEY not set" };
+export function groqAvailability(): { available: boolean; reason?: string } {
+  return getSecret("GROQ_API_KEY") ? { available: true } : { available: false, reason: "GROQ_API_KEY not set" };
 }
 
 export class GroqProvider implements TranscriptProvider {
@@ -22,7 +23,7 @@ export class GroqProvider implements TranscriptProvider {
   constructor(private readonly fetchImpl: typeof fetch = fetch) {}
 
   async transcribe(videoUrlOrPath: string): Promise<{ text: string; language?: string; durationSec: number }> {
-    const apiKey = process.env.GROQ_API_KEY;
+    const apiKey = getSecret("GROQ_API_KEY");
     if (!apiKey) throw new Error("GROQ_API_KEY not set");
 
     const isRemote = isUrl(videoUrlOrPath);
