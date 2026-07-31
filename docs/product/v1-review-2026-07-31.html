@@ -116,8 +116,8 @@ footer{border-top:1px solid var(--border);padding-top:22px;color:var(--muted-for
   <p class="eyebrow">Crowsnest V1 / independent review / 2026-07-31</p>
   <h1>Can you use this tomorrow morning?</h1>
   <p class="sub">Three reviewers worked the running app rather than the source. They found
-  four defects that a full day of typechecks, lint and 893 passing tests had cleared.
-  All four are fixed. The answer to the question is still no, and the reason is not the code.</p>
+  five defects that a full day of typechecks, lint and 893 passing tests had cleared.
+  All five are fixed. The answer to the question is still no, and the reason is not the code.</p>
   <div class="promptbox">
     <p><strong>What you asked:</strong> compare V1 against the prototype, review layer by
     layer, and score the product honestly.</p>
@@ -146,7 +146,7 @@ footer{border-top:1px solid var(--border);padding-top:22px;color:var(--muted-for
     <div class="kpi good"><div class="lab">screens shipped</div><div class="val">10</div><div class="note">all render, all backed by real queries</div></div>
     <div class="kpi good"><div class="lab">tests</div><div class="val">893</div><div class="note">55 files, all passing</div></div>
     <div class="kpi bad"><div class="lab">manual steps before use</div><div class="val">2</div><div class="note">every session, both in a terminal</div></div>
-    <div class="kpi warn"><div class="lab">bugs found this review</div><div class="val">4</div><div class="note">all fixed, all invisible to static checks</div></div>
+    <div class="kpi warn"><div class="lab">bugs found this review</div><div class="val">5</div><div class="note">all fixed, all invisible to static checks</div></div>
   </div>
 
   <div class="callout bad">
@@ -197,6 +197,7 @@ footer{border-top:1px solid var(--border);padding-top:22px;color:var(--muted-for
       <tr><td>1</td><td>Feed default filter lied about itself</td><td>Hid 7 of 8 posts on the screen you open daily, while insisting nothing was filtered</td><td><span class="badge b-fixed">FIXED 5b5a846</span></td></tr>
       <tr><td>2</td><td>Detail hero showed an empty well</td><td>The judging screen opened with less information than the card that led to it, every time</td><td><span class="badge b-fixed">FIXED 4d3a680</span></td></tr>
       <tr><td>3</td><td>Onboarding lost its suggested-channel picker</td><td>Setup now needs you to already know exact handles. The niche you pick in step 1 feeds nothing</td><td><span class="badge b-open">OPEN</span></td></tr>
+      <tr><td>4</td><td>Feed still shipped an All/IG platform toggle</td><td>Both settings returned identical rows. The acceptance criterion read as closed while it still failed</td><td><span class="badge b-fixed">FIXED 855c0d8</span></td></tr>
     </tbody>
   </table></div>
 
