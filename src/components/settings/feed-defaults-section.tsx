@@ -3,7 +3,7 @@
 /**
  * `feedDefaultMinScore` and `feedDefaultFollowerBand` — `WIRED: false` in
  * `src/server/settings/index.ts` because the feed screen has no server-side default
- * yet; it always opens unfiltered. These rows are real and save to `app_settings` like
+ * yet; a bare visit opens on the Balanced preset instead. These rows are real and save to `app_settings` like
  * any other setting, but showing a number here without saying that plainly would be
  * exactly the fabricated-capability bug the truth pass exists to remove (WAVE2-BRIEF).
  * So every row carries its "not read yet" line — same treatment sync-section.tsx
@@ -54,14 +54,14 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
         <SettingRow
           label="Default minimum score"
           hint="The score filter the feed would open with."
-          warnNote="Not read yet. The feed always opens unfiltered, regardless of this number."
+          warnNote="Not read yet. A bare visit to the feed opens on the Balanced preset, a minimum score of 5 over 30 days, not on this number."
         >
           <NumberField value={minScore} onChange={setMinScore} min={0} max={1000} suffix="x" ariaLabel="Default minimum score" />
         </SettingRow>
         <SettingRow
           label="Default follower band"
           hint="The band chip the feed would open with."
-          warnNote="Not read yet. The feed always opens on All, regardless of this setting."
+          warnNote="Not read yet. The feed always opens on every band, regardless of this setting."
         >
           <EnumField value={band} onChange={setBand} options={BAND_OPTIONS} ariaLabel="Default follower band" />
         </SettingRow>
