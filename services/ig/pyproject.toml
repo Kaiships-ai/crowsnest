@@ -8,6 +8,7 @@ dependencies = [
     "fastapi==0.121.2",
     "uvicorn[standard]==0.41.0",
     "pydantic>=2.12.5,<2.14",
+    "httpx==0.28.1",
 ]
 
 # This sidecar only ever runs on the developer's machine (macOS/Linux).
@@ -22,7 +23,6 @@ environments = [
 [dependency-groups]
 dev = [
     "pytest==9.1.1",
-    "httpx==0.28.1",
 ]
 
 [build-system]

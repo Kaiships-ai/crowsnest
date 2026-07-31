@@ -13,6 +13,7 @@ TOKEN = "test-token-0123456789"
 def config(tmp_path: Path) -> Config:
     return Config(
         service_token=TOKEN,
+        ingest_url="http://127.0.0.1:3000/api/logs/ingest",
         username=None,
         password=None,
         session_path=tmp_path / "ig-session.json",

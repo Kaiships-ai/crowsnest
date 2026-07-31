@@ -84,6 +84,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
+    { name = "httpx", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "instagrapi", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pydantic", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "uvicorn", extra = ["standard"], marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
@@ -91,23 +92,20 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
     { name = "pytest", marker = "sys_platform == 'darwin' or sys_platform == 'linux'" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = "==0.121.2" },
+    { name = "httpx", specifier = "==0.28.1" },
     { name = "instagrapi", specifier = "==2.18.9" },
     { name = "pydantic", specifier = ">=2.12.5,<2.14" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.41.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [
-    { name = "httpx", specifier = "==0.28.1" },
-    { name = "pytest", specifier = "==9.1.1" },
-]
+dev = [{ name = "pytest", specifier = "==9.1.1" }]
 
 [[package]]
 name = "fastapi"

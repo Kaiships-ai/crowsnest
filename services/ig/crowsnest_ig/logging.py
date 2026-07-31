@@ -9,12 +9,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import time
 from typing import Any
 
 import httpx
+
+from .config import load_config
 
 LOGGER_NAME = "crowsnest_ig"
 
@@ -75,19 +76,30 @@ def configure() -> logging.Logger:
 
 def _forward(event: str, level: int, fields: dict[str, Any]) -> None:
     """POST one event to the Next ingest endpoint. Fire and forget: any failure
-    is swallowed because the line is already on stdout and logging must never
-    break the caller."""
-    url = os.environ.get("CROWSNEST_INGEST_URL", "http://127.0.0.1:3000/api/logs/ingest")
-    token = os.environ.get("IG_SERVICE_TOKEN", "")
-    body = {
-        "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + ".000Z",
-        "level": _LEVEL_NAME.get(level, "info"),
-        "source": "sidecar",
-        "event": event,
-        "fields": _redact(fields),
-    }
+    -- including the config being unset or invalid -- is swallowed, because the
+    line is already on stdout and logging must never break the caller.
+
+    The ingest URL and service token come from config.py's validated Config,
+    the same as every other module in this service, rather than from
+    ``os.environ`` directly: config.py is the single place allowed to read the
+    environment, and its ``service_token`` field is fail-fast validated
+    (length, presence) where a raw ``os.environ.get(..., "")`` is not.
+    """
     try:
-        httpx.post(url, json=body, headers={"X-IG-Token": token}, timeout=1.0)
+        cfg = load_config()
+        body = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()) + ".000Z",
+            "level": _LEVEL_NAME.get(level, "info"),
+            "source": "sidecar",
+            "event": event,
+            "fields": _redact(fields),
+        }
+        httpx.post(
+            cfg.ingest_url,
+            json=body,
+            headers={"X-IG-Token": cfg.service_token},
+            timeout=1.0,
+        )
     except Exception:
         pass
 
