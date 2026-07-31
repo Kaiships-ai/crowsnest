@@ -11,6 +11,8 @@
  * else goes in `fields`. Never log credentials, session blobs, or CDN URLs.
  */
 
+import { insertLogEvent } from "@/server/logs/store";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export interface LogFields {
@@ -41,6 +43,14 @@ function emit(level: LogLevel, event: string, fields: LogFields = {}): void {
   const line = JSON.stringify({ ts: new Date().toISOString(), level, event, ...redact(fields) });
   if (level === "error" || level === "warn") process.stderr.write(`${line}\n`);
   else process.stdout.write(`${line}\n`);
+
+  if (level !== "debug") {
+    try {
+      insertLogEvent({ ts: new Date().toISOString(), level, source: "backend", event, fields });
+    } catch {
+      // A logging sink must never break the caller. The line is already on stdout.
+    }
+  }
 }
 
 export const log = {
