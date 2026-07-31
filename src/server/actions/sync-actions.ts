@@ -2,10 +2,10 @@
 
 import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import { after } from "next/server";
-import { config } from "../config";
 import { db, nowIso, tables } from "../db";
 import { log } from "../lib/logger";
 import { IgError, SyncAlreadyRunningError } from "../ig/errors";
+import { getSetting } from "../settings";
 import { addChannel, importReelByUrl, requestCancel, runSync } from "../services/sync-engine";
 import {
   SYNC_PHASES,
@@ -264,8 +264,13 @@ function parseGaps(raw: string | null): SyncGap[] {
   return gaps;
 }
 
-function toProgress(row: ProgressRow): SyncProgress {
+// B3 (review-engineering-2026-07-31.md §3): maxItems used to echo config.MAX_ITEMS_PER_SYNC
+// directly, bypassing the settings module's DB-over-env-over-default precedence entirely.
+// It now reads the same maxItemsPerSync setting runSync itself resolves, which is why this
+// is async where it used to be a plain sync formatter.
+async function toProgress(row: ProgressRow): Promise<SyncProgress> {
   const phase = (SYNC_PHASES as readonly string[]).includes(row.phase ?? "") ? (row.phase as SyncPhase) : null;
+  const maxItems = await getSetting("maxItemsPerSync");
   return {
     jobId: row.id,
     status: row.status as SyncJobStatus,
@@ -290,7 +295,7 @@ function toProgress(row: ProgressRow): SyncProgress {
     gaps: parseGaps(row.gapsRaw),
     cancelRequested: row.cancelRequested,
     lookbackDays: row.lookbackDays,
-    maxItems: config.MAX_ITEMS_PER_SYNC,
+    maxItems,
   };
 }
 
@@ -305,7 +310,7 @@ export async function getSyncProgressAction(jobId?: string | null): Promise<Acti
     const row = jobId
       ? await selectProgressRow(eq(tables.syncJobs.id, jobId))
       : ((await selectProgressRow(eq(tables.syncJobs.status, "running"))) ?? (await selectProgressRow(undefined)));
-    return { ok: true, progress: row ? toProgress(row) : null };
+    return { ok: true, progress: row ? await toProgress(row) : null };
   } catch (err) {
     return toResult(err);
   }
@@ -359,7 +364,7 @@ export async function getChannelSyncProgressAction(
 
     return {
       ok: true,
-      progress: toProgress(row),
+      progress: await toProgress(row),
       coverage: row.channelId === null ? "library" : "channel",
     };
   } catch (err) {

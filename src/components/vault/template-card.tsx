@@ -61,10 +61,7 @@ export function TemplateCard({ item }: { item: VaultItemRow }) {
   }
 
   function useInRemix() {
-    if (!item.sourceVideo) {
-      toast.info("Press ⌘K and pick a video to remix — this template will be waiting in that stage.");
-      return;
-    }
+    if (!item.sourceVideo) return;
     router.push(`/feed/${item.sourceVideo.videoId}/remix?${item.type}=${item.id}`);
   }
 
@@ -72,7 +69,7 @@ export function TemplateCard({ item }: { item: VaultItemRow }) {
     <>
       <Card>
         <CardHeader>
-          <CardTitle>{item.title}</CardTitle>
+          <CardTitle className="text-lg font-semibold">{item.title}</CardTitle>
           <CardAction>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="More actions" />}>
@@ -115,9 +112,17 @@ export function TemplateCard({ item }: { item: VaultItemRow }) {
             <span className="text-xs text-muted-foreground">Manual entry</span>
           )}
 
-          <Button size="sm" variant="secondary" onClick={useInRemix} className="w-fit">
-            Use in Remix
-          </Button>
+          {/* Remix always starts from a source video (/feed/[videoId]/remix) — a
+              manually created template has none, so there's nothing to remix into.
+              The old fallback told the user to press Cmd K and pick a video, but the
+              command palette only searches nav routes, not videos (truth pass,
+              v1-gap-inventory.md). Hiding the button when it can't work beats an
+              instruction that can't be followed. */}
+          {item.sourceVideo && (
+            <Button size="sm" variant="secondary" onClick={useInRemix} className="w-fit">
+              Use in Remix
+            </Button>
+          )}
         </CardContent>
       </Card>
 

@@ -5,7 +5,8 @@ import { log } from "../lib/logger";
 import { igClient, type IgClient, type IgMedia } from "../ig/client";
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
-import { computeChannelMedian, scoreVideos, type VideoForCalc } from "./outlier-calc";
+import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
+import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
 /**
@@ -81,7 +82,6 @@ type ChannelRow = typeof tables.channels.$inferSelect;
 
 const PAGE_JITTER_MIN_MS = 300;
 const PAGE_JITTER_SPAN_MS = 500;
-const SCORE_WINDOW = 20;
 
 /**
  * Two thresholds hang off `SYNC_STALL_SECONDS`, and they are derived from it rather than
@@ -735,17 +735,71 @@ async function upsertChildren(
   return { assetsDownloaded, assetsFailed };
 }
 
-async function recomputeChannelScores(channelId: string): Promise<number | null> {
+/**
+ * Called after every channel sync, and by `importSingleReel` after a one-off import.
+ * Not the path a settings change uses — see `recomputeAllChannelScoresSync` below for
+ * that; this async version reads `app_settings` through the ordinary (non-transactional)
+ * `getScoringOptions`, which is exactly right here because a sync isn't racing a
+ * settings write for the same rows.
+ */
+export async function recomputeChannelScores(channelId: string): Promise<number | null> {
   const rows = await db
     .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
     .from(tables.videos)
     .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
   const calc = rows.map(toCalc);
-  const scores = scoreVideos(calc, SCORE_WINDOW);
+  // Baseline method, window, minimum usable posts and views floor all come from
+  // app_settings (src/server/settings) — this is the one place scoring reads them, so a
+  // setting change takes effect on every channel's next sync without a code change.
+  const scoringOptions = await getScoringOptions();
+  const scores = scoreVideosAgainstBaseline(calc, scoringOptions);
   for (const row of rows) {
     await db.update(tables.videos).set({ outlierScore: scores.get(row.id) ?? null }).where(eq(tables.videos.id, row.id));
   }
-  return computeChannelMedian(calc, SCORE_WINDOW);
+  return computeChannelBaseline(calc, scoringOptions);
+}
+
+/** The transaction handle `db.transaction`'s callback receives — better-sqlite3's
+ *  driver requires that callback to be synchronous, so every function below that takes
+ *  one must use `.all()` / `.run()`, never `await`, exactly like `acquireLock` above. */
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+function recomputeChannelScoresSync(tx: Tx, channelId: string, scoringOptions: ScoringOptions): void {
+  const rows = tx
+    .select({ id: tables.videos.id, viewCount: tables.videos.viewCount, postedAt: tables.videos.postedAt })
+    .from(tables.videos)
+    .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)))
+    .all();
+  const calc = rows.map(toCalc);
+  const scores = scoreVideosAgainstBaseline(calc, scoringOptions);
+  for (const row of rows) {
+    tx.update(tables.videos).set({ outlierScore: scores.get(row.id) ?? null }).where(eq(tables.videos.id, row.id)).run();
+  }
+}
+
+/**
+ * The synchronous, transaction-safe twin of the recompute loop, for exactly one
+ * caller: `updateAppSettingsAction` in `src/server/actions/settings-actions.ts` runs
+ * this INSIDE the same `db.transaction` that writes the changed settings rows, so a
+ * settings save that changes what a score means is atomic — either the new settings
+ * and every recomputed score land together, or (on any error) better-sqlite3 rolls the
+ * whole transaction back and NOTHING changes, including the settings rows written
+ * earlier in the same transaction. There is no state where the setting is saved but
+ * only some channels' scores reflect it, and no state where a thrown error is silent:
+ * a rollback surfaces as the thrown error propagating out of `db.transaction`, which
+ * `updateAppSettingsAction` turns into `{ ok: false, error }`.
+ *
+ * `scoringOptions` is passed in, not re-derived here, because the caller has already
+ * resolved it (via `resolveAllSettings`/`scoringOptionsFromSettings`) from the rows it
+ * just wrote in this same transaction — recomputing it a second time from inside this
+ * function would either re-read those rows redundantly or, worse, invite a version that
+ * reads them a different way and drifts from the caller's own resolution.
+ */
+export function recomputeAllChannelScoresSync(tx: Tx, scoringOptions: ScoringOptions): void {
+  const channelRows = tx.select({ id: tables.channels.id }).from(tables.channels).all();
+  for (const { id } of channelRows) {
+    recomputeChannelScoresSync(tx, id, scoringOptions);
+  }
 }
 
 /**
@@ -1018,6 +1072,15 @@ async function syncOneChannel(
       .update(tables.channels)
       .set({ syncError: message, syncErrorCode: code })
       .where(eq(tables.channels.id, channel.id));
+    // Instagram's own retry-after hint (used above to size the backoff and then
+    // discarded) is copied onto the gap only when this is the code it actually applies
+    // to — see the doc comment on SyncGap.retryAfterSec. Omitted (not `undefined`-valued
+    // but genuinely absent from the object) whenever there is nothing honest to say, so
+    // a downstream reader can never mistake "we didn't ask" for "we don't know".
+    const retryAfterSec =
+      err instanceof IgError && err.code === "IG_RATE_LIMITED" && typeof err.detail.retry_after_sec === "number" && Number.isFinite(err.detail.retry_after_sec)
+        ? err.detail.retry_after_sec
+        : undefined;
     return {
       // handle and code travel with the gap so the UI can name the channel and offer the
       // right recovery ("reconnect in Settings" vs "retry") without a second query.
@@ -1027,6 +1090,7 @@ async function syncOneChannel(
         provider: "instagrapi",
         error: message,
         code: err instanceof IgError ? err.code : null,
+        ...(retryAfterSec !== undefined ? { retryAfterSec } : {}),
       },
       counters,
       stopReason: "error",
@@ -1045,8 +1109,12 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   const client = opts.client ?? igClient;
   const sleep = opts.sleep ?? defaultSleep;
   const now = opts.now ?? (() => new Date());
-  const lookbackDays = opts.lookbackDays ?? config.LOOKBACK_DAYS;
-  const maxItems = opts.maxItems ?? config.MAX_ITEMS_PER_SYNC;
+  // config.LOOKBACK_DAYS and config.MAX_ITEMS_PER_SYNC are still the env-only fallback
+  // UNDER the settings module (see src/server/settings), not read directly here any
+  // more. A DB-stored sync_lookback_days / max_items_per_sync now wins over either
+  // without a restart (B3, review-engineering-2026-07-31.md §3).
+  const lookbackDays = opts.lookbackDays ?? (await getSetting("syncLookbackDays"));
+  const maxItems = opts.maxItems ?? (await getSetting("maxItemsPerSync"));
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
   // half the outbound calls — which is both a testing lie and, in production, two
@@ -1077,9 +1145,18 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   let cancelLeftWorkUndone = false;
 
   try {
+    // A removed channel is never synced again, whether it was named explicitly or
+    // picked up by the platform sweep. Removal is soft, so without this filter the
+    // flag would set and the next run would go straight back to fetching it.
     const channelRows = opts.channelIds
-      ? await db.select().from(tables.channels).where(inArray(tables.channels.id, opts.channelIds))
-      : await db.select().from(tables.channels).where(eq(tables.channels.platform, "instagram"));
+      ? await db
+          .select()
+          .from(tables.channels)
+          .where(and(inArray(tables.channels.id, opts.channelIds), isNull(tables.channels.deletedAt)))
+      : await db
+          .select()
+          .from(tables.channels)
+          .where(and(eq(tables.channels.platform, "instagram"), isNull(tables.channels.deletedAt)));
 
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });

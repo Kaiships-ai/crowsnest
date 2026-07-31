@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { formatCompact, formatDuration, formatMultiplier, relativeTime } from "./format";
+import { formatCompact, formatDuration, formatMultiplier, relativeTime, formatEngagementRate } from "./format";
 
 describe("formatCompact", () => {
   const cases: [number | null, string][] = [
@@ -75,5 +75,26 @@ describe("relativeTime", () => {
   test("days ago", () => {
     expect(relativeTime(isoAgo(3 * 86_400_000))).toBe("3d ago");
     expect(relativeTime(isoAgo(45 * 86_400_000))).toBe("45d ago");
+  });
+});
+
+describe("formatEngagementRate", () => {
+  test("a missing rate is a dash, never zero percent", () => {
+    expect(formatEngagementRate(null)).toBe("—");
+  });
+
+  test("below one percent keeps two decimals, because one would double it", () => {
+    // @kallaway's top post: 1200 likes plus 37 comments over 2,272,877 views.
+    expect(formatEngagementRate(0.000544)).toBe("0.05%");
+    expect(formatEngagementRate(0.0099)).toBe("0.99%");
+  });
+
+  test("at or above one percent a tenth is enough", () => {
+    expect(formatEngagementRate(0.05)).toBe("5.0%");
+    expect(formatEngagementRate(0.1234)).toBe("12.3%");
+  });
+
+  test("a real zero prints as zero, not as two decimals of nothing", () => {
+    expect(formatEngagementRate(0)).toBe("0.0%");
   });
 });

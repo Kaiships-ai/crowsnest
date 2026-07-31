@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crowsnest: what is left to make V1 a product</title>
+<style>
+:root{
+  --background: oklch(0.97 0.005 260); --foreground: oklch(0.18 0.02 260);
+  --card: oklch(1 0 0); --muted: oklch(0.92 0.01 260); --muted-foreground: oklch(0.40 0.02 260);
+  --primary: oklch(0.50 0.25 280); --secondary: oklch(0.50 0.18 180); --accent: oklch(0.60 0.22 50);
+  --destructive: oklch(0.50 0.25 25); --success: oklch(0.45 0.20 150); --warning: oklch(0.55 0.18 85);
+  --border: oklch(0.88 0.01 260); --code-bg: oklch(0.92 0.01 260); --radius:0.625rem;
+  --font-sans:'Inter',system-ui,-apple-system,sans-serif;
+  --font-mono:'JetBrains Mono','Fira Code',ui-monospace,monospace;
+  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+}
+@media (prefers-color-scheme: dark){:root{
+  --background: oklch(0.16 0.015 260); --foreground: oklch(0.95 0.005 260);
+  --card: oklch(0.21 0.018 260); --muted: oklch(0.27 0.018 260); --muted-foreground: oklch(0.68 0.015 260);
+  --primary: oklch(0.68 0.19 280); --secondary: oklch(0.68 0.14 180); --accent: oklch(0.74 0.17 60);
+  --destructive: oklch(0.65 0.20 25); --success: oklch(0.68 0.16 150); --warning: oklch(0.75 0.15 85);
+  --border: oklch(0.31 0.018 260); --code-bg: oklch(0.24 0.018 260);
+}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--background);color:var(--foreground);font-family:var(--font-sans);
+  line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:0 22px 96px}
+header{padding:52px 0 28px;border-bottom:1px solid var(--border)}
+.eyebrow{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted-foreground);margin:0 0 13px}
+h1{font-family:var(--font-display);font-size:clamp(29px,5vw,44px);line-height:1.12;margin:0 0 14px;
+  letter-spacing:-.02em;font-weight:600}
+.sub{color:var(--muted-foreground);max-width:66ch;margin:0;font-size:17px}
+.askbox{margin-top:22px;background:var(--card);border:1px solid var(--border);
+  border-left:3px solid var(--primary);border-radius:var(--radius);padding:15px 18px}
+.askbox p{margin:0;font-size:14.5px;color:var(--muted-foreground)}
+nav{position:sticky;top:0;z-index:30;background:var(--background);border-bottom:1px solid var(--border);
+  margin-bottom:40px;overflow-x:auto}
+nav ul{display:flex;gap:2px;list-style:none;margin:0;padding:9px 0;min-width:max-content}
+nav a{font-family:var(--font-mono);font-size:12px;color:var(--muted-foreground);text-decoration:none;
+  padding:7px 12px;border-radius:6px;white-space:nowrap}
+nav a:hover{color:var(--foreground);background:var(--muted)}
+section{margin:0 0 62px;scroll-margin-top:62px}
+h2{font-family:var(--font-display);font-size:26px;margin:0 0 6px;font-weight:600;letter-spacing:-.01em}
+h2 .cnt{font-family:var(--font-mono);font-size:12px;color:var(--primary);letter-spacing:.09em;
+  display:block;margin-bottom:6px;font-weight:400}
+.lede{color:var(--muted-foreground);max-width:70ch;margin:0 0 20px}
+p{max-width:72ch}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));margin:18px 0 6px}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 15px}
+.kpi .lab{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted-foreground);margin-bottom:6px}
+.kpi .val{font-size:31px;font-weight:660;letter-spacing:-.02em;line-height:1}
+.kpi .note{font-size:12.5px;color:var(--muted-foreground);margin-top:5px}
+.kpi.bad .val{color:var(--destructive)} .kpi.warn .val{color:var(--warning)}
+.kpi.good .val{color:var(--success)} .kpi.dim .val{color:var(--muted-foreground)}
+.scroll{overflow-x:auto;margin:15px 0;border:1px solid var(--border);border-radius:var(--radius)}
+table{border-collapse:collapse;width:100%;min-width:660px;font-size:13.5px}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--muted-foreground);background:var(--muted);font-weight:500}
+tr:last-child td{border-bottom:none}
+td.id{font-family:var(--font-mono);color:var(--muted-foreground);white-space:nowrap}
+code{font-family:var(--font-mono);font-size:12.5px;background:var(--code-bg);padding:1px 5px;border-radius:4px}
+.badge{display:inline-block;font-family:var(--font-mono);font-size:10.5px;padding:2px 7px;
+  border-radius:999px;letter-spacing:.04em;white-space:nowrap;font-weight:500}
+.b-kai{background:color-mix(in oklab,var(--accent) 22%,transparent);color:var(--accent)}
+.b-code{background:color-mix(in oklab,var(--secondary) 18%,transparent);color:var(--secondary)}
+.b-dec{background:color-mix(in oklab,var(--primary) 18%,transparent);color:var(--primary)}
+.callout{border:1px solid var(--border);border-left:3px solid var(--muted-foreground);background:var(--card);
+  border-radius:var(--radius);padding:15px 18px;margin:18px 0;max-width:74ch}
+.callout.bad{border-left-color:var(--destructive)}
+.callout.good{border-left-color:var(--success)}
+.callout h4{margin:0 0 7px;font-size:14.5px;font-weight:640}
+.callout p{margin:0 0 8px;font-size:14.5px;color:var(--muted-foreground)}
+.callout p:last-child{margin:0}
+.order{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}
+.ostep{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:9px 13px;font-size:13px}
+.ostep b{display:block;font-family:var(--font-mono);font-size:10.5px;color:var(--muted-foreground);
+  text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;font-weight:500}
+.ostep.now{border-color:var(--accent);background:color-mix(in oklab,var(--accent) 9%,var(--card))}
+.arrow{color:var(--muted-foreground);font-family:var(--font-mono)}
+footer{border-top:1px solid var(--border);padding-top:20px;color:var(--muted-foreground);font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Crowsnest / V1 to product / 2026-07-31</p>
+  <h1>21 items left, and only 4 of them stop you using it</h1>
+  <p class="sub">Everything still open, counted and grouped by what it costs you. Eight
+  items shipped since this list was written. Of the four blockers left, three are
+  credentials you own and one is a decision that cannot be made until the first of those
+  is done.</p>
+  <div class="askbox">
+    <p><strong>You asked:</strong> what we could enhance and fix for V1 to really become
+    the product, and how many items that is.</p>
+  </div>
+</header>
+
+<nav><ul>
+  <li><a href="#count">The count</a></li>
+  <li><a href="#a">A. Blocks use (4)</a></li>
+  <li><a href="#b">B. Wrong (0)</a></li>
+  <li><a href="#c">C. Prototype gaps (7)</a></li>
+  <li><a href="#d">D. Not built (6)</a></li>
+  <li><a href="#e">E. Debt (4)</a></li>
+  <li><a href="#order">Order</a></li>
+</ul></nav>
+
+<section id="count">
+  <h2><span class="cnt">TOTAL</span>21 open, 8 shipped</h2>
+  <p class="lede">Counted from three independent reviews, the prototype gap inventory, and
+  direct checks against the running app and database. Six defects found during the review
+  itself were fixed before this list existed and are not counted either.</p>
+
+  <div class="kpis">
+    <div class="kpi bad"><div class="lab">A. blocks daily use</div><div class="val">4</div><div class="note">3 yours, 1 decision. 2 shipped</div></div>
+    <div class="kpi good"><div class="lab">B. wrong or misleading</div><div class="val">0</div><div class="note">all four shipped</div></div>
+    <div class="kpi dim"><div class="lab">C. prototype gaps</div><div class="val">7</div><div class="note">visible, none blocking</div></div>
+    <div class="kpi dim"><div class="lab">D. not built</div><div class="val">6</div><div class="note">channel removal shipped</div></div>
+    <div class="kpi dim"><div class="lab">E. engineering debt</div><div class="val">4</div><div class="note">the unrecoverable one shipped</div></div>
+  </div>
+
+  <div class="callout good">
+    <h4>Already fixed, not counted</h4>
+    <p>Feed applying a hidden minimum score while reading "Any score". Detail hero showing
+    an empty well. A dead All/IG toggle. The failure strip printing itself twice. Settings
+    claiming the feed opens unfiltered. Twelve em dashes in rendered copy.</p>
+  </div>
+</section>
+
+<section id="a">
+  <h2><span class="cnt">GROUP A / 4 LEFT, 2 SHIPPED</span>Blocks daily use</h2>
+  <p class="lede">Fix these and the product is usable. Nothing else on this page stops you
+  opening Crowsnest tomorrow and getting a script.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Why it blocks</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td class="id">A1</td><td>Re-authenticate 9router, point <code>CLAUDE_MODEL</code> at a live model</td><td>Every <code>nvidia/*</code> model returns 410 Gone. Every <code>cx/*</code> returns 401 expired. No remix, no analysis, no frame pass</td><td><span class="badge b-kai">YOURS</span></td></tr>
+      <tr><td class="id">A2</td><td>Graph API token with insights permissions</td><td>The whole of <code>/mine</code> renders a not-connected state</td><td><span class="badge b-kai">YOURS</span></td></tr>
+      <tr><td class="id">A3</td><td>Run one real multi-channel sync and watch it</td><td>The most tested and least proven path. One real run has ever happened, cancelled after 32 seconds</td><td><span class="badge b-kai">YOURS</span></td></tr>
+      <tr><td class="id">A4 <span class="badge b-code">SHIPPED</span></td><td>App starts its own dependencies, or offers one in-app control</td><td>Two terminal commands before every session. This is the single biggest thing between launching a tool and opening one</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">A5 <span class="badge b-code">SHIPPED</span></td><td>Suggested-channel picker in onboarding</td><td>Setup needs you to already know exact handles. The niche you pick in step 1 currently feeds nothing</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">A6</td><td>Layout reads: frame sampler, image path on the LLM client, vision model</td><td>A third of the stated mission. Hook and script work, layout does not exist</td><td><span class="badge b-dec">DECIDE FIRST</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout bad">
+    <h4>A6 is a decision before it is a build</h4>
+    <p>Whether the router can carry images at all is unknown and unknowable until A1 is
+    done. If it cannot, layout needs a different model, which is a cost decision rather
+    than a code one. Nothing should be built on top of it until that spike runs.</p>
+  </div>
+</section>
+
+<section id="b">
+  <h2><span class="cnt">GROUP B / ALL 4 SHIPPED</span>Wrong or able to go wrong</h2>
+  <p class="lede">None of these is visibly broken today. Each is a number that can quietly
+  become untrue, which in a research tool is the only unrecoverable failure.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Item</th><th>What goes wrong</th><th>Owner</th></tr></thead>
+    <tbody>
+      <tr><td class="id">B1 <span class="badge b-code">SHIPPED</span></td><td>"Saved views" can be opened but never saved</td><td>No action writes <code>saved_filters</code>. It reads the two seeded presets and presents as if you could add one</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B2 <span class="badge b-code">SHIPPED</span></td><td><code>own-metrics.ts</code> hardcodes a minimum of 5</td><td>Second source of truth for <code>score_min_usable_posts</code>. They agree today by coincidence. Change the setting and tracked-channel scores move while own-channel silently does not</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B3 <span class="badge b-code">SHIPPED</span></td><td><code>MAX_ITEMS_PER_SYNC</code> bypasses the settings module</td><td>A real per-run safety cap that needs an env var and a restart, sitting beside five settings you can change from a page</td><td><span class="badge b-code">CODE</span></td></tr>
+      <tr><td class="id">B4 <span class="badge b-code">SHIPPED</span></td><td>Nothing forces a future write path to recompute scores</td><td><code>outlier_score</code> is stored, not computed. Two call sites remember by convention. This shape already caused two bugs today</td><td><span class="badge b-code">CODE</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="c">
+  <h2><span class="cnt">GROUP C / 7 ITEMS</span>Gaps against the prototype</h2>
+  <p class="lede">Visible differences, ordered by daily cost. None blocks the one job.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td class="id">C1</td><td>Two save buttons on video detail whose difference is not obvious</td><td>You hesitate every time. One keeps the post, one saves a template</td></tr>
+      <tr><td class="id">C2</td><td>Channels sync-health sparkline is plain text</td><td>Cannot see a channel's run history at a glance</td></tr>
+      <tr><td class="id">C3</td><td>Feed density toggle (comfortable and compact) absent</td><td>Scanning 200 posts is the case it was designed for</td></tr>
+      <tr><td class="id">C4</td><td>Settings is one long page, not tabbed nav</td><td>Scrolling to find a setting</td></tr>
+      <tr><td class="id">C5</td><td>Sidebar "Post" quick-nav absent</td><td>Minor. The route is nested, not top level</td></tr>
+      <tr><td class="id">C6</td><td>Persistent GET STARTED checklist absent</td><td>Minor, and the first-run flow now covers most of it</td></tr>
+      <tr><td class="id">C7</td><td>Focus step dropped its posting-cadence question</td><td>Minor. Nothing consumes cadence yet</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="d">
+  <h2><span class="cnt">GROUP D / 6 LEFT, 1 SHIPPED</span>Not built, no backend behind them</h2>
+  <p class="lede">Each was deliberately not faked during the build. Every one needs a
+  server action or a query before its control can exist.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Item</th><th>Needs</th></tr></thead>
+    <tbody>
+      <tr><td class="id">D1 <span class="badge b-code">SHIPPED</span></td><td>Untrack or stop watching a channel</td><td>A remove-channel action. There is no way to remove a channel at all today</td></tr>
+      <tr><td class="id">D2</td><td>Danger zone: discard analyses, purge media, reset database</td><td>Three actions. Buttons were deliberately not rendered without them</td></tr>
+      <tr><td class="id">D3</td><td>Total posts column on the channels table</td><td>A post count on <code>ChannelRow</code>. Only a window-limited sample size exists</td></tr>
+      <tr><td class="id">D4</td><td>Per-channel run history list</td><td><code>sync_jobs</code> attributed per channel. The failure surface reads the last job only</td></tr>
+      <tr><td class="id">D5</td><td>Dashboard NEXT prompt bar</td><td>Persistence for two of its four milestones, plus routes that do not exist</td></tr>
+      <tr><td class="id">D6</td><td>Dashboard first-run banner</td><td>Reads <code>firstRunCompleted</code>, which now exists. Cheapest item on this page</td></tr>
+      <tr><td class="id">D7</td><td>Length against reach scatter on my channel</td><td>Scope only. <code>durationSec</code> and reach both exist once A2 lands</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="e">
+  <h2><span class="cnt">GROUP E / 4 LEFT, 1 SHIPPED</span>Engineering debt</h2>
+  <p class="lede">None of this hurts at 2 channels and 8 videos. All of it hurts at 50 and
+  5,000.</p>
+
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>Item</th><th>When it bites</th></tr></thead>
+    <tbody>
+      <tr><td class="id">E1 <span class="badge b-code">SHIPPED</span></td><td><code>db:migrate</code> has no backup step</td><td>Now. Three forward-only migrations went onto the live database today with no snapshot</td></tr>
+      <tr><td class="id">E2</td><td>N+1 on the channels screen: 3 queries per channel, no cache</td><td>150 queries at 50 channels. Slow, not broken</td></tr>
+      <tr><td class="id">E3</td><td><code>getMedianViews</code> has no LIMIT and is fetched twice per detail load</td><td>A channel with 2,000 posts sorts 2,000 rows in Node on every screen that asks</td></tr>
+      <tr><td class="id">E4</td><td>Three implementations of the score recompute kept in lockstep by convention</td><td>The next person who adds a fourth</td></tr>
+      <tr><td class="id">E5</td><td>Migrations are forward-only with no down path</td><td>The first bad migration</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="order">
+  <h2><span class="cnt">SEQUENCE</span>What to do in what order</h2>
+  <p class="lede">Dependencies, not effort. A1 unlocks more than anything else on this page.</p>
+
+  <div class="order">
+    <div class="ostep now"><b>first</b>A1 re-auth 9router</div><span class="arrow">&rarr;</span>
+    <div class="ostep"><b>then</b>A6 spike: can it see?</div><span class="arrow">&rarr;</span>
+    <div class="ostep"><b>parallel</b>A2 Graph token</div><span class="arrow">&rarr;</span>
+    <div class="ostep"><b>then</b>A3 real sync, watched</div><span class="arrow">&rarr;</span>
+    <div class="ostep"><b>then</b>A4 + A5 setup path</div><span class="arrow">&rarr;</span>
+    <div class="ostep"><b>then</b>B1 to B4</div>
+  </div>
+
+  <div class="callout">
+    <h4>The honest read</h4>
+    <p>Six items stop you using this. Three of them are you signing into things. One is a
+    decision. Two are code, and both are about the app starting itself rather than about
+    the app doing its job.</p>
+    <p>Groups C, D and E are 19 items that make it better, not usable. If you never did
+    any of them, the product would still do the one job, assuming A is done.</p>
+  </div>
+
+  <div class="callout bad">
+    <h4>The one I would not defer</h4>
+    <p>E1, the backup step on <code>db:migrate</code>. It is the smallest item on this page
+    and the only one whose absence is unrecoverable. Everything else costs time when it
+    goes wrong. That one costs your data.</p>
+  </div>
+</section>
+
+<footer>
+  Compiled from three independent reviews in <code>docs/product/review-*.md</code>, the
+  prototype gap inventory, and direct checks against the running app and
+  <code>data/crowsnest.db</code>. Six defects found during the review are fixed and
+  excluded from the 29.
+</footer>
+
+</div>
+</body>
+</html>

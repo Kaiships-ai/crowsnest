@@ -13,7 +13,6 @@ import { cn } from "@/lib/utils";
 import { getVideoPreviewAction } from "@/server/queries/preview-action";
 import type { VideoDetail } from "@/server/queries/video";
 import { OutlierBadge } from "./outlier-badge";
-import { PlatformChip } from "./platform-chip";
 
 // Keyed by the id it was fetched for, so `loading`/`notFound` are derived from
 // comparing `result.id` to the current `id` rather than tracked as separate state —
@@ -21,6 +20,16 @@ import { PlatformChip } from "./platform-chip";
 // in the effect body, and a derived value is the more correct fix anyway (one fewer
 // state variable that could drift out of sync with `id`).
 type FetchResult = { id: string; detail: VideoDetail | null };
+
+// "Hatching for a well with no data in it" (globals.css) — same treatment as
+// outlier-card.tsx and carousel-viewer.tsx, so the feed grid and the detail screen
+// agree on what an empty media slot looks like. A plain object so it isn't
+// reallocated on every render.
+const EMPTY_WELL_HATCH: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
+  backgroundImage:
+    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+};
 
 export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const [result, setResult] = useState<FetchResult | null>(null);
@@ -56,14 +65,15 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
             <p className="text-sm text-muted-foreground">This video couldn&rsquo;t be found.</p>
           ) : (
             <>
-              <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden rounded-lg bg-[#1E2230]">
+              <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
+                <div aria-hidden className="absolute inset-0 opacity-40" style={EMPTY_WELL_HATCH} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Play className="size-10 text-white/25" fill="currentColor" aria-hidden />
+                  <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
                 </div>
                 <VideoThumb assetId={detail.item.thumbnailAssetId} />
-                <div className="absolute left-2 top-2">
-                  <PlatformChip platform={detail.item.channel.platform} />
-                </div>
+                {/* No platform chip. V1 is Instagram only, so a chip naming the platform
+                    tells the reader something they already know, and this sheet opens
+                    straight off a feed card where the same rule applies. */}
                 <div className="absolute right-2 top-2">
                   <OutlierBadge score={detail.item.outlierScore} size="lg" />
                 </div>
@@ -92,9 +102,7 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
                 {detail.transcript ? (
                   <p className="line-clamp-4 text-sm text-muted-foreground">{detail.transcript.text}</p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No transcript yet — transcription arrives with the phase-2A sync engine
-                  </p>
+                  <p className="text-sm text-muted-foreground">No transcript yet — open the full page to transcribe</p>
                 )}
               </div>
 

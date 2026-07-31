@@ -61,6 +61,16 @@ export interface SyncGap {
   error: string;
   /** IgErrorCode when the failure crossed the sidecar boundary; null otherwise. */
   code: string | null;
+  /**
+   * Seconds Instagram's own response asked us to wait, copied from the failing call's
+   * `IgError.detail.retry_after_sec` (see `backoffMs` in sync-engine.ts). Present only
+   * when the gap's code is IG_RATE_LIMITED and Instagram actually supplied a wait;
+   * absent for every other code, and absent for a rate limit whose ladder ran out on a
+   * guessed backoff instead of a hinted one. A consumer must not invent a countdown
+   * when this is missing — an "Instagram is cooling down, no ETA given" state is
+   * honest; a guessed one is exactly the fabrication the brief forbids.
+   */
+  retryAfterSec?: number;
 }
 
 /** Everything the progress UI renders, in one poll. */

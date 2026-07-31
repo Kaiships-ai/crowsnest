@@ -23,12 +23,19 @@ export function ApiKeyStatusCard({
   envVar,
   present,
   onTest,
+  proxied = false,
   presenceOnlyHint,
 }: {
   label: string;
   envVar: string;
   present: boolean;
   onTest?: () => Promise<TestResult>;
+  /** True when ANTHROPIC_BASE_URL routes through a local proxy. The test only pings
+   *  count_tokens, which a proxy answers locally, so a pass proves the proxy replied
+   *  and not that generation works. Verified on this machine: count_tokens returns 200
+   *  for a model whose /v1/messages returns 410 Gone. Saying "connection OK" without
+   *  that caveat is a green light for something untested. */
+  proxied?: boolean;
   presenceOnlyHint?: string;
 }) {
   const [testing, setTesting] = useState(false);
@@ -38,7 +45,13 @@ export function ApiKeyStatusCard({
     setTesting(true);
     const result = await onTest();
     setTesting(false);
-    if (result.ok) toast.success(`${label}: connection OK`);
+    if (result.ok) {
+      toast.success(
+        proxied
+          ? `${label}: proxy answered. That does not confirm generation works, try a stage in Remix.`
+          : `${label}: connection OK`
+      );
+    }
     else toast.error(result.error);
   }
 
@@ -47,7 +60,7 @@ export function ApiKeyStatusCard({
       <CardHeader>
         <CardTitle className="flex items-center justify-between text-sm font-medium">
           {label}
-          <Badge variant={present ? "default" : "outline"}>{present ? "Configured" : "Not set"}</Badge>
+          <Badge variant={present ? "secondary" : "outline"}>{present ? "Configured" : "Not set"}</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="flex items-center justify-between gap-3">

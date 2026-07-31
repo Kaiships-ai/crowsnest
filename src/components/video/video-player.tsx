@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { assetUrl } from "@/lib/media-url";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 
+// "Hatching for a well with no data in it" (globals.css) — same tokened placeholder
+// fill used by carousel-viewer.tsx's not-yet-downloaded slides, replacing the old
+// bg-[#1E2230] hex that predates the token system.
+const EMPTY_WELL: React.CSSProperties = {
+  backgroundColor: "var(--hatch-1)",
+  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+};
+
 /**
  * Download state machine for the "not downloaded yet" gate below. Modeled as one
  * tagged union (rather than a `pending` boolean plus a separate `error` string) so
@@ -85,17 +93,33 @@ export function VideoPlayer({
 
   const pending = state.kind === "pending";
 
+  // The thumbnail is already on disk for anything that synced, and the feed card one
+  // click earlier renders it. Opening the post used to swap that for an empty hatch,
+  // so the screen where a post gets judged showed less than the card that led to it.
+  // The frame sits behind the download affordance now, dimmed so the controls stay
+  // legible. `poster` is null only when the post genuinely has no thumbnail.
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 bg-[#1E2230] p-6 text-center">
+    <div
+      className="relative flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center"
+      style={poster ? undefined : EMPTY_WELL}
+    >
+      {poster && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={poster} alt="" aria-hidden className="absolute inset-0 h-full w-full object-cover opacity-40" />
+          <div aria-hidden className="absolute inset-0 bg-background/45" />
+        </>
+      )}
+      <div className={poster ? "relative flex flex-col items-center gap-3 bg-background/80 px-4 py-3" : "relative flex flex-col items-center gap-3"}>
       {pending ? (
         <>
-          <Loader2 className="size-8 animate-spin text-white/60" aria-hidden />
-          <p className="text-sm text-white/70">Downloading video…</p>
+          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+          <p className="text-sm text-muted-foreground">Downloading video…</p>
         </>
       ) : (
         <>
-          <Play className="size-8 text-white/25" fill="currentColor" aria-hidden />
-          <p className="text-sm text-white/70">Video not downloaded yet</p>
+          <Play className="size-8 text-faint" fill="currentColor" aria-hidden />
+          <p className="text-sm text-muted-foreground">Video not downloaded yet</p>
           <Button type="button" variant="outline" size="sm" onClick={download}>
             Download video
           </Button>
@@ -106,6 +130,7 @@ export function VideoPlayer({
           )}
         </>
       )}
+      </div>
     </div>
   );
 }

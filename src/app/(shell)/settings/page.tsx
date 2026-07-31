@@ -1,14 +1,35 @@
 import { ApiKeyStatusCard } from "@/components/settings/api-key-status-card";
+import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
+import { GraphSection } from "@/components/settings/graph-section";
 import { InstagramSection } from "@/components/settings/instagram-section";
 import { LocalBinariesSection, type BinaryStatus } from "@/components/settings/local-binaries-section";
 import { NicheProfileSection } from "@/components/settings/niche-profile-section";
+import { OnboardingSection } from "@/components/settings/onboarding-section";
+import { ScoringSection } from "@/components/settings/scoring-section";
+import { SettingsNav, type SettingsNavItem } from "@/components/settings/settings-nav";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
+import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { getNicheSettings, testAnthropicKeyAction } from "@/server/actions/settings-actions";
+import { getAppSettingsAction, getNicheSettings, testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import { getLatestSyncJob } from "@/server/actions/sync-actions";
 import { config } from "@/server/config";
 import { detectBinary } from "@/server/lib/exec";
 import { whisperAvailability } from "@/server/transcribe/whispercpp";
+
+// Anchors for SettingsNav — one per section id below. Order here is the order the
+// sidebar renders in, which is also the order the sections appear on the page, so the
+// two never drift out of sync with each other.
+const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
+  { id: "niche-profile", label: "Niche profile" },
+  { id: "instagram", label: "Instagram" },
+  { id: "graph-api", label: "Graph API" },
+  { id: "api-keys", label: "API keys" },
+  { id: "local-binaries", label: "Local binaries" },
+  { id: "scoring", label: "Scoring" },
+  { id: "feed-defaults", label: "Feed defaults" },
+  { id: "sync", label: "Sync" },
+  { id: "onboarding", label: "Onboarding" },
+];
 
 // Reads live process.env / filesystem / DB state on every load — no dynamic segment
 // or searchParams to implicitly opt this route out of static rendering otherwise
@@ -23,12 +44,17 @@ export default async function SettingsPage() {
   // ban is satisfied by construction). `getIgStatusAction` never throws — an unreachable
   // sidecar arrives as an `ok: false` result the section renders as "service isn't
   // running", which is why this Promise.all can't take the whole page down with it.
-  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob] = await Promise.all([
+  // `checkGraphTokenAction` is the same shape: documented to never throw, `ok: false`
+  // here would mean the action itself broke, not "no token" (that's `state:
+  // "not_configured"` inside an `ok: true` result).
+  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult] = await Promise.all([
     getNicheSettings(),
     detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp"),
     whisperAvailability(),
     getIgStatusAction(),
     getLatestSyncJob(),
+    getAppSettingsAction(),
+    checkGraphTokenAction(),
   ]);
 
   const binaries: BinaryStatus[] = [
@@ -40,50 +66,99 @@ export default async function SettingsPage() {
   // rendered as a read failure, never as "no sync has run yet".
   const lastJob: LastSyncJobResult = latestJob.ok ? { ok: true, job: latestJob.job } : { ok: false, error: latestJob.error };
 
+  const graphStatus = graphTokenResult.ok
+    ? graphTokenResult.status
+    : { configured: false, username: null, state: "unknown" as const, message: graphTokenResult.error, checkedAt: new Date().toISOString() };
+
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-8 p-6">
-      <NicheProfileSection initialNiche={nicheSettings.niche} initialKeywords={nicheSettings.keywords} />
+    <div className="mx-auto flex max-w-[1120px] gap-10 p-6">
+      <SettingsNav items={SETTINGS_NAV_ITEMS} />
 
-      <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
-
-      <section className="flex flex-col gap-3">
-        <div>
-          <h2 className="text-base font-semibold">API keys</h2>
-          <p className="text-sm text-muted-foreground">Keys live in .env.local — restart the dev server after editing.</p>
+      {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
+          instead of pushing the nav out of the sticky column it needs to stay in. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div id="niche-profile" className="scroll-mt-6 border-b border-border pb-8">
+          <NicheProfileSection initialNiche={nicheSettings.niche} initialKeywords={nicheSettings.keywords} />
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <ApiKeyStatusCard
-            label="Anthropic"
-            envVar="ANTHROPIC_API_KEY"
-            present={Boolean(process.env.ANTHROPIC_API_KEY)}
-            onTest={testAnthropicKeyAction}
-          />
-          <ApiKeyStatusCard
-            label="Groq"
-            envVar="GROQ_API_KEY"
-            present={Boolean(process.env.GROQ_API_KEY)}
-            presenceOnlyHint="Verified on first transcribe"
+
+        <div id="instagram" className="scroll-mt-6 border-b border-border py-8">
+          <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+        </div>
+
+        <div id="graph-api" className="scroll-mt-6 border-b border-border py-8">
+          <GraphSection initialStatus={graphStatus} />
+        </div>
+
+        <section id="api-keys" className="scroll-mt-6 flex flex-col gap-3 border-b border-border py-8">
+          <div>
+            <h2 className="text-lg font-semibold">API keys</h2>
+            <p className="text-sm text-muted-foreground">Keys live in .env.local. Restart the dev server after editing.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <ApiKeyStatusCard
+              label="Anthropic"
+              envVar="ANTHROPIC_API_KEY"
+              present={Boolean(process.env.ANTHROPIC_API_KEY)}
+              proxied={Boolean(process.env.ANTHROPIC_BASE_URL)}
+              onTest={testAnthropicKeyAction}
+            />
+            <ApiKeyStatusCard
+              label="Groq"
+              envVar="GROQ_API_KEY"
+              present={Boolean(process.env.GROQ_API_KEY)}
+              presenceOnlyHint="Verified on first transcribe"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Instagram credentials are deliberately not listed here: they live in the sidecar&apos;s own environment and are never read by
+            this process. See the Instagram connection section above.
+          </p>
+        </section>
+
+        <div id="local-binaries" className="scroll-mt-6 border-b border-border py-8">
+          <LocalBinariesSection binaries={binaries} />
+        </div>
+
+        <div id="scoring" className="scroll-mt-6 border-b border-border py-8">
+          <ScoringSection
+            initial={{
+              scoreBaselineMethod: appSettings.scoreBaselineMethod,
+              scoreBaselineWindow: appSettings.scoreBaselineWindow,
+              scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
+              scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
+            }}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Instagram credentials are deliberately not listed here: they live in the sidecar&apos;s own environment and are never read by this
-          process. See the Instagram connection section above.
-        </p>
-      </section>
 
-      <LocalBinariesSection binaries={binaries} />
+        <div id="feed-defaults" className="scroll-mt-6 border-b border-border py-8">
+          <FeedDefaultsSection
+            initial={{
+              feedDefaultMinScore: appSettings.feedDefaultMinScore,
+              feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
+            }}
+          />
+        </div>
 
-      <SyncSection
-        config={{
-          lookbackDays: config.LOOKBACK_DAYS,
-          maxItemsPerSync: config.MAX_ITEMS_PER_SYNC,
-          eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
-          mediaRoot: config.MEDIA_ROOT,
-          mediaRetentionDays: config.MEDIA_RETENTION_DAYS,
-          syncIntervalMinutes: config.SYNC_INTERVAL_MINUTES,
-        }}
-        lastJob={lastJob}
-      />
+        <div id="sync" className="scroll-mt-6 border-b border-border py-8">
+          <SyncSection
+            config={{
+              eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
+              mediaRoot: config.MEDIA_ROOT,
+            }}
+            settings={{
+              syncLookbackDays: appSettings.syncLookbackDays,
+              maxItemsPerSync: appSettings.maxItemsPerSync,
+              syncCadenceMinutes: appSettings.syncCadenceMinutes,
+              mediaRetentionDays: appSettings.mediaRetentionDays,
+            }}
+            lastJob={lastJob}
+          />
+        </div>
+
+        <div id="onboarding" className="scroll-mt-6 pt-8">
+          <OnboardingSection />
+        </div>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ImageOff } from "lucide-react";
 
 import { assetUrl } from "@/lib/media-url";
+import { cn } from "@/lib/utils";
 
 /**
  * Real-thumbnail layer for the 9:16 placeholder boxes. Three states, all real:
@@ -28,7 +29,7 @@ import { assetUrl } from "@/lib/media-url";
  * by our own route handler, so next/image's remote-host allowlist buys nothing
  * here.
  */
-export function VideoThumb({ assetId }: { assetId: string | null }) {
+export function VideoThumb({ assetId, className }: { assetId: string | null; className?: string }) {
   const [failedFor, setFailedFor] = useState<string | null>(null);
   const src = assetUrl(assetId);
 
@@ -53,7 +54,7 @@ export function VideoThumb({ assetId }: { assetId: string | null }) {
       src={src}
       alt=""
       loading="lazy"
-      className="absolute inset-0 h-full w-full object-cover"
+      className={cn("absolute inset-0 h-full w-full object-cover", className)}
       onError={() => setFailedFor(assetId)}
     />
   );

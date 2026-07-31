@@ -21,6 +21,38 @@ export const VideoAnalysisSchema = z.object({
 });
 export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
 
+/**
+ * The video detail screen's Layout section (V1 data contracts, contract 5). Read from
+ * sampled frames, never from the transcript — a transcript cannot know where on-screen
+ * text sits or how often a video cuts, and a model asked to guess from words alone
+ * would produce four confident sentences that are fabrications wearing the shape of a
+ * reading.
+ *
+ * `fromFramesSec` is the anti-fabrication device: a field whose supporting frame list
+ * is empty is not a reading and must not reach the screen as one. There is no frame
+ * pass wired up yet (see `docs/product/frame-pass-spike-prep.md` — the configured LLM
+ * client has no image-input path at all), so nothing in this codebase constructs a
+ * `VideoLayout` today. The schema exists so the column and the eventual frame pass
+ * agree on a shape in advance, and so `value: null` — "the pass ran and could not tell"
+ * — is a distinct, honest state from "no pass has run at all" (a null `layout` column).
+ */
+export const VideoLayoutFieldSchema = z.object({
+  /** Null means the pass ran and could not determine this field. Renders as a dash —
+   *  never as an empty string, which would look like a reading that came back blank. */
+  value: z.string().nullable(),
+  /** Frame timestamps in seconds this reading came from. Empty means "not a reading". */
+  fromFramesSec: z.array(z.number()),
+});
+export type VideoLayoutField = z.infer<typeof VideoLayoutFieldSchema>;
+
+export const VideoLayoutSchema = z.object({
+  onScreenText: VideoLayoutFieldSchema,
+  textPosition: VideoLayoutFieldSchema,
+  cutRhythm: VideoLayoutFieldSchema,
+  framing: VideoLayoutFieldSchema,
+});
+export type VideoLayout = z.infer<typeof VideoLayoutSchema>;
+
 export const HookOptionsSchema = z.object({ hooks: z.array(z.string()).min(3).max(7) });
 export type HookOptions = z.infer<typeof HookOptionsSchema>;
 

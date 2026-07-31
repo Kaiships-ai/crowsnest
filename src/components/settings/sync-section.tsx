@@ -2,56 +2,59 @@
 
 /**
  * The Sync section (design brief §5/§6). What used to live here was a preview of the
- * "provider chain" — which of two vendor scrapers would run next, derived from which env
+ * "provider chain": which of two vendor scrapers would run next, derived from which env
  * keys happened to be set. There is no chain any more: one source (the instagrapi
  * sidecar), and its configuration is validated at boot by `src/server/config.ts`. So this
  * section shows the sync parameters actually in effect, plus what the last run did.
  *
  * It became a client component for one reason: it was rendering the last job's counters
  * as static server-rendered text, so a sync started from anywhere left this page frozen
- * on the *previous* run until a manual reload. It is now the monitoring surface — full
+ * on the *previous* run until a manual reload. It is now the monitoring surface: full
  * live panel while a run is in flight, the server-rendered summary the rest of the time.
- * Every prop it takes is still plain serializable data read on the server.
+ * Every prop it takes is still plain serializable data read on the server, except
+ * `settings`, whose four fields are now editable app_settings rows (see below).
  */
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { syncViewState } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Button } from "@/components/ui/button";
+import { NumberField, SettingRow } from "./setting-field";
+import { updateAppSettingsAction } from "@/server/actions/settings-actions";
+import type { AppSettingsView } from "@/server/settings";
 
 export interface SyncConfigSummary {
-  lookbackDays: number;
-  maxItemsPerSync: number;
   eagerVideoDownload: boolean;
   mediaRoot: string;
-  /** Validated at boot and otherwise inert — see the "Inert settings" note below. */
-  mediaRetentionDays: number;
-  /** Validated at boot and otherwise inert — see the "Inert settings" note below. */
-  syncIntervalMinutes: number;
 }
 
-/**
- * Inert settings.
+/** The four `app_settings` keys this section now edits, matching Wave 1's contract
+ *  (`src/server/settings/index.ts`) exactly: `syncLookbackDays` and `maxItemsPerSync`
+ *  are both read by `runSync`, `syncCadenceMinutes` and `mediaRetentionDays` are stored
+ *  and DB-overridable but have no scheduler and no reaper behind them yet.
  *
- * MEDIA_RETENTION_DAYS and SYNC_INTERVAL_MINUTES are parsed and range-checked by
- * config.ts, and that is the entire extent of their existence. Grep the tree: nothing
- * reads either one. There is no retention reaper — `media_assets.last_verified_at` is
- * written once at insert (server/ig/assets.ts) and never read again — and there is no
- * scheduler; every run in this app starts from a click.
- *
- * So these two rows used to render "90 days" and "every 60 min" as though they were
- * active policy. A user who reads "asset retention 90 days" concludes disk use is
- * bounded, turns on EAGER_VIDEO_DOWNLOAD against a prolific channel, and fills the disk.
- * That is the same class of lie as the old indeterminate sync spinner, so it gets the
- * same treatment: the setting and its value are still shown, because they are real
- * config, but the row states plainly that nothing consumes them.
- *
- * If you are here to "fix" this by restoring the friendly wording: implement the reaper
- * and the scheduler first, then delete this comment.
- */
+ *  These four used to render as static config-derived text ("30 days", "200 posts",
+ *  "manual only", "nothing is deleted") with no write path: hand-editing `.env.local`
+ *  and restarting was the only way to change them. Wave 1 gave every one of them a real
+ *  database row and a source ("db" | "env" | "default"); this section is the edit
+ *  surface for that row. `maxItemsPerSync` was the last of the four still stuck in the
+ *  read-only config table below (a leftover from before it had a database row); it
+ *  belongs here, next to lookback, because both bound the same sync run and both are
+ *  now equally editable. The two genuinely unwired keys keep their honest warning (a
+ *  user who reads "90 days" next to "asset retention" must not conclude disk use is
+ *  bounded), it just now sits next to an input instead of standing in for one. */
+type SyncSettings = Pick<AppSettingsView, "syncLookbackDays" | "maxItemsPerSync" | "syncCadenceMinutes" | "mediaRetentionDays">;
+
+const ENV_VAR_NAME: Record<keyof SyncSettings, string> = {
+  syncLookbackDays: "LOOKBACK_DAYS",
+  maxItemsPerSync: "MAX_ITEMS_PER_SYNC",
+  syncCadenceMinutes: "SYNC_INTERVAL_MINUTES",
+  mediaRetentionDays: "MEDIA_RETENTION_DAYS",
+};
 
 /** The `sync_jobs` columns this section renders. Structural on purpose: it depends on the
  *  shape of the row, not on the sync engine's module surface. */
@@ -97,8 +100,12 @@ function ConfigRow({ label, value, note, warn }: { label: string; value: string;
 function Counter({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
   return (
     <div className="rounded-md border border-border px-3 py-2">
-      <div className={`font-mono text-sm ${bad && value > 0 ? "text-destructive" : ""}`}>{value}</div>
-      <div className="text-[11px] text-muted-foreground">{label}</div>
+      <div data-num className={`text-sm ${bad && value > 0 ? "text-destructive" : ""}`}>
+        {value}
+      </div>
+      <div data-lab className="font-mono text-2xs text-faint">
+        {label}
+      </div>
     </div>
   );
 }
@@ -114,7 +121,7 @@ function LastJobSummary({ lastJob }: { lastJob: LastSyncJobResult }) {
   if (lastJob.job === null) {
     return (
       <p className="mt-1 text-sm text-muted-foreground">
-        No sync has run yet — there is no <code>sync_jobs</code> row to report.
+        No sync has run yet. There is no <code>sync_jobs</code> row to report.
       </p>
     );
   }
@@ -138,23 +145,70 @@ function LastJobSummary({ lastJob }: { lastJob: LastSyncJobResult }) {
       {job.errorCode && (
         <p className="text-xs text-destructive">
           <span className="font-mono">{job.errorCode}</span>
-          {job.errorMessage ? ` — ${job.errorMessage}` : ""}
+          {job.errorMessage ? `: ${job.errorMessage}` : ""}
         </p>
       )}
     </div>
   );
 }
 
-export function SyncSection({ config, lastJob }: { config: SyncConfigSummary; lastJob: LastSyncJobResult }) {
+export function SyncSection({
+  config,
+  settings,
+  lastJob,
+}: {
+  config: SyncConfigSummary;
+  settings: SyncSettings;
+  lastJob: LastSyncJobResult;
+}) {
   const router = useRouter();
   const { progress, isRunning, stalled, error, start, cancel } = useSyncProgress();
   const [starting, setStarting] = useState(false);
+
+  const [lookback, setLookback] = useState(String(settings.syncLookbackDays.value));
+  const [maxItems, setMaxItems] = useState(String(settings.maxItemsPerSync.value));
+  const [cadence, setCadence] = useState(String(settings.syncCadenceMinutes.value));
+  const [retention, setRetention] = useState(String(settings.mediaRetentionDays.value));
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const settingsDirty =
+    lookback !== String(settings.syncLookbackDays.value) ||
+    maxItems !== String(settings.maxItemsPerSync.value) ||
+    cadence !== String(settings.syncCadenceMinutes.value) ||
+    retention !== String(settings.mediaRetentionDays.value);
+
+  async function saveSyncSettings() {
+    setSavingSettings(true);
+    const result = await updateAppSettingsAction({
+      syncLookbackDays: Number(lookback),
+      maxItemsPerSync: Number(maxItems),
+      syncCadenceMinutes: Number(cadence),
+      mediaRetentionDays: Number(retention),
+    });
+    setSavingSettings(false);
+    if (result.ok) {
+      toast.success("Sync settings saved");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  /** `infoNote` for a key currently resolved from its env var: the one case the brief
+   *  requires this section say plainly where a shown value came from. A "db" or
+   *  "default" source gets no note: a value the user already saved needs no
+   *  explanation, and the built-in default is not worth calling out on every load. */
+  function envNote(key: keyof SyncSettings): string | undefined {
+    return settings[key].source === "env"
+      ? `Currently read from ${ENV_VAR_NAME[key]}. Save below to store an override in the database.`
+      : undefined;
+  }
 
   const state = syncViewState(progress, stalled);
   const live = state === "running" || state === "cancelling" || state === "stalled";
   // Gaps outlive the run that produced them and are the whole point of this pass: a
   // partial run must still be able to say which channels it left behind, and offer to
-  // retry exactly those. `lastJob` cannot show them — it carries no gap list.
+  // retry exactly those. `lastJob` cannot show them: it carries no gap list.
   const showPanel = live || (progress !== null && progress.gaps.length > 0);
 
   async function syncNow() {
@@ -185,45 +239,58 @@ export function SyncSection({ config, lastJob }: { config: SyncConfigSummary; la
   return (
     <section className="flex flex-col gap-3">
       <div>
-        <h2 className="text-base font-semibold">Sync</h2>
+        <h2 className="text-lg font-semibold">Sync</h2>
         <p className="text-sm text-muted-foreground">
-          Set in <code>.env.local</code> and validated at boot — a bad value stops the app starting rather than surfacing later as an empty
-          sync.
+          The two rows just below are still <code>.env.local</code>-only, validated at boot. A bad value there stops the app starting
+          rather than surfacing later as an empty sync. Lookback, per-sync cap, cadence, and retention underneath those are stored in the
+          database and editable here.
         </p>
       </div>
 
-      <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 rounded-lg border border-border p-4 text-sm">
-        <ConfigRow label="Lookback window" value={`${config.lookbackDays} days`} note="LOOKBACK_DAYS" />
-        <ConfigRow label="Per-sync cap" value={`${config.maxItemsPerSync} posts`} note="MAX_ITEMS_PER_SYNC" />
+      <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 border border-border p-4 text-sm">
         <ConfigRow
           label="Video download"
           value={config.eagerVideoDownload ? "eager" : "on demand"}
           note={
             config.eagerVideoDownload
-              ? "EAGER_VIDEO_DOWNLOAD=true — every video pulled during sync"
-              : "EAGER_VIDEO_DOWNLOAD=false — pulled on first play"
+              ? "EAGER_VIDEO_DOWNLOAD=true: every video pulled during sync"
+              : "EAGER_VIDEO_DOWNLOAD=false: pulled on first play"
           }
         />
         <ConfigRow label="Media root" value={config.mediaRoot} note="MEDIA_ROOT" />
-        <ConfigRow
-          label="Asset retention"
-          value="nothing is deleted"
-          note={`MEDIA_RETENTION_DAYS=${config.mediaRetentionDays} is validated at boot, but no reaper reads it — disk use is unbounded`}
-          warn
-        />
-        <ConfigRow
-          label="Schedule"
-          // Always "manual only": there is no scheduler, so a non-zero interval is not a
-          // schedule this app will honour — it is a setting silently doing nothing.
-          value="manual only"
-          note={
-            config.syncIntervalMinutes > 0
-              ? `SYNC_INTERVAL_MINUTES=${config.syncIntervalMinutes} has no effect — there is no scheduler; a sync only ever starts from a click`
-              : "SYNC_INTERVAL_MINUTES — no scheduler exists; a sync only ever starts from a click"
-          }
-          warn={config.syncIntervalMinutes > 0}
-        />
       </dl>
+
+      <div className="flex flex-col gap-2">
+        <SettingRow label="Lookback window" hint="How far back a sync looks by default." infoNote={envNote("syncLookbackDays")}>
+          <NumberField value={lookback} onChange={setLookback} min={1} max={3650} suffix="days" ariaLabel="Sync lookback window" />
+        </SettingRow>
+        <SettingRow
+          label="Per-sync cap"
+          hint="Hard safety cap on items fetched across one sync run."
+          infoNote={envNote("maxItemsPerSync")}
+        >
+          <NumberField value={maxItems} onChange={setMaxItems} min={1} max={10_000} suffix="posts" ariaLabel="Per-sync cap" />
+        </SettingRow>
+        <SettingRow
+          label="Sync cadence"
+          hint="Minutes between automatic syncs."
+          warnNote="No scheduler exists. A sync only ever starts from a click, so this number has no effect yet; it is stored for the day one does."
+          infoNote={envNote("syncCadenceMinutes")}
+        >
+          <NumberField value={cadence} onChange={setCadence} min={0} max={10_080} suffix="min" ariaLabel="Sync cadence" />
+        </SettingRow>
+        <SettingRow
+          label="Asset retention"
+          hint="Days of downloaded media to keep."
+          warnNote="No reaper reads this. Disk use is unbounded regardless of this number."
+          infoNote={envNote("mediaRetentionDays")}
+        >
+          <NumberField value={retention} onChange={setRetention} min={1} max={3650} suffix="days" ariaLabel="Media retention" />
+        </SettingRow>
+        <Button onClick={saveSyncSettings} disabled={!settingsDirty || savingSettings} className="w-fit" size="sm" variant="outline">
+          {savingSettings ? "Saving…" : "Save"}
+        </Button>
+      </div>
 
       <div>
         <div className="flex items-center justify-between gap-2">

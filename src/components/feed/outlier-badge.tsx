@@ -2,14 +2,16 @@ import { formatMultiplier } from "@/lib/format";
 import { heatTier } from "@/lib/heat";
 import { cn } from "@/lib/utils";
 
-// Heat ramp — hex/rgba values verbatim from DESIGN.md §4.1's tier table. Not built
-// from shadcn's badgeVariants: the gradient + glow on tier 4 and the exact translucent
-// amber fills on tiers 1-2 don't map onto that variant set.
+// Heat ramp off the prototype's amber tokens. DESIGN.md §4.1 lists a different table
+// built on #F5A524, the accent this project used before the prototype landed, and it
+// escalates tier 4 with a gradient and a glow. The prototype has neither, and where it
+// and a written doc disagree the prototype wins, so the ramp reads: wash and hairline
+// for a small beat, solid amber once the beat is loud enough to deserve the fill.
 const TIER_STYLES: Record<1 | 2 | 3 | 4, string> = {
-  1: "border border-[rgba(245,165,36,.35)] bg-[rgba(245,165,36,.10)] text-[#C98A4A]",
-  2: "border border-[rgba(245,165,36,.5)] bg-[rgba(245,165,36,.16)] text-[#F5A524]",
-  3: "border-transparent bg-[#F5A524] text-[#14100A]",
-  4: "border-transparent bg-[linear-gradient(135deg,#FF7A1A,#FF3D3D)] text-[#1A1300] shadow-[0_0_16px_rgba(255,90,26,.45)]",
+  1: "border border-score-line bg-score-wash text-[var(--score-2)]",
+  2: "border border-score-line bg-score-wash text-score",
+  3: "border-transparent bg-score text-[var(--score-on)]",
+  4: "border-transparent bg-score text-[var(--score-on)] font-bold",
 };
 const QUIET_STYLE = "border border-border bg-transparent text-muted-foreground";
 
@@ -18,9 +20,33 @@ export function OutlierBadge({
   size = "sm",
 }: {
   score: number | null;
-  size?: "sm" | "lg";
+  size?: "sm" | "lg" | "hero";
 }) {
   const tier = heatTier(score);
+
+  // "hero": the Outlier Feed card's own read of the score (feed.html line 80), plain
+  // mono text, no pill chrome, sized to be the biggest thing on the card.
+  //
+  // Amber turns on at 1.0, not at the badge ramp's first tier. Amber means one thing in
+  // this design, that the post beat its channel, and beating it starts the moment the
+  // score passes 1.0. heatTier is a separate scale for how hard it beat, and its tier 1
+  // does not begin until 2.0, so reading the hero off tiers painted a 1.1x post grey
+  // while the detail screen painted the same post amber. Same number, two answers, and
+  // acceptance criterion 8 settles it at 1.0.
+  if (size === "hero") {
+    const beatBaseline = score !== null && score >= 1;
+    return (
+      <span
+        data-num="1"
+        className={cn(
+          "font-mono text-lg leading-none font-medium tracking-tight",
+          beatBaseline ? "text-score" : "text-faint"
+        )}
+      >
+        {formatMultiplier(score)}
+      </span>
+    );
+  }
 
   return (
     <span

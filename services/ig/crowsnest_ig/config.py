@@ -107,6 +107,7 @@ def _path(name: str, default: str) -> Path:
 @dataclass(frozen=True)
 class Config:
     service_token: str
+    ingest_url: str
     username: str | None
     password: str | None
     session_path: Path
@@ -196,6 +197,12 @@ def _build() -> Config:
 
     return Config(
         service_token=token,
+        # Where the sidecar's structured log events are forwarded (see
+        # crowsnest_ig/logging.py::_forward). Not required: an unset or
+        # unreachable Next dev server just means forwarding silently no-ops,
+        # since the stdout JSON line is already the source of truth.
+        ingest_url=_optional("CROWSNEST_INGEST_URL")
+        or "http://127.0.0.1:3000/api/logs/ingest",
         username=username,
         password=password,
         session_path=_path("IG_SESSION_PATH", "data/ig-session.json"),

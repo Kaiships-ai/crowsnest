@@ -129,7 +129,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
         </ToggleGroup>
 
         {(choice === "hook" || choice === "both") && (
-          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-2 border border-border p-3">
             <Label htmlFor="hook-title">Hook title</Label>
             <Input id="hook-title" value={hookTitle} onChange={(e) => setHookTitle(e.target.value)} />
             <Label htmlFor="hook-text">Hook template</Label>
@@ -140,7 +140,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
         )}
 
         {(choice === "style" || choice === "both") && (
-          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-2 border border-border p-3">
             <Label htmlFor="style-title">Style title</Label>
             <Input id="style-title" value={styleTitle} onChange={(e) => setStyleTitle(e.target.value)} />
             <Label htmlFor="style-text">Style template</Label>

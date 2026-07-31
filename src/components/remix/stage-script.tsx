@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Copy, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
@@ -22,14 +22,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
+import { GenerationBlocked } from "@/components/remix/generation-blocked";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
+import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
 import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 type VariantResult = string | { error: string };
 
 const DEFAULT_COUNT = 3;
-const PROGRESS_MESSAGES = ["Researching pacing…", "Writing variant 1…", "Writing variant 2…", "Writing variant 3…", "Polishing…"];
 
 function isError(result: VariantResult): result is { error: string } {
   return typeof result === "object";
@@ -41,11 +42,17 @@ function isError(result: VariantResult): result is { error: string } {
 export function StageScript({
   session,
   hasLlmKey,
+  proxyDown,
+  llmProxyUrl,
   onVariantsChange,
+  onRunRecorded,
 }: {
   session: RemixSessionRow;
   hasLlmKey: boolean;
+  proxyDown: boolean;
+  llmProxyUrl: string | null;
   onVariantsChange: (variants: string[]) => void;
+  onRunRecorded: () => void;
 }) {
   // Initialized once from the session prop — this component only mounts while the
   // Script stage is active, so a fresh mount is exactly when session.variants should
@@ -54,25 +61,18 @@ export function StageScript({
   // needed (see stage-hook.tsx / stage-style.tsx for the same reasoning).
   const [results, setResults] = useState<VariantResult[]>(session.variants ?? []);
   const [pending, setPending] = useState(false);
-  const [progressIndex, setProgressIndex] = useState(0);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("0");
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveTitle, setSaveTitle] = useState(session.topic ?? "Untitled script");
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
-
-  // Simulated per-stage progress (DESIGN.md §6's "Writing variant 2 of 3…") — Task 5's
-  // generateVariants is one atomic Promise.allSettled call with no incremental signal
-  // to observe, so this cycles a status line on a timer while the call is in flight
-  // rather than tracking real completion.
-  useEffect(() => {
-    if (!pending) return;
-    const interval = setInterval(() => {
-      setProgressIndex((i) => (i + 1) % PROGRESS_MESSAGES.length);
-    }, 1200);
-    return () => clearInterval(interval);
-  }, [pending]);
+  // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
+  // once a script exists, never required — the script above is already saved by the
+  // time this appears, so declining the date here can't leave the run unfinishable.
+  const [planDate, setPlanDate] = useState("");
+  const [addingToPlan, setAddingToPlan] = useState(false);
+  const [addedPlanDate, setAddedPlanDate] = useState<string | null>(null);
 
   // Persists the *whole* array — used only for a manual variant-text edit
   // (commitEditBlur below), where there's no single server-known "slot" the way a
@@ -85,7 +85,6 @@ export function StageScript({
 
   async function writeScript() {
     setPending(true);
-    setProgressIndex(0);
     const result = await generateVariantsAction(session.id, DEFAULT_COUNT);
     setPending(false);
     if (result.ok) {
@@ -94,12 +93,14 @@ export function StageScript({
     } else {
       toast.error(result.error);
     }
+    onRunRecorded();
   }
 
   async function regenerate(index: number) {
     setRegeneratingIndex(index);
     const result = await generateVariantsAction(session.id, undefined, index);
     setRegeneratingIndex(null);
+    onRunRecorded();
     if (!result.ok) {
       toast.error(result.error);
       return;
@@ -163,6 +164,11 @@ export function StageScript({
     setSaving(false);
     if (result.ok) {
       setSavedScriptId(result.scriptId);
+      // A later save (a different variant, or the same one again) is a different
+      // scripts row — any earlier "added to plan" confirmation was about the
+      // previous one, so it can't carry over onto this save.
+      setAddedPlanDate(null);
+      setPlanDate("");
       setSaveOpen(false);
       toast.success("Script saved", {
         action: { label: "Open in Vault", onClick: () => window.open("/vault?tab=scripts", "_blank") },
@@ -172,29 +178,59 @@ export function StageScript({
     }
   }
 
+  /**
+   * Carries the just-saved script into a new planned post (actions/planned-post-
+   * actions.ts, landed 1dbb9b8) — the manual planner's load-bearing link, so a
+   * finished cut can leave a remix session with a date attached rather than sitting
+   * only in the Vault. `remixSessionId` is this session's id, matching what
+   * `saveScript` already stamped on the script itself.
+   */
+  async function addToPlan() {
+    if (!savedScriptId || !planDate) return;
+    setAddingToPlan(true);
+    const result = await createPlannedPostAction({
+      title: saveTitle,
+      plannedDate: planDate,
+      scriptId: savedScriptId,
+      remixSessionId: session.id,
+      sourceVideoId: session.sourceVideoId,
+    });
+    setAddingToPlan(false);
+    if (result.ok) {
+      setAddedPlanDate(planDate);
+      toast.success(`Added to your plan for ${planDate}`);
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  // Script writing is offline, not broken — same block treatment as Hook/Style. This
+  // is the last stage (no footer Continue), so its own CTA gets to be the one amber
+  // action once the key comes back. Two distinct reasons share one surface — see
+  // generation-blocked.tsx.
+  if (!hasLlmKey || proxyDown) {
+    return <GenerationBlocked reason={!hasLlmKey ? "no-key" : "proxy-down"} feature="Script writing" proxyUrl={llmProxyUrl} />;
+  }
+
   if (results.length === 0 && !pending) {
     return (
       <div className="flex flex-col items-start gap-3">
-        {!hasLlmKey && (
-          <Alert>
-            <AlertTitle>Add your Claude API key</AlertTitle>
-            <AlertDescription>Add ANTHROPIC_API_KEY in Settings to write scripts.</AlertDescription>
-          </Alert>
-        )}
         <p className="text-sm text-muted-foreground">Generate to see variants here.</p>
-        <Button onClick={writeScript} disabled={!hasLlmKey}>
-          Write script
-        </Button>
+        <Button onClick={writeScript}>Write script</Button>
       </div>
     );
   }
 
   if (pending) {
+    // generateVariantsAction is one atomic call with no incremental signal to
+    // observe (truth pass, v1-gap-inventory.md) — the old version cycled fake
+    // status lines like "Writing variant 2" on a timer, which is not knowable.
+    // An honest indeterminate state doesn't claim to know what it doesn't.
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">{PROGRESS_MESSAGES[progressIndex]}</p>
+        <p className="font-mono text-xs tracking-wide text-faint uppercase">Writing script…</p>
         {Array.from({ length: DEFAULT_COUNT }, (_, i) => (
-          <Skeleton key={i} className="h-40 w-full" />
+          <Skeleton key={i} className="h-40 w-full rounded-none" />
         ))}
       </div>
     );
@@ -214,7 +250,7 @@ export function StageScript({
         {results.map((result, i) => (
           <TabsContent key={i} value={String(i)} className="flex flex-col gap-3 pt-3">
             {isError(result) ? (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="rounded-none">
                 <AlertTitle>Couldn&rsquo;t generate this variant</AlertTitle>
                 <AlertDescription>{result.error}</AlertDescription>
               </Alert>
@@ -228,7 +264,7 @@ export function StageScript({
               />
             )}
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={!hasLlmKey || regeneratingIndex === i}>
+              <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={regeneratingIndex === i}>
                 <RefreshCw className={regeneratingIndex === i ? "size-3.5 animate-spin" : "size-3.5"} />
                 {isError(result) ? "Retry" : "Regenerate"}
               </Button>
@@ -243,7 +279,7 @@ export function StageScript({
       </Tabs>
 
       <div className="flex items-center gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={writeScript} disabled={!hasLlmKey}>
+        <Button variant="outline" onClick={writeScript}>
           Regenerate all
         </Button>
         <Button variant="outline" onClick={createPrompt}>
@@ -273,6 +309,34 @@ export function StageScript({
           </Link>
         )}
       </div>
+
+      {savedScriptId && (
+        <div className="flex flex-col gap-3 border-t border-border pt-4">
+          <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Add to plan</Label>
+          {addedPlanDate ? (
+            <p className="text-sm text-muted-foreground">
+              On the plan for <span className="text-foreground">{addedPlanDate}</span>.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="script-plan-date" className="text-xs text-muted-foreground">
+                    Date
+                  </Label>
+                  <Input id="script-plan-date" type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} className="w-44" />
+                </div>
+                <Button onClick={addToPlan} disabled={!planDate || addingToPlan}>
+                  {addingToPlan ? "Adding…" : "Add to plan"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Optional — the script above is already saved either way. Skip this and it just stays in the Vault.
+              </p>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

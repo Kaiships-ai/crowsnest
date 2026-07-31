@@ -15,13 +15,14 @@ let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let getOutlierFeed: typeof import("./feed")["getOutlierFeed"];
+let getFeedBandCounts: typeof import("./feed")["getFeedBandCounts"];
 let getSavedFilters: typeof import("./feed")["getSavedFilters"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOutlierFeed, getSavedFilters } = await import("./feed"));
+  ({ getOutlierFeed, getFeedBandCounts, getSavedFilters } = await import("./feed"));
 });
 
 // Migrate once (idempotent) and wipe every mutable table before each test so counts/
@@ -40,12 +41,13 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
-async function seedChannel(opts: { followerCount?: number | null } = {}): Promise<string> {
+async function seedChannel(opts: { followerCount?: number | null; handle?: string; displayName?: string | null } = {}): Promise<string> {
   const channelId = newId();
   await db.insert(tables.channels).values({
     id: channelId,
     platform: "instagram",
-    handle: `@feed-test-${channelId}`,
+    handle: opts.handle ?? `@feed-test-${channelId}`,
+    displayName: opts.displayName ?? null,
     followerCount: opts.followerCount ?? null,
     trackedSince: nowIso(),
   });
@@ -54,7 +56,15 @@ async function seedChannel(opts: { followerCount?: number | null } = {}): Promis
 
 async function seedVideo(
   channelId: string,
-  opts: { postedAt?: string; outlierScore?: number | null; viewCount?: number | null } = {}
+  opts: {
+    postedAt?: string;
+    outlierScore?: number | null;
+    viewCount?: number | null;
+    likeCount?: number | null;
+    commentCount?: number | null;
+    caption?: string | null;
+    deletedAt?: string | null;
+  } = {}
 ): Promise<string> {
   const videoId = newId();
   await db.insert(tables.videos).values({
@@ -63,9 +73,13 @@ async function seedVideo(
     platform: "instagram",
     externalId: `feed-${videoId}`,
     url: "https://example.com/v",
+    caption: opts.caption ?? null,
     postedAt: opts.postedAt ?? nowIso(),
     outlierScore: opts.outlierScore ?? null,
     viewCount: opts.viewCount ?? null,
+    likeCount: opts.likeCount ?? null,
+    commentCount: opts.commentCount ?? null,
+    deletedAt: opts.deletedAt ?? null,
     firstSeenAt: nowIso(),
   });
   return videoId;
@@ -189,7 +203,7 @@ describe("getOutlierFeed", () => {
     expect(byRecent.items[0]?.videoId).toBe(nullId);
   });
 
-  test("excludes soft-deleted videos — a post Instagram no longer shows must never appear as a live result", async () => {
+  test("includes soft-deleted videos marked `deleted: true`, rather than dropping them (v1-gap-inventory: they used to be unconditionally filtered out, making the removed-from-Instagram marker unreachable)", async () => {
     const channelId = await seedChannel();
     const liveId = await seedVideo(channelId, { outlierScore: 10 });
     const deletedId = await seedVideo(channelId, { outlierScore: 50 });
@@ -197,8 +211,81 @@ describe("getOutlierFeed", () => {
 
     const { items, total } = await getOutlierFeed({ sort: "score", limit: 200, offset: 0 });
 
-    expect(total).toBe(1);
-    expect(items.map((i) => i.videoId)).toEqual([liveId]);
+    expect(total).toBe(2);
+    expect(items.find((i) => i.videoId === liveId)?.deleted).toBe(false);
+    expect(items.find((i) => i.videoId === deletedId)?.deleted).toBe(true);
+  });
+
+  test("engagementRate is (likeCount + commentCount) / viewCount, and null (never a fabricated 0) when any input is null or viewCount is 0", async () => {
+    const channelId = await seedChannel();
+    const measured = await seedVideo(channelId, { viewCount: 1000, likeCount: 80, commentCount: 20 });
+    const noLikes = await seedVideo(channelId, { viewCount: 1000, likeCount: null, commentCount: 20 });
+    const zeroViews = await seedVideo(channelId, { viewCount: 0, likeCount: 5, commentCount: 5 });
+    const noViews = await seedVideo(channelId, { viewCount: null, likeCount: 5, commentCount: 5 });
+
+    const { items } = await getOutlierFeed({ sort: "recent", limit: 200, offset: 0 });
+    const byId = new Map(items.map((i) => [i.videoId, i]));
+
+    expect(byId.get(measured)?.engagementRate).toBe(0.1);
+    expect(byId.get(noLikes)?.engagementRate).toBeNull();
+    expect(byId.get(zeroViews)?.engagementRate).toBeNull();
+    expect(byId.get(noViews)?.engagementRate).toBeNull();
+  });
+
+  test("query searches caption, channel handle, and channel display name, case-insensitively", async () => {
+    const captionChannel = await seedChannel();
+    const captionMatch = await seedVideo(captionChannel, { caption: "How I edit my Reels hooks" });
+    const noMatch = await seedVideo(captionChannel, { caption: "Unrelated post" });
+
+    const handleChannel = await seedChannel({ handle: "@ReelsMaster" });
+    const handleMatch = await seedVideo(handleChannel);
+
+    const nameChannel = await seedChannel({ displayName: "The Reels Lab" });
+    const nameMatch = await seedVideo(nameChannel);
+
+    const { items } = await getOutlierFeed({ query: "reels", sort: "recent", limit: 200, offset: 0 });
+    const ids = items.map((i) => i.videoId).sort();
+
+    expect(ids).toEqual([captionMatch, handleMatch, nameMatch].sort());
+    expect(ids).not.toContain(noMatch);
+  });
+
+  test("a blank or undefined query applies no search filter", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId);
+    await seedVideo(channelId);
+
+    const blank = await getOutlierFeed({ query: "   ", sort: "recent", limit: 200, offset: 0 });
+    const none = await getOutlierFeed({ sort: "recent", limit: 200, offset: 0 });
+
+    expect(blank.total).toBe(2);
+    expect(none.total).toBe(2);
+  });
+});
+
+describe("getFeedBandCounts", () => {
+  test("counts posts per follower band under the other active filters, and a null follower_count channel counts in no band", async () => {
+    const nano = await seedChannel({ followerCount: 500 });
+    const micro = await seedChannel({ followerCount: 50_000 });
+    const unknownFollowers = await seedChannel({ followerCount: null });
+    await seedVideo(nano);
+    await seedVideo(micro);
+    await seedVideo(micro);
+    await seedVideo(unknownFollowers);
+
+    const counts = await getFeedBandCounts({});
+
+    expect(counts).toEqual({ nano: 1, micro: 2, mid: 0, macro: 0 });
+  });
+
+  test("respects non-band filters passed alongside it", async () => {
+    const nano = await seedChannel({ followerCount: 500 });
+    await seedVideo(nano, { outlierScore: 10 });
+    await seedVideo(nano, { outlierScore: 1 });
+
+    const counts = await getFeedBandCounts({ minScore: 5 });
+
+    expect(counts.nano).toBe(1);
   });
 });
 

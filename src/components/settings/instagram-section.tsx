@@ -66,14 +66,22 @@ function viewStateOf(phase: Phase, statusResult: StatusResult, failure: Failure 
   return "connected";
 }
 
+/**
+ * Tone maps to icon shape first, color second. `warn` (logged out, no credentials,
+ * a cooldown) is the normal, expected state for this product — see the module doc —
+ * so it reads in plain ink, not an alert hue. Only `bad` (the sidecar is actually
+ * unreachable or a step actually failed) gets the destructive red; `ok` gets the
+ * positive tone; `busy` stays muted while it spins.
+ */
 function StatusRow({ tone, label, detail }: { tone: "ok" | "warn" | "bad" | "busy"; label: string; detail?: string }) {
   const Icon = tone === "ok" ? CheckCircle2 : tone === "busy" ? Loader2 : tone === "bad" ? CircleOff : AlertTriangle;
-  const color = tone === "ok" ? "text-[#34D399]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-[#E8B23D]";
+  const color =
+    tone === "ok" ? "text-[var(--pos)]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-foreground";
   return (
     <div className="flex items-center gap-2 text-sm">
       <Icon className={`size-4 shrink-0 ${color} ${tone === "busy" ? "animate-spin" : ""}`} aria-hidden />
       <span className="font-medium">{label}</span>
-      {detail && <span className="text-xs text-muted-foreground">— {detail}</span>}
+      {detail && <span className="text-xs text-muted-foreground">({detail})</span>}
     </div>
   );
 }
@@ -114,7 +122,7 @@ function CodeForm({
           placeholder="123456"
           className="max-w-[10rem] font-mono"
         />
-        <Button size="sm" onClick={onSubmit} disabled={busy}>
+        <Button size="sm" variant="secondary" onClick={onSubmit} disabled={busy}>
           {busy ? "Submitting…" : "Submit"}
         </Button>
         <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
@@ -229,7 +237,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
     <section className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold">Instagram connection</h2>
+          <h2 className="text-lg font-semibold">Instagram connection</h2>
           <p className="text-sm text-muted-foreground">
             Sync talks to a local Python <code>instagrapi</code> sidecar that holds the authenticated session.
           </p>
@@ -240,7 +248,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
         </Button>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+      <div className="flex flex-col gap-3 border border-border p-4">
         {view === "service_down" && (
           <>
             <StatusRow tone="bad" label="Instagram service isn't running" detail={shownFailure?.error} />
@@ -257,7 +265,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="warn" label="No Instagram credentials configured" detail="service is running" />
             <p className="text-xs text-muted-foreground">
               Set <code>IG_USERNAME</code> and <code>IG_PASSWORD</code> in <code>.env.local</code> and restart the sidecar. They are read by
-              the sidecar process only — this app never receives them, never renders them, and no form here submits a password.
+              the sidecar process only. This app never receives them, never renders them, and no form here submits a password.
             </p>
           </>
         )}
@@ -267,10 +275,10 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="warn" label="Not connected" detail="credentials configured, no active session" />
             <p className="text-xs text-muted-foreground">
               Connect signs in with the credentials already in the sidecar&apos;s environment. Instagram may answer with a two-factor prompt
-              or a security challenge — you&apos;ll finish that here.
+              or a security challenge, and you&apos;ll finish that here.
             </p>
             <div>
-              <Button size="sm" onClick={connect}>
+              <Button size="sm" variant="secondary" onClick={connect}>
                 Connect
               </Button>
             </div>
@@ -281,7 +289,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
           <>
             <StatusRow tone="busy" label="Connecting…" detail="signing in via the sidecar" />
             <p className="text-xs text-muted-foreground">
-              This can take up to two minutes — Instagram logins are deliberately rate-limited and the sidecar adds jitter.
+              This can take up to two minutes. Instagram logins are deliberately rate-limited and the sidecar adds jitter.
             </p>
           </>
         )}
@@ -307,7 +315,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="warn" label="Instagram issued a security challenge" detail="step 1 of 2" />
             <p className="text-xs text-muted-foreground">Choose where Instagram should send the verification code.</p>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => void chooseChallengeChannel("email")} disabled={busy}>
+              <Button size="sm" variant="secondary" onClick={() => void chooseChallengeChannel("email")} disabled={busy}>
                 Email
               </Button>
               <Button size="sm" variant="outline" onClick={() => void chooseChallengeChannel("sms")} disabled={busy}>
@@ -344,7 +352,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
               <dd className="font-mono">{status.instagrapiVersion ?? "not reported by the service"}</dd>
               <dt>Session file</dt>
               <dd>
-                <Badge variant={status.sessionLoaded ? "default" : "outline"}>
+                <Badge variant={status.sessionLoaded ? "secondary" : "outline"}>
                   {status.sessionLoaded ? "loaded from disk" : "not loaded (fresh login this run)"}
                 </Badge>
               </dd>
@@ -370,7 +378,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
             <StatusRow tone="bad" label={shownFailure.error} detail={shownFailure.code} />
             <p className="text-xs text-muted-foreground">
               {shownFailure.retryable
-                ? "This one is worth retrying — it's a transient network, service or rate-limit condition."
+                ? "This one is worth retrying: it's a transient network, service or rate-limit condition."
                 : shownFailure.needsUserAction
                   ? "Retrying as-is won't help: something has to change first (credentials, or a challenge Instagram wants resolved)."
                   : "Retrying as-is is unlikely to help. Check the sidecar's logs for the full error."}
@@ -380,7 +388,7 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
                 Re-check status
               </Button>
               {shownFailure.retryable && (
-                <Button size="sm" onClick={() => void connect()} disabled={busy}>
+                <Button size="sm" variant="secondary" onClick={() => void connect()} disabled={busy}>
                   Retry connect
                 </Button>
               )}
@@ -389,14 +397,14 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
         )}
       </div>
 
-      <div className="flex gap-2 rounded-lg border border-[#E8B23D]/40 bg-[#E8B23D]/5 p-3">
-        <ShieldAlert className="size-4 shrink-0 text-[#E8B23D]" aria-hidden />
+      <div className="flex gap-2 border border-border bg-card p-3">
+        <ShieldAlert className="size-4 shrink-0 text-destructive" aria-hidden />
         <div className="text-xs text-muted-foreground">
           <p className="font-medium text-foreground">Risk: this uses Instagram&apos;s private API.</p>
           <p className="mt-1">
             <code>instagrapi</code> drives the same endpoints the mobile app uses. This violates Meta&apos;s Terms of Service. The account
             you connect can be challenged, restricted, or permanently banned, and there is no appeal path that acknowledges automated
-            access. Use a burner account you can afford to lose — never your main one. Sync is rate-limited with jitter and pins one device
+            access. Use a burner account you can afford to lose, never your main one. Sync is rate-limited with jitter and pins one device
             profile to reduce the odds, but nothing here removes the risk.
           </p>
         </div>

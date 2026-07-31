@@ -4,23 +4,22 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveNicheSettingsAction } from "@/server/actions/settings-actions";
 
-// Comma-separated free text, same convention as new-template-dialog.tsx's tags Input
-// — simpler than a chip widget and consistent with the rest of the app.
-function parseKeywords(value: string): string[] {
-  return value
-    .split(",")
-    .map((k) => k.trim())
-    .filter(Boolean);
-}
-
-/** DESIGN.md §2.7's Niche Profile section — the Textarea + keyword list feed
- * services/remix.ts's getNicheProfile() (same `app_settings.niche_profile` key), so
- * every Remix generation stage is grounded by whatever's saved here. */
+/** DESIGN.md §2.7's Niche Profile section — the Textarea feeds services/remix.ts's
+ * getNicheProfile() (`app_settings.niche_profile`), so every Remix generation stage
+ * is grounded by whatever's saved here.
+ *
+ * There used to be a Keywords field next to this one. It wrote to
+ * `app_settings.niche_keywords` and was read back only to repopulate its own input
+ * — no generation prompt or query anywhere in the app ever read it (truth pass,
+ * v1-gap-inventory.md). A field that presents as configuration and changes nothing
+ * is the fabricated-capability bug the truth pass exists to remove, so it's gone
+ * from the screen. `initialKeywords` is still threaded through and sent back
+ * unchanged on every save, so no stored value gets silently wiped by this change —
+ * it's just not something you can see or edit anymore. */
 export function NicheProfileSection({
   initialNiche,
   initialKeywords,
@@ -29,12 +28,11 @@ export function NicheProfileSection({
   initialKeywords: string[];
 }) {
   const [niche, setNiche] = useState(initialNiche);
-  const [keywordsText, setKeywordsText] = useState(initialKeywords.join(", "));
   const [saving, setSaving] = useState(false);
 
   async function save() {
     setSaving(true);
-    const result = await saveNicheSettingsAction(niche, parseKeywords(keywordsText));
+    const result = await saveNicheSettingsAction(niche, initialKeywords);
     setSaving(false);
     if (result.ok) toast.success("Niche profile saved");
     else toast.error(result.error);
@@ -43,8 +41,8 @@ export function NicheProfileSection({
   return (
     <section className="flex flex-col gap-4">
       <div>
-        <h2 className="text-base font-semibold">Niche profile</h2>
-        <p className="text-sm text-muted-foreground">Feeds every Remix generation — describe your audience and content style.</p>
+        <h2 className="text-lg font-semibold">Niche profile</h2>
+        <p className="text-sm text-muted-foreground">Feeds every Remix generation. Describe your audience and content style.</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -52,17 +50,11 @@ export function NicheProfileSection({
         <Textarea id="niche-profile" value={niche} onChange={(e) => setNiche(e.target.value)} rows={4} />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="niche-keywords">Keywords (comma separated)</Label>
-        <Input
-          id="niche-keywords"
-          value={keywordsText}
-          onChange={(e) => setKeywordsText(e.target.value)}
-          placeholder="ai, productivity, solo-founder"
-        />
-      </div>
-
-      <Button onClick={save} disabled={saving || !niche} className="w-fit">
+      {/* Amber is the one-per-screen accent (WAVE2-BRIEF); the Scoring section's Save
+       *  claims it now, since a rescore-every-channel action is more consequential than
+       *  this one. This button steps down to outline so the page carries exactly one
+       *  amber primary action, not two. */}
+      <Button onClick={save} disabled={saving || !niche} className="w-fit" variant="outline">
         {saving ? "Saving…" : "Save"}
       </Button>
     </section>

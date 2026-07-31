@@ -2,52 +2,67 @@
 
 import Link from "next/link";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatCompact, relativeTime } from "@/lib/format";
-import { assetUrl } from "@/lib/media-url";
+import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { OutlierBadge } from "./outlier-badge";
-import { VideoThumb } from "./video-thumb";
 
-/** Table-like list-view row (DESIGN.md §2.2): 40px thumbnail, badge, caption, channel, views, date. */
+/** Column widths shared with FeedGrid's header row so SCORE/POST/CHANNEL/VIEWS/POSTED
+ * line up between the two (prototype feed.html lines 93 and 95). */
+export const FEED_LIST_ROW_GRID = "grid grid-cols-[80px_minmax(200px,1fr)_minmax(0,150px)_minmax(0,120px)_minmax(0,90px)]";
+
+/**
+ * Table-like list-view row (DESIGN.md §2.2). The prototype's list view (feed.html
+ * line 91-104) carries no thumbnail at all — it's a plain data table — so the whole
+ * row is the click target for the quick-preview Sheet, matching its `data-row`
+ * pattern, rather than a separate thumbnail button.
+ */
 export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: string) => void }) {
-  return (
-    <div className="flex items-center gap-3 px-3 py-2 hover:bg-muted/40">
-      <button
-        type="button"
-        onClick={() => onOpen?.(item.videoId)}
-        aria-label={`Preview ${item.caption ?? item.channel.handle}`}
-        className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-[#1E2230]"
-      >
-        <VideoThumb assetId={item.thumbnailAssetId} />
-      </button>
+  const open = () => onOpen?.(item.videoId);
 
-      <div className="w-16 shrink-0">
-        <OutlierBadge score={item.outlierScore} />
+  return (
+    <div
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={open}
+      onKeyDown={(e) => {
+        if (onOpen && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          open();
+        }
+      }}
+      aria-label={onOpen ? `Preview ${item.caption ?? item.channel.handle}` : undefined}
+      className={cn(
+        FEED_LIST_ROW_GRID,
+        "min-h-14 items-center gap-4 border-b border-border",
+        onOpen && "cursor-pointer hover:bg-card"
+      )}
+    >
+      <div className="text-right">
+        <OutlierBadge score={item.outlierScore} size="hero" />
       </div>
 
-      <button
-        type="button"
-        onClick={() => onOpen?.(item.videoId)}
-        className="min-w-0 flex-1 truncate text-left text-sm text-foreground"
-      >
+      <span className="truncate pl-2 text-sm text-foreground">
         {item.caption ?? "—"}
-      </button>
+        {/* Same "gone" marker as the grid card (v1-scope.md Feed AC 10) — a removed post
+            stays in the list, it just says so, in the negative color. */}
+        {item.deleted && <span className="ml-2 text-2xs text-destructive">removed</span>}
+      </span>
 
-      <Link href={`/channels/${item.channel.id}`} className="flex w-40 shrink-0 items-center gap-2 hover:underline">
-        <Avatar size="sm">
-          <AvatarImage src={assetUrl(item.channel.avatarAssetId) ?? undefined} alt="" />
-          <AvatarFallback>
-            {(item.channel.displayName ?? item.channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <span className="truncate text-sm">{item.channel.handle}</span>
+      <Link
+        href={`/channels/${item.channel.id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="min-w-0 truncate text-xs text-faint hover:text-foreground hover:underline"
+      >
+        {item.channel.handle}
       </Link>
 
-      <span className="w-20 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+      <span className="text-right text-sm text-muted-foreground tabular-nums" data-num="1">
         {formatCompact(item.viewCount)}
       </span>
-      <span className="w-20 shrink-0 text-right text-xs text-muted-foreground">{relativeTime(item.postedAt)}</span>
+      <span className="text-right text-2xs text-faint" data-num="1">
+        {relativeTime(item.postedAt)}
+      </span>
     </div>
   );
 }

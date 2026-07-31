@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
-import { feedItemColumns, type FeedItem } from "./feed";
+import { feedItemColumns, toFeedItem, type FeedItem } from "./feed";
 
 const DAY_MS = 86_400_000;
 const SEVEN_DAYS = 7;
@@ -60,11 +60,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     [scriptsRow],
     recentVideos,
   ] = await Promise.all([
-    db.select({ count: sql<number>`count(*)` }).from(tables.channels),
+    // Both counts exclude removed channels. Removal is soft, so an unfiltered count
+    // would keep reporting a channel the rest of the app no longer shows.
+    db.select({ count: sql<number>`count(*)` }).from(tables.channels).where(isNull(tables.channels.deletedAt)),
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.channels)
-      .where(gte(tables.channels.trackedSince, sevenDaysAgo)),
+      .where(and(gte(tables.channels.trackedSince, sevenDaysAgo), isNull(tables.channels.deletedAt))),
     db
       .select({ count: sql<number>`count(*)` })
       .from(tables.videos)
@@ -111,15 +113,16 @@ export async function getTopOutliersToday(limit = 6): Promise<FeedItem[]> {
     .where(and(gte(tables.videos.postedAt, daysAgoIso(SEVEN_DAYS)), isNull(tables.videos.deletedAt)))
     .orderBy(...orderBy)
     .limit(limit);
-  if (recent.length > 0) return recent;
+  if (recent.length > 0) return recent.map(toFeedItem);
 
-  return db
+  const fallback = await db
     .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
     .where(isNull(tables.videos.deletedAt))
     .orderBy(...orderBy)
     .limit(limit);
+  return fallback.map(toFeedItem);
 }
 
 export interface FleetSpike {
@@ -208,13 +211,13 @@ export async function getRecentlyViewed(limit = RECENTLY_VIEWED_LIMIT): Promise<
   }
   if (!Array.isArray(videoIds) || videoIds.length === 0) return [];
 
-  const rows = await db
+  const rawRows = await db
     .select(feedItemColumns)
     .from(tables.videos)
     .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
     .where(and(inArray(tables.videos.id, videoIds as string[]), isNull(tables.videos.deletedAt)));
 
-  const byId = new Map(rows.map((r) => [r.videoId, r]));
+  const byId = new Map(rawRows.map((r) => [r.videoId, toFeedItem(r)]));
   return (videoIds as string[])
     .map((id) => byId.get(id))
     .filter((item): item is FeedItem => item !== undefined)

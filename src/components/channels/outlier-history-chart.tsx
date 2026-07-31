@@ -61,7 +61,7 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
   const peak = coords.reduce((max, c) => (c.point.viewCount > max.point.viewCount ? c : max), coords[0]);
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-card p-4">
+    <div className="overflow-x-auto border border-border bg-card p-4">
       <svg width={width} height={HEIGHT} role="img" aria-label="Outlier history: view count over time">
         <defs>
           <linearGradient id="outlier-chart-tier4" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -114,6 +114,48 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
           {formatMultiplier(peak.point.outlierScore)}
         </text>
       </svg>
+    </div>
+  );
+}
+
+const REACH_BAR_COUNT = 8;
+
+/**
+ * "Reach by post" bars (mine.html's `mineBars`), scoped to the last `REACH_BAR_COUNT`
+ * measured posts, oldest to newest left-to-right so the read direction matches the
+ * calendar and post list below it.
+ *
+ * Bars stay a neutral fill on purpose: amber is reserved for the score (a baseline
+ * ratio), and a raw view count is not that — see DESIGN.md's amber budget.
+ */
+type VideoItem = ChannelDetail["videos"][number];
+
+export function ReachByPostBars({ videos }: { videos: ChannelDetail["videos"] }) {
+  const measured = videos.filter((v): v is VideoItem & { viewCount: number } => v.viewCount !== null);
+  const posts = measured.slice(0, REACH_BAR_COUNT).slice().reverse();
+
+  if (posts.length === 0) {
+    return <p className="text-sm text-muted-foreground">No measured posts yet.</p>;
+  }
+
+  const max = Math.max(...posts.map((p) => p.viewCount), 1);
+
+  return (
+    <div>
+      <span data-lab className="font-mono text-2xs text-faint">
+        Views by post · last {posts.length} post{posts.length === 1 ? "" : "s"}, rolling
+      </span>
+      <div className="mt-6 flex h-[150px] items-end gap-3.5">
+        {posts.map((p) => (
+          <div key={p.videoId} className="flex h-full flex-1 flex-col justify-end gap-2.5" title={relativeTime(p.postedAt)}>
+            <span data-num className="font-mono text-xs">
+              {formatCompact(p.viewCount)}
+            </span>
+            <div className="bg-muted-foreground/40" style={{ height: `${Math.max(4, (p.viewCount / max) * 100)}%` }} />
+            <span className="font-mono text-2xs text-faint">{relativeTime(p.postedAt)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { CircleAlert, ExternalLink, RefreshCw, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CircleAlert, ExternalLink, RefreshCw, Trash2, X } from "lucide-react";
 
 import { platformLabel } from "@/components/feed/platform-chip";
 import { gapMessage, gapRetryLabel, phaseLabel, syncViewState } from "@/components/sync/sync-progress-view";
@@ -9,27 +10,23 @@ import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatCompact } from "@/lib/format";
+import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import type { ChannelRow } from "@/server/queries/channels";
+import { RemoveChannelDialog } from "./remove-channel-dialog";
 
 /** No stored profile URL in the schema — channels only carry handle+platform, so the
- * live-profile link is derived from the stored handle. */
-function channelProfileUrl(platform: string, handle: string): string {
+ * live-profile link is derived from the stored handle. Instagram only in V1
+ * (V1-BRIEF.md) — the TikTok and YouTube branches this used to have built links for
+ * platforms sync can never write, which is dead code that only risked a broken link
+ * if a row was ever miscategorised. */
+function channelProfileUrl(handle: string): string {
   const cleanHandle = handle.replace(/^@/, "");
-  switch (platform) {
-    case "tiktok":
-      return `https://www.tiktok.com/@${cleanHandle}`;
-    case "youtube_shorts":
-      return `https://www.youtube.com/@${cleanHandle}`;
-    default:
-      return `https://www.instagram.com/${cleanHandle}/`;
-  }
+  return `https://www.instagram.com/${cleanHandle}/`;
 }
 
-export function ChannelHeader({ channel }: { channel: ChannelRow }) {
+export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; postCount?: number }) {
   // Scoped to this channel: `start()` with no arguments syncs only this one, and the poll
   // answers "is a run covering THIS channel" from the `channel_id` column. `coverage`
   // replaced a comparison of `progress.currentChannelHandle` against this row's handle —
@@ -37,10 +34,12 @@ export function ChannelHeader({ channel }: { channel: ChannelRow }) {
   // engine has named a channel. A run scoped to a different channel is now correctly
   // invisible here rather than something to be filtered out after the fact.
   const { progress, coverage, stalled, error, start, cancel } = useSyncProgress({ channelId: channel.id });
+  const router = useRouter();
   // `start()` resolves once the job row exists; this covers the gap before it does, so a
   // second click can't race the DB lock and come back as "a sync is already running".
   // It is a pending state for the request, not a claim about the run's progress.
   const [starting, setStarting] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
 
   const state = syncViewState(progress, stalled);
   const live = state === "running" || state === "cancelling";
@@ -89,18 +88,24 @@ export function ChannelHeader({ channel }: { channel: ChannelRow }) {
           </AvatarFallback>
         </Avatar>
 
-        <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-semibold">{channel.handle}</h2>
-            <span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-              {platformLabel(channel.platform)}
-            </span>
-          </div>
-          <p className="text-sm text-muted-foreground">{formatCompact(channel.followerCount)} followers</p>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-lg font-semibold">{channel.handle}</h2>
+          {/* One mono meta line (mine.html's header), not a badge chip plus a caption —
+              platform, sync recency, followers and post count read as one fact together. */}
+          <p className="font-mono text-2xs tracking-[0.06em] text-faint">
+            {platformLabel(channel.platform)} · {channel.lastSyncedAt ? `synced ${relativeTime(channel.lastSyncedAt)}` : "never synced"} ·{" "}
+            <span data-num>{formatCompact(channel.followerCount)}</span> followers
+            {postCount !== undefined && (
+              <>
+                {" "}
+                · <span data-num>{postCount}</span> post{postCount === 1 ? "" : "s"}
+              </>
+            )}
+          </p>
         </div>
 
         <a
-          href={channelProfileUrl(channel.platform, channel.handle)}
+          href={channelProfileUrl(channel.handle)}
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`Open ${channel.handle} on ${platformLabel(channel.platform)}`}
@@ -143,12 +148,20 @@ export function ChannelHeader({ channel }: { channel: ChannelRow }) {
             </Button>
           )}
 
-          <Tooltip>
-            <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-              Untrack
-            </TooltipTrigger>
-            <TooltipContent>Untrack arrives in a later phase</TooltipContent>
-          </Tooltip>
+          {/* Kept separate from "Sync now" rather than folded into a menu — this is the
+              only other action on the page, and the amber budget's "one primary action"
+              rule is about competing calls to action, not about hiding every secondary
+              one. Ghost + destructive-on-hover keeps it from reading as a second primary
+              button next to Sync now. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setRemoveOpen(true)}
+            aria-label={`Remove ${channel.handle}`}
+            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="size-4" />
+          </Button>
         </div>
       </div>
 
@@ -171,6 +184,17 @@ export function ChannelHeader({ channel }: { channel: ChannelRow }) {
           </AlertDescription>
         </Alert>
       )}
+
+      <RemoveChannelDialog
+        channel={channel}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        // The table just refreshes the row in place; this page's route (/channels/[id])
+        // stops resolving the instant the channel is gone (getChannelDetail filters
+        // deletedAt), so staying here would be a page about to 404. Leaving for the list
+        // it just left is the only honest landing spot.
+        onRemoved={() => router.push("/channels")}
+      />
     </div>
   );
 }

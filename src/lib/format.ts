@@ -21,6 +21,23 @@ export function formatCompact(n: number | null): string {
 }
 
 /**
+ * 0.042 -> "4.2%", null -> "—". The query layer hands over a raw ratio (never a
+ * percentage, never rounded — see FeedItem.engagementRate) so this is the one place
+ * that multiplies by 100 and rounds. Only a null input prints the dash; a genuinely
+ * tiny but known rate still prints "0.0%" rather than being mistaken for "unknown".
+ */
+export function formatEngagementRate(rate: number | null): string {
+  if (rate === null) return "—";
+  const pct = rate * 100;
+  // Below one percent, a single decimal is not precision, it is distortion: @kallaway's
+  // top post engages 0.05 percent and one decimal rounds that to 0.1, doubling it. Two
+  // decimals under 1 percent, one above, where a tenth is a real difference and a
+  // hundredth is noise.
+  if (pct > 0 && pct < 1) return `${pct.toFixed(2)}%`;
+  return `${pct.toFixed(1)}%`;
+}
+
+/**
  * 12.4 -> "12.4×", null -> "—". Always exactly one decimal (unlike formatCompact) —
  * the multiplier badge numeral is set in tabular-nums (DESIGN.md §4.2) specifically
  * so magnitudes align scanning down a card grid; dropping a trailing zero (38.0 -> 38)

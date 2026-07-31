@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
-import { platformLabel } from "@/components/feed/platform-chip";
 import { gapMessage, phaseLabel } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,14 +21,86 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import type { ChannelRow, Fleet } from "@/server/queries/channels";
+import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 import { EditChannelFleetsDialog } from "./edit-channel-fleets-dialog";
+import { RemoveChannelDialog } from "./remove-channel-dialog";
 
-export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fleets: Fleet[] }) {
+/** A run older than this reads as "stale" rather than plain "synced N ago" — v1-scope.md
+ *  §2 Channels AC3 names the threshold in days, not hours: 30 days idle before a channel
+ *  is called stale. A silently aging channel is worse than one that was never synced,
+ *  because it looks current when it isn't — but calling anything past a day "stale"
+ *  overstates that on a tool that isn't syncing hourly to begin with. */
+const STALE_DAYS = 30;
+
+type HealthTone = "faint" | "muted" | "stale" | "destructive";
+
+function syncHealth(channel: ChannelRow): { label: string; tone: HealthTone } {
+  // Never-synced has to win even when a sync attempt already failed once (the profile
+  // fetch on add, or a first run that errored before finishing) — `last_synced_at` is
+  // still null either way, and "Never synced" is the state v1-scope.md §2 Channels AC1
+  // requires to be unmissable. The error itself still reaches the row via the warning
+  // icon below, it just doesn't get to overwrite this label.
+  if (channel.lastSyncedAt === null) return { label: "Never synced", tone: "faint" };
+  if (channel.syncError) return { label: "Sync failed", tone: "destructive" };
+  const daysSince = (Date.now() - new Date(channel.lastSyncedAt).getTime()) / 86_400_000;
+  if (daysSince > STALE_DAYS) return { label: `Stale · ${relativeTime(channel.lastSyncedAt)}`, tone: "stale" };
+  return { label: `Synced ${relativeTime(channel.lastSyncedAt)}`, tone: "muted" };
+}
+
+// Sparkline gap (docs/product/review-ui-gap-2026-07-31.md, "Channels" finding): the
+// prototype draws an 8-run sync-health sparkline per channel; this table renders text
+// instead. That is deliberate, not a shortcut skipped for time.
+//
+// `sync_jobs.channel_id` CAN attribute a run to one channel (schema.ts: null means a
+// whole-library run, set means a single-channel run) — the column supports it. But on
+// this machine the whole table has exactly one row, total, across both tracked
+// channels. @kallaway's `last_synced_at` is four days older than that one row, which
+// belongs to @hormozi — so the job log does not even account for the sync history the
+// `channels` table itself implies already happened. There is no backfill and no second
+// source (channel_snapshots records values, not run outcomes). Drawing 8 bars per row
+// against that would mean rendering 7 (or 8) blank/invented bars as if "no data" were
+// itself a health signal, for every channel, every time — the opposite of honest.
+//
+// It also can't be built from this file alone: `ChannelRow` (server/queries/channels.ts)
+// carries no job history today, only `lastSyncedAt` / `syncError` off the `channels`
+// row. Reaching `sync_jobs` would mean a new query (group by channel_id, order by
+// started_at desc, limit 8) added there — out of scope for a rendering-layer change.
+//
+// What it would need to ship for real: that query, plus enough real run volume per
+// channel that a sparkline reads as history rather than as padding. Until then, the
+// improvement made here is textual: `neverSynced && warning` below surfaces a failed
+// attempt's reason inline instead of leaving it in a hover-only tooltip, from data this
+// component already has.
+const HEALTH_CLASS: Record<HealthTone, string> = {
+  // Never synced reads as thin, not broken — same restraint the prototype gives a
+  // channel with too little data to say anything about yet.
+  faint: "text-faint",
+  muted: "text-muted-foreground",
+  // Aging data is a raised-surface chip, never amber — amber is reserved for the score.
+  stale: "bg-popover px-1.5 py-0.5 text-muted-foreground",
+  destructive: "text-destructive",
+};
+
+export function ChannelTable({
+  channels,
+  fleets,
+  sampleSizeById,
+}: {
+  channels: ChannelRow[];
+  fleets: Fleet[];
+  /** channelId -> the sample `getChannelMedianBasis` computed the median from. Drives the
+   *  thin-sample note below, via the same `medianConfidence` the detail page reads, so the
+   *  two screens can't quietly disagree about what "thin" means. */
+  sampleSizeById: Record<string, number>;
+}) {
   const router = useRouter();
   // One shared dialog instance for the whole table, rather than one per row — keyed
   // by the currently-selected channel's id (final-review finding B2).
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null);
   const editingChannel = channels.find((c) => c.id === editingChannelId) ?? null;
+  // Same one-shared-instance shape as the fleets dialog above, keyed by row id.
+  const [removingChannelId, setRemovingChannelId] = useState<string | null>(null);
+  const removingChannel = channels.find((c) => c.id === removingChannelId) ?? null;
 
   // ONE hook for the whole table, not one per row. A row-level hook would mean a
   // Server Action call per channel per second while a sync is running — 40 channels is
@@ -72,14 +143,20 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
     <>
       <Table>
         <TableHeader>
-          <TableRow>
-            <TableHead>Channel</TableHead>
-            <TableHead>Platform</TableHead>
-            <TableHead className="text-right">Followers</TableHead>
-            <TableHead className="text-right">Median views</TableHead>
-            <TableHead className="text-right">Outliers (30d)</TableHead>
-            <TableHead>Last synced</TableHead>
-            <TableHead className="w-10" />
+          <TableRow className="border-line-strong hover:bg-transparent">
+            <TableHead data-lab className="h-auto pb-3 text-2xs font-normal text-faint">
+              Channel
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Followers
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Median views
+            </TableHead>
+            <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
+              Outliers (30d)
+            </TableHead>
+            <TableHead className="h-auto w-10 pb-3" />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -101,6 +178,14 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
             // `sync_error` persisted on the channel row, so it wins the warning icon.
             const gap = progress?.gaps.find((g) => g.channelId === channel.id);
             const warning = gap !== undefined ? gapMessage(gap) : channel.syncError;
+            const health = syncHealth(channel);
+            const neverSynced = channel.lastSyncedAt === null;
+            // Thin note is a separate fact from "never synced" — a channel with zero
+            // sample gets the dedicated never-synced treatment above, not a note claiming
+            // "0 posts" (v1-scope.md §2 Channels AC1: never a zero). Only a channel that
+            // HAS synced and came back with a small-but-real sample reads as thin.
+            const sampleSize = sampleSizeById[channel.id] ?? 0;
+            const thin = !neverSynced && sampleSize > 0 && medianConfidence(sampleSize) === "low";
 
             return (
               <TableRow
@@ -112,31 +197,38 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                 onKeyDown={(e) => {
                   if (e.key === "Enter") router.push(`/channels/${channel.id}`);
                 }}
-                className="cursor-pointer"
+                className="cursor-pointer border-border"
+                // Never-synced gets a hatched row, not just a different label — v1-scope.md
+                // §2 Channels AC1 calls this out as its own visual state, the same hatch
+                // pattern the feed already uses for "a well with no data in it"
+                // (outlier-card.tsx, video-player.tsx) rather than a one-off style here.
+                style={
+                  neverSynced
+                    ? {
+                        backgroundColor: "var(--hatch-1)",
+                        backgroundImage:
+                          "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+                      }
+                    : undefined
+                }
               >
-                <TableCell>
-                  <div className="flex items-center gap-2">
+                <TableCell className="py-4">
+                  <div className="flex min-w-0 items-center gap-2">
                     <Avatar size="sm">
                       <AvatarImage src={assetUrl(channel.avatarAssetId) ?? undefined} alt="" />
                       <AvatarFallback>
                         {(channel.displayName ?? channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="text-sm font-medium">{channel.handle}</span>
+                    <span className="truncate text-base">{channel.handle}</span>
                   </div>
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">{platformLabel(channel.platform)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{formatCompact(channel.followerCount)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{formatCompact(channel.medianViews)}</TableCell>
-                <TableCell className="text-right text-sm tabular-nums">{channel.outliers30d}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  <div className="flex items-center gap-1.5">
+                  <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs">
                     {syncing && progress !== null ? (
-                      <span className="tabular-nums text-foreground" aria-live="polite">
+                      <span data-num className="text-foreground" aria-live="polite">
                         {phaseLabel(progress.phase)} · {progress.itemsSeen} seen
                       </span>
                     ) : (
-                      <span>{channel.lastSyncedAt ? relativeTime(channel.lastSyncedAt) : "Never"}</span>
+                      <span className={HEALTH_CLASS[health.tone]}>{health.label}</span>
                     )}
                     {warning && (
                       <Tooltip>
@@ -145,8 +237,39 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                       </Tooltip>
                     )}
                   </div>
+                  {thin && (
+                    <span className="mt-1.5 block max-w-[42ch] text-2xs text-faint">
+                      Only {sampleSize} post{sampleSize === 1 ? "" : "s"} — a median needs about{" "}
+                      {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
+                    </span>
+                  )}
+                  {/* "Never synced" always wins the label (line 43) even over a failed attempt,
+                      so a channel that DID try and failed once looks identical, at a glance, to
+                      one nobody has touched yet — the only difference lives in a hover-only
+                      tooltip. This line surfaces that same reason without requiring a hover,
+                      same as the thin-sample note above does for a different fact. It reads off
+                      `channel.syncError` / the live `gap`, both already on the row — no new
+                      query, no invented history. */}
+                  {neverSynced && warning && (
+                    <span className="mt-1.5 block max-w-[42ch] text-2xs text-destructive">
+                      Last attempt failed: {warning}
+                    </span>
+                  )}
                 </TableCell>
-                <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableCell data-num className="py-4 text-right font-mono text-sm">
+                  {formatCompact(channel.followerCount)}
+                </TableCell>
+                <TableCell data-num className="py-4 text-right font-mono text-sm text-muted-foreground">
+                  {formatCompact(channel.medianViews)}
+                </TableCell>
+                <TableCell data-num className="py-4 text-right font-mono text-sm text-muted-foreground">
+                  {/* A channel that has never synced has no answer here, and zero is an
+                      answer. Follower count and median already read as dashes for the
+                      same reason, so a bare 0 in this column was the one number on the
+                      row claiming we had looked. */}
+                  {channel.lastSyncedAt === null ? "—" : channel.outliers30d}
+                </TableCell>
+                <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Channel actions" />}>
                       <MoreHorizontal className="size-4" />
@@ -157,14 +280,8 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
                       </DropdownMenuItem>
                       <DropdownMenuItem render={<Link href={`/channels/${channel.id}`} />}>View</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setEditingChannelId(channel.id)}>Edit fleets</DropdownMenuItem>
-                      {/* Base UI's disabled item styling sets pointer-events:none, which would
-                          also block a wrapping Tooltip's hover — so this explains itself via a
-                          toast on click instead, rather than a hover affordance that can't fire. */}
-                      <DropdownMenuItem
-                        className="text-muted-foreground"
-                        onClick={() => toast.info("Untrack arrives in a later phase")}
-                      >
-                        Untrack
+                      <DropdownMenuItem variant="destructive" onClick={() => setRemovingChannelId(channel.id)}>
+                        Remove channel
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -182,6 +299,20 @@ export function ChannelTable({ channels, fleets }: { channels: ChannelRow[]; fle
           open={editingChannel !== null}
           onOpenChange={(open) => {
             if (!open) setEditingChannelId(null);
+          }}
+        />
+      )}
+
+      {removingChannel && (
+        <RemoveChannelDialog
+          channel={removingChannel}
+          open={removingChannel !== null}
+          onOpenChange={(open) => {
+            if (!open) setRemovingChannelId(null);
+          }}
+          onRemoved={() => {
+            setRemovingChannelId(null);
+            router.refresh();
           }}
         />
       )}

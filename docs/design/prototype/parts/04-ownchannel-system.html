@@ -1,0 +1,657 @@
+<section class="flow" id="G1">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">G1</span>
+    <span class="flow-name">Own channel dashboard</span>
+    <span class="flow-tag tag-new">not built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Kai's own account, read through the Instagram Graph API with the token copied into this project's <b>.env.local</b>. Press <b>Measure now</b> to watch a pull run. Switch state to see the token expiring, the token dead, and the account before any measurement. Three views: <b>Calendar</b> for the month, <b>Posts</b> for the list, <b>Metrics</b> for the totals. Every number carries its n, and the sparkline slot stays empty on purpose.</p>
+    <div class="p-states">
+      <button data-state="default">Measured</button>
+      <button data-state="expiring">Token expiring</button>
+      <button data-state="dead">Token dead</button>
+      <button data-state="empty">Never measured</button>
+    </div>
+    <div class="p-app">
+      <aside class="p-side">
+        <div class="p-brand"><i></i>Crowsnest</div>
+        <a class="p-nav">Dashboard</a>
+        <a class="p-nav">Feed <b>28</b></a>
+        <a class="p-nav">Channels <b>1</b></a>
+        <a class="p-nav on">My channel <b>8</b></a>
+        <a class="p-nav">Vault</a>
+        <a class="p-nav">Settings</a>
+        <div class="p-sidefoot">two identities. this page is the own one.</div>
+      </aside>
+      <div class="p-body">
+        <header class="p-top">
+          <h4>@kaiships.ai</h4>
+          <span class="p-sub">5 followers, 8 posts, measured 2 hours ago</span>
+          <button class="p-btn primary" data-run="2600" data-toast="8 posts measured">Measure now</button>
+        </header>
+        <main class="p-main">
+          <div class="p-steps"><span class="p-step">account</span><span class="p-step">posts</span><span class="p-step">insights</span><span class="p-step">comments</span></div>
+          <div class="p-progress"><i></i></div>
+          <div class="p-banner ok" data-when="default">Token valid, expires in 41 days. Last successful call 2 hours ago.<button class="p-btn ghost" data-toast="Account call returned 200">Re-check token</button></div>
+          <div class="p-banner warn" data-when="expiring">Token expires in 9 days. Refresh it in Kai-Official-OS, then paste the new value into this project's .env.local. The two copies do not refresh together.<button class="p-btn ghost" data-toast="Copied INSTAGRAM_GRAPH_TOKEN=">Copy var name</button></div>
+          <div class="p-banner err" data-when="dead">Error validating access token: Session has expired. Fix: run ig_publish.py refresh in Kai-Official-OS, copy the new long lived token, paste it into this project's .env.local as INSTAGRAM_GRAPH_TOKEN, restart the dev server.</div>
+          <div class="p-banner warn" data-when="dead">Showing the stored snapshot from 28 Jul, 09:14. The live pull failed, so nothing below is fresh.</div>
+          <div class="p-banner warn" data-when="default expiring dead">8 posts measured. At this size one person moves a number by more than 10 percent. Read everything below as a reading, not a trend.</div>
+          <div data-when="empty">
+            <div class="p-empty"><div class="big">o</div><p>Token configured, no measurement taken yet.<br>Nothing is shown as zero, because zero would be a measurement.</p><button class="p-btn primary" data-run="2600" data-toast="First measurement stored">Measure now</button></div>
+          </div>
+          <div data-when="default expiring dead">
+            <div class="p-chips" style="margin-bottom:10px">
+              <span class="p-chip on" data-goto="calendar">Calendar</span>
+              <span class="p-chip" data-goto="dash">Posts</span>
+              <span class="p-chip" data-goto="metrics">Metrics</span>
+            </div>
+            <div class="p-screen" data-screen="calendar">
+              <div class="p-rowline" style="margin-bottom:9px">
+                <b>July 2026</b>
+                <span class="p-sub">4 published, 3 planned, 24 empty</span>
+                <button class="p-btn ghost" data-toast="August 2026">Next month</button>
+              </div>
+              <div class="p-cal">
+                <span class="p-cal-h">Mo</span><span class="p-cal-h">Tu</span><span class="p-cal-h">We</span><span class="p-cal-h">Th</span><span class="p-cal-h">Fr</span><span class="p-cal-h">Sa</span><span class="p-cal-h">Su</span>
+                <span class="p-cal-d out"></span><span class="p-cal-d out"></span>
+                <span class="p-cal-d">1</span><span class="p-cal-d">2</span><span class="p-cal-d">3</span><span class="p-cal-d">4</span><span class="p-cal-d">5</span>
+                <span class="p-cal-d">6</span><span class="p-cal-d">7</span><span class="p-cal-d">8</span><span class="p-cal-d">9</span><span class="p-cal-d">10</span>
+                <span class="p-cal-d done" data-goto="dash">11<i>reach 5</i></span><span class="p-cal-d">12</span>
+                <span class="p-cal-d">13</span><span class="p-cal-d">14</span><span class="p-cal-d">15</span><span class="p-cal-d">16</span><span class="p-cal-d">17</span>
+                <span class="p-cal-d">18</span><span class="p-cal-d done" data-goto="dash">19<i>reach 5</i></span>
+                <span class="p-cal-d">20</span><span class="p-cal-d done" data-goto="dash">21<i>reach 9</i></span><span class="p-cal-d">22</span><span class="p-cal-d">23</span>
+                <span class="p-cal-d done" data-goto="dash">24<i>reach 11</i></span><span class="p-cal-d">25</span><span class="p-cal-d done" data-goto="dash">26<i>reach 14</i></span>
+                <span class="p-cal-d">27</span><span class="p-cal-d today">28<i>today</i></span>
+                <span class="p-cal-d plan" data-toast="Planned slot, no source for this yet">29<i>planned</i></span>
+                <span class="p-cal-d plan" data-toast="Planned slot, no source for this yet">30<i>planned</i></span>
+                <span class="p-cal-d plan" data-toast="Planned slot, no source for this yet">31<i>planned</i></span>
+              </div>
+              <div class="p-split" style="margin-top:11px">
+                <div class="p-panel"><div class="p-panel-k">this month, published</div>
+                  <p>4 posts. Reach 5, 5, 9, 11, 14. Median 9, n 5.</p>
+                  <p class="p-dim p-mono">Every square that has a post shows its reach, so a bad week is visible without opening anything.</p>
+                </div>
+                <div class="p-panel"><div class="p-panel-k">this month, planned</div>
+                  <p class="p-warn">3 planned slots, source unknown.</p>
+                  <p class="p-dim p-mono">Crowsnest has no table of planned content. The plan lives in the Kai-Official-OS Blueprint. Either it is read from there, or planned slots are entered here by hand. That is an open decision, marked below.</p>
+                </div>
+              </div>
+            </div>
+            <div class="p-screen" data-screen="metrics">
+              <div class="p-stat">
+              <div><b>73</b><span>reach, 8 posts</span></div>
+              <div><b>4</b><span>saves, 8 posts</span></div>
+              <div><b>2</b><span>shares, 8 posts</span></div>
+              <div><b>21</b><span>likes, 8 posts</span></div>
+              <div><b>9</b><span>median reach, n 8</span></div>
+            </div>
+            <div class="p-panel">
+              <div class="p-panel-k">not wired yet</div>
+              <div class="p-stat">
+                <div><b class="p-dim">-</b><span>profile visits</span></div>
+                <div><b class="p-dim">-</b><span>follows from post</span></div>
+                <div><b class="p-dim">-</b><span>reel watch time</span></div>
+              </div>
+              <p class="p-dim p-mono">not requested by the API client yet. shown as a dash, never as a zero.</p>
+            </div>
+            </div>
+            <div class="p-screen" data-screen="dash">
+              <table class="p-table">
+                <thead><tr><th>posted</th><th>format</th><th>reach</th><th>views</th><th>likes</th><th>saves</th><th>index vs median 9</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>26 Jul</td><td>Reel</td><td>14</td><td>31</td><td>4</td><td>1</td><td>1.6x</td><td><button class="p-btn ghost" data-toast="Opens G2 with this post">Compare</button></td></tr>
+                  <tr><td>24 Jul</td><td>Carousel</td><td>11</td><td class="p-dim">n/a</td><td>3</td><td>1</td><td>1.2x</td><td><button class="p-btn ghost" data-toast="Opens G2 with this post">Compare</button></td></tr>
+                  <tr><td>21 Jul</td><td>Carousel</td><td>9</td><td class="p-dim">n/a</td><td>2</td><td>0</td><td>1.0x</td><td><button class="p-btn ghost" data-toast="Opens G2 with this post">Compare</button></td></tr>
+                  <tr><td>19 Jul</td><td>Carousel</td><td>5</td><td class="p-dim">n/a</td><td>1</td><td>0</td><td class="p-dim">below median</td><td><button class="p-btn ghost" data-toast="Opens G2 with this post">Compare</button></td></tr>
+                  <tr><td>30 Jun</td><td>Carousel</td><td colspan="5" class="p-dim">no insights available for this post</td></tr>
+                </tbody>
+              </table>
+              <p class="p-dim p-mono">3 more posts. 8 of 8 measured.</p>
+              <div class="p-split">
+                <div class="p-panel"><div class="p-panel-k">format</div>
+                  <p>Carousel, n 6. total reach 47, mean 7.8, saves 2.</p>
+                  <p>Reel, n 2. total reach 26, mean 13.0, saves 2. <span class="p-warn">n too small to compare</span></p>
+                </div>
+                <div class="p-panel"><div class="p-panel-k">comments</div>
+                  <p>self test 3, own comment 2, bot reply 1, <b>organic 0</b>.</p>
+                  <p class="p-dim">No stranger has commented yet, so do not read a comment count on a post as demand.</p>
+                  <p class="p-dim p-mono">classifier is a text match on hardcoded strings. it miscounts silently if the auto reply copy changes.</p>
+                </div>
+              </div>
+              <div class="p-rowline"><button class="p-btn" data-goto="report">Copy report to clipboard</button><button class="p-btn ghost" data-toast="Wrote snapshot markdown">Export snapshot to file</button></div>
+            </div>
+            <div class="p-screen" data-screen="report">
+              <div class="p-code"># kaiships.ai, measured 28 Jul 2026
+followers 5   posts 8   median reach 9 (n 8)
+
+| posted | format   | reach | views | saves |
+|--------|----------|-------|-------|-------|
+| 26 Jul | Reel     | 14    | 31    | 1     |
+| 24 Jul | Carousel | 11    | n/a   | 1     |
+
+profile visits, follows from post, reel watch time: not wired</div>
+              <div class="p-rowline"><button class="p-btn ghost" data-goto="dash">Back</button><button class="p-btn primary" data-goto="dash" data-toast="Copied as markdown">Copy</button></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> Route /me, tables own_posts, own_post_insights, own_account_snapshots, own_comments, kept separate from channels and videos so competitor queries cannot pick them up by accident. <b>Open, new:</b> the calendar shows published squares from real post dates, but Crowsnest has no source of planned content. Does it read the plan out of the Kai-Official-OS Blueprint, or does Kai enter slots here by hand. <b>Open:</b> the token string carries no readable expiry, so the countdown needs either a manually stored issue date or a debug endpoint that may not exist. Also open: does Measure now write the markdown into the Kai-Official-OS vault, or does Crowsnest keep its own history.</p>
+  </div>
+</section>
+
+<section class="flow" id="G2">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">G2</span>
+    <span class="flow-name">My post against a competitor outlier</span>
+    <span class="flow-tag tag-new">not built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">The centrepiece. Kai-Official-OS knows his own account and nothing about competitors. The competitor side of Crowsnest knows nothing about his account. This screen is the join. <b>Reach and views are different quantities</b>, so the two halves are separate boxes with separate denominators and they never share a row. Click an alternate to swap the right half, or switch state to see the failure cases.</p>
+    <div class="p-states">
+      <button data-state="default">Both sides measured</button>
+      <button data-state="noanalysis">My post not analyzed</button>
+      <button data-state="nomedian">No competitor median</button>
+      <button data-state="proxy">Local proxy down</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <header class="p-top"><h4>Compare</h4><span class="p-sub">my Reel, 26 Jul, against @kallaway</span><button class="p-btn ghost" data-toast="Copied comparison markdown">Copy as markdown</button></header>
+        <main class="p-main">
+          <div class="p-banner warn">Your reach and their views are different measurements and are not compared directly. Both sides are shown as a multiple of that account's own median.</div>
+          <div class="p-split">
+            <div class="p-panel"><div class="p-panel-k">mine, @kaiships.ai, unit reach</div>
+              <div class="p-stat"><div><b>1.6x</b><span>your median reach</span></div></div>
+              <p class="p-dim p-mono">median 9, from 8 posts. reach is unique accounts.</p>
+              <div class="p-stat"><div><b>14</b><span>reach</span></div><div><b>1</b><span>saves</span></div><div><b>1</b><span>shares</span></div><div><b>4</b><span>likes</span></div><div><b>0</b><span>comments</span></div></div>
+            </div>
+            <div class="p-panel"><div class="p-panel-k">theirs, @kallaway, unit views</div>
+              <div class="p-stat" data-when="default noanalysis proxy"><div><b>10.1x</b><span>their median views</span></div></div>
+              <div data-when="nomedian"><p class="p-err">No median for this channel yet, fewer than 5 posts carry a view count. The whole index row is suppressed rather than showing one side alone.</p></div>
+              <p class="p-dim p-mono">median 224,403, from 8 posts. views is a scraped play count.</p>
+              <div class="p-stat"><div><b>2,272,877</b><span>views</span></div><div><b class="p-dim">-</b><span>likes not captured</span></div><div><b class="p-dim">-</b><span>shares not captured</span></div></div>
+            </div>
+          </div>
+          <div class="p-panel"><div class="p-panel-k">structure, field by field</div>
+            <table class="p-table">
+              <thead><tr><th>field</th><th>mine</th><th>@kallaway outlier</th></tr></thead>
+              <tbody>
+                <tr data-when="default nomedian proxy"><td>hook type</td><td>direct promise</td><td>contrarian claim</td></tr>
+                <tr data-when="default nomedian proxy"><td>segments</td><td>3</td><td>5</td></tr>
+                <tr data-when="default nomedian proxy"><td>first 3 seconds</td><td>face to camera</td><td>on screen text over b roll</td></tr>
+                <tr data-when="default nomedian proxy"><td>format tags</td><td>talking head</td><td>talking head, text overlay, list</td></tr>
+                <tr data-when="noanalysis"><td>hook type</td><td class="p-dim">not analyzed <button class="p-btn ghost" data-toast="transcribe then analyze, runs on the own post">Analyze my post</button></td><td>contrarian claim</td></tr>
+                <tr data-when="noanalysis"><td>segments</td><td class="p-dim">not analyzed</td><td>5</td></tr>
+                <tr><td>transcript</td><td class="p-dim">none yet, own reels are not downloaded <button class="p-btn ghost" data-toast="Queued transcription">Create</button></td><td>stored, 1,214 words</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-panel"><div class="p-panel-k">difference summary, generated</div>
+            <p data-when="default noanalysis nomedian">Their post opens on text over b roll and yours opens on your face. Theirs carries a list format tag that none of your 8 posts carry. Structural difference only. No claim is made about why reach differed, because the left side is one post.</p>
+            <div data-when="proxy"><p class="p-err">The local model proxy is not answering at http://localhost:20128. Everything measured above stays on screen. The summary is the only part that needs the model.</p><button class="p-btn ghost" data-toast="Retrying">Retry</button></div>
+          </div>
+          <div class="p-panel"><div class="p-panel-k">alternates, same niche, by outlier score</div>
+            <div class="p-chips">
+              <button class="p-chip on" data-toggle>@kallaway 10.1x</button>
+              <button class="p-chip" data-toggle>@kallaway 3.4x</button>
+              <button class="p-chip" data-toggle>@kallaway 2.1x</button>
+              <button class="p-chip" data-toggle>@hormozi not synced</button>
+            </div>
+            <div class="p-rowline"><button class="p-btn ghost" data-toast="Swapped my post">Swap my post</button><button class="p-btn ghost" data-toast="Saved to vault as a hook">Save to vault</button><button class="p-btn primary" data-toast="Remix session opened with these notes">Open Remix from this comparison</button></div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> getComparison returns two explicitly typed halves with no shared metrics shape, so a future component physically cannot render them in one table. Own index from computeOwnMedianReach (new, reach based), competitor index read straight off videos.outlierScore, never recomputed. <b>Open:</b> is the multiple of median the right shared axis, or does Kai also want an absolute view where the size gap is the point. Possibly both behind a toggle, index as default.</p>
+  </div>
+</section>
+
+<section class="flow" id="G3">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">G3</span>
+    <span class="flow-name">Content strategist report, gated at 30 posts</span>
+    <span class="flow-tag tag-new">deferred</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Deferred build. What ships now is the locked state, and it is a real screen. The report behind it is here too, reachable through <b>Run anyway</b> or by switching to the unlocked state. Note that the locked preview is an outline of real sections, not a fake report with placeholder numbers.</p>
+    <div class="p-states">
+      <button data-state="locked">Locked, 8 of 30</button>
+      <button data-state="open">Unlocked, 30 posts</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <header class="p-top"><h4>Content strategist report</h4><span class="p-sub">my channel</span></header>
+        <main class="p-main">
+          <div class="p-screen" data-screen="gate">
+            <div class="p-banner warn" data-when="locked">Locked. 8 of 30 posts. This report needs 30 to say anything that is not noise.</div>
+            <div class="p-banner ok" data-when="open">30 of 30 posts. The gate is met.</div>
+            <div class="p-bars"><span class="ok"></span><span class="ok"></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+            <p class="p-dim" data-when="locked">At this size an insight can be one person. A strategist report built on 8 posts produces confident recommendations from noise, which is worse than no report.</p>
+            <div class="p-panel"><div class="p-panel-k">sections and what each one needs</div>
+              <table class="p-table">
+                <tbody>
+                  <tr><td>What the account has published</td><td class="p-dim">format mix, cadence, caption length</td></tr>
+                  <tr><td>Which formats reached most</td><td class="p-dim">needs n per format, 5 minimum each</td></tr>
+                  <tr><td>Which topics recurred</td><td class="p-dim">captions and transcripts</td></tr>
+                  <tr><td>Where the account sits against tracked competitors</td><td class="p-dim">structurally, not by size</td></tr>
+                  <tr><td>What has never been tried</td><td class="p-dim">competitor format tags absent from own posts</td></tr>
+                  <tr><td>Named hypotheses</td><td class="p-dim">each with evidence and sample size attached</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="p-rowline">
+              <button class="p-btn ghost" data-goto="confirm" data-when="locked">Run anyway</button>
+              <button class="p-btn primary" data-run="2800" data-then="report" data-when="open">Run report</button>
+              <button class="p-btn ghost" data-goto="past">View past reports</button>
+            </div>
+            <div class="p-steps"><span class="p-step">read posts</span><span class="p-step">read insights</span><span class="p-step">competitor context</span><span class="p-step">generate sections</span></div>
+            <div class="p-progress"><i></i></div>
+          </div>
+          <div class="p-screen" data-screen="confirm">
+            <div class="p-card">
+              <h4>Run on 8 posts anyway</h4>
+              <p class="p-dim">The output is a prototype on an insufficient sample and must not be treated as strategy. It will be watermarked in the app and in any exported markdown.</p>
+              <div class="p-rowline"><button class="p-btn ghost" data-goto="gate">Cancel</button><button class="p-btn danger" data-goto="report" data-toast="Watermarked prototype run">Run it anyway</button></div>
+            </div>
+          </div>
+          <div class="p-screen" data-screen="report">
+            <div class="p-banner err" data-when="locked">Prototype output. Sample size 8. Not strategy.</div>
+            <div class="p-panel"><div class="p-panel-k">what the account has published, n 8</div><p>6 carousels, 2 reels. Median 3 days between posts.</p></div>
+            <div class="p-panel"><div class="p-panel-k">which formats reached most</div><p>Reel mean reach 13.0 (n 2), carousel mean 7.8 (n 6). <span class="p-warn">n 2 is not a comparison.</span></p></div>
+            <div class="p-panel"><div class="p-panel-k">hypothesis 1</div><p>Reels reach further than carousels on this account. <b>Evidence:</b> 2 reels, 2 carousels above median. <b>Sample size 2.</b> Untested.</p></div>
+            <div class="p-rowline"><button class="p-btn ghost" data-goto="gate">Back</button><button class="p-btn ghost" data-toast="Exported markdown">Export markdown</button><button class="p-btn primary" data-goto="past" data-toast="Saved as report 1">Save as report 1</button></div>
+          </div>
+          <div class="p-screen" data-screen="past">
+            <div class="p-list">
+              <div class="p-row"><div class="p-av"></div><div><b>Report 1</b><div class="p-dim p-mono">28 Jul 2026, 8 posts at run, prototype watermark</div></div><button class="p-btn ghost" data-goto="report">Open</button></div>
+            </div>
+            <p class="p-dim">A diff needs two saved reports. There is 1. See G4.</p>
+            <button class="p-btn ghost" data-goto="gate">Back</button>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> Table strategist_reports stores the markdown body and the structured inputs the run saw, because G4 diffs two reports and diffing prose alone produces noise from rewording. Generation goes through LlmClient.generateParsed with a schema. <b>Open:</b> is 30 the right gate, and is it 30 posts or 30 posts with insights available. Old posts do not always return insights.</p>
+  </div>
+</section>
+
+<section class="flow" id="G4">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">G4</span>
+    <span class="flow-name">Diff between two strategist reports</span>
+    <span class="flow-tag tag-new">deferred</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Deferred harder than G3, because it needs G3 to have run twice. The locked state is honest about that and shows no mock diff. Switch to the unlocked state to see the design. The screen is split deliberately: <b>what changed in the inputs</b> is computed from stored rows and always renders, <b>what changed in the conclusions</b> is generated and may fail on its own.</p>
+    <div class="p-states">
+      <button data-state="locked">Locked, 1 report saved</button>
+      <button data-state="open">Unlocked, 2 reports</button>
+      <button data-state="modelfail">Conclusion diff failed</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <header class="p-top"><h4>Report diff</h4><span class="p-sub" data-when="open modelfail">report 1, 28 Jul, 30 posts. report 2, 26 Sep, 44 posts. 60 days apart.</span></header>
+        <main class="p-main">
+          <div data-when="locked">
+            <div class="p-empty"><div class="big">=</div><p>A diff needs two saved reports. There is 1.<br>No mock diff is shown, because a diff of one report against nothing is not a screen.</p><button class="p-btn ghost" data-toast="Opens G3">Go to strategist report</button></div>
+          </div>
+          <div data-when="open modelfail">
+            <div class="p-panel"><div class="p-panel-k">what changed in the inputs, computed, not generated</div>
+              <table class="p-table">
+                <thead><tr><th></th><th>report 1</th><th>report 2</th><th>delta</th></tr></thead>
+                <tbody>
+                  <tr><td>posts</td><td>30</td><td>44</td><td class="p-ok">+14</td></tr>
+                  <tr><td>followers</td><td>5</td><td>38</td><td class="p-ok">+33</td></tr>
+                  <tr><td>median reach</td><td>9</td><td>21</td><td class="p-ok">+12</td></tr>
+                  <tr><td>organic comments</td><td>0</td><td>3</td><td class="p-ok">+3</td></tr>
+                  <tr><td>channels tracked</td><td>1</td><td>4</td><td class="p-ok">+3</td></tr>
+                </tbody>
+              </table>
+              <p class="p-dim p-mono">this half is deterministic and never depends on the generated half.</p>
+            </div>
+            <div class="p-panel" data-when="open"><div class="p-panel-k">what changed in the conclusions</div>
+              <p><span class="p-warn">changed</span> formats. Report 1 said reels reach further, n 2. Report 2 says the gap closed once carousels passed n 12.</p>
+              <p><span class="p-ok">added</span> posting time. Report 2 names an evening window, n 9.</p>
+              <p><span class="p-err">removed</span> caption length. Report 1's claim is gone, no replacement claim.</p>
+            </div>
+            <div class="p-panel" data-when="modelfail"><div class="p-panel-k">what changed in the conclusions</div>
+              <p class="p-err">The model call failed. The input diff above still renders, and it is the half with the facts in it.</p>
+              <button class="p-btn ghost" data-toast="Retrying conclusion diff">Retry</button>
+            </div>
+            <div class="p-panel" data-when="open"><div class="p-panel-k">hypotheses from report 1</div>
+              <table class="p-table">
+                <tbody>
+                  <tr><td>Reels reach further than carousels</td><td class="p-err">contradicted</td><td class="p-dim">new n 12 on carousels</td><td><button class="p-btn ghost" data-toast="Marked resolved on report 2">Mark resolved</button></td></tr>
+                  <tr><td>Question hooks get saved more</td><td class="p-ok">supported</td><td class="p-dim">n 7</td><td><button class="p-btn ghost" data-toast="Marked resolved on report 2">Mark resolved</button></td></tr>
+                  <tr><td>Longer captions reduce reach</td><td class="p-dim">still untested</td><td class="p-dim">n 2</td><td></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="p-panel" data-when="open"><div class="p-panel-k">reworded but unchanged, 6 claims</div><p class="p-dim">Collapsed on purpose. Without this bucket every diff looks busy and the real changes hide.</p></div>
+            <div class="p-rowline"><button class="p-btn ghost" data-toast="Exported diff markdown">Export markdown</button><button class="p-btn ghost" data-toast="Opens report 1">Open report 1</button><button class="p-btn ghost" data-toast="Opens report 2">Open report 2</button></div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> Input diff is plain TypeScript over the two stored JSON input blobs, no model involved. Each report stores a schema version, and a cross version diff falls back to the input half only. <b>Open:</b> at this account size, a rule that calls a claim contradicted on any new evidence will fire constantly. Does contradiction need a minimum new sample before it counts.</p>
+  </div>
+</section>
+
+<section class="flow" id="G5">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">G5</span>
+    <span class="flow-name">Content success formula, gated on a 10x post</span>
+    <span class="flow-tag tag-new">deferred</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Gated on an event that has not happened: one post clearing 10x the account median reach. At a median of 9 that is about 90 accounts. The locked state states the gate as a live number, which is useful on its own because it names the current best and the distance to the bar. Unlock it to see the formula, and note how hard the n equals 1 warning is stated.</p>
+    <div class="p-states">
+      <button data-state="locked">Locked, best is 1.6x</button>
+      <button data-state="open">Unlocked, one post at 11.2x</button>
+      <button data-state="nomedian">No median</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <header class="p-top"><h4>Content success formula</h4><span class="p-sub">my channel</span></header>
+        <main class="p-main">
+          <div data-when="locked">
+            <div class="p-banner warn">No post has cleared 10x your median reach yet. Your median is 9 across 8 posts. Best post so far: 1.6x, the Reel from 26 Jul at reach 14. The bar is about 90 accounts reached.</div>
+            <p class="p-dim">A formula derived from posts that all performed about the same is a description of the average, not of success. There has to be an outlier before there is anything to explain. No preview outline is shown here, unlike G3, because there is nothing to outline until there is a post to explain.</p>
+            <div class="p-empty"><div class="big">^</div><p>Waiting for one post to clear the bar.</p></div>
+          </div>
+          <div data-when="nomedian">
+            <div class="p-banner err">No median reach. computeOwnMedianReach returns null below 5 posts with usable reach, and below that there is no threshold to clear. No ratio is computed against nothing.</div>
+          </div>
+          <div data-when="open">
+            <div class="p-banner err">One post above the bar is n equals 1. Everything below is a hypothesis about a single post. This banner stays until at least 3 posts have cleared the bar.</div>
+            <div class="p-split wide-l">
+              <div class="p-panel"><div class="p-panel-k">the qualifying post</div>
+                <div class="p-rowline"><span class="p-mono">14 Aug, Reel</span><span class="p-mono">reach 101</span><b>11.2x</b></div>
+                <p class="p-dim p-mono">median 9, n 8 at the time of crossing.</p>
+                <button class="p-btn danger" data-toast="Excluded, reason stored, still counts toward the median">This was not organic, exclude it</button>
+              </div>
+              <div class="p-panel"><div class="p-panel-k">what this post did that the other 7 did not</div>
+                <p class="p-mono">format Reel, hook contrarian claim, 5 segments, caption 41 words, posted 21:00, remix of a tracked outlier: yes.</p>
+              </div>
+            </div>
+            <div class="p-panel"><div class="p-panel-k">the formula, ordered by evidence, not by confidence</div>
+              <table class="p-table">
+                <thead><tr><th>do this next</th><th>evidence</th><th>n</th></tr></thead>
+                <tbody>
+                  <tr><td>Open on a contrarian claim, not a promise</td><td class="p-ok">your winner plus 6 tracked competitor outliers</td><td>1 own, 6 theirs</td></tr>
+                  <tr><td>Five segments or more</td><td class="p-ok">your winner plus 4 competitor outliers</td><td>1 own, 4 theirs</td></tr>
+                  <tr><td>Post around 21:00</td><td class="p-warn">single post evidence only, no competitor support</td><td>1</td></tr>
+                  <tr><td>Caption around 40 words</td><td class="p-warn">single post evidence only, no competitor support</td><td>1</td></tr>
+                </tbody>
+              </table>
+              <p class="p-dim p-mono">items with competitor support sort above items supported only by the one own post.</p>
+            </div>
+            <div class="p-rowline"><button class="p-btn ghost" data-toast="Edited formula stored as edited">Edit by hand</button><button class="p-btn ghost" data-toast="Exported markdown">Export</button><button class="p-btn primary" data-toast="Remix session seeded with the checklist">Apply this formula</button></div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> Competitor factor support is counted over video_analyses joined to videos above the outlier threshold, which is data Crowsnest already holds. That count is what lifts the evidence above n equals 1. <b>Open, and the most consequential in group G:</b> is 10x the right bar at a median of 9, when a single share could produce 90 accounts. An absolute reach bar may be the more meaningful gate at this size, and this decision is what decides when the feature turns on at all.</p>
+  </div>
+</section>
+
+<section class="flow" id="H1">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">H1</span>
+    <span class="flow-name">Settings, two Instagram identities kept apart</span>
+    <span class="flow-tag tag-partial">partly built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Five sections exist today. Three are proposed: the own channel Graph section, the MCP server section, and the Claude Code pane section. The design problem is that the page now holds <b>two Instagram identities</b>, so each one says which it is. Switch state to see the Graph token healthy, expiring, dead, and a first run with nothing configured.</p>
+    <div class="p-states">
+      <button data-state="default">Configured</button>
+      <button data-state="expiring">Token expiring</button>
+      <button data-state="dead">Token dead</button>
+      <button data-state="first">First run</button>
+    </div>
+    <div class="p-app">
+      <aside class="p-side">
+        <div class="p-brand"><i></i>Crowsnest</div>
+        <a class="p-nav">Dashboard</a>
+        <a class="p-nav">Feed</a>
+        <a class="p-nav">My channel</a>
+        <a class="p-nav on">Settings</a>
+        <div class="p-sidefoot">process started 3h ago. env edits need a restart.</div>
+      </aside>
+      <div class="p-body">
+        <header class="p-top"><h4>Settings</h4><span class="p-sub">every value read live on load</span></header>
+        <main class="p-main">
+          <div class="p-list">
+            <div class="p-row"><div><b>Niche profile</b><div class="p-dim p-mono">built. grounds every generation stage.</div></div><button class="p-btn ghost" data-toast="Saved niche profile">Save</button></div>
+            <div class="p-row"><div><b>Instagram, competitor reads</b><div class="p-dim p-mono">burner account through the instagrapi sidecar. private API, against Meta terms, the account can be banned.</div><div class="p-ok p-mono" data-when="default expiring dead">connected</div><div class="p-warn p-mono" data-when="first">sidecar not reachable at IG_SERVICE_URL. start it, then re-check.</div></div><button class="p-btn ghost" data-toast="Re-checked sidecar">Re-check</button></div>
+            <div class="p-row"><div><b>Instagram, my own channel, Graph API</b>
+              <div class="p-dim p-mono">separate token, separate transport, separate tables. this token never touches the sidecar.</div>
+              <div class="p-ok p-mono" data-when="default">@kaiships.ai resolved from the token. valid, 41 days left.</div>
+              <div class="p-warn p-mono" data-when="expiring">@kaiships.ai. expires in 9 days. this is a copy that lives only in Crowsnest .env.local and goes stale on its own 60 day clock. refreshing the Kai-Official-OS copy does not refresh this one.</div>
+              <div class="p-err p-mono" data-when="dead">Error validating access token: Session has expired. fix: run ig_publish.py refresh in Kai-Official-OS, copy the new long lived token, paste it here as INSTAGRAM_GRAPH_TOKEN, restart the dev server.</div>
+              <div class="p-dim p-mono" data-when="first">INSTAGRAM_GRAPH_TOKEN not set. paste a long lived token into .env.local and restart. no account is shown until a real call returns one.</div>
+              <div class="p-dim p-mono">requested today: reach, saved, shares, total_interactions, comments, likes, plus views on reels. not wired: profile visits, follows from post, reel watch time.</div>
+            </div><button class="p-btn" data-toast="Account fields call returned 200">Test token</button></div>
+            <div class="p-row"><div><b>API keys</b><div class="p-dim p-mono">Anthropic, real test. Groq, presence only.</div><div class="p-warn p-mono">proposed row: local model proxy. shows ANTHROPIC_BASE_URL, whether compat mode is active, and the model id. right now nobody can tell from this page whether text generation costs money.</div></div><button class="p-btn ghost" data-toast="Anthropic key ok">Test</button></div>
+            <div class="p-row"><div><b>Local binaries</b><div class="p-ok p-mono" data-when="default expiring dead">yt-dlp ok, whisper-cli ok</div><div class="p-warn p-mono">claude: proposed row, needed by H3 and the heavy task path</div><div class="p-err p-mono" data-when="first">yt-dlp not found on PATH</div></div><button class="p-btn ghost" data-toast="Re-detected binaries">Re-check</button></div>
+            <div class="p-row"><div><b>Sync</b><div class="p-dim p-mono">MEDIA_RETENTION_DAYS is set and nothing reads it, no reaper exists. SYNC_INTERVAL_MINUTES is set and nothing reads it, no scheduler exists. every run starts from a click.</div></div><button class="p-btn ghost" data-toast="Sync started">Sync now</button></div>
+            <div class="p-row"><div><b>MCP server</b> <span class="p-mono p-dim">new, ships with H4</span><div class="p-dim p-mono">stdio, 14 tools, per tool toggles, last call per tool.</div></div><button class="p-btn ghost" data-toast="Copied registration block">Copy config</button></div>
+            <div class="p-row"><div><b>Claude Code pane</b> <span class="p-mono p-dim">new, ships with H3</span><div class="p-dim p-mono">enable, resolved claude path, permission mode, working directory.</div></div><button class="p-btn ghost" data-toggle>Enabled</button></div>
+          </div>
+          <p class="p-dim p-mono">no section is hidden for being unconfigured. a hidden section is a feature nobody learns exists.</p>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>Open.</b> Should the two Instagram sections be separated more strongly than by heading, given that mixing them is the exact failure this design guards against. A colour coded border, or an explicit competitor and own label on each. Also open: a per section "what reads this" line, extending the honesty already applied to the two inert sync settings.</p>
+  </div>
+</section>
+
+<section class="flow" id="H2">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">H2</span>
+    <span class="flow-name">Command palette</span>
+    <span class="flow-tag tag-partial">partly built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Today it has exactly one group, Navigate, built from NAV_ITEMS. Five items. Everything else here is proposed. Click through: open the palette, type, and try <b>Ask Claude</b>, which hands the typed text to the H3 pane so the palette never has to answer a question it cannot answer.</p>
+    <div class="p-states">
+      <button data-state="default">Populated</button>
+      <button data-state="empty">Empty database</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <main class="p-main">
+          <div class="p-screen" data-screen="shut">
+            <div class="p-rowline"><span class="p-dim">viewing a competitor post detail page</span><button class="p-btn" data-goto="open">Cmd K</button></div>
+            <div class="p-card"><p class="p-dim">The palette is mounted once in the shell layout and the listener is global.</p></div>
+          </div>
+          <div class="p-screen" data-screen="open">
+            <div class="p-card">
+              <input class="p-input" value="" placeholder="Type a command or search">
+              <p class="p-panel-k">actions</p>
+              <div class="p-list">
+                <div class="p-row"><span>Analyze this post</span><span class="p-dim p-mono">only shown because a post is open</span></div>
+                <div class="p-row"><span>Sync now</span><button class="p-btn ghost" data-goto="shut" data-toast="Sync started, watch the rail">Run</button></div>
+                <div class="p-row"><span>Measure my channel</span><button class="p-btn ghost" data-goto="shut" data-toast="Measuring">Run</button></div>
+              </div>
+              <p class="p-panel-k">navigate, built today</p>
+              <div class="p-chips"><span class="p-chip">Dashboard</span><span class="p-chip">Feed</span><span class="p-chip">Channels</span><span class="p-chip">Vault</span><span class="p-chip">Settings</span><span class="p-chip on">My channel, new</span></div>
+              <div class="p-rowline"><button class="p-btn" data-goto="typed">Type "kalla"</button><button class="p-btn ghost" data-goto="shut">Escape</button></div>
+            </div>
+          </div>
+          <div class="p-screen" data-screen="typed">
+            <div class="p-card">
+              <input class="p-input" value="kalla">
+              <div data-when="default">
+                <p class="p-panel-k">go to channel</p>
+                <div class="p-list"><div class="p-row"><div class="p-av"></div><div><b>@kallaway</b><div class="p-dim p-mono">442,447 followers, 8 posts synced</div></div><button class="p-btn ghost" data-goto="shut" data-toast="Opened @kallaway">Open</button></div></div>
+                <p class="p-panel-k">go to post</p>
+                <div class="p-list"><div class="p-row"><span class="p-mono">2,272,877 views</span><span class="p-score">10.1x</span><button class="p-btn ghost" data-goto="shut" data-toast="Opened post">Open</button></div></div>
+                <p class="p-panel-k">vault</p>
+                <div class="p-list"><div class="p-row"><span class="p-err p-mono">vault search failed. the other groups still work, the palette is never blocked by one failed query.</span></div></div>
+              </div>
+              <div data-when="empty">
+                <p class="p-dim p-mono">no entity groups render at all. an empty "go to channel" heading with nothing under it is worse than no heading. Navigate and Actions stay.</p>
+              </div>
+              <p class="p-panel-k">ask claude</p>
+              <div class="p-list"><div class="p-row"><span>Ask Claude: "kalla"</span><button class="p-btn primary" data-goto="shut" data-toast="Pane opened with this as the first message">Open pane</button></div></div>
+              <button class="p-btn ghost" data-goto="open">Back</button>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>New.</b> An action registry, one array mapping id, label, icon, an availability predicate against the current route, and a handler. Defining actions in one array rather than inline is what lets the same registry drive the H3 pane and later the H4 tool surface. Unavailable actions do not appear at all, rather than appearing disabled. <b>Open:</b> should the palette run expensive actions directly, or only navigate to the screen with the form primed.</p>
+  </div>
+</section>
+
+<section class="flow" id="H3">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">H3</span>
+    <span class="flow-name">Claude Code pane docked in the app</span>
+    <span class="flow-tag tag-new">not built, Kai's idea</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Nothing exists: no subprocess, no terminal component, no streaming transport. This is a design from scratch, and the highest risk item in the set. The point is not chat, it is <b>context chips</b>: the pane already knows which post is on screen, so Kai does not alt tab to a terminal and re-explain. Switch state to see an idle pane, a live turn with a collapsed tool call, a permission prompt, and a missing binary.</p>
+    <div class="p-states">
+      <button data-state="idle">Idle, no session</button>
+      <button data-state="turn">In a turn</button>
+      <button data-state="ask">Permission asked</button>
+      <button data-state="missing">claude not installed</button>
+    </div>
+    <div class="p-app">
+      <aside class="p-side">
+        <div class="p-brand"><i></i>Crowsnest</div>
+        <a class="p-nav">Feed <b>28</b></a>
+        <a class="p-nav on">Post detail</a>
+        <a class="p-nav">My channel</a>
+        <div class="p-sidefoot">Cmd J toggles the pane<br>Cmd K opens the palette</div>
+      </aside>
+      <div class="p-body">
+        <header class="p-top"><h4>Claude Code</h4><span class="p-sub">session 1, 4 turns this session</span><button class="p-btn ghost" data-toast="New session started">New session</button></header>
+        <main class="p-main">
+          <div class="p-chips">
+            <button class="p-chip on" data-toggle>route /feed/v_18</button>
+            <button class="p-chip on" data-toggle>post @kallaway 10.1x</button>
+            <button class="p-chip" data-toggle>my channel, 8 posts</button>
+            <span class="p-mono p-dim">chips are entity ids passed to the subprocess, not free text hints. remove one to narrow what it sees.</span>
+          </div>
+          <div data-when="missing">
+            <div class="p-empty"><div class="big">x</div><p>claude is not on PATH.<br>Same treatment as a missing yt-dlp: named binary, and a link to the local binaries section.</p><button class="p-btn ghost" data-toast="Opens Settings, local binaries">Open Settings</button></div>
+          </div>
+          <div data-when="idle">
+            <div class="p-panel"><div class="p-panel-k">no session yet</div>
+              <p class="p-dim">The pane runs claude headless in the Crowsnest project root with the MCP server registered, so its tools are Crowsnest's own tools. Read live from the server, it currently has:</p>
+              <div class="p-chips"><span class="p-chip">list_outliers</span><span class="p-chip">get_post</span><span class="p-chip">get_transcript</span><span class="p-chip">sync_status</span><span class="p-chip">own_channel_stats</span><span class="p-chip">compare_post</span></div>
+              <div class="p-list">
+                <div class="p-row"><span>Summarize this week's outliers across tracked channels</span><button class="p-btn ghost" data-toast="Sent">Send</button></div>
+                <div class="p-row"><span>Compare my last reel with the top @kallaway outlier</span><button class="p-btn ghost" data-toast="Sent">Send</button></div>
+              </div>
+            </div>
+          </div>
+          <div data-when="turn ask">
+            <div class="p-panel"><div class="p-panel-k">transcript</div>
+              <p class="p-mono p-dim">you</p><p>Compare this post with my last reel.</p>
+              <p class="p-mono p-dim">claude</p><p>Reading both sides first.</p>
+              <div class="p-row"><span class="p-mono">tool crowsnest_get_post</span><span class="p-dim p-mono">videoId v_18</span><button class="p-btn ghost" data-toast="Expanded to full input and output JSON">Expand</button></div>
+              <div class="p-row"><span class="p-mono">tool crowsnest_own_channel_stats</span><span class="p-dim p-mono">sinceDays 30</span><button class="p-btn ghost" data-toast="Expanded to full input and output JSON">Expand</button></div>
+              <p data-when="turn">Your reel is 1.6x your median of 9, from 8 posts. Theirs is 10.1x their median of 224,403, from 8 posts. Different units, so I am comparing structure, not size.</p>
+            </div>
+            <div class="p-card" data-when="ask">
+              <div class="p-panel-k">permission needed</div>
+              <p>crowsnest_analyze_post wants to run on v_18. This is a write tool and it can spend a model call.</p>
+              <div class="p-rowline"><button class="p-btn danger" data-toast="Denied. deny is the default focus.">Deny</button><button class="p-btn ghost" data-toast="Allowed once">Allow once</button><button class="p-btn" data-toast="Allowed for this session">Allow for this session</button></div>
+            </div>
+            <div class="p-rowline"><span class="p-mono p-warn" data-when="turn">running a tool, 6s</span><span class="p-mono p-dim" data-when="ask">waiting on you</span><button class="p-btn danger" data-toast="Turn stopped, partial output kept">Stop</button></div>
+          </div>
+          <div class="p-field"><input class="p-input" placeholder="Enter to send, Shift Enter for a newline"></div>
+          <div class="p-rowline"><button class="p-btn ghost" data-toast="Current page added as a chip">Attach this page</button><button class="p-btn ghost" data-toast="Hook written to the vault">Insert result into vault</button><button class="p-btn primary" data-toast="Sent">Send</button></div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>Open, needs a decision before any layout work.</b> Kai asked for the sidebar, but the left rail is a fixed 240px grid track and cannot hold a conversation without the grid becoming dynamic. The recommendation is a right hand dock, resizable and collapsed by default, with the toggle staying in the left rail. Also open: headless with streamed JSON, or an embedded terminal emulator with real slash commands. And the honest one: if the context chips turn out not to matter, this feature is a worse terminal. H4 is a hard dependency, not a nice to have, because without it the pane can read the filesystem and little else.</p>
+  </div>
+</section>
+
+<section class="flow" id="H4">
+  <button class="flow-head" data-acc>
+    <span class="flow-id">H4</span>
+    <span class="flow-name">MCP tool surface, 14 tools</span>
+    <span class="flow-tag tag-new">not built</span>
+  </button>
+  <div class="flow-body">
+    <p class="flow-guide">Click any tool to see its arguments, an example call and an example return. Chips marked <b>on</b> are the ones I think earn a place in v1, which is still Kai's decision. Rules the surface follows: tools wrap functions that already exist, reads and writes are separated so the H3 pane can auto approve one group, and <b>no tool crosses the identity boundary</b>.</p>
+    <div class="p-states">
+      <button data-state="default">Tool list</button>
+      <button data-state="off">Server disabled</button>
+    </div>
+    <div class="p-app p-app--bare">
+      <div class="p-body">
+        <header class="p-top"><h4>MCP tools</h4><span class="p-sub">stdio, separate process, same SQLite file</span><button class="p-btn ghost" data-toast="Copied registration block for Claude Code">Copy config</button></header>
+        <main class="p-main">
+          <div class="p-banner err" data-when="off">Server disabled. A disabled tool is not advertised in the tool list at all, rather than advertised and erroring on call.</div>
+          <div data-when="default">
+          <p class="p-panel-k">tier 1, my v1 picks are highlighted</p>
+          <div class="p-chips">
+            <button class="p-chip on" data-goto="t1">sync_channel, write</button>
+            <button class="p-chip on" data-goto="t2">sync_status, read</button>
+            <button class="p-chip on" data-goto="t3">list_outliers, read</button>
+            <button class="p-chip on" data-goto="t4">get_transcript, read</button>
+            <button class="p-chip on" data-goto="t5">analyze_post, write</button>
+            <button class="p-chip" data-goto="t6">generate_hooks, write</button>
+            <button class="p-chip" data-goto="t7">write_script, write</button>
+            <button class="p-chip on" data-goto="t8">get_post, read</button>
+          </div>
+          <p class="p-panel-k">tier 2, after tier 1 is in use</p>
+          <div class="p-chips">
+            <button class="p-chip on" data-goto="t9">list_channels, read</button>
+            <button class="p-chip" data-goto="t10">add_channel, write</button>
+            <button class="p-chip" data-goto="t11">import_reel, write</button>
+            <button class="p-chip" data-goto="t12">search_vault, read</button>
+            <button class="p-chip on" data-goto="t13">own_channel_stats, read</button>
+            <button class="p-chip on" data-goto="t14">compare_post, read</button>
+          </div>
+          <div class="p-screen" data-screen="pick"><p class="p-dim">Pick a tool above. Each one names the existing function it wraps, because a tool that needs new business logic is a sign the logic belongs in a service first.</p></div>
+          <div class="p-screen" data-screen="t1"><div class="p-code">crowsnest_sync_channel(handle | channelId, lookbackDays?) -> write
+{ jobId, status, itemsSeen, itemsCreated, itemsUpdated, itemsFailed, stopReason }
+call { handle: "kallaway" }   back { jobId: "sj_18", status: "running" }</div><p class="p-dim">Wraps runSync. Syncing is the one long action an agent wants before anything else. If one is running it returns "a sync is already running, job id X" and points at sync_status, rather than a unique index violation the model cannot read. <span class="p-ok">v1 yes.</span></p></div>
+          <div class="p-screen" data-screen="t2"><div class="p-code">crowsnest_sync_status(jobId?) -> read
+{ jobId, status, phase, channelsDone, channelsTotal, currentChannelHandle, retries, cancelRequested, gaps }
+call { }   back { status: "running", phase: "pages", channelsDone: 1, channelsTotal: 1 }</div><p class="p-dim">Reads the sync_jobs progress row, already written at every page and channel boundary. Without it the agent blocks or guesses. <span class="p-ok">v1 yes, sync_channel is unusable alone.</span></p></div>
+          <div class="p-screen" data-screen="t3"><div class="p-code">crowsnest_list_outliers(minScore, sinceDays, channelId, fleetId, sort, limit, offset) -> read
+{ total, items: [{ videoId, channelHandle, caption, postedAt, viewCount, outlierScore, mediaType, url, hasTranscript, hasAnalysis }] }
+call { minScore: 3, limit: 5 }   back { total: 1, items: [{ channelHandle: "kallaway", viewCount: 2272877, outlierScore: 10.1 }] }</div><p class="p-dim">Wraps getOutlierFeed, which already implements exactly these filters. The single most valuable tool on the list: it is the question the product exists to answer. <span class="p-ok">v1 yes.</span></p></div>
+          <div class="p-screen" data-screen="t4"><div class="p-code">crowsnest_get_transcript(videoId, createIfMissing = false) -> read, or write when true
+{ videoId, text, language, durationSec, source, createdAt } | { videoId, transcript: null, reason }</div><p class="p-dim">Reads the transcripts table. Without it the agent only sees captions. createIfMissing defaults to false because transcription is the heavy path and should be an explicit choice. <span class="p-ok">v1 yes, read only.</span></p></div>
+          <div class="p-screen" data-screen="t5"><div class="p-code">crowsnest_analyze_post(videoId, force?) -> write
+{ videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked, model, createdAt }</div><p class="p-dim">Wraps getOrCreateAnalysis, which caches into video_analyses and returns the cached row when one exists, so a repeated call is cheap. That get or create shape is the right shape for an agent. <span class="p-ok">v1 yes.</span> Open: does this route to the local proxy or the real API. It is a text task by the stated rule, but analysis quality is what the product's value rests on.</p></div>
+          <div class="p-screen" data-screen="t6"><div class="p-code">crowsnest_generate_hooks(videoId | sessionId, count?, vaultItemId?) -> write
+{ sessionId, hooks: string[] }</div><p class="p-dim">Wraps generateHooks, already grounded by the saved niche profile. <span class="p-warn">v1 no, in my read.</span> Generation is better in the UI where Kai can see the vault beside it, and the pane can drive the UI instead.</p></div>
+          <div class="p-screen" data-screen="t7"><div class="p-code">crowsnest_write_script(sessionId, chosenHook?, styleVaultItemId?, targetLengthSec?) -> write
+{ sessionId, outline, variants: string[], scriptId }</div><p class="p-dim">Wraps the outline, variant and save path in remix.ts so a script produced in chat lands in the scripts table rather than only in the conversation. <span class="p-warn">v1 no, same reason as hooks.</span></p></div>
+          <div class="p-screen" data-screen="t8"><div class="p-code">crowsnest_get_post(videoId) -> read
+{ videoId, channel, caption, postedAt, mediaType, metrics, outlierScore, children, transcript, analysis }</div><p class="p-dim">Wraps getVideoDetail. The other tools return ids, so something has to turn an id into the full picture or every follow up needs three calls. <span class="p-ok">v1 yes.</span></p></div>
+          <div class="p-screen" data-screen="t9"><div class="p-code">crowsnest_list_channels(fleetId?) -> read
+[{ channelId, handle, displayName, followerCount, mediaCount, lastSyncedAt, syncError }]
+back [{ handle: "kallaway", followerCount: 442447 }, { handle: "hormozi", lastSyncedAt: null }]</div><p class="p-dim">Wraps getChannelsList. The agent needs real handles to pass to the other tools, and guessing them fails. <span class="p-ok">v1 yes, cheap and it unblocks the rest.</span></p></div>
+          <div class="p-screen" data-screen="t10"><div class="p-code">crowsnest_add_channel(handle, fleetId?) -> write
+{ channelId, handle, created }</div><p class="p-dim">Wraps addChannel. Turns "track this creator" in chat into a real row. <span class="p-warn">v1 no.</span> Adding a channel is one click in the UI and a wrong handle costs a sync.</p></div>
+          <div class="p-screen" data-screen="t11"><div class="p-code">crowsnest_import_reel(url) -> write
+{ videoId, channelId, created }</div><p class="p-dim">Wraps importReelByUrl. A single URL pasted into chat is the most common way research arrives, which is a real argument for it. <span class="p-warn">v1 no, but it is the closest call on the tier 2 list.</span></p></div>
+          <div class="p-screen" data-screen="t12"><div class="p-code">crowsnest_search_vault(type?, query?) -> read
+[{ id, type, title, templateText, tags, sourceVideoId }]</div><p class="p-dim">Wraps getVaultItems. Without it the agent regenerates hooks that already exist in the vault. <span class="p-warn">v1 no while the vault is nearly empty, yes the moment it is not.</span></p></div>
+          <div class="p-screen" data-screen="t13"><div class="p-code">crowsnest_own_channel_stats(sinceDays?) -> read, own identity only
+{ measuredAt, account, posts: [{ postId, format, postedAt, reach, saves, shares, likes, comments, views, reachIndex }], medianReach, sampleSize }
+back { medianReach: 9, sampleSize: 8, account: { followers: 5, posts: 8 } }</div><p class="p-dim">Gated on G1 existing. Every field carries its sample size, because an agent summarizing this will otherwise report an 8 post average as a fact. <span class="p-ok">v1 yes, the moment G1 ships.</span></p></div>
+          <div class="p-screen" data-screen="t14"><div class="p-code">crowsnest_compare_post(ownPostId, videoIds[]) -> read, both identities, never writes
+{ mine: { unit: "reach", value: 14, median: 9, n: 8, index: 1.6 },
+  theirs: { unit: "views", value: 2272877, median: 224403, n: 8, index: 10.1 } }</div><p class="p-dim">Two explicitly separate halves, each with its own unit and its own denominator. This is the one analysis an agent cannot assemble from the other tools without re deriving both medians and probably mixing the units. <span class="p-ok">v1 yes, it is the differentiator.</span></p></div>
+          <div class="p-panel"><div class="p-panel-k">deliberately not exposed</div><p class="p-dim">No delete tool of any kind. Nothing touching Instagram credentials, sessions or login, because the two factor and challenge steps need a human in front of them. No publishing. No media bytes, assets are referenced by id. No settings writes: an agent that can change the niche profile silently changes every future generation.</p></div>
+          </div>
+        </main>
+      </div>
+    </div>
+    <p class="flow-note"><b>Open.</b> Separate stdio process or HTTP inside the running Next app. Separate is simpler to register and safe because the single flight sync lock is a partial unique index in the database rather than an in process mutex, which is what makes a second process safe at all. In process avoids a third process next to the dev server and the sidecar, but ties tool availability to the dev server being up, which is the thing Kai said he wanted to avoid. Also open: do write tools need an explicit confirmation argument, since the H3 permission prompt only exists inside the pane and a terminal session has its own permission model.</p>
+  </div>
+</section>

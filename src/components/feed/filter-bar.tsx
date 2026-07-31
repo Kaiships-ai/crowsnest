@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { LayoutGrid, Rows3 } from "lucide-react";
+import { Grid2x2, Grid3x3, LayoutGrid, Rows3, Search, Settings2, X } from "lucide-react";
 
+import { ManageSavedViewsDialog } from "@/components/feed/manage-saved-views-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -13,18 +15,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import type { SavedFilterRow } from "@/server/queries/feed";
+import { cn } from "@/lib/utils";
+import type { FeedBandCounts, SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
 
-const PLATFORM_OPTIONS = [
-  { value: "all", label: "All" },
-  { value: "instagram", label: "IG" },
-  { value: "tiktok", label: "TikTok" },
-  { value: "youtube_shorts", label: "YT Shorts" },
-];
+// Debounce on the search box only — every other control here is a discrete menu pick
+// that should navigate the instant it's chosen. Free text needs the opposite: firing a
+// router.replace per keystroke would thrash the URL and refetch the feed mid-word.
+const SEARCH_DEBOUNCE_MS = 350;
+
+// No platform control at all. V1 is Instagram only (V1-BRIEF.md, Kai's ruling
+// 2026-07-31), so TikTok and YT Shorts came out first, and the All/IG toggle that
+// survived that pass was just as empty: both options return the same rows, because
+// sync can only ever write platform: "instagram". A control whose two settings are
+// indistinguishable is the same defect as one that does nothing.
+// The `platform` URL param and the schema column both stay, so a second platform
+// later is additive rather than a migration.
 const SCORE_OPTIONS = [
   { value: "any", label: "Any score" },
   { value: "2", label: "2×+" },
@@ -71,10 +81,69 @@ const CRITERIA_TO_PARAM: Record<(typeof PRESET_CRITERIA_KEYS)[number], string> =
   sinceDays: "since",
 };
 
-export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilters: SavedFilterRow[] }) {
+// Every param a filter control can write — used to detect "any filter touched" for
+// the Clear-filters affordance and to wipe them all in one shot.
+const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band", "q"] as const;
+
+// Filters read as current state, not a form to fill in (brief): plain text with a
+// chevron, no input-style border, until opened or hovered. Matches the prototype's
+// filterBtn treatment (feed.html line 17: color var(--t3), hover bg var(--s1) color
+// var(--t1)) — dark: overrides neutralize the shadcn Select's own default input chrome.
+const FILTER_TRIGGER_CLASS =
+  "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
+
+export function FilterBar({
+  fleets,
+  savedFilters,
+  bandCounts,
+  applied,
+}: {
+  fleets: Fleet[];
+  savedFilters: SavedFilterRow[];
+  /** Real counts per follower band under every other active filter (v1-scope.md Feed
+   *  AC 6) — computed server-side by getFeedBandCounts, never re-derived client-side. */
+  bandCounts: FeedBandCounts;
+  /** What the page actually filtered by, which is not always what the URL says. A bare
+   *  /feed visit applies the "Balanced" preset server-side, so reading the URL alone
+   *  showed "Any score" while a minimum of 5 was hiding most of the library. The
+   *  controls read this instead, so the row always states the filter that ran. */
+  applied: { minScore: number | null; minViews: number | null; sinceDays: number | null };
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [manageViewsOpen, setManageViewsOpen] = useState(false);
+
+  const urlQuery = searchParams.get("q") ?? "";
+  // Local echo of the search box so typing feels instant; the URL (and therefore the
+  // feed refetch) only updates after SEARCH_DEBOUNCE_MS of no further keystrokes.
+  const [queryDraft, setQueryDraft] = useState(urlQuery);
+  // "Adjusting state when a prop changes" (react.dev) rather than an effect: when the
+  // URL's `q` moves for a reason outside this box — Clear filters, browser back/forward
+  // — the draft snaps to match, without fighting the debounce timer below. Tracking the
+  // last-seen URL value lets this run during render instead of after a commit.
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    setQueryDraft(urlQuery);
+  }
+
+  useEffect(() => {
+    if (queryDraft === urlQuery) return;
+    // A dedicated setter, not the generic `set` below: that one treats the literal
+    // string "any" as "clear this param" (its sentinel for every Select's placeholder
+    // option), which would wrongly wipe out a search for the word "any" itself.
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      const trimmed = queryDraft.trim();
+      if (trimmed) params.set("q", trimmed);
+      else params.delete("q");
+      params.delete("limit");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryDraft]);
 
   function set(key: string, value: string, resetLimit = true) {
     const params = new URLSearchParams(searchParams.toString());
@@ -102,126 +171,62 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   }
 
+  function clearFilters() {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const key of FILTER_PARAM_KEYS) params.delete(key);
+    params.delete("limit");
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   const fleet = searchParams.get("fleet") ?? "all";
-  const platform = searchParams.get("platform") ?? "all";
-  const minScore = searchParams.get("minScore") ?? "any";
-  const minViews = searchParams.get("minViews") ?? "any";
-  const since = searchParams.get("since") ?? "30";
+  const minScore = searchParams.get("minScore") ?? (applied.minScore !== null ? String(applied.minScore) : "any");
+  const minViews = searchParams.get("minViews") ?? (applied.minViews !== null ? String(applied.minViews) : "any");
+  const since = searchParams.get("since") ?? (applied.sinceDays !== null ? String(applied.sinceDays) : "30");
   const band = searchParams.get("band") ?? "any";
   const sort = searchParams.get("sort") ?? "score";
   const view = searchParams.get("view") ?? "grid";
+  // Comfortable is the implicit default (no param written for it), same convention as
+  // `view`'s "grid" — a bare /feed URL stays as short as possible, and only the
+  // non-default choice shows up in a saved view's query string.
+  const density = searchParams.get("density") === "compact" ? "compact" : "comfortable";
 
   const fleetItems = [{ value: "all", label: "All channels" }, ...fleets.map((f) => ({ value: f.id, label: f.name }))];
+  const hasActiveFilters = FILTER_PARAM_KEYS.some((key) => searchParams.has(key));
+
+  // What "save this as a view" would persist — the same three criteria keys
+  // applyPreset reads back, built from the row's own already-resolved state so a save
+  // always matches exactly what the filter row is currently showing (URL param, or the
+  // applied fallback on a bare visit). minScore/minViews are omitted rather than saved
+  // as "any", the same way a system preset omits a key it doesn't constrain.
+  const currentViewCriteria: Record<string, unknown> = { sinceDays: Number(since) };
+  if (minScore !== "any") currentViewCriteria.minScore = Number(minScore);
+  if (minViews !== "any") currentViewCriteria.minViews = Number(minViews);
 
   return (
-    <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
-      <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
-        <SelectTrigger size="sm" aria-label="Fleet">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {fleetItems.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+    <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+      {/* Free-text search (v1-scope.md P0: "a conspicuous hole in a research tool").
+          Underline field, not a boxed input — matches the filter row's read-as-state
+          treatment rather than looking like a form. Searches caption, handle, and
+          display name server-side (queries/feed.ts). */}
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-faint" aria-hidden />
+        <Input
+          type="search"
+          value={queryDraft}
+          onChange={(e) => setQueryDraft(e.target.value)}
+          placeholder="Search captions and channels"
+          aria-label="Search captions and channels"
+          className="h-8 rounded-none border-0 border-b border-border bg-transparent pl-5 focus-visible:border-b-ring focus-visible:ring-0"
+        />
+      </div>
 
-      <ToggleGroup
-        value={[platform]}
-        onValueChange={(vals) => set("platform", (vals[0] as string | undefined) ?? "all")}
-        aria-label="Platform"
-      >
-        {PLATFORM_OPTIONS.map((o) => (
-          <ToggleGroupItem key={o.value} value={o.value} size="sm">
-            {o.label}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-
-      <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
-        <SelectTrigger size="sm" aria-label="Minimum outlier score">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SCORE_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
-        <SelectTrigger size="sm" aria-label="Minimum views">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {VIEWS_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={SINCE_OPTIONS} value={since} onValueChange={(v) => set("since", v as string)}>
-        <SelectTrigger size="sm" aria-label="Timeframe">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {SINCE_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select items={BAND_OPTIONS} value={band} onValueChange={(v) => set("band", v as string)}>
-        <SelectTrigger size="sm" aria-label="Follower band">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {BAND_OPTIONS.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>Saved views</DropdownMenuTrigger>
-        <DropdownMenuContent>
-          {/* Base UI's Menu.GroupLabel (DropdownMenuLabel) throws "MenuGroupContext is
-              missing" unless it's inside a Menu.Group (DropdownMenuGroup) — this crashed
-              the whole Feed page the instant "Saved views" was opened (QA sweep finding,
-              phase 4 Task 4). Radix's equivalent doesn't enforce this, which is exactly
-              the "Base UI not Radix" trap the project's own backlog flagged. */}
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Saved views</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {savedFilters.length === 0 && (
-              <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
-            )}
-            {savedFilters.map((f) => (
-              <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
-                {f.name}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <div className="ml-auto flex items-center gap-2">
-        <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
-          <SelectTrigger size="sm" aria-label="Sort">
+      <div className="flex flex-wrap items-center gap-1">
+        <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
+          <SelectTrigger size="sm" aria-label="Fleet" className={FILTER_TRIGGER_CLASS}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {SORT_OPTIONS.map((o) => (
+            {fleetItems.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
@@ -229,19 +234,175 @@ export function FilterBar({ fleets, savedFilters }: { fleets: Fleet[]; savedFilt
           </SelectContent>
         </Select>
 
+        <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum outlier score" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SCORE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum views" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIEWS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={SINCE_OPTIONS} value={since} onValueChange={(v) => set("since", v as string)}>
+          <SelectTrigger size="sm" aria-label="Timeframe" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SINCE_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={<Button variant="ghost" size="sm" className={cn(FILTER_TRIGGER_CLASS, "rounded-full")} />}
+          >
+            Saved views
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            {/* Base UI's Menu.GroupLabel (DropdownMenuLabel) throws "MenuGroupContext is
+                missing" unless it's inside a Menu.Group (DropdownMenuGroup) — this crashed
+                the whole Feed page the instant "Saved views" was opened (QA sweep finding,
+                phase 4 Task 4). Radix's equivalent doesn't enforce this, which is exactly
+                the "Base UI not Radix" trap the project's own backlog flagged. */}
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Saved views</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {savedFilters.length === 0 && (
+                <div className="px-1.5 py-1 text-sm text-muted-foreground">No saved views yet</div>
+              )}
+              {savedFilters.map((f) => (
+                <DropdownMenuItem key={f.id} onClick={() => applyPreset(f)}>
+                  {f.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              {/* Saving the current filters as a new view is the main path here (brief)
+                  — it's the first thing this opens onto, not a buried settings screen.
+                  Rename/delete for existing (non-system) views live in the same dialog
+                  rather than cluttering this menu with per-row icon buttons. */}
+              <DropdownMenuItem onClick={() => setManageViewsOpen(true)}>
+                <Settings2 /> Save / manage views…
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="rounded-full text-muted-foreground hover:text-foreground"
+          >
+            <X /> Clear filters
+          </Button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2">
+          <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
+            <SelectTrigger size="sm" aria-label="Sort" className={FILTER_TRIGGER_CLASS}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <ToggleGroup
+            value={[view]}
+            onValueChange={(vals) => set("view", (vals[0] as string | undefined) ?? "grid", false)}
+            aria-label="Layout"
+          >
+            <ToggleGroupItem value="grid" size="sm" aria-label="Grid view">
+              <LayoutGrid className="size-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list" size="sm" aria-label="List view">
+              <Rows3 className="size-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+
+          {/* Same kind of control as the grid/list toggle above, so it sits right next
+              to it (prototype feed.html line 6: comfortable/compact chips beside the
+              grid/list chips). Persists as `?density=compact` in the URL, same
+              mechanism as `view`, so a reload or a saved view keeps it. Grid-only in
+              effect right now — FeedGrid packs more, smaller columns and switches
+              OutlierCard to its existing `variant="compact"` — list view is already a
+              dense table and doesn't have a second, denser row style. */}
+          <ToggleGroup
+            value={[density]}
+            onValueChange={(vals) => set("density", (vals[0] as string | undefined) ?? "comfortable", false)}
+            aria-label="Card density"
+          >
+            <ToggleGroupItem value="comfortable" size="sm" aria-label="Comfortable density">
+              <Grid2x2 className="size-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="compact" size="sm" aria-label="Compact density">
+              <Grid3x3 className="size-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
+        </div>
+      </div>
+
+      {/* Follower band stays a first-class visible control, never tucked in a menu
+          (brief) — a persistent segmented row, not a Select. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-2xs text-faint" data-lab="1">
+          Followers
+        </span>
         <ToggleGroup
-          value={[view]}
-          onValueChange={(vals) => set("view", (vals[0] as string | undefined) ?? "grid", false)}
-          aria-label="Layout"
+          value={[band]}
+          onValueChange={(vals) => set("band", (vals[0] as string | undefined) ?? "any")}
+          aria-label="Follower band"
         >
-          <ToggleGroupItem value="grid" size="sm" aria-label="Grid view">
-            <LayoutGrid className="size-4" />
-          </ToggleGroupItem>
-          <ToggleGroupItem value="list" size="sm" aria-label="List view">
-            <Rows3 className="size-4" />
-          </ToggleGroupItem>
+          {BAND_OPTIONS.map((o) => (
+            <ToggleGroupItem key={o.value} value={o.value} size="sm">
+              <span>{o.label}</span>
+              {/* "Any followers" is the clear-the-filter control, not a fifth band, so it
+                  carries no count of its own — real counts (v1-scope.md Feed AC 6) sit on
+                  the four bands whose sum they describe. A null-follower channel counts
+                  under none of them (getFeedBandCounts), which is why that sum can land
+                  under the feed's own total and is still correct. */}
+              {o.value !== "any" && (
+                <span className="ml-1.5 font-mono text-2xs tabular-nums text-faint" data-num="1">
+                  {bandCounts[o.value as keyof FeedBandCounts]}
+                </span>
+              )}
+            </ToggleGroupItem>
+          ))}
         </ToggleGroup>
       </div>
+
+      <ManageSavedViewsDialog
+        open={manageViewsOpen}
+        onOpenChange={setManageViewsOpen}
+        savedFilters={savedFilters}
+        currentCriteria={currentViewCriteria}
+      />
     </div>
   );
 }

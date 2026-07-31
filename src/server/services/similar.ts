@@ -1,6 +1,6 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
 import { db, tables } from "@/server/db";
-import { feedItemColumns, type FeedItem } from "@/server/queries/feed";
+import { feedItemColumns, toFeedItem, type FeedItem } from "@/server/queries/feed";
 
 /** The tag shape scoreSimilarity compares — derived from a video_analyses row. */
 export interface TagSet {
@@ -85,7 +85,8 @@ export async function getSimilarOutliers(videoId: string, limit = DEFAULT_LIMIT)
 
   return candidates
     .map((row) => {
-      const { hookType, structureSegments, formatTags, styleTags, ...item } = row;
+      const { hookType, structureSegments, formatTags, styleTags, ...rest } = row;
+      const item = toFeedItem(rest);
       const score = scoreSimilarity(sourceTagSet, rowToTagSet({ hookType, structureSegments, formatTags, styleTags }));
       return { item, score };
     })

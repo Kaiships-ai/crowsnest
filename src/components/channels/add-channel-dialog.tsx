@@ -70,7 +70,7 @@ export function AddChannelDialog() {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>+ Channel</DialogTrigger>
+      <DialogTrigger render={<Button size="sm" />}>Add channel</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a channel</DialogTitle>

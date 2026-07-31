@@ -1,21 +1,45 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
 import { getLlm, resolveModel, type LlmClient } from "@/server/llm/client";
-import { VideoAnalysisSchema, type VideoAnalysis } from "@/server/llm/schemas";
+import { VideoAnalysisSchema, type VideoAnalysis, type VideoLayout } from "@/server/llm/schemas";
 import { getOrCreateTranscript } from "@/server/transcribe";
 import { ANALYZE_SYSTEM, buildAnalyzeUser } from "./prompts/analyze-prompt";
 
 type TranscribeFn = (videoId: string) => Promise<{ text: string; source: string; cached: boolean }>;
 
+/**
+ * `VideoAnalysis` plus the Layout section's provenance columns (V1 data contracts,
+ * contract 5). Kept as a separate, wider type rather than folding layout into
+ * `VideoAnalysis` itself: `VideoAnalysisSchema` is validated 1:1 against what the text
+ * model returns, and the text model never produces layout — a frame pass does, on a
+ * separate row update, with its own model and its own timestamp. Every caller that only
+ * wants hook/structure/format/style/why (remix.ts's prompt building) still gets a valid
+ * `VideoAnalysis` for free, since this type is a strict superset.
+ */
+export interface StoredVideoAnalysis extends VideoAnalysis {
+  /** Null until a frame pass has run. Never partially fabricated from the transcript —
+   *  see the doc comment on `videoAnalyses.layout` in schema.ts. */
+  layout: VideoLayout | null;
+  framesSampled: number | null;
+  frameModel: string | null;
+  framePassAt: string | null;
+  framePassError: string | null;
+}
+
 // Exported for reuse by remix.ts (Task 5), which needs the same video_analyses row ->
 // VideoAnalysis mapping to describe the source video's hook/structure to Claude.
-export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): VideoAnalysis {
+export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): StoredVideoAnalysis {
   return {
     hookType: row.hookType ?? "",
     structureSegments: row.structureSegments ?? [],
     formatTags: row.formatTags ?? [],
     styleTags: row.styleTags ?? [],
     whyItWorked: row.whyItWorked ?? "",
+    layout: row.layout ?? null,
+    framesSampled: row.framesSampled ?? null,
+    frameModel: row.frameModel ?? null,
+    framePassAt: row.framePassAt ?? null,
+    framePassError: row.framePassError ?? null,
   };
 }
 
@@ -48,7 +72,15 @@ export async function getOrCreateAnalysis(
     .from(tables.videoAnalyses)
     .where(eq(tables.videoAnalyses.videoId, videoId))
     .limit(1);
-  if (existing) return rowToAnalysis(existing);
+  if (existing) {
+    // This function's own contract is plain `VideoAnalysis` (the text-model shape);
+    // the Layout columns are a separate concern read by `getVideoDetail` directly via
+    // `rowToAnalysis`, not by this cache-or-generate path. Stripped here rather than
+    // widening this return type, so a caller of `getOrCreateAnalysis` never has to
+    // know the Layout section exists.
+    const { hookType, structureSegments, formatTags, styleTags, whyItWorked } = rowToAnalysis(existing);
+    return { hookType, structureSegments, formatTags, styleTags, whyItWorked };
+  }
 
   const [transcriptRow] = await db
     .select({ text: tables.transcripts.text })

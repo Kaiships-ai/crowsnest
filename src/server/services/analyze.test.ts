@@ -64,7 +64,7 @@ async function seedVideo(opts: { withTranscript: boolean }) {
 }
 
 function fakeLlm(generateParsed: LlmClient["generateParsed"]): LlmClient {
-  return { generateText: vi.fn(), generateParsed };
+  return { generateText: vi.fn(), generateParsed, ping: vi.fn() };
 }
 
 describe("getOrCreateAnalysis", () => {
