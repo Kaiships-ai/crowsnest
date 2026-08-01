@@ -10,15 +10,34 @@ export const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
-function first(v: string | string[] | undefined): string | undefined {
+// Same four bands `FOLLOWER_BAND_BOUNDS` (server/queries/feed.ts) has keys for. Kept
+// here, not imported from there, so this module (used by the client-side filter-bar.tsx
+// too) never pulls in `@/server/db`.
+export const FOLLOWER_BANDS = ["nano", "micro", "mid", "macro"] as const;
+export type FollowerBand = (typeof FOLLOWER_BANDS)[number];
+
+export function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-function num(v: string | string[] | undefined): number | undefined {
+export function num(v: string | string[] | undefined): number | undefined {
   const s = first(v);
   if (!s) return undefined;
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * Whitelists the follower-band URL token against the four real bands, same shape as
+ * `numOrAny` below: `"any"` (the explicit "show everything" token filter-bar.tsx's band
+ * row writes) and any garbage value both resolve to `undefined`, "no condition" — never
+ * a bare `first()` + type-assertion, which let `band=any` reach
+ * `FOLLOWER_BAND_BOUNDS["any"]` (undefined) and throw when `buildWhere` destructured it
+ * (finding C1, docs/qa branch review). `/feed?band=nope` is now equally harmless.
+ */
+export function bandOrAny(v: string | string[] | undefined): FollowerBand | undefined {
+  const s = first(v);
+  return s !== undefined && (FOLLOWER_BANDS as readonly string[]).includes(s) ? (s as FollowerBand) : undefined;
 }
 
 /**
@@ -48,7 +67,11 @@ function criteriaNum(criteria: Record<string, unknown> | undefined, key: string)
  * alone must not silently revert the score/timeframe filter back to none (finding 1).
  */
 export function isFeedEmpty(sp: SearchParams): boolean {
-  return FILTER_PARAM_KEYS.every((k) => sp[k] === undefined);
+  // `""` counts as absent too (M6, branch review): a hand-typed `/feed?minScore=` has
+  // no real value to resolve, so treating the bare key as "the user set a filter" would
+  // read as intent while `numOrAny("")` above resolves the empty string to `undefined`
+  // anyway (`num("")` short-circuits on `!s`) — Balanced should still apply.
+  return FILTER_PARAM_KEYS.every((k) => sp[k] === undefined || sp[k] === "");
 }
 
 export interface ResolvedFeedCriteria {
@@ -77,4 +100,36 @@ export function resolveFeedCriteria(
     minViews: isEmpty ? criteriaNum(balancedCriteria, "minViews") : numOrAny(sp.minViews),
     sinceDays: isEmpty ? criteriaNum(balancedCriteria, "sinceDays") : numOrAny(sp.since),
   };
+}
+
+/**
+ * What a chip's Select should show: the URL's own token if the URL has one, else what
+ * the page actually filtered by (`applied`, from `resolveFeedCriteria`) — a bare `/feed`
+ * visit applies "Balanced" server-side, so reading the URL alone would show "Any score"
+ * while a minimum of 5 was hiding most of the library. `null` (the applied value's "no
+ * condition" spelling) reads as `"any"`, same token the Select options use.
+ *
+ * Extracted from `filter-bar.tsx` (finding 3 / I3, branch review) so the fallback logic
+ * is unit-testable without mounting the component.
+ */
+export function resolveChipValue(urlValue: string | null, appliedValue: number | null): string {
+  if (urlValue !== null) return urlValue;
+  return appliedValue !== null ? String(appliedValue) : "any";
+}
+
+/**
+ * What "save this as a view" would persist for the three criteria-bearing chips, given
+ * their already-resolved (`resolveChipValue`) display values. `"any"` is omitted rather
+ * than saved as a value, the same way a system preset omits a key it doesn't constrain —
+ * `Number("any")` is `NaN` and must never land in a saved view's criteria blob.
+ *
+ * Extracted from `filter-bar.tsx` (finding 3 / I3, branch review) alongside
+ * `resolveChipValue` so both halves of the NaN-hazard fix are unit-tested together.
+ */
+export function currentViewCriteria(minScore: string, minViews: string, since: string): Record<string, unknown> {
+  const criteria: Record<string, unknown> = {};
+  if (minScore !== "any") criteria.minScore = Number(minScore);
+  if (minViews !== "any") criteria.minViews = Number(minViews);
+  if (since !== "any") criteria.sinceDays = Number(since);
+  return criteria;
 }

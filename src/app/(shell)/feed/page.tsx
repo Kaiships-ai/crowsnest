@@ -3,23 +3,13 @@ import Link from "next/link";
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { buttonVariants } from "@/components/ui/button";
-import { resolveFeedCriteria, type SearchParams } from "@/lib/feed-filters";
+import { bandOrAny, first, num, resolveFeedCriteria, type SearchParams } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { getFeedBandCounts, getOutlierFeed, getSavedFilters, type FeedFilters, type FeedSort } from "@/server/queries/feed";
 
 const DEFAULT_LIMIT = 24;
 const LOAD_MORE_STEP = 24;
-
-function first(v: string | string[] | undefined): string | undefined {
-  return Array.isArray(v) ? v[0] : v;
-}
-function num(v: string | string[] | undefined): number | undefined {
-  const s = first(v);
-  if (!s) return undefined;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : undefined;
-}
 
 // Topbar already renders this route's h1 ("Outlier Feed") — see nav-items/topbar's
 // ROUTE_TITLES — so page content here starts at h2 or plain text (M6).
@@ -41,7 +31,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
     minScore,
     minViews,
     sinceDays,
-    followerBand: first(sp.band) as FeedFilters["followerBand"],
+    followerBand: bandOrAny(sp.band),
     query: first(sp.q),
     sort: (first(sp.sort) as FeedSort | undefined) ?? "score",
     limit: num(sp.limit) ?? DEFAULT_LIMIT,

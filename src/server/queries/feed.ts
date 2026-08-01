@@ -162,9 +162,16 @@ async function buildWhere(f: WhereFilters): Promise<SQL | undefined> {
     conditions.push(gte(tables.videos.postedAt, cutoff));
   }
   if (f.followerBand) {
-    const [min, max] = FOLLOWER_BAND_BOUNDS[f.followerBand];
-    conditions.push(gte(tables.channels.followerCount, min));
-    if (max !== null) conditions.push(lt(tables.channels.followerCount, max));
+    // Defense in depth alongside `bandOrAny` (feed-filters.ts), which is the parse-side
+    // fix for C1: a bad `followerBand` (anything outside the four real bands) must never
+    // reach a destructure of `undefined` here and 500 the page, whichever caller supplied
+    // it.
+    const bounds = FOLLOWER_BAND_BOUNDS[f.followerBand];
+    if (bounds) {
+      const [min, max] = bounds;
+      conditions.push(gte(tables.channels.followerCount, min));
+      if (max !== null) conditions.push(lt(tables.channels.followerCount, max));
+    }
   }
   if (f.query && f.query.trim()) {
     const pattern = `%${f.query.trim()}%`;

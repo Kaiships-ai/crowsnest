@@ -1040,7 +1040,7 @@ Five nullable columns added to `video_analyses`. Additive. Not destructive.
 **There is no vision path in this codebase.** `src/server/llm/client.ts` has
 `generateText`, `generateParsed` and `ping`, and no image input anywhere. The
 configured model is a text model behind the local 9router proxy
-(`CLAUDE_MODEL=nvidia/minimaxai/minimax-m2.7`, `ANTHROPIC_BASE_URL=http://localhost:20128`).
+(`CLAUDE_MODEL=nvidia/minimaxai/minimax-m2.7`, `LLM_BASE_URL=http://localhost:20128`).
 The settled decision in `docs/design/ux-flows/04-ownchannel-system.md` is that
 text work goes to the local proxy and vision work goes to the Claude Code path,
 and the Claude Code path does not exist either.
