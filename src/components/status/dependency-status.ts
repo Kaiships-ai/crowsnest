@@ -21,7 +21,7 @@ import type { getIgStatusAction } from "@/server/actions/ig-actions";
  *    `testAnthropicKeyAction` (settings-actions.ts) — the Settings page's own "Test"
  *    button — for whether the configured backend actually answers. That second part
  *    matters because it is not implied by the first: verified against this machine
- *    today, `ANTHROPIC_BASE_URL` points at a local proxy that is up (the port accepts
+ *    today, `LLM_BASE_URL` points at a local proxy that is up (the port accepts
  *    connections) while every model behind it fails (expired routes, retired models).
  *    A surface that only checked "is a key set" or "does the port answer" would call
  *    that state healthy.
@@ -88,7 +88,7 @@ export interface LlmStatus {
    *  message (itself `llm/error-message.ts`'s mapping of the real SDK error), never
    *  paraphrased. Null for "up" and "not_configured". */
   detail: string | null;
-  /** `ANTHROPIC_BASE_URL`, read once and passed in — null means no override is set, so
+  /** `LLM_BASE_URL`, read once and passed in — null means no override is set, so
    *  requests go straight to the real Anthropic API rather than a local router. Carried
    *  through every state so "where it looked" is always answerable, not just on failure. */
   proxyUrl: string | null;

@@ -111,7 +111,7 @@ describe("hasLlmKey / getLlm", () => {
     expect(() => getLlm()).not.toThrow();
 
     resetLlmClient();
-    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    process.env.LLM_BASE_URL = "http://localhost:20128";
     expect(() => getLlm()).not.toThrow();
     expect(isCompatMode()).toBe(true);
   });
@@ -234,10 +234,10 @@ describe("CompatLlmClient (OpenAI-compat router mode)", () => {
     return { client, stream };
   }
 
-  test("isCompatMode reflects ANTHROPIC_BASE_URL presence", () => {
-    delete process.env.ANTHROPIC_BASE_URL;
+  test("isCompatMode reflects LLM_BASE_URL presence", () => {
+    delete process.env.LLM_BASE_URL;
     expect(isCompatMode()).toBe(false);
-    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    process.env.LLM_BASE_URL = "http://localhost:20128";
     expect(isCompatMode()).toBe(true);
   });
 
@@ -309,9 +309,9 @@ describe("CompatLlmClient (OpenAI-compat router mode)", () => {
     expect(stream).toHaveBeenCalledTimes(2);
   });
 
-  test("getLlm returns the compat client when ANTHROPIC_BASE_URL is set (no crash, no network)", () => {
+  test("getLlm returns the compat client when LLM_BASE_URL is set (no crash, no network)", () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-fake";
-    process.env.ANTHROPIC_BASE_URL = "http://localhost:20128";
+    process.env.LLM_BASE_URL = "http://localhost:20128";
     expect(() => getLlm()).not.toThrow();
   });
 });

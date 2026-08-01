@@ -1,4 +1,5 @@
 import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { OUTLIERS_30D_MIN_SCORE } from "@/lib/outlier-constants";
 import { db, tables } from "@/server/db";
 import {
   computeChannelBaseline,
@@ -56,7 +57,10 @@ export interface ChannelDetail {
 
 type ChannelSelect = typeof tables.channels.$inferSelect;
 
-const OUTLIERS_30D_MIN_SCORE = 2;
+// Moved to `@/lib/outlier-constants` (M4, branch review) so the Channels table header
+// (channel-table.tsx) can import the real constant instead of re-declaring the literal:
+// this file's `db` import makes it server-only, so a client component can't import from
+// here directly without dragging server code into the client bundle.
 const OUTLIERS_30D_WINDOW_DAYS = 30;
 
 /**

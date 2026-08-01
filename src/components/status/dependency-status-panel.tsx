@@ -68,8 +68,8 @@ function overallTone(sidecar: SidecarStatus, llm: LlmStatus): "warn" | "bad" {
 
 function proxyLocationLine(llm: LlmStatus): string {
   return llm.proxyUrl
-    ? `Looked at ${llm.proxyUrl}${llm.routedThroughProxy ? " (ANTHROPIC_BASE_URL)" : ""}.`
-    : "Looked at the real Anthropic API. No ANTHROPIC_BASE_URL is set.";
+    ? `Looked at ${llm.proxyUrl}${llm.routedThroughProxy ? " (LLM_BASE_URL)" : ""}.`
+    : "Looked at the real Anthropic API. No LLM_BASE_URL is set.";
 }
 
 function sidecarHeadline(sidecar: SidecarStatus): string {

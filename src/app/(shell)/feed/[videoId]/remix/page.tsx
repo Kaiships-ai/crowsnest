@@ -12,7 +12,7 @@ import { getNicheProfile, getOrCreateSession } from "@/server/services/remix";
 // external process exists in this repo, so this is the honest half of that this
 // app can name — where it looked. Never used to decide whether generation runs;
 // that decision stays server-side in llm/client.ts's own hasLlmKey()/getLlm().
-const LLM_PROXY_URL = process.env.ANTHROPIC_BASE_URL ?? null;
+const LLM_PROXY_URL = process.env.LLM_BASE_URL ?? null;
 
 // Capped the same way the "similar tracked outliers" list already is (services/
 // remix.ts's buildResearch calls getSimilarOutliers(id, 5)) — a reference rail, not

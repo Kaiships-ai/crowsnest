@@ -99,7 +99,7 @@ value instead of failing later on a click.
 | `MEDIA_ROOT` | no | Local asset storage (default `data/media`) |
 | `EAGER_VIDEO_DOWNLOAD` | no | `true` downloads videos during sync instead of on first play |
 | `MEDIA_RETENTION_DAYS` | no | Asset prune threshold (default 90) |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` / `CLAUDE_MODEL` | for AI | Analysis + remix |
+| `ANTHROPIC_API_KEY` / `LLM_BASE_URL` / `CLAUDE_MODEL` | for AI | Analysis + remix. `LLM_BASE_URL` is deliberately not `ANTHROPIC_BASE_URL`: Claude Code honors that name and would route a Max session through the proxy instead |
 | `WHISPER_CPP_BIN_PATH` / `WHISPER_MODEL_PATH` | no | Local transcription |
 | `CROWSNEST_DB_PATH` | no | SQLite path (default `data/crowsnest.db`) |
 

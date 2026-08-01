@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { currentViewCriteria as buildViewCriteria, FILTER_PARAM_KEYS, resolveChipValue } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import type { FeedBandCounts, SavedFilterRow } from "@/server/queries/feed";
 
@@ -50,6 +51,7 @@ const VIEWS_OPTIONS = [
   { value: "1000000", label: "1M+ views" },
 ];
 const SINCE_OPTIONS = [
+  { value: "any", label: "Any timeframe" },
   { value: "7", label: "Last 7d" },
   // The "High Conviction" saved preset (server/db/bootstrap.ts) sets sinceDays:14, which
   // had no matching option here — the Select rendered the bare unlabeled value "14"
@@ -81,9 +83,10 @@ const CRITERIA_TO_PARAM: Record<(typeof PRESET_CRITERIA_KEYS)[number], string> =
   sinceDays: "since",
 };
 
-// Every param a filter control can write — used to detect "any filter touched" for
-// the Clear-filters affordance and to wipe them all in one shot.
-const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band", "q"] as const;
+// Selects whose "any"/clear option must persist as an explicit `key=any` URL token
+// rather than deleting the key (fix 1b) — score, views, timeframe, and follower band.
+// Fleet's "all channels" placeholder is deliberately not in this set (see `set` below).
+const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band"]);
 
 // Filters read as current state, not a form to fill in (brief): plain text with a
 // chevron, no input-style border, until opened or hovered. Matches the prototype's
@@ -147,9 +150,26 @@ export function FilterBar({
 
   function set(key: string, value: string, resetLimit = true) {
     const params = new URLSearchParams(searchParams.toString());
-    if (value === "all" || value === "any") {
+    if (value === "all") {
+      // Fleet's placeholder ("All channels") has no explicit-vs-absent distinction to
+      // preserve — there's no saved "Balanced fleet" default it could stomp on — so it
+      // stays a plain delete.
       params.delete(key);
+    } else if (value === "any" && ANY_WRITES_PARAM.has(key)) {
+      // Score/views/timeframe/band need "any" to survive as a real URL token, not a
+      // deletion: from a bare /feed, deleting an already-absent param leaves the query
+      // string empty, which reads as a fresh bare visit and makes the "Balanced" preset
+      // reapply right back (finding 2, docs/qa/2026-08-01-feed-fix-plan.md). Writing
+      // `key=any` makes "explicitly no condition" distinguishable from "never touched".
+      params.set(key, value);
     } else {
+      // (M1, branch review) There used to be a third branch here deleting the param for
+      // a bare `value === "any"` outside ANY_WRITES_PARAM. It was unreachable — every
+      // caller that can pass "any" (the four selects above) uses a key in
+      // ANY_WRITES_PARAM, and fleet/sort/view/density never produce the string "any" —
+      // so it's folded into this branch. If a future select adds an "any" sentinel
+      // outside that set, decide explicitly whether it should delete or persist the
+      // param instead of relying on this fallthrough.
       params.set(key, value);
     }
     if (resetLimit) params.delete("limit");
@@ -164,7 +184,13 @@ export function FilterBar({
       if (typeof value === "number") {
         params.set(paramName, String(value));
       } else {
-        params.delete(paramName);
+        // (I2, branch review) A key the preset doesn't constrain writes `key=any`, not a
+        // delete: deleting every criteria key an "everything" preset omits can collapse
+        // the URL to a bare /feed (if nothing else is in the query string), which
+        // reapplies "Balanced" right back instead of the "show everything" the user
+        // actually saved. Balanced itself now round-trips as
+        // ?minScore=5&minViews=any&since=30 rather than a bare URL.
+        params.set(paramName, "any");
       }
     }
     params.delete("limit");
@@ -179,9 +205,11 @@ export function FilterBar({
   }
 
   const fleet = searchParams.get("fleet") ?? "all";
-  const minScore = searchParams.get("minScore") ?? (applied.minScore !== null ? String(applied.minScore) : "any");
-  const minViews = searchParams.get("minViews") ?? (applied.minViews !== null ? String(applied.minViews) : "any");
-  const since = searchParams.get("since") ?? (applied.sinceDays !== null ? String(applied.sinceDays) : "30");
+  // Extracted to feed-filters.ts's `resolveChipValue` (I3, branch review) so this
+  // applied-vs-URL fallback is unit-tested without mounting the component.
+  const minScore = resolveChipValue(searchParams.get("minScore"), applied.minScore);
+  const minViews = resolveChipValue(searchParams.get("minViews"), applied.minViews);
+  const since = resolveChipValue(searchParams.get("since"), applied.sinceDays);
   const band = searchParams.get("band") ?? "any";
   const sort = searchParams.get("sort") ?? "score";
   const view = searchParams.get("view") ?? "grid";
@@ -196,11 +224,13 @@ export function FilterBar({
   // What "save this as a view" would persist — the same three criteria keys
   // applyPreset reads back, built from the row's own already-resolved state so a save
   // always matches exactly what the filter row is currently showing (URL param, or the
-  // applied fallback on a bare visit). minScore/minViews are omitted rather than saved
-  // as "any", the same way a system preset omits a key it doesn't constrain.
-  const currentViewCriteria: Record<string, unknown> = { sinceDays: Number(since) };
-  if (minScore !== "any") currentViewCriteria.minScore = Number(minScore);
-  if (minViews !== "any") currentViewCriteria.minViews = Number(minViews);
+  // applied fallback on a bare visit). All three are omitted rather than saved as "any",
+  // the same way a system preset omits a key it doesn't constrain — `since` joined this
+  // rule once its fallback stopped hardcoding "30" (finding 3), since `Number("any")` is
+  // NaN and would otherwise land in a saved view unconditionally. Extracted to
+  // feed-filters.ts's `currentViewCriteria` (I3, branch review) for the same reason as
+  // `resolveChipValue` above — aliased on import since this local name shadows it.
+  const viewCriteria = buildViewCriteria(minScore, minViews, since);
 
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
@@ -401,7 +431,7 @@ export function FilterBar({
         open={manageViewsOpen}
         onOpenChange={setManageViewsOpen}
         savedFilters={savedFilters}
-        currentCriteria={currentViewCriteria}
+        currentCriteria={viewCriteria}
       />
     </div>
   );

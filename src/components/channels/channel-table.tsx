@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
+import { OUTLIERS_30D_MIN_SCORE } from "@/lib/outlier-constants";
 import type { ChannelRow, Fleet } from "@/server/queries/channels";
 import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 import { EditChannelFleetsDialog } from "./edit-channel-fleets-dialog";
@@ -31,6 +32,14 @@ import { RemoveChannelDialog } from "./remove-channel-dialog";
  *  because it looks current when it isn't — but calling anything past a day "stale"
  *  overstates that on a tool that isn't syncing hourly to begin with. */
 const STALE_DAYS = 30;
+
+/** `OUTLIERS_30D_MIN_SCORE` (`@/lib/outlier-constants`) is the same cutoff
+ *  `server/queries/channels.ts` filters its `outliers30d` count by — a client-safe
+ *  module, so this component imports the real constant instead of re-declaring the
+ *  literal (M4/M5, branch review). Surfaced in the "Outliers (30d)" header tooltip
+ *  below so the word "outlier" doesn't silently mean 2x here and 5x on the Feed's
+ *  default view — docs/qa/2026-08-01-feed-fix-plan.md "Finding 4". */
+const OUTLIERS_30D_TOOLTIP = `Posts scoring ${OUTLIERS_30D_MIN_SCORE}x or higher in the last 30 days`;
 
 type HealthTone = "faint" | "muted" | "stale" | "destructive";
 
@@ -154,7 +163,14 @@ export function ChannelTable({
               Median views
             </TableHead>
             <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
-              Outliers (30d)
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span tabIndex={0} className="cursor-help underline decoration-dotted underline-offset-2" />}
+                >
+                  Outliers (30d)
+                </TooltipTrigger>
+                <TooltipContent>{OUTLIERS_30D_TOOLTIP}</TooltipContent>
+              </Tooltip>
             </TableHead>
             <TableHead className="h-auto w-10 pb-3" />
           </TableRow>
