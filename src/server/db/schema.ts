@@ -521,3 +521,27 @@ export const secrets = sqliteTable("secrets", {
   value: text("value").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
+
+/**
+ * The system logs table (system logs feature, task 1): one row per stored
+ * `info` / `warn` / `error` event across backend, frontend and sidecar. `debug`
+ * is never inserted (see `insertLogEvent`). `fields` is a JSON string that has
+ * already been through `redactLogFields` before insert — nothing raw ever
+ * lands in this table. Retention is capped at `RETENTION_MAX` (50000) rows,
+ * pruned oldest-first on every insert.
+ */
+export const logEvents = sqliteTable(
+  "log_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ts: text("ts").notNull(),
+    level: text("level").notNull(), // "info" | "warn" | "error"
+    source: text("source").notNull(), // "backend" | "frontend" | "sidecar"
+    event: text("event").notNull(),
+    fields: text("fields").notNull(), // JSON string, already redacted
+  },
+  (t) => ({
+    byLevel: index("log_events_level_id").on(t.level, t.id),
+    bySource: index("log_events_source_id").on(t.source, t.id),
+  }),
+);

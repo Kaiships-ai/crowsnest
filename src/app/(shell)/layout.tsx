@@ -5,6 +5,7 @@ import { CommandMenu } from "@/components/layout/command-menu";
 import type { GetStartedItem } from "@/components/layout/get-started-checklist";
 import { Sidebar, type LastViewedPost } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
 import { getDashboardStats, getRecentlyViewed } from "@/server/queries/dashboard";
@@ -58,6 +59,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
 
   return (
     <CommandMenu>
+      <ClientErrorReporter />
       {/* Flex, not a `grid-cols-[240px_1fr]` fixed track: the rail's own width (see
           Sidebar) is the only thing that decides how wide it is, so the content pane
           — `min-w-0` so its own children can still shrink/scroll — always gets every
