@@ -19,7 +19,11 @@ beforeAll(async () => {
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ queryLogEvents } = await import("@/server/logs/store"));
   ({ POST } = await import("./route"));
-  ({ config: { IG_SERVICE_TOKEN: realToken } } = await import("@/server/config"));
+  // The route validates against the secrets store's token (db first, env fallback). No
+  // db row is set here and the secrets table is migrated per-test (beforeEach), so at
+  // request time getOrCreateServiceToken() resolves to this env value. Read it from the
+  // env rather than calling the store here, which would query the not-yet-migrated table.
+  realToken = process.env.IG_SERVICE_TOKEN ?? "test-token";
 });
 
 function req(body: unknown, headers: Record<string, string> = {}) {

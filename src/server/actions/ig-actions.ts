@@ -3,6 +3,7 @@
 import { igClient, type IgHealth, type IgLoginStatus } from "../ig/client";
 import { IgError } from "../ig/errors";
 import { log } from "../lib/logger";
+import { setSecret } from "../secrets/store";
 
 /**
  * Server actions backing the Settings page's Instagram section.
@@ -137,6 +138,29 @@ export async function igLoginAction(): Promise<LoginResult> {
     log.info("ig.login.requested", {});
     const { status } = await igClient.login({});
     log.info("ig.login.result", { status });
+    return { ok: true, status };
+  } catch (err) {
+    return toFailure(err);
+  }
+}
+
+/**
+ * Signs in by adopting a `sessionid` cookie copied from a browser that is already
+ * logged into instagram.com, instead of a password login.
+ *
+ * This is the recommended connect path (design brief §3/§7): Instagram will sometimes
+ * accept a password in a browser and still answer `IG_BAD_CREDENTIALS` to the private
+ * API when it distrusts the IP or device, and a sessionid import performs no password
+ * authentication, so it cannot add to the failed-login count that gets an account
+ * checkpointed. The sessionid is persisted via the secrets store so it survives a
+ * sidecar restart, mirroring `IG_USERNAME`/`IG_PASSWORD` for the fallback flow.
+ */
+export async function igLoginBySessionAction(sessionid: string): Promise<LoginResult> {
+  try {
+    setSecret("IG_SESSIONID", sessionid);
+    log.info("ig.login_by_session.requested", {});
+    const { status } = await igClient.loginBySession(sessionid);
+    log.info("ig.login_by_session.result", { status });
     return { ok: true, status };
   } catch (err) {
     return toFailure(err);

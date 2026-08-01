@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { config } from "@/server/config";
 import { insertLogEvent } from "@/server/logs/store";
+import { getOrCreateServiceToken } from "@/server/secrets/store";
 
 /**
  * `POST /api/logs/ingest` — the single write path for the system logs feature (design
@@ -36,7 +36,7 @@ const Body = z.object({
  *  for the Node -> Python hop. A `!==` length/content check here would leak the token's
  *  length and contents one byte at a time through response-timing side channels. */
 function tokenOk(header: string | null): boolean {
-  const expected = config.IG_SERVICE_TOKEN;
+  const expected = getOrCreateServiceToken();
   if (!header || !expected) return false;
   const a = Buffer.from(header);
   const b = Buffer.from(expected);

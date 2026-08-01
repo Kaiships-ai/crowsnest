@@ -516,6 +516,12 @@ export const ownComments = sqliteTable("own_comments", {
   capturedAt: text("captured_at").notNull(),
 }, (t) => [uniqueIndex("own_comments_external").on(t.externalId)]);
 
+export const secrets = sqliteTable("secrets", {
+  name: text("name").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 /**
  * The system logs table (system logs feature, task 1): one row per stored
  * `info` / `warn` / `error` event across backend, frontend and sidecar. `debug`

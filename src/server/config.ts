@@ -5,9 +5,11 @@ import { z } from "zod";
  *
  * Validation runs once at module load and THROWS on a missing or malformed required
  * var, so a misconfigured process refuses to start instead of failing later on a user's
- * click with a confusing message. That is a deliberate requirement of the sync rebuild:
- * an empty `IG_SERVICE_TOKEN` used to be indistinguishable from a working one until the
- * first 401 came back from the sidecar.
+ * click with a confusing message. `IG_SERVICE_TOKEN` used to be one of those required
+ * vars — an empty value was indistinguishable from a working one until the first 401
+ * came back from the sidecar — but it is optional here now: the secrets store
+ * (`src/server/secrets/store.ts`) guarantees a token exists via
+ * `getOrCreateServiceToken()`, so the app always boots even with none configured.
  *
  * Note the previous provider layer did the opposite — `getProviderChain()` silently
  * dropped any provider whose env key was absent, so a typo'd key produced "no provider
@@ -30,9 +32,11 @@ const intWithDefault = (fallback: number, min: number, max: number) =>
 const schema = z.object({
   // --- Instagram sidecar ---
   IG_SERVICE_URL: z.string().url().default("http://127.0.0.1:8765"),
-  /** Shared secret for the localhost-only Node -> Python hop. Required: an unauthenticated
-   *  sidecar would let any local process drive a logged-in Instagram session. */
-  IG_SERVICE_TOKEN: z.string().min(1, "IG_SERVICE_TOKEN is required (shared secret for the Instagram sidecar)"),
+  /** Shared secret for the localhost-only Node -> Python hop. Optional here: the secrets
+   *  store (`src/server/secrets/store.ts`) guarantees one exists via
+   *  `getOrCreateServiceToken()`, generating and persisting it on first use instead of
+   *  the process refusing to start when it is unset. */
+  IG_SERVICE_TOKEN: z.string().optional(),
   IG_REQUEST_TIMEOUT_MS: intWithDefault(30_000, 1_000, 600_000),
   IG_DOWNLOAD_TIMEOUT_MS: intWithDefault(120_000, 1_000, 1_800_000),
 

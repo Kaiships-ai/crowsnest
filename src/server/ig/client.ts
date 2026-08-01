@@ -1,5 +1,6 @@
 import { config } from "../config";
 import { log } from "../lib/logger";
+import { getOrCreateServiceToken } from "../secrets/store";
 import { fromEnvelope, IgError } from "./errors";
 
 /**
@@ -338,7 +339,7 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
     res = await fetch(url, {
       method: opts.method ?? "GET",
       headers: {
-        "X-IG-Token": config.IG_SERVICE_TOKEN,
+        "X-IG-Token": getOrCreateServiceToken(),
         ...(opts.body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
@@ -385,6 +386,13 @@ export const igClient = {
 
   login(input: { username?: string; password?: string; verificationCode?: string } = {}): Promise<{ status: IgLoginStatus; detail?: unknown }> {
     return request("/login", { method: "POST", body: input, timeoutMs: 120_000 });
+  },
+
+  /** Adopts a browser's already-signed-in session instead of a password login (design
+   *  brief §3). Performs no password authentication, so it never adds to the
+   *  failed-login count Instagram uses to checkpoint an account. */
+  loginBySession(sessionid: string): Promise<{ status: IgLoginStatus; detail?: unknown }> {
+    return request("/login-by-session", { method: "POST", body: { sessionid }, timeoutMs: 120_000 });
   },
 
   resolveChallenge(input: { choice?: "email" | "sms"; code?: string }): Promise<{ status: IgLoginStatus }> {
