@@ -3,14 +3,13 @@ import Link from "next/link";
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { buttonVariants } from "@/components/ui/button";
+import { resolveFeedCriteria, type SearchParams } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { getFeedBandCounts, getOutlierFeed, getSavedFilters, type FeedFilters, type FeedSort } from "@/server/queries/feed";
 
 const DEFAULT_LIMIT = 24;
 const LOAD_MORE_STEP = 24;
-
-type SearchParams = Record<string, string | string[] | undefined>;
 
 function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
@@ -21,28 +20,27 @@ function num(v: string | string[] | undefined): number | undefined {
   const n = Number(s);
   return Number.isFinite(n) ? n : undefined;
 }
-function criteriaNum(criteria: Record<string, unknown> | undefined, key: string): number | undefined {
-  const v = criteria?.[key];
-  return typeof v === "number" ? v : undefined;
-}
 
 // Topbar already renders this route's h1 ("Outlier Feed") — see nav-items/topbar's
 // ROUTE_TITLES — so page content here starts at h2 or plain text (M6).
 export default async function FeedPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
-  // "Balanced" only applies on a truly bare /feed visit — once the URL carries any
-  // filter param, the user's exact intent (including "no minScore") is respected as-is.
-  const isEmpty = Object.keys(sp).length === 0;
 
   const [fleets, savedFilters, allChannels] = await Promise.all([getFleets(), getSavedFilters(), getChannelsList()]);
   const balanced = savedFilters.find((f) => f.isSystem && f.name === "Balanced");
 
+  // "Balanced" only applies on a truly bare /feed visit — once the URL carries any
+  // *filter* param (see FILTER_PARAM_KEYS in @/lib/feed-filters), the user's exact intent
+  // (including an explicit "any", i.e. no condition) is respected as-is. Cosmetic params
+  // (density, view, sort, limit) don't count, so they can't silently drop the filter.
+  const { minScore, minViews, sinceDays } = resolveFeedCriteria(sp, balanced?.criteria);
+
   const filters: FeedFilters = {
     fleetId: first(sp.fleet),
     platform: first(sp.platform) as FeedFilters["platform"],
-    minScore: isEmpty ? criteriaNum(balanced?.criteria, "minScore") : num(sp.minScore),
-    minViews: isEmpty ? criteriaNum(balanced?.criteria, "minViews") : num(sp.minViews),
-    sinceDays: isEmpty ? criteriaNum(balanced?.criteria, "sinceDays") : num(sp.since),
+    minScore,
+    minViews,
+    sinceDays,
     followerBand: first(sp.band) as FeedFilters["followerBand"],
     query: first(sp.q),
     sort: (first(sp.sort) as FeedSort | undefined) ?? "score",

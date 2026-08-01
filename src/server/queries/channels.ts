@@ -56,7 +56,14 @@ export interface ChannelDetail {
 
 type ChannelSelect = typeof tables.channels.$inferSelect;
 
-const OUTLIERS_30D_MIN_SCORE = 2;
+// Exported so the Channels table header (channel-table.tsx) can state this cutoff
+// instead of leaving "outlier" undefined — the Feed's default view uses a different
+// (5x) cutoff for the same word, and docs/qa/2026-08-01-feed-fix-plan.md "Finding 4"
+// covers why both numbers need to be visible rather than unified. This file's `db`
+// import makes it server-only, so channel-table.tsx re-declares this value locally
+// (commented with a pointer back here) rather than importing it, to avoid pulling
+// server code into the client bundle.
+export const OUTLIERS_30D_MIN_SCORE = 2;
 const OUTLIERS_30D_WINDOW_DAYS = 30;
 
 /**

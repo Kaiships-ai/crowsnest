@@ -32,6 +32,16 @@ import { RemoveChannelDialog } from "./remove-channel-dialog";
  *  overstates that on a tool that isn't syncing hourly to begin with. */
 const STALE_DAYS = 30;
 
+/** Mirrors `OUTLIERS_30D_MIN_SCORE` in `src/server/queries/channels.ts:59` (exported
+ *  there, but re-declared here rather than imported: that module pulls in `db`, and
+ *  importing a server-only module's runtime export into this client component would
+ *  drag server code into the client bundle for the sake of one number). Surfaced in
+ *  the "Outliers (30d)" header tooltip below so the word "outlier" doesn't silently
+ *  mean 2x here and 5x on the Feed's default view — docs/qa/2026-08-01-feed-fix-plan.md
+ *  "Finding 4". */
+const OUTLIERS_30D_MIN_SCORE = 2;
+const OUTLIERS_30D_TOOLTIP = `Posts scoring ${OUTLIERS_30D_MIN_SCORE}x or higher in the last 30 days`;
+
 type HealthTone = "faint" | "muted" | "stale" | "destructive";
 
 function syncHealth(channel: ChannelRow): { label: string; tone: HealthTone } {
@@ -154,7 +164,14 @@ export function ChannelTable({
               Median views
             </TableHead>
             <TableHead data-lab className="h-auto pb-3 text-right text-2xs font-normal text-faint">
-              Outliers (30d)
+              <Tooltip>
+                <TooltipTrigger
+                  render={<span tabIndex={0} className="cursor-help underline decoration-dotted underline-offset-2" />}
+                >
+                  Outliers (30d)
+                </TooltipTrigger>
+                <TooltipContent>{OUTLIERS_30D_TOOLTIP}</TooltipContent>
+              </Tooltip>
             </TableHead>
             <TableHead className="h-auto w-10 pb-3" />
           </TableRow>
