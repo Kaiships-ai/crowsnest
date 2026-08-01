@@ -32,7 +32,7 @@ import { hasLlmKey, isCompatMode } from "@/server/llm/client";
 // Read once, server-side, same reasoning as the Remix screen's own `LLM_PROXY_URL`
 // (`(shell)/feed/[videoId]/remix/page.tsx`): the one honest thing this app can say
 // about the model backend's location, since it has no mechanism to start one itself.
-const LLM_PROXY_URL = process.env.ANTHROPIC_BASE_URL ?? null;
+const LLM_PROXY_URL = process.env.LLM_BASE_URL ?? null;
 
 // Unlike every other route in this app, `/` has no searchParams and no dynamic route
 // segment to implicitly opt it out of static rendering — without this, `next build`

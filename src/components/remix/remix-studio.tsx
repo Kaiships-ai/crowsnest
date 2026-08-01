@@ -56,7 +56,7 @@ export function RemixStudio({
   // studio P0: "the point of saving a post is that it seeds the next remix").
   vaultSavedPosts: SavedPostRow[];
   niche: string;
-  // `ANTHROPIC_BASE_URL` when set (the local 9router proxy) — read once, server-side,
+  // `LLM_BASE_URL` when set (the local 9router proxy) — read once, server-side,
   // in page.tsx, purely so the blocked surface can name where it looked rather than
   // saying "somewhere" (v1-scope.md: "a recovery action that names the command to
   // start the proxy" — the address is the honest half of that this app can supply;

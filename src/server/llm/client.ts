@@ -125,7 +125,7 @@ class AnthropicLlmClient implements LlmClient {
 }
 
 /**
- * OpenAI-compat router mode (e.g. 9router at `ANTHROPIC_BASE_URL`). Local routers
+ * OpenAI-compat router mode (e.g. 9router at `LLM_BASE_URL`). Local routers
  * translate the Anthropic *streaming* wire format correctly but not the non-streaming
  * one (raw provider JSON leaks through), and they ignore `output_config.format`
  * entirely because the free backing models have no Anthropic structured-outputs
@@ -213,11 +213,11 @@ function parseLooseJson<T>(raw: string, schema: z.ZodType<T>): { success: true; 
 }
 
 /**
- * A base-URL override (`ANTHROPIC_BASE_URL`) means requests go through a local
+ * A base-URL override (`LLM_BASE_URL`) means requests go through a local
  * OpenAI-compat router rather than the real Anthropic API — see `CompatLlmClient`.
  */
 export function isCompatMode(): boolean {
-  return Boolean(process.env.ANTHROPIC_BASE_URL);
+  return Boolean(process.env.LLM_BASE_URL);
 }
 
 let cachedClient: LlmClient | null = null;
@@ -227,13 +227,13 @@ let cachedClient: LlmClient | null = null;
  * surface the keyless-mode Alert instead of crashing. `new Anthropic()` (zero-arg) would
  * read `ANTHROPIC_API_KEY` from `process.env` itself, which never sees a db-only key —
  * the key resolved via `getSecret` (db-first, env fallback) is passed explicitly instead.
- * `ANTHROPIC_BASE_URL` is not a managed secret, so it still reads straight from the env.
+ * `LLM_BASE_URL` is not a managed secret, so it still reads straight from the env.
  */
 export function getLlm(): LlmClient {
   if (!hasLlmKey()) throw new NoApiKeyError();
   if (!cachedClient) {
     const apiKey = getSecret("ANTHROPIC_API_KEY");
-    const baseURL = process.env.ANTHROPIC_BASE_URL;
+    const baseURL = process.env.LLM_BASE_URL;
     const anthropic = new Anthropic(baseURL ? { apiKey, baseURL } : { apiKey });
     cachedClient = isCompatMode() ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
   }
