@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 
-import { bandOrAny, currentViewCriteria, isFeedEmpty, numOrAny, resolveChipValue, resolveFeedCriteria } from "./feed-filters";
+import {
+  bandOrAny,
+  currentViewCriteria,
+  filterQuerySuffix,
+  isFeedEmpty,
+  numOrAny,
+  resolveChipValue,
+  resolveFeedCriteria,
+  searchParamsFromEntries,
+} from "./feed-filters";
 
 const BALANCED_CRITERIA = { minScore: 5, sinceDays: 30 };
 
@@ -146,6 +155,72 @@ describe("resolveChipValue", () => {
 
   test("falls back to 'any' when the URL has none and nothing was applied (finding 3)", () => {
     expect(resolveChipValue(null, null)).toBe("any");
+  });
+});
+
+describe("filterQuerySuffix", () => {
+  test("empty for {}", () => {
+    expect(filterQuerySuffix({})).toBe("");
+  });
+
+  test("empty when only purely cosmetic params are present (density, view, limit)", () => {
+    expect(filterQuerySuffix({ density: "compact", view: "list", limit: "48" })).toBe("");
+  });
+
+  test("carries a single filter param", () => {
+    expect(filterQuerySuffix({ minScore: "5" })).toBe("?minScore=5");
+  });
+
+  test("carries sort (an order param, not a filter param) even with no filter present (I1)", () => {
+    expect(filterQuerySuffix({ sort: "recent" })).toBe("?sort=recent");
+  });
+
+  test("carries sort alongside a filter param, drops density/view/limit mixed in", () => {
+    const suffix = filterQuerySuffix({ minScore: "5", sort: "recent", density: "compact", view: "list", limit: "48" });
+    const params = new URLSearchParams(suffix.slice(1));
+    expect(params.get("minScore")).toBe("5");
+    expect(params.get("sort")).toBe("recent");
+    expect(params.has("density")).toBe(false);
+    expect(params.has("view")).toBe(false);
+    expect(params.has("limit")).toBe(false);
+  });
+
+  test("carries multiple filter params, drops cosmetic ones mixed in", () => {
+    const suffix = filterQuerySuffix({ minScore: "5", since: "30", view: "list" });
+    const params = new URLSearchParams(suffix.slice(1));
+    expect(params.get("minScore")).toBe("5");
+    expect(params.get("since")).toBe("30");
+    expect(params.has("view")).toBe(false);
+  });
+
+  test("drops a filter param present but empty-string", () => {
+    expect(filterQuerySuffix({ minScore: "" })).toBe("");
+  });
+
+  test("reads the first element of an array value", () => {
+    expect(filterQuerySuffix({ q: ["cats", "dogs"] })).toBe("?q=cats");
+  });
+});
+
+describe("searchParamsFromEntries", () => {
+  test("keeps the first value of a repeated key, not the last (M4)", () => {
+    const sp = searchParamsFromEntries([
+      ["minScore", "5"],
+      ["minScore", "9"],
+    ]);
+    expect(sp.minScore).toBe("5");
+  });
+
+  test("plain single-valued entries round-trip", () => {
+    const sp = searchParamsFromEntries([
+      ["minScore", "5"],
+      ["sort", "recent"],
+    ]);
+    expect(sp).toEqual({ minScore: "5", sort: "recent" });
+  });
+
+  test("empty entries yield an empty object", () => {
+    expect(searchParamsFromEntries([])).toEqual({});
   });
 });
 

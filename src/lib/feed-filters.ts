@@ -8,6 +8,19 @@
  */
 export const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band", "q"] as const;
 
+/**
+ * `sort` picks an order, not a slice — it must never join `FILTER_PARAM_KEYS`
+ * (`isFeedEmpty` reads that list to decide whether Balanced applies; if `sort` counted
+ * as a filter, `/feed?sort=recent` would stop being "bare" and Balanced would silently
+ * stop applying, the exact bug fixed by `docs/qa/2026-08-01-feed-fix-plan.md` finding 1).
+ * But a link that forwards the active feed state still needs to carry it: without it,
+ * a detail page reached from a `sort=recent`-ordered feed resolved prev/next in score
+ * order instead (whole-branch review, finding I1). Kept as its own list so
+ * `filterQuerySuffix` can append it to the suffix without touching what counts as
+ * "a filter" anywhere else.
+ */
+export const ORDER_PARAM_KEYS = ["sort"] as const;
+
 export type SearchParams = Record<string, string | string[] | undefined>;
 
 // Same four bands `FOLLOWER_BAND_BOUNDS` (server/queries/feed.ts) has keys for. Kept
@@ -53,6 +66,48 @@ export function numOrAny(v: string | string[] | undefined): number | undefined {
   const s = first(v);
   if (s === "any") return undefined;
   return num(v);
+}
+
+/**
+ * The `?...` suffix (or `""`) for links that should carry the active feed filter (and
+ * order) forward — into `/feed/[id]` and `/feed/[id]/remix` from a card or the
+ * quick-preview sheet, and into the detail page's own back/prev/next hrefs — without
+ * carrying purely cosmetic params (`density`, `view`, `limit`) along too. Built from
+ * `FILTER_PARAM_KEYS` plus `ORDER_PARAM_KEYS` so `feed-grid.tsx` (client, reading
+ * `useSearchParams()`) and `feed/[videoId]/resolve-feed-nav.ts` (server, reading an
+ * awaited `searchParams`) produce the identical suffix from the identical param list —
+ * see the video-detail nav bug this fixes (docs/qa/2026-08-01-multipage-fix-plan.md,
+ * finding 1): the only click path into the detail page wasn't forwarding the feed's
+ * filter at all. `sort` (an `ORDER_PARAM_KEYS` member, not a `FILTER_PARAM_KEYS` one)
+ * rides along too — a `sort=recent` feed's prev/next should walk that same order, not
+ * silently reorder by score (whole-branch review, finding I1).
+ */
+export function filterQuerySuffix(sp: SearchParams): string {
+  const qs = new URLSearchParams();
+  for (const key of [...FILTER_PARAM_KEYS, ...ORDER_PARAM_KEYS]) {
+    const v = first(sp[key]);
+    if (v) qs.set(key, v);
+  }
+  const s = qs.toString();
+  return s ? `?${s}` : "";
+}
+
+/**
+ * Converts a `URLSearchParams` (or Next's `ReadonlyURLSearchParams`, which has the
+ * same `.entries()` shape) into the plain-object `SearchParams` this module's helpers
+ * expect, keeping the FIRST value of a repeated key — matching `first()`'s `v[0]`
+ * semantics, which is what a Next.js server component sees for a repeated query
+ * param. `Object.fromEntries(usp.entries())` gets this backwards (last value wins),
+ * which let `feed-grid.tsx` build a card's hrefSuffix from a different value than the
+ * one the server-rendered page had actually filtered by on a hand-typed
+ * `/feed?minScore=5&minScore=9` (whole-branch review, finding M4).
+ */
+export function searchParamsFromEntries(entries: Iterable<[string, string]>): SearchParams {
+  const sp: SearchParams = {};
+  for (const [key, value] of entries) {
+    if (!(key in sp)) sp[key] = value;
+  }
+  return sp;
 }
 
 function criteriaNum(criteria: Record<string, unknown> | undefined, key: string): number | undefined {

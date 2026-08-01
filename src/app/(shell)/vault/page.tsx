@@ -9,9 +9,11 @@ import { VaultSortControl } from "@/components/vault/vault-sort-control";
 import { buttonVariants } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { getTopOutliersToday } from "@/server/queries/dashboard";
+import { getTopOutlierAllTime } from "@/server/queries/dashboard";
 import { getSavedPosts, type SavedPostSort } from "@/server/queries/saved-posts";
 import { getScripts, getVaultItems, type VaultItemRow } from "@/server/queries/vault";
+
+import { vaultHeaderCopy } from "./vault-header-copy";
 
 // v1-scope.md P1 Vault schedules Hooks/Styles to move to the Remix stage 3/4 pickers,
 // with a "save as template" action from the detail screen as their new save path. That
@@ -80,7 +82,13 @@ export default async function VaultPage({
   const templatesEmpty = hooks.length === 0 && styles.length === 0;
   // Only spend a query on this when the empty state actually needs a real link, since
   // there is no sense reading the top outlier on every visit to a Vault with rows.
-  const topOutlier = savedPosts.length === 0 ? await getTopOutliersToday(1) : [];
+  // All-time, not "today's top": the empty state wants a real outlier to browse, and
+  // getTopOutliersToday's 7-day window can hand back a null-scored recent post when
+  // nothing scored has been posted this week.
+  const topOutlier = savedPosts.length === 0 ? await getTopOutlierAllTime(1) : [];
+  // Only a genuinely scored post is worth a deep link; otherwise send the empty state
+  // to /feed same as when there's no row at all.
+  const topOutlierVideoId = topOutlier[0]?.outlierScore != null ? topOutlier[0].videoId : null;
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-10 p-6">
@@ -88,9 +96,12 @@ export default async function VaultPage({
         <div>
           <h1 className="text-xl font-bold tracking-[-0.015em]">Vault</h1>
           <p className="mt-3 font-mono text-2xs text-faint">
-            {savedPosts.length === 0
-              ? "Nothing saved yet."
-              : `${savedPosts.length} saved post${savedPosts.length === 1 ? "" : "s"}`}
+            {vaultHeaderCopy({
+              savedPosts: savedPosts.length,
+              scripts: scripts.length,
+              hooks: hooks.length,
+              styles: styles.length,
+            })}
           </p>
         </div>
         <NewTemplateDialog />
@@ -118,7 +129,7 @@ export default async function VaultPage({
           </div>
 
           {savedPosts.length === 0 ? (
-            <VaultEmptyState topOutlierVideoId={topOutlier[0]?.videoId ?? null} />
+            <VaultEmptyState topOutlierVideoId={topOutlierVideoId} />
           ) : (
             <div className="flex flex-col">
               <div
