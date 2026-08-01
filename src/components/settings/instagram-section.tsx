@@ -41,7 +41,8 @@ type ViewState =
   | "connected"
   | "error";
 
-function viewStateOf(phase: Phase, statusResult: StatusResult, failure: Failure | null): ViewState {
+/** Exported narrowly for unit testing the phase/status -> view derivation directly. */
+export function viewStateOf(phase: Phase, statusResult: StatusResult, failure: Failure | null): ViewState {
   switch (phase) {
     case "connecting":
       return "connecting";
@@ -63,9 +64,12 @@ function viewStateOf(phase: Phase, statusResult: StatusResult, failure: Failure 
     // because the fix ("start the service") is nothing like "click Connect".
     return statusResult.code === "IG_SERVICE_DOWN" ? "service_down" : "error";
   }
+  // A live session wins regardless of whether username/password are also stored: a
+  // sessionid-only login has `loggedIn: true` but `credentialsConfigured: false`, and
+  // that is still a connected account, not "no credentials".
+  if (statusResult.status.loggedIn) return "connected";
   if (!statusResult.status.credentialsConfigured) return "no_credentials";
-  if (!statusResult.status.loggedIn) return "logged_out";
-  return "connected";
+  return "logged_out";
 }
 
 /**

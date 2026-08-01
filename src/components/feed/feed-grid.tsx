@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { filterQuerySuffix, searchParamsFromEntries } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import type { FeedItem } from "@/server/queries/feed";
 import { FEED_LIST_ROW_GRID, FeedListRow } from "./feed-list-row";
@@ -16,6 +17,14 @@ export function FeedGrid({ items }: { items: FeedItem[] }) {
   // absent) — kept independent rather than threaded down as a prop since both this
   // component and FilterBar read the URL directly for their own concerns already.
   const compact = searchParams.get("density") === "compact";
+  // The feed's active filter (and sort), forwarded into the detail/remix hrefs below
+  // so the detail page's prev/next and index label resolve against this same
+  // filtered, ordered set instead of the full library (multipage-fix-plan.md finding
+  // 1). `filterQuerySuffix` is the same builder feed/[videoId]/resolve-feed-nav.ts
+  // uses server-side, so a link built here and a suffix rebuilt there never drift.
+  // `searchParamsFromEntries` (not `Object.fromEntries`) keeps the FIRST value of a
+  // repeated key, matching the server's `first()` semantics (finding M4).
+  const hrefSuffix = filterQuerySuffix(searchParamsFromEntries(searchParams.entries()));
   const [previewId, setPreviewId] = useState<string | null>(null);
 
   return (
@@ -39,6 +48,7 @@ export function FeedGrid({ items }: { items: FeedItem[] }) {
               item={item}
               variant={compact ? "compact" : "full"}
               onOpen={setPreviewId}
+              hrefSuffix={hrefSuffix}
             />
           ))}
         </div>
@@ -60,7 +70,7 @@ export function FeedGrid({ items }: { items: FeedItem[] }) {
         </div>
       )}
 
-      <QuickPreviewSheet id={previewId} onClose={() => setPreviewId(null)} />
+      <QuickPreviewSheet id={previewId} onClose={() => setPreviewId(null)} hrefSuffix={hrefSuffix} />
     </>
   );
 }

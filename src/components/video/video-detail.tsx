@@ -37,8 +37,9 @@ import { MedianBaseline } from "./median-baseline";
 import { LayoutSection } from "./layout-section";
 
 /** Adjacency within whatever ordering the caller resolved "the current feed" to be —
- *  see the doc comment on FeedNav in page.tsx for how that's computed and its one
- *  honest limitation. Null means there's nowhere to go (or nowhere to know to go). */
+ *  see the doc comments on FEED_ORDER_LIMIT and resolveFeedNav in
+ *  feed/[videoId]/resolve-feed-nav.ts for how that's computed and its honest
+ *  limitations. Null means there's nowhere to go (or nowhere to know to go). */
 export interface FeedNav {
   backHref: string;
   prevHref: string | null;

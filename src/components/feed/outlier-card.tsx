@@ -38,6 +38,7 @@ export function OutlierCard({
   variant = "full",
   onOpen,
   overlayBadge,
+  hrefSuffix = "",
 }: {
   item: FeedItem;
   variant?: "full" | "compact";
@@ -45,6 +46,15 @@ export function OutlierCard({
   /** Optional bottom-left thumbnail overlay (e.g. Channel Detail's Vaulted tab
    * "2 templates" chip, DESIGN.md §2.3 v0.2) — mirrors the duration stamp's styling. */
   overlayBadge?: string;
+  /** The feed's active filter, as a `?...` query-string suffix (or `""`). This card's
+   * own Remix link is the one place it's appended — today that's forward-compat only,
+   * since `/feed/[id]/remix`'s page only reads `?hook=`/`?style=` and ignores filter
+   * params, so the suffix currently rides along inert. It's threaded through anyway so
+   * a later remix feature that wants "the filtered set this card came from" doesn't
+   * need a second prop-drilling pass. Only `feed-grid.tsx` has a real feed filter to
+   * forward; other callers (similar-outliers on the detail page, the dashboard scroll
+   * row, a channel's video grid) leave this at its default, unfiltered. */
+  hrefSuffix?: string;
 }) {
   const open = () => onOpen?.(item.videoId);
   const duration = formatDuration(item.durationSec);
@@ -156,7 +166,7 @@ export function OutlierCard({
               v1-gap-inventory.md). The thumbnail is already a link to that page, so
               removing this doesn't remove a way to get there. */}
           <Link
-            href={`/feed/${item.videoId}/remix`}
+            href={`/feed/${item.videoId}/remix${hrefSuffix}`}
             className={cn(buttonVariants({ variant: "secondary", size: "xs" }))}
           >
             Remix

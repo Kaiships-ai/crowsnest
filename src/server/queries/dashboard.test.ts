@@ -8,6 +8,7 @@ let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let getDashboardStats: typeof import("./dashboard")["getDashboardStats"];
 let getTopOutliersToday: typeof import("./dashboard")["getTopOutliersToday"];
+let getTopOutlierAllTime: typeof import("./dashboard")["getTopOutlierAllTime"];
 let getFleetSpikes: typeof import("./dashboard")["getFleetSpikes"];
 let getRecentlyViewed: typeof import("./dashboard")["getRecentlyViewed"];
 
@@ -15,7 +16,8 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getDashboardStats, getTopOutliersToday, getFleetSpikes, getRecentlyViewed } = await import("./dashboard"));
+  ({ getDashboardStats, getTopOutliersToday, getTopOutlierAllTime, getFleetSpikes, getRecentlyViewed } =
+    await import("./dashboard"));
 });
 
 // `migrate()` only applies (idempotent) schema migrations — unlike seed.ts's
@@ -178,6 +180,45 @@ describe("getTopOutliersToday", () => {
     await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, liveId));
     const fallbackItems = await getTopOutliersToday(6);
     expect(fallbackItems).toEqual([]);
+  });
+});
+
+describe("getTopOutlierAllTime", () => {
+  test("returns the highest-scored video regardless of age, unlike getTopOutliersToday's 7-day window", async () => {
+    const channelId = await seedChannel();
+    // A recent post with no score yet (what getTopOutliersToday(1) would surface via its
+    // fallback-to-recent behavior) alongside the real top outlier from outside the 7-day
+    // window (mirrors the live bug: a 23-day-old top scorer beat by nothing in-window).
+    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: null });
+    const topId = await seedVideo(channelId, { postedAt: isoDaysAgo(23), outlierScore: 10.1 });
+    await seedVideo(channelId, { postedAt: isoDaysAgo(5), outlierScore: 3 });
+
+    const items = await getTopOutlierAllTime(1);
+
+    expect(items).toHaveLength(1);
+    expect(items[0].videoId).toBe(topId);
+    expect(items[0].outlierScore).toBe(10.1);
+  });
+
+  test("returns [] when no video has a non-null score, rather than falling back to a null-scored one", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: null });
+    await seedVideo(channelId, { postedAt: isoDaysAgo(30), outlierScore: null });
+
+    const items = await getTopOutlierAllTime(1);
+
+    expect(items).toEqual([]);
+  });
+
+  test("excludes soft-deleted videos even when they have the highest score", async () => {
+    const channelId = await seedChannel();
+    const liveId = await seedVideo(channelId, { postedAt: isoDaysAgo(10), outlierScore: 5 });
+    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99 });
+    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
+
+    const items = await getTopOutlierAllTime(1);
+
+    expect(items.map((i) => i.videoId)).toEqual([liveId]);
   });
 });
 

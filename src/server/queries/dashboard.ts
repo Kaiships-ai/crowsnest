@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { feedItemColumns, toFeedItem, type FeedItem } from "./feed";
 
@@ -123,6 +123,26 @@ export async function getTopOutliersToday(limit = 6): Promise<FeedItem[]> {
     .orderBy(...orderBy)
     .limit(limit);
   return fallback.map(toFeedItem);
+}
+
+/**
+ * The all-time highest-scored video, no 7-day window. `getTopOutliersToday` is "today's
+ * top" for the Dashboard and falls back to a null-scored recent post rather than ever
+ * return nothing; that fallback is wrong for a caller (the Vault empty state) that wants
+ * a genuine outlier to browse. This query only ever returns rows with a real score, so an
+ * empty result means "no scored video exists yet" rather than "here's a recent one anyway".
+ */
+export async function getTopOutlierAllTime(limit = 1): Promise<FeedItem[]> {
+  const rows = await db
+    .select(feedItemColumns)
+    .from(tables.videos)
+    .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
+    .where(and(isNotNull(tables.videos.outlierScore), isNull(tables.videos.deletedAt)))
+    // Tie-break on postedAt (newest first) so a score tie doesn't leave the pick
+    // dependent on undefined SQL row order.
+    .orderBy(desc(tables.videos.outlierScore), desc(tables.videos.postedAt))
+    .limit(limit);
+  return rows.map(toFeedItem);
 }
 
 export interface FleetSpike {

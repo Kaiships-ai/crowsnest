@@ -31,7 +31,23 @@ const EMPTY_WELL_HATCH: React.CSSProperties = {
     "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
 };
 
-export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
+export function QuickPreviewSheet({
+  id,
+  onClose,
+  hrefSuffix = "",
+}: {
+  id: string | null;
+  onClose: () => void;
+  /** The feed's active filter, as a `?...` query-string suffix (or `""`), appended to
+   * both links below — `feed-grid.tsx` is the only caller today, and it forwards its
+   * own `filterQuerySuffix(...)`. The "Open full page" link is where this matters: it
+   * lands on the same filtered, ordered set the sheet was opened from
+   * (multipage-fix-plan.md finding 1). The "Remix" link carries it too, but that's
+   * forward-compat only for now — `/feed/[id]/remix`'s page only reads
+   * `?hook=`/`?style=` and ignores filter params, so the suffix rides along inert
+   * there until a remix feature actually wants it. */
+  hrefSuffix?: string;
+}) {
   const [result, setResult] = useState<FetchResult | null>(null);
   const loading = id !== null && result?.id !== id;
   const detail = result?.id === id ? result.detail : null;
@@ -108,13 +124,13 @@ export function QuickPreviewSheet({ id, onClose }: { id: string | null; onClose:
 
               <div className="mt-auto flex gap-2 pt-2">
                 <Link
-                  href={`/feed/${detail.item.videoId}`}
+                  href={`/feed/${detail.item.videoId}${hrefSuffix}`}
                   className={cn(buttonVariants({ variant: "outline" }), "flex-1")}
                 >
                   Open full page
                 </Link>
                 <Link
-                  href={`/feed/${detail.item.videoId}/remix`}
+                  href={`/feed/${detail.item.videoId}/remix${hrefSuffix}`}
                   className={cn(buttonVariants({ variant: "default" }), "flex-1")}
                 >
                   Remix
