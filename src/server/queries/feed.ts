@@ -10,7 +10,7 @@ export interface FeedFilters {
   minScore?: number;
   minViews?: number;
   sinceDays?: number;
-  followerBand?: "nano" | "micro" | "mid" | "macro";
+  followerBand?: "nano" | "mid" | "macro";
   /** Free-text search over caption, channel handle, and channel display name.
    *  Case-insensitive substring match. Undefined or blank means no search — this is
    *  the field the command palette's post search and the feed's search box both drive. */
@@ -130,7 +130,6 @@ export function toFeedItem(row: FeedItemRow): FeedItem {
 
 const FOLLOWER_BAND_BOUNDS: Record<NonNullable<FeedFilters["followerBand"]>, [number, number | null]> = {
   nano: [0, 10_000],
-  micro: [10_000, 100_000],
   mid: [100_000, 1_000_000],
   macro: [1_000_000, null],
 };
@@ -237,7 +236,6 @@ export async function getOutlierFeed(f: FeedFilters): Promise<{ items: FeedItem[
 
 export interface FeedBandCounts {
   nano: number;
-  micro: number;
   mid: number;
   macro: number;
 }
@@ -261,13 +259,12 @@ async function countForBand(f: Omit<WhereFilters, "followerBand">, band: keyof F
 }
 
 export async function getFeedBandCounts(f: Omit<WhereFilters, "followerBand"> = {}): Promise<FeedBandCounts> {
-  const [nano, micro, mid, macro] = await Promise.all([
+  const [nano, mid, macro] = await Promise.all([
     countForBand(f, "nano"),
-    countForBand(f, "micro"),
     countForBand(f, "mid"),
     countForBand(f, "macro"),
   ]);
-  return { nano, micro, mid, macro };
+  return { nano, mid, macro };
 }
 
 export interface SavedFilterRow {

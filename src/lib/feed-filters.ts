@@ -23,10 +23,12 @@ export const ORDER_PARAM_KEYS = ["sort"] as const;
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
-// Same four bands `FOLLOWER_BAND_BOUNDS` (server/queries/feed.ts) has keys for. Kept
+// Same bands `FOLLOWER_BAND_BOUNDS` (server/queries/feed.ts) has keys for. Kept
 // here, not imported from there, so this module (used by the client-side filter-bar.tsx
-// too) never pulls in `@/server/db`.
-export const FOLLOWER_BANDS = ["nano", "micro", "mid", "macro"] as const;
+// too) never pulls in `@/server/db`. "micro" (10K-100K) was removed per the feed
+// cleanup batch. Channels in that range now match no band chip; they still show under
+// "Any followers", the same way a null-follower channel already does.
+export const FOLLOWER_BANDS = ["nano", "mid", "macro"] as const;
 export type FollowerBand = (typeof FOLLOWER_BANDS)[number];
 
 export function first(v: string | string[] | undefined): string | undefined {
@@ -110,16 +112,11 @@ export function searchParamsFromEntries(entries: Iterable<[string, string]>): Se
   return sp;
 }
 
-function criteriaNum(criteria: Record<string, unknown> | undefined, key: string): number | undefined {
-  const v = criteria?.[key];
-  return typeof v === "number" ? v : undefined;
-}
-
 /**
- * "Balanced" only applies on a truly bare `/feed` visit — once the URL carries any
- * *filter* param, the user's exact intent (including "no minScore") is respected as-is.
- * Cosmetic params (`density`, `view`, `sort`, `limit`) don't count: a density toggle
- * alone must not silently revert the score/timeframe filter back to none (finding 1).
+ * True when the URL carries no *filter* param at all — a bare `/feed` visit, which now
+ * shows the full unfiltered library (no auto-applied default). Cosmetic params
+ * (`density`, `view`, `sort`, `limit`) don't count as filters, so a density toggle alone
+ * still reads as bare. Kept as a named predicate so "bare visit" has one definition.
  */
 export function isFeedEmpty(sp: SearchParams): boolean {
   // `""` counts as absent too (M6, branch review): a hand-typed `/feed?minScore=` has
@@ -141,28 +138,26 @@ export interface ResolvedFeedCriteria {
  * it can be unit tested without a request, a database, or React — the surrounding page
  * component isn't (it awaits `searchParams` and calls DB-backed query functions).
  *
- * `balancedCriteria` is the "Balanced" saved filter's `criteria` blob (or undefined if it
- * doesn't exist yet), applied only when `isEmpty` is true.
+ * A bare `/feed` visit now resolves to no criteria at all (the full raw library). The
+ * "Balanced" saved filter stays user-selectable, it just no longer auto-applies on a bare
+ * visit, so there is no default blob to thread in here anymore.
  */
-export function resolveFeedCriteria(
-  sp: SearchParams,
-  balancedCriteria: Record<string, unknown> | undefined
-): ResolvedFeedCriteria {
-  const isEmpty = isFeedEmpty(sp);
+export function resolveFeedCriteria(sp: SearchParams): ResolvedFeedCriteria {
   return {
-    isEmpty,
-    minScore: isEmpty ? criteriaNum(balancedCriteria, "minScore") : numOrAny(sp.minScore),
-    minViews: isEmpty ? criteriaNum(balancedCriteria, "minViews") : numOrAny(sp.minViews),
-    sinceDays: isEmpty ? criteriaNum(balancedCriteria, "sinceDays") : numOrAny(sp.since),
+    isEmpty: isFeedEmpty(sp),
+    minScore: numOrAny(sp.minScore),
+    minViews: numOrAny(sp.minViews),
+    sinceDays: numOrAny(sp.since),
   };
 }
 
 /**
  * What a chip's Select should show: the URL's own token if the URL has one, else what
- * the page actually filtered by (`applied`, from `resolveFeedCriteria`) — a bare `/feed`
- * visit applies "Balanced" server-side, so reading the URL alone would show "Any score"
- * while a minimum of 5 was hiding most of the library. `null` (the applied value's "no
- * condition" spelling) reads as `"any"`, same token the Select options use.
+ * the page actually filtered by (`applied`, from `resolveFeedCriteria`). With the Balanced
+ * auto-apply gone, `applied` mirrors the URL on a bare visit, so both fall to `"any"`
+ * there — but the fallback is kept because it's the correct general rule and cheap. `null`
+ * (the applied value's "no condition" spelling) reads as `"any"`, same token the Select
+ * options use.
  *
  * Extracted from `filter-bar.tsx` (finding 3 / I3, branch review) so the fallback logic
  * is unit-testable without mounting the component.

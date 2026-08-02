@@ -1770,3 +1770,46 @@ describe("normalizeHandle", () => {
     expect(() => normalizeHandle("https://example.com/notinstagram")).toThrow();
   });
 });
+
+describe("addChannel — re-adding a removed handle", () => {
+  test("revives the soft-deleted row and refreshes it, instead of silently returning a deleted one", async () => {
+    const { db, tables, nowIso } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannel } = await import("./sync-engine");
+    migrate();
+    const handle = "@revive_me";
+
+    const { client: c1 } = stubClient({ profile: makeProfile(handle, { followerCount: 111 }) });
+    const first = await addChannel({ handle }, { client: c1 });
+
+    // Soft-delete it the way removeChannel does.
+    await db.update(tables.channels).set({ deletedAt: nowIso() }).where(eq(tables.channels.id, first.channelId));
+
+    const { client: c2 } = stubClient({ profile: makeProfile(handle, { followerCount: 222 }) });
+    const second = await addChannel({ handle }, { client: c2 });
+
+    // Same row (the unique (platform, handle) index forbids a duplicate), now un-deleted
+    // and refreshed from the second profile fetch — this is what makes it reappear in the
+    // channels list instead of staying an invisible deleted row.
+    expect(second.channelId).toBe(first.channelId);
+    const [row] = await db.select().from(tables.channels).where(eq(tables.channels.id, first.channelId));
+    expect(row.deletedAt).toBeNull();
+    expect(row.followerCount).toBe(222);
+  });
+
+  test("a live, already-tracked handle stays idempotent with no duplicate row", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannel } = await import("./sync-engine");
+    migrate();
+    const handle = "@already_here";
+
+    const { client } = stubClient({ profile: makeProfile(handle) });
+    const first = await addChannel({ handle }, { client });
+    const second = await addChannel({ handle }, { client });
+
+    expect(second.channelId).toBe(first.channelId);
+    const rows = await db.select().from(tables.channels).where(eq(tables.channels.handle, handle));
+    expect(rows.length).toBe(1);
+  });
+});
