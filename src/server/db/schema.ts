@@ -543,9 +543,36 @@ export const logEvents = sqliteTable(
     source: text("source").notNull(), // "backend" | "frontend" | "sidecar"
     event: text("event").notNull(),
     fields: text("fields").notNull(), // JSON string, already redacted
+    // The Run this line belongs to. Nullable: not every line has a Run (a frontend
+    // client error has none). Populated from an explicit runId or bridged from
+    // fields.jobId at insert time (see src/server/logs/store.ts).
+    runId: text("run_id"),
   },
   (t) => ({
     byLevel: index("log_events_level_id").on(t.level, t.id),
     bySource: index("log_events_source_id").on(t.source, t.id),
+    byRun: index("log_events_run_id").on(t.runId, t.id),
+  }),
+);
+
+/**
+ * One stored alert (Runs and observability, spec 2026-08-02). Raised when a Run fails,
+ * finishes, or breaches its SLA. Survives being missed, unlike a toast: an overnight
+ * failure is still here in the morning. `read_at` null means unread. `run_id` deep links
+ * the alert to its Run detail page.
+ */
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    createdAt: text("created_at").notNull(),
+    kind: text("kind").notNull(), // "run_failed" | "run_finished" | "sla_breach"
+    runId: text("run_id"),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    readAt: text("read_at"),
+  },
+  (t) => ({
+    byUnread: index("notifications_read_created").on(t.readAt, t.id),
   }),
 );
