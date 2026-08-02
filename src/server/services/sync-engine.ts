@@ -7,6 +7,7 @@ import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
+import { insertNotification } from "../notifications/store";
 import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
 /**
@@ -264,6 +265,56 @@ async function reapStaleLocks(): Promise<void> {
       .update(tables.syncJobs)
       .set({ status: "failed", finishedAt: nowIso(), errorCode: "SYNC_ABANDONED", errorMessage: "Job had no heartbeat; assumed crashed" })
       .where(eq(tables.syncJobs.id, row.id));
+    // A reaped run is stuck by definition (no heartbeat past the reaper threshold), which
+    // is one of the two SLA breach signals. Wrapped so a notification write never breaks
+    // the reaper, which must keep clearing locks whatever else fails.
+    try {
+      insertNotification({ kind: "sla_breach", runId: row.id, title: "Sync stuck", body: "No heartbeat past the stall threshold, assumed crashed and reaped." });
+    } catch {
+      // notifications are best effort
+    }
+  }
+}
+
+/**
+ * Raises the run-level notifications for a finished sync (Runs and observability spec
+ * 2026-08-02). Failures and partial runs always notify; a success notifies only when the
+ * notifyOnSuccess setting is on. A run whose wall clock time crossed the sync SLA budget
+ * raises a separate sla_breach. Never auto cancels. Callers wrap this in a try/catch: a
+ * notification write must never break a sync.
+ */
+async function notifyRunFinished(
+  jobId: string,
+  status: SyncJobStatus,
+  totals: { itemsCreated: number; itemsUpdated: number; itemsFailed: number },
+  failBody: string | null,
+): Promise<void> {
+  if (status === "failed") {
+    insertNotification({ kind: "run_failed", runId: jobId, title: "Sync failed", body: failBody ?? "The sync did not finish." });
+  } else if (status === "partial") {
+    insertNotification({ kind: "run_failed", runId: jobId, title: "Partial sync", body: `${totals.itemsFailed} item${totals.itemsFailed === 1 ? "" : "s"} failed to sync.` });
+  } else if (await getSetting("notifyOnSuccess")) {
+    insertNotification({ kind: "run_finished", runId: jobId, title: "Sync finished", body: `${totals.itemsCreated} new, ${totals.itemsUpdated} updated.` });
+  }
+
+  // Over budget: a completed run that took longer than its wall clock budget. evaluateSla
+  // only flags a still-running run, so the finished case is computed here from the row's
+  // own start and finish.
+  const [row] = await db
+    .select({ startedAt: tables.syncJobs.startedAt, finishedAt: tables.syncJobs.finishedAt })
+    .from(tables.syncJobs)
+    .where(eq(tables.syncJobs.id, jobId));
+  if (row?.startedAt && row.finishedAt) {
+    const budgetMinutes = await getSetting("syncSlaMinutes");
+    const elapsedMs = new Date(row.finishedAt).getTime() - new Date(row.startedAt).getTime();
+    if (Number.isFinite(elapsedMs) && elapsedMs > budgetMinutes * 60_000) {
+      insertNotification({
+        kind: "sla_breach",
+        runId: jobId,
+        title: "Sync over budget",
+        body: `Ran ${Math.round(elapsedMs / 60_000)} min, over the ${budgetMinutes} min budget.`,
+      });
+    }
   }
 }
 
@@ -1232,6 +1283,12 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
 
     log.info("sync.finished", { jobId, status, stopReason, channelsSynced, retries: tracker.retries, reaped: !owned, ...totals });
 
+    try {
+      await notifyRunFinished(jobId, status, totals, everythingFailed ? gaps[0]?.error ?? null : null);
+    } catch {
+      // A notification write must never break a completed sync.
+    }
+
     return {
       jobId,
       channelsSynced,
@@ -1258,6 +1315,11 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       { status: "failed", errorCode: errorCode(err), errorMessage: errorMessage(err) }
     );
     log.error("sync.failed", { jobId, code: errorCode(err), message: errorMessage(err) });
+    try {
+      insertNotification({ kind: "run_failed", runId: jobId, title: "Sync failed", body: errorMessage(err) });
+    } catch {
+      // A notification write must never mask the original sync failure below.
+    }
     throw err;
   }
 }
