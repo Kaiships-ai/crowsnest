@@ -7,6 +7,14 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -33,13 +41,18 @@ export function FleetColumnMenu({
 }) {
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
 
   async function handleDelete() {
+    setPendingDelete(true);
     const result = await deleteFleetAction(fleetId);
+    setPendingDelete(false);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
+    setDeleting(false);
     router.refresh();
   }
 
@@ -53,7 +66,7 @@ export function FleetColumnMenu({
           <DropdownMenuItem onClick={() => setRenaming(true)}>
             <Pencil /> Rename
           </DropdownMenuItem>
-          <DropdownMenuItem variant="destructive" onClick={() => void handleDelete()}>
+          <DropdownMenuItem variant="destructive" onClick={() => setDeleting(true)}>
             <Trash2 /> Delete
           </DropdownMenuItem>
           <DropdownMenuSeparator />
@@ -78,6 +91,28 @@ export function FleetColumnMenu({
           }}
           rename={renameFleetAction}
         />
+      )}
+
+      {deleting && (
+        <Dialog open={deleting} onOpenChange={(o) => !o && setDeleting(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete fleet?</DialogTitle>
+              <DialogDescription>
+                &ldquo;{name}&rdquo; will be deleted and its channels move to Unassigned. This cannot be undone.
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeleting(false)} disabled={pendingDelete}>
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={() => void handleDelete()} disabled={pendingDelete}>
+                {pendingDelete ? "Deleting…" : "Delete fleet"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </>
   );
