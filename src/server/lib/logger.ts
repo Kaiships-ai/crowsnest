@@ -38,7 +38,7 @@ function redact(fields: LogFields): LogFields {
   return out;
 }
 
-function emit(level: LogLevel, event: string, fields: LogFields = {}): void {
+function emit(level: LogLevel, event: string, fields: LogFields = {}, runId?: string): void {
   if (LEVEL_ORDER[level] < LEVEL_ORDER[activeLevel()]) return;
   const line = JSON.stringify({ ts: new Date().toISOString(), level, event, ...redact(fields) });
   if (level === "error" || level === "warn") process.stderr.write(`${line}\n`);
@@ -46,7 +46,7 @@ function emit(level: LogLevel, event: string, fields: LogFields = {}): void {
 
   if (level !== "debug") {
     try {
-      insertLogEvent({ ts: new Date().toISOString(), level, source: "backend", event, fields });
+      insertLogEvent({ ts: new Date().toISOString(), level, source: "backend", event, fields, runId });
     } catch {
       // A logging sink must never break the caller. The line is already on stdout.
     }
@@ -55,7 +55,7 @@ function emit(level: LogLevel, event: string, fields: LogFields = {}): void {
 
 export const log = {
   debug: (event: string, fields?: LogFields) => emit("debug", event, fields),
-  info: (event: string, fields?: LogFields) => emit("info", event, fields),
-  warn: (event: string, fields?: LogFields) => emit("warn", event, fields),
-  error: (event: string, fields?: LogFields) => emit("error", event, fields),
+  info: (event: string, fields?: LogFields, runId?: string) => emit("info", event, fields, runId),
+  warn: (event: string, fields?: LogFields, runId?: string) => emit("warn", event, fields, runId),
+  error: (event: string, fields?: LogFields, runId?: string) => emit("error", event, fields, runId),
 };

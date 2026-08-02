@@ -30,6 +30,7 @@ const Body = z.object({
   event: z.string().min(1),
   // zod v4 requires both a key and value schema for z.record (unlike v3's single-arg form).
   fields: z.record(z.string(), z.unknown()).default({}),
+  runId: z.string().optional(),
 });
 
 /** Constant-time compare against the shared secret, same idea the sidecar itself uses
@@ -58,6 +59,6 @@ export async function POST(request: Request): Promise<Response> {
     return new Response(null, { status: 401 });
   }
 
-  insertLogEvent({ ts: evt.ts, level: evt.level, source: evt.source, event: evt.event, fields: evt.fields });
+  insertLogEvent({ ts: evt.ts, level: evt.level, source: evt.source, event: evt.event, fields: evt.fields, runId: evt.runId });
   return new Response(null, { status: 204 });
 }

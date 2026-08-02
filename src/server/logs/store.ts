@@ -11,6 +11,7 @@ export interface LogEventInput {
   source: LogSource;
   event: string;
   fields: Record<string, unknown>;
+  runId?: string;
 }
 export interface LogEventRow extends LogEventInput {
   id: number;
@@ -23,6 +24,7 @@ export interface LogQueryFilter {
   until?: string;
   search?: string;
   limit?: number;
+  runId?: string;
 }
 
 export const RETENTION_MAX = 50000;
@@ -73,8 +75,11 @@ export function redactLogFields(fields: Record<string, unknown>): Record<string,
 
 export function insertLogEvent(input: LogEventInput): void {
   const clean = redactLogFields(input.fields ?? {});
+  // Bridge: an explicit runId wins, otherwise fall back to a jobId already inside fields,
+  // so the many existing sync emitters get a run_id for free without being rewritten.
+  const runId = input.runId ?? (typeof input.fields?.jobId === "string" ? input.fields.jobId : null);
   db.insert(logEvents)
-    .values({ ts: input.ts, level: input.level, source: input.source, event: input.event, fields: JSON.stringify(clean) })
+    .values({ ts: input.ts, level: input.level, source: input.source, event: input.event, fields: JSON.stringify(clean), runId })
     .run();
   // Monotonic autoincrement id means MAX(id) - RETENTION_MAX is the cutoff; the
   // kept window has no gaps, so this leaves exactly the newest RETENTION_MAX rows.
@@ -88,6 +93,7 @@ export function queryLogEvents(filter: LogQueryFilter = {}): LogEventRow[] {
   if (filter.event) conds.push(like(logEvents.event, `${filter.event}%`));
   if (filter.since) conds.push(gte(logEvents.ts, filter.since));
   if (filter.until) conds.push(lte(logEvents.ts, filter.until));
+  if (filter.runId) conds.push(eq(logEvents.runId, filter.runId));
   if (filter.search) {
     const needle = `%${filter.search}%`;
     conds.push(or(like(logEvents.event, needle), like(logEvents.fields, needle))!);
@@ -106,6 +112,7 @@ export function queryLogEvents(filter: LogQueryFilter = {}): LogEventRow[] {
     source: r.source as LogSource,
     event: r.event,
     fields: safeParse(r.fields),
+    runId: r.runId ?? undefined,
   }));
 }
 

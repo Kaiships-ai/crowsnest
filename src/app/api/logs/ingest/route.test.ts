@@ -65,4 +65,11 @@ describe("POST /api/logs/ingest", () => {
     await POST(req({ ...base, source: "frontend", fields: { password: "hunter2", ok: 1 } }));
     expect(queryLogEvents({ levels: ["error"], source: "frontend" })[0].fields).toEqual({ password_redacted: true, ok: 1 });
   });
+
+  test("payload with a runId stores it", async () => {
+    const res = await POST(req({ ...base, source: "frontend", runId: "job_c" }));
+    expect(res.status).toBe(204);
+    const rows = queryLogEvents({ levels: ["error"], runId: "job_c" });
+    expect(rows).toHaveLength(1);
+  });
 });
