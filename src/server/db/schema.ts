@@ -74,6 +74,10 @@ export const fleets = sqliteTable("fleets", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   nicheLabel: text("niche_label"),
+  // Column order on the Channels Kanban board. Backfilled by created_at on migration;
+  // reorderFleetsAction writes the array index. Unassigned is not a fleet row and is
+  // always pinned first, so it has no sort_order.
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
 
