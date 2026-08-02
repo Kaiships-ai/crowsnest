@@ -1,3 +1,4 @@
+import { AppearanceSection } from "@/components/settings/appearance-section";
 import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
 import { GraphSection } from "@/components/settings/graph-section";
 import { InstagramSection } from "@/components/settings/instagram-section";
@@ -30,6 +31,7 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { id: "feed-defaults", label: "Feed defaults" },
   { id: "sync", label: "Sync" },
   { id: "onboarding", label: "Onboarding" },
+  { id: "appearance", label: "Appearance" },
 ];
 
 // Reads live process.env / filesystem / DB state on every load — no dynamic segment
@@ -139,8 +141,12 @@ export default async function SettingsPage() {
           />
         </div>
 
-        <div id="onboarding" className="scroll-mt-6 pt-8">
+        <div id="onboarding" className="scroll-mt-6 border-b border-border py-8">
           <OnboardingSection />
+        </div>
+
+        <div id="appearance" className="scroll-mt-6 pt-8">
+          <AppearanceSection />
         </div>
       </div>
     </div>

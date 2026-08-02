@@ -14,9 +14,6 @@ const PAD_X = 24;
 const PAD_TOP = 28;
 const PAD_BOTTOM = 24;
 const GRIDLINES = 4;
-const LINE_COLOR = "#767D93";
-const GRID_COLOR = "#242938";
-const RING_COLOR = "#12151C";
 
 // DESIGN.md §5 heat ramp — dot fills for outlier-threshold points (tier 4 uses the
 // same 135deg gradient as the badge, via the <defs> below).
@@ -72,10 +69,10 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
 
         {Array.from({ length: GRIDLINES }).map((_, i) => {
           const y = PAD_TOP + (i * (HEIGHT - PAD_TOP - PAD_BOTTOM)) / (GRIDLINES - 1);
-          return <line key={i} x1={PAD_X} x2={width - PAD_X} y1={y} y2={y} stroke={GRID_COLOR} strokeWidth={1} />;
+          return <line key={i} x1={PAD_X} x2={width - PAD_X} y1={y} y2={y} className="stroke-border" strokeWidth={1} />;
         })}
 
-        <polyline points={linePath} fill="none" stroke={LINE_COLOR} strokeWidth={2} />
+        <polyline points={linePath} fill="none" className="stroke-muted-foreground" strokeWidth={2} />
 
         {coords.map((c) => (
           <Tooltip key={c.point.videoId}>
@@ -98,7 +95,7 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
               cy={c.y}
               r={5}
               fill={DOT_FILL[tier]}
-              stroke={RING_COLOR}
+              className="stroke-card"
               strokeWidth={2}
               pointerEvents="none"
             />
