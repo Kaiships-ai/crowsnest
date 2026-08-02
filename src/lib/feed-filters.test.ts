@@ -11,59 +11,57 @@ import {
   searchParamsFromEntries,
 } from "./feed-filters";
 
-const BALANCED_CRITERIA = { minScore: 5, sinceDays: 30 };
-
 describe("resolveFeedCriteria", () => {
-  test("bare {} resolves to Balanced (minScore 5, sinceDays 30)", () => {
-    const result = resolveFeedCriteria({}, BALANCED_CRITERIA);
+  test("bare {} resolves to no criteria — the full raw library, no auto-applied default", () => {
+    const result = resolveFeedCriteria({});
     expect(result.isEmpty).toBe(true);
-    expect(result.minScore).toBe(5);
-    expect(result.sinceDays).toBe(30);
-  });
-
-  test("a cosmetic-only param ({ density: 'compact' }) still resolves to Balanced (finding 1)", () => {
-    const result = resolveFeedCriteria({ density: "compact" }, BALANCED_CRITERIA);
-    expect(result.isEmpty).toBe(true);
-    expect(result.minScore).toBe(5);
-    expect(result.sinceDays).toBe(30);
-  });
-
-  test("other cosmetic params (view, sort, limit) also still resolve to Balanced", () => {
-    for (const sp of [{ view: "list" }, { sort: "recent" }, { limit: "48" }]) {
-      const result = resolveFeedCriteria(sp, BALANCED_CRITERIA);
-      expect(result.isEmpty).toBe(true);
-      expect(result.minScore).toBe(5);
-      expect(result.sinceDays).toBe(30);
-    }
-  });
-
-  test("{ minScore: 'any' } resolves to minScore undefined, and isEmpty false (finding 2)", () => {
-    const result = resolveFeedCriteria({ minScore: "any" }, BALANCED_CRITERIA);
-    expect(result.isEmpty).toBe(false);
     expect(result.minScore).toBeUndefined();
-    // Balanced must not reapply once any filter param is present, even though this
-    // particular one resolved to "no condition".
+    expect(result.minViews).toBeUndefined();
     expect(result.sinceDays).toBeUndefined();
   });
 
-  test("{ minScore: '2' } resolves to minScore 2, Balanced not applied", () => {
-    const result = resolveFeedCriteria({ minScore: "2" }, BALANCED_CRITERIA);
+  test("a cosmetic-only param ({ density: 'compact' }) is still bare/raw", () => {
+    const result = resolveFeedCriteria({ density: "compact" });
+    expect(result.isEmpty).toBe(true);
+    expect(result.minScore).toBeUndefined();
+    expect(result.sinceDays).toBeUndefined();
+  });
+
+  test("other cosmetic params (view, sort, limit) are still bare/raw", () => {
+    for (const sp of [{ view: "list" }, { sort: "recent" }, { limit: "48" }]) {
+      const result = resolveFeedCriteria(sp);
+      expect(result.isEmpty).toBe(true);
+      expect(result.minScore).toBeUndefined();
+      expect(result.sinceDays).toBeUndefined();
+    }
+  });
+
+  test("{ minScore: 'any' } resolves to minScore undefined, and isEmpty false", () => {
+    const result = resolveFeedCriteria({ minScore: "any" });
+    expect(result.isEmpty).toBe(false);
+    expect(result.minScore).toBeUndefined();
+    expect(result.sinceDays).toBeUndefined();
+  });
+
+  test("{ minScore: '2' } resolves to minScore 2", () => {
+    const result = resolveFeedCriteria({ minScore: "2" });
     expect(result.isEmpty).toBe(false);
     expect(result.minScore).toBe(2);
     expect(result.sinceDays).toBeUndefined();
   });
 
   test("{ since: 'any' } resolves to sinceDays undefined and isEmpty false", () => {
-    const result = resolveFeedCriteria({ since: "any" }, BALANCED_CRITERIA);
+    const result = resolveFeedCriteria({ since: "any" });
     expect(result.isEmpty).toBe(false);
     expect(result.sinceDays).toBeUndefined();
   });
 
-  test("no Balanced preset yet (undefined criteria) leaves everything undefined on a bare visit", () => {
-    const result = resolveFeedCriteria({}, undefined);
-    expect(result.isEmpty).toBe(true);
-    expect(result.minScore).toBeUndefined();
-    expect(result.sinceDays).toBeUndefined();
+  test("real filter params resolve straight from the URL", () => {
+    const result = resolveFeedCriteria({ minScore: "5", minViews: "10000", since: "30" });
+    expect(result.isEmpty).toBe(false);
+    expect(result.minScore).toBe(5);
+    expect(result.minViews).toBe(10000);
+    expect(result.sinceDays).toBe(30);
   });
 });
 
@@ -123,13 +121,16 @@ describe("bandOrAny", () => {
 
   test("each real band round-trips", () => {
     expect(bandOrAny("nano")).toBe("nano");
-    expect(bandOrAny("micro")).toBe("micro");
     expect(bandOrAny("mid")).toBe("mid");
     expect(bandOrAny("macro")).toBe("macro");
   });
 
+  test("the removed 'micro' band no longer resolves", () => {
+    expect(bandOrAny("micro")).toBeUndefined();
+  });
+
   test("an array value reads its first element", () => {
-    expect(bandOrAny(["micro", "macro"])).toBe("micro");
+    expect(bandOrAny(["mid", "macro"])).toBe("mid");
   });
 });
 

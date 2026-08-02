@@ -68,7 +68,7 @@ describe("resolveFeedNav", () => {
     await seedVideo(channelId, { outlierScore: 2 });
     await seedVideo(channelId, { outlierScore: 1 });
 
-    const nav = await resolveFeedNav(mid, { minScore: "5" }, undefined);
+    const nav = await resolveFeedNav(mid, { minScore: "5" });
 
     // Sorted by score desc by default: low(10), mid(8), high(6) — mid is 2nd of 3.
     expect(nav.indexLabel).toBe("2 of 3");
@@ -83,27 +83,24 @@ describe("resolveFeedNav", () => {
     const excluded = await seedVideo(channelId, { outlierScore: 1 });
     await seedVideo(channelId, { outlierScore: 10 });
 
-    const nav = await resolveFeedNav(excluded, { minScore: "5" }, undefined);
+    const nav = await resolveFeedNav(excluded, { minScore: "5" });
 
     expect(nav.indexLabel).toBeNull();
     expect(nav.prevHref).toBeNull();
     expect(nav.nextHref).toBeNull();
   });
 
-  test("a bare searchParams applies the Balanced default, same as feed/page.tsx", async () => {
+  test("a bare searchParams resolves against the full raw library, not a default slice", async () => {
     const channelId = await seedChannel();
-    const balancedCriteria = { minScore: 5, sinceDays: 30 };
-    // Matches Balanced (minScore >= 5).
     const inBand = await seedVideo(channelId, { outlierScore: 7 });
-    // Below Balanced's minScore — excluded from the resolved slice.
-    await seedVideo(channelId, { outlierScore: 2 });
+    const low = await seedVideo(channelId, { outlierScore: 2 });
 
-    const nav = await resolveFeedNav(inBand, {}, balancedCriteria);
+    const nav = await resolveFeedNav(inBand, {});
 
-    // Only the one Balanced-matching post exists in the resolved slice — "1 of 1", not
-    // "1 of 2" (which would mean Balanced never applied and the full library leaked
-    // through, the pre-fix bug).
-    expect(nav.indexLabel).toBe("1 of 1");
+    // Bare = the whole library now (no auto-applied Balanced), so both posts count:
+    // "1 of 2", not the pre-change "1 of 1" a default minScore slice produced.
+    expect(nav.indexLabel).toBe("1 of 2");
+    expect(nav.nextHref).toContain(low);
   });
 
   test("purely cosmetic params (density, view, limit) are dropped from the forwarded hrefs", async () => {
@@ -111,7 +108,7 @@ describe("resolveFeedNav", () => {
     const a = await seedVideo(channelId, { outlierScore: 10 });
     const b = await seedVideo(channelId, { outlierScore: 5 });
 
-    const nav = await resolveFeedNav(a, { minScore: "1", density: "compact", view: "list" }, undefined);
+    const nav = await resolveFeedNav(a, { minScore: "1", density: "compact", view: "list" });
 
     expect(nav.nextHref).toBe(`/feed/${b}?minScore=1`);
     expect(nav.backHref).toBe("/feed?minScore=1");
@@ -128,7 +125,7 @@ describe("resolveFeedNav", () => {
     const mid = await seedVideo(channelId, { outlierScore: 20, postedAt: isoDaysAgo(5) });
     const low = await seedVideo(channelId, { outlierScore: 10, postedAt: isoDaysAgo(1) });
 
-    const nav = await resolveFeedNav(mid, { minScore: "1", sort: "recent" }, undefined);
+    const nav = await resolveFeedNav(mid, { minScore: "1", sort: "recent" });
 
     // Recent order: low (1 day ago), mid (5 days ago), high (10 days ago) — mid is 2nd
     // of 3, prev is the more-recent `low`, next is the older `high`.
@@ -139,26 +136,21 @@ describe("resolveFeedNav", () => {
     expect(nav.backHref).toBe(`/feed?minScore=1&sort=recent`);
   });
 
-  // Whole-branch review finding I2: a paramless visit resolves against Balanced, but
-  // plenty of bare-URL entry points (sidebar last-viewed, dashboard/channel grids,
-  // Vault cards, the Vault empty-state "top outlier" link) can land on a post Balanced
-  // would exclude. That used to render dead nav (no label, no prev/next) for a post
-  // that's real and has real neighbours — just not inside Balanced.
-  test("I2: a paramless visit whose target falls outside Balanced falls back to the unfiltered order", async () => {
+  // The old I2 fallback (paramless-visit-not-in-Balanced -> refetch unfiltered) is gone:
+  // a bare visit already resolves against the full library, so a low-score post reached
+  // from a bare-URL entry point (sidebar last-viewed, dashboard/channel grids, Vault
+  // cards) gets real adjacency without a second pass.
+  test("a bare visit to a low-score post still gets full adjacency, no default slice to exclude it", async () => {
     const channelId = await seedChannel();
-    const balancedCriteria = { minScore: 5, sinceDays: 30 };
-    // Below Balanced's minScore threshold — Balanced alone would exclude both of these.
     const outOfBand = await seedVideo(channelId, { outlierScore: 2 });
     await seedVideo(channelId, { outlierScore: 1 });
 
-    const nav = await resolveFeedNav(outOfBand, {}, balancedCriteria);
+    const nav = await resolveFeedNav(outOfBand, {});
 
-    // Falls back to the unfiltered order (both posts exist there), rather than the
-    // pre-fix "not in Balanced -> no label, no adjacency at all" for a real post.
     expect(nav.indexLabel).toBe("1 of 2");
   });
 
-  test("I2: a visit with a real filter query never falls back, even if the target doesn't match it", async () => {
+  test("a visit with a real filter query scopes to it: a target that doesn't match gets no adjacency", async () => {
     const channelId = await seedChannel();
     const excluded = await seedVideo(channelId, { outlierScore: 1 });
     await seedVideo(channelId, { outlierScore: 10 });
@@ -166,7 +158,7 @@ describe("resolveFeedNav", () => {
     // Same case as the "post outside the filtered set" test above, restated to make
     // the I2 boundary explicit: a REAL filter param present means "doesn't match" is
     // an honest fact, not an implicit default to fall back out of.
-    const nav = await resolveFeedNav(excluded, { minScore: "5" }, undefined);
+    const nav = await resolveFeedNav(excluded, { minScore: "5" });
 
     expect(nav.indexLabel).toBeNull();
   });

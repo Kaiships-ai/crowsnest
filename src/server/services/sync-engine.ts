@@ -1275,11 +1275,18 @@ export async function addChannel(
   const handle = normalizeHandle(input.handle);
 
   const existing = await db
-    .select({ id: tables.channels.id })
+    .select({ id: tables.channels.id, deletedAt: tables.channels.deletedAt })
     .from(tables.channels)
     .where(and(eq(tables.channels.platform, "instagram"), eq(tables.channels.handle, handle)))
     .limit(1);
-  if (existing[0]) return { channelId: existing[0].id };
+  // A live row means the channel is already tracked — an idempotent add. A soft-deleted
+  // row (removeChannel sets deletedAt) is revived below instead: the (platform, handle)
+  // unique index makes a second insert impossible, so re-adding a previously removed
+  // handle has to reuse and un-delete that same row. Returning it as-is was the "could
+  // not add @hormozi" bug — the add looked successful but the row stayed deleted, so the
+  // channel never reappeared in the list.
+  const existingRow = existing[0];
+  if (existingRow && existingRow.deletedAt === null) return { channelId: existingRow.id };
 
   let profile: Awaited<ReturnType<IgClient["profile"]>> | null = null;
   let error: { message: string; code: string } | null = null;
@@ -1296,11 +1303,11 @@ export async function addChannel(
     avatarAssetId = avatar.assetId;
   }
 
-  const id = newId();
-  await db.insert(tables.channels).values({
-    id,
-    platform: "instagram",
-    handle,
+  // Shared field set for both the insert and the revive-via-update. A failed profile
+  // fetch leaves the profile columns undefined, which drizzle omits from the SET clause
+  // on update (keeping whatever the revived row already had) and inserts as defaults on a
+  // fresh row — either way a thin, warning-flagged channel, same as before.
+  const profileFields = {
     externalId: profile?.externalId,
     displayName: profile?.displayName,
     avatarAssetId,
@@ -1312,8 +1319,28 @@ export async function addChannel(
     isPrivate: profile?.isPrivate ?? false,
     syncError: error?.message ?? null,
     syncErrorCode: error?.code ?? null,
-    trackedSince: nowIso(),
     lastSyncedAt: profile ? nowIso() : null,
+  };
+
+  if (existingRow) {
+    // Revive the previously-removed row: clear the soft-delete and refresh it from the
+    // freshly fetched profile. trackedSince is left untouched — the channel really has
+    // been tracked since the first add.
+    await db
+      .update(tables.channels)
+      .set({ ...profileFields, deletedAt: null })
+      .where(eq(tables.channels.id, existingRow.id));
+    log.info("channel.readded", { channelId: existingRow.id, handle, hadProfile: profile !== null });
+    return { channelId: existingRow.id };
+  }
+
+  const id = newId();
+  await db.insert(tables.channels).values({
+    id,
+    platform: "instagram",
+    handle,
+    ...profileFields,
+    trackedSince: nowIso(),
   });
 
   log.info("channel.added", { channelId: id, handle, hadProfile: profile !== null });

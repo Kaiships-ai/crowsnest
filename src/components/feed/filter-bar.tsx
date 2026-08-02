@@ -65,7 +65,6 @@ const SINCE_OPTIONS = [
 const BAND_OPTIONS = [
   { value: "any", label: "Any followers" },
   { value: "nano", label: "Nano <10K" },
-  { value: "micro", label: "Micro 10K–100K" },
   { value: "mid", label: "Mid 100K–1M" },
   { value: "macro", label: "Macro 1M+" },
 ];

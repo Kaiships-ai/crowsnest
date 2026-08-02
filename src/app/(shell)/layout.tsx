@@ -3,12 +3,12 @@ import { redirect } from "next/navigation";
 
 import { CommandMenu } from "@/components/layout/command-menu";
 import type { GetStartedItem } from "@/components/layout/get-started-checklist";
-import { Sidebar, type LastViewedPost } from "@/components/layout/sidebar";
+import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
-import { getDashboardStats, getRecentlyViewed } from "@/server/queries/dashboard";
+import { getDashboardStats } from "@/server/queries/dashboard";
 import { getSavedPosts } from "@/server/queries/saved-posts";
 
 // Same reasoning as `(shell)/page.tsx`'s own `force-dynamic`: a layout has no route
@@ -31,22 +31,17 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const gate = await getFirstRunGate();
   if (gate.redirectToFirstRun) redirect("/first-run");
 
-  // Four independent reads, none dependent on the others — the same "one Promise.all"
+  // Three independent reads, none dependent on the others — the same "one Promise.all"
   // shape (shell)/page.tsx uses for its own queries. `getDashboardStats` and
   // `getSavedPosts` are reused as-is rather than duplicated in a leaner form: this is a
   // rendering-layer pass, and at this app's single-user/local-SQLite scale a couple of
   // extra count queries on a full navigation is not a real cost. See sidebar.tsx and
   // get-started-checklist.tsx for what each result backs.
-  const [strip, recentlyViewed, stats, savedPosts] = await Promise.all([
+  const [strip, stats, savedPosts] = await Promise.all([
     getFailureStrip(),
-    getRecentlyViewed(1),
     getDashboardStats(),
     getSavedPosts(),
   ]);
-
-  const lastViewedPost: LastViewedPost | null = recentlyViewed[0]
-    ? { videoId: recentlyViewed[0].videoId, label: recentlyViewed[0].caption ?? recentlyViewed[0].channel.handle }
-    : null;
 
   // Four real facts, not the prototype's four session flags — see
   // get-started-checklist.tsx's module doc for why those two lists differ.
@@ -66,7 +61,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           pixel that isn't rail. A fixed grid column would have kept the old 240px
           gutter reserved even after the rail collapsed to an icon strip. */}
       <div className="flex h-screen">
-        <Sidebar lastViewedPost={lastViewedPost} getStartedItems={getStartedItems} />
+        <Sidebar getStartedItems={getStartedItems} />
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <Topbar strip={strip} />
           <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

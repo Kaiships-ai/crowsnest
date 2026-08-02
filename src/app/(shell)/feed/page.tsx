@@ -17,13 +17,13 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   const sp = await searchParams;
 
   const [fleets, savedFilters, allChannels] = await Promise.all([getFleets(), getSavedFilters(), getChannelsList()]);
-  const balanced = savedFilters.find((f) => f.isSystem && f.name === "Balanced");
 
-  // "Balanced" only applies on a truly bare /feed visit — once the URL carries any
-  // *filter* param (see FILTER_PARAM_KEYS in @/lib/feed-filters), the user's exact intent
-  // (including an explicit "any", i.e. no condition) is respected as-is. Cosmetic params
-  // (density, view, sort, limit) don't count, so they can't silently drop the filter.
-  const { minScore, minViews, sinceDays } = resolveFeedCriteria(sp, balanced?.criteria);
+  // A bare /feed visit shows the full raw library — no auto-applied default. Once the URL
+  // carries a *filter* param (see FILTER_PARAM_KEYS in @/lib/feed-filters), that intent
+  // (including an explicit "any", i.e. no condition) is respected as-is. The "Balanced"
+  // saved filter stays user-selectable from the Saved views menu; it just no longer
+  // applies on its own. Cosmetic params (density, view, sort, limit) aren't filters.
+  const { minScore, minViews, sinceDays } = resolveFeedCriteria(sp);
 
   const filters: FeedFilters = {
     fleetId: first(sp.fleet),

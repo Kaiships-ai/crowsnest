@@ -6,7 +6,6 @@ import { VideoDetail } from "@/components/video/video-detail";
 import type { SearchParams } from "@/lib/feed-filters";
 import { hasLlmKey } from "@/server/llm/client";
 import { getChannelMedianBasis } from "@/server/queries/channels";
-import { getSavedFilters } from "@/server/queries/feed";
 import { getSavedPostByVideoId } from "@/server/queries/saved-posts";
 import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
 import { getSimilarOutliers } from "@/server/services/similar";
@@ -56,18 +55,13 @@ export default async function VideoDetailPage({
   const sp = await searchParams;
   const detail = await getCachedVideoDetail(videoId);
   if (!detail) notFound();
-  // "Balanced" (the same system saved filter feed/page.tsx applies on a bare /feed
-  // visit) resolved once here and threaded into resolveFeedNav, so a bare
-  // `/feed/[videoId]` visit (no forwarded filter) scopes prev/next to the same
-  // Balanced slice the feed itself would show, not the full unfiltered library.
-  const balancedCriteriaPromise = getSavedFilters().then(
-    (filters) => filters.find((f) => f.isSystem && f.name === "Balanced")?.criteria
-  );
+  // A bare `/feed/[videoId]` visit (no forwarded filter) scopes prev/next against the
+  // full raw library, the same default feed/page.tsx now shows on a bare `/feed` visit.
   const [similar, transcriptProviders, medianBasis, feedNav, savedPost] = await Promise.all([
     getSimilarOutliers(videoId),
     availableTranscriptProviders(),
     getChannelMedianBasis(detail.item.channel.id, videoId),
-    balancedCriteriaPromise.then((balancedCriteria) => resolveFeedNav(videoId, sp, balancedCriteria)),
+    resolveFeedNav(videoId, sp),
     getSavedPostByVideoId(videoId),
   ]);
   const canTranscribe = transcriptProviders.some((p) => p.available);

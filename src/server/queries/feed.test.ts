@@ -123,17 +123,29 @@ describe("getOutlierFeed", () => {
     expect(items.some((i) => i.videoId === old)).toBe(false);
   });
 
-  test("followerBand scopes to channels within the band (micro: 10K-100K)", async () => {
-    const microChannel = await seedChannel({ followerCount: 50_000 });
+  test("followerBand scopes to channels within the band (mid: 100K-1M)", async () => {
+    const midChannel = await seedChannel({ followerCount: 500_000 });
     const nanoChannel = await seedChannel({ followerCount: 500 });
-    const microVideo = await seedVideo(microChannel);
+    const midVideo = await seedVideo(midChannel);
     const nanoVideo = await seedVideo(nanoChannel);
 
-    const { items, total } = await getOutlierFeed({ followerBand: "micro", sort: "recent", limit: 200, offset: 0 });
+    const { items, total } = await getOutlierFeed({ followerBand: "mid", sort: "recent", limit: 200, offset: 0 });
 
     expect(total).toBe(1);
-    expect(items[0].videoId).toBe(microVideo);
+    expect(items[0].videoId).toBe(midVideo);
     expect(items.some((i) => i.videoId === nanoVideo)).toBe(false);
+  });
+
+  test("a channel in the removed micro range (10K-100K) matches no band chip", async () => {
+    const midRange = await seedChannel({ followerCount: 50_000 });
+    await seedVideo(midRange);
+
+    // micro was removed; 50K falls between nano (<10K) and mid (100K+), so none of the
+    // remaining bands select it — it only shows under "Any followers".
+    for (const band of ["nano", "mid", "macro"] as const) {
+      const { total } = await getOutlierFeed({ followerBand: band, sort: "recent", limit: 200, offset: 0 });
+      expect(total).toBe(0);
+    }
   });
 
   test("fleetId scopes to only channels tracked in that fleet", async () => {
@@ -264,18 +276,20 @@ describe("getOutlierFeed", () => {
 });
 
 describe("getFeedBandCounts", () => {
-  test("counts posts per follower band under the other active filters, and a null follower_count channel counts in no band", async () => {
+  test("counts posts per follower band under the other active filters; null-follower and removed-micro-range channels count in no band", async () => {
     const nano = await seedChannel({ followerCount: 500 });
-    const micro = await seedChannel({ followerCount: 50_000 });
+    const microRange = await seedChannel({ followerCount: 50_000 });
     const unknownFollowers = await seedChannel({ followerCount: null });
     await seedVideo(nano);
-    await seedVideo(micro);
-    await seedVideo(micro);
+    await seedVideo(microRange);
+    await seedVideo(microRange);
     await seedVideo(unknownFollowers);
 
     const counts = await getFeedBandCounts({});
 
-    expect(counts).toEqual({ nano: 1, micro: 2, mid: 0, macro: 0 });
+    // micro (10K-100K) was removed, so the 50K channel's 2 posts count in no band, the
+    // same as the null-follower channel's post.
+    expect(counts).toEqual({ nano: 1, mid: 0, macro: 0 });
   });
 
   test("respects non-band filters passed alongside it", async () => {
