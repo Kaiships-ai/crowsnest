@@ -101,3 +101,37 @@ _Avoid_: window, date range, history depth
 **Cooldown**:
 The account wide pause after Instagram signals it has had enough. It applies to the Burner, not to one Channel.
 _Avoid_: rate limit, backoff, throttle
+
+## Runs and observability
+
+**Run**:
+One execution of a background operation, with a lifecycle of running, success, partial, or failed. A Sync is a Run, and each Remix stage is a Run.
+_Avoid_: job, task, process, execution
+
+**Step**:
+A unit of work inside a Run, such as one Channel pulled during a Sync or one image downloaded. A Step is never a Run on its own.
+_Avoid_: subtask, child job, phase
+
+**Heartbeat**:
+The periodic signal a running Run sends to prove it is still alive. A Run that stops sending one is treated as stuck.
+_Avoid_: ping, keepalive, liveness check
+
+**Log event**:
+One recorded line about what happened inside a Run, tied to that Run by its Trace id and already redacted of secrets.
+_Avoid_: log line, log entry, message
+
+**Trace id**:
+The id that ties every Log event to the Run that emitted it. Today it rides inside a Log event's fields as jobId.
+_Avoid_: correlation id, request id, span id
+
+**Notification**:
+A stored alert raised when a Run fails, finishes, or breaches its SLA. It survives being missed, unlike a toast.
+_Avoid_: alert, toast, popup
+
+**SLA budget**:
+The wall clock time a Run type is allowed before it counts as too slow.
+_Avoid_: timeout, deadline, limit
+
+**Breach**:
+A Run either crossing its SLA budget (too slow) or going stale with no Heartbeat (stuck).
+_Avoid_: violation, miss, failure
