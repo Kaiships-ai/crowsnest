@@ -1,4 +1,5 @@
 import {
+  Activity,
   Archive,
   Flame,
   LayoutDashboard,
@@ -40,5 +41,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
   { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "System" },
   { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
+  { href: "/runs", label: "Runs", icon: Activity, group: "System" },
   { href: "/settings", label: "Settings", icon: Settings, group: "System" },
 ];
