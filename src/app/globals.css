@@ -7,7 +7,7 @@
 /**
  * Tokens taken from `Crowsnest Prototype.dc.html` (Claude Design project
  * "Crowsnest UI Mockups"), which is the approved visual truth. Where the two written
- * specs disagreed with it, the prototype wins. See docs/design/from-claude-design/.
+ * specs disagreed with it, the prototype wins. See docs/design/_archive/from-claude-design/.
  *
  * Amber means one thing: this beat its channel. It is allowed on the score, and on
  * exactly one primary action per screen. It is banned on nav active state, toggles,
@@ -129,6 +129,72 @@
   --shade: 11, 11, 12;
 
   --radius: 0rem;
+}
+
+/**
+ * Light theme. Same token names, ported from the prototype's [data-theme="light"]
+ * block. Dark stays the default on :root; nothing toggles this yet. Setting
+ * data-theme="light" on <html> swaps the palette. Light is the one place the
+ * no-shadow rule relaxes: flat surfaces on a light ground need an edge.
+ */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* ground */
+  --background: #f4f2ef;
+  --card: #eae7e1;
+  --card-foreground: #17150f;
+  --popover: #e2dfd8;
+  --popover-foreground: #17150f;
+  --muted: #e2dfd8;
+  --accent: #e2dfd8;
+  --accent-foreground: #17150f;
+
+  /* ink */
+  --foreground: #17150f;
+  --muted-foreground: #57554f;
+  --faint: #7f7c75;
+  --dim: #8c887f;
+
+  /* rules */
+  --border: #dcd8d0;
+  --line-strong: #b0aba1;
+  --input: #b0aba1;
+
+  /* amber primary */
+  --primary: #a85f00;
+  --primary-foreground: #fbf9f6;
+  --secondary: #e2dfd8;
+  --secondary-foreground: #17150f;
+
+  /* score */
+  --score: #a85f00;
+  --score-on: #fbf9f6;
+  --score-wash: rgba(168, 95, 0, 0.16);
+  --score-line: rgba(168, 95, 0, 0.5);
+  --score-1: #8a5707;
+  --score-2: #a97b22;
+  --score-3: #c39f55;
+  --score-4: #d8bc8b;
+  --score-5: #e7d8bc;
+
+  /* failure */
+  --destructive: #ae2818;
+  --destructive-foreground: #fbf9f6;
+  --destructive-wash: rgba(174, 40, 24, 0.11);
+
+  /* healthy verdict */
+  --pos: #2f6b4a;
+
+  /* focus and selection */
+  --ring: #a85f00;
+  --selection: rgba(168, 95, 0, 0.2);
+
+  /* hatching and elevation */
+  --hatch-1: rgba(23, 21, 15, 0.05);
+  --hatch-2: rgba(23, 21, 15, 0.17);
+  --shade: 23, 21, 15;
+  --elev: 0 2px 14px rgba(23, 21, 15, 0.16);
 }
 
 @layer base {
