@@ -144,7 +144,7 @@ function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleS
           <span
             {...sortable.attributes}
             {...sortable.listeners}
-            className="flex min-w-0 flex-1 items-center gap-2.5"
+            className="flex min-w-0 flex-1 items-center gap-2.5 cursor-grab active:cursor-grabbing"
           >
             <ChannelCardBody channel={channel} />
           </span>
