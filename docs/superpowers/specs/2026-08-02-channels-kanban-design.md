@@ -166,6 +166,31 @@ Drag gestures themselves are not unit tested; the logic they drive lives in
 `kanban-moves.ts` and is tested there. A live browser pass confirms the drag,
 Save, Discard, and fleet menu actions.
 
+## Reference mockup and interaction feel (approved)
+
+An interactive mockup was built and approved: `public/kanban-mockup.html` (served at
+http://localhost:3000/kanban-mockup.html during design; a throwaway, removed in the
+implementation PR). It fixes the look and the drag feel the production build should match.
+
+Look, from src/app/globals.css: dark tokens, radius 0 except pill buttons and circular
+avatars, Archivo for words and IBM Plex Mono for numbers, amber on one action per screen
+(Save changes) plus the score. Board is a pinned Unassigned column then one column per
+fleet, split by full-height hairline lane dividers. Card face: avatar letter, handle,
+follower count, outliers 30d, a sync-status line with a small state dot. The own channel
+carries a "My channel" caption under the handle. Empty fleet uses the hatch "no data" well.
+
+Drag feel (apple-design): the card tracks the pointer 1:1 from the grab point, tilts
+toward the drag direction, and lifts through border and surface (dark theme has no
+shadows). Sibling cards slide to open the target gap. On release the card springs to the
+slot carrying the throw velocity, slight bounce, then settles. Column counts and the
+"N unsaved moves" bar update live; Discard reverts, Save clears. prefers-reduced-motion
+drops the tilt and spring for an instant move.
+
+The mockup runs on vanilla JS to prove the interaction. Production uses @dnd-kit (decision
+6), which reaches the same feel with keyboard and pointer support the hand-rolled version
+skips. Match the mockup's spring character (roughly damping 0.8, response 0.35) and the
+FLIP reflow.
+
 ## Out of scope
 
 - Median views on cards.
