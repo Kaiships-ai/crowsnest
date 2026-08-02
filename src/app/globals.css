@@ -133,11 +133,11 @@
 
 /**
  * Light theme. Same token names, ported from the prototype's [data-theme="light"]
- * block. Dark stays the default on :root; nothing toggles this yet. Setting
- * data-theme="light" on <html> swaps the palette. Light is the one place the
- * no-shadow rule relaxes: flat surfaces on a light ground need an edge.
+ * block. Dark stays the default on :root; the .light class (set by next-themes)
+ * swaps the palette. Light is the one place the no-shadow rule relaxes: flat
+ * surfaces on a light ground need an edge.
  */
-[data-theme="light"] {
+.light {
   color-scheme: light;
 
   /* ground */
