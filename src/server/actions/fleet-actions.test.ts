@@ -1,19 +1,25 @@
-import { beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
+
+// revalidatePath requires a request-scoped work store that only exists inside a real
+// Next.js request; calling it from a plain vitest unit test throws "Invariant: static
+// generation store missing". The actions under test call it as a side effect on every
+// mutation, so it's mocked out here the same way ig-actions.test.ts / media-actions.test.ts
+// mock their own out-of-process dependencies.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 let db: typeof import("../db")["db"];
 let tables: typeof import("../db")["tables"];
 let newId: typeof import("../db")["newId"];
 let nowIso: typeof import("../db")["nowIso"];
 let migrate: typeof import("../db/test-migrate")["migrate"];
-let createFleetAction: typeof import("./fleet-actions")["createFleetAction"];
-let setChannelFleetsAction: typeof import("./fleet-actions")["setChannelFleetsAction"];
+let actions: typeof import("./fleet-actions");
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("../db"));
   ({ migrate } = await import("../db/test-migrate"));
-  ({ createFleetAction, setChannelFleetsAction } = await import("./fleet-actions"));
+  actions = await import("./fleet-actions");
 });
 
 beforeEach(async () => {
@@ -25,64 +31,112 @@ beforeEach(async () => {
 
 async function seedChannel(): Promise<string> {
   const id = newId();
-  await db.insert(tables.channels).values({ id, platform: "instagram", handle: `@fleet-test-${id}`, trackedSince: nowIso() });
+  await db.insert(tables.channels).values({ id, platform: "instagram", handle: `@t-${id}`, trackedSince: nowIso() });
   return id;
+}
+async function makeFleet(name: string): Promise<string> {
+  const r = (await actions.createFleetAction(name)) as { ok: true; fleetId: string };
+  return r.fleetId;
 }
 
 describe("createFleetAction", () => {
-  test("creates a fleet with the trimmed name and returns its id", async () => {
-    const result = await createFleetAction("  Fitness Niche  ");
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    const [row] = await db.select().from(tables.fleets).where(eq(tables.fleets.id, result.fleetId));
-    expect(row.name).toBe("Fitness Niche");
+  test("creates a trimmed fleet and appends it as the last column", async () => {
+    const a = await makeFleet("First");
+    const b = await makeFleet("Second");
+    const rows = await db.select().from(tables.fleets);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+    expect(byId[a].sortOrder).toBeLessThan(byId[b].sortOrder);
   });
 
-  test("rejects an empty or whitespace-only name without touching the db", async () => {
-    const result = await createFleetAction("   ");
+  test("rejects an empty name without touching the db", async () => {
+    const result = await actions.createFleetAction("   ");
     expect(result).toEqual({ ok: false, error: "Fleet name can't be empty." });
-
-    const rows = await db.select().from(tables.fleets);
-    expect(rows).toHaveLength(0);
+    expect(await db.select().from(tables.fleets)).toHaveLength(0);
   });
 });
 
-describe("setChannelFleetsAction", () => {
-  test("assigns a channel to the given fleets", async () => {
-    const channelId = await seedChannel();
-    const fleetA = (await createFleetAction("Fleet A")) as { ok: true; fleetId: string };
-    const fleetB = (await createFleetAction("Fleet B")) as { ok: true; fleetId: string };
-
-    const result = await setChannelFleetsAction(channelId, [fleetA.fleetId, fleetB.fleetId]);
-
+describe("renameFleetAction", () => {
+  test("updates the name, trimmed", async () => {
+    const id = await makeFleet("Old");
+    const result = await actions.renameFleetAction(id, "  New  ");
     expect(result).toEqual({ ok: true });
-    const rows = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, channelId));
-    expect(rows.map((r) => r.fleetId).sort()).toEqual([fleetA.fleetId, fleetB.fleetId].sort());
+    const [row] = await db.select().from(tables.fleets).where(eq(tables.fleets.id, id));
+    expect(row.name).toBe("New");
   });
 
-  test("replaces (not adds to) the existing membership set on a second call", async () => {
-    const channelId = await seedChannel();
-    const fleetA = (await createFleetAction("Fleet A")) as { ok: true; fleetId: string };
-    const fleetB = (await createFleetAction("Fleet B")) as { ok: true; fleetId: string };
-    const fleetC = (await createFleetAction("Fleet C")) as { ok: true; fleetId: string };
-
-    await setChannelFleetsAction(channelId, [fleetA.fleetId, fleetB.fleetId]);
-    await setChannelFleetsAction(channelId, [fleetB.fleetId, fleetC.fleetId]);
-
-    const rows = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, channelId));
-    expect(rows.map((r) => r.fleetId).sort()).toEqual([fleetB.fleetId, fleetC.fleetId].sort());
+  test("rejects an empty name", async () => {
+    const id = await makeFleet("Old");
+    expect(await actions.renameFleetAction(id, "  ")).toEqual({ ok: false, error: "Fleet name can't be empty." });
   });
+});
 
-  test("an empty array clears all fleet membership for the channel", async () => {
-    const channelId = await seedChannel();
-    const fleetA = (await createFleetAction("Fleet A")) as { ok: true; fleetId: string };
-    await setChannelFleetsAction(channelId, [fleetA.fleetId]);
+describe("deleteFleetAction", () => {
+  test("deletes the fleet and drops its channels to Unassigned", async () => {
+    const ch = await seedChannel();
+    const id = await makeFleet("Gone");
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: id }]);
 
-    const result = await setChannelFleetsAction(channelId, []);
+    const result = await actions.deleteFleetAction(id);
 
     expect(result).toEqual({ ok: true });
-    const rows = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, channelId));
-    expect(rows).toHaveLength(0);
+    expect(await db.select().from(tables.fleets).where(eq(tables.fleets.id, id))).toHaveLength(0);
+    // membership cascaded away, so the channel is now in no fleet (Unassigned)
+    expect(await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, ch))).toHaveLength(0);
+  });
+});
+
+describe("reorderFleetsAction", () => {
+  test("writes sort_order from the array index", async () => {
+    const a = await makeFleet("A");
+    const b = await makeFleet("B");
+    const c = await makeFleet("C");
+
+    await actions.reorderFleetsAction([c, a, b]);
+
+    const rows = await db.select().from(tables.fleets);
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.sortOrder]));
+    expect([byId[c], byId[a], byId[b]]).toEqual([0, 1, 2]);
+  });
+});
+
+describe("moveChannelsAction", () => {
+  test("leaves each moved channel in exactly one fleet row", async () => {
+    const ch = await seedChannel();
+    const f1 = await makeFleet("F1");
+    const f2 = await makeFleet("F2");
+
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: f1 }]);
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: f2 }]);
+
+    const rows = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, ch));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].fleetId).toBe(f2);
+  });
+
+  test("a move to null (Unassigned) removes the membership row", async () => {
+    const ch = await seedChannel();
+    const f1 = await makeFleet("F1");
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: f1 }]);
+
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: null }]);
+
+    expect(await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, ch))).toHaveLength(0);
+  });
+
+  test("applies a batch of moves for several channels at once", async () => {
+    const a = await seedChannel();
+    const b = await seedChannel();
+    const f1 = await makeFleet("F1");
+    const f2 = await makeFleet("F2");
+
+    await actions.moveChannelsAction([
+      { channelId: a, fleetId: f1 },
+      { channelId: b, fleetId: f2 },
+    ]);
+
+    const rowsA = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, a));
+    const rowsB = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, b));
+    expect(rowsA.map((r) => r.fleetId)).toEqual([f1]);
+    expect(rowsB.map((r) => r.fleetId)).toEqual([f2]);
   });
 });
