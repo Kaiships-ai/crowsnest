@@ -1,0 +1,530 @@
+<!doctype html>
+<!--
+  Hallmark - product-screen mockup, existing system preserved (no theme/macrostructure rotation).
+  pre-emit critique: P5 H4 E4 S5 R5 V4
+  Source of truth: src/app/globals.css tokens (dark :root + .light), spec docs/superpowers/specs/2026-08-02-logs-observability-design.md.
+  Throwaway static mockup. Fake data. No wiring.
+-->
+<html lang="en" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crowsnest Runs mockup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* Dark is the :root default, same as the app. .light swaps the palette. */
+    :root {
+      color-scheme: dark;
+      --background:#0b0b0c; --card:#141416; --card-foreground:#f2f2f0;
+      --popover:#1c1c1f; --popover-foreground:#f2f2f0; --muted:#1c1c1f;
+      --accent:#1c1c1f; --accent-foreground:#f2f2f0;
+      --foreground:#f2f2f0; --muted-foreground:#9a9a96; --faint:#6b6b68; --dim:#55554f;
+      --border:#1f1f23; --line-strong:#3e3e46; --input:#3e3e46;
+      --primary:#e8a33d; --primary-foreground:#0b0b0c;
+      --secondary:#1c1c1f; --secondary-foreground:#f2f2f0;
+      --score:#e8a33d; --score-wash:rgba(232,163,61,0.12);
+      --destructive:#d9503f; --destructive-foreground:#0b0b0c; --destructive-wash:rgba(217,80,63,0.14);
+      --pos:#6fad86; --pos-wash:rgba(111,173,134,0.12);
+      --ring:#e8a33d; --selection:rgba(232,163,61,0.24); --elev:none;
+
+      --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+      --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+      --text-2xs:0.8125rem; --text-xs:0.9375rem; --text-sm:1.0625rem;
+      --text-base:1.1875rem; --text-lg:1.5rem; --text-xl:2.125rem;
+    }
+    .light {
+      color-scheme: light;
+      --background:#f4f2ef; --card:#eae7e1; --card-foreground:#17150f;
+      --popover:#e2dfd8; --popover-foreground:#17150f; --muted:#e2dfd8;
+      --accent:#e2dfd8; --accent-foreground:#17150f;
+      --foreground:#17150f; --muted-foreground:#57554f; --faint:#7f7c75; --dim:#8c887f;
+      --border:#dcd8d0; --line-strong:#b0aba1; --input:#b0aba1;
+      --primary:#a85f00; --primary-foreground:#fbf9f6;
+      --secondary:#e2dfd8; --secondary-foreground:#17150f;
+      --score:#a85f00; --score-wash:rgba(168,95,0,0.16);
+      --destructive:#ae2818; --destructive-foreground:#fbf9f6; --destructive-wash:rgba(174,40,24,0.11);
+      --pos:#2f6b4a; --pos-wash:rgba(47,107,74,0.12);
+      --ring:#a85f00; --selection:rgba(168,95,0,0.2); --elev:0 2px 14px rgba(23,21,15,0.16);
+    }
+
+    * { box-sizing:border-box; margin:0; padding:0; border-color:var(--border); }
+    html,body { overflow-x:clip; }
+    body {
+      background:var(--background); color:var(--foreground);
+      font-family:var(--font-sans); font-size:var(--text-sm); line-height:1.45;
+      -webkit-font-smoothing:antialiased;
+    }
+    ::selection { background:var(--selection); }
+    .mono,[data-num],.num { font-family:var(--font-mono); font-variant-numeric:tabular-nums slashed-zero; }
+    .lab { font-family:var(--font-mono); font-size:var(--text-2xs); letter-spacing:0.06em; text-transform:uppercase; color:var(--faint); }
+    button { font-family:inherit; cursor:pointer; }
+    button:not(:disabled):active { filter:brightness(0.9); }
+    :focus-visible { outline:2px solid var(--ring); outline-offset:2px; }
+
+    /* Shell */
+    .app { display:flex; height:100vh; }
+    .sidebar {
+      width:240px; flex-shrink:0; background:var(--card);
+      border-right:1px solid var(--border); display:flex; flex-direction:column; overflow-y:auto;
+    }
+    .brand { padding:20px; font-size:var(--text-lg); font-weight:600; letter-spacing:-0.01em; }
+    .nav { display:flex; flex-direction:column; gap:2px; padding-bottom:8px; flex:1; }
+    .nav-group { padding:14px 24px 8px; }
+    .nav a {
+      display:flex; align-items:center; gap:10px; margin:0 12px; padding:8px 12px;
+      color:var(--muted-foreground); text-decoration:none; font-size:var(--text-sm); transition:background .12s,color .12s;
+    }
+    .nav a:hover { background:color-mix(in srgb, var(--popover) 60%, transparent); color:var(--foreground); }
+    .nav a.active { background:var(--popover); color:var(--foreground); font-weight:600; }
+    .nav .ico { width:16px; height:16px; flex-shrink:0; opacity:.9; }
+    .rail-status { border-top:1px solid var(--border); padding:14px 18px; display:flex; align-items:center; gap:8px; font-size:var(--text-xs); color:var(--muted-foreground); }
+
+    .main { flex:1; display:flex; flex-direction:column; min-width:0; }
+    .topbar { height:56px; flex-shrink:0; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; }
+    .topbar h1 { font-size:var(--text-lg); font-weight:600; }
+    .top-actions { display:flex; align-items:center; gap:12px; }
+    .search { height:32px; width:230px; display:flex; align-items:center; gap:8px; padding:0 12px; border:1px solid var(--border); background:transparent; color:var(--muted-foreground); font-size:var(--text-sm); }
+    .search kbd { margin-left:auto; font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--faint); }
+    .bell { position:relative; height:32px; width:32px; display:grid; place-items:center; border:1px solid var(--border); background:transparent; color:var(--muted-foreground); }
+    .bell:hover { color:var(--foreground); }
+    .bell .count { position:absolute; top:-7px; right:-7px; min-width:17px; height:17px; padding:0 4px; display:grid; place-items:center; background:var(--popover); color:var(--foreground); border:1px solid var(--line-strong); font-family:var(--font-mono); font-size:11px; font-weight:600; }
+
+    .content { flex:1; overflow:auto; padding:24px; }
+
+    /* Segmented screen switcher (mockup affordance only) */
+    .segmented { display:inline-flex; gap:2px; border:1px solid var(--border); padding:2px; margin-bottom:20px; }
+    .segmented button { padding:6px 14px; background:transparent; color:var(--muted-foreground); font-size:var(--text-sm); border:none; }
+    .segmented button.on { background:var(--popover); color:var(--foreground); font-weight:600; }
+
+    .screen { display:none; }
+    .screen.on { display:block; }
+
+    /* Buttons */
+    .btn { display:inline-flex; align-items:center; gap:6px; height:30px; padding:0 12px; font-size:var(--text-sm); border:1px solid var(--border); background:transparent; color:var(--foreground); }
+    .btn:hover { background:var(--popover); }
+    .btn.sm { height:26px; padding:0 10px; font-size:var(--text-2xs); }
+    .btn.primary { background:var(--score); color:var(--primary-foreground); border-color:var(--score); font-weight:600; }
+    .btn.danger { color:var(--destructive); border-color:color-mix(in srgb, var(--destructive) 45%, var(--border)); }
+    .btn.danger:hover { background:var(--destructive-wash); }
+
+    /* Table */
+    .card-panel { border:1px solid var(--border); background:var(--card); }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; padding:12px 16px; border-bottom:1px solid var(--line-strong); font-family:var(--font-mono); font-size:var(--text-2xs); letter-spacing:.04em; text-transform:none; font-weight:400; color:var(--faint); }
+    tbody td { padding:12px 16px; border-bottom:1px solid var(--border); vertical-align:middle; }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody tr:hover { background:color-mix(in srgb, var(--popover) 40%, transparent); }
+
+    .run-cell { display:flex; align-items:center; gap:10px; }
+    .dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .dot.never { background:var(--dim); }
+    .dot.running { background:var(--foreground); animation:pulse 1.4s ease-in-out infinite; }
+    .dot.success { background:var(--pos); }
+    .dot.partial { background:var(--muted-foreground); }
+    .dot.failed { background:var(--destructive); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+    @media (prefers-reduced-motion:reduce){ .dot.running{animation:none} }
+
+    .run-title { font-weight:500; }
+    .run-sub { font-size:var(--text-2xs); color:var(--muted-foreground); }
+    .type-tag { font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--faint); }
+
+    /* progress bar - raised surface, never amber (design rule) */
+    .prog { height:5px; width:120px; background:var(--muted); overflow:hidden; }
+    .prog > span { display:block; height:100%; background:var(--line-strong); }
+
+    .chip { display:inline-flex; align-items:center; gap:5px; padding:2px 8px; font-family:var(--font-mono); font-size:var(--text-2xs); border:1px solid var(--border); }
+    .chip.sla { color:var(--destructive); border-color:color-mix(in srgb, var(--destructive) 45%, var(--border)); background:var(--destructive-wash); }
+    .chip.stuck { color:var(--destructive); border-color:color-mix(in srgb, var(--destructive) 45%, var(--border)); }
+    .chip.ok { color:var(--pos); border-color:color-mix(in srgb, var(--pos) 40%, var(--border)); }
+
+    .lvl { font-weight:500; }
+    .lvl.info { color:var(--muted-foreground); }
+    .lvl.warn { color:var(--foreground); }
+    .lvl.error { color:var(--destructive); }
+
+    .page-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+    .muted { color:var(--muted-foreground); }
+    .faint { color:var(--faint); }
+
+    /* Run detail */
+    .detail-head { border:1px solid var(--border); background:var(--card); padding:20px; margin-bottom:20px; }
+    .detail-top { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .status-word { font-weight:600; }
+    .status-word.running { color:var(--foreground); }
+    .status-word.success { color:var(--pos); }
+    .status-word.failed { color:var(--destructive); }
+    .runid { font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--faint); }
+    .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:1px; margin-top:18px; background:var(--border); border:1px solid var(--border); }
+    .tile { background:var(--card); padding:14px 16px; }
+    .tile .k { font-family:var(--font-mono); font-size:var(--text-2xs); letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+    .tile .v { font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:var(--text-lg); margin-top:6px; }
+    .tile .v.bad { color:var(--destructive); }
+
+    .timeline td { font-size:var(--text-sm); }
+    .ts { font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--muted-foreground); white-space:nowrap; }
+    .evt { font-family:var(--font-mono); font-size:var(--text-xs); }
+    .fields { margin-top:8px; padding:10px 12px; background:var(--background); border:1px solid var(--border); font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--muted-foreground); white-space:pre-wrap; }
+    .row-toggle { cursor:pointer; }
+    .hidden { display:none; }
+
+    /* Notifications */
+    .notif-wrap { max-width:560px; }
+    .notif { display:flex; gap:12px; padding:14px 16px; border:1px solid var(--border); border-top:none; }
+    .notif:first-of-type { border-top:1px solid var(--border); }
+    .notif.unread { background:color-mix(in srgb, var(--popover) 45%, transparent); }
+    .notif .mark { width:7px; height:7px; border-radius:50%; margin-top:7px; flex-shrink:0; background:transparent; }
+    .notif.unread .mark { background:var(--foreground); }
+    .notif .body { flex:1; min-width:0; }
+    .notif .n-title { font-weight:600; display:flex; align-items:center; gap:8px; }
+    .notif .n-title .kind { font-family:var(--font-mono); font-size:var(--text-2xs); padding:1px 6px; border:1px solid var(--border); }
+    .notif .n-title .kind.fail { color:var(--destructive); border-color:color-mix(in srgb,var(--destructive) 45%,var(--border)); }
+    .notif .n-title .kind.sla { color:var(--destructive); border-color:color-mix(in srgb,var(--destructive) 45%,var(--border)); }
+    .notif .n-title .kind.done { color:var(--pos); border-color:color-mix(in srgb,var(--pos) 40%,var(--border)); }
+    .notif .n-body { color:var(--muted-foreground); font-size:var(--text-sm); margin-top:2px; }
+    .notif .n-time { font-family:var(--font-mono); font-size:var(--text-2xs); color:var(--faint); margin-top:4px; }
+
+    /* Settings */
+    .settings { max-width:640px; }
+    .settings h2 { font-size:var(--text-lg); font-weight:600; }
+    .settings .sub { color:var(--muted-foreground); font-size:var(--text-sm); margin-top:2px; margin-bottom:18px; }
+    .setrow { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:16px 0; border-bottom:1px solid var(--border); }
+    .setrow .label { font-weight:500; }
+    .setrow .hint { color:var(--muted-foreground); font-size:var(--text-2xs); margin-top:3px; max-width:360px; }
+    .num-field { display:inline-flex; align-items:center; border:1px solid var(--input); }
+    .num-field input { width:64px; height:30px; padding:0 10px; background:transparent; border:none; color:var(--foreground); font-family:var(--font-mono); font-variant-numeric:tabular-nums; text-align:right; }
+    .num-field .suffix { padding:0 10px; color:var(--faint); font-family:var(--font-mono); font-size:var(--text-2xs); border-left:1px solid var(--border); height:30px; display:grid; place-items:center; }
+    .readonly { font-family:var(--font-mono); font-size:var(--text-sm); color:var(--muted-foreground); }
+
+    /* toggle switch - raised surface, never amber */
+    .switch { position:relative; width:38px; height:22px; border:1px solid var(--input); background:var(--muted); flex-shrink:0; }
+    .switch::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; background:var(--muted-foreground); transition:transform .15s,background .15s; }
+    .switch[aria-checked="true"] { background:var(--popover); border-color:var(--line-strong); }
+    .switch[aria-checked="true"]::after { transform:translateX(16px); background:var(--foreground); }
+
+    .themetoggle { display:inline-flex; border:1px solid var(--border); }
+    .themetoggle button { padding:5px 12px; background:transparent; color:var(--muted-foreground); border:none; font-size:var(--text-2xs); font-family:var(--font-mono); }
+    .themetoggle button.on { background:var(--popover); color:var(--foreground); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">Crowsnest</div>
+      <nav class="nav">
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</a>
+        <span class="nav-group lab">Discover</span>
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>Outlier feed</a>
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Channels</a>
+        <span class="nav-group lab">Studio</span>
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>My channel</a>
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16v6H4zM4 14h16v6H4z"/></svg>Vault</a>
+        <span class="nav-group lab">System</span>
+        <a href="#" class="active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="16" cy="12" r="1.6" fill="currentColor"/><circle cx="7" cy="19" r="1.6" fill="currentColor"/></svg>Runs</a>
+        <a href="#"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+      </nav>
+      <div class="rail-status">
+        <span class="dot running"></span>
+        <span>Syncing @hormozi</span>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <div class="topbar">
+        <h1 id="page-title">Runs</h1>
+        <div class="top-actions">
+          <div class="themetoggle" role="group" aria-label="Theme">
+            <button id="t-dark" class="on" onclick="setTheme('dark')">Dark</button>
+            <button id="t-light" onclick="setTheme('light')">Light</button>
+          </div>
+          <div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><span>Search</span><kbd>&#8984;K</kbd></div>
+          <button class="bell" aria-label="Notifications, 3 unread" onclick="showScreen('notif')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+            <span class="count">3</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="segmented" role="tablist">
+          <button class="on" id="seg-list" onclick="showScreen('list')">Run list</button>
+          <button id="seg-detail" onclick="showScreen('detail')">Run detail</button>
+          <button id="seg-notif" onclick="showScreen('notif')">Notifications</button>
+          <button id="seg-settings" onclick="showScreen('settings')">Settings</button>
+        </div>
+
+        <!-- SCREEN 1: Run list -->
+        <section class="screen on" id="screen-list">
+          <div class="page-head">
+            <div><span class="lab">18 runs</span></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn">Filter</button>
+              <button class="btn primary">Sync now</button>
+            </div>
+          </div>
+          <div class="card-panel">
+            <table>
+              <thead>
+                <tr>
+                  <th>Run</th><th>Type</th><th>Started</th><th>Duration</th><th>Progress</th><th></th><th style="text-align:right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- running, breaching SLA -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot running"></span><div><div class="run-title">Library sync</div><div class="run-sub">Channel 14 of 18 &middot; @hormozi</div></div></div></td>
+                  <td><span class="type-tag">sync</span></td>
+                  <td class="num muted">13m ago</td>
+                  <td class="num">13:12</td>
+                  <td><div class="prog"><span style="width:78%"></span></div></td>
+                  <td><span class="chip sla">SLA over by 3:12</span></td>
+                  <td style="text-align:right"><button class="btn sm danger" onclick="showScreen('detail')">Cancel</button></td>
+                </tr>
+                <!-- stalled (no heartbeat) -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot failed"></span><div><div class="run-title">@garyvee sync</div><div class="run-sub">no heartbeat for 94s</div></div></div></td>
+                  <td><span class="type-tag">sync</span></td>
+                  <td class="num muted">18m ago</td>
+                  <td class="num">2:41</td>
+                  <td><span class="chip stuck">Stuck</span></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm">Retry</button> <button class="btn sm danger">Cancel</button></td>
+                </tr>
+                <!-- success -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot success"></span><div><div class="run-title">Library sync</div><div class="run-sub">18 channels &middot; 42 new, 7 updated</div></div></div></td>
+                  <td><span class="type-tag">sync</span></td>
+                  <td class="num muted">1h ago</td>
+                  <td class="num">4:31</td>
+                  <td><span class="chip ok">Within SLA</span></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm" onclick="showScreen('detail')">View</button></td>
+                </tr>
+                <!-- partial -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot partial"></span><div><div class="run-title">@alexhormozi sync</div><div class="run-sub">2 assets failed to download</div></div></div></td>
+                  <td><span class="type-tag">sync</span></td>
+                  <td class="num muted">3h ago</td>
+                  <td class="num">1:12</td>
+                  <td></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm">Retry</button></td>
+                </tr>
+                <!-- failed -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot failed"></span><div><div class="run-title">@garyvee sync</div><div class="run-sub lvl error">IG_SERVICE_UNAUTHORIZED</div></div></div></td>
+                  <td><span class="type-tag">sync</span></td>
+                  <td class="num muted">5h ago</td>
+                  <td class="num">0:08</td>
+                  <td></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm">Retry</button></td>
+                </tr>
+                <!-- remix stage run -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot success"></span><div><div class="run-title">Remix: Script stage</div><div class="run-sub">from @modelo &middot; 1 variant</div></div></div></td>
+                  <td><span class="type-tag">remix</span></td>
+                  <td class="num muted">yesterday</td>
+                  <td class="num">0:22</td>
+                  <td></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm">View</button></td>
+                </tr>
+                <!-- standalone download -->
+                <tr>
+                  <td><div class="run-cell"><span class="dot success"></span><div><div class="run-title">Manual download</div><div class="run-sub">6 images &middot; @thediaryofaceo</div></div></div></td>
+                  <td><span class="type-tag">download</span></td>
+                  <td class="num muted">yesterday</td>
+                  <td class="num">0:14</td>
+                  <td></td>
+                  <td></td>
+                  <td style="text-align:right"><button class="btn sm">View</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SCREEN 2: Run detail -->
+        <section class="screen" id="screen-detail">
+          <a href="#" onclick="showScreen('list');return false" class="muted" style="font-size:var(--text-2xs); text-decoration:none">&larr; Back to runs</a>
+          <div class="detail-head" style="margin-top:12px">
+            <div class="detail-top">
+              <span class="dot running"></span>
+              <span class="status-word running">Running</span>
+              <span class="runid">run_id 7a3f9c &middot; sync &middot; lock __library__</span>
+              <span class="chip sla" style="margin-left:auto">SLA over by 3:12</span>
+            </div>
+            <div style="display:flex; gap:24px; margin-top:12px; font-size:var(--text-xs)" class="muted">
+              <span>Started <span class="num">13:42:06</span></span>
+              <span>Elapsed <span class="num">13:12</span></span>
+              <span>Heartbeat <span class="num">4s ago</span></span>
+              <span>Budget <span class="num">10:00</span></span>
+            </div>
+            <div class="tiles">
+              <div class="tile"><div class="k">Seen</div><div class="v">312</div></div>
+              <div class="tile"><div class="k">Created</div><div class="v">38</div></div>
+              <div class="tile"><div class="k">Updated</div><div class="v">7</div></div>
+              <div class="tile"><div class="k">Failed</div><div class="v bad">2</div></div>
+              <div class="tile"><div class="k">Channels</div><div class="v">14 / 18</div></div>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:18px">
+              <button class="btn danger">Cancel run</button>
+              <button class="btn">Follow live</button>
+            </div>
+          </div>
+
+          <div class="page-head"><span class="lab">Trace &middot; log events for run_id 7a3f9c</span><span class="faint" style="font-size:var(--text-2xs)">live</span></div>
+          <div class="card-panel">
+            <table class="timeline">
+              <thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Event</th></tr></thead>
+              <tbody>
+                <tr class="row-toggle" onclick="tog(this)">
+                  <td class="ts">13:55:14</td><td><span class="lvl info">info</span></td><td class="muted">backend</td>
+                  <td><span class="evt">sync.progress.channel_done</span><div class="fields hidden">{
+  "channel": "@garyvee",
+  "itemsSeen": 22,
+  "itemsCreated": 3
+}</div></td>
+                </tr>
+                <tr class="row-toggle" onclick="tog(this)">
+                  <td class="ts">13:54:48</td><td><span class="lvl warn">warn</span></td><td class="muted">sidecar</td>
+                  <td><span class="evt">ig.ratelimit.backoff</span><div class="fields hidden">{
+  "waitSeconds": 42,
+  "attempt": 2
+}</div></td>
+                </tr>
+                <tr class="row-toggle" onclick="tog(this)">
+                  <td class="ts">13:54:05</td><td><span class="lvl error">error</span></td><td class="muted">sidecar</td>
+                  <td><span class="evt">asset.download.failed</span><div class="fields hidden">{
+  "videoId": "3218…",
+  "reason": "cdn_403"
+}</div></td>
+                </tr>
+                <tr class="row-toggle" onclick="tog(this)">
+                  <td class="ts">13:53:31</td><td><span class="lvl info">info</span></td><td class="muted">backend</td>
+                  <td><span class="evt">sync.progress.channel_started</span><div class="fields hidden">{
+  "channel": "@garyvee",
+  "nth": 14,
+  "total": 18
+}</div></td>
+                </tr>
+                <tr class="row-toggle" onclick="tog(this)">
+                  <td class="ts">13:42:06</td><td><span class="lvl info">info</span></td><td class="muted">backend</td>
+                  <td><span class="evt">sync.started</span><div class="fields hidden">{
+  "channels": 18,
+  "lookbackDays": 30,
+  "maxItems": 400
+}</div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- SCREEN 3: Notification center -->
+        <section class="screen" id="screen-notif">
+          <div class="notif-wrap">
+            <div class="page-head">
+              <span class="lab">Notifications &middot; 3 unread</span>
+              <button class="btn sm">Mark all read</button>
+            </div>
+            <div class="notif unread">
+              <span class="mark"></span>
+              <div class="body">
+                <div class="n-title">Sync stalled <span class="kind sla">sla_breach</span></div>
+                <div class="n-body">Library sync passed its 10 min budget and stopped sending a heartbeat. Still holding the lock.</div>
+                <div class="n-time">2m ago</div>
+              </div>
+              <button class="btn sm" onclick="showScreen('detail')">Open</button>
+            </div>
+            <div class="notif unread">
+              <span class="mark"></span>
+              <div class="body">
+                <div class="n-title">Sync failed <span class="kind fail">run_failed</span></div>
+                <div class="n-body">@garyvee sync failed after 8s: IG_SERVICE_UNAUTHORIZED. Regenerate the token in Settings.</div>
+                <div class="n-time">5h ago</div>
+              </div>
+              <button class="btn sm">Open</button>
+            </div>
+            <div class="notif unread">
+              <span class="mark"></span>
+              <div class="body">
+                <div class="n-title">Partial sync <span class="kind fail">run_failed</span></div>
+                <div class="n-body">@alexhormozi sync finished with 2 assets failed to download.</div>
+                <div class="n-time">3h ago</div>
+              </div>
+              <button class="btn sm">Open</button>
+            </div>
+            <div class="notif">
+              <span class="mark"></span>
+              <div class="body">
+                <div class="n-title">Sync finished <span class="kind done">run_finished</span></div>
+                <div class="n-body">Library sync: 42 new, 7 updated across 18 channels in 4:31. (Success alerts are off by default.)</div>
+                <div class="n-time">1h ago</div>
+              </div>
+              <button class="btn sm">Open</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- SCREEN 4: Settings -->
+        <section class="screen" id="screen-settings">
+          <div class="settings">
+            <h2>Runs and alerts</h2>
+            <p class="sub">Time budgets and what gets an alert. Saved on this device.</p>
+
+            <div class="setrow">
+              <div><div class="label">Sync SLA budget</div><div class="hint">A sync slower than this flags as over budget and raises a notification. It is never auto cancelled.</div></div>
+              <div class="num-field"><input class="num" value="10" aria-label="Sync SLA budget minutes" /><span class="suffix">min</span></div>
+            </div>
+            <div class="setrow">
+              <div><div class="label">Remix SLA budget</div><div class="hint">Same for a remix stage run.</div></div>
+              <div class="num-field"><input class="num" value="3" aria-label="Remix SLA budget minutes" /><span class="suffix">min</span></div>
+            </div>
+            <div class="setrow">
+              <div><div class="label">Heartbeat staleness</div><div class="hint">A running job with no heartbeat past this is treated as stuck. Reuses the existing reaper threshold, not set here.</div></div>
+              <div class="readonly num">90s (from reaper)</div>
+            </div>
+            <div class="setrow">
+              <div><div class="label">Browser notifications</div><div class="hint">Fire an OS style alert while a tab is open, even in the background.</div></div>
+              <button class="switch" role="switch" aria-checked="true" aria-label="Browser notifications" onclick="tsw(this)"></button>
+            </div>
+            <div class="setrow">
+              <div><div class="label">Notify on success</div><div class="hint">Off by default. Failures and SLA breaches always notify.</div></div>
+              <button class="switch" role="switch" aria-checked="false" aria-label="Notify on success" onclick="tsw(this)"></button>
+            </div>
+
+            <div style="margin-top:20px"><button class="btn">Save</button></div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function setTheme(t){
+      document.documentElement.classList.toggle('light', t==='light');
+      document.documentElement.classList.toggle('dark', t==='dark');
+      document.getElementById('t-dark').classList.toggle('on', t==='dark');
+      document.getElementById('t-light').classList.toggle('on', t==='light');
+    }
+    const SCREENS=['list','detail','notif','settings'];
+    const TITLES={list:'Runs',detail:'Run detail',notif:'Notifications',settings:'Settings'};
+    function showScreen(s){
+      SCREENS.forEach(n=>{
+        document.getElementById('screen-'+n).classList.toggle('on', n===s);
+        const seg=document.getElementById('seg-'+n); if(seg) seg.classList.toggle('on', n===s);
+      });
+      document.getElementById('page-title').textContent=TITLES[s];
+    }
+    function tog(row){ const f=row.querySelector('.fields'); if(f) f.classList.toggle('hidden'); }
+    function tsw(el){ el.setAttribute('aria-checked', el.getAttribute('aria-checked')==='true'?'false':'true'); }
+  </script>
+</body>
+</html>

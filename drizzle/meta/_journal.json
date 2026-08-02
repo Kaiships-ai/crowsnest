@@ -85,6 +85,13 @@
       "when": 1785648829997,
       "tag": "0011_dapper_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1785665701588,
+      "tag": "0012_cool_mauler",
+      "breakpoints": true
     }
   ]
 }

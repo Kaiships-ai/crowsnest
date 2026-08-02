@@ -71,6 +71,16 @@ export interface AppSettings {
   /** Days of media to retain. NOT CONSUMED — there is no reaper; `MEDIA_RETENTION_DAYS`
    *  is validated at boot today and nothing reads it afterwards. Same treatment. */
   mediaRetentionDays: number;
+  /** Wall clock minutes a library sync is allowed before it counts as over its SLA budget.
+   *  Read by the finish path in sync-engine.ts to decide whether to raise an sla_breach
+   *  notification. Never auto cancels. */
+  syncSlaMinutes: number;
+  /** Same budget for a remix stage run. Stored and validated; wired once remix runs raise
+   *  their own notifications. */
+  remixSlaMinutes: number;
+  /** When true, a successful run raises a run_finished notification. Off by default:
+   *  failures and SLA breaches always notify, success is opt in. */
+  notifyOnSuccess: boolean;
   /** True once the first-run flow (`/first-run`) has been completed — set by the "Open
    *  Crowsnest" button at the end of the first sync screen. Read by the `(shell)` route
    *  guard: a fresh install (this false AND zero `channels` rows) redirects into
@@ -94,6 +104,9 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   maxItemsPerSync: "max_items_per_sync",
   syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
+  syncSlaMinutes: "sync_sla_minutes",
+  remixSlaMinutes: "remix_sla_minutes",
+  notifyOnSuccess: "notify_on_success",
   firstRunCompleted: "first_run_completed",
 };
 
@@ -127,6 +140,9 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   maxItemsPerSync: posInt(1, 10_000), // same bounds as config.ts's MAX_ITEMS_PER_SYNC schema
   syncCadenceMinutes: posInt(0, 10_080),
   mediaRetentionDays: posInt(1, 3650),
+  syncSlaMinutes: posInt(1, 240),
+  remixSlaMinutes: posInt(1, 240),
+  notifyOnSuccess: boolLike,
   firstRunCompleted: boolLike,
 };
 
@@ -149,6 +165,9 @@ const DEFAULT: AppSettings = {
   maxItemsPerSync: 200, // matches config.ts's MAX_ITEMS_PER_SYNC default exactly, no change
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
+  syncSlaMinutes: 10, // spec default: a library sync over 10 min flags as over budget
+  remixSlaMinutes: 3,
+  notifyOnSuccess: false, // success is opt in; failures and breaches always notify
   firstRunCompleted: false, // no row yet == first run has not happened
 };
 
@@ -176,6 +195,9 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   maxItemsPerSync: true,
   syncCadenceMinutes: false,
   mediaRetentionDays: false,
+  syncSlaMinutes: true, // sync-engine raises an sla_breach on an over-budget finish, and the run screens flag it live
+  remixSlaMinutes: false, // stored now, wired once remix runs raise their own notifications
+  notifyOnSuccess: true, // sync-engine gates the run_finished notification on this
   firstRunCompleted: true, // read by the (shell) route guard — see src/server/queries/first-run-gate.ts
 };
 

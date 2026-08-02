@@ -5,6 +5,7 @@ import { InstagramSection } from "@/components/settings/instagram-section";
 import { LocalBinariesSection, type BinaryStatus } from "@/components/settings/local-binaries-section";
 import { NicheProfileSection } from "@/components/settings/niche-profile-section";
 import { OnboardingSection } from "@/components/settings/onboarding-section";
+import { RunsAlertsSection } from "@/components/settings/runs-alerts-section";
 import { ScoringSection } from "@/components/settings/scoring-section";
 import { SecretsSection } from "@/components/settings/secrets-section";
 import { SettingsNav, type SettingsNavItem } from "@/components/settings/settings-nav";
@@ -30,6 +31,7 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   { id: "scoring", label: "Scoring" },
   { id: "feed-defaults", label: "Feed defaults" },
   { id: "sync", label: "Sync" },
+  { id: "runs-alerts", label: "Runs and alerts" },
   { id: "onboarding", label: "Onboarding" },
   { id: "appearance", label: "Appearance" },
 ];
@@ -138,6 +140,16 @@ export default async function SettingsPage() {
               mediaRetentionDays: appSettings.mediaRetentionDays,
             }}
             lastJob={lastJob}
+          />
+        </div>
+
+        <div id="runs-alerts" className="scroll-mt-6 border-b border-border py-8">
+          <RunsAlertsSection
+            initial={{
+              syncSlaMinutes: appSettings.syncSlaMinutes,
+              remixSlaMinutes: appSettings.remixSlaMinutes,
+              notifyOnSuccess: appSettings.notifyOnSuccess,
+            }}
           />
         </div>
 

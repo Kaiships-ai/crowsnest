@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { useCommandMenu } from "@/components/layout/command-menu";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 import { FailureStrip } from "@/components/sync/failure-strip";
 import { Button } from "@/components/ui/button";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
@@ -55,6 +56,7 @@ export function Topbar({ strip }: TopbarProps) {
             <span className="flex-1 text-left text-sm">Search…</span>
             <kbd className="font-mono text-2xs text-faint">⌘K</kbd>
           </Button>
+          <NotificationCenter />
           {/* Context action slot — later tasks inject a page-specific primary action here (e.g. "Add channel"). */}
         </div>
       </header>

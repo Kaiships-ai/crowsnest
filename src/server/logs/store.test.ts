@@ -113,6 +113,20 @@ describe("log store", () => {
     expect(queryLogEvents({ levels: ["error"] })[0].fields).toEqual({ token_redacted: true, jobId: "j1" });
   });
 
+  test("stores run_id and filters by it", () => {
+    insertLogEvent(make({ level: "info", event: "sync.started", fields: {}, runId: "job_a" }));
+    insertLogEvent(make({ level: "info", event: "other", fields: {} }));
+    const rows = queryLogEvents({ levels: ["info"], runId: "job_a" });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].runId).toBe("job_a");
+  });
+
+  test("derives run_id from fields.jobId when runId is not passed", () => {
+    insertLogEvent(make({ level: "info", event: "sync.finished", fields: { jobId: "job_b" } }));
+    const rows = queryLogEvents({ levels: ["info"], runId: "job_b" });
+    expect(rows).toHaveLength(1);
+  });
+
   test("retention keeps the newest RETENTION_MAX rows", () => {
     for (let i = 0; i < RETENTION_MAX + 5; i++) {
       insertLogEvent(make({ level: "info", event: `e${i}` }));
