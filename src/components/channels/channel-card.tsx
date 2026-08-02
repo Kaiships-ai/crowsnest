@@ -13,13 +13,33 @@ import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
 import type { ChannelRow } from "@/server/queries/channels";
+import { MEDIAN_CONFIDENCE_THRESHOLDS, medianConfidence } from "@/server/services/outlier-calc";
 import { RemoveChannelDialog } from "./remove-channel-dialog";
 
-function syncLine(c: ChannelRow): { label: string; tone: "faint" | "muted" | "destructive" } {
+/** A run older than this reads as "stale" rather than plain "synced N ago" — v1-scope.md
+ *  §2 Channels AC3 names the threshold in days, not hours. A silently aging channel is
+ *  worse than one that was never synced, because it looks current when it isn't. */
+const STALE_DAYS = 30;
+
+type HealthTone = "faint" | "muted" | "stale" | "destructive";
+
+/** Never-synced wins even when an attempt already failed: `lastSyncedAt` is null either
+ *  way, and "Never synced" is the state that has to be unmissable. */
+function syncLine(c: ChannelRow): { label: string; tone: HealthTone } {
   if (c.lastSyncedAt === null) return { label: "Never synced", tone: "faint" };
   if (c.syncError) return { label: "Sync failed", tone: "destructive" };
+  const daysSince = (Date.now() - new Date(c.lastSyncedAt).getTime()) / 86_400_000;
+  if (daysSince > STALE_DAYS) return { label: `Stale · ${relativeTime(c.lastSyncedAt)}`, tone: "stale" };
   return { label: `Synced ${relativeTime(c.lastSyncedAt)}`, tone: "muted" };
 }
+
+const HEALTH_CLASS: Record<HealthTone, string> = {
+  faint: "text-faint",
+  muted: "text-muted-foreground",
+  // Aging data is a raised-surface chip, never amber — amber is reserved for the score.
+  stale: "bg-popover px-1.5 py-0.5 text-muted-foreground",
+  destructive: "text-destructive",
+};
 
 function ChannelCardBody({ channel }: { channel: ChannelRow }) {
   return (
@@ -38,8 +58,12 @@ function ChannelCardBody({ channel }: { channel: ChannelRow }) {
   );
 }
 
-function ChannelCardStats({ channel }: { channel: ChannelRow }) {
+function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sampleSize: number }) {
   const health = syncLine(channel);
+  // A channel with zero sample gets the dedicated never-synced treatment above, not a
+  // note claiming "0 posts". Only a channel that HAS synced and came back with a
+  // small-but-real sample reads as thin.
+  const thin = channel.lastSyncedAt !== null && sampleSize > 0 && medianConfidence(sampleSize) === "low";
   return (
     <>
       <div className="mt-3 flex gap-6">
@@ -53,9 +77,18 @@ function ChannelCardStats({ channel }: { channel: ChannelRow }) {
         </span>
       </div>
 
-      <div className={`mt-3 text-2xs ${health.tone === "destructive" ? "text-destructive" : health.tone === "faint" ? "text-faint" : "text-muted-foreground"}`}>
-        {health.label}
+      {/* flex, so the stale chip's padding sits on its own box instead of bleeding over
+          the lines above and below it the way an inline span's would. */}
+      <div className="mt-3 flex items-center text-2xs">
+        <span className={HEALTH_CLASS[health.tone]}>{health.label}</span>
       </div>
+
+      {thin && (
+        <span className="mt-1.5 block text-2xs text-faint">
+          Only {sampleSize} post{sampleSize === 1 ? "" : "s"}, a median needs about{" "}
+          {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
+        </span>
+      )}
     </>
   );
 }
@@ -63,7 +96,7 @@ function ChannelCardStats({ channel }: { channel: ChannelRow }) {
 /** Static clone rendered in the DragOverlay. No dnd hooks, no menu: this is a second
  * instance of the same channel.id, and useSortable would register a competing droppable
  * for that id and break drop targeting for the live card once the overlay unmounts. */
-function ChannelCardOverlay({ channel }: { channel: ChannelRow }) {
+function ChannelCardOverlay({ channel, sampleSize }: { channel: ChannelRow; sampleSize: number }) {
   return (
     <article className="border border-border bg-card px-4 pt-3 pb-4 select-none">
       <div className="flex items-center gap-2.5">
@@ -71,17 +104,28 @@ function ChannelCardOverlay({ channel }: { channel: ChannelRow }) {
           <ChannelCardBody channel={channel} />
         </span>
       </div>
-      <ChannelCardStats channel={channel} />
+      <ChannelCardStats channel={channel} sampleSize={sampleSize} />
     </article>
   );
 }
 
-export function ChannelCard({ channel, overlay = false }: { channel: ChannelRow; overlay?: boolean }) {
-  if (overlay) return <ChannelCardOverlay channel={channel} />;
-  return <ChannelCardLive channel={channel} />;
+export function ChannelCard({
+  channel,
+  overlay = false,
+  sampleSize = 0,
+}: {
+  channel: ChannelRow;
+  overlay?: boolean;
+  /** Posts the baseline was computed from. 0 suppresses the thin-sample note, which is
+   *  the right default for the drag clone: the note would only make the floating card
+   *  taller than the one it is standing in for. */
+  sampleSize?: number;
+}) {
+  if (overlay) return <ChannelCardOverlay channel={channel} sampleSize={sampleSize} />;
+  return <ChannelCardLive channel={channel} sampleSize={sampleSize} />;
 }
 
-function ChannelCardLive({ channel }: { channel: ChannelRow }) {
+function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleSize: number }) {
   const router = useRouter();
   const { start } = useSyncProgress();
   const [removing, setRemoving] = useState(false);
@@ -116,7 +160,7 @@ function ChannelCardLive({ channel }: { channel: ChannelRow }) {
           </DropdownMenu>
         </div>
 
-        <ChannelCardStats channel={channel} />
+        <ChannelCardStats channel={channel} sampleSize={sampleSize} />
       </article>
 
       {removing && (

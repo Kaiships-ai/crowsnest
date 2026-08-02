@@ -10,10 +10,13 @@ import { FleetColumnMenu } from "./fleet-column-menu";
 export const UNASSIGNED = "unassigned";
 
 export function KanbanColumn({
-  fleetId, name, pinned, count, channelIds, channelsById, canMoveLeft, canMoveRight, onMoveLeft, onMoveRight,
+  fleetId, name, pinned, count, channelIds, channelsById, sampleSizeById,
+  canMoveLeft, canMoveRight, onMoveLeft, onMoveRight,
 }: {
   fleetId: string | null; name: string; pinned: boolean; count: number;
   channelIds: string[]; channelsById: Record<string, ChannelRow>;
+  /** channelId to the sample its median was computed from — see KanbanBoard. */
+  sampleSizeById: Record<string, number>;
   canMoveLeft: boolean; canMoveRight: boolean; onMoveLeft: () => void; onMoveRight: () => void;
 }) {
   const droppableId = fleetId ?? UNASSIGNED;
@@ -44,7 +47,9 @@ export function KanbanColumn({
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pt-3 pb-4 data-[over]:bg-line-strong/5"
       >
         <SortableContext items={channelIds} strategy={verticalListSortingStrategy}>
-          {channelIds.map((id) => <ChannelCard key={id} channel={channelsById[id]} />)}
+          {channelIds.map((id) => (
+            <ChannelCard key={id} channel={channelsById[id]} sampleSize={sampleSizeById[id] ?? 0} />
+          ))}
         </SortableContext>
         {channelIds.length === 0 && (
           <div className="grid flex-1 place-items-center border border-dashed border-border text-2xs tracking-wide text-faint [background-image:repeating-linear-gradient(135deg,var(--hatch-2)_0,var(--hatch-2)_1px,transparent_1px,transparent_11px)]">

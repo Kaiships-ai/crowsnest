@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { applyMove, commitDiff, currentFleet, groupByFleet, isDirty } from "./kanban-moves";
+import { applyMove, commitDiff, currentFleet, groupByFleet, isDirty, pruneOverlay } from "./kanban-moves";
 
 describe("applyMove", () => {
   test("records a pending target when moving away from baseline", () => {
@@ -57,5 +57,30 @@ describe("groupByFleet", () => {
     const groups = groupByFleet([], {}, [null, "f1", "f2"]);
     expect([...groups.keys()]).toEqual([null, "f1", "f2"]);
     expect(groups.get("f2")).toEqual([]);
+  });
+});
+
+describe("pruneOverlay", () => {
+  test("drops a move aimed at a fleet that was deleted", () => {
+    const overlay = { a: "gone", b: "f1" };
+    expect(pruneOverlay(overlay, { a: null, b: null }, ["f1"])).toEqual({ b: "f1" });
+  });
+
+  test("drops a move for a channel that is no longer on the board", () => {
+    expect(pruneOverlay({ a: "f1" }, { b: null }, ["f1"])).toEqual({});
+  });
+
+  test("drops a move the server already applied", () => {
+    expect(pruneOverlay({ a: "f1" }, { a: "f1" }, ["f1"])).toEqual({});
+  });
+
+  test("keeps a move to Unassigned even though null is not a fleet id", () => {
+    expect(pruneOverlay({ a: null }, { a: "f1" }, ["f1"])).toEqual({ a: null });
+  });
+
+  test("never mutates the overlay it was given", () => {
+    const overlay = { a: "gone" };
+    pruneOverlay(overlay, { a: null }, []);
+    expect(overlay).toEqual({ a: "gone" });
   });
 });

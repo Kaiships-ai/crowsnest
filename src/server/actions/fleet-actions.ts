@@ -7,11 +7,13 @@ import { db, newId, nowIso, tables } from "../db";
 type SimpleResult = { ok: true } | { ok: false; error: string };
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string };
 
-/** Revalidate the board, and the feed too when fleet membership changed (the feed's
- *  fleet filter reads the same join table). */
-function revalidateChannels(touchesMembership = false) {
+/** Revalidate the board and the feed. Both, always: /feed renders a filter chip per
+ *  fleet off `getFleets()`, so a rename or a reorder changes that row just as much as a
+ *  membership move does, and a create or delete adds or removes a whole chip. Gating the
+ *  feed on membership left those chips showing stale names in stale order. */
+function revalidateChannels() {
   revalidatePath("/channels");
-  if (touchesMembership) revalidatePath("/feed");
+  revalidatePath("/feed");
 }
 
 export async function createFleetAction(name: string): Promise<ActionResult<{ fleetId: string }>> {
@@ -45,7 +47,7 @@ export async function renameFleetAction(fleetId: string, name: string): Promise<
 export async function deleteFleetAction(fleetId: string): Promise<SimpleResult> {
   try {
     await db.delete(tables.fleets).where(eq(tables.fleets.id, fleetId));
-    revalidateChannels(true);
+    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -85,7 +87,7 @@ export async function moveChannelsAction(
         .map((m) => ({ fleetId: m.fleetId as string, channelId: m.channelId }));
       if (inserts.length > 0) tx.insert(tables.fleetChannels).values(inserts).run();
     });
-    revalidateChannels(true);
+    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

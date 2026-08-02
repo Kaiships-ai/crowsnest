@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 // mock their own out-of-process dependencies.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
+let revalidatePath: ReturnType<typeof vi.fn>;
 let db: typeof import("../db")["db"];
 let tables: typeof import("../db")["tables"];
 let newId: typeof import("../db")["newId"];
@@ -20,6 +21,7 @@ beforeAll(async () => {
   ({ db, tables, newId, nowIso } = await import("../db"));
   ({ migrate } = await import("../db/test-migrate"));
   actions = await import("./fleet-actions");
+  ({ revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> });
 });
 
 beforeEach(async () => {
@@ -138,5 +140,56 @@ describe("moveChannelsAction", () => {
     const rowsB = await db.select().from(tables.fleetChannels).where(eq(tables.fleetChannels.channelId, b));
     expect(rowsA.map((r) => r.fleetId)).toEqual([f1]);
     expect(rowsB.map((r) => r.fleetId)).toEqual([f2]);
+  });
+});
+
+// /feed renders one filter chip per fleet from getFleets(), so every one of these
+// changes what /feed would render — a rename changes a chip's label, a reorder its
+// position, create and delete add or remove one, and a move changes what a chip
+// filters to. Revalidating only /channels left the feed serving a cached fleet row.
+describe("revalidation", () => {
+  beforeEach(() => {
+    revalidatePath.mockClear();
+  });
+
+  test("create revalidates both the board and the feed", async () => {
+    await actions.createFleetAction("Chips");
+    expect(revalidatePath).toHaveBeenCalledWith("/channels");
+    expect(revalidatePath).toHaveBeenCalledWith("/feed");
+  });
+
+  test("rename revalidates the feed", async () => {
+    const id = await makeFleet("Before");
+    revalidatePath.mockClear();
+    await actions.renameFleetAction(id, "After");
+    expect(revalidatePath).toHaveBeenCalledWith("/feed");
+  });
+
+  test("delete revalidates the feed", async () => {
+    const id = await makeFleet("Gone");
+    revalidatePath.mockClear();
+    await actions.deleteFleetAction(id);
+    expect(revalidatePath).toHaveBeenCalledWith("/feed");
+  });
+
+  test("reorder revalidates the feed", async () => {
+    const a = await makeFleet("A");
+    const b = await makeFleet("B");
+    revalidatePath.mockClear();
+    await actions.reorderFleetsAction([b, a]);
+    expect(revalidatePath).toHaveBeenCalledWith("/feed");
+  });
+
+  test("move revalidates the feed", async () => {
+    const ch = await seedChannel();
+    const f = await makeFleet("F");
+    revalidatePath.mockClear();
+    await actions.moveChannelsAction([{ channelId: ch, fleetId: f }]);
+    expect(revalidatePath).toHaveBeenCalledWith("/feed");
+  });
+
+  test("a no-op move batch revalidates nothing", async () => {
+    await actions.moveChannelsAction([]);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

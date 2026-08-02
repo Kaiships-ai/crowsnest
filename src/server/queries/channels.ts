@@ -165,6 +165,10 @@ export interface KanbanBoard {
   channels: ChannelRow[];
   /** channelId to its single fleet id, or null for Unassigned. */
   placement: Record<string, string | null>;
+  /** channelId to the sample `getChannelMedianBasis` computed its median from. Drives
+   *  the card's thin-sample note through the same `medianConfidence` the detail page
+   *  reads, so the two screens can't quietly disagree about what "thin" means. */
+  sampleSizeById: Record<string, number>;
 }
 
 /**
@@ -176,7 +180,16 @@ export async function getKanbanBoard(): Promise<KanbanBoard> {
   const [fleets, channels] = await Promise.all([getFleets(), getChannelsList()]);
   const placement: Record<string, string | null> = {};
   for (const c of channels) placement[c.id] = c.fleets[0]?.id ?? null;
-  return { fleets, channels, placement };
+
+  // Same call the old table's page made, for the same reason: the card's thin-sample
+  // note needs the real sample the baseline was computed over, not a count of posts.
+  const bases = await Promise.all(channels.map((c) => getChannelMedianBasis(c.id)));
+  const sampleSizeById: Record<string, number> = {};
+  channels.forEach((c, i) => {
+    sampleSizeById[c.id] = bases[i]?.sampleSize ?? 0;
+  });
+
+  return { fleets, channels, placement, sampleSizeById };
 }
 
 /** The tracked channel marked as Kai's own, if any. Null on a fresh install and on any
