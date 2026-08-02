@@ -160,6 +160,25 @@ export async function getChannelsList(fleetId?: string): Promise<ChannelRow[]> {
   return Promise.all(channelRows.map(buildChannelRow));
 }
 
+export interface KanbanBoard {
+  fleets: Fleet[];
+  channels: ChannelRow[];
+  /** channelId to its single fleet id, or null for Unassigned. */
+  placement: Record<string, string | null>;
+}
+
+/**
+ * The Channels Kanban board: ordered fleets, every channel as a card row, and each
+ * channel's single fleet placement (null is Unassigned). Membership is single now
+ * (Task 1 collapse plus moveChannelsAction), so `channel.fleets[0]` is the whole story.
+ */
+export async function getKanbanBoard(): Promise<KanbanBoard> {
+  const [fleets, channels] = await Promise.all([getFleets(), getChannelsList()]);
+  const placement: Record<string, string | null> = {};
+  for (const c of channels) placement[c.id] = c.fleets[0]?.id ?? null;
+  return { fleets, channels, placement };
+}
+
 /** The tracked channel marked as Kai's own, if any. Null on a fresh install and on any
  *  machine where no channel has been marked yet — never a thrown error, since "nobody
  *  has set this up yet" is an ordinary, expected state here. `removeChannelAction`
@@ -179,17 +198,18 @@ export interface Fleet {
   id: string;
   name: string;
   channelCount: number;
+  sortOrder: number;
 }
 
 export async function getFleets(): Promise<Fleet[]> {
-  const fleets = await db.select().from(tables.fleets);
+  const fleets = await db.select().from(tables.fleets).orderBy(tables.fleets.sortOrder, tables.fleets.createdAt);
   return Promise.all(
     fleets.map(async (f) => {
       const [row] = await db
         .select({ count: sql<number>`count(*)` })
         .from(tables.fleetChannels)
         .where(eq(tables.fleetChannels.fleetId, f.id));
-      return { id: f.id, name: f.name, channelCount: row?.count ?? 0 };
+      return { id: f.id, name: f.name, channelCount: row?.count ?? 0, sortOrder: f.sortOrder };
     })
   );
 }
