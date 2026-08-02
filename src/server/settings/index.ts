@@ -195,9 +195,9 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   maxItemsPerSync: true,
   syncCadenceMinutes: false,
   mediaRetentionDays: false,
-  syncSlaMinutes: false, // wired by Task 12 (sync-engine raises the sla_breach notification)
-  remixSlaMinutes: false, // stored now, wired once remix runs raise notifications
-  notifyOnSuccess: false, // wired by Task 12 (gates the run_finished notification)
+  syncSlaMinutes: true, // sync-engine raises an sla_breach on an over-budget finish, and the run screens flag it live
+  remixSlaMinutes: false, // stored now, wired once remix runs raise their own notifications
+  notifyOnSuccess: true, // sync-engine gates the run_finished notification on this
   firstRunCompleted: true, // read by the (shell) route guard — see src/server/queries/first-run-gate.ts
 };
 

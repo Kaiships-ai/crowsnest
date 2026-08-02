@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * "Runs and alerts" settings section (Task 11). Two of its three DB-backed fields —
- * `syncSlaMinutes` and `remixSlaMinutes` — decide when a run counts as over budget;
- * `notifyOnSuccess` decides whether a clean run also raises a notification. All three
- * validate and save today (Task 6), but nothing reads them back yet: Task 12 is what
- * makes sync-engine.ts actually raise the sla_breach / run_finished notifications these
- * numbers describe. Same "not wired yet" honesty sync-section.tsx already gives
- * `syncCadenceMinutes` and `mediaRetentionDays` — see `WIRED` in
- * `src/server/settings/index.ts`.
+ * "Runs and alerts" settings section. `syncSlaMinutes` is live: sync-engine.ts raises an
+ * sla_breach when a sync finishes over budget, and the run screens flag an over-budget
+ * run while it is still running. `notifyOnSuccess` is live too: it gates the run_finished
+ * notification. `remixSlaMinutes` is the one still stored-but-unread, since remix runs do
+ * not raise their own notifications yet, so only that row keeps the "not wired yet"
+ * honesty sync-section.tsx gives `syncCadenceMinutes` and `mediaRetentionDays`. See
+ * `WIRED` in `src/server/settings/index.ts`.
  *
  * The fourth row, browser notifications, is not an `app_settings` value at all: it is
  * this page's own Notification API permission, and the browser — not this app — is the
@@ -104,8 +103,7 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
       <div className="flex flex-col gap-2">
         <SettingRow
           label="Sync SLA budget"
-          hint="A sync slower than this flags as over budget and raises a notification. It is never auto cancelled."
-          warnNote={NOT_WIRED_NOTE}
+          hint="A sync slower than this flags as over budget on the run screens and raises a notification when it finishes. It is never auto cancelled."
         >
           <NumberField value={syncSla} onChange={setSyncSla} min={1} max={240} suffix="min" ariaLabel="Sync SLA budget minutes" />
         </SettingRow>
@@ -130,7 +128,7 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
             aria-label="Browser notifications"
           />
         </SettingRow>
-        <SettingRow label="Notify on success" hint="Off by default. Failures and SLA breaches always notify." warnNote={NOT_WIRED_NOTE}>
+        <SettingRow label="Notify on success" hint="Off by default. Failures and SLA breaches always notify.">
           <Switch checked={notifyOnSuccess} onCheckedChange={setNotifyOnSuccess} aria-label="Notify on success" />
         </SettingRow>
       </div>
