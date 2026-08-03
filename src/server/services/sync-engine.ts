@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
@@ -658,6 +658,34 @@ async function withRetry<T>(
 function mediaUrl(m: IgMedia): string {
   if (m.url) return m.url;
   return m.shortcode ? `https://www.instagram.com/p/${m.shortcode}/` : "";
+}
+
+/** The reels an enrichment pass should ask about, newest first.
+ *
+ *  Scoped to `clips`. That is the only `product_type` the spike confirmed carries a real
+ *  play count on the single-media endpoint, and asking about anything else spends a live
+ *  request to learn nothing.
+ *
+ *  Rows with `deletedAt` set are excluded because a prior sync already saw them removed
+ *  from Instagram, so the endpoint answers `MediaNotFound`, correctly.
+ *
+ *  Deliberately NOT filtered to rows where `viewCount` is null. A play count grows after
+ *  a post lands, so the newest reels are worth re-reading even when they already carry a
+ *  number. Freshness on the reels the user actually looks at is the point of the cap. */
+async function enrichmentCandidates(channelId: string, limit: number): Promise<{ id: string; externalId: string }[]> {
+  if (limit <= 0) return [];
+  return db
+    .select({ id: tables.videos.id, externalId: tables.videos.externalId })
+    .from(tables.videos)
+    .where(
+      and(
+        eq(tables.videos.channelId, channelId),
+        eq(tables.videos.productType, "clips"),
+        isNull(tables.videos.deletedAt)
+      )
+    )
+    .orderBy(desc(tables.videos.postedAt))
+    .limit(limit);
 }
 
 /**
@@ -1514,3 +1542,6 @@ export async function requestCancel(jobId: string): Promise<boolean> {
 // same shape as the orphaned transcription chain and the dead action it outlived. The
 // tests that need to observe a run in flight now query `sync_jobs` directly, which is
 // what they were really asserting.
+
+/** Internals reachable from tests only. */
+export const __test = { enrichmentCandidates };

@@ -133,6 +133,30 @@ async function setupChannel(handle = "@creator"): Promise<{ channelId: string }>
   return { channelId: id };
 }
 
+/** A reel row shaped like one the sync would have written from a listing page: no view
+ *  count, because the listing endpoint withholds play counts for media the burner does
+ *  not own. */
+async function seedReel(
+  channelId: string,
+  externalId: string,
+  over: { daysAgo?: number; viewCount?: number | null; productType?: string | null; deletedAt?: string | null } = {}
+): Promise<void> {
+  const { db, newId, nowIso, tables } = await import("../db");
+  await db.insert(tables.videos).values({
+    id: newId(),
+    channelId,
+    platform: "instagram",
+    externalId,
+    url: `https://www.instagram.com/reel/${externalId}/`,
+    mediaType: "video",
+    productType: over.productType === undefined ? "clips" : over.productType,
+    postedAt: isoDaysAgo(over.daysAgo ?? 1),
+    viewCount: over.viewCount ?? null,
+    deletedAt: over.deletedAt ?? null,
+    firstSeenAt: nowIso(),
+  });
+}
+
 /**
  * The running job row, read straight from the table the UI polls.
  *
@@ -1811,5 +1835,48 @@ describe("addChannel — re-adding a removed handle", () => {
     expect(second.channelId).toBe(first.channelId);
     const rows = await db.select().from(tables.channels).where(eq(tables.channels.handle, handle));
     expect(rows.length).toBe(1);
+  });
+});
+
+describe("view count enrichment — candidates", () => {
+  test("the newest live reels, with deleted and non-reel rows excluded", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@probe");
+
+    // Prefixed to stay clear of the plain "gone" externalId the soft-delete describe
+    // block above already inserts — external_id is unique per platform across the whole
+    // file's shared in-memory database, not scoped to this test's channel.
+    await seedReel(channelId, "enrich-old", { daysAgo: 30 });
+    await seedReel(channelId, "enrich-new", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-gone", { daysAgo: 1, deletedAt: "2026-08-02T10:47:25.371Z" });
+    await seedReel(channelId, "enrich-photo", { daysAgo: 1, productType: "feed" });
+
+    const { __test } = await import("./sync-engine");
+    const rows = await __test.enrichmentCandidates(channelId, 10);
+
+    // A soft-deleted row raises MediaNotFound if asked about, correctly: a prior sync
+    // already saw it removed from Instagram. Exactly one of 299 dev rows is in that
+    // state, and the first spike probe picked it first try and read the error as a block.
+    expect(rows.map((r) => r.externalId)).toEqual(["enrich-new", "enrich-old"]);
+  });
+
+  test("the limit caps how many reels a sync will ask about", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    // Not "@capped": that handle is already taken by the MAX_ITEMS_PER_SYNC
+    // cap-enforcement test above, and every test in this file shares one persistent
+    // in-memory database (migrate() only applies schema, it does not clear rows), so a
+    // repeat handle trips the (platform, handle) unique index.
+    const { channelId } = await setupChannel("@capped-enrich");
+
+    // Prefixed for the same reason as above: plain "a"/"b" externalIds are already taken
+    // (the lookback-window describe block near the top of this file).
+    await seedReel(channelId, "enrich-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-b", { daysAgo: 2 });
+
+    const { __test } = await import("./sync-engine");
+    expect(await __test.enrichmentCandidates(channelId, 1)).toHaveLength(1);
+    expect(await __test.enrichmentCandidates(channelId, 0)).toHaveLength(0);
   });
 });

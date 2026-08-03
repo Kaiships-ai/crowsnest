@@ -58,6 +58,14 @@ const schema = z.object({
   MEDIA_ROOT: z.string().min(1).default("data/media"),
   EAGER_VIDEO_DOWNLOAD: boolish(false),
   MEDIA_RETENTION_DAYS: intWithDefault(90, 1, 3650),
+  /** How many of a channel's newest reels each sync asks Instagram about individually,
+   *  to get the play count the listing endpoint withholds. 0 disables the pass.
+   *
+   *  Off by default on purpose: this is one extra live request per reel per sync, from a
+   *  burner account, and instagrapi retries public requests up to three times internally,
+   *  so the real HTTP count runs above the reel count. See
+   *  docs/product/reel-view-count-spike.md. */
+  VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(0, 0, 200),
 
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),
