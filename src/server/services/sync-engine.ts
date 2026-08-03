@@ -688,6 +688,36 @@ async function enrichmentCandidates(channelId: string, limit: number): Promise<{
     .limit(limit);
 }
 
+/**
+ * How many CONSECUTIVE `IG_NOT_FOUND` answers end the pass.
+ *
+ * One missing media is ordinary — a prior sync may not have noticed a deletion yet, and
+ * exactly that case is why a single skip does not stop anything. A run of them is a
+ * different claim: a channel does not lose four of its twelve newest reels between two
+ * syncs, so the likelier reading is that the burner is action-blocked and every media
+ * answers MediaNotFound. Confirming that over a 200-reel budget costs 200 authenticated
+ * requests from an account already in trouble, and learns nothing the fourth request had
+ * not already said.
+ */
+const ENRICH_MAX_CONSECUTIVE_SKIPS = 3;
+
+/** What one enrichment pass did. `withheld` is separate from `skipped` on purpose: a reel
+ *  Instagram answered for but gave no play count is not the same event as one that is
+ *  gone, and folding them together made a channel where EVERY count came back withheld log
+ *  byte-identically to a channel with nothing to do. This whole feature exists because a
+ *  measurement was ambiguous. */
+interface EnrichResult {
+  /** How many reels the pass set out to ask about. Separates "asked and got nothing" from
+   *  "there was nothing to ask about". */
+  candidates: number;
+  enriched: number;
+  /** Answered `IG_NOT_FOUND`: that post is gone from Instagram. */
+  skipped: number;
+  /** Answered, but with no play count. Instagram withheld it. */
+  withheld: number;
+  stopped: boolean;
+}
+
 /** Asks Instagram about each of a channel's newest reels individually, to get the play
  *  count the listing endpoint withholds.
  *
@@ -696,19 +726,78 @@ async function enrichmentCandidates(channelId: string, limit: number): Promise<{
  *  `score-recompute-guard.test.ts` allows only this file and `media-actions.ts` to write
  *  `tables.videos`, and `view_count` is the column scores derive from.
  *
- *  Never throws. The page walk has already done the sync's real work by the time this
- *  runs, and failing a whole channel over a view count would trade a gap in the feed for
- *  a vanity metric. */
+ *  Never throws — not on an upstream failure, and not on a failed read or write either.
+ *  The page walk has already done the sync's real work by the time this runs, and failing
+ *  a whole channel over a view count would trade a gap in the feed for a vanity metric.
+ *  Every exit is a `stopped` flag, and that includes the cancel check: it is a plain
+ *  predicate, NOT `upstream()` / `withLiveness`, because those raise `SyncCancelledError`
+ *  and a throw out of here is the one thing this function promises never to do. */
 async function enrichViewCounts(
   channelId: string,
-  deps: { client: Pick<IgClient, "fetchMediaStats">; sleep: (ms: number) => Promise<void>; limit: number }
-): Promise<{ enriched: number; skipped: number; stopped: boolean }> {
-  const candidates = await enrichmentCandidates(channelId, deps.limit);
+  deps: {
+    client: Pick<IgClient, "fetchMediaStats">;
+    sleep: (ms: number) => Promise<void>;
+    limit: number;
+    /** True once the user has asked the run to stop. Consulted per reel, because the pass
+     *  is the longest stretch of authenticated requests left in a run by the time it
+     *  starts, and continuing it is exactly the "ban risk spent on work nobody wants"
+     *  that `withRetry` refuses. */
+    shouldStop: () => Promise<boolean>;
+    /** Heartbeat, one per reel. The pass sits between two flushes with nothing in
+     *  between, and at a second or more per reel it can outlast `SYNC_STALL_SECONDS`
+     *  (the UI calls a live run dead) and then `LOCK_STALE_MS` (another run steals the
+     *  lock and its `softDeleteMissing` buries posts it never reached). */
+    tick: () => Promise<void>;
+  }
+): Promise<EnrichResult> {
   let enriched = 0;
   let skipped = 0;
+  let withheld = 0;
+  let consecutiveSkips = 0;
+
+  let candidates: { id: string; externalId: string }[];
+  try {
+    candidates = await enrichmentCandidates(channelId, deps.limit);
+  } catch (err) {
+    log.error("sync.enrich.stopped", {
+      channelId,
+      code: errorCode(err),
+      message: errorMessage(err),
+      reason: "could not read the candidate reels; skipping the pass",
+    });
+    return { candidates: 0, enriched, skipped, withheld, stopped: true };
+  }
+
+  const result = (stopped: boolean): EnrichResult => ({
+    candidates: candidates.length,
+    enriched,
+    skipped,
+    withheld,
+    stopped,
+  });
 
   for (const [index, row] of candidates.entries()) {
+    await deps.tick();
+
+    if (await deps.shouldStop()) {
+      log.info("sync.enrich.cancelled", {
+        channelId,
+        enriched,
+        skipped,
+        withheld,
+        remaining: candidates.length - index,
+        reason: "the user stopped the run; not spending more live requests on it",
+      });
+      return result(true);
+    }
+
     // Paced apart, and never before the first request.
+    //
+    // `jitterMs` is REUSED here, not sized for here: its constants were chosen for one
+    // request per page of ~33 items, and this loop fires one request per reel — a much
+    // higher-frequency call at roughly 1.5 requests/second sustained. The sidecar's own
+    // docstring says "the caller paces", and this is the caller. Deliberately not a new
+    // knob: `VIEW_COUNT_ENRICH_PER_CHANNEL` already bounds how long that rate can last.
     if (index > 0) await deps.sleep(jitterMs());
 
     let stats: IgMediaStats;
@@ -718,6 +807,21 @@ async function enrichViewCounts(
       if (errorCode(err) === "IG_NOT_FOUND") {
         // That one post is gone from Instagram. A prior sync may not have noticed yet.
         skipped += 1;
+        consecutiveSkips += 1;
+        if (consecutiveSkips >= ENRICH_MAX_CONSECUTIVE_SKIPS) {
+          // Logged under its own event name, not the upstream one below: "the account
+          // looks blocked" and "Instagram told us to back off" want different reactions.
+          log.warn("sync.enrich.stopped_missing", {
+            channelId,
+            externalId: row.externalId,
+            consecutiveSkips,
+            enriched,
+            skipped,
+            withheld,
+            reason: `${ENRICH_MAX_CONSECUTIVE_SKIPS} consecutive medias came back missing; that reads as a blocked account, not deleted posts`,
+          });
+          return result(true);
+        }
         continue;
       }
       log.warn("sync.enrich.stopped", {
@@ -726,23 +830,43 @@ async function enrichViewCounts(
         code: errorCode(err),
         enriched,
         skipped,
+        withheld,
         reason: "upstream said stop; leaving the rest for the next sync",
       });
-      return { enriched, skipped, stopped: true };
+      return result(true);
     }
+    // Instagram answered about this media, so whatever run of misses preceded it was
+    // ordinary deletions rather than a wall.
+    consecutiveSkips = 0;
 
     // `fetchMediaStats` already maps a zero to null. Writing that null would repeat the
     // bug that turned a genuine 2.27M-view reel into 0 on the first live run.
-    if (stats.viewCount == null) continue;
+    if (stats.viewCount == null) {
+      withheld += 1;
+      continue;
+    }
 
-    await db
-      .update(tables.videos)
-      .set({ viewCount: stats.viewCount, lastRefreshedAt: nowIso() })
-      .where(eq(tables.videos.id, row.id));
+    try {
+      await db
+        .update(tables.videos)
+        .set({ viewCount: stats.viewCount, lastRefreshedAt: nowIso() })
+        .where(eq(tables.videos.id, row.id));
+    } catch (err) {
+      // A failing write is not something the next reel will fix, and carrying on would
+      // spend the rest of the budget on requests whose answers cannot be stored.
+      log.error("sync.enrich.write_failed", {
+        channelId,
+        externalId: row.externalId,
+        code: errorCode(err),
+        message: errorMessage(err),
+        reason: "could not store the play count; ending the pass",
+      });
+      return result(true);
+    }
     enriched += 1;
   }
 
-  return { enriched, skipped, stopped: false };
+  return result(false);
 }
 
 /**
@@ -1187,11 +1311,22 @@ async function syncOneChannel(
     // Off unless VIEW_COUNT_ENRICH_PER_CHANNEL is set. Each reel here is one more live
     // request from the burner, and instagrapi retries internally, so the real HTTP count
     // runs above the reel count.
-    if (config.VIEW_COUNT_ENRICH_PER_CHANNEL > 0) {
+    //
+    // And not at all once the user has said stop. Nothing between the page loop's break
+    // and here consults the cancel flag, and `runSync` only re-checks between CHANNELS,
+    // so without this gate a Stop clicked ten seconds in still bought the burner a full
+    // pass — up to 200 authenticated requests for a result nobody is waiting for. Both
+    // halves are needed: `stopReason` catches the walk that ended BECAUSE of the cancel,
+    // the live check catches a cancel that landed while the last page was being written.
+    if (config.VIEW_COUNT_ENRICH_PER_CHANNEL > 0 && stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
       const enrichment = await enrichViewCounts(channel.id, {
         client: opts.client,
         sleep: opts.sleep,
         limit: config.VIEW_COUNT_ENRICH_PER_CHANNEL,
+        shouldStop: () => tracker.isCancelRequested(),
+        // The pass's only heartbeat. Reuses the phase the flush directly below writes, so
+        // the run reports "scoring" throughout rather than sitting on the previous phase.
+        tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
       });
       log.info("sync.enrich.finished", { channelId: channel.id, handle: channel.handle, ...enrichment });
     }

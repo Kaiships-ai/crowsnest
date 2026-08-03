@@ -57,6 +57,7 @@ def test_wrong_token_is_401(client: TestClient) -> None:
         ("post", "/logout", {}),
         ("post", "/download", {"url": "https://x/y.jpg", "kind": "thumbnail"}),
         ("post", "/resolve-media", {"pk": "1"}),
+        ("post", "/media-stats", {"pk": "1"}),
     ],
 )
 def test_every_endpoint_requires_the_token(

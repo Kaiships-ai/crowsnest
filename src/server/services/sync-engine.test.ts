@@ -12,6 +12,12 @@ beforeAll(() => {
 });
 
 const noopSleep = async () => {};
+/** The two enrichment deps a given test isn't the test FOR. `enrichViewCounts` consults
+ *  both once per reel — `shouldStop` so a cancelled run stops spending live requests,
+ *  `tick` so the pass keeps the job row's heartbeat alive — and the tests that care about
+ *  either one pass their own counting version instead of these. */
+const neverStop = async () => false;
+const noopTick = async () => {};
 const DAY_MS = 86_400_000;
 
 function isoDaysAgo(days: number, from = Date.now()): string {
@@ -1935,6 +1941,8 @@ describe("view count enrichment — the pass", () => {
       client: { fetchMediaStats: async (pk: string) => stats(pk, 1_212_937) },
       sleep: noopSleep,
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     expect(result.enriched).toBe(1);
@@ -1955,10 +1963,20 @@ describe("view count enrichment — the pass", () => {
       client: { fetchMediaStats: async (pk: string) => stats(pk, null) },
       sleep: noopSleep,
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     expect(result.enriched).toBe(0);
     expect(await viewCountOf("kept")).toBe(2_270_000);
+
+    // Counted as `withheld`, which is neither `enriched` nor `skipped`. Without its own
+    // counter a channel whose every candidate came back withheld logs 0/0/false — byte
+    // for byte what "there was nothing to do" logs — and the one thing this feature is
+    // for, telling a real zero from an absent number, would be unreadable in the log.
+    expect(result.withheld).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(result.candidates).toBe(1);
   });
 
   test("a deleted media is skipped and the pass continues", async () => {
@@ -1982,6 +2000,8 @@ describe("view count enrichment — the pass", () => {
       },
       sleep: noopSleep,
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     // IG_NOT_FOUND on one reel means that one post is gone, not that the account is
@@ -2011,6 +2031,8 @@ describe("view count enrichment — the pass", () => {
       },
       sleep: noopSleep,
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     // Rate limiting is the signal to back off entirely, and it must not throw: the page
@@ -2036,11 +2058,130 @@ describe("view count enrichment — the pass", () => {
       client: { fetchMediaStats: async (pk: string) => stats(pk, 10) },
       sleep: async (ms: number) => { sleeps.push(ms); },
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     // One gap between two reels, none before the first.
     expect(sleeps).toHaveLength(1);
     expect(sleeps[0]).toBeGreaterThan(0);
+  });
+
+  test("an unbroken run of missing medias ends the pass instead of burning the budget", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@all-missing");
+    for (const n of [1, 2, 3, 4, 5]) await seedReel(channelId, `enrich-missing-${n}`, { daysAgo: n });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // A channel does not lose three of its newest reels between two syncs. An unbroken
+    // run of MediaNotFound reads as an action-blocked burner, and spending the other 195
+    // requests of a full budget to confirm that costs an account already in trouble a lot
+    // and teaches nothing.
+    expect(calls).toBe(3);
+    expect(result.skipped).toBe(3);
+    expect(result.stopped).toBe(true);
+  });
+
+  test("a single answered reel resets the missing-media run", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@gaps-not-a-wall");
+    for (const n of [1, 2, 3, 4, 5]) await seedReel(channelId, `enrich-gap-${n}`, { daysAgo: n });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => {
+          calls += 1;
+          // Newest first, so this answers 1, 2 missing; 3 present; 4, 5 missing.
+          if (pk === "enrich-gap-3") return stats(pk, 88_100);
+          throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // The ceiling is on CONSECUTIVE misses. Two deletions, a live reel, two more
+    // deletions is an ordinary channel, and stopping it would be the ceiling deciding
+    // something it has no evidence for.
+    expect(calls).toBe(5);
+    expect(result.skipped).toBe(4);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(false);
+  });
+
+  test("a cancel mid-pass returns, and no further reel is asked about", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@stop-midway");
+    await seedReel(channelId, "enrich-stop-1", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-stop-2", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-stop-3", { daysAgo: 3 });
+
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => { calls += 1; return stats(pk, 41_000); } },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: async () => calls >= 1,
+      tick: noopTick,
+    });
+
+    // Returned, not thrown. The cancel path elsewhere in this engine raises
+    // SyncCancelledError, and routing this check through it would break the one promise
+    // this function makes to syncOneChannel: whatever happens, it does not throw.
+    expect(calls).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(true);
+  });
+
+  test("the pass heartbeats once per reel", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@heartbeat");
+    await seedReel(channelId, "enrich-beat-1", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-beat-2", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-beat-3", { daysAgo: 3 });
+
+    const { __test } = await import("./sync-engine");
+    let ticks = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, 12_400) },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: async () => { ticks += 1; },
+    });
+
+    // The real tick is tracker.flushIfDue. Without one the pass is a silent stretch
+    // between two flushes: at a live request per reel it clears SYNC_STALL_SECONDS around
+    // 60 reels (the UI calls a working run dead) and LOCK_STALE_MS at a full budget, after
+    // which a second run may steal the lock and soft-delete posts it never reached. This
+    // repo has already lost 8 live @kallaway posts to exactly that.
+    expect(ticks).toBe(3);
+    expect(result.candidates).toBe(3);
   });
 });
 
@@ -2079,6 +2220,8 @@ describe("view count enrichment — ordering and default", () => {
       },
       sleep: noopSleep,
       limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     // recomputeChannelScores returns the channel baseline, computed from view counts. With
@@ -2087,7 +2230,43 @@ describe("view count enrichment — ordering and default", () => {
     expect(await recomputeChannelScores(channelId)).toBe(371_200);
   });
 
-  test("the pass is off by default and costs no requests", async () => {
+  test("the shipped default for the knob is 0", async () => {
+    // Asserted on the config object itself, not on a limit a test happened to pass in.
+    // Off by default is a ban-risk decision — every reel this knob enables is one more
+    // authenticated request per sync from a burner account — and it was the one part of
+    // this feature nothing tested: the limit-0 test below passes just as happily with a
+    // default of 25.
+    const { config } = await import("../config");
+    expect(config.VIEW_COUNT_ENRICH_PER_CHANNEL).toBe(0);
+  });
+
+  test("a real runSync with the knob left alone asks Instagram about no reel at all", async () => {
+    // The companion to the assertion above, and the one that covers the GATE rather than
+    // the default: nothing here touches config, so the call site's
+    // `VIEW_COUNT_ENRICH_PER_CHANNEL > 0` guard is what has to hold. Delete that guard and
+    // this test starts counting requests.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@default-off");
+
+    const items = [1, 2].map((n) => makeMedia(`enrich-default-off-${n}`, n, { viewCount: null }));
+    const { client: base } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { runSync } = await import("./sync-engine");
+    await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(statsCalls).toBe(0);
+  });
+
+  test("a limit of 0 asks about nothing", async () => {
     const { migrate } = await import("../db/test-migrate");
     migrate();
     const { channelId } = await setupChannel("@off");
@@ -2099,6 +2278,8 @@ describe("view count enrichment — ordering and default", () => {
       client: { fetchMediaStats: async () => { calls += 1; throw new Error("must not be called"); } },
       sleep: noopSleep,
       limit: 0,
+      shouldStop: neverStop,
+      tick: noopTick,
     });
 
     expect(calls).toBe(0);
@@ -2150,5 +2331,52 @@ describe("view count enrichment — ordering and default", () => {
       // null too, on this, the channel's only sync so far.
       expect(row.outlierScore).not.toBeNull();
     }
+  });
+
+  test("a cancelled run spends nothing on enrichment", async () => {
+    // Same harness as the test above (knob on, real runSync), pointed at the opposite
+    // claim. The user clicks Stop during the first page; the walk breaks with stopReason
+    // "cancelled", and runSync only re-checks cancel BETWEEN channels, so the enrichment
+    // call site is the last thing standing between a stopped run and a full pass of
+    // authenticated single-media requests from the burner.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@cancel-enrich");
+
+    const pages: Page[] = [
+      { items: [makeMedia("enrich-cancel-1", 1), makeMedia("enrich-cancel-2", 2)], nextCursor: "cursor-2", stopReason: null },
+      { items: [makeMedia("enrich-cancel-3", 3)], nextCursor: null, stopReason: null },
+    ];
+    const { client: base } = stubClient({ pages });
+    const { runSync, requestCancel } = await import("./sync-engine");
+
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async medias(input: { handle: string; sinceIso: string; maxItems: number; cursor?: string }) {
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return base.medias(input);
+      },
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    let result: Awaited<ReturnType<typeof runSync>>;
+    try {
+      result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    expect(result.stopReason).toBe("cancelled");
+    // Two reels were stored by the first page, so there were real candidates to ask
+    // about. Without the gate this is 2 — and at the configured maximum it is 200.
+    expect(statsCalls).toBe(0);
   });
 });

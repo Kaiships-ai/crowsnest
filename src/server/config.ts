@@ -64,7 +64,14 @@ const schema = z.object({
    *  Off by default on purpose: this is one extra live request per reel per sync, from a
    *  burner account, and instagrapi retries public requests up to three times internally,
    *  so the real HTTP count runs above the reel count. See
-   *  docs/product/reel-view-count-spike.md. */
+   *  docs/product/reel-view-count-spike.md.
+   *
+   *  When you do turn it on, set it at least as high as the scoring baseline window
+   *  (`scoreBaselineWindow`, last 12 posts by default). Nearly every stored row has no
+   *  count, so the usable sample after a pass is exactly the newest N reels this knob
+   *  enriched: below `scoreMinUsablePosts` (5) no outlier score appears at all, and below
+   *  12 the baseline quietly narrows. A value under that fixes the number the feed shows
+   *  without producing a score to go with it. */
   VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(0, 0, 200),
 
   // --- existing ---
