@@ -34,7 +34,11 @@ export function ScriptCard({ script }: { script: ScriptRow }) {
       >
         <CardContent className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="text-lg font-semibold">{script.title}</h3>
+            {/* min-w-0 so the clamp can shrink this below its content width inside the
+                flex row. Scripts saved from a remix can carry the whole body as the title
+                (a generator data smell), so the card clamps to one line rather than
+                rendering a wall; the full text lives in the dialog. */}
+            <h3 className="line-clamp-1 min-w-0 text-lg font-semibold">{script.title}</h3>
             <Badge variant={script.status === "final" ? "secondary" : "outline"}>{script.status}</Badge>
           </div>
           <p className="line-clamp-2 text-sm text-muted-foreground">{firstLine(script.content)}</p>
