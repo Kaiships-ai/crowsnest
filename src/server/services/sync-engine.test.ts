@@ -2166,13 +2166,16 @@ describe("view count enrichment — the pass", () => {
     await seedReel(channelId, "enrich-beat-3", { daysAgo: 3 });
 
     const { __test } = await import("./sync-engine");
-    let ticks = 0;
+    // Order matters as much as the count, so both are recorded in one sequence. A tick
+    // moved to the BOTTOM of the loop body still ticks three times while leaving the run
+    // silent across every request it was added to cover.
+    const order: string[] = [];
     const result = await __test.enrichViewCounts(channelId, {
-      client: { fetchMediaStats: async (pk: string) => stats(pk, 12_400) },
+      client: { fetchMediaStats: async (pk: string) => { order.push("fetch"); return stats(pk, 12_400); } },
       sleep: noopSleep,
       limit: 5,
       shouldStop: neverStop,
-      tick: async () => { ticks += 1; },
+      tick: async () => { order.push("tick"); },
     });
 
     // The real tick is tracker.flushIfDue. Without one the pass is a silent stretch
@@ -2180,7 +2183,7 @@ describe("view count enrichment — the pass", () => {
     // 60 reels (the UI calls a working run dead) and LOCK_STALE_MS at a full budget, after
     // which a second run may steal the lock and soft-delete posts it never reached. This
     // repo has already lost 8 live @kallaway posts to exactly that.
-    expect(ticks).toBe(3);
+    expect(order).toEqual(["tick", "fetch", "tick", "fetch", "tick", "fetch"]);
     expect(result.candidates).toBe(3);
   });
 });
@@ -2241,10 +2244,13 @@ describe("view count enrichment — ordering and default", () => {
   });
 
   test("a real runSync with the knob left alone asks Instagram about no reel at all", async () => {
-    // The companion to the assertion above, and the one that covers the GATE rather than
-    // the default: nothing here touches config, so the call site's
-    // `VIEW_COUNT_ENRICH_PER_CHANNEL > 0` guard is what has to hold. Delete that guard and
-    // this test starts counting requests.
+    // The companion to the assertion above, and the one that covers the shipped BEHAVIOUR
+    // rather than the shipped number: nothing here touches config, so this is what a user
+    // who never set the knob actually gets from a real sync — not one live single-media
+    // request. It deliberately does not claim to isolate the call site's
+    // `VIEW_COUNT_ENRICH_PER_CHANNEL > 0` guard: delete that guard and the pass still asks
+    // about nothing, because `enrichmentCandidates` short-circuits on `limit <= 0`. Two
+    // layers, one property, and the property is the part that matters.
     const { migrate } = await import("../db/test-migrate");
     migrate();
     const { channelId } = await setupChannel("@default-off");
@@ -2339,6 +2345,14 @@ describe("view count enrichment — ordering and default", () => {
     // "cancelled", and runSync only re-checks cancel BETWEEN channels, so the enrichment
     // call site is the last thing standing between a stopped run and a full pass of
     // authenticated single-media requests from the burner.
+    //
+    // This covers the two cancel mechanisms JOINTLY, not one each: the call-site gate and
+    // the per-reel `shouldStop` both hold this number at zero on their own, so deleting
+    // either one alone leaves it green. That is the point — zero requests after Stop is
+    // the user-facing promise, and it survives losing either half. The halves are pinned
+    // separately elsewhere: `shouldStop` by "a cancel mid-pass returns" above, and the
+    // call site's own live check by the test below, which reads the log instead of the
+    // request count precisely because the request count cannot tell them apart.
     const { migrate } = await import("../db/test-migrate");
     migrate();
     const { channelId } = await setupChannel("@cancel-enrich");
@@ -2376,7 +2390,57 @@ describe("view count enrichment — ordering and default", () => {
 
     expect(result.stopReason).toBe("cancelled");
     // Two reels were stored by the first page, so there were real candidates to ask
-    // about. Without the gate this is 2 — and at the configured maximum it is 200.
+    // about. Ungated this is 2 — and at the configured maximum it is 200.
+    expect(statsCalls).toBe(0);
+  });
+
+  test("a cancel that lands after the walk finished still skips the pass entirely", async () => {
+    // The call site's LIVE cancel check, isolated. Here the walk ends normally
+    // (stopReason "lookback", the window was fully enumerated, the soft-delete even
+    // fires), so the `stopReason !== "cancelled"` half of the gate cannot help: the only
+    // thing that knows the user pressed Stop is `tracker.isCancelRequested()`.
+    //
+    // Asserted on the LOG, not on the request count, because the per-reel `shouldStop`
+    // also holds the request count at zero and would mask a deleted gate. The call site
+    // logs `sync.enrich.finished` whenever it runs the pass at all, so the absence of that
+    // line for this channel is the proof that the pass was never entered.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@late-cancel-enrich");
+
+    const { client: base } = stubClient({});
+    const { runSync, requestCancel } = await import("./sync-engine");
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async medias() {
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return { items: [makeMedia("enrich-late-1", 1), makeMedia("enrich-late-2", 2)], nextCursor: null, stopReason: "lookback" as const };
+      },
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    try {
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    const { db, tables } = await import("../db");
+    const finished = await db
+      .select({ fields: tables.logEvents.fields })
+      .from(tables.logEvents)
+      .where(eq(tables.logEvents.event, "sync.enrich.finished"));
+
+    // Other tests in this file run the pass for real, so the filter is on this channel.
+    expect(finished.filter((r) => r.fields.includes(channelId))).toEqual([]);
     expect(statsCalls).toBe(0);
   });
 });

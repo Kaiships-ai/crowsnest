@@ -692,12 +692,12 @@ async function enrichmentCandidates(channelId: string, limit: number): Promise<{
  * How many CONSECUTIVE `IG_NOT_FOUND` answers end the pass.
  *
  * One missing media is ordinary — a prior sync may not have noticed a deletion yet, and
- * exactly that case is why a single skip does not stop anything. A run of them is a
- * different claim: a channel does not lose four of its twelve newest reels between two
- * syncs, so the likelier reading is that the burner is action-blocked and every media
- * answers MediaNotFound. Confirming that over a 200-reel budget costs 200 authenticated
- * requests from an account already in trouble, and learns nothing the fourth request had
- * not already said.
+ * exactly that case is why a single skip does not stop anything. Three IN A ROW is a
+ * different claim: a channel does not lose the three newest reels of its scoring window
+ * back to back between two syncs, so the likelier reading is that the burner is
+ * action-blocked and every media answers MediaNotFound. Confirming that over a 200-reel
+ * budget costs 200 authenticated requests from an account already in trouble, and learns
+ * nothing the third answer had not already said.
  */
 const ENRICH_MAX_CONSECUTIVE_SKIPS = 3;
 
@@ -726,12 +726,14 @@ interface EnrichResult {
  *  `score-recompute-guard.test.ts` allows only this file and `media-actions.ts` to write
  *  `tables.videos`, and `view_count` is the column scores derive from.
  *
- *  Never throws — not on an upstream failure, and not on a failed read or write either.
- *  The page walk has already done the sync's real work by the time this runs, and failing
- *  a whole channel over a view count would trade a gap in the feed for a vanity metric.
- *  Every exit is a `stopped` flag, and that includes the cancel check: it is a plain
- *  predicate, NOT `upstream()` / `withLiveness`, because those raise `SyncCancelledError`
- *  and a throw out of here is the one thing this function promises never to do. */
+ *  Never throws. Not on an upstream failure, not on a read or write of `videos`, and not
+ *  on the run's own heartbeat or cancel check either — all four can fail, and every one of
+ *  them is caught here and turned into a `stopped` flag. The page walk has already done the
+ *  sync's real work by the time this runs, and failing a whole channel over a view count
+ *  would trade a gap in the feed for a vanity metric. That is also why the cancel check is
+ *  a plain predicate and NOT `upstream()` / `withLiveness`: those raise
+ *  `SyncCancelledError`, and a throw out of here is the one thing this function promises
+ *  never to do. */
 async function enrichViewCounts(
   channelId: string,
   deps: {
@@ -777,9 +779,33 @@ async function enrichViewCounts(
   });
 
   for (const [index, row] of candidates.entries()) {
-    await deps.tick();
+    // Both of these touch the database in production — `tick` is `tracker.flushIfDue`,
+    // which writes the job row through `progress()`, and `shouldStop` is
+    // `tracker.isCancelRequested`, which reads it — so both can throw, and letting either
+    // escape would be this function's own promise breaking in the most ironic way
+    // available: `syncOneChannel`'s catch would turn a page walk that fully succeeded into
+    // stopReason "error", a SyncGap and a `sync_error` on the channel row, over a view
+    // count. A run whose heartbeat is failing is in trouble anyway; ending the pass is
+    // both the honest and the cheap response, and the flush right after this block will
+    // surface the real problem.
+    let stop: boolean;
+    try {
+      await deps.tick();
+      stop = await deps.shouldStop();
+    } catch (err) {
+      log.error("sync.enrich.tracker_failed", {
+        channelId,
+        code: errorCode(err),
+        message: errorMessage(err),
+        enriched,
+        skipped,
+        withheld,
+        reason: "the run's own heartbeat or cancel check failed; ending the pass",
+      });
+      return result(true);
+    }
 
-    if (await deps.shouldStop()) {
+    if (stop) {
       log.info("sync.enrich.cancelled", {
         channelId,
         enriched,
