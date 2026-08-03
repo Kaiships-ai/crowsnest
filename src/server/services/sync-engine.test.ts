@@ -2012,6 +2012,41 @@ describe("view count enrichment — the pass", () => {
     expect(result.stopped).toBe(false);
   });
 
+  test("a stale sidecar stops the pass instead of looking like deleted posts", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@stale-sidecar");
+    await seedReel(channelId, "enrich-stale-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-stale-b", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          // What a sidecar older than this endpoint actually returns. Both this and a
+          // deleted post are HTTP 404, so the code is the only thing telling them apart.
+          throw new IgError("IG_ROUTE_NOT_FOUND", "Not Found");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // Stop on the FIRST one. Skipping would spend the whole budget re-learning that the
+    // endpoint still does not exist, and would report the run as missing media. That is
+    // not hypothetical: a live pass did exactly that against a sidecar started two days
+    // before its route was added, and blamed a blocked account.
+    expect(calls).toBe(1);
+    expect(result.stopped).toBe(true);
+    expect(result.skipped).toBe(0);
+    expect(result.enriched).toBe(0);
+  });
+
   test("any other error stops the pass without failing the sync", async () => {
     const { migrate } = await import("../db/test-migrate");
     migrate();

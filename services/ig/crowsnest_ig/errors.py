@@ -24,6 +24,14 @@ IG_TWO_FACTOR = "IG_TWO_FACTOR"
 IG_CHALLENGE = "IG_CHALLENGE"
 IG_RATE_LIMITED = "IG_RATE_LIMITED"
 IG_NOT_FOUND = "IG_NOT_FOUND"
+# A 404 that came from routing, not from Instagram: the caller asked for a path this
+# process does not serve. Distinct from IG_NOT_FOUND on purpose, because the two are
+# indistinguishable by status code and mean opposite things. IG_NOT_FOUND is a fact about
+# Instagram that a caller can reasonably skip past; this one means the sidecar is older
+# than the client calling it, and every subsequent call to that path will fail the same
+# way. Conflating them let a stale sidecar report "every reel is missing" instead of
+# "that endpoint does not exist here".
+IG_ROUTE_NOT_FOUND = "IG_ROUTE_NOT_FOUND"
 IG_PRIVATE = "IG_PRIVATE"
 IG_PROXY_BLOCKED = "IG_PROXY_BLOCKED"
 IG_NETWORK = "IG_NETWORK"
@@ -41,6 +49,7 @@ _CODE_META: dict[str, tuple[int, bool]] = {
     IG_CHALLENGE: (401, False),
     IG_RATE_LIMITED: (429, True),
     IG_NOT_FOUND: (404, False),
+    IG_ROUTE_NOT_FOUND: (404, False),
     IG_PRIVATE: (403, False),
     IG_PROXY_BLOCKED: (502, False),
     IG_NETWORK: (503, True),
@@ -161,6 +170,7 @@ _MESSAGES: dict[str, str] = {
     IG_CHALLENGE: "Instagram issued a challenge that needs manual resolution.",
     IG_RATE_LIMITED: "Instagram is throttling this account.",
     IG_NOT_FOUND: "Instagram has no such user or media.",
+    IG_ROUTE_NOT_FOUND: "This sidecar does not serve that path; it is probably older than the app calling it.",
     IG_PRIVATE: "That Instagram account is private.",
     IG_PROXY_BLOCKED: "The configured proxy address is blocked by Instagram.",
     IG_NETWORK: "Network failure talking to Instagram.",

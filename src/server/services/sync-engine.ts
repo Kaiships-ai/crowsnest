@@ -835,8 +835,16 @@ async function enrichViewCounts(
         skipped += 1;
         consecutiveSkips += 1;
         if (consecutiveSkips >= ENRICH_MAX_CONSECUTIVE_SKIPS) {
-          // Logged under its own event name, not the upstream one below: "the account
-          // looks blocked" and "Instagram told us to back off" want different reactions.
+          // Logged under its own event name, not the upstream one below, because a run of
+          // missing media and an explicit back-off signal want different reactions.
+          //
+          // This deliberately does NOT name a cause. It used to say "that reads as a
+          // blocked account", which was a guess presented as a finding, and the first time
+          // it fired in anger the real cause was something else entirely: a sidecar older
+          // than the endpoint being called, whose routing 404 looked exactly like a
+          // deleted post. That specific confusion is now impossible, since a routing miss
+          // arrives as IG_ROUTE_NOT_FOUND and takes the stop path below. The lesson the
+          // wording keeps is narrower: report what was observed, let a human diagnose.
           log.warn("sync.enrich.stopped_missing", {
             channelId,
             externalId: row.externalId,
@@ -844,7 +852,7 @@ async function enrichViewCounts(
             enriched,
             skipped,
             withheld,
-            reason: `${ENRICH_MAX_CONSECUTIVE_SKIPS} consecutive medias came back missing; that reads as a blocked account, not deleted posts`,
+            reason: `${ENRICH_MAX_CONSECUTIVE_SKIPS} consecutive medias came back missing, which is too many to be ordinary deletions; stopping rather than guessing why`,
           });
           return result(true);
         }

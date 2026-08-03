@@ -23,7 +23,7 @@ from .config import Config, load_config
 from .errors import (
     IG_BAD_REQUEST,
     IG_INTERNAL,
-    IG_NOT_FOUND,
+    IG_ROUTE_NOT_FOUND,
     IG_UNAUTHORIZED,
     IgError,
     translate,
@@ -386,8 +386,22 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def _http_error_handler(
         _request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        """Keep FastAPI's own 404/405 responses in the {"error": {...}} shape."""
-        code = IG_NOT_FOUND if exc.status_code == 404 else IG_BAD_REQUEST
+        """Keep FastAPI's own 404/405 responses in the {"error": {...}} shape.
+
+        A 404 arriving HERE is always a routing miss, never Instagram's answer about a
+        media. Anything Instagram said travels as an ``IgError`` and is handled by
+        ``_ig_error_handler`` above, which never reaches this function. So this 404 gets
+        ``IG_ROUTE_NOT_FOUND``, not ``IG_NOT_FOUND``.
+
+        That distinction is load bearing. Both are HTTP 404 and the bodies were previously
+        identical, so a client calling a path this process does not serve got the same code
+        it gets for a deleted post. A caller that reasonably skips past a deleted post then
+        skips past every call in a batch, and reports a plausible-looking run of missing
+        media instead of "the sidecar predates this endpoint". That happened: an enrichment
+        pass hit a sidecar started two days before its route existed and reported three
+        consecutive missing reels as a blocked account.
+        """
+        code = IG_ROUTE_NOT_FOUND if exc.status_code == 404 else IG_BAD_REQUEST
         error = IgError(
             code, str(exc.detail), status_code=exc.status_code, retryable=False
         )
