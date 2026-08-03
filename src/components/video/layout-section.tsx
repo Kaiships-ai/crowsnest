@@ -25,12 +25,9 @@ export function fieldValue(field: VideoLayoutField | undefined): string | null {
  * framing — as opposed to what it says. Read only from a frame pass, never guessed
  * from the transcript.
  *
- * `runFramePassAction` always returns `ok:false, code:"FRAME_NO_VISION_MODEL"` today —
- * `src/server/llm/client.ts` has no image-input path, there's no frame sampler, and no
- * vision-capable model is configured (wave 0's still-open spike). That's not a stub
- * standing in for a TODO, it's the honest current state of the system, so this section
- * is built to say exactly that rather than hide, or imply the four fields below are
- * about to fill themselves in.
+ * `runFramePassAction` now actually runs a pass (`frame-pass-runner.ts`) instead of
+ * always refusing, but this component still only renders whatever landed on
+ * `analysis.layout` — it never fills a field in from the transcript or another guess.
  */
 export function LayoutSection({ videoId, analysis }: { videoId: string; analysis: StoredVideoAnalysis | null }) {
   const router = useRouter();

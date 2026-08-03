@@ -1,44 +1,43 @@
-import { describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 
-/**
- * `runFramePassAction` is the honest "not yet analyzed" state from V1 data contracts,
- * contract 5 — there is no frame pass in this codebase (no image-input path on the LLM
- * client, no frame sampler), and the action must say so consistently rather than ever
- * fabricating a layout reading from the transcript. These specs pin that behaviour down
- * so a future change can't quietly start guessing.
- */
-describe("runFramePassAction", () => {
-  test("always fails with FRAME_NO_VISION_MODEL, regardless of the video id", async () => {
-    const { runFramePassAction } = await import("./analyze-actions");
+let db: typeof import("@/server/db")["db"];
+let tables: typeof import("@/server/db")["tables"];
+let newId: typeof import("@/server/db")["newId"];
+let nowIso: typeof import("@/server/db")["nowIso"];
+let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+let getFramePassJobAction: typeof import("./analyze-actions")["getFramePassJobAction"];
 
-    const result = await runFramePassAction("some-video-id");
+beforeAll(async () => {
+  process.env.CROWSNEST_DB_PATH = ":memory:";
+  ({ db, tables, newId, nowIso } = await import("@/server/db"));
+  ({ migrate } = await import("@/server/db/test-migrate"));
+  ({ getFramePassJobAction } = await import("./analyze-actions"));
+  migrate();
+});
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.code).toBe("FRAME_NO_VISION_MODEL");
-    expect(result.error.length).toBeGreaterThan(0);
+describe("getFramePassJobAction", () => {
+  test("reports a failed job with its message", async () => {
+    const channelId = newId();
+    const videoId = newId();
+    const jobId = newId();
+    const now = nowIso();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@a-${channelId}`, trackedSince: now });
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `a-${videoId}`,
+      url: "https://example.com/reel", postedAt: now, firstSeenAt: now,
+    });
+    await db.insert(tables.framePassJobs).values({
+      id: jobId, videoId, status: "failed", startedAt: now, finishedAt: now,
+      errorCode: "FRAME_EXTRACT_FAILED", errorMessage: "ffmpeg exploded",
+    });
+
+    const out = await getFramePassJobAction(jobId);
+    expect(out.status).toBe("failed");
+    expect(out.error).toBe("ffmpeg exploded");
   });
 
-  test("never writes a layout row, even when force is requested", async () => {
-    const { runFramePassAction } = await import("./analyze-actions");
-
-    const result = await runFramePassAction("some-video-id", { force: true, maxFrames: 12 });
-
-    // No `layout`, no `framesSampled`, no `frameModel` on a failure result — a partial
-    // or guessed layout must never reach the caller from this action.
-    expect(result.ok).toBe(false);
-    expect("layout" in result).toBe(false);
-  });
-
-  test("an unknown video id gets the same honest answer, not a not-found error", async () => {
-    // The action never reaches the database at all — the vision gate is upstream of
-    // everything, including whether the video exists.
-    const { runFramePassAction } = await import("./analyze-actions");
-
-    const result = await runFramePassAction("does-not-exist");
-
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.code).toBe("FRAME_NO_VISION_MODEL");
+  test("reports an unknown job id as failed rather than pretending it runs", async () => {
+    const out = await getFramePassJobAction(newId());
+    expect(out.status).toBe("failed");
   });
 });
