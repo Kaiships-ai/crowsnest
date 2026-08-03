@@ -1879,4 +1879,153 @@ describe("view count enrichment — candidates", () => {
     expect(await __test.enrichmentCandidates(channelId, 1)).toHaveLength(1);
     expect(await __test.enrichmentCandidates(channelId, 0)).toHaveLength(0);
   });
+
+  test("a reel that already has a count is still a candidate, because play counts grow", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@already-counted");
+    await seedReel(channelId, "enrich-has-count", { viewCount: 500 });
+
+    const { __test } = await import("./sync-engine");
+    const rows = await __test.enrichmentCandidates(channelId, 10);
+    expect(rows.map((r) => r.externalId)).toContain("enrich-has-count");
+  });
+});
+
+describe("view count enrichment — the pass", () => {
+  /** The stats shape `igClient.fetchMediaStats` resolves to. Numbers are a real
+   *  measurement: @jun_yuh reel 3953894690809843161. */
+  function stats(externalId: string, viewCount: number | null) {
+    return { externalId, mediaType: "video" as const, productType: "clips", viewCount, likeCount: 77_918, commentCount: 389 };
+  }
+
+  async function viewCountOf(externalId: string): Promise<number | null> {
+    const { db, tables } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ viewCount: tables.videos.viewCount })
+      .from(tables.videos)
+      .where(eq(tables.videos.externalId, externalId))
+      .limit(1);
+    return rows[0].viewCount;
+  }
+
+  test("writes the play count the listing endpoint withheld", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@enrich");
+    await seedReel(channelId, "3953894690809843161", { viewCount: null });
+
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, 1_212_937) },
+      sleep: noopSleep,
+      limit: 5,
+    });
+
+    expect(result.enriched).toBe(1);
+    expect(await viewCountOf("3953894690809843161")).toBe(1_212_937);
+  });
+
+  test("a null count never erases a number we already have", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@keep");
+    await seedReel(channelId, "kept", { viewCount: 2_270_000 });
+
+    // fetchMediaStats already maps a zero to null, so this is what a withheld count looks
+    // like by the time it reaches here. Writing it would repeat the bug that once turned
+    // a genuine 2.27M-view reel into 0 and zeroed every outlier score.
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, null) },
+      sleep: noopSleep,
+      limit: 5,
+    });
+
+    expect(result.enriched).toBe(0);
+    expect(await viewCountOf("kept")).toBe(2_270_000);
+  });
+
+  test("a deleted media is skipped and the pass continues", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@partly-gone");
+    // "gone"/"live" are already taken by the soft-delete describe block earlier in this
+    // file — external_id is unique per platform across the whole file's shared in-memory
+    // database, not scoped to this test's channel.
+    await seedReel(channelId, "enrich-deleted", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-live", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => {
+          if (pk === "enrich-deleted") throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+          return stats(pk, 94_988);
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+    });
+
+    // IG_NOT_FOUND on one reel means that one post is gone, not that the account is
+    // blocked. The first spike probe aborted on exactly this and read it as a possible
+    // ban, which cost a whole confirmation run.
+    expect(result.skipped).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(false);
+  });
+
+  test("any other error stops the pass without failing the sync", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@limited");
+    await seedReel(channelId, "first", { daysAgo: 1 });
+    await seedReel(channelId, "second", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          throw new IgError("IG_RATE_LIMITED", "Please wait a few minutes");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+    });
+
+    // Rate limiting is the signal to back off entirely, and it must not throw: the page
+    // walk already did the sync's real work, and losing a whole channel over a view count
+    // is the trade this file refuses everywhere else.
+    expect(calls).toBe(1);
+    expect(result.stopped).toBe(true);
+    expect(result.enriched).toBe(0);
+  });
+
+  test("requests are paced apart", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@paced");
+    // "a"/"b" are already taken by the lookback-window describe block near the top of
+    // this file (same shared in-memory database).
+    await seedReel(channelId, "enrich-paced-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-paced-b", { daysAgo: 2 });
+
+    const { __test } = await import("./sync-engine");
+    const sleeps: number[] = [];
+    await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, 10) },
+      sleep: async (ms: number) => { sleeps.push(ms); },
+      limit: 5,
+    });
+
+    // One gap between two reels, none before the first.
+    expect(sleeps).toHaveLength(1);
+    expect(sleeps[0]).toBeGreaterThan(0);
+  });
 });

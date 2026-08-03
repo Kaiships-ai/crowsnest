@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
-import { igClient, type IgClient, type IgMedia } from "../ig/client";
+import { igClient, type IgClient, type IgMedia, type IgMediaStats } from "../ig/client";
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
@@ -686,6 +686,63 @@ async function enrichmentCandidates(channelId: string, limit: number): Promise<{
     )
     .orderBy(desc(tables.videos.postedAt))
     .limit(limit);
+}
+
+/** Asks Instagram about each of a channel's newest reels individually, to get the play
+ *  count the listing endpoint withholds.
+ *
+ *  Runs before `recomputeChannelScores` so the scores this sync computes already see the
+ *  numbers this pass wrote. That ordering is also why the pass lives in this file at all:
+ *  `score-recompute-guard.test.ts` allows only this file and `media-actions.ts` to write
+ *  `tables.videos`, and `view_count` is the column scores derive from.
+ *
+ *  Never throws. The page walk has already done the sync's real work by the time this
+ *  runs, and failing a whole channel over a view count would trade a gap in the feed for
+ *  a vanity metric. */
+async function enrichViewCounts(
+  channelId: string,
+  deps: { client: Pick<IgClient, "fetchMediaStats">; sleep: (ms: number) => Promise<void>; limit: number }
+): Promise<{ enriched: number; skipped: number; stopped: boolean }> {
+  const candidates = await enrichmentCandidates(channelId, deps.limit);
+  let enriched = 0;
+  let skipped = 0;
+
+  for (const [index, row] of candidates.entries()) {
+    // Paced apart, and never before the first request.
+    if (index > 0) await deps.sleep(jitterMs());
+
+    let stats: IgMediaStats;
+    try {
+      stats = await deps.client.fetchMediaStats(row.externalId);
+    } catch (err) {
+      if (errorCode(err) === "IG_NOT_FOUND") {
+        // That one post is gone from Instagram. A prior sync may not have noticed yet.
+        skipped += 1;
+        continue;
+      }
+      log.warn("sync.enrich.stopped", {
+        channelId,
+        externalId: row.externalId,
+        code: errorCode(err),
+        enriched,
+        skipped,
+        reason: "upstream said stop; leaving the rest for the next sync",
+      });
+      return { enriched, skipped, stopped: true };
+    }
+
+    // `fetchMediaStats` already maps a zero to null. Writing that null would repeat the
+    // bug that turned a genuine 2.27M-view reel into 0 on the first live run.
+    if (stats.viewCount == null) continue;
+
+    await db
+      .update(tables.videos)
+      .set({ viewCount: stats.viewCount, lastRefreshedAt: nowIso() })
+      .where(eq(tables.videos.id, row.id));
+    enriched += 1;
+  }
+
+  return { enriched, skipped, stopped: false };
 }
 
 /**
@@ -1544,4 +1601,4 @@ export async function requestCancel(jobId: string): Promise<boolean> {
 // what they were really asserting.
 
 /** Internals reachable from tests only. */
-export const __test = { enrichmentCandidates };
+export const __test = { enrichmentCandidates, enrichViewCounts };
