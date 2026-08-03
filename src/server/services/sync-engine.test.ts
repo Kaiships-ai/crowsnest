@@ -62,11 +62,21 @@ type Page = { items: IgMedia[]; nextCursor: string | null; stopReason: "lookback
  * Stub sidecar. `pages` is served in order, so the engine's cursor walk is exercised for
  * real — it must keep following nextCursor until a page says stop.
  */
+/** Default `fetchMediaStats` count for a stub client that doesn't care about the exact
+ *  number, only that it is a real, non-null, uniform figure to enrich every candidate
+ *  with. Only read by tests that drive enrichment through a real `runSync()` rather than
+ *  calling `__test.enrichViewCounts` directly. */
+const STUB_STATS_DEFAULT_VIEW_COUNT = 500_000;
+
 function stubClient(opts: {
   profile?: IgProfile;
   pages?: Page[];
   onProfileError?: Error;
   failDownloadsMatching?: RegExp;
+  /** Keyed by external id. A pk absent from this map falls back to
+   *  `STUB_STATS_DEFAULT_VIEW_COUNT`, so a test that doesn't care which reel got which
+   *  count can omit this entirely. */
+  stats?: Record<string, number | null>;
 }): { client: IgClient; downloadCalls: string[] } {
   const downloadCalls: string[] = [];
   let pageIndex = 0;
@@ -98,6 +108,10 @@ function stubClient(opts: {
     },
     async resolveMedia(pk: string) {
       return makeMedia(pk, 1);
+    },
+    async fetchMediaStats(pk: string) {
+      const viewCount = opts.stats?.[pk] ?? STUB_STATS_DEFAULT_VIEW_COUNT;
+      return { externalId: pk, mediaType: "video" as const, productType: "clips", viewCount, likeCount: 1, commentCount: 1 };
     },
     async download(input: { url: string; kind: "thumbnail" | "video" | "avatar" }) {
       downloadCalls.push(input.url);
@@ -2089,5 +2103,52 @@ describe("view count enrichment — ordering and default", () => {
 
     expect(calls).toBe(0);
     expect(result.enriched).toBe(0);
+  });
+
+  test("a real runSync writes enriched scores on its own first pass, not the next one", async () => {
+    // Unlike the two tests above, this one does not call __test.enrichViewCounts or
+    // recomputeChannelScores directly — it drives runSync() end to end with the knob on,
+    // so the assertion can only pass if syncOneChannel's own call site really runs
+    // enrichment before its own call to recomputeChannelScores. Moving the call site to
+    // after the recompute, or deleting it, makes this test fail: the scores below would
+    // still be null on this, the channel's very first sync.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@wired-enrich");
+
+    // Five reels to clear scoreMinUsablePosts (5, established in the ordering test
+    // above). No view count on any of them, exactly how the listing endpoint really
+    // delivers a reel the burner account does not own.
+    const items = [1, 2, 3, 4, 5].map((n) => makeMedia(`enrich-wired-${n}`, n, { viewCount: null }));
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+
+    // config is a plain singleton object (src/server/config.ts), read live by
+    // syncOneChannel on every call rather than captured at import time, so mutating the
+    // property here reaches the real call site. Restored in `finally` because this test
+    // file shares one module registry (and this one config instance) across every test.
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    try {
+      const { runSync } = await import("./sync-engine");
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    const { db, tables } = await import("../db");
+    const rows = await db
+      .select({ viewCount: tables.videos.viewCount, outlierScore: tables.videos.outlierScore })
+      .from(tables.videos)
+      .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
+
+    expect(rows).toHaveLength(5);
+    for (const row of rows) {
+      expect(row.viewCount).toBe(STUB_STATS_DEFAULT_VIEW_COUNT);
+      // If enrichment ran after recomputeChannelScores (or not at all), every view count
+      // recomputeChannelScores saw would still be null, so every outlier score would be
+      // null too, on this, the channel's only sync so far.
+      expect(row.outlierScore).not.toBeNull();
+    }
   });
 });
