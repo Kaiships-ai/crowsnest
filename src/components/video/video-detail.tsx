@@ -366,7 +366,13 @@ export function VideoDetail({
       <div className="flex flex-1 gap-16 overflow-hidden p-6">
         {/* Left: the video and everything measured about it. */}
         <div className="flex w-[320px] shrink-0 flex-col gap-8 overflow-y-auto">
-          <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
+          {/* Capped at 42vh (rather than letting aspect-[9/16] run the full column
+              width out to its natural ~1.78x height) so the six stats below are
+              never pushed under the fold in a ~900px window. Media components render
+              with object-contain/object-cover inside this box (see VideoPlayer,
+              CarouselViewer, VideoThumb), so a shorter box still reads as vertical
+              media, just letterboxed or lightly cropped instead of full-bleed. */}
+          <div className="relative aspect-[9/16] max-h-[42vh] w-full shrink-0 overflow-hidden bg-card">
             {item.mediaType === "carousel" ? (
               <CarouselViewer items={detail.children} />
             ) : item.mediaType === "video" ? (
@@ -388,12 +394,9 @@ export function VideoDetail({
             </div>
           </div>
 
-          <MedianBaseline score={item.outlierScore} handle={item.channel.handle} basis={medianBasis} />
-
-          {item.caption && (
-            <p className="max-w-[34ch] text-lg leading-snug font-semibold tracking-tight">{item.caption}</p>
-          )}
-
+          {/* The six required-visible numbers (views, duration, posted, followers,
+              likes, comments) sit right under the media, ahead of the baseline,
+              caption, and channel/link block below — those can scroll, these can't. */}
           <div className="flex flex-wrap gap-x-6 gap-y-1.5 font-mono text-xs">
             <span data-num className="text-foreground">
               {formatCompact(item.viewCount)} views
@@ -410,6 +413,12 @@ export function VideoDetail({
           </div>
 
           <MetricChips viewCount={item.viewCount} likeCount={detail.likeCount} commentCount={detail.commentCount} />
+
+          <MedianBaseline score={item.outlierScore} handle={item.channel.handle} basis={medianBasis} />
+
+          {item.caption && (
+            <p className="max-w-[34ch] text-lg leading-snug font-semibold tracking-tight">{item.caption}</p>
+          )}
 
           <div className="flex flex-col gap-3">
             <Link href={`/channels/${item.channel.id}`} className="flex items-center gap-2 hover:underline">
@@ -446,16 +455,16 @@ export function VideoDetail({
             the exit actions below the tabs stay reachable even when analysis content
             (long transcript aside, that has its own ScrollArea) runs tall. */}
         <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
-          <Tabs defaultValue="transcript" className="flex h-full flex-col">
+          <Tabs defaultValue="transcript" className="flex flex-col">
             <TabsList>
               <TabsTrigger value="transcript">Transcript</TabsTrigger>
               <TabsTrigger value="hook">Hook &amp; structure</TabsTrigger>
               <TabsTrigger value="why">Why it worked</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="transcript" className="min-h-0 flex-1">
+            <TabsContent value="transcript">
               {detail.transcript ? (
-                <div className="flex h-full flex-col">
+                <div className="flex flex-col">
                   <div className="flex items-center justify-between gap-6 pt-4">
                     <span data-lab className="font-mono text-2xs text-faint">
                       Transcript · {detail.transcript.source}
@@ -464,7 +473,14 @@ export function VideoDetail({
                       <Copy className="size-3.5" /> Copy transcript
                     </Button>
                   </div>
-                  <ScrollArea className="mt-4 h-full pr-4">
+                  {/* Tabs no longer carries h-full (that was the source of the
+                      action-bar-over-beats overlap on the Hook tab), so this can't
+                      lean on an inherited 100%-height chain anymore. ScrollArea needs
+                      a definite height (not just a max-height) for its Viewport's
+                      size-full to resolve — without one it collapses to auto and the
+                      whole right column scrolls through the full transcript text
+                      instead of the transcript scrolling in its own box. */}
+                  <ScrollArea className="mt-4 h-[60vh] pr-4">
                     <p className="max-w-[68ch] text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
                       {detail.transcript.text}
                     </p>
