@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { OutlierBadge } from "@/components/feed/outlier-badge";
 import { platformLabel } from "@/components/feed/platform-chip";
 import { VideoThumb } from "@/components/feed/video-thumb";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { createSavedPostAction, deleteSavedPostAction } from "@/server/actions/saved-post-actions";
@@ -35,6 +37,7 @@ export const VAULT_ROW_GRID = "grid grid-cols-[40px_minmax(0,1fr)_76px_112px_104
 export function SavedPostRow({ row }: { row: SavedPostRowData }) {
   const router = useRouter();
   const [removing, setRemoving] = useState(false);
+  const [open, setOpen] = useState(false);
   const { item } = row;
 
   const metaParts = [
@@ -43,10 +46,6 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
     formatDuration(item.durationSec) || null,
     `vs ${formatCompact(row.channelMedian)}`,
   ].filter((part): part is string => Boolean(part));
-
-  function open() {
-    router.push(`/feed/${item.videoId}`);
-  }
 
   // The delete action has no soft-delete path by design (saved-post-actions.ts). Undo
   // is a frontend concern: the toast keeps this row's videoId/note and re-creates the
@@ -77,77 +76,108 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
   }
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          open();
-        }
-      }}
-      aria-label={`Open ${item.caption ?? item.channel.handle}`}
-      className={cn(
-        VAULT_ROW_GRID,
-        "group cursor-pointer items-center gap-4 border-b border-border py-4 hover:bg-card"
-      )}
-    >
-      <div className="relative aspect-9/16 w-10 shrink-0 overflow-hidden bg-card grayscale">
-        <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Play className="size-3 text-faint" fill="currentColor" aria-hidden />
-        </div>
-        <VideoThumb assetId={item.thumbnailAssetId} />
-      </div>
-
-      <div className="min-w-0">
-        <p className="truncate text-[17px] text-foreground">{item.caption ?? "—"}</p>
-        <p className="mt-2 truncate font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
-        {row.videoDeleted && (
-          <p className="mt-1 font-mono text-2xs text-destructive">
-            No longer on {platformLabel(item.channel.platform)}
-          </p>
+    <>
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen(true);
+          }
+        }}
+        aria-label={`Open ${item.caption ?? item.channel.handle}`}
+        className={cn(
+          VAULT_ROW_GRID,
+          "group cursor-pointer items-center gap-4 border-b border-border py-4 hover:bg-card"
         )}
-      </div>
-
-      <div className="text-right">
-        <OutlierBadge score={item.outlierScore} size="hero" />
-      </div>
-
-      <p
-        className="truncate text-right font-mono text-2xs text-muted-foreground"
-        title={row.note ?? undefined}
       >
-        {row.note ?? "—"}
-      </p>
+        <div className="relative aspect-9/16 w-10 shrink-0 overflow-hidden bg-card grayscale">
+          <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Play className="size-3 text-faint" fill="currentColor" aria-hidden />
+          </div>
+          <VideoThumb assetId={item.thumbnailAssetId} />
+        </div>
 
-      <div className="text-right">
-        <span className="block font-mono text-2xs text-faint">{relativeTime(item.postedAt)}</span>
-        <span
-          className="mt-2 flex justify-end gap-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-          // Enter/Space on "remove" fires a native click that bubbles up as a keydown
-          // too (button default behavior). Stopped here so it can't also trigger the
-          // row's own onKeyDown-to-open handler above.
-          onKeyDown={(e) => e.stopPropagation()}
+        <div className="min-w-0">
+          <p className="truncate text-[17px] text-foreground">{item.caption ?? "—"}</p>
+          <p className="mt-2 truncate font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
+          {row.videoDeleted && (
+            <p className="mt-1 font-mono text-2xs text-destructive">
+              No longer on {platformLabel(item.channel.platform)}
+            </p>
+          )}
+        </div>
+
+        <div className="text-right">
+          <OutlierBadge score={item.outlierScore} size="hero" />
+        </div>
+
+        <p
+          className="truncate text-right font-mono text-2xs text-muted-foreground"
+          title={row.note ?? undefined}
         >
-          <Link
-            href={`/feed/${item.videoId}/remix`}
-            onClick={(e) => e.stopPropagation()}
-            className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline"
+          {row.note ?? "—"}
+        </p>
+
+        <div className="text-right">
+          <span className="block font-mono text-2xs text-faint">{relativeTime(item.postedAt)}</span>
+          <span
+            className="mt-2 flex justify-end gap-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+            // Enter/Space on "remove" fires a native click that bubbles up as a keydown
+            // too (button default behavior). Stopped here so it can't also trigger the
+            // row's own onKeyDown-to-open handler above.
+            onKeyDown={(e) => e.stopPropagation()}
           >
-            remix
-          </Link>
-          <button
-            type="button"
-            onClick={remove}
-            disabled={removing}
-            className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
-          >
-            remove
-          </button>
-        </span>
+            <Link
+              href={`/feed/${item.videoId}/remix`}
+              onClick={(e) => e.stopPropagation()}
+              className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              remix
+            </Link>
+            <button
+              type="button"
+              onClick={remove}
+              disabled={removing}
+              className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline disabled:opacity-50"
+            >
+              remove
+            </button>
+          </span>
+        </div>
       </div>
-    </div>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{item.caption ?? item.channel.handle}</DialogTitle>
+          </DialogHeader>
+
+          <div className="flex flex-col gap-3">
+            <p className="font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
+
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">Why kept</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-foreground">{row.note ?? "No note."}</p>
+            </div>
+
+            {row.videoDeleted && (
+              <p className="font-mono text-2xs text-destructive">
+                No longer on {platformLabel(item.channel.platform)}
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button render={<Link href={`/feed/${item.videoId}`} />} variant="secondary" size="sm">
+              View video
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
