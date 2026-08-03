@@ -2029,3 +2029,65 @@ describe("view count enrichment — the pass", () => {
     expect(sleeps[0]).toBeGreaterThan(0);
   });
 });
+
+describe("view count enrichment — ordering and default", () => {
+  test("scores are computed from the enriched numbers, not the withheld zeros", async () => {
+    // The whole point of running before the recompute. If enrichment ran after scoring, a
+    // sync would show the number in the feed but score it as though the count were
+    // missing, and the score would only correct itself on the following sync.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@ordered");
+
+    // scoreMinUsablePosts defaults to 5 (src/server/settings/index.ts DEFAULTS), so a
+    // single freshly-enriched reel can never clear the floor on its own regardless of its
+    // view count — asserting a bare 371_200 here would be wrong before the floor is met.
+    // Four reels carry that same known count already; the fifth is left null, so the
+    // floor sits exactly one enriched reel away from being cleared, which is what proves
+    // the ordering rather than just the write.
+    await seedReel(channelId, "enrich-order-1", { viewCount: 371_200, daysAgo: 2 });
+    await seedReel(channelId, "enrich-order-2", { viewCount: 371_200, daysAgo: 3 });
+    await seedReel(channelId, "enrich-order-3", { viewCount: 371_200, daysAgo: 4 });
+    await seedReel(channelId, "enrich-order-4", { viewCount: 371_200, daysAgo: 5 });
+    await seedReel(channelId, "enrich-order-5", { viewCount: null, daysAgo: 1 });
+
+    const { __test, recomputeChannelScores } = await import("./sync-engine");
+
+    // Below the floor before enrichment: only 4 of the 5 posts carry a usable count.
+    expect(await recomputeChannelScores(channelId)).toBeNull();
+
+    await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => ({
+          externalId: pk, mediaType: "video" as const, productType: "clips",
+          viewCount: 371_200, likeCount: 1, commentCount: 1,
+        }),
+      },
+      sleep: noopSleep,
+      limit: 5,
+    });
+
+    // recomputeChannelScores returns the channel baseline, computed from view counts. With
+    // the fifth reel's count enriched, all 5 posts clear scoreMinUsablePosts and the
+    // median is exactly the (identical) enriched number.
+    expect(await recomputeChannelScores(channelId)).toBe(371_200);
+  });
+
+  test("the pass is off by default and costs no requests", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@off");
+    await seedReel(channelId, "enrich-off-1");
+
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async () => { calls += 1; throw new Error("must not be called"); } },
+      sleep: noopSleep,
+      limit: 0,
+    });
+
+    expect(calls).toBe(0);
+    expect(result.enriched).toBe(0);
+  });
+});

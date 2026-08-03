@@ -1181,6 +1181,21 @@ async function syncOneChannel(
       });
     }
 
+    // Before scoring, not after: `recomputeChannelScores` below reads `videos.view_count`,
+    // so a count written after it would not reach a score until the next sync.
+    //
+    // Off unless VIEW_COUNT_ENRICH_PER_CHANNEL is set. Each reel here is one more live
+    // request from the burner, and instagrapi retries internally, so the real HTTP count
+    // runs above the reel count.
+    if (config.VIEW_COUNT_ENRICH_PER_CHANNEL > 0) {
+      const enrichment = await enrichViewCounts(channel.id, {
+        client: opts.client,
+        sleep: opts.sleep,
+        limit: config.VIEW_COUNT_ENRICH_PER_CHANNEL,
+      });
+      log.info("sync.enrich.finished", { channelId: channel.id, handle: channel.handle, ...enrichment });
+    }
+
     await tracker.flush({ phase: "scoring", counters });
     const medianViews = await recomputeChannelScores(channel.id);
     await db.insert(tables.channelSnapshots).values({
