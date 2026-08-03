@@ -443,6 +443,34 @@ export const syncJobs = sqliteTable("sync_jobs", {
   index("sync_jobs_started").on(t.startedAt),
 ]);
 
+/**
+ * One row per frame pass attempt. A pass takes tens of seconds (the read costs about one
+ * model turn per frame), far too long to hold a server action open, so the UI starts a
+ * job and polls this row.
+ *
+ * `lockKey` is NOT NULL and constant for the same reason it is on syncJobs: SQLite treats
+ * NULLs as DISTINCT in a unique index, so a partial unique index over a nullable column
+ * does not actually lock anything. A constant NOT NULL key makes the partial index below
+ * a real single-flight lock, which is what keeps passes serial against the Max plan's
+ * rate limits.
+ */
+export const framePassJobs = sqliteTable("frame_pass_jobs", {
+  id: text("id").primaryKey(),
+  videoId: text("video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
+  lockKey: text("lock_key").notNull().default("__frame_pass__"),
+  status: text("status").notNull(), // "running" | "success" | "failed"
+  startedAt: text("started_at").notNull(),
+  finishedAt: text("finished_at"),
+  heartbeatAt: text("heartbeat_at"),
+  framesSampled: integer("frames_sampled"),
+  errorCode: text("error_code"),
+  errorMessage: text("error_message"),
+  cancelRequested: integer("cancel_requested", { mode: "boolean" }).notNull().default(false),
+}, (t) => [
+  uniqueIndex("frame_pass_jobs_lock_running").on(t.lockKey).where(sql`${t.status} = 'running'`),
+  index("frame_pass_jobs_video_started").on(t.videoId, t.startedAt),
+]);
+
 export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
