@@ -64,13 +64,13 @@ export function TemplateDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>{item.title}</DialogTitle>
+            <DialogTitle className="line-clamp-2">{item.title}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
-            <p className="max-h-[50vh] overflow-y-auto text-sm text-foreground">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            <p className="text-sm text-foreground">
               {renderTemplateText(item.templateText)}
             </p>
 

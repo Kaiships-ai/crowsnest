@@ -151,12 +151,12 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{item.caption ?? item.channel.handle}</DialogTitle>
+            <DialogTitle className="line-clamp-2">{item.caption ?? item.channel.handle}</DialogTitle>
           </DialogHeader>
 
-          <div className="flex flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
             <p className="font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
 
             <div>
