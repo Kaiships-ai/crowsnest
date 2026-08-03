@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
 // Test-DB pattern (phase-1 final-review M7): env must be set in beforeAll BEFORE any
@@ -23,6 +23,16 @@ const GOOD_JSON = JSON.stringify({
   textPosition: { value: "centered", fromFramesSec: [0] },
   cutRhythm: { value: "every 2s", fromFramesSec: [0, 3] },
   framing: { value: "talking head", fromFramesSec: [0] },
+});
+
+// Fix round 1: parses fine (schema does not enforce anti-fabrication, only
+// persistFramePass does) but persistFramePass must reject the "invented" field: it
+// carries a value while citing zero frames.
+const VALIDATION_REJECTED_JSON = JSON.stringify({
+  onScreenText: { value: "invented, never actually seen", fromFramesSec: [] },
+  textPosition: { value: null, fromFramesSec: [] },
+  cutRhythm: { value: null, fromFramesSec: [] },
+  framing: { value: null, fromFramesSec: [] },
 });
 
 const FRAMES = [{ path: "/tmp/f/frame_0001.jpg", timestampSeconds: 0, reason: "first-frame" }];
@@ -119,5 +129,83 @@ describe("runFramePass", () => {
 
     expect(out.errorCode).toBe("FRAME_NO_VIDEO_ASSET");
     expect(spawned).toBe(false);
+  });
+
+  // Fix round 1, Important 2: a genuine parse failure (above) and the validator
+  // correctly refusing a fabricated reading are different things and must carry
+  // different codes — conflating them hides the one distinction this feature exists
+  // to make.
+  test("records FRAME_VALIDATION_REJECTED, not FRAME_PARSE_FAILED, when the layout parses but cites no frame", async () => {
+    const videoId = await seedVideoWithFile();
+    const out = await runFramePass(videoId, {
+      extractFrames: async () => FRAMES,
+      runClaudeTask: async () => ({ text: VALIDATION_REJECTED_JSON, costUsd: null, turns: null, durationMs: null }),
+    });
+
+    expect(out.ok).toBe(false);
+    expect(out.errorCode).toBe("FRAME_VALIDATION_REJECTED");
+    const [analysis] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(analysis.framePassError).toContain("names no source frames");
+    const [job] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, out.jobId));
+    expect(job.status).toBe("failed");
+    expect(job.errorCode).toBe("FRAME_VALIDATION_REJECTED");
+  });
+
+  // Fix round 1, Important 1: lock_key is a constant, so the very first db.insert can
+  // hit the partial unique index when another pass already holds the lock. That must
+  // come back as a structured result, never as a rejected promise, and must not create
+  // a second row.
+  test("returns FRAME_ALREADY_RUN instead of rejecting when another pass already holds the lock", async () => {
+    const videoId = await seedVideoWithFile();
+    const otherVideoId = await seedVideoWithFile();
+    const runningJobId = newId();
+    await db.insert(tables.framePassJobs).values({ id: runningJobId, videoId: otherVideoId, status: "running", startedAt: nowIso() });
+
+    try {
+      const out = await runFramePass(videoId, {
+        extractFrames: async () => FRAMES,
+        runClaudeTask: async () => OK_TASK,
+      });
+
+      expect(out.ok).toBe(false);
+      expect(out.errorCode).toBe("FRAME_ALREADY_RUN");
+      expect(out.jobId).toBe(runningJobId);
+
+      const rowsForThisVideo = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.videoId, videoId));
+      expect(rowsForThisVideo).toHaveLength(0);
+    } finally {
+      // Release the global lock so later tests in this file are not blocked by it.
+      await db.update(tables.framePassJobs).set({ status: "failed", finishedAt: nowIso() }).where(eq(tables.framePassJobs.id, runningJobId));
+    }
+  });
+
+  // Fix round 1, Critical: any throw that escapes the narrow inner try/catches (here,
+  // forced at the heartbeat update right after extraction, one of the four spots the
+  // reviewer named) must still close the job as failed. Before the fix this row was
+  // stranded at "running" forever, and because lock_key is a constant, one stranded
+  // row blocks every future frame pass, not just this video's.
+  test("marks the job failed instead of leaving it stuck 'running' when an unguarded step throws", async () => {
+    const videoId = await seedVideoWithFile();
+    const updateSpy = vi.spyOn(db, "update").mockImplementationOnce(() => {
+      throw new Error("db exploded unexpectedly");
+    });
+
+    let out: Awaited<ReturnType<typeof runFramePass>>;
+    try {
+      out = await runFramePass(videoId, {
+        extractFrames: async () => FRAMES,
+        runClaudeTask: async () => OK_TASK,
+      });
+    } finally {
+      updateSpy.mockRestore();
+    }
+
+    expect(out.ok).toBe(false);
+    expect(out.errorCode).toBe("FRAME_UNKNOWN");
+
+    const rows = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.videoId, videoId));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((j) => j.status !== "running")).toBe(true);
+    expect(rows.some((j) => j.status === "failed")).toBe(true);
   });
 });

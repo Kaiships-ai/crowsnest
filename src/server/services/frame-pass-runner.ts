@@ -33,12 +33,39 @@ export interface FramePassRunResult {
 
 const MODEL_LABEL = "claude-code/watch+sonnet";
 
+/**
+ * Whether a failed write is the `frame_pass_jobs` partial unique index refusing a second
+ * concurrent "running" row (lock_key is a constant, so only one row across the whole
+ * table may be "running" at a time). The driver's message text is a fallback, not the
+ * test — matching only on "UNIQUE constraint failed" ties this to a string a drizzle
+ * wrapping or driver swap can change. Same shape as `media/store.ts` and
+ * `sync-engine.ts#isUniqueViolation`.
+ */
+function isUniqueViolation(err: unknown): boolean {
+  const code = (err as { code?: unknown } | null)?.code;
+  if (typeof code === "string" && code.startsWith("SQLITE_CONSTRAINT")) return true;
+  return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+}
+
 export async function runFramePass(videoId: string, deps: Partial<FramePassDeps> = {}): Promise<FramePassRunResult> {
   const extract = deps.extractFrames ?? ((v, o) => realExtractFrames(v, o));
   const ask = deps.runClaudeTask ?? ((p) => realRunClaudeTask(p));
 
   const jobId = newId();
-  await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: nowIso() });
+  try {
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: nowIso() });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    // Another pass already holds the lock. Do NOT create a second row — report the id of
+    // the job that actually holds it, so a caller polling `jobId` watches the real run.
+    const [running] = await db
+      .select({ id: tables.framePassJobs.id })
+      .from(tables.framePassJobs)
+      .where(eq(tables.framePassJobs.status, "running"))
+      .limit(1);
+    log.warn("frame_pass.already_running", { videoId, runningJobId: running?.id ?? null });
+    return { ok: false, jobId: running?.id ?? jobId, framesSampled: null, errorCode: "FRAME_ALREADY_RUN" };
+  }
 
   let workDir: string | null = null;
   try {
@@ -77,9 +104,11 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
     try {
       await persistFramePass({ videoId, layout, framesSampled: frames.length, frameModel: MODEL_LABEL });
     } catch (err) {
-      // Includes the anti-fabrication rejection. A model that invented a reading lands
-      // here, and that is the guard working, not a bug to route around.
-      return await fail(jobId, videoId, "FRAME_PARSE_FAILED", (err as Error).message);
+      // Distinct from FRAME_PARSE_FAILED on purpose: this is not malformed JSON, it is the
+      // validator's anti-fabrication guard (or another persistFramePass rejection) correctly
+      // refusing a value that cites no frame. Blurring the two would hide the one distinction
+      // this whole feature exists to make.
+      return await fail(jobId, videoId, "FRAME_VALIDATION_REJECTED", (err as Error).message);
     }
 
     await db.update(tables.framePassJobs)
@@ -88,16 +117,37 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
 
     log.info("frame_pass.succeeded", { videoId, jobId, frames: frames.length, costUsd: result.costUsd, turns: result.turns });
     return { ok: true, jobId, framesSampled: frames.length, errorCode: null };
+  } catch (err) {
+    // Catches everything the four narrow try/catches above do not: resolveVideoFile,
+    // mkdtempSync, the heartbeat update, and the final success update. Without this, any
+    // one of those throwing leaves the job row stuck at "running" forever — and because
+    // lock_key is a constant, one stuck row is a global outage, not a per-video one. fail()
+    // is itself bulletproof (see below), so routing here is always safe.
+    return await fail(jobId, videoId, "FRAME_UNKNOWN", (err as Error).message);
   } finally {
     if (workDir) rmSync(workDir, { recursive: true, force: true });
   }
 }
 
+/**
+ * Closes out a job as failed. Must never itself leave the row stuck "running" or throw:
+ * `recordFramePassFailure` and the job-row update are independently guarded, so a failure
+ * in one does not skip the other, and a failure in the second does not mask the original
+ * error that got us here.
+ */
 async function fail(jobId: string, videoId: string, code: string, message: string): Promise<FramePassRunResult> {
-  await recordFramePassFailure(videoId, message);
-  await db.update(tables.framePassJobs)
-    .set({ status: "failed", finishedAt: nowIso(), errorCode: code, errorMessage: message })
-    .where(eq(tables.framePassJobs.id, jobId));
+  try {
+    await recordFramePassFailure(videoId, message);
+  } catch (recordErr) {
+    log.error("frame_pass.record_failure_failed", { videoId, jobId, code, error: (recordErr as Error).message });
+  }
+  try {
+    await db.update(tables.framePassJobs)
+      .set({ status: "failed", finishedAt: nowIso(), errorCode: code, errorMessage: message })
+      .where(eq(tables.framePassJobs.id, jobId));
+  } catch (updateErr) {
+    log.error("frame_pass.job_update_failed", { videoId, jobId, code, error: (updateErr as Error).message });
+  }
   log.warn("frame_pass.failed", { videoId, jobId, code, message });
   return { ok: false, jobId, framesSampled: null, errorCode: code };
 }

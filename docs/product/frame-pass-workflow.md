@@ -1,17 +1,51 @@
-# Frame pass workflow (layout reads via a Claude Code session)
+# Frame pass workflow (layout reads via Claude Code)
 
 The Layout section of the video detail screen (on-screen text, its position, cut
-rhythm, framing) is a vision task. Nothing in the running app can do it: the LLM
-client has no image path, and the 9router proxy relays no live vision model. Every
-`nvidia/*` model is 410 Gone, and the `combo` models behind `openclaw` and `hermes`
-are text-only DeepSeek, which rejects `image_url` content with a 400. So the in-app
-"Run frame pass" button in `LayoutSection` correctly refuses, and it should keep
-refusing until a vision model is actually reachable from the server.
+rhythm, framing) is a vision task. Nothing in the running app's own LLM client can do
+it: that client has no image path, and the 9router proxy relays no live vision model.
+Every `nvidia/*` model is 410 Gone, and the `combo` models behind `openclaw` and
+`hermes` are text-only DeepSeek, which rejects `image_url` content with a 400.
 
-Until then the read is produced out of process, in a Claude Code terminal session
-that can see images, and written back into the database. This doc is that procedure.
+The app works around that instead of waiting on it. Clicking "Run frame pass" on the
+video detail screen starts a job that extracts frames from the video's local mp4,
+hands them to a read-only Claude Code subprocess, and writes the result through the
+same validator a human would use by hand. That in-app pass is the primary way to
+produce a frame pass now. The manual CLI procedure documented below is the fallback:
+use it when the automated pass fails, or when someone needs to write a reading by
+hand.
 
-## What produces the read
+## The in-app pass
+
+Triggered by `runFramePassAction` in `src/server/actions/analyze-actions.ts`, which
+calls `runFramePass` in `src/server/services/frame-pass-runner.ts`. That runner wires
+together three pieces:
+
+- `src/server/services/watch-frames.ts` extracts frames from the video's mp4 by
+  shelling out to the claude-video plugin's `watch.py` (yt-dlp plus ffmpeg, no model
+  involved), and parses its report into a timestamped frame list.
+- `src/server/services/claude-task.ts` spawns the local Claude Code CLI in print mode
+  with `--allowedTools Read`, so the subprocess can open the frame files it is told
+  about and nothing else: no shell, no writes, no database handle.
+- `src/server/services/frame-pass-prompt.ts` builds the prompt handed to that
+  subprocess and parses its JSON response back into a `VideoLayout`.
+
+The result is written through `persistFramePass` in
+`src/server/services/frame-pass.ts`, the same function the manual CLI calls. Only one
+pass runs at a time, enforced by a partial unique index on `frame_pass_jobs`. The
+client polls `getFramePassJobAction` for job status rather than holding the action
+open, since a pass takes tens of seconds.
+
+If a video has no downloaded mp4 yet, the pass fails with `FRAME_NO_VIDEO_ASSET` and
+the Layout section explains why. Videos are not eagerly downloaded
+(`EAGER_VIDEO_DOWNLOAD=false`), so a freshly synced post needs a sync with downloads
+before a frame pass can run against it.
+
+## The manual fallback
+
+Use this when the in-app pass fails and needs a closer look, or when someone wants to
+write a reading by hand without going through the automated path.
+
+### What produces the read
 
 A Claude Code session using the `/watch` skill. `/watch` downloads (if needed),
 samples frames with ffmpeg, and hands the JPEGs to Claude to Read. Claude looks at
@@ -19,14 +53,14 @@ the frames and fills the four Layout fields, citing which frame timestamps each
 reading came from. That citation is not optional: `fromFramesSec` is the
 anti-fabrication device, and a value with no backing frame is rejected by the writer.
 
-## What receives the read
+### What receives the read
 
 `scripts/frame-pass.ts`, backed by `persistFramePass` in
 `src/server/services/frame-pass.ts`. It validates the JSON against
 `VideoLayoutSchema`, enforces the "a value must cite frames" rule, and upserts the
 `video_analyses` row (leaving any existing text analysis untouched).
 
-## Steps
+### Steps
 
 1. Find the video's local file:
 
@@ -77,7 +111,7 @@ anti-fabrication device, and a value with no backing frame is rejected by the wr
    npx tsx scripts/frame-pass.ts fail <videoId> --error "no legible on-screen text"
    ```
 
-## Rehearsing without touching the real database
+### Rehearsing without touching the real database
 
 Point `CROWSNEST_DB_PATH` at a copy so a practice run never lands in
 `data/crowsnest.db`:
@@ -89,8 +123,12 @@ CROWSNEST_DB_PATH=/tmp/fp-copy.db npx tsx scripts/frame-pass.ts write ...
 
 ## What is proven and what is not
 
-The write path and the render are proven: a valid layout written by the CLI shows up
-in the Layout section with the right values and provenance caption. The one untested
-link is `/watch` over a real tracked Instagram video, because no video file has been
-downloaded yet. That needs one real sync with asset download (the same blocker as
-running a watched multi-channel sync), not more code.
+All 6 videos with a downloaded mp4 have been read successfully: 24 of 24 layout
+fields came back readable, and every result was accepted by `persistFramePass`. The
+anti-fabrication guard has been tested directly, with a deliberately fabricated
+layout, and it was rejected as designed.
+
+Not yet tried: a frame pass, in-app or manual, against any of the videos that have
+no downloaded mp4 (most of the library, since `EAGER_VIDEO_DOWNLOAD=false` means most
+posts are synced without their video asset). That needs a sync with asset download
+first, not more code in this path.
