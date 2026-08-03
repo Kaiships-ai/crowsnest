@@ -37,6 +37,8 @@ from .models import (
     HealthResponse,
     LoginRequest,
     LoginResponse,
+    MediaStatsRequest,
+    MediaStatsResponse,
     SessionImportRequest,
     MediasResponse,
     ProfileDTO,
@@ -323,6 +325,38 @@ def create_app(config: Config | None = None) -> FastAPI:
             thumbnail_url=dto.thumbnail_url,
             video_url=dto.video_url,
             children=children_from_media(raw),
+        )
+
+    @router.post("/media-stats", response_model=MediaStatsResponse)
+    def media_stats(body: MediaStatsRequest) -> MediaStatsResponse:
+        """Fetch engagement counts for ONE media from the single-media endpoint.
+
+        Deliberately calls ``media_info_v1`` rather than ``media_info``. The dispatcher
+        would fall back to the public path on error, and that path was measured returning
+        ``view_count: None`` and, when session-authenticated, HTML instead of JSON. We only
+        want the route that actually carries the number.
+
+        One pk per request, not a batch: the caller's HTTP timeout is 30s, and each of these
+        is a live Instagram round trip that instagrapi may internally retry up to three
+        times. Batching would put pacing on the wrong side of the timeout. The caller paces.
+        """
+        pk = (body.pk or "").strip()
+        if not pk:
+            raise IgError(IG_BAD_REQUEST, "pk is required.")
+        item = manager.call(
+            "media_stats",
+            lambda client: client.media_info_v1(pk),
+        )
+        raw = item.model_dump(mode="json")
+        dto = media_to_dto(raw)
+        return MediaStatsResponse(
+            pk=dto.pk,
+            media_type=dto.media_type,
+            product_type=dto.product_type,
+            play_count=dto.play_count,
+            view_count=dto.view_count,
+            like_count=dto.like_count,
+            comment_count=dto.comment_count,
         )
 
     @router.post("/download", response_model=DownloadResponse)
