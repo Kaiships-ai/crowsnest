@@ -322,7 +322,11 @@ export function VideoDetail({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    // min-h-full, not h-full: the shell's <main> is the scroll container (a fixed height,
+    // overflow-y-auto). Pinning this page to exactly that height forced the analysis and
+    // the left card into their own tiny inner scrollers while Similar outliers ate the
+    // rest. Letting the page grow past main means main scrolls the whole thing as one.
+    <div className="flex min-h-full flex-col">
       <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-faint">
         <Link href={feedNav.backHref} className="text-muted-foreground hover:text-foreground">
           ← Feed
@@ -363,9 +367,9 @@ export function VideoDetail({
         </Alert>
       )}
 
-      <div className="flex flex-1 gap-16 overflow-hidden p-6">
+      <div className="flex items-start gap-16 p-6">
         {/* Left: the video and everything measured about it. */}
-        <div className="flex w-[320px] shrink-0 flex-col gap-8 overflow-y-auto">
+        <div className="flex w-[320px] shrink-0 flex-col gap-8">
           {/* Capped at 42vh (rather than letting aspect-[9/16] run the full column
               width out to its natural ~1.78x height) so the six stats below are
               never pushed under the fold in a ~900px window. Media components render
@@ -451,10 +455,10 @@ export function VideoDetail({
           </div>
         </div>
 
-        {/* Right: the analysis — hook, story beats, why it worked. overflow-y-auto so
-            the exit actions below the tabs stay reachable even when analysis content
-            (long transcript aside, that has its own ScrollArea) runs tall. */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-y-auto">
+        {/* Right: the analysis, hook, story beats, why it worked. No inner scroll: the
+            whole page scrolls in the shell's main, so the beats and the exit actions below
+            the tabs flow at full height (the transcript has its own bounded ScrollArea). */}
+        <div className="flex min-w-0 flex-1 flex-col">
           <Tabs defaultValue="transcript" className="flex flex-col">
             <TabsList>
               <TabsTrigger value="transcript">Transcript</TabsTrigger>
