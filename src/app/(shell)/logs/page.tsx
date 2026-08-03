@@ -21,10 +21,10 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const levelsRaw = first(sp.levels);
   // `!== undefined` (not a truthiness check) so an explicit empty selection — every
   // level box unchecked — reads as "show nothing", distinct from a bare /logs visit
-  // that never set the param at all and should fall back to problems-only.
+  // that never set the param at all and should fall back to showing everything.
   const levels = levelsRaw !== undefined
     ? (levelsRaw.split(",").filter(Boolean) as StoredLogLevel[])
-    : (["warn", "error"] as StoredLogLevel[]);
+    : (["info", "warn", "error"] as StoredLogLevel[]);
 
   const filter: LogQueryFilter = {
     levels,
