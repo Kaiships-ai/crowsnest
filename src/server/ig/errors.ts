@@ -14,6 +14,16 @@ export const IG_ERROR_CODES = [
   "IG_CHALLENGE",
   "IG_RATE_LIMITED",
   "IG_NOT_FOUND",
+  /** We called a path the sidecar does not serve, which in practice means the running
+   *  sidecar is older than the app calling it. Deliberately NOT `IG_NOT_FOUND`: both are
+   *  HTTP 404, but that one is a fact about Instagram a caller may reasonably skip past,
+   *  while this one will fail identically on every subsequent call and needs a restart.
+   *
+   *  Conflating them is not hypothetical. The view count enrichment pass ran against a
+   *  sidecar started two days before its endpoint existed, read every routing 404 as
+   *  "that post is gone", skipped its way through the batch, and reported a blocked
+   *  account. Restarting the sidecar was the fix; nothing in the logs said so. */
+  "IG_ROUTE_NOT_FOUND",
   "IG_PRIVATE",
   "IG_PROXY_BLOCKED",
   "IG_NETWORK",
@@ -78,6 +88,8 @@ export class IgError extends Error {
         return "Instagram is rate-limiting us. Sync will back off and retry.";
       case "IG_NOT_FOUND":
         return "That account or post no longer exists on Instagram.";
+      case "IG_ROUTE_NOT_FOUND":
+        return "The Instagram service is out of date and doesn't have this feature yet. Restart it.";
       case "IG_PRIVATE":
         return "That account is private — its posts can't be synced.";
       case "IG_PROXY_BLOCKED":

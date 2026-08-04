@@ -170,6 +170,21 @@ describe("mapMedia", () => {
     expect(mapMedia({ ...MEDIA_PAYLOAD, play_count: undefined, view_count: undefined }).viewCount).toBeNull();
   });
 
+  test("treats a zero count as not disclosed, never as a real measurement", async () => {
+    const { mapMedia } = await import("./client");
+
+    // The listing endpoint sends play_count: 0 AND view_count: 0 on every row for media the
+    // burner does not own. All 299 stored video payloads look like this. Taking either zero
+    // literally once overwrote a genuine 2.27M-view reel with 0, and would drive every
+    // outlier score to zero. Null instead means "ask the single-media endpoint", which does
+    // carry the number. See docs/product/reel-view-count-spike.md.
+    expect(mapMedia({ ...MEDIA_PAYLOAD, play_count: 0, view_count: 0 }).viewCount).toBeNull();
+
+    // A zero in the preferred field must not shadow a real number in the fallback field.
+    expect(mapMedia({ ...MEDIA_PAYLOAD, play_count: 0 }).viewCount).toBe(14_000_000);
+    expect(mapMedia({ ...MEDIA_PAYLOAD, view_count: 0 }).viewCount).toBe(14_500_000);
+  });
+
   test("maps carousel children with positions and per-child media types", async () => {
     const { mapMedia } = await import("./client");
     const m = mapMedia({
@@ -481,5 +496,69 @@ describe("resolveMedia", () => {
     // lookback boundary and every date filter if such a value were ever persisted.
     expect("takenAt" in m).toBe(false);
     expect("url" in m).toBe(false);
+  });
+});
+
+describe("fetchMediaStats", () => {
+  /** Copied from the sidecar's MediaStatsResponse in `services/ig/crowsnest_ig/models.py`.
+   *  The numbers are a real measurement: @jun_yuh reel 3953894690809843161, whose row in
+   *  the dev db has view_count null because the listing endpoint reported play_count 0. */
+  const STATS = {
+    pk: "3953894690809843161",
+    media_type: "video",
+    product_type: "clips",
+    play_count: 1_212_937,
+    view_count: 0,
+    like_count: 77_918,
+    comment_count: 389,
+  };
+
+  async function withPayload<T>(payload: unknown, fn: () => Promise<T>): Promise<T> {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+    try {
+      return await fn();
+    } finally {
+      globalThis.fetch = original;
+    }
+  }
+
+  test("reads the play count the listing endpoint refused to give", async () => {
+    const { igClient } = await import("./client");
+    const s = await withPayload(STATS, () => igClient.fetchMediaStats("3953894690809843161"));
+
+    // view_count is 0 here on purpose. Instagram returned 0 on the single-media call for
+    // every reel measured during the spike, so play_count is the only field with signal.
+    expect(s.viewCount).toBe(1_212_937);
+    expect(s.externalId).toBe("3953894690809843161");
+    expect(s.productType).toBe("clips");
+    expect(s.likeCount).toBe(77_918);
+  });
+
+  test("applies the same zero-is-not-disclosed rule as mapMedia", async () => {
+    const { igClient } = await import("./client");
+
+    // Both values land in the same videos.view_count column and feed the same outlier
+    // maths, so the two mappers must not disagree about what a zero means.
+    const both = await withPayload({ ...STATS, play_count: 0, view_count: 0 }, () =>
+      igClient.fetchMediaStats("3953894690809843161")
+    );
+    expect(both.viewCount).toBeNull();
+
+    const fallback = await withPayload({ ...STATS, play_count: 0, view_count: 4_200 }, () =>
+      igClient.fetchMediaStats("3953894690809843161")
+    );
+    expect(fallback.viewCount).toBe(4_200);
+  });
+
+  test("carries no takenAt or url that could reach upsertVideo", async () => {
+    const { igClient } = await import("./client");
+    const s = await withPayload(STATS, () => igClient.fetchMediaStats("3953894690809843161"));
+
+    // Same hazard as IgResolvedMedia: videos.posted_at is NOT NULL, and an empty-string
+    // date sorts before every real one, which would break the lookback boundary.
+    expect("takenAt" in s).toBe(false);
+    expect("url" in s).toBe(false);
   });
 });

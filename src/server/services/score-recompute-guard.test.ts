@@ -5,12 +5,14 @@ import { join, relative, sep } from "node:path";
 /**
  * Structural guard for the correctness risk named in review-engineering-2026-07-31.md §5
  * (B4 in docs/product/v1-to-product-backlog.html): `videos.outlier_score` is a stored
- * column, recomputed on write, not derived on read. Today exactly two functions mutate
- * the columns a score is computed from, `upsertVideo` and `softDeleteMissing`, both in
- * `sync-engine.ts`, and both are followed by a call to `recomputeChannelScores` before
- * the sync (or import) that triggered them returns. That is a convention, not something
- * the schema enforces, and this exact shape already produced two real bugs today, fixed
- * in commits 1109299 and 53ed4c9.
+ * column, recomputed on write, not derived on read. Today exactly three functions mutate
+ * the columns a score is computed from, `upsertVideo`, `softDeleteMissing` and
+ * `enrichViewCounts` (which writes `view_count` from Instagram's single-media endpoint,
+ * and runs before the recompute in `syncOneChannel` for exactly this reason), all three
+ * in `sync-engine.ts`, and all three followed by a call to `recomputeChannelScores`
+ * before the sync (or import) that triggered them returns. That is a convention, not
+ * something the schema enforces, and this exact shape already produced two real bugs
+ * today, fixed in commits 1109299 and 53ed4c9.
  *
  * Of the three options the review offered (a single chokepoint owning score writes, a
  * type that cannot be constructed without a recompute, or a test that fails when a new
@@ -18,12 +20,12 @@ import { join, relative, sep } from "node:path";
  * would mean restructuring how `upsertVideo` writes each post mid-page: real surgery on
  * the most heavily tested file in the app, for a one-person local tool, to guard against
  * a write path that does not exist yet. A test that fails the moment one appears gets the
- * same practical protection (a silent third write path becomes a loud CI failure instead)
+ * same practical protection (a silent new write path becomes a loud CI failure instead)
  * for a few dozen lines, which is the proportionate choice here.
  *
  * This cannot prove a write is followed by a recompute. That is what the regression
  * tests in `sync-engine.test.ts`, `channels.test.ts`, and `settings-actions.test.ts`
- * already prove for the two paths that exist today. What it proves is narrower and fully
+ * already prove for the paths that exist today. What it proves is narrower and fully
  * mechanical: no file other than the two allow-listed below writes to `tables.videos` at
  * all. A manual view-count correction, a bulk re-import, anything new that touches
  * `videos` from outside this allow-list, fails here, on purpose, until whoever wrote it
@@ -34,8 +36,9 @@ import { join, relative, sep } from "node:path";
 const SRC_ROOT = join(__dirname, "..", ".."); // .../src
 
 /** The only files allowed to write `tables.videos` today, and why each is safe:
- *   - sync-engine.ts: every write (`upsertVideo`, `softDeleteMissing`) is followed by
- *     `recomputeChannelScores` before `syncOneChannel` / `importReelByUrl` returns.
+ *   - sync-engine.ts: every write (`upsertVideo`, `softDeleteMissing`, `enrichViewCounts`)
+ *     is followed by `recomputeChannelScores` before `syncOneChannel` / `importReelByUrl`
+ *     returns.
  *   - media-actions.ts: writes `videoAssetId` / `lastRefreshedAt` only. Verified below,
  *     not just claimed: never `viewCount` or `deletedAt`, so it can never change which
  *     posts or what numbers a score is computed from. */

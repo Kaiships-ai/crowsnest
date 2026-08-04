@@ -57,6 +57,7 @@ def test_wrong_token_is_401(client: TestClient) -> None:
         ("post", "/logout", {}),
         ("post", "/download", {"url": "https://x/y.jpg", "kind": "thumbnail"}),
         ("post", "/resolve-media", {"pk": "1"}),
+        ("post", "/media-stats", {"pk": "1"}),
     ],
 )
 def test_every_endpoint_requires_the_token(
@@ -137,7 +138,26 @@ def test_validation_errors_use_the_error_envelope(client: TestClient) -> None:
 def test_unknown_endpoint_uses_the_error_envelope(client: TestClient) -> None:
     response = client.get("/nope", headers=AUTH)
     assert response.status_code == 404
-    assert response.json()["error"]["code"] == "IG_NOT_FOUND"
+    # NOT IG_NOT_FOUND, which is what this asserted until a live run proved the cost.
+    # A caller cannot tell these apart by status code, and they mean opposite things: one
+    # is Instagram saying a post is gone, which a batch may reasonably skip past, the other
+    # is this process not serving the path at all, which will fail identically forever.
+    # An enrichment pass hit a sidecar older than its own endpoint, read every routing 404
+    # as a deleted post, and reported a run of missing reels instead of "restart me".
+    assert response.json()["error"]["code"] == "IG_ROUTE_NOT_FOUND"
+
+
+def test_a_routing_miss_is_not_confusable_with_a_missing_media(client: TestClient) -> None:
+    """The two 404s must differ in the body, since they cannot differ in the status."""
+    routing = client.post("/media-stats-typo", json={"pk": "1"}, headers=AUTH)
+    assert routing.status_code == 404
+    assert routing.json()["error"]["code"] == "IG_ROUTE_NOT_FOUND"
+
+    # Sanity: the real route exists, so it must NOT answer with a routing miss. Without a
+    # session it fails some other way, and any code but IG_ROUTE_NOT_FOUND proves the
+    # path is served.
+    real = client.post("/media-stats", json={"pk": "1"}, headers=AUTH)
+    assert real.json()["error"]["code"] != "IG_ROUTE_NOT_FOUND"
 
 
 def test_download_rejects_a_non_http_url(client: TestClient) -> None:

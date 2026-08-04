@@ -133,3 +133,29 @@ class ResolveMediaResponse(BaseModel):
     thumbnail_url: str | None = None
     video_url: str | None = None
     children: list[ChildDTO] = Field(default_factory=list)
+
+
+class MediaStatsRequest(BaseModel):
+    pk: str
+
+
+class MediaStatsResponse(BaseModel):
+    """Engagement counts for ONE media, fetched from the single-media endpoint.
+
+    This exists because the listing endpoint lies about play counts. Instagram returns
+    ``play_count: 0`` for every row of ``user_medias_paginated_v1`` when the session does
+    not own the media, but returns the real number from ``media_info_v1`` for those exact
+    same reels. Measured on four reels across four channels; see
+    ``docs/product/reel-view-count-spike.md``.
+
+    ``view_count`` is carried for completeness but was 0 on every reel measured, including
+    on the single-media call. ``play_count`` is the field with signal.
+    """
+
+    pk: str
+    media_type: MediaKind
+    product_type: str | None = None
+    play_count: int | None = None
+    view_count: int | None = None
+    like_count: int | None = None
+    comment_count: int | None = None

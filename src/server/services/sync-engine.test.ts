@@ -12,6 +12,12 @@ beforeAll(() => {
 });
 
 const noopSleep = async () => {};
+/** The two enrichment deps a given test isn't the test FOR. `enrichViewCounts` consults
+ *  both once per reel — `shouldStop` so a cancelled run stops spending live requests,
+ *  `tick` so the pass keeps the job row's heartbeat alive — and the tests that care about
+ *  either one pass their own counting version instead of these. */
+const neverStop = async () => false;
+const noopTick = async () => {};
 const DAY_MS = 86_400_000;
 
 function isoDaysAgo(days: number, from = Date.now()): string {
@@ -62,11 +68,21 @@ type Page = { items: IgMedia[]; nextCursor: string | null; stopReason: "lookback
  * Stub sidecar. `pages` is served in order, so the engine's cursor walk is exercised for
  * real — it must keep following nextCursor until a page says stop.
  */
+/** Default `fetchMediaStats` count for a stub client that doesn't care about the exact
+ *  number, only that it is a real, non-null, uniform figure to enrich every candidate
+ *  with. Only read by tests that drive enrichment through a real `runSync()` rather than
+ *  calling `__test.enrichViewCounts` directly. */
+const STUB_STATS_DEFAULT_VIEW_COUNT = 500_000;
+
 function stubClient(opts: {
   profile?: IgProfile;
   pages?: Page[];
   onProfileError?: Error;
   failDownloadsMatching?: RegExp;
+  /** Keyed by external id. A pk absent from this map falls back to
+   *  `STUB_STATS_DEFAULT_VIEW_COUNT`, so a test that doesn't care which reel got which
+   *  count can omit this entirely. */
+  stats?: Record<string, number | null>;
 }): { client: IgClient; downloadCalls: string[] } {
   const downloadCalls: string[] = [];
   let pageIndex = 0;
@@ -98,6 +114,10 @@ function stubClient(opts: {
     },
     async resolveMedia(pk: string) {
       return makeMedia(pk, 1);
+    },
+    async fetchMediaStats(pk: string) {
+      const viewCount = opts.stats?.[pk] ?? STUB_STATS_DEFAULT_VIEW_COUNT;
+      return { externalId: pk, mediaType: "video" as const, productType: "clips", viewCount, likeCount: 1, commentCount: 1 };
     },
     async download(input: { url: string; kind: "thumbnail" | "video" | "avatar" }) {
       downloadCalls.push(input.url);
@@ -131,6 +151,30 @@ async function setupChannel(handle = "@creator"): Promise<{ channelId: string }>
     trackedSince: nowIso(),
   });
   return { channelId: id };
+}
+
+/** A reel row shaped like one the sync would have written from a listing page: no view
+ *  count, because the listing endpoint withholds play counts for media the burner does
+ *  not own. */
+async function seedReel(
+  channelId: string,
+  externalId: string,
+  over: { daysAgo?: number; viewCount?: number | null; productType?: string | null; deletedAt?: string | null } = {}
+): Promise<void> {
+  const { db, newId, nowIso, tables } = await import("../db");
+  await db.insert(tables.videos).values({
+    id: newId(),
+    channelId,
+    platform: "instagram",
+    externalId,
+    url: `https://www.instagram.com/reel/${externalId}/`,
+    mediaType: "video",
+    productType: over.productType === undefined ? "clips" : over.productType,
+    postedAt: isoDaysAgo(over.daysAgo ?? 1),
+    viewCount: over.viewCount ?? null,
+    deletedAt: over.deletedAt ?? null,
+    firstSeenAt: nowIso(),
+  });
 }
 
 /**
@@ -1811,5 +1855,627 @@ describe("addChannel — re-adding a removed handle", () => {
     expect(second.channelId).toBe(first.channelId);
     const rows = await db.select().from(tables.channels).where(eq(tables.channels.handle, handle));
     expect(rows.length).toBe(1);
+  });
+});
+
+describe("view count enrichment — candidates", () => {
+  test("the newest live reels, with deleted and non-reel rows excluded", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@probe");
+
+    // Prefixed to stay clear of the plain "gone" externalId the soft-delete describe
+    // block above already inserts — external_id is unique per platform across the whole
+    // file's shared in-memory database, not scoped to this test's channel.
+    await seedReel(channelId, "enrich-old", { daysAgo: 30 });
+    await seedReel(channelId, "enrich-new", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-gone", { daysAgo: 1, deletedAt: "2026-08-02T10:47:25.371Z" });
+    await seedReel(channelId, "enrich-photo", { daysAgo: 1, productType: "feed" });
+
+    const { __test } = await import("./sync-engine");
+    const rows = await __test.enrichmentCandidates(channelId, 10);
+
+    // A soft-deleted row raises MediaNotFound if asked about, correctly: a prior sync
+    // already saw it removed from Instagram. Exactly one of 299 dev rows is in that
+    // state, and the first spike probe picked it first try and read the error as a block.
+    expect(rows.map((r) => r.externalId)).toEqual(["enrich-new", "enrich-old"]);
+  });
+
+  test("the limit caps how many reels a sync will ask about", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    // Not "@capped": that handle is already taken by the MAX_ITEMS_PER_SYNC
+    // cap-enforcement test above, and every test in this file shares one persistent
+    // in-memory database (migrate() only applies schema, it does not clear rows), so a
+    // repeat handle trips the (platform, handle) unique index.
+    const { channelId } = await setupChannel("@capped-enrich");
+
+    // Prefixed for the same reason as above: plain "a"/"b" externalIds are already taken
+    // (the lookback-window describe block near the top of this file).
+    await seedReel(channelId, "enrich-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-b", { daysAgo: 2 });
+
+    const { __test } = await import("./sync-engine");
+    expect(await __test.enrichmentCandidates(channelId, 1)).toHaveLength(1);
+    expect(await __test.enrichmentCandidates(channelId, 0)).toHaveLength(0);
+  });
+
+  test("a reel that already has a count is still a candidate, because play counts grow", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@already-counted");
+    await seedReel(channelId, "enrich-has-count", { viewCount: 500 });
+
+    const { __test } = await import("./sync-engine");
+    const rows = await __test.enrichmentCandidates(channelId, 10);
+    expect(rows.map((r) => r.externalId)).toContain("enrich-has-count");
+  });
+});
+
+describe("view count enrichment — the pass", () => {
+  /** The stats shape `igClient.fetchMediaStats` resolves to. Numbers are a real
+   *  measurement: @jun_yuh reel 3953894690809843161. */
+  function stats(externalId: string, viewCount: number | null) {
+    return { externalId, mediaType: "video" as const, productType: "clips", viewCount, likeCount: 77_918, commentCount: 389 };
+  }
+
+  async function viewCountOf(externalId: string): Promise<number | null> {
+    const { db, tables } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+    const rows = await db
+      .select({ viewCount: tables.videos.viewCount })
+      .from(tables.videos)
+      .where(eq(tables.videos.externalId, externalId))
+      .limit(1);
+    return rows[0].viewCount;
+  }
+
+  test("writes the play count the listing endpoint withheld", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@enrich");
+    await seedReel(channelId, "3953894690809843161", { viewCount: null });
+
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, 1_212_937) },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    expect(result.enriched).toBe(1);
+    expect(await viewCountOf("3953894690809843161")).toBe(1_212_937);
+  });
+
+  test("a null count never erases a number we already have", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@keep");
+    await seedReel(channelId, "kept", { viewCount: 2_270_000 });
+
+    // fetchMediaStats already maps a zero to null, so this is what a withheld count looks
+    // like by the time it reaches here. Writing it would repeat the bug that once turned
+    // a genuine 2.27M-view reel into 0 and zeroed every outlier score.
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, null) },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    expect(result.enriched).toBe(0);
+    expect(await viewCountOf("kept")).toBe(2_270_000);
+
+    // Counted as `withheld`, which is neither `enriched` nor `skipped`. Without its own
+    // counter a channel whose every candidate came back withheld logs 0/0/false — byte
+    // for byte what "there was nothing to do" logs — and the one thing this feature is
+    // for, telling a real zero from an absent number, would be unreadable in the log.
+    expect(result.withheld).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(result.candidates).toBe(1);
+  });
+
+  test("a deleted media is skipped and the pass continues", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@partly-gone");
+    // "gone"/"live" are already taken by the soft-delete describe block earlier in this
+    // file — external_id is unique per platform across the whole file's shared in-memory
+    // database, not scoped to this test's channel.
+    await seedReel(channelId, "enrich-deleted", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-live", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => {
+          if (pk === "enrich-deleted") throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+          return stats(pk, 94_988);
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // IG_NOT_FOUND on one reel means that one post is gone, not that the account is
+    // blocked. The first spike probe aborted on exactly this and read it as a possible
+    // ban, which cost a whole confirmation run.
+    expect(result.skipped).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(false);
+  });
+
+  test("a stale sidecar stops the pass instead of looking like deleted posts", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@stale-sidecar");
+    await seedReel(channelId, "enrich-stale-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-stale-b", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          // What a sidecar older than this endpoint actually returns. Both this and a
+          // deleted post are HTTP 404, so the code is the only thing telling them apart.
+          throw new IgError("IG_ROUTE_NOT_FOUND", "Not Found");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // Stop on the FIRST one. Skipping would spend the whole budget re-learning that the
+    // endpoint still does not exist, and would report the run as missing media. That is
+    // not hypothetical: a live pass did exactly that against a sidecar started two days
+    // before its route was added, and blamed a blocked account.
+    expect(calls).toBe(1);
+    expect(result.stopped).toBe(true);
+    expect(result.skipped).toBe(0);
+    expect(result.enriched).toBe(0);
+  });
+
+  test("any other error stops the pass without failing the sync", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@limited");
+    await seedReel(channelId, "first", { daysAgo: 1 });
+    await seedReel(channelId, "second", { daysAgo: 2 });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          throw new IgError("IG_RATE_LIMITED", "Please wait a few minutes");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // Rate limiting is the signal to back off entirely, and it must not throw: the page
+    // walk already did the sync's real work, and losing a whole channel over a view count
+    // is the trade this file refuses everywhere else.
+    expect(calls).toBe(1);
+    expect(result.stopped).toBe(true);
+    expect(result.enriched).toBe(0);
+  });
+
+  test("requests are paced apart", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@paced");
+    // "a"/"b" are already taken by the lookback-window describe block near the top of
+    // this file (same shared in-memory database).
+    await seedReel(channelId, "enrich-paced-a", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-paced-b", { daysAgo: 2 });
+
+    const { __test } = await import("./sync-engine");
+    const sleeps: number[] = [];
+    await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => stats(pk, 10) },
+      sleep: async (ms: number) => { sleeps.push(ms); },
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // One gap between two reels, none before the first.
+    expect(sleeps).toHaveLength(1);
+    expect(sleeps[0]).toBeGreaterThan(0);
+  });
+
+  test("an unbroken run of missing medias ends the pass instead of burning the budget", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@all-missing");
+    for (const n of [1, 2, 3, 4, 5]) await seedReel(channelId, `enrich-missing-${n}`, { daysAgo: n });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async () => {
+          calls += 1;
+          throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // A channel does not lose three of its newest reels between two syncs. An unbroken
+    // run of MediaNotFound reads as an action-blocked burner, and spending the other 195
+    // requests of a full budget to confirm that costs an account already in trouble a lot
+    // and teaches nothing.
+    expect(calls).toBe(3);
+    expect(result.skipped).toBe(3);
+    expect(result.stopped).toBe(true);
+  });
+
+  test("a single answered reel resets the missing-media run", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@gaps-not-a-wall");
+    for (const n of [1, 2, 3, 4, 5]) await seedReel(channelId, `enrich-gap-${n}`, { daysAgo: n });
+
+    const { IgError } = await import("../ig/errors");
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => {
+          calls += 1;
+          // Newest first, so this answers 1, 2 missing; 3 present; 4, 5 missing.
+          if (pk === "enrich-gap-3") return stats(pk, 88_100);
+          throw new IgError("IG_NOT_FOUND", "Media not found or unavailable");
+        },
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // The ceiling is on CONSECUTIVE misses. Two deletions, a live reel, two more
+    // deletions is an ordinary channel, and stopping it would be the ceiling deciding
+    // something it has no evidence for.
+    expect(calls).toBe(5);
+    expect(result.skipped).toBe(4);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(false);
+  });
+
+  test("a cancel mid-pass returns, and no further reel is asked about", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@stop-midway");
+    await seedReel(channelId, "enrich-stop-1", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-stop-2", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-stop-3", { daysAgo: 3 });
+
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => { calls += 1; return stats(pk, 41_000); } },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: async () => calls >= 1,
+      tick: noopTick,
+    });
+
+    // Returned, not thrown. The cancel path elsewhere in this engine raises
+    // SyncCancelledError, and routing this check through it would break the one promise
+    // this function makes to syncOneChannel: whatever happens, it does not throw.
+    expect(calls).toBe(1);
+    expect(result.enriched).toBe(1);
+    expect(result.stopped).toBe(true);
+  });
+
+  test("the pass heartbeats once per reel", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@heartbeat");
+    await seedReel(channelId, "enrich-beat-1", { daysAgo: 1 });
+    await seedReel(channelId, "enrich-beat-2", { daysAgo: 2 });
+    await seedReel(channelId, "enrich-beat-3", { daysAgo: 3 });
+
+    const { __test } = await import("./sync-engine");
+    // Order matters as much as the count, so both are recorded in one sequence. A tick
+    // moved to the BOTTOM of the loop body still ticks three times while leaving the run
+    // silent across every request it was added to cover.
+    const order: string[] = [];
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async (pk: string) => { order.push("fetch"); return stats(pk, 12_400); } },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: async () => { order.push("tick"); },
+    });
+
+    // The real tick is tracker.flushIfDue. Without one the pass is a silent stretch
+    // between two flushes: at a live request per reel it clears SYNC_STALL_SECONDS around
+    // 60 reels (the UI calls a working run dead) and LOCK_STALE_MS at a full budget, after
+    // which a second run may steal the lock and soft-delete posts it never reached. This
+    // repo has already lost 8 live @kallaway posts to exactly that.
+    expect(order).toEqual(["tick", "fetch", "tick", "fetch", "tick", "fetch"]);
+    expect(result.candidates).toBe(3);
+  });
+});
+
+describe("view count enrichment — ordering and default", () => {
+  test("scores are computed from the enriched numbers, not the withheld zeros", async () => {
+    // The whole point of running before the recompute. If enrichment ran after scoring, a
+    // sync would show the number in the feed but score it as though the count were
+    // missing, and the score would only correct itself on the following sync.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@ordered");
+
+    // scoreMinUsablePosts defaults to 5 (src/server/settings/index.ts DEFAULTS), so a
+    // single freshly-enriched reel can never clear the floor on its own regardless of its
+    // view count — asserting a bare 371_200 here would be wrong before the floor is met.
+    // Four reels carry that same known count already; the fifth is left null, so the
+    // floor sits exactly one enriched reel away from being cleared, which is what proves
+    // the ordering rather than just the write.
+    await seedReel(channelId, "enrich-order-1", { viewCount: 371_200, daysAgo: 2 });
+    await seedReel(channelId, "enrich-order-2", { viewCount: 371_200, daysAgo: 3 });
+    await seedReel(channelId, "enrich-order-3", { viewCount: 371_200, daysAgo: 4 });
+    await seedReel(channelId, "enrich-order-4", { viewCount: 371_200, daysAgo: 5 });
+    await seedReel(channelId, "enrich-order-5", { viewCount: null, daysAgo: 1 });
+
+    const { __test, recomputeChannelScores } = await import("./sync-engine");
+
+    // Below the floor before enrichment: only 4 of the 5 posts carry a usable count.
+    expect(await recomputeChannelScores(channelId)).toBeNull();
+
+    await __test.enrichViewCounts(channelId, {
+      client: {
+        fetchMediaStats: async (pk: string) => ({
+          externalId: pk, mediaType: "video" as const, productType: "clips",
+          viewCount: 371_200, likeCount: 1, commentCount: 1,
+        }),
+      },
+      sleep: noopSleep,
+      limit: 5,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    // recomputeChannelScores returns the channel baseline, computed from view counts. With
+    // the fifth reel's count enriched, all 5 posts clear scoreMinUsablePosts and the
+    // median is exactly the (identical) enriched number.
+    expect(await recomputeChannelScores(channelId)).toBe(371_200);
+  });
+
+  test("the shipped default for the knob is 0", async () => {
+    // Asserted on the config object itself, not on a limit a test happened to pass in.
+    // Off by default is a ban-risk decision — every reel this knob enables is one more
+    // authenticated request per sync from a burner account — and it was the one part of
+    // this feature nothing tested: the limit-0 test below passes just as happily with a
+    // default of 25.
+    const { config } = await import("../config");
+    expect(config.VIEW_COUNT_ENRICH_PER_CHANNEL).toBe(0);
+  });
+
+  test("a real runSync with the knob left alone asks Instagram about no reel at all", async () => {
+    // The companion to the assertion above, and the one that covers the shipped BEHAVIOUR
+    // rather than the shipped number: nothing here touches config, so this is what a user
+    // who never set the knob actually gets from a real sync — not one live single-media
+    // request. It deliberately does not claim to isolate the call site's
+    // `VIEW_COUNT_ENRICH_PER_CHANNEL > 0` guard: delete that guard and the pass still asks
+    // about nothing, because `enrichmentCandidates` short-circuits on `limit <= 0`. Two
+    // layers, one property, and the property is the part that matters.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@default-off");
+
+    const items = [1, 2].map((n) => makeMedia(`enrich-default-off-${n}`, n, { viewCount: null }));
+    const { client: base } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { runSync } = await import("./sync-engine");
+    await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(statsCalls).toBe(0);
+  });
+
+  test("a limit of 0 asks about nothing", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@off");
+    await seedReel(channelId, "enrich-off-1");
+
+    const { __test } = await import("./sync-engine");
+    let calls = 0;
+    const result = await __test.enrichViewCounts(channelId, {
+      client: { fetchMediaStats: async () => { calls += 1; throw new Error("must not be called"); } },
+      sleep: noopSleep,
+      limit: 0,
+      shouldStop: neverStop,
+      tick: noopTick,
+    });
+
+    expect(calls).toBe(0);
+    expect(result.enriched).toBe(0);
+  });
+
+  test("a real runSync writes enriched scores on its own first pass, not the next one", async () => {
+    // Unlike the two tests above, this one does not call __test.enrichViewCounts or
+    // recomputeChannelScores directly — it drives runSync() end to end with the knob on,
+    // so the assertion can only pass if syncOneChannel's own call site really runs
+    // enrichment before its own call to recomputeChannelScores. Moving the call site to
+    // after the recompute, or deleting it, makes this test fail: the scores below would
+    // still be null on this, the channel's very first sync.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@wired-enrich");
+
+    // Five reels to clear scoreMinUsablePosts (5, established in the ordering test
+    // above). No view count on any of them, exactly how the listing endpoint really
+    // delivers a reel the burner account does not own.
+    const items = [1, 2, 3, 4, 5].map((n) => makeMedia(`enrich-wired-${n}`, n, { viewCount: null }));
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+
+    // config is a plain singleton object (src/server/config.ts), read live by
+    // syncOneChannel on every call rather than captured at import time, so mutating the
+    // property here reaches the real call site. Restored in `finally` because this test
+    // file shares one module registry (and this one config instance) across every test.
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    try {
+      const { runSync } = await import("./sync-engine");
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    const { db, tables } = await import("../db");
+    const rows = await db
+      .select({ viewCount: tables.videos.viewCount, outlierScore: tables.videos.outlierScore })
+      .from(tables.videos)
+      .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
+
+    expect(rows).toHaveLength(5);
+    for (const row of rows) {
+      expect(row.viewCount).toBe(STUB_STATS_DEFAULT_VIEW_COUNT);
+      // If enrichment ran after recomputeChannelScores (or not at all), every view count
+      // recomputeChannelScores saw would still be null, so every outlier score would be
+      // null too, on this, the channel's only sync so far.
+      expect(row.outlierScore).not.toBeNull();
+    }
+  });
+
+  test("a cancelled run spends nothing on enrichment", async () => {
+    // Same harness as the test above (knob on, real runSync), pointed at the opposite
+    // claim. The user clicks Stop during the first page; the walk breaks with stopReason
+    // "cancelled", and runSync only re-checks cancel BETWEEN channels, so the enrichment
+    // call site is the last thing standing between a stopped run and a full pass of
+    // authenticated single-media requests from the burner.
+    //
+    // This covers the two cancel mechanisms JOINTLY, not one each: the call-site gate and
+    // the per-reel `shouldStop` both hold this number at zero on their own, so deleting
+    // either one alone leaves it green. That is the point — zero requests after Stop is
+    // the user-facing promise, and it survives losing either half. The halves are pinned
+    // separately elsewhere: `shouldStop` by "a cancel mid-pass returns" above, and the
+    // call site's own live check by the test below, which reads the log instead of the
+    // request count precisely because the request count cannot tell them apart.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@cancel-enrich");
+
+    const pages: Page[] = [
+      { items: [makeMedia("enrich-cancel-1", 1), makeMedia("enrich-cancel-2", 2)], nextCursor: "cursor-2", stopReason: null },
+      { items: [makeMedia("enrich-cancel-3", 3)], nextCursor: null, stopReason: null },
+    ];
+    const { client: base } = stubClient({ pages });
+    const { runSync, requestCancel } = await import("./sync-engine");
+
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async medias(input: { handle: string; sinceIso: string; maxItems: number; cursor?: string }) {
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return base.medias(input);
+      },
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    let result: Awaited<ReturnType<typeof runSync>>;
+    try {
+      result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    expect(result.stopReason).toBe("cancelled");
+    // Two reels were stored by the first page, so there were real candidates to ask
+    // about. Ungated this is 2 — and at the configured maximum it is 200.
+    expect(statsCalls).toBe(0);
+  });
+
+  test("a cancel that lands after the walk finished still skips the pass entirely", async () => {
+    // The call site's LIVE cancel check, isolated. Here the walk ends normally
+    // (stopReason "lookback", the window was fully enumerated, the soft-delete even
+    // fires), so the `stopReason !== "cancelled"` half of the gate cannot help: the only
+    // thing that knows the user pressed Stop is `tracker.isCancelRequested()`.
+    //
+    // Asserted on the LOG, not on the request count, because the per-reel `shouldStop`
+    // also holds the request count at zero and would mask a deleted gate. The call site
+    // logs `sync.enrich.finished` whenever it runs the pass at all, so the absence of that
+    // line for this channel is the proof that the pass was never entered.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@late-cancel-enrich");
+
+    const { client: base } = stubClient({});
+    const { runSync, requestCancel } = await import("./sync-engine");
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async medias() {
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return { items: [makeMedia("enrich-late-1", 1), makeMedia("enrich-late-2", 2)], nextCursor: null, stopReason: "lookback" as const };
+      },
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    try {
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
+
+    const { db, tables } = await import("../db");
+    const finished = await db
+      .select({ fields: tables.logEvents.fields })
+      .from(tables.logEvents)
+      .where(eq(tables.logEvents.event, "sync.enrich.finished"));
+
+    // Other tests in this file run the pass for real, so the filter is on this channel.
+    expect(finished.filter((r) => r.fields.includes(channelId))).toEqual([]);
+    expect(statsCalls).toBe(0);
   });
 });

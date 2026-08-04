@@ -433,3 +433,26 @@ def test_sessionid_import_emits_start_and_outcome_events(config: Config, events)
     names = events.names()
     assert "session.import.started" in names
     assert "session.import.succeeded" in names
+
+
+def test_client_does_not_inherit_the_http_timeout_as_a_sleep(config: Config) -> None:
+    """instagrapi's ``request_timeout`` is a SLEEP, not an HTTP timeout.
+
+    ``mixins/private.py:434`` runs ``time.sleep(self.request_timeout)`` before every
+    non-login private request, and the library default is 1. Assigning
+    ``IG_REQUEST_TIMEOUT_MS`` to it made every Instagram call sleep 180 seconds: measured
+    182.9s per call against 1.9s with the default. ``session.call`` holds a lock across the
+    whole operation, so a five reel enrichment pass took about a quarter of an hour.
+
+    ``IG_REQUEST_TIMEOUT_MS`` is the TypeScript client's HTTP timeout and means nothing
+    here. Pacing is ``delay_range``, asserted below so removing the bug does not silently
+    remove the throttle with it.
+    """
+    cfg = replace(config, request_timeout_ms=180_000)
+    client = SessionManager(cfg)._build_client()  # noqa: SLF001 - test seam
+
+    assert cfg.request_timeout_ms == 180_000, "still parsed, for the HTTP client"
+    assert client.request_timeout <= 5, (
+        "request_timeout is a per-request sleep; a large value stalls every call"
+    )
+    assert client.delay_range == [1, 3], "pacing must survive"

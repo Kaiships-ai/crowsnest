@@ -23,7 +23,7 @@ from .config import Config, load_config
 from .errors import (
     IG_BAD_REQUEST,
     IG_INTERNAL,
-    IG_NOT_FOUND,
+    IG_ROUTE_NOT_FOUND,
     IG_UNAUTHORIZED,
     IgError,
     translate,
@@ -37,6 +37,8 @@ from .models import (
     HealthResponse,
     LoginRequest,
     LoginResponse,
+    MediaStatsRequest,
+    MediaStatsResponse,
     SessionImportRequest,
     MediasResponse,
     ProfileDTO,
@@ -325,6 +327,38 @@ def create_app(config: Config | None = None) -> FastAPI:
             children=children_from_media(raw),
         )
 
+    @router.post("/media-stats", response_model=MediaStatsResponse)
+    def media_stats(body: MediaStatsRequest) -> MediaStatsResponse:
+        """Fetch engagement counts for ONE media from the single-media endpoint.
+
+        Deliberately calls ``media_info_v1`` rather than ``media_info``. The dispatcher
+        would fall back to the public path on error, and that path was measured returning
+        ``view_count: None`` and, when session-authenticated, HTML instead of JSON. We only
+        want the route that actually carries the number.
+
+        One pk per request, not a batch: the caller's HTTP timeout is 30s, and each of these
+        is a live Instagram round trip that instagrapi may internally retry up to three
+        times. Batching would put pacing on the wrong side of the timeout. The caller paces.
+        """
+        pk = (body.pk or "").strip()
+        if not pk:
+            raise IgError(IG_BAD_REQUEST, "pk is required.")
+        item = manager.call(
+            "media_stats",
+            lambda client: client.media_info_v1(pk),
+        )
+        raw = item.model_dump(mode="json")
+        dto = media_to_dto(raw)
+        return MediaStatsResponse(
+            pk=dto.pk,
+            media_type=dto.media_type,
+            product_type=dto.product_type,
+            play_count=dto.play_count,
+            view_count=dto.view_count,
+            like_count=dto.like_count,
+            comment_count=dto.comment_count,
+        )
+
     @router.post("/download", response_model=DownloadResponse)
     def download(body: DownloadRequest) -> DownloadResponse:
         media_store.validate_url(body.url)
@@ -352,8 +386,22 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def _http_error_handler(
         _request: Request, exc: StarletteHTTPException
     ) -> JSONResponse:
-        """Keep FastAPI's own 404/405 responses in the {"error": {...}} shape."""
-        code = IG_NOT_FOUND if exc.status_code == 404 else IG_BAD_REQUEST
+        """Keep FastAPI's own 404/405 responses in the {"error": {...}} shape.
+
+        A 404 arriving HERE is always a routing miss, never Instagram's answer about a
+        media. Anything Instagram said travels as an ``IgError`` and is handled by
+        ``_ig_error_handler`` above, which never reaches this function. So this 404 gets
+        ``IG_ROUTE_NOT_FOUND``, not ``IG_NOT_FOUND``.
+
+        That distinction is load bearing. Both are HTTP 404 and the bodies were previously
+        identical, so a client calling a path this process does not serve got the same code
+        it gets for a deleted post. A caller that reasonably skips past a deleted post then
+        skips past every call in a batch, and reports a plausible-looking run of missing
+        media instead of "the sidecar predates this endpoint". That happened: an enrichment
+        pass hit a sidecar started two days before its route existed and reported three
+        consecutive missing reels as a blocked account.
+        """
+        code = IG_ROUTE_NOT_FOUND if exc.status_code == 404 else IG_BAD_REQUEST
         error = IgError(
             code, str(exc.detail), status_code=exc.status_code, retryable=False
         )

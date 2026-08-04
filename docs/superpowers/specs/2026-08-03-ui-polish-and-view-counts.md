@@ -6,25 +6,29 @@ Source: five issues Kai reported from dogfooding, with screenshots.
 
 This spec covers three buildable UI fixes (video detail, logs filter, vault detail) and records two items as backlog with findings (view counts, frame pass).
 
-## Item 1: missing view counts (investigation finding, backlog)
+## Item 1: missing view counts (spike resolved 2026-08-03, superseded below)
 
-Not a UI bug. Root cause found in code.
+Not a UI bug. The root cause recorded here on 2026-08-03 was wrong and is corrected in
+docs/product/reel-view-count-spike.md. Read that file, not this section.
 
-- Instagram's own app and web show a play count on other creators' reels (Kai's screenshot shows 18.9k and 37.5k on the Kallaway profile).
-- Crowsnest shows a dash for those same reels.
-- The burner reads other creators through instagrapi (the private API). For a reel owned by someone else, instagrapi returns `play_count: 0` and `view_count: 0`. See the comment and mapping at src/server/ig/client.ts:212, `viewCount: nonZero(m.play_count) ?? nonZero(m.view_count)`. Two zeros map to null, which renders as a dash.
-- So the number IG shows a logged-in human is not the number the private API hands a non-owner through instagrapi.
+What this section originally claimed: that instagrapi returns `play_count: 0` and `view_count: 0`
+for a reel owned by someone else, full stop, so the number was simply not available to a non-owner.
 
-This matches the known issue in project memory (reel-view-counts-sidecar-zero): the feed math is correct, instagrapi just returns 0 for synced reels.
+What the spike measured: that is true only of the listing call. `user_medias_paginated_v1`, which
+the sync uses, returns `play_count: 0` on every row. The single media call `media_info_v1` returns
+the real number for those same reels. Confirmed on four reels across four channels, all of which
+render a dash today: 371200 for @hormozi, 19358 for @chase.h.ai, 1212937 for @jun_yuh, 94988 for
+@nick_saraev.
 
-Consequence: view count, and anything derived from it for a tracked channel's reels (the outlier score), is unavailable whenever instagrapi returns 0. Photos and non-reel posts are unaffected.
+Of the three options listed here, the middle one won: a different instagrapi call does return a
+non-zero play count for non-owned reels. The public web scrape is unnecessary. The "accept N/A and
+lean on Graph" option is off the table.
 
-Options for a real fix, none trivial, so this is a research spike, not part of this spec:
-- Read the public web profile (the number the screenshot shows) through a separate scrape path, reconcile with the private API number.
-- Try a different instagrapi endpoint or media-info variant that returns a non-zero play count for non-owned reels.
-- Accept that tracked reels can have no view count and make the UI say so plainly instead of a bare dash, and lean on owned-channel Graph API insights where real numbers exist.
+The mapping at src/server/ig/client.ts:215 already prefers `play_count`, so no mapper change is
+needed. The work is a paced enrichment pass that calls the detail endpoint per reel.
 
-Backlog action: a research task to confirm which of the three is viable. Do not change the UI dash until the data question is answered.
+Still accurate from the original finding: the feed math is correct, and photos and non-reel posts
+are unaffected. Note that only reels (`product_type: clips`) were confirmed.
 
 ## Item 2: video detail screen (buildable)
 
@@ -85,6 +89,6 @@ Acceptance: no vault card shows a full script body. Clicking any card in any of 
 
 ## Not in this spec
 
-- Item 1 real fix (view-count data source): research spike, backlog.
+- Item 1 real fix (view-count data source): spike done, see docs/product/reel-view-count-spike.md. Implementation is a paced enrichment pass, tracked separately.
 - Item 3 frame pass: separate session with /watch.
 - The header "N runs" count lag on the Runs screen (noted during logs observability QA): cosmetic, separate.

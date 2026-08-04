@@ -85,6 +85,32 @@ export interface IgResolvedMedia {
   raw: Record<string, unknown>;
 }
 
+/**
+ * What `/media-stats` returns: engagement counts for ONE media, and nothing else.
+ * Deliberately NOT `IgMedia`, for the same reason `IgResolvedMedia` is not: this shape has
+ * no `takenAt` and no `url`, so it must never be reachable by `upsertVideo`.
+ *
+ * This endpoint exists because the LISTING call lies about play counts. Instagram returns
+ * `play_count: 0` on every row of `user_medias_paginated_v1` for media the session does not
+ * own, then returns the real number from `media_info_v1` for those exact same reels.
+ * Measured on four reels across four channels, see docs/product/reel-view-count-spike.md.
+ */
+export interface IgMediaStats {
+  externalId: string;
+  mediaType: IgMedia["mediaType"];
+  productType: string | null;
+  /**
+   * Same derivation as `mapMedia`: plays win over views, and a zero means "not disclosed".
+   * Keeping the rule identical matters because both values land in the same
+   * `videos.view_count` column and feed the same outlier maths. In the spike, `view_count`
+   * was 0 even on the single-media call, on every reel measured, so in practice this is
+   * `play_count`.
+   */
+  viewCount: number | null;
+  likeCount: number | null;
+  commentCount: number | null;
+}
+
 export interface IgMediasPage {
   items: IgMedia[];
   nextCursor: string | null;
@@ -441,6 +467,28 @@ export const igClient = {
       videoUrl: mediaType === "video" ? required(str(r.video_url), "video_url", raw) : str(r.video_url),
       children: Array.isArray(r.children) ? r.children.map(mapChild) : [],
       raw: rec(r.raw),
+    };
+  },
+
+  /** Fetches engagement counts for ONE media from Instagram's single-media endpoint.
+   *
+   *  One pk per call, by design. Each of these is a live Instagram round trip that
+   *  instagrapi may internally retry up to three times, so the caller has to pace them and
+   *  count real requests rather than function calls.
+   *
+   *  A media the burner can no longer see raises IG_NOT_FOUND. That is the correct answer
+   *  for a deleted post, not a signal that anything is wrong, so callers should skip and
+   *  continue on that code and stop on any other. */
+  async fetchMediaStats(pk: string): Promise<IgMediaStats> {
+    const raw = await request<unknown>("/media-stats", { method: "POST", body: { pk } });
+    const r = rec(raw);
+    return {
+      externalId: required(str(r.pk), "pk", raw),
+      mediaType: mediaTypeOf(r.media_type, raw),
+      productType: str(r.product_type),
+      viewCount: nonZero(r.play_count) ?? nonZero(r.view_count),
+      likeCount: num(r.like_count),
+      commentCount: num(r.comment_count),
     };
   },
 
