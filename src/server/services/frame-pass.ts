@@ -35,13 +35,13 @@ export async function resolveVideoFile(videoId: string): Promise<{ ok: true; pat
 /**
  * Persist a Layout reading (V1 data contracts, contract 5) onto a video's analysis row.
  *
- * The vision itself does not happen in this process. `src/server/llm/client.ts` has no
- * image path, the 9router proxy relays no live vision model (every `nvidia/*` is 410
- * Gone, the `combo` models behind `openclaw`/`hermes` are text-only DeepSeek), so the
- * in-app `runFramePassAction` correctly refuses. The frame pass instead runs in a Claude
- * Code terminal session: `/watch` samples the video's frames, Claude reads them, and the
+ * The vision itself does not happen in this process. `src/server/llm/client.ts` still has
+ * no image path and the 9router proxy relays no live vision model, so the reading is
+ * produced by a Claude Code subprocess instead: `frame-pass-runner.ts` extracts frames
+ * with watch.py, hands the paths to a session limited to `--allowedTools Read`, and the
  * four Layout fields come back as a `VideoLayout`. This function is where that result
- * lands in the database. See `docs/product/frame-pass-workflow.md`.
+ * lands in the database. `runFramePassAction` no longer refuses; it starts a job that
+ * ends up here. See `docs/product/frame-pass-workflow.md`.
  *
  * Anti-fabrication guard (the reason the `fromFramesSec` field exists): a field may only
  * carry a non-null `value` if it names at least one frame timestamp it was read from. A

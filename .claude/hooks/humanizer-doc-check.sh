@@ -7,6 +7,15 @@ set -euo pipefail
 INPUT=$(cat)
 
 FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')
+
+# Implementation plans are exempt. They are mostly fenced code quoted verbatim out of the
+# codebase, and this check greps the whole file rather than parsing fences, so it fires on
+# dashes that live inside code we did not write and must not alter (for example the
+# `{row.value ?? "—"}` fallback in layout-section.tsx). Prose docs stay enforced.
+case "$FILE" in
+  */docs/superpowers/plans/*) exit 0 ;;
+esac
+
 case "$FILE" in
   *.md|*.mdx|*.markdown|*.txt) ;;
   *) exit 0 ;;

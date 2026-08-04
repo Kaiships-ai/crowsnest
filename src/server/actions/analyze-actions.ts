@@ -1,10 +1,12 @@
 "use server";
 
+import { eq } from "drizzle-orm";
 import { NoApiKeyError } from "../llm/client";
 import { llmErrorMessage } from "../llm/error-message";
-import type { VideoLayout } from "../llm/schemas";
 import { log } from "../lib/logger";
+import { db, tables } from "../db";
 import { getOrCreateAnalysis } from "../services/analyze";
+import { runFramePass } from "../services/frame-pass-runner";
 import { NoTranscriptProviderError } from "../transcribe";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -47,45 +49,62 @@ export type FramePassCode =
   | "FRAME_DOWNLOAD_FAILED"
   | "FRAME_FFMPEG_MISSING"
   | "FRAME_EXTRACT_FAILED"
-  | "FRAME_NO_VISION_MODEL"
   | "FRAME_MODEL_FAILED"
   | "FRAME_PARSE_FAILED"
+  | "FRAME_VALIDATION_REJECTED"
   | "FRAME_ALREADY_RUN"
   | "FRAME_UNKNOWN";
 
 type FramePassResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code: FramePassCode };
 
 /**
- * Runs a frame pass over sampled frames to fill in the video detail screen's Layout
- * section (V1 data contracts, contract 5): on-screen text, text position, cut rhythm,
- * framing. Read from frames, never from the transcript — see CONTEXT.md's Layout entry
- * and the doc comment on `videoAnalyses.layout` in schema.ts.
+ * Starts a frame pass for one video and returns its job id. The work happens in
+ * `frame-pass-runner.ts`: frames come from watch.py, the reading comes from a Claude Code
+ * subprocess limited to `--allowedTools Read`, and the result is written through
+ * `persistFramePass`, which rejects any value that cites no frame.
  *
- * THIS DOES NOT RUN A FRAME PASS, and that is not a stub standing in for a TODO — it is
- * the honest, permanent current state of this system, and this action always returns
- * it. `src/server/llm/client.ts` has no image-input path on either implementation, no
- * frame sampler exists anywhere in `src/server`, and no vision-capable model is
- * configured (`docs/product/frame-pass-spike-prep.md`, wave 0's still-open spike).
- * Building any of that — an ffmpeg frame sampler, an image-capable `LlmClient` method,
- * a `claude` subprocess bridge — is explicitly out of scope for this action: the
- * fastest path to a "working" frame pass without one of those is filling the four
- * layout fields by guessing from the transcript, which is exactly the fabrication this
- * feature exists to prevent.
+ * A pass costs roughly one model turn per frame and runs for tens of seconds, so the
+ * client polls `getFramePassJobAction` rather than holding this action open.
  *
- * So this action always fails, always with the same code, and never writes a partial
- * `layout`. That is what makes the "not yet analyzed" state correct on day one: every
- * video shows four dashes and a "Run frame pass" control explaining why it can't run
- * yet, because that is the truth until the frame pass spike answers its open question
- * and someone builds the real pass on these already-migrated columns.
+ * Only one pass runs at a time. That is enforced by a partial unique index on
+ * `frame_pass_jobs`, not by the check below, so a double click cannot race past it.
  */
-export async function runFramePassAction(
-  videoId: string,
-  opts?: { force?: boolean; maxFrames?: number }
-): Promise<FramePassResult<{ layout: VideoLayout; framesSampled: number; frameModel: string }>> {
-  log.debug("frame_pass.blocked", { videoId, force: opts?.force, maxFrames: opts?.maxFrames, reason: "no vision-capable model wired up" });
-  return {
-    ok: false,
-    error: "Layout needs a vision-capable model, which isn't wired up yet. The other tabs still work.",
-    code: "FRAME_NO_VISION_MODEL",
-  };
+export async function runFramePassAction(videoId: string): Promise<FramePassResult<{ jobId: string }>> {
+  const [running] = await db
+    .select({ id: tables.framePassJobs.id })
+    .from(tables.framePassJobs)
+    .where(eq(tables.framePassJobs.status, "running"))
+    .limit(1);
+  if (running) {
+    return { ok: false, error: "A frame pass is already running. Passes run one at a time.", code: "FRAME_ALREADY_RUN" };
+  }
+
+  try {
+    const result = await runFramePass(videoId);
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: "The frame pass ran but produced no reading. The Layout section shows why.",
+        code: (result.errorCode ?? "FRAME_UNKNOWN") as FramePassCode,
+      };
+    }
+    return { ok: true, jobId: result.jobId };
+  } catch (err) {
+    log.error("frame_pass.crashed", { videoId, error: (err as Error).message });
+    return { ok: false, error: (err as Error).message, code: "FRAME_UNKNOWN" };
+  }
+}
+
+/** Poll one job. An id we cannot find reads as failed, never as still running, so a lost
+ *  job cannot leave the UI spinning forever. */
+export async function getFramePassJobAction(
+  jobId: string
+): Promise<{ status: "running" | "success" | "failed"; error: string | null }> {
+  const [job] = await db
+    .select({ status: tables.framePassJobs.status, errorMessage: tables.framePassJobs.errorMessage })
+    .from(tables.framePassJobs)
+    .where(eq(tables.framePassJobs.id, jobId))
+    .limit(1);
+  if (!job) return { status: "failed", error: "That frame pass job no longer exists." };
+  return { status: job.status as "running" | "success" | "failed", error: job.errorMessage ?? null };
 }

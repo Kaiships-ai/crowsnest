@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { runFramePassAction } from "@/server/actions/analyze-actions";
+import { getFramePassJobAction, runFramePassAction } from "@/server/actions/analyze-actions";
 import type { StoredVideoAnalysis } from "@/server/services/analyze";
 import type { VideoLayoutField } from "@/server/llm/schemas";
 
@@ -25,28 +25,56 @@ export function fieldValue(field: VideoLayoutField | undefined): string | null {
  * framing — as opposed to what it says. Read only from a frame pass, never guessed
  * from the transcript.
  *
- * `runFramePassAction` always returns `ok:false, code:"FRAME_NO_VISION_MODEL"` today —
- * `src/server/llm/client.ts` has no image-input path, there's no frame sampler, and no
- * vision-capable model is configured (wave 0's still-open spike). That's not a stub
- * standing in for a TODO, it's the honest current state of the system, so this section
- * is built to say exactly that rather than hide, or imply the four fields below are
- * about to fill themselves in.
+ * The pass runs out of process: watch.py samples frames, a Claude Code subprocess limited
+ * to Read looks at them, and the result is written through the validator that rejects a
+ * value citing no frames. It takes tens of seconds, so this polls the job rather than
+ * awaiting the action.
  */
 export function LayoutSection({ videoId, analysis }: { videoId: string; analysis: StoredVideoAnalysis | null }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  // Guards every setState/toast in the poll loop against firing after unmount (e.g. the
+  // user navigates away mid-pass). Doesn't cancel the in-flight action call itself — that
+  // would still resolve server-side — it just stops the loop from scheduling more polls
+  // or touching state once we're gone.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   async function runFramePass() {
     setPending(true);
-    const result = await runFramePassAction(videoId);
-    setPending(false);
-    if (result.ok) {
-      toast.success("Frame pass complete");
+    const started = await runFramePassAction(videoId);
+    if (!started.ok) {
+      if (mountedRef.current) setPending(false);
+      toast.error(started.error);
+      return;
+    }
+
+    // One model turn per frame means a pass can run for a minute or more. Poll rather
+    // than hold the action open, and give up after 5 minutes so the button cannot stick.
+    const deadline = Date.now() + 5 * 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!mountedRef.current) return;
+      const job = await getFramePassJobAction(started.jobId);
+      if (job.status === "running") continue;
+      if (!mountedRef.current) return;
+      setPending(false);
+      if (job.status === "success") {
+        toast.success("Frame pass complete");
+      } else {
+        toast.error(job.error ?? "The frame pass produced no reading.");
+      }
       router.refresh();
-    } else {
-      // The message and code both come straight from the action — never rephrased into
-      // something that sounds more temporary than it is.
-      toast.error(result.error);
+      return;
+    }
+    if (mountedRef.current) {
+      setPending(false);
+      toast.error("Frame pass is taking unusually long. Reload to see where it landed.");
     }
   }
 
@@ -90,9 +118,9 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
           <>Last frame pass didn&rsquo;t produce a reading: {analysis?.framePassError}.</>
         ) : (
           <>
-            No vision-capable model is configured yet, so on-screen text, its position, cut rhythm, and framing can&rsquo;t
-            be read from frames. These four stay dashes until that&rsquo;s wired up. Nothing above is a guess standing in
-            for a reading.
+            No frame pass has run for this video yet. Running one samples frames and reads
+            on-screen text, its position, cut rhythm, and framing from them. Nothing above
+            is a guess standing in for a reading.
           </>
         )}
       </p>
