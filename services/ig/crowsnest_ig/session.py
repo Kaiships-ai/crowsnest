@@ -237,8 +237,14 @@ class SessionManager:
 
     def _build_client(self) -> CrowsnestClient:
         client = CrowsnestClient(broker=self.broker)
+        # delay_range is the pacing control, and the ONLY one. Deliberately not setting
+        # client.request_timeout: despite the name, instagrapi sleeps that many SECONDS
+        # before every private request (mixins/private.py:434), so feeding it
+        # IG_REQUEST_TIMEOUT_MS (180000ms here) made a single call take 182.9s instead of
+        # 1.9s. `call` holds a lock for the whole operation, so five reels took a quarter
+        # of an hour. That variable is the TypeScript client's HTTP timeout and means
+        # nothing to instagrapi.
         client.delay_range = [1, 3]
-        client.request_timeout = self.config.request_timeout_s
 
         seed = self.config.effective_device_seed() if (
             self.config.device_seed or self.config.username
@@ -290,9 +296,9 @@ class SessionManager:
                 error=f"{type(exc).__name__}: {exc}",
             )
             return False
-        # load_settings replaces settings wholesale; re-apply runtime knobs.
+        # load_settings replaces settings wholesale; re-apply runtime knobs. Not
+        # request_timeout: see _build_client, it is a per-request sleep, not a timeout.
         client.delay_range = [1, 3]
-        client.request_timeout = self.config.request_timeout_s
         if self.config.proxy:
             client.set_proxy(self.config.proxy)
         if self.config.username:
@@ -644,8 +650,8 @@ class SessionManager:
         if self.config.session_path.exists():
             try:
                 client.load_settings(self.config.session_path)
+                # Not request_timeout: see _build_client, it is a per-request sleep.
                 client.delay_range = [1, 3]
-                client.request_timeout = self.config.request_timeout_s
                 if self.config.proxy:
                     client.set_proxy(self.config.proxy)
             except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
