@@ -35,6 +35,20 @@ There is no demo data. The app starts empty and fills up with real posts from re
 channels you choose to track — the previous `db:seed` command generated fabricated
 channels and view counts and has been removed.
 
+## One-command stack up
+
+If you work in Claude Code, `/crowsnest-up` brings the stack up in one step and leaves it
+running: the 9router LLM proxy on port 20128, the dev server on port 3000 in a cmux pane,
+and a connected browser already pointed at the app. Each step checks before it starts
+anything, so running it against a stack that is already up does nothing.
+
+The dev server has to run in a cmux pane. A `npm run dev` backgrounded from a sandboxed
+tool call gets reaped after a minute or two, and its log simply ends mid-request with no
+crash trace. A pane runs in a real shell that survives.
+
+Open the app at `http://localhost:3000`, never `127.0.0.1`. Next 16 blocks Server Actions
+from the wrong origin, and it does it silently.
+
 ## Using Crowsnest
 
 The app starts empty. The workflow:
