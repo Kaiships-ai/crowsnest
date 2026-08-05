@@ -140,4 +140,16 @@ describe("recordFramePassFailure", () => {
     expect(row.framePassError).toBe("video too dark to read on-screen text");
     expect(row.framePassAt).not.toBeNull();
   });
+
+  test("preserves an existing good layout when a later pass fails", async () => {
+    const videoId = await seedVideo();
+    await persistFramePass({ videoId, layout: layout(), framesSampled: 12, frameModel: "claude-code/watch" });
+
+    await recordFramePassFailure(videoId, "ffmpeg exploded on the re-run");
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+    expect(row.layout?.onScreenText.value).toBe("3 MISTAKES"); // still there
+    expect(row.framePassError).toBe("ffmpeg exploded on the re-run");
+    expect(row.framePassAt).not.toBeNull();
+  });
 });

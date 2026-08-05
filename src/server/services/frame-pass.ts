@@ -132,7 +132,6 @@ export async function recordFramePassFailure(videoId: string, error: string): Pr
   if (!video) throw new FramePassNoVideoError(videoId);
 
   const now = nowIso();
-  const cols = { layout: null, framesSampled: null, frameModel: null, framePassAt: now, framePassError: error };
 
   const [existing] = await db
     .select({ videoId: tables.videoAnalyses.videoId })
@@ -141,8 +140,16 @@ export async function recordFramePassFailure(videoId: string, error: string): Pr
     .limit(1);
 
   if (existing) {
-    await db.update(tables.videoAnalyses).set(cols).where(eq(tables.videoAnalyses.videoId, videoId));
+    // Do NOT touch layout/framesSampled/frameModel: a re-run that fails must not erase a
+    // reading a previous pass already stored. Only the failure fields change.
+    await db
+      .update(tables.videoAnalyses)
+      .set({ framePassAt: now, framePassError: error })
+      .where(eq(tables.videoAnalyses.videoId, videoId));
   } else {
-    await db.insert(tables.videoAnalyses).values({ videoId, createdAt: now, ...cols });
+    // Brand-new failure row: there is no layout to keep, so null is correct here.
+    await db
+      .insert(tables.videoAnalyses)
+      .values({ videoId, createdAt: now, layout: null, framesSampled: null, frameModel: null, framePassAt: now, framePassError: error });
   }
 }
