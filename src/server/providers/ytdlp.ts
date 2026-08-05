@@ -47,7 +47,8 @@ export async function fetchReelByUrl(url: string): Promise<VideoStats & { channe
   if (!bin) {
     throw new Error("yt-dlp not found on PATH — install with `brew install yt-dlp`");
   }
-  const { stdout } = await execFileP(bin, ["-J", "--no-warnings", url]);
+  // `--` ends option parsing, so a URL starting with a dash is read as a positional.
+  const { stdout } = await execFileP(bin, ["-J", "--no-warnings", "--", url]);
   const parsed: unknown = JSON.parse(stdout);
   return mapYtdlpJson(parsed);
 }

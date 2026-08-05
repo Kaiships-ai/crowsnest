@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { mapYtdlpJson } from "./ytdlp";
 import { detectBinary } from "../lib/exec";
 import reelFixture from "../../../tests/fixtures/ytdlp-reel.json";
@@ -55,5 +55,31 @@ describe("detectBinary", () => {
   test("returns null for a binary that doesn't exist", async () => {
     const resolved = await detectBinary("definitely-not-a-real-bin-xyz");
     expect(resolved).toBeNull();
+  });
+});
+
+describe("fetchReelByUrl", () => {
+  // `doMock` rather than `mock` so the stub is scoped to this block's dynamic import —
+  // the `detectBinary` tests above need the real module.
+  afterEach(() => {
+    vi.doUnmock("../lib/exec");
+    vi.resetModules();
+  });
+
+  test("passes -- before the URL so a dash-leading URL is not read as a flag", async () => {
+    const execFileP = vi.fn().mockResolvedValue({
+      stdout: JSON.stringify({ id: "1", webpage_url: "u", uploader_id: "x", timestamp: 0 }),
+      stderr: "",
+    });
+    const detectBinaryStub = vi.fn().mockResolvedValue("/usr/local/bin/yt-dlp");
+    vi.resetModules();
+    vi.doMock("../lib/exec", () => ({ execFileP, detectBinary: detectBinaryStub }));
+
+    const { fetchReelByUrl } = await import("./ytdlp");
+    await fetchReelByUrl("-oProof");
+
+    const args = execFileP.mock.calls[0][1] as string[];
+    expect(args[args.length - 2]).toBe("--");
+    expect(args[args.length - 1]).toBe("-oProof");
   });
 });

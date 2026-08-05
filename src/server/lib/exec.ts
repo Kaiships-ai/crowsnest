@@ -60,6 +60,7 @@ export async function downloadToTmp(url: string, destDir: string = DEFAULT_TMP_D
   await mkdir(destDir, { recursive: true });
   const name = createHash("sha1").update(url).digest("hex").slice(0, 16);
   const dest = path.join(destDir, `${name}.mp4`);
-  await execFileP(bin, ["-o", dest, "--no-warnings", "-f", "mp4/best", url]);
+  // `--` ends option parsing, so a URL starting with a dash is read as a positional.
+  await execFileP(bin, ["-o", dest, "--no-warnings", "-f", "mp4/best", "--", url]);
   return dest;
 }
