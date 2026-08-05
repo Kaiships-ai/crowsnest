@@ -65,6 +65,10 @@ export class FramePassNoVideoError extends Error {
 
 const LAYOUT_FIELDS = ["onScreenText", "textPosition", "cutRhythm", "framing"] as const;
 
+/** A layout field is a short phrase ("centered, upper third"). Anything past this is not a
+ *  reading, it is a blob, so refuse it rather than store it. */
+export const MAX_LAYOUT_VALUE_LEN = 1000;
+
 export async function persistFramePass(input: FramePassInput): Promise<VideoLayout> {
   const layout = VideoLayoutSchema.parse(input.layout);
 
@@ -79,6 +83,11 @@ export async function persistFramePass(input: FramePassInput): Promise<VideoLayo
     if (field.value !== null && field.fromFramesSec.length === 0) {
       throw new FramePassValidationError(
         `Layout field "${key}" has a value but names no source frames. A reading with no backing frame is a guess; drop the value or cite the frames it came from.`
+      );
+    }
+    if (field.value !== null && field.value.length > MAX_LAYOUT_VALUE_LEN) {
+      throw new FramePassValidationError(
+        `Layout field "${key}" is ${field.value.length} chars, over the ${MAX_LAYOUT_VALUE_LEN} cap. A reading is a short phrase, not a dump.`
       );
     }
   }
