@@ -11,12 +11,13 @@ let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let runFramePass: typeof import("./frame-pass-runner")["runFramePass"];
 let reapStaleFramePassJobs: typeof import("./frame-pass-runner")["reapStaleFramePassJobs"];
 let FRAME_PASS_STALE_MS: typeof import("./frame-pass-runner")["FRAME_PASS_STALE_MS"];
+let withHeartbeat: typeof import("./frame-pass-runner")["withHeartbeat"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ runFramePass, reapStaleFramePassJobs, FRAME_PASS_STALE_MS } = await import("./frame-pass-runner"));
+  ({ runFramePass, reapStaleFramePassJobs, FRAME_PASS_STALE_MS, withHeartbeat } = await import("./frame-pass-runner"));
   migrate();
 });
 
@@ -248,6 +249,45 @@ describe("reapStaleFramePassJobs", () => {
     } finally {
       // Release the global lock: lock_key is constant, so a row left "running" here would
       // block every insert in the tests that follow.
+      await db.update(tables.framePassJobs).set({ status: "failed", finishedAt: nowIso() }).where(eq(tables.framePassJobs.id, jobId));
+    }
+  });
+});
+
+describe("withHeartbeat", () => {
+  test("advances the row's heartbeat while the wrapped work runs", async () => {
+    const start = new Date(Date.now() - 60_000).toISOString();
+    const jobId = newId();
+    const videoId = await seedVideoWithFile();
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: start, heartbeatAt: start });
+
+    try {
+      await withHeartbeat(jobId, () => new Promise((r) => setTimeout(r, 40)), 5);
+
+      const [row] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, jobId)).limit(1);
+      expect(row.heartbeatAt).not.toBe(start); // ticked at least once during the 40ms
+      expect(new Date(row.heartbeatAt as string).getTime()).toBeGreaterThan(new Date(start).getTime());
+    } finally {
+      await db.update(tables.framePassJobs).set({ status: "failed", finishedAt: nowIso() }).where(eq(tables.framePassJobs.id, jobId));
+    }
+  });
+
+  test("stops ticking once the wrapped work throws", async () => {
+    const start = new Date(Date.now() - 60_000).toISOString();
+    const jobId = newId();
+    const videoId = await seedVideoWithFile();
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: start, heartbeatAt: start });
+
+    try {
+      await expect(withHeartbeat(jobId, async () => {
+        throw new Error("model died");
+      }, 5)).rejects.toThrow("model died");
+
+      const [afterThrow] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, jobId)).limit(1);
+      await new Promise((r) => setTimeout(r, 30));
+      const [later] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, jobId)).limit(1);
+      expect(later.heartbeatAt).toBe(afterThrow.heartbeatAt);
+    } finally {
       await db.update(tables.framePassJobs).set({ status: "failed", finishedAt: nowIso() }).where(eq(tables.framePassJobs.id, jobId));
     }
   });

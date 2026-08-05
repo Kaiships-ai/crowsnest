@@ -39,6 +39,38 @@ const MODEL_LABEL = "claude-code/watch+sonnet";
  *  out from under itself. */
 export const FRAME_PASS_STALE_MS = 120_000;
 
+/** How often a live pass refreshes its heartbeat. Well under FRAME_PASS_STALE_MS so a
+ *  running pass never looks stale. */
+export const FRAME_PASS_HEARTBEAT_MS = 10_000;
+
+/**
+ * Runs `fn` while ticking the job's heartbeat every `intervalMs`, so the reaper does not
+ * free a pass that is slow but alive. The interval is cleared whether `fn` resolves or
+ * throws. A failed heartbeat write is swallowed: it must not break the pass.
+ */
+export async function withHeartbeat<T>(
+  jobId: string,
+  fn: () => Promise<T>,
+  intervalMs: number = FRAME_PASS_HEARTBEAT_MS
+): Promise<T> {
+  const timer = setInterval(() => {
+    // Both arms are guarded: a throw escaping a timer callback is an uncaught exception,
+    // which would take the process down over a heartbeat write nobody is waiting on.
+    try {
+      void Promise.resolve(
+        db.update(tables.framePassJobs).set({ heartbeatAt: nowIso() }).where(eq(tables.framePassJobs.id, jobId))
+      ).catch(() => {});
+    } catch {
+      // ignored on purpose, see above
+    }
+  }, intervalMs);
+  try {
+    return await fn();
+  } finally {
+    clearInterval(timer);
+  }
+}
+
 /**
  * Fail any "running" frame_pass_jobs row whose heartbeat has gone stale (or was never set,
  * which is what a row written before heartbeats existed looks like), so a crashed pass
@@ -130,7 +162,9 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
 
     let result: ClaudeTaskResult;
     try {
-      result = await ask(buildLayoutPrompt(frames));
+      // The read is the long part of a pass, tens of seconds. The heartbeat ticks under it
+      // so the reaper cannot mistake a slow-but-alive pass for a crashed one.
+      result = await withHeartbeat(jobId, () => ask(buildLayoutPrompt(frames)));
     } catch (err) {
       return await fail(jobId, videoId, "FRAME_MODEL_FAILED", (err as Error).message);
     }
