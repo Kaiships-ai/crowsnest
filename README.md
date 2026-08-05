@@ -226,8 +226,8 @@ npm run lint   # No ESLint errors
 git status     # Working tree clean
 ```
 
-`npx tsc --noEmit` has a known baseline of 4 pre-existing errors in `llm/client.test.ts`,
-`analyze.test.ts` and `remix.test.ts`. Those are unrelated to the sync work — add no new ones.
+`npx tsc --noEmit` passes clean. There is no known baseline of pre-existing errors, so any
+error you see is one you introduced.
 
 ### Testing conventions
 

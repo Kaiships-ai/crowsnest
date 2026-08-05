@@ -1,5 +1,9 @@
 "use client";
 
+/* eslint-disable react-hooks/refs -- dnd-kit's useSortable returns setNodeRef, attributes,
+   listeners and isDragging to be applied in render. They are dnd-kit values, not React refs,
+   so this rule misfires here. */
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
