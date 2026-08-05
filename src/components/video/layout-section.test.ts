@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import type { VideoLayoutField } from "@/server/llm/schemas";
-import { fieldValue } from "./layout-section";
+import { fieldValue, framePassCta } from "./layout-section";
 
 /**
  * `LayoutSection` itself uses `useRouter`/`useState` (client hooks with no Router
@@ -28,5 +28,39 @@ describe("fieldValue", () => {
   test("a value backed by at least one sampled frame is a real reading", () => {
     const field: VideoLayoutField = { value: "bottom third", fromFramesSec: [1.2] };
     expect(fieldValue(field)).toBe("bottom third");
+  });
+});
+
+/**
+ * The button decision is pulled out of the component for the same reason `fieldValue`
+ * is: it is the part worth pinning down, and it can be checked without a router.
+ */
+describe("framePassCta", () => {
+  test("offers Download when the last failure was a missing file", () => {
+    expect(framePassCta({ hasLayout: false, lastCode: "FRAME_NO_VIDEO_ASSET" })).toEqual({
+      label: "Download video",
+      kind: "download",
+    });
+  });
+
+  test("offers Re-run when a reading already exists", () => {
+    expect(framePassCta({ hasLayout: true, lastCode: null })).toEqual({
+      label: "Re-run frame pass",
+      kind: "run",
+    });
+  });
+
+  test("offers Run for a never-run video", () => {
+    expect(framePassCta({ hasLayout: false, lastCode: null })).toEqual({
+      label: "Run frame pass",
+      kind: "run",
+    });
+  });
+
+  test("a non-file failure still offers a plain run, not download", () => {
+    expect(framePassCta({ hasLayout: false, lastCode: "FRAME_MODEL_FAILED" })).toEqual({
+      label: "Run frame pass",
+      kind: "run",
+    });
   });
 });

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { getFramePassJobAction, runFramePassAction } from "@/server/actions/analyze-actions";
+import { downloadVideoAction } from "@/server/actions/media-actions";
 import type { StoredVideoAnalysis } from "@/server/services/analyze";
 import type { VideoLayoutField } from "@/server/llm/schemas";
 
@@ -17,6 +18,18 @@ import type { VideoLayoutField } from "@/server/llm/schemas";
 export function fieldValue(field: VideoLayoutField | undefined): string | null {
   if (!field || field.value === null || field.fromFramesSec.length === 0) return null;
   return field.value;
+}
+
+/** Which action the Layout button offers. A missing-file failure is the one case where the
+ *  fix is not another pass but downloading the video first, so it gets its own kind.
+ *  Exported standalone for the same reason as `fieldValue`: testable without a router. */
+export function framePassCta(state: { hasLayout: boolean; lastCode: string | null }): {
+  label: string;
+  kind: "run" | "download";
+} {
+  if (state.lastCode === "FRAME_NO_VIDEO_ASSET") return { label: "Download video", kind: "download" };
+  if (state.hasLayout) return { label: "Re-run frame pass", kind: "run" };
+  return { label: "Run frame pass", kind: "run" };
 }
 
 /**
@@ -33,6 +46,10 @@ export function fieldValue(field: VideoLayoutField | undefined): string | null {
 export function LayoutSection({ videoId, analysis }: { videoId: string; analysis: StoredVideoAnalysis | null }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+  // The failure code of the last pass started from this component. Session-only on
+  // purpose: `analysis` stores the failure *message* but no code, so a reload drops back
+  // to the generic copy rather than showing a recovery button we can't justify.
+  const [lastCode, setLastCode] = useState<string | null>(null);
   // Guards every setState/toast in the poll loop against firing after unmount (e.g. the
   // user navigates away mid-pass). Doesn't cancel the in-flight action call itself — that
   // would still resolve server-side — it just stops the loop from scheduling more polls
@@ -49,10 +66,14 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
     setPending(true);
     const started = await runFramePassAction(videoId);
     if (!started.ok) {
-      if (mountedRef.current) setPending(false);
+      if (mountedRef.current) {
+        setPending(false);
+        setLastCode(started.code);
+      }
       toast.error(started.error);
       return;
     }
+    if (mountedRef.current) setLastCode(null);
 
     // One model turn per frame means a pass can run for a minute or more. Poll rather
     // than hold the action open, and give up after 5 minutes so the button cannot stick.
@@ -78,6 +99,23 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
     }
   }
 
+  // The recovery path for FRAME_NO_VIDEO_ASSET: the pass needs a file on disk, so fetch
+  // one. Stops there rather than chaining into a pass, because the download is the slow
+  // half and the user should get to decide whether to spend the second half now.
+  async function downloadThenHint() {
+    setPending(true);
+    const res = await downloadVideoAction(videoId);
+    if (!mountedRef.current) return;
+    setPending(false);
+    if (res.ok) {
+      setLastCode(null);
+      toast.success("Video downloaded. Run the frame pass now.");
+      router.refresh();
+    } else {
+      toast.error(res.error);
+    }
+  }
+
   const layout = analysis?.layout ?? null;
   const everRun = analysis?.framePassAt !== null && analysis?.framePassAt !== undefined;
   const failed = everRun && layout === null && !!analysis?.framePassError;
@@ -90,7 +128,9 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
   ];
 
   return (
-    <div className="mt-16">
+    // No top margin: this is the whole of its own tab now, not a section trailing the
+    // beats inside Hook & structure, so mt-16 would just be dead space under the tab row.
+    <div>
       <span data-lab className="font-mono text-2xs text-faint">
         Layout
       </span>
@@ -114,6 +154,11 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
             Read from <span data-num>{analysis?.framesSampled ?? "—"}</span> sampled frames
             {analysis?.frameModel ? ` via ${analysis.frameModel}` : ""}.
           </>
+        ) : lastCode === "FRAME_NO_VIDEO_ASSET" ? (
+          // Checked before `failed` because `analysis` is the server render's copy: right
+          // after this failure it still says no pass has run, and that copy would
+          // contradict the Download button sitting under it.
+          <>This video has not been downloaded yet. Download it, then run the frame pass.</>
         ) : failed ? (
           <>Last frame pass didn&rsquo;t produce a reading: {analysis?.framePassError}.</>
         ) : (
@@ -125,9 +170,20 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
         )}
       </p>
 
-      <Button variant="outline" size="sm" className="mt-5" onClick={runFramePass} disabled={pending}>
-        {pending ? "Running…" : layout !== null ? "Re-run frame pass" : failed ? "Retry frame pass" : "Run frame pass"}
-      </Button>
+      {(() => {
+        const cta = framePassCta({ hasLayout: layout !== null, lastCode });
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-5"
+            onClick={cta.kind === "download" ? downloadThenHint : runFramePass}
+            disabled={pending}
+          >
+            {pending ? "Running…" : cta.label}
+          </Button>
+        );
+      })()}
     </div>
   );
 }
