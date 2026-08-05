@@ -129,8 +129,9 @@ function AnalysisGate({
 
 /**
  * DESIGN.md §2.4: hook type + format/style tags, then the beat-by-beat structure
- * (Hook 0–3s / Build / Payoff / CTA), then the Layout section (V1 data contracts
- * contract 5, now that `video_analyses` carries its columns — see LayoutSection).
+ * (Hook 0–3s / Build / Payoff / CTA). The Layout section used to hang off the end of
+ * this tab, which meant a frame pass was only reachable on a video that already had a
+ * text analysis; it has its own always-present tab now (see LayoutSection).
  *
  * `formatTags` come from the text analysis pass reading the transcript, the same
  * source as `hookType` — a real reading, shown plain. `styleTags` describe visual
@@ -140,11 +141,9 @@ function AnalysisGate({
  * proto/tail-overlays.html's tagRow: verified tags plain, guessed ones flagged).
  */
 function HookStructureTab({
-  videoId,
   analysis,
   durationSec,
 }: {
-  videoId: string;
   analysis: StoredVideoAnalysis;
   durationSec: number | null;
 }) {
@@ -201,8 +200,6 @@ function HookStructureTab({
           <p className="mt-3 text-sm text-muted-foreground">No structure segments returned.</p>
         )}
       </div>
-
-      <LayoutSection videoId={videoId} analysis={analysis} />
     </div>
   );
 }
@@ -464,6 +461,7 @@ export function VideoDetail({
               <TabsTrigger value="transcript">Transcript</TabsTrigger>
               <TabsTrigger value="hook">Hook &amp; structure</TabsTrigger>
               <TabsTrigger value="why">Why it worked</TabsTrigger>
+              <TabsTrigger value="layout">Layout</TabsTrigger>
             </TabsList>
 
             <TabsContent value="transcript">
@@ -499,7 +497,7 @@ export function VideoDetail({
 
             <TabsContent value="hook" className="pt-4">
               {detail.analysis ? (
-                <HookStructureTab videoId={item.videoId} analysis={detail.analysis} durationSec={item.durationSec} />
+                <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
                   <AnalysisGate
@@ -528,6 +526,13 @@ export function VideoDetail({
                 </div>
               )}
             </TabsContent>
+
+            {/* Always rendered, analysis or not: a frame pass reads the video file, it
+                does not need a transcript analysis to have run first. LayoutSection
+                takes a null analysis as its "no frame pass has run yet" state. */}
+            <TabsContent value="layout" className="pt-4">
+              <LayoutSection videoId={item.videoId} analysis={detail.analysis} />
+            </TabsContent>
           </Tabs>
 
           {/* End of the reading path: exactly one amber exit (Remix). Save/Copy stay
@@ -538,7 +543,10 @@ export function VideoDetail({
               a fourth peer action next to Remix and Copy — the icon swap in
               SavePostButton (star, not bookmark) does the rest of the work of
               telling them apart before anyone reads a label. */}
-          <div className="mt-16 flex items-start gap-4 border-t border-border pt-8">
+          {/* Pinned to the bottom of the shell's main (the scroll container, see the note
+              above), so the exit actions stay reachable instead of scrolling off the end
+              of a long transcript. Translucent so the beats stay readable underneath. */}
+          <div className="sticky bottom-0 z-10 mt-16 flex items-start gap-4 border-t border-border bg-background/95 pt-8 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
               Remix this
             </Link>
