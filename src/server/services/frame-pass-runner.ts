@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
@@ -33,6 +33,39 @@ export interface FramePassRunResult {
 
 const MODEL_LABEL = "claude-code/watch+sonnet";
 
+/** A live pass refreshes its heartbeat every FRAME_PASS_HEARTBEAT_MS. A running row whose
+ *  heartbeat is older than this is a crashed pass holding the global lock, so it is reaped.
+ *  The margin is well over the heartbeat interval so a slow-but-alive pass is never reaped
+ *  out from under itself. */
+export const FRAME_PASS_STALE_MS = 120_000;
+
+/**
+ * Fail any "running" frame_pass_jobs row whose heartbeat has gone stale (or was never set,
+ * which is what a row written before heartbeats existed looks like), so a crashed pass
+ * cannot hold the single-flight lock forever. Returns how many it reaped. Called before a
+ * new pass tries to acquire the lock.
+ */
+export async function reapStaleFramePassJobs(now: number = Date.now()): Promise<number> {
+  const cutoff = new Date(now - FRAME_PASS_STALE_MS).toISOString();
+  const isStale = and(
+    eq(tables.framePassJobs.status, "running"),
+    or(isNull(tables.framePassJobs.heartbeatAt), lt(tables.framePassJobs.heartbeatAt, cutoff))
+  );
+  const stale = await db.select({ id: tables.framePassJobs.id }).from(tables.framePassJobs).where(isStale);
+  if (stale.length === 0) return 0;
+  await db
+    .update(tables.framePassJobs)
+    .set({
+      status: "failed",
+      finishedAt: nowIso(),
+      errorCode: "FRAME_REAPED",
+      errorMessage: "Reaped: the pass stopped sending a heartbeat (killed or crashed).",
+    })
+    .where(isStale);
+  log.warn("frame_pass.reaped", { count: stale.length, cutoff });
+  return stale.length;
+}
+
 /**
  * Whether a failed write is the `frame_pass_jobs` partial unique index refusing a second
  * concurrent "running" row (lock_key is a constant, so only one row across the whole
@@ -58,8 +91,12 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
     ((p) => realRunClaudeTask(p, workDir ? { cwd: workDir, addDirs: [workDir] } : {}));
 
   const jobId = newId();
+  // Clear out any crashed pass still holding the lock before trying to take it, otherwise
+  // one killed run wedges every future pass in the library.
+  await reapStaleFramePassJobs();
   try {
-    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: nowIso() });
+    const startedAt = nowIso();
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt, heartbeatAt: startedAt });
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
     // Another pass already holds the lock. Do NOT create a second row — report the id of

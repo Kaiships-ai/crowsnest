@@ -9,12 +9,14 @@ let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let runFramePass: typeof import("./frame-pass-runner")["runFramePass"];
+let reapStaleFramePassJobs: typeof import("./frame-pass-runner")["reapStaleFramePassJobs"];
+let FRAME_PASS_STALE_MS: typeof import("./frame-pass-runner")["FRAME_PASS_STALE_MS"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ runFramePass } = await import("./frame-pass-runner"));
+  ({ runFramePass, reapStaleFramePassJobs, FRAME_PASS_STALE_MS } = await import("./frame-pass-runner"));
   migrate();
 });
 
@@ -159,7 +161,11 @@ describe("runFramePass", () => {
     const videoId = await seedVideoWithFile();
     const otherVideoId = await seedVideoWithFile();
     const runningJobId = newId();
-    await db.insert(tables.framePassJobs).values({ id: runningJobId, videoId: otherVideoId, status: "running", startedAt: nowIso() });
+    // heartbeatAt is set here because runFramePass now reaps stale rows before it takes the
+    // lock, and a running row with no heartbeat at all counts as stale. This row stands for
+    // a pass that is genuinely alive, so it carries a fresh heartbeat like a real one would.
+    const heldSince = nowIso();
+    await db.insert(tables.framePassJobs).values({ id: runningJobId, videoId: otherVideoId, status: "running", startedAt: heldSince, heartbeatAt: heldSince });
 
     try {
       const out = await runFramePass(videoId, {
@@ -207,5 +213,42 @@ describe("runFramePass", () => {
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.every((j) => j.status !== "running")).toBe(true);
     expect(rows.some((j) => j.status === "failed")).toBe(true);
+  });
+});
+
+describe("reapStaleFramePassJobs", () => {
+  test("fails a running row whose heartbeat is older than the cutoff", async () => {
+    const now = Date.now();
+    const stale = new Date(now - FRAME_PASS_STALE_MS - 1000).toISOString();
+    const jobId = newId();
+    const videoId = await seedVideoWithFile();
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: stale, heartbeatAt: stale });
+
+    const reaped = await reapStaleFramePassJobs(now);
+
+    expect(reaped).toBe(1);
+    const [row] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, jobId)).limit(1);
+    expect(row.status).toBe("failed");
+    expect(row.errorCode).toBe("FRAME_REAPED");
+  });
+
+  test("leaves a fresh running row alone", async () => {
+    const now = Date.now();
+    const fresh = new Date(now - 1000).toISOString();
+    const jobId = newId();
+    const videoId = await seedVideoWithFile();
+    await db.insert(tables.framePassJobs).values({ id: jobId, videoId, status: "running", startedAt: fresh, heartbeatAt: fresh });
+
+    try {
+      const reaped = await reapStaleFramePassJobs(now);
+
+      expect(reaped).toBe(0);
+      const [row] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, jobId)).limit(1);
+      expect(row.status).toBe("running");
+    } finally {
+      // Release the global lock: lock_key is constant, so a row left "running" here would
+      // block every insert in the tests that follow.
+      await db.update(tables.framePassJobs).set({ status: "failed", finishedAt: nowIso() }).where(eq(tables.framePassJobs.id, jobId));
+    }
   });
 });
