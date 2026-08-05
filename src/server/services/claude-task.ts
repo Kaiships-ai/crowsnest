@@ -27,12 +27,39 @@ export interface ClaudeTaskResult {
  */
 const DEFAULT_BINARY = "/Users/kienbeovl/.local/bin/claude";
 
-export async function runClaudeTask(
-  prompt: string,
-  opts: { binaryPath?: string; model?: string; allowedTools?: string[]; timeoutMs?: number } = {}
-): Promise<ClaudeTaskResult> {
-  const binary = opts.binaryPath ?? process.env.CLAUDE_BINARY_PATH ?? DEFAULT_BINARY;
+export interface ClaudeTaskOpts {
+  binaryPath?: string;
+  model?: string;
+  allowedTools?: string[];
+  timeoutMs?: number;
+  cwd?: string;
+  addDirs?: string[];
+  env?: NodeJS.ProcessEnv;
+}
 
+/**
+ * A copy of `base` with anything that looks like a credential removed. The frame-pass
+ * child only has Read, but it should never even see IG_PASSWORD, a token, or the db path
+ * in its environment. Keeps PATH, HOME and the rest so the CLI still runs and authenticates
+ * from ~/.claude.
+ */
+export function scrubClaudeEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const SENSITIVE = /(TOKEN|SECRET|PASSWORD|_KEY$|SESSIONID|CROWSNEST_DB_PATH|DATABASE_URL)/i;
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(base)) {
+    if (SENSITIVE.test(k)) continue;
+    out[k] = v;
+  }
+  // Next declares NODE_ENV as required on ProcessEnv, and a key-by-key copy cannot prove
+  // to the compiler that it kept it. It does: NODE_ENV is not sensitive, so it survives.
+  return out as NodeJS.ProcessEnv;
+}
+
+export function buildClaudeInvocation(
+  prompt: string,
+  opts: ClaudeTaskOpts = {}
+): { binary: string; args: string[]; cwd?: string; env: NodeJS.ProcessEnv } {
+  const binary = opts.binaryPath ?? process.env.CLAUDE_BINARY_PATH ?? DEFAULT_BINARY;
   const allowedTools = opts.allowedTools ?? ["Read"];
   if (allowedTools.length === 0) {
     throw new ClaudeTaskError(
@@ -40,10 +67,9 @@ export async function runClaudeTask(
         "flag would silently fall back to the CLI's default permissions, which is wider than what was asked for."
     );
   }
-
-  // --allowedTools is variadic on the real CLI: it greedily consumes every token that
-  // follows until the next recognized flag. It must be the LAST thing in argv, after
-  // --output-format json, or it swallows those two tokens as if they were tool names.
+  const addDirArgs = (opts.addDirs ?? []).flatMap((d) => ["--add-dir", d]);
+  // --allowedTools is variadic: it greedily consumes every following token. It stays LAST,
+  // after --output-format json and any --add-dir pairs, or it swallows them as tool names.
   const args = [
     "-p",
     prompt,
@@ -51,11 +77,17 @@ export async function runClaudeTask(
     opts.model ?? "sonnet",
     "--output-format",
     "json",
+    ...addDirArgs,
     "--allowedTools",
     ...allowedTools,
   ];
+  return { binary, args, cwd: opts.cwd, env: opts.env ?? scrubClaudeEnv() };
+}
 
-  const { stdout, stderr, code } = await run(binary, args, opts.timeoutMs ?? 600_000);
+export async function runClaudeTask(prompt: string, opts: ClaudeTaskOpts = {}): Promise<ClaudeTaskResult> {
+  const { binary, args, cwd, env } = buildClaudeInvocation(prompt, opts);
+
+  const { stdout, stderr, code } = await run(binary, args, opts.timeoutMs ?? 600_000, { cwd, env });
 
   if (code !== 0) {
     throw new ClaudeTaskError(
@@ -86,10 +118,11 @@ export async function runClaudeTask(
 function run(
   cmd: string,
   args: string[],
-  timeoutMs: number
+  timeoutMs: number,
+  spawnOpts: { cwd?: string; env?: NodeJS.ProcessEnv } = {}
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"], cwd: spawnOpts.cwd, env: spawnOpts.env });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {

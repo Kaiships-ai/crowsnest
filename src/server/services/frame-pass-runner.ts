@@ -48,8 +48,14 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 export async function runFramePass(videoId: string, deps: Partial<FramePassDeps> = {}): Promise<FramePassRunResult> {
+  // Declared before `ask` so the closure below can read it. It is null here and assigned
+  // the temp frame dir long before `ask` is ever called, so the call sees the real dir.
+  let workDir: string | null = null;
+
   const extract = deps.extractFrames ?? ((v, o) => realExtractFrames(v, o));
-  const ask = deps.runClaudeTask ?? ((p) => realRunClaudeTask(p));
+  const ask =
+    deps.runClaudeTask ??
+    ((p) => realRunClaudeTask(p, workDir ? { cwd: workDir, addDirs: [workDir] } : {}));
 
   const jobId = newId();
   try {
@@ -67,7 +73,6 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
     return { ok: false, jobId: running?.id ?? jobId, framesSampled: null, errorCode: "FRAME_ALREADY_RUN" };
   }
 
-  let workDir: string | null = null;
   try {
     const resolved = await resolveVideoFile(videoId);
     if (!resolved.ok) {
