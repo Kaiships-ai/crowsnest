@@ -543,7 +543,10 @@ export function VideoDetail({
               a fourth peer action next to Remix and Copy — the icon swap in
               SavePostButton (star, not bookmark) does the rest of the work of
               telling them apart before anyone reads a label. */}
-          <div className="mt-16 flex items-start gap-4 border-t border-border pt-8">
+          {/* Pinned to the bottom of the shell's main (the scroll container, see the note
+              above), so the exit actions stay reachable instead of scrolling off the end
+              of a long transcript. Translucent so the beats stay readable underneath. */}
+          <div className="sticky bottom-0 z-10 mt-16 flex items-start gap-4 border-t border-border bg-background/95 pt-8 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
             <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
               Remix this
             </Link>
