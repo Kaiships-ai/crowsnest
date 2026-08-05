@@ -19,3 +19,4 @@
  */
 process.env.CROWSNEST_DB_PATH ??= ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
+process.env.LOG_LEVEL ??= "error"; // quiet info/warn in tests; a test can override to assert a log line

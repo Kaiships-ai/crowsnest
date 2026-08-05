@@ -99,6 +99,16 @@ describe("persistFramePass", () => {
     expect(row.layout?.framing.value).toBeNull();
   });
 
+  test("rejects a field value longer than the cap", async () => {
+    const videoId = await seedVideo();
+    const huge = layout({ onScreenText: field("x".repeat(5000), [0.5]) });
+    await expect(
+      persistFramePass({ videoId, layout: huge, framesSampled: 5, frameModel: "claude-code/watch" })
+    ).rejects.toBeInstanceOf(FramePassValidationError);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+    expect(row).toBeUndefined();
+  });
+
   test("rejects a non-positive framesSampled", async () => {
     const videoId = await seedVideo();
     await expect(persistFramePass({ videoId, layout: layout(), framesSampled: 0, frameModel: "claude-code/watch" })).rejects.toBeInstanceOf(
@@ -128,6 +138,18 @@ describe("recordFramePassFailure", () => {
     const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
     expect(row.layout).toBeNull();
     expect(row.framePassError).toBe("video too dark to read on-screen text");
+    expect(row.framePassAt).not.toBeNull();
+  });
+
+  test("preserves an existing good layout when a later pass fails", async () => {
+    const videoId = await seedVideo();
+    await persistFramePass({ videoId, layout: layout(), framesSampled: 12, frameModel: "claude-code/watch" });
+
+    await recordFramePassFailure(videoId, "ffmpeg exploded on the re-run");
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+    expect(row.layout?.onScreenText.value).toBe("3 MISTAKES"); // still there
+    expect(row.framePassError).toBe("ffmpeg exploded on the re-run");
     expect(row.framePassAt).not.toBeNull();
   });
 });

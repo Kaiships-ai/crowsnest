@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "vitest";
 import { mkdtempSync, writeFileSync, chmodSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { runClaudeTask, ClaudeTaskError } from "./claude-task";
+import { runClaudeTask, ClaudeTaskError, scrubClaudeEnv, buildClaudeInvocation } from "./claude-task";
 
 let dir: string;
 
@@ -130,5 +130,44 @@ describe("runClaudeTask", () => {
     const bin = fakeBinary("duration", JSON.stringify({ is_error: false, result: "ok", duration_ms: 1234 }));
     const out = await runClaudeTask("x", { binaryPath: bin });
     expect(out.durationMs).toBe(1234);
+  });
+});
+
+describe("scrubClaudeEnv", () => {
+  test("drops secrets, keeps PATH and HOME", () => {
+    // The cast is the same one config.test.ts uses: Next declares NODE_ENV as required on
+    // ProcessEnv, and this fixture deliberately carries only the keys under test.
+    const out = scrubClaudeEnv({
+      PATH: "/usr/bin",
+      HOME: "/Users/x",
+      IG_PASSWORD: "p",
+      IG_SERVICE_TOKEN: "t",
+      IG_SESSIONID: "s",
+      ANTHROPIC_API_KEY: "k",
+    } as unknown as NodeJS.ProcessEnv);
+    expect(out.PATH).toBe("/usr/bin");
+    expect(out.HOME).toBe("/Users/x");
+    expect(out.IG_PASSWORD).toBeUndefined();
+    expect(out.IG_SERVICE_TOKEN).toBeUndefined();
+    expect(out.IG_SESSIONID).toBeUndefined();
+    expect(out.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+});
+
+describe("buildClaudeInvocation", () => {
+  test("adds --add-dir for each dir and keeps --allowedTools last", () => {
+    const { args } = buildClaudeInvocation("hi", { addDirs: ["/tmp/frames"], allowedTools: ["Read"] });
+    expect(args).toContain("--add-dir");
+    expect(args[args.indexOf("--add-dir") + 1]).toBe("/tmp/frames");
+    // --allowedTools is variadic, so it must be the last flag in argv.
+    expect(args[args.length - 2]).toBe("--allowedTools");
+    expect(args[args.length - 1]).toBe("Read");
+  });
+
+  test("passes cwd through and scrubs the env by default", () => {
+    // setup-env.ts sets IG_SERVICE_TOKEN in process.env for the whole suite.
+    const { cwd, env } = buildClaudeInvocation("hi", { cwd: "/tmp/frames" });
+    expect(cwd).toBe("/tmp/frames");
+    expect(env.IG_SERVICE_TOKEN).toBeUndefined();
   });
 });

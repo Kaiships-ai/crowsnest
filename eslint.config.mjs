@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Untracked scratch and vendor bundles, not our source:
+    "Crowsnest UI Mockups/**",
+    "claude-animation/**",
   ]),
 ]);
 
