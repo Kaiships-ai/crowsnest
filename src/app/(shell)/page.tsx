@@ -9,7 +9,7 @@ import { ProducerDonut } from "@/components/dashboard/producer-donut";
 import { ReachScoreScatter } from "@/components/dashboard/reach-score-scatter";
 import { ScoreRankingList } from "@/components/dashboard/score-ranking-list";
 import { StatTile } from "@/components/dashboard/stat-tile";
-import { DependencyStatusPanel } from "@/components/status/dependency-status-panel";
+import { StackHealthPanel } from "@/components/status/stack-health-panel";
 import {
   classifyLlmStatus,
   classifySidecarStatus,
@@ -26,6 +26,7 @@ import {
   getFleetSpikes,
   getNewOutliersSince,
   getRecentlyViewed,
+  getStackHealth,
   getTopOutliersToday,
   readAndBumpDashboardLastVisit,
 } from "@/server/queries/dashboard";
@@ -67,7 +68,7 @@ export const dynamic = "force-dynamic";
 //   done X" query to back it.
 export default async function DashboardPage() {
   const llmKeyConfigured = hasLlmKey();
-  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult] = await Promise.all([
+  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult, stackHealth] = await Promise.all([
     getDashboardStats(),
     getTopOutliersToday(),
     getFleetSpikes(),
@@ -86,6 +87,11 @@ export default async function DashboardPage() {
     // this page load (see dependency-status.ts's own doc on why that matters here).
     getIgStatusAction(),
     llmKeyConfigured ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
+    // M4-U8: the two halves of stack health that come out of this app's own tables —
+    // the last sync and anything still running — next to the two live pings above, so
+    // all four read at once. Two indexed reads over `sync_jobs`/`frame_pass_jobs`, in
+    // the same Promise.all rather than after it, so the panel costs no extra round trip.
+    getStackHealth(),
   ]);
   const allItems = allPosts.items;
 
@@ -112,7 +118,14 @@ export default async function DashboardPage() {
   if (stats.channelsTracked === 0) {
     return (
       <div className="mx-auto max-w-[1120px] p-6">
-        <DependencyStatusPanel sidecar={sidecarStatus} llm={llmStatus} hasLlmKey={llmKeyConfigured} />
+        <StackHealthPanel
+          sidecar={sidecarStatus}
+          llm={llmStatus}
+          hasLlmKey={llmKeyConfigured}
+          lastSync={stackHealth.lastSync}
+          running={stackHealth.running}
+          checkedAtMs={stackHealth.checkedAtMs}
+        />
         <div className="max-w-[48ch] pt-6 pb-24">
           <p className="text-lg text-foreground">No channels are being watched, so there is nothing to score.</p>
           <p className="mt-5 text-sm text-muted-foreground">
@@ -128,7 +141,14 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-24 p-6">
-      <DependencyStatusPanel sidecar={sidecarStatus} llm={llmStatus} hasLlmKey={llmKeyConfigured} />
+      <StackHealthPanel
+        sidecar={sidecarStatus}
+        llm={llmStatus}
+        hasLlmKey={llmKeyConfigured}
+        lastSync={stackHealth.lastSync}
+        running={stackHealth.running}
+        checkedAtMs={stackHealth.checkedAtMs}
+      />
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
