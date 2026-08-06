@@ -21,6 +21,17 @@ import { useRunStream } from "./use-run-stream";
  * tail comes from `events`. Same split runs-list.tsx uses for the list screen.
  */
 
+/** The earliest error event in a trace, by id (events arrive newest-first, so the lowest
+ *  id is the earliest). Null when the run logged no error. Drives the failure-first
+ *  callout, so a failed run points at its cause instead of the top of a long trace. */
+export function firstErrorEvent(events: LogEventRow[]): LogEventRow | null {
+  let earliest: LogEventRow | null = null;
+  for (const e of events) {
+    if (e.level === "error" && (earliest === null || e.id < earliest.id)) earliest = e;
+  }
+  return earliest;
+}
+
 // Same dot map as runs-list.tsx / sidebar.tsx's STATUS_DOT, not reinvented per screen.
 // Amber stays reserved for the score: "running" gets noticed by brightness plus motion,
 // only success/failed get a live hue.
@@ -111,6 +122,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
   const [followLive, setFollowLive] = useState(true);
   const [pausedEvents, setPausedEvents] = useState<LogEventRow[] | null>(null);
   const displayEvents = followLive ? liveEvents : (pausedEvents ?? liveEvents);
+  const firstError = firstErrorEvent(displayEvents);
 
   function toggleFollowLive() {
     if (followLive) {
@@ -122,7 +134,10 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
     }
   }
 
-  const [openId, setOpenId] = useState<number | null>(null);
+  // Lazy initial: a failed run lands with its first error already expanded, so the reason
+  // is on screen instead of buried down a long trace. Seeded from `run.events` (the
+  // server read) because the stream has not ticked yet on first paint.
+  const [openId, setOpenId] = useState<number | null>(() => firstErrorEvent(run.events)?.id ?? null);
 
   // Ticks once a second, only while the run is actually running, so elapsed and
   // heartbeat-ago read smoothly between the stream's ~2s polls instead of jumping. Same
@@ -235,6 +250,17 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
           </Button>
         </div>
       </div>
+
+      {firstError && liveRun.status !== "running" && (
+        <button
+          type="button"
+          onClick={() => setOpenId(firstError.id)}
+          className="flex w-full items-start gap-2 border border-destructive/45 bg-[var(--destructive-wash)] px-4 py-3 text-left"
+        >
+          <span className="mt-0.5 font-mono text-2xs text-destructive uppercase">First error</span>
+          <span className="font-mono text-xs text-destructive">{firstError.event}</span>
+        </button>
+      )}
 
       <div>
         <div className="mb-3 flex items-center justify-between">
