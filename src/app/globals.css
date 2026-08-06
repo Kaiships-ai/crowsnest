@@ -80,7 +80,10 @@
   /* ink */
   --foreground: #f2f2f0;
   --muted-foreground: #9a9a96;
-  --faint: #6b6b68;
+  /* Lightened from #6b6b68, which read at 3.18:1 on --muted and failed AA at
+     13px. 4.65:1 on --muted, 5.38:1 on --background. Still a step below
+     --muted-foreground everywhere, so the label/value hierarchy holds. */
+  --faint: #868682;
   --dim: #55554f;
 
   /* rules */
@@ -153,7 +156,9 @@
   /* ink */
   --foreground: #17150f;
   --muted-foreground: #57554f;
-  --faint: #7f7c75;
+  /* Darkened from #7f7c75, the light-theme half of the same AA failure: 3.13:1
+     on --muted. Now 4.59:1 on --muted, 5.46:1 on --background. */
+  --faint: #64625b;
   --dim: #8c887f;
 
   /* rules */
