@@ -115,21 +115,30 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
   );
 }
 
-const REACH_BAR_COUNT = 8;
+const VIEW_BAR_COUNT = 8;
 
 /**
- * "Reach by post" bars (mine.html's `mineBars`), scoped to the last `REACH_BAR_COUNT`
+ * "Views by post" bars (mine.html's `mineBars`), scoped to the last `VIEW_BAR_COUNT`
  * measured posts, oldest to newest left-to-right so the read direction matches the
  * calendar and post list below it.
+ *
+ * Named for what it plots. Every value here is `videos.view_count`, a public number this
+ * app can read for any tracked channel. Reach is a different metric that exists only for
+ * an owned channel, comes from Instagram Insights, and is plotted by `ReachByPostBars` in
+ * components/mine/reach-by-post-bars.tsx. This component was called `ReachByPostBars` too
+ * until M5, which read as a duplicate of that one and as a view count relabeled as reach,
+ * the exact conflation the mine component's own header forbids. The two look similar and
+ * are not interchangeable: they differ in metric, data shape, how many posts they show,
+ * and what they do with a post that has no measurement.
  *
  * Bars stay a neutral fill on purpose: amber is reserved for the score (a baseline
  * ratio), and a raw view count is not that — see DESIGN.md's amber budget.
  */
 type VideoItem = ChannelDetail["videos"][number];
 
-export function ReachByPostBars({ videos }: { videos: ChannelDetail["videos"] }) {
+export function ViewsByPostBars({ videos }: { videos: ChannelDetail["videos"] }) {
   const measured = videos.filter((v): v is VideoItem & { viewCount: number } => v.viewCount !== null);
-  const posts = measured.slice(0, REACH_BAR_COUNT).slice().reverse();
+  const posts = measured.slice(0, VIEW_BAR_COUNT).slice().reverse();
 
   if (posts.length === 0) {
     return <p className="text-sm text-muted-foreground">No measured posts yet.</p>;
