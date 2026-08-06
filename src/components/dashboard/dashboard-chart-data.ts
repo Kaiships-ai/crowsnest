@@ -186,22 +186,6 @@ export function buildOutlierTimeline(
 // Score ranking list
 // ---------------------------------------------------------------------------
 
-export interface RankableItem extends FeedItem {
-  outlierScore: number;
-}
-
-/**
- * Every scored post, highest first. An unscored post (its channel hasn't cleared
- * `scoreMinUsablePosts`) can't be ranked, so it's counted in `unranked` and excluded
- * rather than sorted in at a fabricated last place. `getOutlierFeed({ sort: "score" })`
- * already orders nulls last, so this is a filter over already-sorted input, not a
- * re-sort.
- */
-export function rankableItems(items: FeedItem[]): { ranked: RankableItem[]; unranked: number } {
-  const ranked = items.filter((item): item is RankableItem => item.outlierScore !== null);
-  return { ranked, unranked: items.length - ranked.length };
-}
-
 export interface RankingRow {
   videoId: string;
   score: number;
@@ -212,10 +196,15 @@ export interface RankingRow {
 }
 
 /**
- * The slim shape the score ranking list actually renders. The list is a client
- * component, so passing full FeedItems serialized the whole library into the RSC payload
- * on every dashboard visit. This projects the six fields the row uses, computed
- * server-side, so only those cross the wire.
+ * Every scored post, highest first, in the slim shape the ranking list actually renders.
+ * The list is a client component, so passing full FeedItems serialized the whole library
+ * into the RSC payload on every dashboard visit — this projects the six fields the row
+ * uses, computed server-side, so only those cross the wire.
+ *
+ * An unscored post (its channel hasn't cleared `scoreMinUsablePosts`) can't be ranked, so
+ * it's counted in `unranked` and excluded rather than sorted in at a fabricated last
+ * place. `getOutlierFeed({ sort: "score" })` already orders nulls last, so this is a
+ * filter over already-sorted input, not a re-sort.
  */
 export function rankingRows(items: FeedItem[]): { rows: RankingRow[]; unranked: number } {
   const rows: RankingRow[] = [];

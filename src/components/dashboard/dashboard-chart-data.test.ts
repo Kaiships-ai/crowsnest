@@ -8,7 +8,6 @@ import {
   buildProducerDonut,
   buildScatterPoints,
   PRODUCER_DONUT_MAX_SLICES,
-  rankableItems,
   rankingRows,
   TIMELINE_WINDOW_DAYS,
   viewScalePosition,
@@ -180,16 +179,6 @@ describe("buildOutlierTimeline", () => {
     const { hitDays, days } = buildOutlierTimeline(items, now);
     expect(hitDays).toBe(0);
     expect(days.every((d) => d.bestScore === null)).toBe(true);
-  });
-});
-
-describe("rankableItems", () => {
-  test("excludes null scores and counts them as unranked", () => {
-    const items = [item({ videoId: "a", outlierScore: 3 }), item({ videoId: "b", outlierScore: null })];
-    const { ranked, unranked } = rankableItems(items);
-    expect(ranked).toHaveLength(1);
-    expect(ranked[0].outlierScore).toBe(3);
-    expect(unranked).toBe(1);
   });
 });
 
