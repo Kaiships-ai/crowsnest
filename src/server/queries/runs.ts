@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
+import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { queryLogEvents, type LogEventRow } from "@/server/logs/store";
 
 /**
@@ -36,6 +37,12 @@ export interface RunSummary {
 
 export interface RunDetail extends RunSummary {
   events: LogEventRow[];
+  /** How many view counts this run recovered from Instagram's single-media endpoint,
+   *  summed across its channels. Null means the pass never ran (the knob is 0, or the run
+   *  was cancelled or failed before reaching it) — deliberately not 0, because "did not
+   *  measure" and "measured nothing" are different facts and this app does not print a
+   *  fabricated zero for the first. */
+  itemsEnriched: number | null;
 }
 
 const DEFAULT_LIST_LIMIT = 50;
@@ -132,6 +139,11 @@ export function getRun(runId: string): RunDetail | null {
 
   if (!summary) return null;
 
+  // Derived from the trace, not from a column on sync_jobs: the pass has always logged
+  // these counts, and since the run_id threading the events are reachable by run, so this
+  // needs no schema change. It does inherit the log level — `sync.enrich.finished` is
+  // info, so a deployment running at LOG_LEVEL=warn or above stores no such row and every
+  // run reports null. That is the honest outcome for a derived figure.
   const events = queryLogEvents({ runId, levels: ["info", "warn", "error"], limit: DEFAULT_EVENT_LIMIT });
-  return { ...summary, events };
+  return { ...summary, events, itemsEnriched: enrichedFromEvents(events) };
 }
