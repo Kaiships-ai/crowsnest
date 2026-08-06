@@ -43,6 +43,11 @@ export interface ProducerDonut {
   postTotal: number;
 }
 
+/** The donut's palette is four neutral surfaces (producer-donut.tsx), so at most four
+ *  slices can draw without a color repeating. Producers past the top few fold into one
+ *  "Other" slice rather than reusing a swatch. */
+export const PRODUCER_DONUT_MAX_SLICES = 4;
+
 export function buildProducerDonut(items: FeedItem[]): ProducerDonut {
   const tally = new Map<string, { handle: string; count: number }>();
   for (const item of items) {
@@ -52,7 +57,7 @@ export function buildProducerDonut(items: FeedItem[]): ProducerDonut {
     tally.set(item.channel.id, row);
   }
   const outlierTotal = [...tally.values()].reduce((sum, row) => sum + row.count, 0);
-  const slices = [...tally.entries()]
+  const sorted = [...tally.entries()]
     .map(([channelId, row]) => ({
       channelId,
       handle: row.handle,
@@ -60,6 +65,23 @@ export function buildProducerDonut(items: FeedItem[]): ProducerDonut {
       pct: outlierTotal > 0 ? Math.round((row.count / outlierTotal) * 100) : 0,
     }))
     .sort((a, b) => b.count - a.count);
+
+  let slices = sorted;
+  if (sorted.length > PRODUCER_DONUT_MAX_SLICES) {
+    const head = sorted.slice(0, PRODUCER_DONUT_MAX_SLICES - 1);
+    const tail = sorted.slice(PRODUCER_DONUT_MAX_SLICES - 1);
+    const count = tail.reduce((sum, row) => sum + row.count, 0);
+    // The empty channelId is what marks this slice as not a channel — the legend
+    // renders it as plain text instead of a link to /channels/.
+    head.push({
+      channelId: "",
+      handle: "Other",
+      count,
+      pct: outlierTotal > 0 ? Math.round((count / outlierTotal) * 100) : 0,
+    });
+    slices = head;
+  }
+
   return { slices, outlierTotal, postTotal: items.length };
 }
 
@@ -164,20 +186,40 @@ export function buildOutlierTimeline(
 // Score ranking list
 // ---------------------------------------------------------------------------
 
-export interface RankableItem extends FeedItem {
-  outlierScore: number;
+export interface RankingRow {
+  videoId: string;
+  score: number;
+  caption: string | null;
+  handle: string;
+  platform: string;
+  deleted: boolean;
 }
 
 /**
- * Every scored post, highest first. An unscored post (its channel hasn't cleared
- * `scoreMinUsablePosts`) can't be ranked, so it's counted in `unranked` and excluded
- * rather than sorted in at a fabricated last place. `getOutlierFeed({ sort: "score" })`
- * already orders nulls last, so this is a filter over already-sorted input, not a
- * re-sort.
+ * Every scored post, highest first, in the slim shape the ranking list actually renders.
+ * The list is a client component, so passing full FeedItems serialized the whole library
+ * into the RSC payload on every dashboard visit — this projects the six fields the row
+ * uses, computed server-side, so only those cross the wire.
+ *
+ * An unscored post (its channel hasn't cleared `scoreMinUsablePosts`) can't be ranked, so
+ * it's counted in `unranked` and excluded rather than sorted in at a fabricated last
+ * place. `getOutlierFeed({ sort: "score" })` already orders nulls last, so this is a
+ * filter over already-sorted input, not a re-sort.
  */
-export function rankableItems(items: FeedItem[]): { ranked: RankableItem[]; unranked: number } {
-  const ranked = items.filter((item): item is RankableItem => item.outlierScore !== null);
-  return { ranked, unranked: items.length - ranked.length };
+export function rankingRows(items: FeedItem[]): { rows: RankingRow[]; unranked: number } {
+  const rows: RankingRow[] = [];
+  for (const item of items) {
+    if (item.outlierScore === null) continue;
+    rows.push({
+      videoId: item.videoId,
+      score: item.outlierScore,
+      caption: item.caption,
+      handle: item.channel.handle,
+      platform: item.channel.platform,
+      deleted: item.deleted,
+    });
+  }
+  return { rows, unranked: items.length - rows.length };
 }
 
 // ---------------------------------------------------------------------------

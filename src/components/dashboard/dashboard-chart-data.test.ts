@@ -7,7 +7,8 @@ import {
   buildOutlierTimeline,
   buildProducerDonut,
   buildScatterPoints,
-  rankableItems,
+  PRODUCER_DONUT_MAX_SLICES,
+  rankingRows,
   TIMELINE_WINDOW_DAYS,
   viewScalePosition,
 } from "./dashboard-chart-data";
@@ -94,6 +95,20 @@ describe("buildProducerDonut", () => {
     expect(donut.slices.map((s) => s.handle)).toEqual(["@two", "@one"]);
     expect(donut.slices[0].pct).toBe(67);
   });
+
+  test("folds producers past the max into a single Other slice", () => {
+    // six channels, one beating post each
+    const items = ["a", "b", "c", "d", "e", "f"].map((handle, i) =>
+      item({ videoId: `v${i}`, outlierScore: 2, channel: { id: `c${i}`, handle: `@${handle}` } })
+    );
+    const donut = buildProducerDonut(items);
+    expect(donut.slices).toHaveLength(PRODUCER_DONUT_MAX_SLICES);
+    const other = donut.slices[donut.slices.length - 1];
+    expect(other.handle).toBe("Other");
+    expect(other.channelId).toBe("");
+    // Other holds the folded tail, so the slices still sum to the outlier total.
+    expect(donut.slices.reduce((sum, slice) => sum + slice.count, 0)).toBe(donut.outlierTotal);
+  });
 });
 
 describe("buildScatterPoints", () => {
@@ -167,13 +182,22 @@ describe("buildOutlierTimeline", () => {
   });
 });
 
-describe("rankableItems", () => {
-  test("excludes null scores and counts them as unranked", () => {
-    const items = [item({ videoId: "a", outlierScore: 3 }), item({ videoId: "b", outlierScore: null })];
-    const { ranked, unranked } = rankableItems(items);
-    expect(ranked).toHaveLength(1);
-    expect(ranked[0].outlierScore).toBe(3);
+describe("rankingRows", () => {
+  test("projects only the fields the list renders, drops unscored, counts them", () => {
+    const items = [
+      item({
+        videoId: "a",
+        outlierScore: 5,
+        caption: "hi",
+        channel: { id: "c1", handle: "@x", platform: "instagram" },
+      }),
+      item({ videoId: "b", outlierScore: null }),
+    ];
+    const { rows, unranked } = rankingRows(items);
     expect(unranked).toBe(1);
+    expect(rows).toEqual([
+      { videoId: "a", score: 5, caption: "hi", handle: "@x", platform: "instagram", deleted: false },
+    ]);
   });
 });
 

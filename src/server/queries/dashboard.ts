@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
-import { db, tables } from "@/server/db";
+import { db, nowIso, tables } from "@/server/db";
 import { feedItemColumns, toFeedItem, type FeedItem } from "./feed";
 
 const DAY_MS = 86_400_000;
@@ -209,6 +209,54 @@ export async function getFleetSpikes(): Promise<FleetSpike[]> {
   return spikes
     .filter((s): s is FleetSpike => s !== null)
     .sort((a, b) => b.newOutliers7d - a.newOutliers7d);
+}
+
+const DASHBOARD_LAST_VISIT_KEY = "dashboard_last_visit";
+
+/**
+ * How many outliers (score >= OUTLIER_MIN_SCORE, not removed) were first seen after
+ * `sinceIso`. First seen, not posted: a sync can pull in a month-old post today, and
+ * that is new to Kai even though the post is not. A null cutoff means this is the first
+ * ever visit, so nothing is "new" yet — the alternative would be calling the entire
+ * library new on the first load.
+ */
+export async function getNewOutliersSince(sinceIso: string | null): Promise<number> {
+  if (!sinceIso) return 0;
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(tables.videos)
+    .where(
+      and(
+        gte(tables.videos.outlierScore, OUTLIER_MIN_SCORE),
+        gte(tables.videos.firstSeenAt, sinceIso),
+        isNull(tables.videos.deletedAt)
+      )
+    );
+  return row?.count ?? 0;
+}
+
+/**
+ * Reads the stored last-visit timestamp (or null the first time), then writes `now`.
+ * Runs on every dashboard load, so "since your last visit" means since the previous
+ * load. Stored in app_settings, the same key-value table `recently_viewed` uses, so
+ * this needs no schema change.
+ */
+export async function readAndBumpDashboardLastVisit(now: string = nowIso()): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(tables.appSettings)
+    .where(eq(tables.appSettings.key, DASHBOARD_LAST_VISIT_KEY))
+    .limit(1);
+  const prev = row?.value ?? null;
+  if (row) {
+    await db
+      .update(tables.appSettings)
+      .set({ value: now })
+      .where(eq(tables.appSettings.key, DASHBOARD_LAST_VISIT_KEY));
+  } else {
+    await db.insert(tables.appSettings).values({ key: DASHBOARD_LAST_VISIT_KEY, value: now });
+  }
+  return prev;
 }
 
 const RECENTLY_VIEWED_KEY = "recently_viewed";

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CoverageList } from "@/components/dashboard/coverage-list";
+import { rankingRows } from "@/components/dashboard/dashboard-chart-data";
 import { FleetSpikeRow } from "@/components/dashboard/fleet-spike-row";
 import { OutlierScrollRow } from "@/components/dashboard/outlier-scroll-row";
 import { OutlierTimeline } from "@/components/dashboard/outlier-timeline";
@@ -23,8 +24,10 @@ import { getChannelsList } from "@/server/queries/channels";
 import {
   getDashboardStats,
   getFleetSpikes,
+  getNewOutliersSince,
   getRecentlyViewed,
   getTopOutliersToday,
+  readAndBumpDashboardLastVisit,
 } from "@/server/queries/dashboard";
 import { getOutlierFeed } from "@/server/queries/feed";
 import { hasLlmKey, isCompatMode } from "@/server/llm/client";
@@ -86,6 +89,12 @@ export default async function DashboardPage() {
   ]);
   const allItems = allPosts.items;
 
+  // Sequential, not part of the Promise.all above: the bump writes, so its result has to
+  // be read before it is overwritten. Reading the previous value here is what makes the
+  // strip below mean "since the load before this one".
+  const lastVisit = await readAndBumpDashboardLastVisit();
+  const newSinceVisit = await getNewOutliersSince(lastVisit);
+
   const sidecarStatus = classifySidecarStatus(igStatusResult);
   const llmStatus = classifyLlmStatus({
     hasKey: llmKeyConfigured,
@@ -139,6 +148,18 @@ export default async function DashboardPage() {
         <StatTile label="Vaulted this week" value={String(stats.vaultedThisWeek)} />
         <StatTile label="Scripts drafted" value={String(stats.scriptsDrafted)} />
       </div>
+
+      {/* What changed since the last load. Only the honest new-since-visit count: there
+          is no score history in this schema to diff, so no "biggest movers" line is
+          faked next to it. Hidden at zero rather than rendering a "0 new" row. */}
+      {newSinceVisit > 0 && (
+        <Link href="/feed" className="flex items-center gap-2 text-sm text-foreground hover:underline">
+          <span className="font-mono text-score" data-num>
+            {newSinceVisit}
+          </span>
+          new outlier{newSinceVisit === 1 ? "" : "s"} since your last visit
+        </Link>
+      )}
 
       <section className="flex flex-col gap-6">
         <div className="flex items-baseline justify-between gap-6">
@@ -194,7 +215,7 @@ export default async function DashboardPage() {
             <ReachScoreScatter items={allItems} />
           </section>
           <OutlierTimeline items={allItems} />
-          <ScoreRankingList items={allItems} />
+          <ScoreRankingList {...rankingRows(allItems)} />
           <CoverageList channels={channels} items={allItems} />
         </>
       ) : (

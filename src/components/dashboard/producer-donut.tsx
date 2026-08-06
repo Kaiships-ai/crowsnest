@@ -74,7 +74,7 @@ export function ProducerDonut({ items }: { items: FeedItem[] }) {
           <circle cx={60} cy={60} r={46} fill="none" style={{ stroke: "var(--secondary)" }} strokeWidth={13} />
           {arcs.map((arc) => (
             <circle
-              key={arc.channelId}
+              key={arc.channelId || "other"}
               cx={60}
               cy={60}
               r={46}
@@ -87,15 +87,31 @@ export function ProducerDonut({ items }: { items: FeedItem[] }) {
           ))}
         </svg>
         <div className="flex flex-col gap-3.5">
-          {arcs.map((arc) => (
-            <Link key={arc.channelId} href={`/channels/${arc.channelId}`} className="flex items-center gap-3 hover:underline">
-              <span aria-hidden className="size-2 shrink-0" style={{ background: arc.color }} />
-              <span className="min-w-[160px] text-sm text-foreground">{arc.handle}</span>
-              <span data-num className="font-mono text-sm text-muted-foreground">
-                {arc.count}
-              </span>
-            </Link>
-          ))}
+          {/* The folded "Other" slice has no channelId — it stands for several channels,
+              so it gets no link. Every other row still goes to its channel. */}
+          {arcs.map((arc) =>
+            arc.channelId ? (
+              <Link
+                key={arc.channelId}
+                href={`/channels/${arc.channelId}`}
+                className="flex items-center gap-3 hover:underline"
+              >
+                <span aria-hidden className="size-2 shrink-0" style={{ background: arc.color }} />
+                <span className="min-w-[160px] text-sm text-foreground">{arc.handle}</span>
+                <span data-num className="font-mono text-sm text-muted-foreground">
+                  {arc.count}
+                </span>
+              </Link>
+            ) : (
+              <div key="other" className="flex items-center gap-3">
+                <span aria-hidden className="size-2 shrink-0" style={{ background: arc.color }} />
+                <span className="min-w-[160px] text-sm text-muted-foreground">{arc.handle}</span>
+                <span data-num className="font-mono text-sm text-muted-foreground">
+                  {arc.count}
+                </span>
+              </div>
+            )
+          )}
         </div>
       </div>
       <p className="mt-5 max-w-[52ch] text-sm text-muted-foreground">

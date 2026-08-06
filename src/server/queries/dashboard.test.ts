@@ -11,13 +11,22 @@ let getTopOutliersToday: typeof import("./dashboard")["getTopOutliersToday"];
 let getTopOutlierAllTime: typeof import("./dashboard")["getTopOutlierAllTime"];
 let getFleetSpikes: typeof import("./dashboard")["getFleetSpikes"];
 let getRecentlyViewed: typeof import("./dashboard")["getRecentlyViewed"];
+let getNewOutliersSince: typeof import("./dashboard")["getNewOutliersSince"];
+let readAndBumpDashboardLastVisit: typeof import("./dashboard")["readAndBumpDashboardLastVisit"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getDashboardStats, getTopOutliersToday, getTopOutlierAllTime, getFleetSpikes, getRecentlyViewed } =
-    await import("./dashboard"));
+  ({
+    getDashboardStats,
+    getTopOutliersToday,
+    getTopOutlierAllTime,
+    getFleetSpikes,
+    getRecentlyViewed,
+    getNewOutliersSince,
+    readAndBumpDashboardLastVisit,
+  } = await import("./dashboard"));
 });
 
 // `migrate()` only applies (idempotent) schema migrations — unlike seed.ts's
@@ -55,7 +64,7 @@ async function seedChannel(opts: { trackedSince?: string } = {}): Promise<string
 
 async function seedVideo(
   channelId: string,
-  opts: { postedAt?: string; outlierScore?: number | null; viewCount?: number | null } = {}
+  opts: { postedAt?: string; outlierScore?: number | null; viewCount?: number | null; firstSeenAt?: string } = {}
 ): Promise<string> {
   const videoId = newId();
   await db.insert(tables.videos).values({
@@ -68,7 +77,7 @@ async function seedVideo(
     postedAt: opts.postedAt ?? isoDaysAgo(1),
     outlierScore: opts.outlierScore ?? null,
     viewCount: opts.viewCount ?? null,
-    firstSeenAt: nowIso(),
+    firstSeenAt: opts.firstSeenAt ?? nowIso(),
   });
   return videoId;
 }
@@ -304,5 +313,25 @@ describe("getRecentlyViewed", () => {
     const items = await getRecentlyViewed();
 
     expect(items.map((i) => i.videoId)).toEqual([liveId]);
+  });
+});
+
+describe("what changed since the last visit", () => {
+  test("counts outliers first seen after the cutoff, skips older and unscored", async () => {
+    const channelId = await seedChannel();
+    const cutoff = new Date("2026-08-01T00:00:00.000Z").toISOString();
+    await seedVideo(channelId, { outlierScore: 3, firstSeenAt: "2026-08-02T00:00:00.000Z" }); // counted
+    await seedVideo(channelId, { outlierScore: 3, firstSeenAt: "2026-07-01T00:00:00.000Z" }); // too old
+    await seedVideo(channelId, { outlierScore: 1, firstSeenAt: "2026-08-02T00:00:00.000Z" }); // below OUTLIER_MIN_SCORE
+
+    expect(await getNewOutliersSince(cutoff)).toBe(1);
+    expect(await getNewOutliersSince(null)).toBe(0);
+  });
+
+  test("readAndBumpDashboardLastVisit returns the previous value and writes now", async () => {
+    const first = await readAndBumpDashboardLastVisit("2026-08-05T00:00:00.000Z");
+    expect(first).toBeNull(); // nothing stored yet
+    const second = await readAndBumpDashboardLastVisit("2026-08-06T00:00:00.000Z");
+    expect(second).toBe("2026-08-05T00:00:00.000Z");
   });
 });
