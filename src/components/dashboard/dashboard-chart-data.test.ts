@@ -7,6 +7,7 @@ import {
   buildOutlierTimeline,
   buildProducerDonut,
   buildScatterPoints,
+  PRODUCER_DONUT_MAX_SLICES,
   rankableItems,
   rankingRows,
   TIMELINE_WINDOW_DAYS,
@@ -94,6 +95,20 @@ describe("buildProducerDonut", () => {
     const donut = buildProducerDonut(items);
     expect(donut.slices.map((s) => s.handle)).toEqual(["@two", "@one"]);
     expect(donut.slices[0].pct).toBe(67);
+  });
+
+  test("folds producers past the max into a single Other slice", () => {
+    // six channels, one beating post each
+    const items = ["a", "b", "c", "d", "e", "f"].map((handle, i) =>
+      item({ videoId: `v${i}`, outlierScore: 2, channel: { id: `c${i}`, handle: `@${handle}` } })
+    );
+    const donut = buildProducerDonut(items);
+    expect(donut.slices).toHaveLength(PRODUCER_DONUT_MAX_SLICES);
+    const other = donut.slices[donut.slices.length - 1];
+    expect(other.handle).toBe("Other");
+    expect(other.channelId).toBe("");
+    // Other holds the folded tail, so the slices still sum to the outlier total.
+    expect(donut.slices.reduce((sum, slice) => sum + slice.count, 0)).toBe(donut.outlierTotal);
   });
 });
 
