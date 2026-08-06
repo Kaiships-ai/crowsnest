@@ -23,6 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { deriveScriptTitle } from "@/lib/script-title";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
 import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
@@ -64,7 +65,10 @@ export function StageScript({
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState("0");
   const [saveOpen, setSaveOpen] = useState(false);
-  const [saveTitle, setSaveTitle] = useState(session.topic ?? "Untitled script");
+  // Derived, not the raw topic: the Prompt stage prefills session.topic with the whole
+  // source caption, which used to land in scripts.title verbatim (rows of two thousand
+  // characters). Still just a default — the Input below is editable.
+  const [saveTitle, setSaveTitle] = useState(() => deriveScriptTitle(session.topic));
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
   // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
