@@ -172,7 +172,7 @@ const DEFAULT: AppSettings = {
   feedDefaultFollowerBand: "all", // no filter — same reasoning
   syncLookbackDays: 30,
   maxItemsPerSync: 200, // matches config.ts's MAX_ITEMS_PER_SYNC default exactly, no change
-  viewCountEnrichPerChannel: 12, // mirrors config.ts's default, which is the env layer below this
+  viewCountEnrichPerChannel: 0, // opt-in: off until set, so no sync scrapes without being asked. UI recommends 12 once on.
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
   syncSlaMinutes: 10, // spec default: a library sync over 10 min flags as over budget

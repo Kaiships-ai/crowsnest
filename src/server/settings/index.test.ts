@@ -54,14 +54,13 @@ describe("getSettings — precedence: env beats default", () => {
 });
 
 describe("viewCountEnrichPerChannel (M5-U1)", () => {
-  // The knob was env-only and defaulted to 0, so the pass never ran unless someone edited
-  // .env and restarted, and 334 rows in the dev database still have no view count. It is
-  // a real setting now. 12 is the default because scoreBaselineWindow is last12Posts:
-  // anything lower measures fewer posts than the baseline scores against, which fixes the
-  // number the feed prints without producing a score to go with it.
-  test("defaults to 12, the scoring baseline window", async () => {
+  // Enrichment is opt-in: the default is 0, so no sync scrapes a competitor's view counts
+  // until the user sets this. The UI recommends at least 12 (the last12Posts baseline
+  // window) once it is turned on, but the shipped default runs nothing, so a fresh install
+  // never spends burner requests without being asked.
+  test("defaults to 0, opt-in", async () => {
     const s = await settings.getSettings();
-    expect(s.viewCountEnrichPerChannel).toBe(12);
+    expect(s.viewCountEnrichPerChannel).toBe(0);
   });
 
   test("a stored row wins, including 0 to turn the pass off", async () => {
@@ -77,7 +76,7 @@ describe("viewCountEnrichPerChannel (M5-U1)", () => {
     // The ceiling is a ban-risk guard, not a formality: every unit here is one more live
     // request per channel per sync from a burner account.
     await writeRow("view_count_enrich_per_channel", "201");
-    expect((await settings.getSettings()).viewCountEnrichPerChannel).toBe(12);
+    expect((await settings.getSettings()).viewCountEnrichPerChannel).toBe(0);
   });
 
   test("validateSetting accepts the range boundaries and rejects outside them", () => {
@@ -90,7 +89,7 @@ describe("viewCountEnrichPerChannel (M5-U1)", () => {
   test("is reported as wired, because the sync engine reads it", async () => {
     const view = await settings.getSettingsWithSource();
     expect(view.viewCountEnrichPerChannel.wired).toBe(true);
-    expect(view.viewCountEnrichPerChannel.value).toBe(12);
+    expect(view.viewCountEnrichPerChannel.value).toBe(0);
   });
 });
 

@@ -76,7 +76,7 @@ const schema = z.object({
    *  the sample is smaller than the baseline scores against: under `scoreMinUsablePosts`
    *  (5) no outlier score appears at all, and under 12 the baseline quietly narrows, so a
    *  lower value fixes the number the feed prints without producing a score to go with it. */
-  VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(12, 0, 200),
+  VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(0, 0, 200),
 
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),

@@ -2283,33 +2283,24 @@ describe("view count enrichment — ordering and default", () => {
     expect(await recomputeChannelScores(channelId)).toBe(371_200);
   });
 
-  test("the shipped default for the knob is 12, the scoring baseline window", async () => {
-    // Asserted on the config object itself, not on a limit a test happened to pass in,
-    // and on the setting too, since the setting is what the engine actually reads now.
-    //
-    // This was 0 until M5. Off by default was a ban-risk decision, and the cost of it was
-    // that the pass never ran for anyone who did not edit .env and restart: 334 rows in
-    // the dev database still have no view count, and a view count is what every outlier
-    // score is computed from. 12 is the smallest honest default, because
-    // scoreBaselineWindow is last12Posts and a sample smaller than the baseline window
-    // fixes the number the feed prints without producing a score to go with it. The
-    // ban-risk concern is answered by the 200 ceiling and the pacing, not by shipping a
-    // feature switched off.
+  test("the shipped default for the knob is 0, opt-in", async () => {
+    // Asserted on the config object and on the setting the engine reads. Enrichment is a
+    // competitor-scraping burner request per reel, so it stays off until the user turns it
+    // on: a fresh install never scrapes without being asked. The UI recommends at least 12
+    // (the last12Posts baseline window) once it is enabled, and the 200 ceiling plus the
+    // pacing bound the cost from there.
     const { config } = await import("../config");
     const { getSetting } = await import("../settings");
-    expect(config.VIEW_COUNT_ENRICH_PER_CHANNEL).toBe(12);
-    expect(await getSetting("viewCountEnrichPerChannel")).toBe(12);
+    expect(config.VIEW_COUNT_ENRICH_PER_CHANNEL).toBe(0);
+    expect(await getSetting("viewCountEnrichPerChannel")).toBe(0);
   });
 
-  test("a real runSync with the knob left alone enriches, and stops at the default", async () => {
-    // The companion to the assertion above, and the one that covers the shipped BEHAVIOUR
-    // rather than the shipped number: nothing here touches config or writes a settings
-    // row, so this is what a user who never opened Settings actually gets from a real
-    // sync. Until M5 the answer was "not one single-media request, ever", which is why
-    // 334 rows still have no count. Now it is "the newest 12".
-    //
-    // Seeded with more reels than the default so the assertion pins the CAP and not just
-    // "something happened": 20 candidates, 12 requests.
+  test("a real runSync with the knob left alone enriches nothing", async () => {
+    // The companion to the assertion above, covering the shipped BEHAVIOUR: nothing here
+    // touches config or writes a settings row, so this is what a user who never opened
+    // Settings gets from a real sync. With the opt-in default of 0, that is not one
+    // single-media request. Seeded with reels that would be enriched if the knob were on,
+    // so the assertion pins "off", not "no candidates".
     const { migrate } = await import("../db/test-migrate");
     migrate();
     const { channelId } = await setupChannel("@default-on");
@@ -2328,7 +2319,7 @@ describe("view count enrichment — ordering and default", () => {
     const { runSync } = await import("./sync-engine");
     await runSync({ channelIds: [channelId], client, sleep: noopSleep });
 
-    expect(statsCalls).toBe(12);
+    expect(statsCalls).toBe(0);
   });
 
   test("a stored settings row controls the pass, no restart and no env edit", async () => {
@@ -2361,7 +2352,7 @@ describe("view count enrichment — ordering and default", () => {
     };
 
     try {
-      // A row of 3 beats the default of 12.
+      // A stored row drives the pass regardless of the opt-in default of 0.
       await setRow("3");
       await runSync({ channelIds: [channelId], client, sleep: noopSleep });
       expect(statsCalls).toBe(3);
