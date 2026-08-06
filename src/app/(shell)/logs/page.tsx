@@ -15,6 +15,10 @@ function first(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
+// Topbar already renders this route's h1 ("Logs") — see nav-items/topbar's ROUTE_TITLES
+// — so page content here starts directly at the filter bar. The heading this page used
+// to print was a second h1 on the route AND the same word the topbar shows, so it read
+// "Logs" twice down the left edge.
 export default async function LogsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
 
@@ -39,7 +43,6 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="p-6">
-      <h1 className="mb-4 text-lg font-semibold">Logs</h1>
       <LogsView rows={rows} filter={filter} />
     </div>
   );

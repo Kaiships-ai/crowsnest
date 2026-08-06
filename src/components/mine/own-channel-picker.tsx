@@ -38,10 +38,12 @@ export function OwnChannelPicker({ candidates }: { candidates: OwnChannelCandida
     router.refresh();
   }
 
+  // No heading here: this is /mine's empty state, and Topbar already renders that route's
+  // h1 ("My channel") — see nav-items/topbar's ROUTE_TITLES. The h1 this printed was both
+  // a second h1 on the route and the same two words the topbar shows, so the screen
+  // opened with "My channel" twice.
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
-      <h1 className="text-xl font-bold tracking-[-0.015em]">My channel</h1>
-
       <div className="mt-6 max-w-[62ch]">
         <p className="text-base text-foreground">No channel is marked as yours yet.</p>
         <p className="mt-3 text-sm text-muted-foreground">
