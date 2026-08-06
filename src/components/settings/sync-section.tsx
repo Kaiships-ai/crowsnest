@@ -25,6 +25,7 @@ import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Button } from "@/components/ui/button";
 import { NumberField, SettingRow } from "./setting-field";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
+import { startViewCountBackfillAction } from "@/server/actions/sync-actions";
 import type { AppSettingsView } from "@/server/settings";
 
 export interface SyncConfigSummary {
@@ -47,14 +48,31 @@ export interface SyncConfigSummary {
  *  now equally editable. The two genuinely unwired keys keep their honest warning (a
  *  user who reads "90 days" next to "asset retention" must not conclude disk use is
  *  bounded), it just now sits next to an input instead of standing in for one. */
-type SyncSettings = Pick<AppSettingsView, "syncLookbackDays" | "maxItemsPerSync" | "syncCadenceMinutes" | "mediaRetentionDays">;
+type SyncSettings = Pick<
+  AppSettingsView,
+  "syncLookbackDays" | "maxItemsPerSync" | "viewCountEnrichPerChannel" | "syncCadenceMinutes" | "mediaRetentionDays"
+>;
 
 const ENV_VAR_NAME: Record<keyof SyncSettings, string> = {
   syncLookbackDays: "LOOKBACK_DAYS",
   maxItemsPerSync: "MAX_ITEMS_PER_SYNC",
+  viewCountEnrichPerChannel: "VIEW_COUNT_ENRICH_PER_CHANNEL",
   syncCadenceMinutes: "SYNC_INTERVAL_MINUTES",
   mediaRetentionDays: "MEDIA_RETENTION_DAYS",
 };
+
+/** The inline recommendation for the enrichment count, phrased against whichever baseline
+ *  window is actually configured.
+ *
+ *  Measuring fewer posts than the baseline scores against fixes the number the feed prints
+ *  without producing a score to go with it, which is the trap this note exists to keep a
+ *  user out of. Only "last12Posts" has a fixed post count; the other two windows are
+ *  described honestly rather than given an invented figure. */
+function enrichRecommendation(window: AppSettingsView["scoreBaselineWindow"]["value"]): string {
+  if (window === "last12Posts") return "Recommended: at least 12, the number of posts your baseline scores against.";
+  if (window === "last30Days") return "Recommended: enough to cover 30 days of posting, since that is the window your baseline scores against.";
+  return "Recommended: as high as your request budget allows. Your baseline scores against all history.";
+}
 
 /** The `sync_jobs` columns this section renders. Structural on purpose: it depends on the
  *  shape of the row, not on the sync engine's module surface. */
@@ -155,10 +173,14 @@ function LastJobSummary({ lastJob }: { lastJob: LastSyncJobResult }) {
 export function SyncSection({
   config,
   settings,
+  scoreBaselineWindow,
   lastJob,
 }: {
   config: SyncConfigSummary;
   settings: SyncSettings;
+  /** Read only to phrase the enrichment recommendation. Scoring itself is edited in its
+   *  own section; this section never writes it. */
+  scoreBaselineWindow: AppSettingsView["scoreBaselineWindow"]["value"];
   lastJob: LastSyncJobResult;
 }) {
   const router = useRouter();
@@ -167,13 +189,16 @@ export function SyncSection({
 
   const [lookback, setLookback] = useState(String(settings.syncLookbackDays.value));
   const [maxItems, setMaxItems] = useState(String(settings.maxItemsPerSync.value));
+  const [enrichPerChannel, setEnrichPerChannel] = useState(String(settings.viewCountEnrichPerChannel.value));
   const [cadence, setCadence] = useState(String(settings.syncCadenceMinutes.value));
   const [retention, setRetention] = useState(String(settings.mediaRetentionDays.value));
   const [savingSettings, setSavingSettings] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
 
   const settingsDirty =
     lookback !== String(settings.syncLookbackDays.value) ||
     maxItems !== String(settings.maxItemsPerSync.value) ||
+    enrichPerChannel !== String(settings.viewCountEnrichPerChannel.value) ||
     cadence !== String(settings.syncCadenceMinutes.value) ||
     retention !== String(settings.mediaRetentionDays.value);
 
@@ -182,6 +207,7 @@ export function SyncSection({
     const result = await updateAppSettingsAction({
       syncLookbackDays: Number(lookback),
       maxItemsPerSync: Number(maxItems),
+      viewCountEnrichPerChannel: Number(enrichPerChannel),
       syncCadenceMinutes: Number(cadence),
       mediaRetentionDays: Number(retention),
     });
@@ -191,6 +217,28 @@ export function SyncSection({
       router.refresh();
     } else {
       toast.error(result.error);
+    }
+  }
+
+  /** The refusal is a normal outcome, not a fault: the backfill yields to a running sync
+   *  by design. It is surfaced as an ordinary message rather than an error toast so it
+   *  does not read as something broken. */
+  async function startBackfill() {
+    setBackfilling(true);
+    try {
+      const result = await startViewCountBackfillAction();
+      if (result.ok) {
+        toast.success("Backfill started. Follow it on the Runs screen.");
+        router.refresh();
+      } else if (result.code === "BACKFILL_BLOCKED") {
+        toast.info(result.error);
+      } else {
+        toast.error(result.error);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't start the backfill.");
+    } finally {
+      setBackfilling(false);
     }
   }
 
@@ -272,6 +320,20 @@ export function SyncSection({
           <NumberField value={maxItems} onChange={setMaxItems} min={1} max={10_000} suffix="posts" ariaLabel="Per-sync cap" />
         </SettingRow>
         <SettingRow
+          label="View counts per channel"
+          hint={`How many of each channel's newest reels a sync asks Instagram about individually, to recover the play count the listing endpoint withholds. 0 turns the pass off. ${enrichRecommendation(scoreBaselineWindow)}`}
+          infoNote={envNote("viewCountEnrichPerChannel")}
+        >
+          <NumberField
+            value={enrichPerChannel}
+            onChange={setEnrichPerChannel}
+            min={0}
+            max={200}
+            suffix="reels"
+            ariaLabel="View counts per channel"
+          />
+        </SettingRow>
+        <SettingRow
           label="Sync cadence"
           hint="Minutes between automatic syncs."
           warnNote="No scheduler exists. A sync only ever starts from a click, so this number has no effect yet; it is stored for the day one does."
@@ -290,6 +352,20 @@ export function SyncSection({
         <Button onClick={saveSyncSettings} disabled={!settingsDirty || savingSettings} className="w-fit" size="sm" variant="outline">
           {savingSettings ? "Saving…" : "Save"}
         </Button>
+      </div>
+
+      <div className="flex flex-col gap-2 border border-border p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-medium">Backfill blank view counts</h3>
+          <Button variant="outline" size="sm" onClick={startBackfill} disabled={backfilling || (isRunning && !stalled)}>
+            {backfilling ? "Starting…" : "Run backfill"}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          A sync only enriches each channel&apos;s newest reels, so posts stored while the setting above was 0 still have no play count and
+          no outlier score. This asks Instagram about those, oldest debt included, paced and cancelable. It yields to a sync: it will not
+          start while one is running, and stops if one begins. Track it on the Runs screen.
+        </p>
       </div>
 
       <div>
