@@ -23,11 +23,25 @@
  * (the niche, the Instagram session, the channels, the sync job all do that on their
  * own). A reload mid-flow re-lands on welcome, which just re-asks a question or two
  * whose answers are already persisted where they matter.
+ *
+ * The aside carries a persistent skip, because the sources step needs at least one real
+ * handle before Continue lights up and someone who doesn't have one in hand otherwise has
+ * nowhere to go. It has to write `first_run_completed` rather than just linking to `/`:
+ * the shell's gate is `!firstRunCompleted && !hasChannels`
+ * (`src/server/queries/first-run-gate.ts`), so on the zero-channel install this screen
+ * exists for, a plain link would bounce straight back here. That is the same flag, written
+ * through the same generic action, that the sync step's "Open Crowsnest" already sets.
+ * Skipping loses nothing that was answered on the way through — the niche, the Instagram
+ * session and any channels are each saved by their own step — and Settings' "Replay first
+ * run" (`src/components/settings/onboarding-section.tsx`) clears the flag to come back.
  */
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
+import { Button } from "@/components/ui/button";
+import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import {
   canVerifyHandles,
   ONBOARDING_STEP_COUNT,
@@ -55,10 +69,25 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
   const [niche, setNiche] = useState(initialNiche);
   const [igStatus, setIgStatus] = useState<IgStatusResult>(initialIgStatus);
   const [channelIds, setChannelIds] = useState<string[]>([]);
+  const [skipping, setSkipping] = useState(false);
 
   function goTo(target: OnboardingStep) {
     if (stepNavState(step, target) === "locked") return;
     setStep(target);
+  }
+
+  // `skipping` is deliberately left true on the success path: the push away from this
+  // route is what ends the pending state, so the button stays disabled instead of
+  // flickering back to "Skip setup for now" while the navigation is still in flight.
+  async function skipSetup() {
+    setSkipping(true);
+    const result = await updateAppSettingsAction({ firstRunCompleted: true });
+    if (!result.ok) {
+      setSkipping(false);
+      toast.error(result.error);
+      return;
+    }
+    router.push("/");
   }
 
   return (
@@ -76,40 +105,55 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
           </p>
         </div>
 
-        {step === "welcome" ? (
-          <div className="font-mono text-2xs tracking-wide text-faint">{ONBOARDING_STEP_COUNT} steps · about a minute</div>
-        ) : (
-          <nav className="flex flex-col gap-4" aria-label="First-run steps">
-            {ONBOARDING_STEPS.map((s) => {
-              const state = stepNavState(step, s.key);
-              return (
-                <button
-                  key={s.key}
-                  type="button"
-                  disabled={state === "locked"}
-                  aria-current={state === "current" ? "step" : undefined}
-                  onClick={() => goTo(s.key)}
-                  className="flex items-center gap-3 text-left disabled:cursor-not-allowed"
-                >
-                  <span
-                    aria-hidden
-                    className={`size-2 shrink-0 rounded-full ${state === "locked" ? "bg-muted" : "bg-foreground"}`}
-                  />
-                  <span
-                    className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-faint"}`}
+        {/* Steps and the way out share one block so the aside stays a three-part
+            justify-between column rather than spreading into four. */}
+        <div className="flex flex-col items-start gap-9">
+          {step === "welcome" ? (
+            <div className="font-mono text-2xs tracking-wide text-faint">{ONBOARDING_STEP_COUNT} steps · about a minute</div>
+          ) : (
+            <nav className="flex flex-col gap-4" aria-label="First-run steps">
+              {ONBOARDING_STEPS.map((s) => {
+                const state = stepNavState(step, s.key);
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    disabled={state === "locked"}
+                    aria-current={state === "current" ? "step" : undefined}
+                    onClick={() => goTo(s.key)}
+                    className="flex items-center gap-3 text-left disabled:cursor-not-allowed"
                   >
-                    {s.n}
-                  </span>
-                  <span
-                    className={`text-sm whitespace-nowrap ${state === "current" ? "text-foreground" : state === "locked" ? "text-faint" : "text-muted-foreground"}`}
-                  >
-                    {s.label}
-                  </span>
-                </button>
-              );
-            })}
-          </nav>
-        )}
+                    <span
+                      aria-hidden
+                      className={`size-2 shrink-0 rounded-full ${state === "locked" ? "bg-muted" : "bg-foreground"}`}
+                    />
+                    <span
+                      className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-faint"}`}
+                    >
+                      {s.n}
+                    </span>
+                    <span
+                      className={`text-sm whitespace-nowrap ${state === "current" ? "text-foreground" : state === "locked" ? "text-faint" : "text-muted-foreground"}`}
+                    >
+                      {s.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
+
+          <div>
+            {/* Pulled left by the button's own horizontal padding so its label sits on the
+                same line as the copy above it. */}
+            <Button variant="ghost" size="sm" className="-ml-2.5" onClick={() => void skipSetup()} disabled={skipping}>
+              {skipping ? "Opening Crowsnest…" : "Skip setup for now"}
+            </Button>
+            <p className="mt-2 max-w-[30ch] text-xs leading-relaxed text-faint">
+              Goes straight to the app. Anything you already answered is kept, and Settings can replay this.
+            </p>
+          </div>
+        </div>
       </aside>
 
       <div className="flex min-w-0 items-center px-8 py-16 sm:px-12">
