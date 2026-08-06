@@ -5,8 +5,9 @@ import { after } from "next/server";
 import { db, nowIso, tables } from "../db";
 import { log } from "../lib/logger";
 import { IgError, SyncAlreadyRunningError } from "../ig/errors";
+import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
-import { addChannel, importReelByUrl, requestCancel, runSync } from "../services/sync-engine";
+import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } from "../services/sync-engine";
 import {
   SYNC_PHASES,
   type StopReason,
@@ -391,10 +392,58 @@ export async function cancelSyncAction(jobId: string): Promise<ActionResult<{ re
 
 // ---------------------------------------------------------------- channels
 
-export async function addChannelAction(handle: string): Promise<ActionResult<{ channelId: string }>> {
+/**
+ * Adds a channel. `requireProfile` picks between the two things callers mean by "add".
+ *
+ * `addChannel()` treats the profile fetch as best-effort: when it fails it still writes a
+ * thin row with syncError set. First-run needs exactly that, because /profile needs a
+ * logged-in sidecar and onboarding collects handles before the login step — see
+ * `components/first-run/sources-step.tsx`. So the default stays lenient.
+ *
+ * The add-channel dialog wants the opposite. A handle that cannot be resolved is usually
+ * a typo, and the old behaviour tracked it anyway while the reason went only to /logs, so
+ * the user got a permanently broken column and no explanation. With `requireProfile` the
+ * fetch is hoisted here, ahead of any insert: it throws, nothing is written, and the
+ * IgError's userMessage is what the dialog shows.
+ *
+ * The resolved profile is then handed back down through the `client` dep, so
+ * `addChannel`'s own `client.profile(handle)` is served from here and the sidecar is
+ * still asked exactly once. The already-tracked check below mirrors `addChannel`'s own
+ * short-circuit for the same reason it exists there: re-adding a live channel is a no-op,
+ * and it should not start failing just because Instagram happens to be unreachable.
+ */
+export async function addChannelAction(
+  handle: string,
+  opts: { requireProfile?: boolean } = {}
+): Promise<ActionResult<{ channelId: string }>> {
   try {
-    return { ok: true, ...(await addChannel({ handle })) };
+    if (!opts.requireProfile) return { ok: true, ...(await addChannel({ handle })) };
+
+    // normalizeHandle throws on junk ("has spaces", a non-Instagram URL) before anything
+    // reaches the network, and gives the fetch below the same string addChannel will use.
+    const normalized = normalizeHandle(handle);
+    const live = await db
+      .select({ id: tables.channels.id })
+      .from(tables.channels)
+      .where(
+        and(
+          eq(tables.channels.platform, "instagram"),
+          eq(tables.channels.handle, normalized),
+          isNull(tables.channels.deletedAt)
+        )
+      )
+      .limit(1);
+    if (live[0]) return { ok: true, channelId: live[0].id };
+
+    const profile = await igClient.profile(normalized);
+    const client: IgClient = { ...igClient, profile: async () => profile };
+    return { ok: true, ...(await addChannel({ handle: normalized }, { client })) };
   } catch (err) {
+    // The old channel.add.profile_failed line was the only record of this; keep a record,
+    // now that the user gets the reason on screen rather than instead of it.
+    if (opts.requireProfile) {
+      log.warn("channel.add.rejected", { handle, code: errorCodeOf(err), message: errorMessageOf(err) });
+    }
     return toResult(err);
   }
 }

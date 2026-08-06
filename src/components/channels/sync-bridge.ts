@@ -24,15 +24,21 @@ import { addChannelAction, importReelAction } from "@/server/actions/sync-action
 export type BridgeResult = { ok: true } | { ok: false; error: string };
 
 export async function bridgeAddChannel(handle: string): Promise<BridgeResult> {
-  const result = await addChannelAction(handle);
+  // requireProfile is what makes ok:true mean "this handle resolved and is now tracked".
+  // Without it the add path creates a "thin" row when the profile fetch fails (no
+  // follower count or avatar, syncError + syncErrorCode set) and reports success, so a
+  // typo became a permanently broken column whose only explanation was a line in /logs.
+  // The dialog now gets the reason in the ok:false branch and nothing is written.
+  //
+  // First-run keeps the lenient default on purpose: it collects handles before the
+  // Instagram login step, and /profile cannot verify anything until the sidecar has a
+  // session. See addChannelAction's own comment.
+  //
+  // A malformed handle was already rejected before this change: the old normalizer
+  // accepted a pasted profile URL and created a row literally named
+  // "@https://www.instagram.com/hormozi/", so normalizeHandle throws on junk.
+  const result = await addChannelAction(handle, { requireProfile: true });
   if (!result.ok) return result;
-  // addChannel() still creates a "thin" channel row when the profile fetch fails
-  // (no follower count/avatar, syncError + syncErrorCode set on the row) rather than
-  // refusing to track the handle, so ok:true here is truthful: a channel really was
-  // tracked. That failure surfaces on the channel row's own warning icon, not through
-  // this dialog's toast. An INVALID handle, by contrast, now throws and lands in the
-  // ok:false branch above — the old normalizer accepted a pasted profile URL and
-  // created a row literally named "@https://www.instagram.com/hormozi/".
   return { ok: true };
 }
 
