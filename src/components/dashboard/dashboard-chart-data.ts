@@ -180,6 +180,37 @@ export function rankableItems(items: FeedItem[]): { ranked: RankableItem[]; unra
   return { ranked, unranked: items.length - ranked.length };
 }
 
+export interface RankingRow {
+  videoId: string;
+  score: number;
+  caption: string | null;
+  handle: string;
+  platform: string;
+  deleted: boolean;
+}
+
+/**
+ * The slim shape the score ranking list actually renders. The list is a client
+ * component, so passing full FeedItems serialized the whole library into the RSC payload
+ * on every dashboard visit. This projects the six fields the row uses, computed
+ * server-side, so only those cross the wire.
+ */
+export function rankingRows(items: FeedItem[]): { rows: RankingRow[]; unranked: number } {
+  const rows: RankingRow[] = [];
+  for (const item of items) {
+    if (item.outlierScore === null) continue;
+    rows.push({
+      videoId: item.videoId,
+      score: item.outlierScore,
+      caption: item.caption,
+      handle: item.channel.handle,
+      platform: item.channel.platform,
+      deleted: item.deleted,
+    });
+  }
+  return { rows, unranked: items.length - rows.length };
+}
+
 // ---------------------------------------------------------------------------
 // Coverage list
 // ---------------------------------------------------------------------------

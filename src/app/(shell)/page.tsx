@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { CoverageList } from "@/components/dashboard/coverage-list";
+import { rankingRows } from "@/components/dashboard/dashboard-chart-data";
 import { FleetSpikeRow } from "@/components/dashboard/fleet-spike-row";
 import { OutlierScrollRow } from "@/components/dashboard/outlier-scroll-row";
 import { OutlierTimeline } from "@/components/dashboard/outlier-timeline";
@@ -194,7 +195,7 @@ export default async function DashboardPage() {
             <ReachScoreScatter items={allItems} />
           </section>
           <OutlierTimeline items={allItems} />
-          <ScoreRankingList items={allItems} />
+          <ScoreRankingList {...rankingRows(allItems)} />
           <CoverageList channels={channels} items={allItems} />
         </>
       ) : (

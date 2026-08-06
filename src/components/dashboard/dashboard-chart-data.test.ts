@@ -8,6 +8,7 @@ import {
   buildProducerDonut,
   buildScatterPoints,
   rankableItems,
+  rankingRows,
   TIMELINE_WINDOW_DAYS,
   viewScalePosition,
 } from "./dashboard-chart-data";
@@ -174,6 +175,25 @@ describe("rankableItems", () => {
     expect(ranked).toHaveLength(1);
     expect(ranked[0].outlierScore).toBe(3);
     expect(unranked).toBe(1);
+  });
+});
+
+describe("rankingRows", () => {
+  test("projects only the fields the list renders, drops unscored, counts them", () => {
+    const items = [
+      item({
+        videoId: "a",
+        outlierScore: 5,
+        caption: "hi",
+        channel: { id: "c1", handle: "@x", platform: "instagram" },
+      }),
+      item({ videoId: "b", outlierScore: null }),
+    ];
+    const { rows, unranked } = rankingRows(items);
+    expect(unranked).toBe(1);
+    expect(rows).toEqual([
+      { videoId: "a", score: 5, caption: "hi", handle: "@x", platform: "instagram", deleted: false },
+    ]);
   });
 });
 
