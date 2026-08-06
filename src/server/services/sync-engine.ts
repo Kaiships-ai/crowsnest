@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
@@ -8,7 +8,7 @@ import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
-import { SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
+import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 
 /**
  * Channel sync against the instagrapi sidecar.
@@ -225,10 +225,15 @@ async function acquireLock(channelId: string | null, lookbackDays: number): Prom
   try {
     db.transaction(
       (tx) => {
+        // A running BACKFILL is deliberately not in this set. It holds its own lock key
+        // and never enumerates a window, so it cannot cause the soft-delete damage this
+        // arbitration exists to prevent, and letting it refuse a sync would mean a
+        // catch-up job blocking the fetch a user is waiting on. The backfill yields to
+        // the sync instead, in its own start check.
         const running = tx
           .select({ id: tables.syncJobs.id, channelId: tables.syncJobs.channelId })
           .from(tables.syncJobs)
-          .where(eq(tables.syncJobs.status, "running"))
+          .where(and(eq(tables.syncJobs.status, "running"), ne(tables.syncJobs.lockKey, BACKFILL_LOCK_KEY)))
           .all();
 
         const clash = conflictingRun(running, channelId);
@@ -707,7 +712,7 @@ async function enrichmentCandidates(channelId: string, limit: number): Promise<{
  * budget costs 200 authenticated requests from an account already in trouble, and learns
  * nothing the third answer had not already said.
  */
-const ENRICH_MAX_CONSECUTIVE_SKIPS = 3;
+export const ENRICH_MAX_CONSECUTIVE_SKIPS = 3;
 
 /** What one enrichment pass did. `withheld` is separate from `skipped` on purpose: a reel
  *  Instagram answered for but gave no play count is not the same event as one that is

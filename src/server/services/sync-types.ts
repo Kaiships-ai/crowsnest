@@ -115,6 +115,20 @@ export interface SyncProgress {
 /** Heartbeat older than this on a `running` row means the run is presumed dead. */
 export const SYNC_STALL_SECONDS = 90;
 
+/**
+ * The `sync_jobs.lock_key` a view-count backfill runs under.
+ *
+ * Its own key, not "__library__", and that is the whole point: a backfill row lives in
+ * `sync_jobs` so the Runs screen, the cancel button and the heartbeat all work on it for
+ * free, while `acquireLock` filters rows with this key out of the sync's single-flight
+ * arbitration. A backfill therefore never refuses a sync. The yielding goes one way, in
+ * the backfill's own start check and its per-reel look for a sync that appeared.
+ *
+ * Lives here rather than in either service because both read it and neither should import
+ * the other for a string.
+ */
+export const BACKFILL_LOCK_KEY = "__backfill__";
+
 export function isSyncStalled(p: Pick<SyncProgress, "status" | "heartbeatAt">, now = Date.now()): boolean {
   if (p.status !== "running" || !p.heartbeatAt) return false;
   return now - new Date(p.heartbeatAt).getTime() > SYNC_STALL_SECONDS * 1000;
