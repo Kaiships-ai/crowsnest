@@ -357,6 +357,10 @@ interface FlushPatch {
 /** Run-scoped progress state. `totals` holds finished channels only, so a flush from
  *  inside a channel adds that channel's running counters rather than double-counting. */
 interface RunTracker {
+  /** The run this tracker belongs to. Carried here because the tracker is already the one
+   *  thing every part of a run is handed, so the per-channel and enrichment log calls can
+   *  stamp their events with a run id without a second parameter threaded beside it. */
+  jobId: string;
   totals: SyncCounters;
   channelsDone: number;
   retries: number;
@@ -372,6 +376,7 @@ function createTracker(jobId: string, now: () => Date): RunTracker {
   let lastFlushMs = now().getTime();
 
   const tracker: RunTracker = {
+    jobId,
     totals: zeroCounters(),
     channelsDone: 0,
     retries: 0,
@@ -750,6 +755,9 @@ async function enrichViewCounts(
      *  (the UI calls a live run dead) and then `LOCK_STALE_MS` (another run steals the
      *  lock and its `softDeleteMissing` buries posts it never reached). */
     tick: () => Promise<void>;
+    /** The run whose trace these events belong to. Optional so a test can call the pass on
+     *  its own; every production call site is inside a run and passes it. */
+    runId?: string;
   }
 ): Promise<EnrichResult> {
   let enriched = 0;
@@ -766,7 +774,7 @@ async function enrichViewCounts(
       code: errorCode(err),
       message: errorMessage(err),
       reason: "could not read the candidate reels; skipping the pass",
-    });
+    }, deps.runId);
     return { candidates: 0, enriched, skipped, withheld, stopped: true };
   }
 
@@ -801,7 +809,7 @@ async function enrichViewCounts(
         skipped,
         withheld,
         reason: "the run's own heartbeat or cancel check failed; ending the pass",
-      });
+      }, deps.runId);
       return result(true);
     }
 
@@ -813,7 +821,7 @@ async function enrichViewCounts(
         withheld,
         remaining: candidates.length - index,
         reason: "the user stopped the run; not spending more live requests on it",
-      });
+      }, deps.runId);
       return result(true);
     }
 
@@ -853,7 +861,7 @@ async function enrichViewCounts(
             skipped,
             withheld,
             reason: `${ENRICH_MAX_CONSECUTIVE_SKIPS} consecutive medias came back missing, which is too many to be ordinary deletions; stopping rather than guessing why`,
-          });
+          }, deps.runId);
           return result(true);
         }
         continue;
@@ -866,7 +874,7 @@ async function enrichViewCounts(
         skipped,
         withheld,
         reason: "upstream said stop; leaving the rest for the next sync",
-      });
+      }, deps.runId);
       return result(true);
     }
     // Instagram answered about this media, so whatever run of misses preceded it was
@@ -894,7 +902,7 @@ async function enrichViewCounts(
         code: errorCode(err),
         message: errorMessage(err),
         reason: "could not store the play count; ending the pass",
-      });
+      }, deps.runId);
       return result(true);
     }
     enriched += 1;
@@ -1101,7 +1109,7 @@ export function recomputeAllChannelScoresSync(tx: Tx, scoringOptions: ScoringOpt
  * Scoped to the window on purpose: older rows are out of this run's remit and must not
  * be flagged deleted just because we didn't ask about them.
  */
-async function softDeleteMissing(channelId: string, boundaryIso: string, seenExternalIds: string[]): Promise<number> {
+async function softDeleteMissing(channelId: string, boundaryIso: string, seenExternalIds: string[], runId?: string): Promise<number> {
   const candidates = await db
     .select({ id: tables.videos.id, externalId: tables.videos.externalId })
     .from(tables.videos)
@@ -1123,7 +1131,7 @@ async function softDeleteMissing(channelId: string, boundaryIso: string, seenExt
     .set({ deletedAt: now })
     .where(inArray(tables.videos.id, missing.map((m) => m.id)));
 
-  log.info("sync.soft_deleted", { channelId, count: missing.length });
+  log.info("sync.soft_deleted", { channelId, count: missing.length }, runId);
   return missing.length;
 }
 
@@ -1141,9 +1149,13 @@ async function syncOneChannel(
 ): Promise<{ gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null }> {
   const counters = zeroCounters();
   const { tracker } = opts;
+  /** Stamped on every event below so a run's trace is the whole run. Without it the Runs
+   *  page could only show the handful of emitters that happen to put a jobId in their
+   *  fields — the run-level ones — and a channel that failed left no line in its own run. */
+  const runId = tracker.jobId;
 
   const boundary = new Date(opts.now().getTime() - opts.lookbackDays * 86_400_000).toISOString();
-  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays });
+  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays }, runId);
 
   const downloadThumb = async (url: string | null) =>
     tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, opts.assetDeps);
@@ -1164,7 +1176,7 @@ async function syncOneChannel(
           during,
           code: error.code,
           reason: "cancel requested; not spending more requests at Instagram on a run the user stopped",
-        });
+        }, runId);
       },
       onRetry: async ({ attempt: n, delayMs, error }) => {
         tracker.noteRetry();
@@ -1176,7 +1188,7 @@ async function syncOneChannel(
           of: config.SYNC_MAX_RETRIES,
           delayMs,
           code: error.code,
-        });
+        }, runId);
         await tracker.flush({ phase: "retrying", counters });
       },
     });
@@ -1286,7 +1298,7 @@ async function syncOneChannel(
             externalId: item.externalId,
             code: errorCode(err),
             message: errorMessage(err),
-          });
+          }, runId);
         }
       }
 
@@ -1305,7 +1317,7 @@ async function syncOneChannel(
       // finished its window is still reported as having finished it — and still gets to
       // soft-delete. Reaching here means pages remained, i.e. work really was abandoned.
       if (await tracker.isCancelRequested()) {
-        log.info("sync.cancelled", { channelId: channel.id, handle: channel.handle, itemsSeen: counters.itemsSeen });
+        log.info("sync.cancelled", { channelId: channel.id, handle: channel.handle, itemsSeen: counters.itemsSeen }, runId);
         stopReason = "cancelled";
         break;
       }
@@ -1320,7 +1332,7 @@ async function syncOneChannel(
     // real posts. A cancelled run is the newest member of that family: it stops mid-walk
     // by design, so it must land in the "not fully enumerated" branch below.
     if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0) {
-      counters.itemsDeleted = await softDeleteMissing(channel.id, boundary, seenExternalIds);
+      counters.itemsDeleted = await softDeleteMissing(channel.id, boundary, seenExternalIds, runId);
     } else if (counters.itemsSeen === 0) {
       // A run that saw NOTHING cannot distinguish "the creator deleted everything"
       // from "the fetch came back empty". Treating it as deletion is how a single
@@ -1330,13 +1342,13 @@ async function syncOneChannel(
         channelId: channel.id,
         stopReason,
         reason: "zero items seen; refusing to interpret an empty fetch as deletions",
-      });
+      }, runId);
     } else {
       log.info("sync.soft_delete.skipped", {
         channelId: channel.id,
         stopReason,
         reason: "window not fully enumerated; cannot distinguish deleted from unfetched",
-      });
+      }, runId);
     }
 
     // Before scoring, not after: `recomputeChannelScores` below reads `videos.view_count`,
@@ -1357,12 +1369,13 @@ async function syncOneChannel(
         client: opts.client,
         sleep: opts.sleep,
         limit: config.VIEW_COUNT_ENRICH_PER_CHANNEL,
+        runId,
         shouldStop: () => tracker.isCancelRequested(),
         // The pass's only heartbeat. Reuses the phase the flush directly below writes, so
         // the run reports "scoring" throughout rather than sitting on the previous phase.
         tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
       });
-      log.info("sync.enrich.finished", { channelId: channel.id, handle: channel.handle, ...enrichment });
+      log.info("sync.enrich.finished", { channelId: channel.id, handle: channel.handle, ...enrichment }, runId);
     }
 
     await tracker.flush({ phase: "scoring", counters });
@@ -1375,19 +1388,19 @@ async function syncOneChannel(
       medianViews,
     });
 
-    log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters });
+    log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters }, runId);
     return { counters, stopReason };
   } catch (err) {
     if (err instanceof SyncCancelledError) {
       // Not a gap and not a channel error: nothing here is broken, the user stopped us
       // mid-request. Recording it as a failure would put a red mark against a channel
       // that was working, and would set `sync_error` the next run has to clear.
-      log.info("sync.channel.cancelled", { channelId: channel.id, handle: channel.handle, ...counters });
+      log.info("sync.channel.cancelled", { channelId: channel.id, handle: channel.handle, ...counters }, runId);
       return { counters, stopReason: "cancelled" };
     }
     const code = errorCode(err);
     const message = errorMessage(err);
-    log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message });
+    log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message }, runId);
     await db
       .update(tables.channels)
       .set({ syncError: message, syncErrorCode: code })

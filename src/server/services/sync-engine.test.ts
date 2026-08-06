@@ -2479,3 +2479,67 @@ describe("view count enrichment — ordering and default", () => {
     expect(statsCalls).toBe(0);
   });
 });
+
+describe("runSync — run_id on log events", () => {
+  test("the per-channel and enrichment events land under the run's id, not just the run-level ones", async () => {
+    // The Runs trace is a query by run_id. Before this, only the handful of emitters that
+    // happened to carry a jobId field (sync.started, sync.finished, sync.failed) were
+    // reachable that way — 3 rows out of 1,689 — so opening a run showed a trace with the
+    // channel work missing. Every event below is emitted from a function that has no jobId
+    // of its own, which is exactly what the threading has to fix.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@run-id");
+    // In the window and not returned by the walk, so softDeleteMissing has a post to bury
+    // and gets to log it. Without this the soft-delete emitter is never exercised.
+    await seedReel(channelId, "run-id-gone", { daysAgo: 2 });
+
+    const items = [makeMedia("run-id-1", 1, { viewCount: null }), makeMedia("run-id-2", 3, { viewCount: null })];
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "lookback" }] });
+
+    const { runSync } = await import("./sync-engine");
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    // src/test/setup-env.ts quiets the suite down to `error`, and `activeLevel()` reads the
+    // variable on every emit, so an info-level event is not merely unprinted here — the
+    // logger returns before it ever reaches the store. Most of the trace is info.
+    const previousLogLevel = process.env.LOG_LEVEL;
+    process.env.LOG_LEVEL = "info";
+    let result: Awaited<ReturnType<typeof runSync>>;
+    try {
+      result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+      process.env.LOG_LEVEL = previousLogLevel;
+    }
+
+    const { queryLogEvents } = await import("../logs/store");
+    const events = queryLogEvents({ runId: result.jobId, levels: ["info", "warn", "error"], limit: 500 }).map((r) => r.event);
+
+    expect(events).toContain("sync.started");
+    expect(events).toContain("sync.channel.started");
+    expect(events).toContain("sync.soft_deleted");
+    expect(events).toContain("sync.enrich.finished");
+    expect(events).toContain("sync.channel.finished");
+    expect(events).toContain("sync.finished");
+  });
+
+  test("a failing channel's error event carries the run's id too", async () => {
+    // The failure path is the one a user actually opens the trace for, and it logs from
+    // syncOneChannel's catch, which is another function with no jobId of its own.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@run-id-failed");
+
+    // Not an IgError, so withRetry rethrows on the first attempt and the channel fails.
+    const { client } = stubClient({ onProfileError: new Error("profile is unreachable") });
+
+    const { runSync } = await import("./sync-engine");
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    const { queryLogEvents } = await import("../logs/store");
+    const failures = queryLogEvents({ runId: result.jobId, levels: ["error"], limit: 500 });
+    expect(failures.map((r) => r.event)).toContain("sync.channel.failed");
+  });
+});
