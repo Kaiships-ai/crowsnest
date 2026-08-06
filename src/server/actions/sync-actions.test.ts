@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
 
 // In-memory DB + migrate, same pattern as db/schema.test.ts.
 beforeAll(async () => {
@@ -552,5 +553,46 @@ describe("addChannelAction — requireProfile", () => {
 
     expect(result.ok).toBe(false);
     expect(await channelRows("has spaces")).toHaveLength(0);
+  });
+});
+
+describe("startViewCountBackfillAction", () => {
+  test("a sync in flight comes back as a refusal with its own code, not an exception", async () => {
+    // The action boundary must not throw, and the UI has to be able to tell "a sync owns
+    // the upstream right now, try later" apart from a real failure. The backfill yields
+    // to the sync deliberately: see BACKFILL_LOCK_KEY in services/sync-types.ts.
+    const { migrate } = await import("../db/test-migrate");
+    const { db, newId, nowIso, tables } = await import("../db");
+    migrate();
+    await clearJobs();
+    await db.insert(tables.syncJobs).values({
+      id: newId(), channelId: null, lockKey: "__library__",
+      startedAt: nowIso(), heartbeatAt: nowIso(), status: "running",
+    });
+
+    const { startViewCountBackfillAction } = await import("./sync-actions");
+    const result = await startViewCountBackfillAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("BACKFILL_BLOCKED");
+    await clearJobs();
+  });
+
+  test("with nothing running it starts and hands back a job id the run screens can poll", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { db, tables } = await import("../db");
+    migrate();
+    await clearJobs();
+
+    const { startViewCountBackfillAction } = await import("./sync-actions");
+    const result = await startViewCountBackfillAction();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const [row] = await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId));
+      expect(row).toBeDefined();
+      expect(row.lockKey).toBe("__backfill__");
+    }
+    await clearJobs();
   });
 });

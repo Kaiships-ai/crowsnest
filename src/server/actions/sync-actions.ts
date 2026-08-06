@@ -8,6 +8,7 @@ import { IgError, SyncAlreadyRunningError } from "../ig/errors";
 import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
 import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } from "../services/sync-engine";
+import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
   SYNC_PHASES,
   type StopReason,
@@ -38,6 +39,9 @@ type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: s
 function toResult(err: unknown): { ok: false; error: string; code?: string } {
   if (err instanceof IgError) return { ok: false, error: err.userMessage, code: err.code };
   if (err instanceof SyncAlreadyRunningError) return { ok: false, error: err.message, code: err.code };
+  // Carries its own code so the UI can say "a sync is running, try again after" rather
+  // than showing a backfill refusal as a generic failure. It is not a fault.
+  if (err instanceof BackfillBlockedError) return { ok: false, error: err.message, code: err.code };
   return { ok: false, error: err instanceof Error ? err.message : String(err) };
 }
 
@@ -169,6 +173,56 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
 
     keepAlive(detached);
     log.info("sync.started.detached", { jobId });
+    return { ok: true, jobId };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+/**
+ * Starts the view-count backfill and returns as soon as its job row exists, for the same
+ * reason `startSyncAction` does: the run can take minutes and no browser should hold a
+ * POST open for it. Progress and cancel both go through the ordinary run machinery, since
+ * a backfill IS a `sync_jobs` row — `getSyncProgressAction` and `cancelSyncAction` work on
+ * the returned id unchanged.
+ *
+ * Refuses, rather than queues, while a sync is running. The backfill always yields.
+ */
+export async function startViewCountBackfillAction(): Promise<ActionResult<{ jobId: string }>> {
+  try {
+    let resolveJobId: (id: string | null) => void = () => {};
+    const jobIdKnown = new Promise<string | null>((resolve) => {
+      resolveJobId = resolve;
+    });
+
+    let failure: unknown;
+    const detached = runViewCountBackfill({ onJobStarted: resolveJobId }).then(
+      () => {},
+      async (err: unknown) => {
+        failure = err;
+        resolveJobId(null);
+        log.error("backfill.detached.failed", { code: errorCodeOf(err), message: errorMessageOf(err) });
+      }
+    );
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const jobId = await Promise.race([
+      jobIdKnown,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LOCK_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+
+    if (!jobId) {
+      // The common case here is the deliberate refusal (a sync holds the upstream), which
+      // rejects before a row is ever inserted, so `failure` is set and carries its code.
+      if (failure !== undefined) return toResult(failure);
+      return { ok: false, error: `Backfill did not start within ${LOCK_TIMEOUT_MS}ms`, code: "BACKFILL_NOT_STARTED" };
+    }
+
+    keepAlive(detached);
+    log.info("backfill.started.detached", { jobId });
     return { ok: true, jobId };
   } catch (err) {
     return toResult(err);
