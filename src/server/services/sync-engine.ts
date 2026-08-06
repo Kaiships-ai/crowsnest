@@ -62,6 +62,9 @@ export interface RunSyncOpts {
   client?: IgClient;
   lookbackDays?: number;
   maxItems?: number;
+  /** How many of each channel's newest reels the view-count pass may ask Instagram about.
+   *  Defaults to the `viewCountEnrichPerChannel` setting. 0 turns the pass off. */
+  enrichPerChannel?: number;
   /** Test seam — overrides the inter-page jitter sleep. */
   sleep?: (ms: number) => Promise<void>;
   /** Test seam for `ensureAsset`'s downloader. */
@@ -1145,6 +1148,10 @@ async function syncOneChannel(
     assetDeps: EnsureAssetDeps;
     now: () => Date;
     tracker: RunTracker;
+    /** How many of this channel's newest reels the view-count pass may ask about. Resolved
+     *  once per run from the `viewCountEnrichPerChannel` setting, not read from `config`
+     *  here, so a stored row takes effect on the next sync with no restart. */
+    enrichPerChannel: number;
   }
 ): Promise<{ gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null }> {
   const counters = zeroCounters();
@@ -1364,11 +1371,11 @@ async function syncOneChannel(
     // pass — up to 200 authenticated requests for a result nobody is waiting for. Both
     // halves are needed: `stopReason` catches the walk that ended BECAUSE of the cancel,
     // the live check catches a cancel that landed while the last page was being written.
-    if (config.VIEW_COUNT_ENRICH_PER_CHANNEL > 0 && stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
+    if (opts.enrichPerChannel > 0 && stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
       const enrichment = await enrichViewCounts(channel.id, {
         client: opts.client,
         sleep: opts.sleep,
-        limit: config.VIEW_COUNT_ENRICH_PER_CHANNEL,
+        limit: opts.enrichPerChannel,
         runId,
         shouldStop: () => tracker.isCancelRequested(),
         // The pass's only heartbeat. Reuses the phase the flush directly below writes, so
@@ -1448,6 +1455,9 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   // without a restart (B3, review-engineering-2026-07-31.md §3).
   const lookbackDays = opts.lookbackDays ?? (await getSetting("syncLookbackDays"));
   const maxItems = opts.maxItems ?? (await getSetting("maxItemsPerSync"));
+  // Resolved once for the whole run, not per channel, so every channel in one sync gets
+  // the same budget even if the setting is edited while the run is in flight.
+  const enrichPerChannel = opts.enrichPerChannel ?? (await getSetting("viewCountEnrichPerChannel"));
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
   // half the outbound calls — which is both a testing lie and, in production, two
@@ -1506,7 +1516,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       }
       await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
 
-      const result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems });
+      const result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel });
       for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
       if (result.gap) gaps.push(result.gap);
       else channelsSynced += 1;

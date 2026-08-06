@@ -63,6 +63,11 @@ export interface AppSettings {
    *  `config.MAX_ITEMS_PER_SYNC`) and by the progress reporters in
    *  `src/server/actions/sync-actions.ts`. */
   maxItemsPerSync: number;
+  /** How many of a channel's newest reels each sync asks Instagram about individually, to
+   *  recover the play count the listing endpoint withholds. 0 turns the pass off.
+   *  Consumed by `runSync` (falls back to this exactly where it used to read
+   *  `config.VIEW_COUNT_ENRICH_PER_CHANNEL` directly) and by the view-count backfill. */
+  viewCountEnrichPerChannel: number;
   /** Minutes between automatic syncs. NOT CONSUMED — there is no scheduler in this app;
    *  every sync starts from a click. Kept here, DB-overridable, for the day a scheduler
    *  exists, same honesty the Settings page's Sync section already applies to
@@ -102,6 +107,7 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   feedDefaultFollowerBand: "feed_default_follower_band",
   syncLookbackDays: "sync_lookback_days",
   maxItemsPerSync: "max_items_per_sync",
+  viewCountEnrichPerChannel: "view_count_enrich_per_channel",
   syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
   syncSlaMinutes: "sync_sla_minutes",
@@ -138,6 +144,9 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   feedDefaultFollowerBand: z.enum(["nano", "micro", "mid", "macro", "all"]),
   syncLookbackDays: posInt(1, 3650),
   maxItemsPerSync: posInt(1, 10_000), // same bounds as config.ts's MAX_ITEMS_PER_SYNC schema
+  // 0 is a real value here (it turns the pass off), and 200 is the same ban-risk ceiling
+  // config.ts's VIEW_COUNT_ENRICH_PER_CHANNEL schema enforces.
+  viewCountEnrichPerChannel: posInt(0, 200),
   syncCadenceMinutes: posInt(0, 10_080),
   mediaRetentionDays: posInt(1, 3650),
   syncSlaMinutes: posInt(1, 240),
@@ -163,6 +172,7 @@ const DEFAULT: AppSettings = {
   feedDefaultFollowerBand: "all", // no filter — same reasoning
   syncLookbackDays: 30,
   maxItemsPerSync: 200, // matches config.ts's MAX_ITEMS_PER_SYNC default exactly, no change
+  viewCountEnrichPerChannel: 12, // mirrors config.ts's default, which is the env layer below this
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
   syncSlaMinutes: 10, // spec default: a library sync over 10 min flags as over budget
@@ -177,6 +187,7 @@ const DEFAULT: AppSettings = {
 const ENV_FALLBACK: Partial<{ [K in keyof AppSettings]: () => AppSettings[K] }> = {
   syncLookbackDays: () => config.LOOKBACK_DAYS,
   maxItemsPerSync: () => config.MAX_ITEMS_PER_SYNC,
+  viewCountEnrichPerChannel: () => config.VIEW_COUNT_ENRICH_PER_CHANNEL,
   syncCadenceMinutes: () => config.SYNC_INTERVAL_MINUTES,
   mediaRetentionDays: () => config.MEDIA_RETENTION_DAYS,
 };
@@ -193,6 +204,7 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   feedDefaultFollowerBand: false,
   syncLookbackDays: true,
   maxItemsPerSync: true,
+  viewCountEnrichPerChannel: true, // runSync reads it per channel, and the backfill reads it too
   syncCadenceMinutes: false,
   mediaRetentionDays: false,
   syncSlaMinutes: true, // sync-engine raises an sla_breach on an over-budget finish, and the run screens flag it live
