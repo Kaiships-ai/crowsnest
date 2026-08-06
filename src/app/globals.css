@@ -113,6 +113,25 @@
   --score-4: #66481a;
   --score-5: #463212;
 
+  /**
+   * Chart palettes. Two of them, and the choice between them is a meaning choice,
+   * not a taste one:
+   *
+   * - Categorical (below): tells series apart. Neutral by law, because a producer's
+   *   identity carries no "which is more" reading. Aliases the four neutral inks
+   *   rather than inventing hues, so it restates the amber law instead of leaking
+   *   around it.
+   * - Magnitude: the --score-1..5 ramp above. Use it only when the encoded thing
+   *   really is a magnitude, since that ramp escalates and amber means anomaly.
+   *
+   * These alias rather than copy hex, so the .light block below retunes them for
+   * free and the two definitions can never drift apart.
+   */
+  --chart-categorical-1: var(--foreground);
+  --chart-categorical-2: var(--line-strong);
+  --chart-categorical-3: var(--muted-foreground);
+  --chart-categorical-4: var(--faint);
+
   /* failure, the only other hue */
   --destructive: #d9503f;
   --destructive-foreground: #0b0b0c;
