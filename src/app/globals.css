@@ -80,7 +80,10 @@
   /* ink */
   --foreground: #f2f2f0;
   --muted-foreground: #9a9a96;
-  --faint: #6b6b68;
+  /* Lightened from #6b6b68, which read at 3.18:1 on --muted and failed AA at
+     13px. 4.65:1 on --muted, 5.38:1 on --background. Still a step below
+     --muted-foreground everywhere, so the label/value hierarchy holds. */
+  --faint: #868682;
   --dim: #55554f;
 
   /* rules */
@@ -109,6 +112,25 @@
   --score-3: #8f6524;
   --score-4: #66481a;
   --score-5: #463212;
+
+  /**
+   * Chart palettes. Two of them, and the choice between them is a meaning choice,
+   * not a taste one:
+   *
+   * - Categorical (below): tells series apart. Neutral by law, because a producer's
+   *   identity carries no "which is more" reading. Aliases the four neutral inks
+   *   rather than inventing hues, so it restates the amber law instead of leaking
+   *   around it.
+   * - Magnitude: the --score-1..5 ramp above. Use it only when the encoded thing
+   *   really is a magnitude, since that ramp escalates and amber means anomaly.
+   *
+   * These alias rather than copy hex, so the .light block below retunes them for
+   * free and the two definitions can never drift apart.
+   */
+  --chart-categorical-1: var(--foreground);
+  --chart-categorical-2: var(--line-strong);
+  --chart-categorical-3: var(--muted-foreground);
+  --chart-categorical-4: var(--faint);
 
   /* failure, the only other hue */
   --destructive: #d9503f;
@@ -153,7 +175,9 @@
   /* ink */
   --foreground: #17150f;
   --muted-foreground: #57554f;
-  --faint: #7f7c75;
+  /* Darkened from #7f7c75, the light-theme half of the same AA failure: 3.13:1
+     on --muted. Now 4.59:1 on --muted, 5.46:1 on --background. */
+  --faint: #64625b;
   --dim: #8c887f;
 
   /* rules */

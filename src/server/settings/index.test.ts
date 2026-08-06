@@ -53,6 +53,46 @@ describe("getSettings — precedence: env beats default", () => {
   });
 });
 
+describe("viewCountEnrichPerChannel (M5-U1)", () => {
+  // Enrichment is opt-in: the default is 0, so no sync scrapes a competitor's view counts
+  // until the user sets this. The UI recommends at least 12 (the last12Posts baseline
+  // window) once it is turned on, but the shipped default runs nothing, so a fresh install
+  // never spends burner requests without being asked.
+  test("defaults to 0, opt-in", async () => {
+    const s = await settings.getSettings();
+    expect(s.viewCountEnrichPerChannel).toBe(0);
+  });
+
+  test("a stored row wins, including 0 to turn the pass off", async () => {
+    await writeRow("view_count_enrich_per_channel", "40");
+    expect((await settings.getSettings()).viewCountEnrichPerChannel).toBe(40);
+
+    await db.delete(tables.appSettings);
+    await writeRow("view_count_enrich_per_channel", "0");
+    expect((await settings.getSettings()).viewCountEnrichPerChannel).toBe(0);
+  });
+
+  test("a value past the 200 ceiling is treated as absent", async () => {
+    // The ceiling is a ban-risk guard, not a formality: every unit here is one more live
+    // request per channel per sync from a burner account.
+    await writeRow("view_count_enrich_per_channel", "201");
+    expect((await settings.getSettings()).viewCountEnrichPerChannel).toBe(0);
+  });
+
+  test("validateSetting accepts the range boundaries and rejects outside them", () => {
+    expect(settings.validateSetting("viewCountEnrichPerChannel", 0).ok).toBe(true);
+    expect(settings.validateSetting("viewCountEnrichPerChannel", 200).ok).toBe(true);
+    expect(settings.validateSetting("viewCountEnrichPerChannel", 201).ok).toBe(false);
+    expect(settings.validateSetting("viewCountEnrichPerChannel", -1).ok).toBe(false);
+  });
+
+  test("is reported as wired, because the sync engine reads it", async () => {
+    const view = await settings.getSettingsWithSource();
+    expect(view.viewCountEnrichPerChannel.wired).toBe(true);
+    expect(view.viewCountEnrichPerChannel.value).toBe(0);
+  });
+});
+
 describe("getSettings — precedence: DB beats env", () => {
   test("a stored row wins over the env var for the same key", async () => {
     await writeRow("sync_lookback_days", "7");

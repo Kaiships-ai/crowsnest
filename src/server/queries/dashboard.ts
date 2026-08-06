@@ -291,3 +291,115 @@ export async function getRecentlyViewed(limit = RECENTLY_VIEWED_LIMIT): Promise<
     .filter((item): item is FeedItem => item !== undefined)
     .slice(0, limit);
 }
+
+/** Whole-library sync jobs are keyed on this literal lock, not a real channel id — same
+ *  constant `queries/runs.ts` reads for the same reason (see `channels.lockKey` on
+ *  `sync_jobs` in schema.ts). */
+const LIBRARY_LOCK_KEY = "__library__";
+
+/**
+ * The two halves of stack health this app has to read from its own tables — the last
+ * sync and whatever is still running — for the dashboard's health panel (enhancements
+ * spec M4-U8). The other two signals, the sidecar and the model backend, are live pings
+ * the dashboard already makes; nothing here duplicates them.
+ *
+ * Read only, and no classification: whether a running job counts as stuck is decided by
+ * `components/status/stack-health.ts`'s `selectStuckJobs` against the shared
+ * `evaluateSla` threshold, so this returns every running job and lets that one rule
+ * judge them. The shapes below are structurally the `LastSyncRow` and `RunningJob` that
+ * module declares; the dashboard page passing one into the other is what type-checks
+ * them against each other.
+ */
+type SyncJobStatusText = "running" | "success" | "partial" | "failed";
+
+export interface StackHealth {
+  lastSync: {
+    jobId: string;
+    status: SyncJobStatusText;
+    startedAt: string;
+    finishedAt: string | null;
+    itemsCreated: number;
+    itemsUpdated: number;
+    channelsDone: number | null;
+    channelsTotal: number | null;
+    errorCode: string | null;
+    errorMessage: string | null;
+  } | null;
+  running: {
+    jobId: string;
+    kind: "sync" | "frame_pass";
+    label: string;
+    startedAt: string;
+    heartbeatAt: string | null;
+  }[];
+  /** When these rows were read. Staleness has to be measured against this rather than
+   *  against render time: the panel is a component, and calling a clock inside one is
+   *  both impure (eslint's `react-hooks/purity` rejects it) and the wrong instant to
+   *  compare a heartbeat to. */
+  checkedAtMs: number;
+}
+
+export async function getStackHealth(): Promise<StackHealth> {
+  const [lastSyncRows, runningSyncRows, runningFrameRows] = await Promise.all([
+    db
+      .select({
+        jobId: tables.syncJobs.id,
+        status: tables.syncJobs.status,
+        startedAt: tables.syncJobs.startedAt,
+        finishedAt: tables.syncJobs.finishedAt,
+        itemsCreated: tables.syncJobs.itemsCreated,
+        itemsUpdated: tables.syncJobs.itemsUpdated,
+        channelsDone: tables.syncJobs.channelsDone,
+        channelsTotal: tables.syncJobs.channelsTotal,
+        errorCode: tables.syncJobs.errorCode,
+        errorMessage: tables.syncJobs.errorMessage,
+      })
+      .from(tables.syncJobs)
+      .orderBy(desc(tables.syncJobs.startedAt))
+      .limit(1),
+    db
+      .select({
+        jobId: tables.syncJobs.id,
+        lockKey: tables.syncJobs.lockKey,
+        handle: tables.syncJobs.currentChannelHandle,
+        startedAt: tables.syncJobs.startedAt,
+        heartbeatAt: tables.syncJobs.heartbeatAt,
+      })
+      .from(tables.syncJobs)
+      .where(eq(tables.syncJobs.status, "running")),
+    db
+      .select({
+        jobId: tables.framePassJobs.id,
+        startedAt: tables.framePassJobs.startedAt,
+        heartbeatAt: tables.framePassJobs.heartbeatAt,
+      })
+      .from(tables.framePassJobs)
+      .where(eq(tables.framePassJobs.status, "running")),
+  ]);
+
+  const [lastSync] = lastSyncRows;
+  const checkedAtMs = Date.now();
+
+  return {
+    checkedAtMs,
+    // `status` is a plain text column, narrowed here the same way `runs.ts` narrows it
+    // rather than widening the consumer to accept a bare string.
+    lastSync: lastSync ? { ...lastSync, status: lastSync.status as SyncJobStatusText } : null,
+    running: [
+      ...runningSyncRows.map((row) => ({
+        jobId: row.jobId,
+        kind: "sync" as const,
+        label: row.lockKey === LIBRARY_LOCK_KEY ? "Library sync" : (row.handle ?? "Channel sync"),
+        startedAt: row.startedAt,
+        heartbeatAt: row.heartbeatAt,
+      })),
+      ...runningFrameRows.map((row) => ({
+        jobId: row.jobId,
+        kind: "frame_pass" as const,
+        label: "Frame pass",
+        startedAt: row.startedAt,
+        heartbeatAt: row.heartbeatAt,
+      })),
+    ],
+  };
+}

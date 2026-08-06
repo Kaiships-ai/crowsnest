@@ -136,9 +136,11 @@ export default async function SettingsPage() {
             settings={{
               syncLookbackDays: appSettings.syncLookbackDays,
               maxItemsPerSync: appSettings.maxItemsPerSync,
+              viewCountEnrichPerChannel: appSettings.viewCountEnrichPerChannel,
               syncCadenceMinutes: appSettings.syncCadenceMinutes,
               mediaRetentionDays: appSettings.mediaRetentionDays,
             }}
+            scoreBaselineWindow={appSettings.scoreBaselineWindow.value}
             lastJob={lastJob}
           />
         </div>

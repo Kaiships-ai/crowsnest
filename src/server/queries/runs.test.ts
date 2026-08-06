@@ -192,3 +192,53 @@ describe("getRun", () => {
     expect(detail!.events[0].event).toBe("sync.failed");
   });
 });
+
+describe("getRun — itemsEnriched (M5-U1)", () => {
+  // "A run reports how many it enriched." Read off the sync.enrich.finished events the
+  // pass already emits, which carry a run_id now, so there is no new column and no
+  // migration. One event per channel, so a library sync sums across them.
+  function enrichEvent(runId: string, enriched: number, over: Record<string, unknown> = {}) {
+    insertLogEvent({
+      ts: "2026-08-01T10:02:00.000Z",
+      level: "info",
+      source: "backend",
+      event: "sync.enrich.finished",
+      fields: { channelId: "c1", handle: "@x", candidates: enriched, enriched, skipped: 0, withheld: 0, stopped: false, ...over },
+      runId,
+    });
+  }
+
+  test("sums the enriched counts across a run's channels", () => {
+    const id = seedSyncJob();
+    enrichEvent(id, 12);
+    enrichEvent(id, 5, { channelId: "c2" });
+
+    expect(getRun(id)!.itemsEnriched).toBe(17);
+  });
+
+  test("is null when the pass never ran, and 0 when it ran and wrote nothing", () => {
+    // The distinction this codebase keeps everywhere else: a missing measurement is not a
+    // measured zero. No event means the knob was off or the run was cancelled before the
+    // pass; an event with enriched 0 means it asked and Instagram withheld every count.
+    const off = seedSyncJob();
+    expect(getRun(off)!.itemsEnriched).toBeNull();
+
+    const ranEmpty = seedSyncJob();
+    enrichEvent(ranEmpty, 0, { withheld: 4, candidates: 4 });
+    expect(getRun(ranEmpty)!.itemsEnriched).toBe(0);
+  });
+
+  test("ignores another run's enrichment events", () => {
+    const mine = seedSyncJob();
+    const theirs = seedSyncJob();
+    enrichEvent(theirs, 9);
+
+    expect(getRun(mine)!.itemsEnriched).toBeNull();
+    expect(getRun(theirs)!.itemsEnriched).toBe(9);
+  });
+
+  test("a remix run never reports an enriched count", () => {
+    const id = seedRemixRun();
+    expect(getRun(id)!.itemsEnriched).toBeNull();
+  });
+});

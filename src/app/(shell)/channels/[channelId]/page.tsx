@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ChannelHeader } from "@/components/channels/channel-header";
 import { ChannelPostCalendar } from "@/components/channels/channel-post-calendar";
 import { ChannelVideoGrid } from "@/components/channels/channel-video-grid";
-import { OutlierHistoryChart, ReachByPostBars } from "@/components/channels/outlier-history-chart";
+import { OutlierHistoryChart, ViewsByPostBars } from "@/components/channels/outlier-history-chart";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCompact, formatMultiplier } from "@/lib/format";
 import { getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
@@ -130,7 +130,7 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="mt-4">
-        <ReachByPostBars videos={detail.videos} />
+        <ViewsByPostBars videos={detail.videos} />
       </div>
 
       <div className="mt-4 border-t border-border pt-10">

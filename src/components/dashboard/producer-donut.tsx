@@ -10,9 +10,19 @@ const CIRCUMFERENCE = 2 * Math.PI * 46;
 // escalates score tiers — using it here would assert a "which is more" reading a
 // producer's identity doesn't carry). Same reasoning `fleet-spike-row.tsx` gives for
 // keeping its own marker neutral: amber is reserved for the score, not spent on
-// telling two channels apart. Four neutral surfaces already in the token set, reused
-// rather than inventing a new categorical palette for one dashboard chart.
-const SLICE_COLORS = ["var(--foreground)", "var(--line-strong)", "var(--muted-foreground)", "var(--faint)"];
+// telling two channels apart.
+//
+// The four neutrals used to be spelled out here as `--foreground`, `--line-strong`,
+// `--muted-foreground`, `--faint`. They now come from the named categorical palette in
+// `globals.css`, which aliases those same four, so the values are unchanged and the
+// next chart that needs to tell series apart has something to reach for by name.
+// See DESIGN-SYSTEM.md section 2.1.
+const SLICE_COLORS = [
+  "var(--chart-categorical-1)",
+  "var(--chart-categorical-2)",
+  "var(--chart-categorical-3)",
+  "var(--chart-categorical-4)",
+];
 
 /**
  * "Who produces them" (v1-scope.md P1 list): share of the posts that beat their own

@@ -41,8 +41,17 @@ const SRC_ROOT = join(__dirname, "..", ".."); // .../src
  *     returns.
  *   - media-actions.ts: writes `videoAssetId` / `lastRefreshedAt` only. Verified below,
  *     not just claimed: never `viewCount` or `deletedAt`, so it can never change which
- *     posts or what numbers a score is computed from. */
-const ALLOWED_FILES = new Set(["server/services/sync-engine.ts", "server/actions/media-actions.ts"]);
+ *     posts or what numbers a score is computed from.
+ *   - backfill-view-counts.ts: writes `viewCount` for reels that had none, then calls
+ *     `recomputeChannelScores` for every channel it touched before finalizing its job
+ *     row. Added in M5-U1, and only after this guard caught the write with no recompute
+ *     behind it — which is the whole reason the guard exists. See the test below that
+ *     proves the recompute really runs rather than trusting this comment. */
+const ALLOWED_FILES = new Set([
+  "server/services/sync-engine.ts",
+  "server/actions/media-actions.ts",
+  "server/services/backfill-view-counts.ts",
+]);
 
 function listTsFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {

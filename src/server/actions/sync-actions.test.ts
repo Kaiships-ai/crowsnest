@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
 
 // In-memory DB + migrate, same pattern as db/schema.test.ts.
 beforeAll(async () => {
@@ -473,5 +474,125 @@ describe("cancelSyncAction", () => {
     const result = await cancelSyncAction(jobId);
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.requested).toBe(false);
+  });
+});
+
+/*
+ * These lean on the dead IG_SERVICE_URL set in beforeAll: with nothing listening, a
+ * profile fetch fails for real, which is exactly the "handle did not resolve" case. No
+ * stub client is needed, and the failure arrives through the same IgError path a live
+ * sidecar would use.
+ */
+describe("addChannelAction — requireProfile", () => {
+  async function channelRows(handle: string) {
+    const { db, tables } = await import("../db");
+    const { eq } = await import("drizzle-orm");
+    return db.select().from(tables.channels).where(eq(tables.channels.handle, handle));
+  }
+
+  test("a handle that does not resolve is rejected with a reason, and no row is written", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannelAction } = await import("./sync-actions");
+    migrate();
+
+    const result = await addChannelAction("@ghost_handle", { requireProfile: true });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      // The dialog renders this string, so it has to be a sentence, not an empty shell.
+      expect(result.error.length).toBeGreaterThan(0);
+      expect(result.code).toBeTruthy();
+    }
+    // The point of the unit: the failure is not a half-tracked channel.
+    expect(await channelRows("@ghost_handle")).toHaveLength(0);
+  });
+
+  test("without requireProfile the same failure still writes the thin row first-run depends on", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannelAction } = await import("./sync-actions");
+    migrate();
+
+    const result = await addChannelAction("@thin_row_ok");
+
+    expect(result.ok).toBe(true);
+    const rows = await channelRows("@thin_row_ok");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].syncError).toBeTruthy();
+    expect(rows[0].followerCount).toBeFalsy();
+  });
+
+  test("re-adding an already-tracked handle stays a no-op instead of failing on an unreachable sidecar", async () => {
+    const { db, newId, nowIso, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannelAction } = await import("./sync-actions");
+    migrate();
+
+    const id = newId();
+    await db.insert(tables.channels).values({
+      id,
+      platform: "instagram",
+      handle: "@already_tracked",
+      trackedSince: nowIso(),
+    });
+
+    // Instagram is unreachable here, but the channel is already tracked — there is
+    // nothing to resolve and nothing to reject.
+    const result = await addChannelAction("@already_tracked", { requireProfile: true });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.channelId).toBe(id);
+    expect(await channelRows("@already_tracked")).toHaveLength(1);
+  });
+
+  test("a malformed handle is rejected before the network is touched", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { addChannelAction } = await import("./sync-actions");
+    migrate();
+
+    const result = await addChannelAction("has spaces", { requireProfile: true });
+
+    expect(result.ok).toBe(false);
+    expect(await channelRows("has spaces")).toHaveLength(0);
+  });
+});
+
+describe("startViewCountBackfillAction", () => {
+  test("a sync in flight comes back as a refusal with its own code, not an exception", async () => {
+    // The action boundary must not throw, and the UI has to be able to tell "a sync owns
+    // the upstream right now, try later" apart from a real failure. The backfill yields
+    // to the sync deliberately: see BACKFILL_LOCK_KEY in services/sync-types.ts.
+    const { migrate } = await import("../db/test-migrate");
+    const { db, newId, nowIso, tables } = await import("../db");
+    migrate();
+    await clearJobs();
+    await db.insert(tables.syncJobs).values({
+      id: newId(), channelId: null, lockKey: "__library__",
+      startedAt: nowIso(), heartbeatAt: nowIso(), status: "running",
+    });
+
+    const { startViewCountBackfillAction } = await import("./sync-actions");
+    const result = await startViewCountBackfillAction();
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("BACKFILL_BLOCKED");
+    await clearJobs();
+  });
+
+  test("with nothing running it starts and hands back a job id the run screens can poll", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { db, tables } = await import("../db");
+    migrate();
+    await clearJobs();
+
+    const { startViewCountBackfillAction } = await import("./sync-actions");
+    const result = await startViewCountBackfillAction();
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const [row] = await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId));
+      expect(row).toBeDefined();
+      expect(row.lockKey).toBe("__backfill__");
+    }
+    await clearJobs();
   });
 });

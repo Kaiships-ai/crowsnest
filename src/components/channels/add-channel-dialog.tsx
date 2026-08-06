@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +26,7 @@ import { bridgeAddChannel, bridgeImportReel } from "./sync-bridge";
 // The `platform` column stays in the schema for a future second source.
 
 export function AddChannelDialog() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"handle" | "url">("handle");
   const [handle, setHandle] = useState("");
@@ -45,24 +47,33 @@ export function AddChannelDialog() {
   }
 
   async function submitHandle() {
+    // Clear the previous rejection first, so a retry does not sit under a stale reason
+    // while the new attempt is in flight.
+    setError(null);
     setPending(true);
     const result = await bridgeAddChannel(handle);
     setPending(false);
     if (result.ok) {
       toast.success(`${handle} tracked`);
       onOpenChange(false);
+      // The board behind this dialog is server-rendered, so the new column only appears
+      // after the route re-renders. Without this the add looked like it did nothing until
+      // the user reloaded by hand.
+      router.refresh();
     } else {
       setError(result.error);
     }
   }
 
   async function submitReel() {
+    setError(null);
     setPending(true);
     const result = await bridgeImportReel(reelUrl);
     setPending(false);
     if (result.ok) {
       toast.success("Reel imported");
       onOpenChange(false);
+      router.refresh();
     } else {
       setError(result.error);
     }
@@ -103,7 +114,7 @@ export function AddChannelDialog() {
               </p>
             </div>
             <Button onClick={submitHandle} disabled={!handle || pending}>
-              Track channel
+              {pending ? "Checking handle…" : "Track channel"}
             </Button>
           </TabsContent>
 
@@ -118,7 +129,7 @@ export function AddChannelDialog() {
               />
             </div>
             <Button onClick={submitReel} disabled={!reelUrl || pending}>
-              Import reel
+              {pending ? "Importing…" : "Import reel"}
             </Button>
           </TabsContent>
 

@@ -29,7 +29,7 @@ These are the shipped values from `globals.css`. Dark is the committed default. 
 
 --foreground      #f2f2f0   primary text, numbers
 --muted-foreground #9a9a96  labels, metadata
---faint           #6b6b68   captions, units, timestamps
+--faint           #868682   captions, units, timestamps
 --dim             #55554f   dimmest ink
 
 --primary         #e8a33d   amber, see section 3
@@ -51,6 +51,33 @@ Score tokens (the amber family, magnitude encoding):
 --score-4         #66481a
 --score-5         #463212   dimmest
 ```
+
+### 2.1 Chart palettes
+
+Two palettes, and picking between them is a meaning decision rather than a taste one.
+
+Magnitude uses the score ramp above (`--score-1` through `--score-5`). Reach for it only
+when the thing being encoded really is a magnitude, because that ramp escalates and amber
+means anomaly. The ranking bars are the current example.
+
+Categorical tells series apart when the difference between them carries no ordering. It is
+deliberately neutral: a producer's identity is not a "which is more" reading, so painting it
+amber would spend the score's one meaning on a channel name. The tokens alias the four
+neutral inks instead of adding hues, so the amber law holds by construction.
+
+```
+--chart-categorical-1   = --foreground
+--chart-categorical-2   = --line-strong
+--chart-categorical-3   = --muted-foreground
+--chart-categorical-4   = --faint
+```
+
+They alias rather than copy hex, so the light block in section 10 retunes them with the
+inks and the two sets cannot drift apart. The producer donut is the current consumer. Four
+entries is the honest ceiling: past four distinct neutrals the series stop being separable,
+so a chart with more series folds its tail into "Other" rather than cycling the ramp.
+
+Charts take color from one of these two palettes. No chart declares its own hex.
 
 ## 3. The amber law (most important)
 
@@ -158,7 +185,7 @@ Dark is the committed default and lives on `:root`. Light is an override block (
 --line-strong     #b0aba1
 --foreground      #17150f
 --muted-foreground #57554f
---faint           #7f7c75
+--faint           #64625b
 --dim             #8c887f
 --primary         #a85f00
 --primary-foreground #fbf9f6

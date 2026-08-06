@@ -8,6 +8,9 @@ import { listRuns } from "@/server/queries/runs";
 // RunsList's SSE subscription (useRunStream), not from this route re-rendering.
 export const dynamic = "force-dynamic";
 
+// Topbar already renders this route's h1 ("Runs") — see nav-items/topbar's ROUTE_TITLES
+// — so page content here starts at the run count. Same story as /logs: the heading this
+// page printed was both a second h1 and a literal repeat of the topbar's word.
 export default async function RunsPage() {
   const runs = listRuns();
   // Read once per request, same as every other settings-backed page component (e.g.
@@ -21,7 +24,6 @@ export default async function RunsPage() {
 
   return (
     <div className="p-6">
-      <h1 className="mb-1 text-lg font-semibold">Runs</h1>
       <p className="mb-4 font-mono text-2xs text-faint">{runs.length} runs</p>
       <RunsList seedRuns={runs} syncSlaMinutes={syncSlaMinutes} remixSlaMinutes={remixSlaMinutes} />
     </div>

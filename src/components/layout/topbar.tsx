@@ -9,6 +9,19 @@ import { FailureStrip } from "@/components/sync/failure-strip";
 import { Button } from "@/components/ui/button";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
 
+/**
+ * Every route under `(shell)/` needs an entry here. A route that is missing one does not
+ * fall back to something close, it falls back to "Crowsnest", so the topbar names the app
+ * instead of the page and the h1 stops telling you where you are. /runs, /runs/[runId]
+ * and /logs shipped without entries and read that way.
+ *
+ * Titles for a route that also sits in the rail match NAV_ITEMS' label exactly ("Runs",
+ * "Logs"), so the highlighted rail entry and the heading agree. Detail routes follow the
+ * "Video Detail" / "Channel Detail" convention already set below.
+ *
+ * `first-run` deliberately has no entry: it lives outside the `(shell)` group and never
+ * renders a Topbar at all.
+ */
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Dashboard" },
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix Studio" },
@@ -18,10 +31,15 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/channels$/, title: "Channels" },
   { pattern: /^\/mine$/, title: "My channel" },
   { pattern: /^\/vault$/, title: "Vault" },
+  { pattern: /^\/runs\/[^/]+$/, title: "Run Detail" },
+  { pattern: /^\/runs$/, title: "Runs" },
+  { pattern: /^\/logs$/, title: "Logs" },
   { pattern: /^\/settings$/, title: "Settings" },
 ];
 
-function getPageTitle(pathname: string): string {
+/** Exported for the guard test in topbar.test.ts, which walks the `(shell)` route tree on
+ *  disk and fails if any route still falls through to the "Crowsnest" default. */
+export function getPageTitle(pathname: string): string {
   return ROUTE_TITLES.find((entry) => entry.pattern.test(pathname))?.title ?? "Crowsnest";
 }
 

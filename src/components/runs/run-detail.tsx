@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDuration } from "@/lib/format";
+import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { cn } from "@/lib/utils";
 import { cancelSyncAction } from "@/server/actions/sync-actions";
 import type { LogEventRow, StoredLogLevel } from "@/server/logs/store";
@@ -186,6 +187,15 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
   ];
   if (liveRun.channelsTotal !== null) {
     tiles.push({ key: "channels", label: "Channels", value: `${liveRun.channelsDone ?? 0} / ${liveRun.channelsTotal}` });
+  }
+  // Recomputed from the trace rather than read off `run` so the number moves while a run
+  // is in flight: the SSE stream carries events but its run summaries have no enriched
+  // field. Falls back to the server's value for the first paint, before the stream ticks.
+  // Absent (not zero) when the pass never ran, so the tile does not appear at all rather
+  // than printing a 0 that would read as "asked, and got nothing back".
+  const enriched = enrichedFromEvents(liveEvents) ?? run.itemsEnriched;
+  if (enriched !== null) {
+    tiles.push({ key: "enriched", label: "Enriched", value: String(enriched) });
   }
 
   return (

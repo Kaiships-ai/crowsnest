@@ -792,20 +792,35 @@ describe("runSync — job bookkeeping", () => {
     migrate();
     const { channelId } = await setupChannel("@metrics");
 
-    // First run: Instagram discloses a real view count.
-    await runSync({
-      channelIds: [channelId],
-      client: stubClient({ pages: [{ items: [makeMedia("m1", 1, { viewCount: 2_272_877 })], nextCursor: null, stopReason: "lookback" }] }).client,
-      sleep: noopSleep,
-    });
+    // The enrichment pass is pinned OFF here, and only here, to keep this test about the
+    // one thing it is named for: the LISTING path's null handling. Since M5 the knob
+    // defaults to 12, so a default run also re-reads the newest reels through the
+    // single-media endpoint and writes whatever that returns. That is a deliberate
+    // refresh, not an erasure (see enrichmentCandidates: play counts grow, so the newest
+    // reels are re-read even when they already carry a number), but it is a SECOND writer
+    // of view_count, and with it on this test would be asserting against the stub's flat
+    // STUB_STATS_DEFAULT_VIEW_COUNT rather than against the listing behaviour.
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 0;
+    try {
+      // First run: Instagram discloses a real view count.
+      await runSync({
+        channelIds: [channelId],
+        client: stubClient({ pages: [{ items: [makeMedia("m1", 1, { viewCount: 2_272_877 })], nextCursor: null, stopReason: "lookback" }] }).client,
+        sleep: noopSleep,
+      });
 
-    // Second run: Instagram withholds it (null). Happens constantly for other
-    // creators' reels — it returns 0, which the client maps to null.
-    await runSync({
-      channelIds: [channelId],
-      client: stubClient({ pages: [{ items: [makeMedia("m1", 1, { viewCount: null, likeCount: null })], nextCursor: null, stopReason: "lookback" }] }).client,
-      sleep: noopSleep,
-    });
+      // Second run: Instagram withholds it (null). Happens constantly for other
+      // creators' reels — it returns 0, which the client maps to null.
+      await runSync({
+        channelIds: [channelId],
+        client: stubClient({ pages: [{ items: [makeMedia("m1", 1, { viewCount: null, likeCount: null })], nextCursor: null, stopReason: "lookback" }] }).client,
+        sleep: noopSleep,
+      });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+    }
 
     const row = (await db.select().from(tables.videos).where(eq(tables.videos.externalId, "m1")))[0];
     expect(row.viewCount).toBe(2_272_877);
@@ -2268,29 +2283,29 @@ describe("view count enrichment — ordering and default", () => {
     expect(await recomputeChannelScores(channelId)).toBe(371_200);
   });
 
-  test("the shipped default for the knob is 0", async () => {
-    // Asserted on the config object itself, not on a limit a test happened to pass in.
-    // Off by default is a ban-risk decision — every reel this knob enables is one more
-    // authenticated request per sync from a burner account — and it was the one part of
-    // this feature nothing tested: the limit-0 test below passes just as happily with a
-    // default of 25.
+  test("the shipped default for the knob is 0, opt-in", async () => {
+    // Asserted on the config object and on the setting the engine reads. Enrichment is a
+    // competitor-scraping burner request per reel, so it stays off until the user turns it
+    // on: a fresh install never scrapes without being asked. The UI recommends at least 12
+    // (the last12Posts baseline window) once it is enabled, and the 200 ceiling plus the
+    // pacing bound the cost from there.
     const { config } = await import("../config");
+    const { getSetting } = await import("../settings");
     expect(config.VIEW_COUNT_ENRICH_PER_CHANNEL).toBe(0);
+    expect(await getSetting("viewCountEnrichPerChannel")).toBe(0);
   });
 
-  test("a real runSync with the knob left alone asks Instagram about no reel at all", async () => {
-    // The companion to the assertion above, and the one that covers the shipped BEHAVIOUR
-    // rather than the shipped number: nothing here touches config, so this is what a user
-    // who never set the knob actually gets from a real sync — not one live single-media
-    // request. It deliberately does not claim to isolate the call site's
-    // `VIEW_COUNT_ENRICH_PER_CHANNEL > 0` guard: delete that guard and the pass still asks
-    // about nothing, because `enrichmentCandidates` short-circuits on `limit <= 0`. Two
-    // layers, one property, and the property is the part that matters.
+  test("a real runSync with the knob left alone enriches nothing", async () => {
+    // The companion to the assertion above, covering the shipped BEHAVIOUR: nothing here
+    // touches config or writes a settings row, so this is what a user who never opened
+    // Settings gets from a real sync. With the opt-in default of 0, that is not one
+    // single-media request. Seeded with reels that would be enriched if the knob were on,
+    // so the assertion pins "off", not "no candidates".
     const { migrate } = await import("../db/test-migrate");
     migrate();
-    const { channelId } = await setupChannel("@default-off");
+    const { channelId } = await setupChannel("@default-on");
 
-    const items = [1, 2].map((n) => makeMedia(`enrich-default-off-${n}`, n, { viewCount: null }));
+    const items = Array.from({ length: 20 }, (_, i) => makeMedia(`enrich-default-on-${i + 1}`, i + 1, { viewCount: null }));
     const { client: base } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
     let statsCalls = 0;
     const client = {
@@ -2305,6 +2320,55 @@ describe("view count enrichment — ordering and default", () => {
     await runSync({ channelIds: [channelId], client, sleep: noopSleep });
 
     expect(statsCalls).toBe(0);
+  });
+
+  test("a stored settings row controls the pass, no restart and no env edit", async () => {
+    // The acceptance criterion for M5-U1: "the per-channel count is set in the UI and
+    // takes effect on the next sync". The UI writes an app_settings row, so this drives
+    // the pass from a row alone. config is deliberately left at its default here, which
+    // means a green result cannot come from the env layer.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { db, tables } = await import("../db");
+    const { channelId } = await setupChannel("@settings-row");
+
+    const items = Array.from({ length: 10 }, (_, i) => makeMedia(`enrich-row-${i + 1}`, i + 1, { viewCount: null }));
+    const { client: base } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+    let statsCalls = 0;
+    const client = {
+      ...base,
+      async fetchMediaStats(pk: string) {
+        statsCalls += 1;
+        return base.fetchMediaStats(pk);
+      },
+    } as unknown as IgClient;
+
+    const { runSync } = await import("./sync-engine");
+    const { eq: eqKey } = await import("drizzle-orm");
+    const KEY = "view_count_enrich_per_channel";
+    const setRow = async (value: string) => {
+      await db.delete(tables.appSettings).where(eqKey(tables.appSettings.key, KEY));
+      await db.insert(tables.appSettings).values({ key: KEY, value });
+    };
+
+    try {
+      // A stored row drives the pass regardless of the opt-in default of 0.
+      await setRow("3");
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+      expect(statsCalls).toBe(3);
+
+      // And a row of 0 turns it off outright, which is the escape hatch for anyone worried
+      // about the request budget.
+      statsCalls = 0;
+      await setRow("0");
+      await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+      expect(statsCalls).toBe(0);
+    } finally {
+      // Every test in this file shares one in-memory database, and `migrate()` does not
+      // clear app_settings, so a row left behind here would silently switch the pass off
+      // for every test that runs after this one.
+      await db.delete(tables.appSettings).where(eqKey(tables.appSettings.key, KEY));
+    }
   });
 
   test("a limit of 0 asks about nothing", async () => {
@@ -2477,5 +2541,69 @@ describe("view count enrichment — ordering and default", () => {
     // Other tests in this file run the pass for real, so the filter is on this channel.
     expect(finished.filter((r) => r.fields.includes(channelId))).toEqual([]);
     expect(statsCalls).toBe(0);
+  });
+});
+
+describe("runSync — run_id on log events", () => {
+  test("the per-channel and enrichment events land under the run's id, not just the run-level ones", async () => {
+    // The Runs trace is a query by run_id. Before this, only the handful of emitters that
+    // happened to carry a jobId field (sync.started, sync.finished, sync.failed) were
+    // reachable that way — 3 rows out of 1,689 — so opening a run showed a trace with the
+    // channel work missing. Every event below is emitted from a function that has no jobId
+    // of its own, which is exactly what the threading has to fix.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@run-id");
+    // In the window and not returned by the walk, so softDeleteMissing has a post to bury
+    // and gets to log it. Without this the soft-delete emitter is never exercised.
+    await seedReel(channelId, "run-id-gone", { daysAgo: 2 });
+
+    const items = [makeMedia("run-id-1", 1, { viewCount: null }), makeMedia("run-id-2", 3, { viewCount: null })];
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "lookback" }] });
+
+    const { runSync } = await import("./sync-engine");
+    const { config } = await import("../config");
+    const previousLimit = config.VIEW_COUNT_ENRICH_PER_CHANNEL;
+    config.VIEW_COUNT_ENRICH_PER_CHANNEL = 5;
+    // src/test/setup-env.ts quiets the suite down to `error`, and `activeLevel()` reads the
+    // variable on every emit, so an info-level event is not merely unprinted here — the
+    // logger returns before it ever reaches the store. Most of the trace is info.
+    const previousLogLevel = process.env.LOG_LEVEL;
+    process.env.LOG_LEVEL = "info";
+    let result: Awaited<ReturnType<typeof runSync>>;
+    try {
+      result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    } finally {
+      config.VIEW_COUNT_ENRICH_PER_CHANNEL = previousLimit;
+      process.env.LOG_LEVEL = previousLogLevel;
+    }
+
+    const { queryLogEvents } = await import("../logs/store");
+    const events = queryLogEvents({ runId: result.jobId, levels: ["info", "warn", "error"], limit: 500 }).map((r) => r.event);
+
+    expect(events).toContain("sync.started");
+    expect(events).toContain("sync.channel.started");
+    expect(events).toContain("sync.soft_deleted");
+    expect(events).toContain("sync.enrich.finished");
+    expect(events).toContain("sync.channel.finished");
+    expect(events).toContain("sync.finished");
+  });
+
+  test("a failing channel's error event carries the run's id too", async () => {
+    // The failure path is the one a user actually opens the trace for, and it logs from
+    // syncOneChannel's catch, which is another function with no jobId of its own.
+    const { migrate } = await import("../db/test-migrate");
+    migrate();
+    const { channelId } = await setupChannel("@run-id-failed");
+
+    // Not an IgError, so withRetry rethrows on the first attempt and the channel fails.
+    const { client } = stubClient({ onProfileError: new Error("profile is unreachable") });
+
+    const { runSync } = await import("./sync-engine");
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    const { queryLogEvents } = await import("../logs/store");
+    const failures = queryLogEvents({ runId: result.jobId, levels: ["error"], limit: 500 });
+    expect(failures.map((r) => r.event)).toContain("sync.channel.failed");
   });
 });

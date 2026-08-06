@@ -28,6 +28,24 @@ export interface SettingsNavItem {
   label: string;
 }
 
+/**
+ * The one active section, given every section currently overlapping the observer's
+ * band. Pure so the rule is testable without a scroll container (settings-nav.test.ts),
+ * the same split `instagram-section.tsx`'s `viewStateOf` uses.
+ *
+ * Two sections overlap the band at every boundary — the band is a tenth of the
+ * viewport tall and the observed elements are the full-height section blocks, not
+ * their headers. The lower one wins: its top edge is what just crossed the reading
+ * line, and it's the section filling the screen below. `previous` is kept when the
+ * band is empty, so the highlight never blinks off between two short sections.
+ */
+export function activeSectionId(order: string[], visible: ReadonlySet<string>, previous: string): string {
+  for (let i = order.length - 1; i >= 0; i--) {
+    if (visible.has(order[i])) return order[i];
+  }
+  return previous;
+}
+
 export function SettingsNav({ items }: { items: SettingsNavItem[] }) {
   // Seeded from the URL's own hash (if the page was opened as a deep link) rather than
   // always defaulting to the first item, so a reload of e.g. /settings#scoring shows
@@ -49,11 +67,23 @@ export function SettingsNav({ items }: { items: SettingsNavItem[] }) {
     // rootMargin trims that viewport to a thin band near the top, so "active" tracks
     // whichever section just crossed it rather than whichever happens to be tallest
     // on screen.
+    // The observer reports only the sections whose intersection *changed*, so the
+    // callback alone never sees the whole picture: a section that stayed in the band
+    // is absent from the batch. Accumulating into this set is what makes the answer
+    // depend on where the page is rather than on how it got there. The old code took
+    // the last intersecting entry in the batch, which meant the same scroll position
+    // highlighted a different section going up than going down (measured on
+    // /settings: y=800 gave graph-api scrolling down, instagram scrolling up).
+    const visible = new Set<string>();
+    const order = sections.map((el) => el.id);
+
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.isIntersecting) setActiveId(entry.target.id);
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
         }
+        setActiveId((previous) => activeSectionId(order, visible, previous));
       },
       { rootMargin: "-10% 0px -80% 0px", threshold: 0 }
     );

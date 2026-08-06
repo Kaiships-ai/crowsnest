@@ -5,8 +5,10 @@ import { after } from "next/server";
 import { db, nowIso, tables } from "../db";
 import { log } from "../lib/logger";
 import { IgError, SyncAlreadyRunningError } from "../ig/errors";
+import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
-import { addChannel, importReelByUrl, requestCancel, runSync } from "../services/sync-engine";
+import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } from "../services/sync-engine";
+import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
   SYNC_PHASES,
   type StopReason,
@@ -37,6 +39,9 @@ type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: s
 function toResult(err: unknown): { ok: false; error: string; code?: string } {
   if (err instanceof IgError) return { ok: false, error: err.userMessage, code: err.code };
   if (err instanceof SyncAlreadyRunningError) return { ok: false, error: err.message, code: err.code };
+  // Carries its own code so the UI can say "a sync is running, try again after" rather
+  // than showing a backfill refusal as a generic failure. It is not a fault.
+  if (err instanceof BackfillBlockedError) return { ok: false, error: err.message, code: err.code };
   return { ok: false, error: err instanceof Error ? err.message : String(err) };
 }
 
@@ -168,6 +173,56 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
 
     keepAlive(detached);
     log.info("sync.started.detached", { jobId });
+    return { ok: true, jobId };
+  } catch (err) {
+    return toResult(err);
+  }
+}
+
+/**
+ * Starts the view-count backfill and returns as soon as its job row exists, for the same
+ * reason `startSyncAction` does: the run can take minutes and no browser should hold a
+ * POST open for it. Progress and cancel both go through the ordinary run machinery, since
+ * a backfill IS a `sync_jobs` row — `getSyncProgressAction` and `cancelSyncAction` work on
+ * the returned id unchanged.
+ *
+ * Refuses, rather than queues, while a sync is running. The backfill always yields.
+ */
+export async function startViewCountBackfillAction(): Promise<ActionResult<{ jobId: string }>> {
+  try {
+    let resolveJobId: (id: string | null) => void = () => {};
+    const jobIdKnown = new Promise<string | null>((resolve) => {
+      resolveJobId = resolve;
+    });
+
+    let failure: unknown;
+    const detached = runViewCountBackfill({ onJobStarted: resolveJobId }).then(
+      () => {},
+      async (err: unknown) => {
+        failure = err;
+        resolveJobId(null);
+        log.error("backfill.detached.failed", { code: errorCodeOf(err), message: errorMessageOf(err) });
+      }
+    );
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const jobId = await Promise.race([
+      jobIdKnown,
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), LOCK_TIMEOUT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+
+    if (!jobId) {
+      // The common case here is the deliberate refusal (a sync holds the upstream), which
+      // rejects before a row is ever inserted, so `failure` is set and carries its code.
+      if (failure !== undefined) return toResult(failure);
+      return { ok: false, error: `Backfill did not start within ${LOCK_TIMEOUT_MS}ms`, code: "BACKFILL_NOT_STARTED" };
+    }
+
+    keepAlive(detached);
+    log.info("backfill.started.detached", { jobId });
     return { ok: true, jobId };
   } catch (err) {
     return toResult(err);
@@ -391,10 +446,58 @@ export async function cancelSyncAction(jobId: string): Promise<ActionResult<{ re
 
 // ---------------------------------------------------------------- channels
 
-export async function addChannelAction(handle: string): Promise<ActionResult<{ channelId: string }>> {
+/**
+ * Adds a channel. `requireProfile` picks between the two things callers mean by "add".
+ *
+ * `addChannel()` treats the profile fetch as best-effort: when it fails it still writes a
+ * thin row with syncError set. First-run needs exactly that, because /profile needs a
+ * logged-in sidecar and onboarding collects handles before the login step — see
+ * `components/first-run/sources-step.tsx`. So the default stays lenient.
+ *
+ * The add-channel dialog wants the opposite. A handle that cannot be resolved is usually
+ * a typo, and the old behaviour tracked it anyway while the reason went only to /logs, so
+ * the user got a permanently broken column and no explanation. With `requireProfile` the
+ * fetch is hoisted here, ahead of any insert: it throws, nothing is written, and the
+ * IgError's userMessage is what the dialog shows.
+ *
+ * The resolved profile is then handed back down through the `client` dep, so
+ * `addChannel`'s own `client.profile(handle)` is served from here and the sidecar is
+ * still asked exactly once. The already-tracked check below mirrors `addChannel`'s own
+ * short-circuit for the same reason it exists there: re-adding a live channel is a no-op,
+ * and it should not start failing just because Instagram happens to be unreachable.
+ */
+export async function addChannelAction(
+  handle: string,
+  opts: { requireProfile?: boolean } = {}
+): Promise<ActionResult<{ channelId: string }>> {
   try {
-    return { ok: true, ...(await addChannel({ handle })) };
+    if (!opts.requireProfile) return { ok: true, ...(await addChannel({ handle })) };
+
+    // normalizeHandle throws on junk ("has spaces", a non-Instagram URL) before anything
+    // reaches the network, and gives the fetch below the same string addChannel will use.
+    const normalized = normalizeHandle(handle);
+    const live = await db
+      .select({ id: tables.channels.id })
+      .from(tables.channels)
+      .where(
+        and(
+          eq(tables.channels.platform, "instagram"),
+          eq(tables.channels.handle, normalized),
+          isNull(tables.channels.deletedAt)
+        )
+      )
+      .limit(1);
+    if (live[0]) return { ok: true, channelId: live[0].id };
+
+    const profile = await igClient.profile(normalized);
+    const client: IgClient = { ...igClient, profile: async () => profile };
+    return { ok: true, ...(await addChannel({ handle: normalized }, { client })) };
   } catch (err) {
+    // The old channel.add.profile_failed line was the only record of this; keep a record,
+    // now that the user gets the reason on screen rather than instead of it.
+    if (opts.requireProfile) {
+      log.warn("channel.add.rejected", { handle, code: errorCodeOf(err), message: errorMessageOf(err) });
+    }
     return toResult(err);
   }
 }

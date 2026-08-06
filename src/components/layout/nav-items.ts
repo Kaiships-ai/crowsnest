@@ -20,7 +20,7 @@ export type NavItem = {
 };
 
 /**
- * The 6 fixed nav routes — shared between the sidebar and the ⌘K command
+ * The 8 fixed nav routes — shared between the sidebar and the ⌘K command
  * palette so the two stay in lockstep by construction. Every href here is a
  * constant, on purpose: the palette renders this list as-is with no per-user
  * data behind it.
