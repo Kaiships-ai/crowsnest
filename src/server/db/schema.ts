@@ -129,6 +129,7 @@ export const videos = sqliteTable("videos", {
 }, (t) => [
   uniqueIndex("videos_platform_external").on(t.platform, t.externalId),
   index("videos_channel_posted").on(t.channelId, t.postedAt),
+  index("videos_outlier_score").on(t.outlierScore),
 ]);
 
 /**

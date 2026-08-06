@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { buttonVariants } from "@/components/ui/button";
-import { bandOrAny, first, num, resolveFeedCriteria, type SearchParams } from "@/lib/feed-filters";
+import { bandOrAny, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { getFeedBandCounts, getOutlierFeed, getSavedFilters, type FeedFilters, type FeedSort } from "@/server/queries/feed";
@@ -18,12 +18,24 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
   const [fleets, savedFilters, allChannels] = await Promise.all([getFleets(), getSavedFilters(), getChannelsList()]);
 
-  // A bare /feed visit shows the full raw library — no auto-applied default. Once the URL
-  // carries a *filter* param (see FILTER_PARAM_KEYS in @/lib/feed-filters), that intent
-  // (including an explicit "any", i.e. no condition) is respected as-is. The "Balanced"
-  // saved filter stays user-selectable from the Saved views menu; it just no longer
-  // applies on its own. Cosmetic params (density, view, sort, limit) aren't filters.
-  const { minScore, minViews, sinceDays } = resolveFeedCriteria(sp);
+  // A bare /feed visit opens on the High Conviction view rather than the whole library —
+  // the point of the tool is the outliers, not the archive. `?all=1` is the explicit
+  // escape back to everything. Once the URL carries a *filter* param (see
+  // FILTER_PARAM_KEYS in @/lib/feed-filters), that intent (including an explicit "any",
+  // i.e. no condition) is respected as-is. Cosmetic params (density, view, sort, limit)
+  // aren't filters, so a density toggle alone still reads as bare.
+  //
+  // The criteria come off the seeded saved-filter row, not a literal here, so changing the
+  // seed (src/server/db/bootstrap.ts) moves the default view without touching this page.
+  const applyDefault = shouldApplyDefaultView(sp);
+  const highConviction = savedFilters.find((f) => f.name === "High Conviction")?.criteria as
+    | { minScore?: number; minViews?: number; sinceDays?: number }
+    | undefined;
+
+  const resolved = resolveFeedCriteria(sp);
+  const minScore = applyDefault ? highConviction?.minScore ?? resolved.minScore : resolved.minScore;
+  const minViews = applyDefault ? highConviction?.minViews ?? resolved.minViews : resolved.minViews;
+  const sinceDays = applyDefault ? highConviction?.sinceDays ?? resolved.sinceDays : resolved.sinceDays;
 
   const filters: FeedFilters = {
     fleetId: first(sp.fleet),
@@ -126,20 +138,40 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
             </Link>
           </div>
         ) : filteredZero ? (
+          // With the default view on, the escape has to be /feed?all=1, not a bare /feed —
+          // a bare /feed re-applies High Conviction and lands the user right back on this
+          // same empty state, a loop with no way out.
           <div className="max-w-[52ch] py-16">
-            <p className="text-lg text-foreground">No post matches this slice.</p>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Try widening the score threshold, timeframe, or follower band.
+            <p className="text-lg text-foreground">
+              {applyDefault ? "No post clears the High Conviction bar yet." : "No post matches this slice."}
             </p>
-            <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
-              Clear filters
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {applyDefault
+                ? "Show all posts, or come back once more channels are synced."
+                : "Try widening the score threshold, timeframe, or follower band."}
+            </p>
+            <Link
+              href={applyDefault ? "/feed?all=1" : "/feed"}
+              className={cn(buttonVariants({ variant: "default" }), "mt-8")}
+            >
+              {applyDefault ? "Show all" : "Clear filters"}
             </Link>
           </div>
         ) : (
           <>
-            <p className="mb-3 text-xs text-muted-foreground">
-              <span data-num="1">{total}</span> result{total === 1 ? "" : "s"}
-            </p>
+            <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
+              <span>
+                <span data-num="1">{total}</span> result{total === 1 ? "" : "s"}
+              </span>
+              {applyDefault && (
+                <>
+                  <span className="text-faint">High Conviction view</span>
+                  <Link href="/feed?all=1" className="text-foreground underline underline-offset-2">
+                    Show all
+                  </Link>
+                </>
+              )}
+            </div>
             <FeedGrid items={items} />
             {hasMore && (
               <div className="mt-6 flex justify-center">

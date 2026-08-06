@@ -199,9 +199,9 @@ async function buildWhere(f: WhereFilters): Promise<SQL | undefined> {
 function buildOrderBy(sort: FeedSort) {
   switch (sort) {
     case "score":
-      // SQLite already sorts NULLs last under DESC, but the IS NULL key is kept
-      // explicit per plan spec (Task 1) so intent reads clearly at the call site.
-      return [sql`${tables.videos.outlierScore} IS NULL`, desc(tables.videos.outlierScore)];
+      // SQLite sorts NULLs last under DESC, so this alone matches the old
+      // "IS NULL, DESC" order and lets the videos_outlier_score index do the sort.
+      return [desc(tables.videos.outlierScore)];
     case "views":
       return [desc(tables.videos.viewCount)];
     case "recent":
