@@ -9,6 +9,7 @@ import {
   resolveChipValue,
   resolveFeedCriteria,
   searchParamsFromEntries,
+  shouldApplyDefaultView,
 } from "./feed-filters";
 
 describe("resolveFeedCriteria", () => {
@@ -85,6 +86,32 @@ describe("isFeedEmpty", () => {
   test("true when a filter param is present but empty string (M6, /feed?minScore=)", () => {
     expect(isFeedEmpty({ minScore: "" })).toBe(true);
     expect(isFeedEmpty({ q: "" })).toBe(true);
+  });
+});
+
+describe("shouldApplyDefaultView", () => {
+  test("applies the default on a bare visit", () => {
+    expect(shouldApplyDefaultView({})).toBe(true);
+  });
+
+  test("does not apply when a filter param is present", () => {
+    expect(shouldApplyDefaultView({ minScore: "3" })).toBe(false);
+  });
+
+  test("does not apply when the show-all escape is set", () => {
+    expect(shouldApplyDefaultView({ all: "1" })).toBe(false);
+  });
+
+  test("a cosmetic-only param (sort, density) still counts as bare", () => {
+    expect(shouldApplyDefaultView({ sort: "recent", density: "compact" })).toBe(true);
+  });
+
+  test("the escape survives a Load more click, which carries limit along", () => {
+    expect(shouldApplyDefaultView({ all: "1", limit: "48" })).toBe(false);
+  });
+
+  test("an array-valued all reads its first element", () => {
+    expect(shouldApplyDefaultView({ all: ["1", "0"] })).toBe(false);
   });
 });
 

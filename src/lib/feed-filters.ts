@@ -126,6 +126,20 @@ export function isFeedEmpty(sp: SearchParams): boolean {
   return FILTER_PARAM_KEYS.every((k) => sp[k] === undefined || sp[k] === "");
 }
 
+/**
+ * Whether a bare `/feed` visit should open on the default view (High Conviction) rather
+ * than the whole library. True when no filter param is set and the explicit show-all
+ * escape (`?all=1`) is absent. Cosmetic params (`density`, `view`, `sort`, `limit`) don't
+ * count as filters, so they leave the default in place, matching `isFeedEmpty`.
+ *
+ * `all` deliberately stays out of `FILTER_PARAM_KEYS`: it is an escape, not a slice, so it
+ * must not ride along in `filterQuerySuffix` into a detail page that has no such concept.
+ */
+export function shouldApplyDefaultView(sp: SearchParams): boolean {
+  if (first(sp.all) === "1") return false;
+  return isFeedEmpty(sp);
+}
+
 export interface ResolvedFeedCriteria {
   isEmpty: boolean;
   minScore: number | undefined;
