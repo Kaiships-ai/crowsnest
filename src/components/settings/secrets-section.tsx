@@ -13,11 +13,13 @@
  */
 
 import { useState, useTransition } from "react";
+import { ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { clearSecretAction, getSecretStatusAction, regenerateServiceTokenAction, setSecretAction } from "@/server/actions/secrets-actions";
 import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import type { ManagedSecret, SecretStatus } from "@/server/secrets/store";
@@ -29,7 +31,8 @@ const GROUPS: { id: Group; title: string; description: string }[] = [
   {
     id: "instagram",
     title: "Instagram sidecar",
-    description: "Shared with the local instagrapi sidecar. The service token authenticates requests between this app and the sidecar.",
+    description:
+      "Shared with the local instagrapi sidecar. The service token authenticates requests between this app and the sidecar. Regenerating it invalidates the token a running sidecar is already using, so that sidecar has to be restarted.",
   },
   { id: "graph", title: "Graph API", description: "Powers My channel's own-account Insights (read-only, own account only)." },
 ];
@@ -57,6 +60,9 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
   const [value, setValue] = useState("");
   const [pending, startTransition] = useTransition();
   const [testing, setTesting] = useState(false);
+  // Set only by a regenerate that happened while the sidecar was answering — see
+  // regenerate() below for why the check has to run before the token is replaced.
+  const [sidecarStale, setSidecarStale] = useState(false);
 
   async function refresh() {
     onChanged(await getSecretStatusAction());
@@ -94,12 +100,20 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
 
   function regenerate() {
     startTransition(async () => {
+      // Ask the sidecar whether it's up *before* the token changes. Afterwards the app
+      // is sending a token the running process has never seen, so a health ping fails
+      // and "not running" and "running with the old token" stop being distinguishable
+      // — the second one is the whole reason this warning exists.
+      const sidecarWasRunning = (await getIgStatusAction()).ok;
       const result = await regenerateServiceTokenAction();
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success("Service token regenerated.");
+      // Stays until the page is reloaded: nothing in this component ever learns that
+      // the sidecar was restarted, so clearing it on a timer would only be a guess.
+      setSidecarStale(sidecarWasRunning);
+      toast.success(sidecarWasRunning ? "Service token regenerated. The running sidecar needs a restart." : "Service token regenerated.");
       await refresh();
     });
   }
@@ -149,6 +163,23 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
         </div>
       </div>
 
+      {sidecarStale && (
+        <div className="flex gap-2 border border-border bg-card p-3">
+          <ShieldAlert className="size-4 shrink-0 text-destructive" aria-hidden />
+          <div className="text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">The running sidecar still has the old token.</p>
+            <p className="mt-1">
+              This app switched to the new one immediately, but the sidecar process read its token when it started and won&apos;t pick this
+              up. Until it restarts, syncing fails with <code>IG_SERVICE_UNAUTHORIZED</code> and no channels come back. Restart it from{" "}
+              <a href="#instagram" className="underline underline-offset-2 hover:text-foreground">
+                Instagram
+              </a>{" "}
+              with Stop, then Start.
+            </p>
+          </div>
+        </div>
+      )}
+
       {editing && !isServiceToken && (
         <div className="flex items-center gap-2">
           <Input
@@ -191,8 +222,9 @@ export function SecretsSection({ initialStatus }: { initialStatus: SecretStatus[
       <div>
         <h2 className="text-lg font-semibold">API keys &amp; secrets</h2>
         <p className="text-sm text-muted-foreground">
-          Values set here are stored in the local database and take effect immediately, no restart needed. A value from{" "}
-          <code>.env.local</code> is used until something is set here. No value is ever shown once saved.
+          Values set here are stored in the local database and take effect immediately, with no app restart. A value from{" "}
+          <code>.env.local</code> is used until something is set here. No value is ever shown once saved. The Instagram sidecar is the one
+          exception: it reads its token once at startup.
         </p>
       </div>
 
