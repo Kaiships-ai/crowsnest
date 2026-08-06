@@ -348,7 +348,7 @@ export function FilterBar({
           </Button>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5">
           <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
             <SelectTrigger size="sm" aria-label="Sort" className={FILTER_TRIGGER_CLASS}>
               <SelectValue />
@@ -374,6 +374,11 @@ export function FilterBar({
               <Rows3 className="size-4" />
             </ToggleGroupItem>
           </ToggleGroup>
+
+          {/* A thin divider so the layout toggle and the density toggle read as two
+              separate 2-state groups, not one run of four icons where a selected item in
+              each looks like two-of-four selected. */}
+          <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
 
           {/* Same kind of control as the grid/list toggle above, so it sits right next
               to it (prototype feed.html line 6: comfortable/compact chips beside the
