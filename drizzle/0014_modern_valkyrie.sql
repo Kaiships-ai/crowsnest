@@ -1,0 +1,1 @@
+CREATE INDEX `videos_outlier_score` ON `videos` (`outlier_score`);

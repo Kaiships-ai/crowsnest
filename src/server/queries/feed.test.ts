@@ -1,5 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, test } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // Test-DB pattern (phase-1 final-review M7): the db singleton binds CROWSNEST_DB_PATH
 // at import, so env must be set in beforeAll BEFORE any dynamic import of "@/server/db"
@@ -272,6 +272,23 @@ describe("getOutlierFeed", () => {
 
     expect(blank.total).toBe(2);
     expect(none.total).toBe(2);
+  });
+
+  test("score sort puts real scores desc then nulls last, and uses the outlier_score index", async () => {
+    const channelId = await seedChannel();
+    await seedVideo(channelId, { outlierScore: 5 });
+    await seedVideo(channelId, { outlierScore: 1 });
+    await seedVideo(channelId, { outlierScore: null });
+
+    const { items } = await getOutlierFeed({ sort: "score", limit: 200, offset: 0 });
+    expect(items.map((i) => i.outlierScore)).toEqual([5, 1, null]);
+
+    // Reads the real plan off the same in-memory db: the score sort is the most-run
+    // query in the app, so it must not fall back to a full scan plus a temp b-tree.
+    const plan = db.all(sql`EXPLAIN QUERY PLAN
+      SELECT id FROM videos ORDER BY outlier_score DESC LIMIT 24`) as { detail: string }[];
+    const usesIndex = plan.some((r) => /USING INDEX videos_outlier_score/.test(r.detail));
+    expect(usesIndex).toBe(true);
   });
 });
 
