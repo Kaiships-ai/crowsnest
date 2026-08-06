@@ -131,7 +131,13 @@ export default async function VaultPage({
     <div className="mx-auto flex max-w-[1120px] flex-col gap-10 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.015em]">Vault</h1>
+          {/* Not an h1: Topbar already renders this route's h1 ("Vault") — see
+              nav-items/topbar's ROUTE_TITLES — so the route had two, both reading the
+              same word. Unlike /logs and /runs, which dropped the repeated line
+              outright, this one stays on screen with its classes untouched because it
+              anchors the count line and the search field beside it. It keeps the look
+              and gives up only the heading rank it was wrong to claim. */}
+          <p className="text-xl font-bold tracking-[-0.015em]">Vault</p>
           <p className="mt-3 font-mono text-2xs text-faint">
             {vaultHeaderCopy(
               {
