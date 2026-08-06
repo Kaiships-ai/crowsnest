@@ -22,6 +22,8 @@ export async function GET(request: Request): Promise<Response> {
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false;
+      let lastSent: string | null = null;
+      let ticks = 0;
 
       const tick = () => {
         if (closed) return;
@@ -30,7 +32,16 @@ export async function GET(request: Request): Promise<Response> {
             runs: listRuns(),
             events: runId ? (getRun(runId)?.events ?? []) : null,
           };
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+          const data = JSON.stringify(payload);
+          ticks += 1;
+          if (data !== lastSent) {
+            lastSent = data;
+            controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          } else if (ticks % 15 === 0) {
+            // Nothing changed, but a long-idle SSE connection can be dropped by a proxy.
+            // A comment line (starts with ":") is ignored by EventSource and keeps it open.
+            controller.enqueue(encoder.encode(`: keepalive\n\n`));
+          }
         } catch {
           // A read failure must not kill the stream. The client keeps the last good
           // payload on screen and the next tick retries.
