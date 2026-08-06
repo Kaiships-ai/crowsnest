@@ -37,7 +37,9 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/settings$/, title: "Settings" },
 ];
 
-function getPageTitle(pathname: string): string {
+/** Exported for the guard test in topbar.test.ts, which walks the `(shell)` route tree on
+ *  disk and fails if any route still falls through to the "Crowsnest" default. */
+export function getPageTitle(pathname: string): string {
   return ROUTE_TITLES.find((entry) => entry.pattern.test(pathname))?.title ?? "Crowsnest";
 }
 
