@@ -58,6 +58,14 @@ function buildIdeaUser(opts: {
  * target). Selecting the existing non-discarded row first and updating it by id is the
  * upsert mechanism; the partial index is the DB-level backstop against a race.
  *
+ * The update only fires when the existing row is still untouched (`status === "inbox"`).
+ * Once the user has shortlisted or scripted an idea, a later call for the same video
+ * (the sync's auto-pass runs this per analyzed outlier on every sync) must not rewrite
+ * the concept/angle out from under them — it returns `{ id: existing.id, created: false }`
+ * with the row left exactly as the user left it. A discarded idea doesn't reach this
+ * branch at all: it's excluded by the `ne(status, "discarded")` filter below, so a fresh
+ * "inbox" idea is created after a discard, same as before.
+ *
  * Never throws on a bad LLM reply (malformed structured output, network error, no API
  * key): logs at error level and returns `{ id: "", created: false }` so the sync pass
  * that calls this per analyzed video is never broken by one bad idea.
@@ -94,10 +102,15 @@ export async function generateIdea(videoId: string, opts?: { llm?: LlmClient }):
       .limit(1);
 
     if (existing) {
-      await db
-        .update(tables.idea)
-        .set({ concept: result.concept, angle: result.angle, scoreAtCreation, updatedAt: now })
-        .where(eq(tables.idea.id, existing.id));
+      // Only an untouched "inbox" idea gets rewritten with the fresh concept/angle. Once
+      // the user has shortlisted or scripted it, a later sync's auto-pass must not
+      // clobber what they acted on — leave it as-is and report it as already present.
+      if (existing.status === "inbox") {
+        await db
+          .update(tables.idea)
+          .set({ concept: result.concept, angle: result.angle, scoreAtCreation, updatedAt: now })
+          .where(eq(tables.idea.id, existing.id));
+      }
       return { id: existing.id, created: false };
     }
 
@@ -124,10 +137,10 @@ export async function generateIdea(videoId: string, opts?: { llm?: LlmClient }):
  * {@link generateIdea} on each. "Analyzed" is the v1 boundary — matched with an inner
  * join on `video_analyses`, the same row `generateIdea` itself reads — so a freshly
  * imported or unscored video is never a candidate no matter how high `outlierScore`
- * eventually goes. Newest-first, capped, mirroring `enrichmentCandidates`'s own
- * candidate query in `sync-engine.ts` (`enrichViewCounts`'s template): a channel with a
- * long backlog of past outliers should not spend a whole sync calling the LLM once per
- * row.
+ * eventually goes. Top-scorers-first, capped: the spec's auto pass is "top 20 by score",
+ * so the cap keeps the highest-scoring outliers rather than the newest ones — a channel
+ * with a long backlog of past outliers should not spend a whole sync calling the LLM once
+ * per row, and when it can't cover them all it should cover the best ones first.
  *
  * `shouldStop`/`tick` are optional and consulted once per candidate, the same contract
  * `enrichViewCounts` uses for its own `shouldStop`/`tick` — `sync-engine.ts` wires them
@@ -166,7 +179,7 @@ export async function generateIdeasForNewOutliers(
           isNull(tables.videos.deletedAt)
         )
       )
-      .orderBy(desc(tables.videos.postedAt))
+      .orderBy(desc(tables.videos.outlierScore))
       .limit(cap);
   } catch (err) {
     log.error("idea.auto_pass.candidates_failed", {
