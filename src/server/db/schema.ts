@@ -479,6 +479,26 @@ export const appSettings = sqliteTable("app_settings", {
 });
 
 /**
+ * Single-row persona settings (ideas loop, task 5): audience, voice and do/don't
+ * guidance that grounds idea and script generation. Keyed on the fixed id "default"
+ * rather than a real primary key generator, because there is deliberately only ever
+ * one row — the app has no concept of multiple personas yet.
+ *
+ * `audience` seeds itself from the niche profile (`getNicheProfile()` in
+ * `services/remix.ts`, backed by `app_settings.niche_profile`) the first time
+ * `getPersona()` is read and no row exists yet, so a fresh install already has a
+ * sensible starting point instead of a blank field.
+ */
+export const persona = sqliteTable("persona", {
+  id: text("id").primaryKey(), // always the constant "default"
+  audience: text("audience").notNull().default(""),
+  voice: text("voice").notNull().default(""),
+  doList: text("do_list").notNull().default(""),
+  dontList: text("dont_list").notNull().default(""),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/**
  * Own-channel Instagram Insights (V1 data contracts, contract 1). Reach, saves, shares
  * and the rest of Kai's own performance data, pulled through the Graph API and kept
  * deliberately separate from `channels` / `videos`.
