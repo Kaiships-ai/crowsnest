@@ -456,9 +456,22 @@ export function VideoDetail({
             whole page scrolls in the shell's main, so the beats and the exit actions below
             the tabs flow at full height (the transcript has its own bounded ScrollArea). */}
         <div className="flex min-w-0 flex-1 flex-col">
+          {detail.analysis?.summary ? (
+            <section className="mb-4 border border-border bg-card p-4">
+              <h3 className="mb-1.5 font-mono text-[13px] uppercase tracking-[0.06em] text-faint">Summary</h3>
+              <p className="text-[17px] text-foreground">{detail.analysis.summary}</p>
+            </section>
+          ) : null}
           <Tabs defaultValue="transcript" className="flex flex-col">
             <TabsList>
-              <TabsTrigger value="transcript">Transcript</TabsTrigger>
+              <TabsTrigger value="transcript">
+                Transcript
+                {detail.transcript ? (
+                  <span className="ml-1.5 font-mono text-[12px] text-faint tabular-nums">
+                    {detail.transcript.text.trim().split(/\s+/).filter(Boolean).length} words
+                  </span>
+                ) : null}
+              </TabsTrigger>
               <TabsTrigger value="hook">Hook &amp; structure</TabsTrigger>
               <TabsTrigger value="why">Why it worked</TabsTrigger>
               <TabsTrigger value="layout">Layout</TabsTrigger>

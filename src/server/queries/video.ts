@@ -30,7 +30,11 @@ export interface VideoDetail {
    *  UI needs this flag to say so rather than presenting it as a live post. */
   deletedAt: string | null;
   transcript: { text: string; source: string } | null;
-  analysis: StoredVideoAnalysis | null;
+  // `StoredVideoAnalysis` comes from `rowToAnalysis`, which maps only the fields
+  // `remix.ts` needs (Task 5's reuse) and so drops `summary`. The `select()` above
+  // already reads every `video_analyses` column, including `summary` (Task 1) — this
+  // widened type carries it through without touching the shared mapper.
+  analysis: (StoredVideoAnalysis & { summary: string | null }) | null;
 }
 
 export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
@@ -82,7 +86,7 @@ export async function getVideoDetail(id: string): Promise<VideoDetail | null> {
     children,
     deletedAt,
     transcript: transcriptRow ?? null,
-    analysis: analysisRow ? rowToAnalysis(analysisRow) : null,
+    analysis: analysisRow ? { ...rowToAnalysis(analysisRow), summary: analysisRow.summary } : null,
   };
 }
 
