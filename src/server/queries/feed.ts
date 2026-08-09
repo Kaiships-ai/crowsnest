@@ -15,6 +15,13 @@ export interface FeedFilters {
    *  Case-insensitive substring match. Undefined or blank means no search — this is
    *  the field the command palette's post search and the feed's search box both drive. */
   query?: string;
+  /** Rate, e.g. 0.02 for 2%. Same formula `toFeedItem` uses for the displayed
+   *  `engagementRate` — (likeCount + commentCount) / viewCount — so the filter and the
+   *  shown number never disagree. */
+  minEngagement?: number;
+  /** "yes" scopes to videos with a `video_analyses` row, "no" to videos without one.
+   *  Undefined applies no filter. */
+  analyzed?: "yes" | "no";
   sort: FeedSort;
   limit: number;
   offset: number;
@@ -180,6 +187,19 @@ async function buildWhere(f: WhereFilters): Promise<SQL | undefined> {
       like(tables.channels.displayName, pattern)
     );
     if (clause) conditions.push(clause);
+  }
+  if (typeof f.minEngagement === "number") {
+    // Mirrors toFeedItem's engagement formula exactly: (likeCount + commentCount) /
+    // viewCount. coalesce(...,0) on the counts and nullif(viewCount,0) keep this a plain
+    // SQL comparison (never NULL >= number, which is neither true nor false) while
+    // landing on the same ratio toFeedItem computes for display.
+    conditions.push(
+      sql`(coalesce(${tables.videos.likeCount},0) + coalesce(${tables.videos.commentCount},0)) * 1.0 / nullif(${tables.videos.viewCount},0) >= ${f.minEngagement}`
+    );
+  }
+  if (f.analyzed === "yes" || f.analyzed === "no") {
+    const exists = sql`exists (select 1 from ${tables.videoAnalyses} where ${tables.videoAnalyses.videoId} = ${tables.videos.id})`;
+    conditions.push(f.analyzed === "yes" ? exists : sql`not ${exists}`);
   }
   if (f.fleetId) {
     const rows = await db
