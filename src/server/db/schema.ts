@@ -246,6 +246,36 @@ export const scripts = sqliteTable("scripts", {
   updatedAt: text("updated_at").notNull(),
 });
 
+/**
+ * One row per generated content idea (ideas loop, task 7): `generateIdea` reads a
+ * video's `video_analyses` row plus the single `persona` row and asks the LLM for a
+ * one-line `concept` and a short `angle`. Lives in the "inbox" until Kai shortlists,
+ * scripts, or discards it.
+ *
+ * `idea_source_active` is a partial unique index enforcing "at most one non-discarded
+ * idea per source video" at the database level (`WHERE status != 'discarded'`) —
+ * drizzle-kit (0.31.10) emits the `WHERE` clause for this table correctly (verified in
+ * the generated migration), same as the existing `sync_jobs_lock_running` and
+ * `channels_single_own` partial indexes. `generateIdea` (`services/ideas.ts`) still
+ * does a select-then-update rather than relying on the index to reject a duplicate
+ * INSERT — the index is the backstop, not the upsert mechanism.
+ */
+export const idea = sqliteTable("idea", {
+  id: text("id").primaryKey(),
+  sourceVideoId: text("source_video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
+  concept: text("concept").notNull(),
+  angle: text("angle").notNull(),
+  status: text("status").notNull().default("inbox"), // "inbox" | "shortlisted" | "scripted" | "discarded"
+  notes: text("notes"),
+  scoreAtCreation: real("score_at_creation"),
+  remixSessionId: text("remix_session_id").references(() => remixSessions.id, { onDelete: "set null" }),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [
+  index("idea_status").on(t.status),
+  uniqueIndex("idea_source_active").on(t.sourceVideoId).where(sql`status != 'discarded'`),
+]);
+
 export const savedFilters = sqliteTable("saved_filters", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
