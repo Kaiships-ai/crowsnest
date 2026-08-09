@@ -4,6 +4,7 @@ import { getLlm, type LlmClient } from "@/server/llm/client";
 import { HookOptionsSchema, OutlineSchema, type Outline, type VideoAnalysis } from "@/server/llm/schemas";
 import { getSimilarOutliers } from "./similar";
 import { rowToAnalysis } from "./analyze";
+import { getPersona, type Persona } from "./persona";
 import { HOOK_SYSTEM, OUTLINE_SYSTEM, SCRIPT_SYSTEM, buildHookUser, buildOutlineUser, buildScriptUser } from "./prompts/remix-prompts";
 
 export type RemixStage = "prompt" | "research" | "hook" | "style" | "script";
@@ -249,6 +250,24 @@ export async function buildResearch(id: string): Promise<ResearchNotes> {
 }
 
 /**
+ * Appends the Persona's audience/voice/do/don't (Task 5's `getPersona()`) onto an
+ * already-built prompt `user` string. A post-processing step here rather than a new
+ * parameter on each `build*User()` in `prompts/remix-prompts.ts`: this task's scope is
+ * `remix.ts` only, and those builders' plain-string, framework-free contract is worth
+ * keeping small. Each line is omitted when its field is empty, same as the builders'
+ * own optional `facts` line, so a persona nobody has filled in yet changes nothing about
+ * the prompt.
+ */
+function withPersona(user: string, persona: Persona): string {
+  const lines: string[] = [];
+  if (persona.audience) lines.push(`Audience: ${persona.audience}`);
+  if (persona.voice) lines.push(`Voice: ${persona.voice}`);
+  if (persona.do) lines.push(`Do: ${persona.do}`);
+  if (persona.dont) lines.push(`Don't: ${persona.dont}`);
+  return lines.length > 0 ? `${user}\n${lines.join("\n")}` : user;
+}
+
+/**
  * One Claude call -> HookOptionsSchema (5 hooks). Template comes from a chosen Vault
  * hook item if `opts.vaultItemId` is given, else falls back to the source video's own
  * hookType. Persists the result to `hookOptions`.
@@ -268,12 +287,13 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
 
     const client = opts?.llm ?? getLlm();
     const niche = await getNicheProfile();
+    const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
     const facts = session.researchNotes?.facts || undefined;
 
     const result = await client.generateParsed({
       system: HOOK_SYSTEM,
-      user: buildHookUser({ topic, niche, pattern, facts }),
+      user: withPersona(buildHookUser({ topic, niche, pattern, facts }), persona),
       schema: HookOptionsSchema,
     });
 
@@ -313,13 +333,14 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
 
     const client = opts?.llm ?? getLlm();
     const niche = await getNicheProfile();
+    const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
     const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
     const facts = session.researchNotes?.facts || undefined;
 
     const outline = await client.generateParsed({
       system: OUTLINE_SYSTEM,
-      user: buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }),
+      user: withPersona(buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }), persona),
       schema: OutlineSchema,
     });
 
@@ -364,20 +385,24 @@ export async function generateVariants(
   const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
   const client = opts?.llm ?? getLlm();
   const niche = await getNicheProfile();
+  const persona = await getPersona();
   const facts = session.researchNotes?.facts || undefined;
   const similar = session.researchNotes?.similar?.length
     ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
     : undefined;
 
-  const user = buildScriptUser({
-    topic: session.topic ?? video?.caption ?? "this topic",
-    niche,
-    hook: session.chosenHook ?? "",
-    outline: session.outline ?? { beats: [] },
-    targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
-    facts,
-    similar,
-  });
+  const user = withPersona(
+    buildScriptUser({
+      topic: session.topic ?? video?.caption ?? "this topic",
+      niche,
+      hook: session.chosenHook ?? "",
+      outline: session.outline ?? { beats: [] },
+      targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
+      facts,
+      similar,
+    }),
+    persona
+  );
 
   const settled = await Promise.allSettled(
     Array.from({ length: count }, () => client.generateText({ system: SCRIPT_SYSTEM, user }))
