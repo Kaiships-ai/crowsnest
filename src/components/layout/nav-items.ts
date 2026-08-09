@@ -4,6 +4,7 @@ import {
   Drama,
   Flame,
   LayoutDashboard,
+  Lightbulb,
   ScrollText,
   Settings,
   UserRound,
@@ -37,12 +38,20 @@ export type NavItem = {
  *
  * "Setup" (Task 6) holds Persona and Settings — the two screens that
  * configure how generation behaves rather than showing its output. Settings
- * moved here from System, and Persona is new; Ideas is deliberately NOT
- * added yet, since its route (`/ideas`) doesn't exist until Task 9 and a nav
- * entry with no route behind it is a broken link.
+ * moved here from System, and Persona is new.
+ *
+ * "Ideas" (Task 9) sits in Research right after Feed — the inbox that
+ * `generateIdea` fills from an analyzed outlier, so it belongs beside the
+ * feed it's generated from rather than in Create (nothing lands in Create
+ * until an idea is scripted). Its pending count is real per-user data, so it
+ * is deliberately NOT a field on this array — same reasoning `sidebar.tsx`
+ * already follows for `getStartedItems`: this array stays a constant the
+ * palette can render as-is, and the count is threaded down from
+ * `(shell)/layout.tsx` (`countInboxIdeas()`) as a prop instead.
  */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/feed", label: "Feed", icon: Flame, group: "Research" },
+  { href: "/ideas", label: "Ideas", icon: Lightbulb, group: "Research" },
   { href: "/vault", label: "Vault", icon: Archive, group: "Create" },
   { href: "/channels", label: "Channels", icon: Users, group: "Sources" },
   { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
