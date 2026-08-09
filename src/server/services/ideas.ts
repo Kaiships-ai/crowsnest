@@ -1,4 +1,4 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { getLlm, type LlmClient } from "@/server/llm/client";
 import { IdeaSchema } from "@/server/llm/schemas";
@@ -117,4 +117,85 @@ export async function generateIdea(videoId: string, opts?: { llm?: LlmClient }):
     log.error("idea.generate.failed", { videoId, error: err instanceof Error ? err.message : String(err) });
     return { id: "", created: false };
   }
+}
+
+/**
+ * The sync's auto-generate pass: finds a channel's analyzed outliers and calls
+ * {@link generateIdea} on each. "Analyzed" is the v1 boundary — matched with an inner
+ * join on `video_analyses`, the same row `generateIdea` itself reads — so a freshly
+ * imported or unscored video is never a candidate no matter how high `outlierScore`
+ * eventually goes. Newest-first, capped, mirroring `enrichmentCandidates`'s own
+ * candidate query in `sync-engine.ts` (`enrichViewCounts`'s template): a channel with a
+ * long backlog of past outliers should not spend a whole sync calling the LLM once per
+ * row.
+ *
+ * `shouldStop`/`tick` are optional and consulted once per candidate, the same contract
+ * `enrichViewCounts` uses for its own `shouldStop`/`tick` — `sync-engine.ts` wires them
+ * to `tracker.isCancelRequested`/`tracker.flushIfDue` so a long pass (up to `cap` LLM
+ * calls) still yields to a Stop click and keeps the run's heartbeat alive instead of
+ * running silently to completion. A caller with no tracker (this file's own test, or a
+ * one-off script) simply omits them.
+ *
+ * Never throws: a failure reading candidates, or the run's own tracker callbacks,
+ * ends the pass early rather than escaping — `generateIdea` per row already never
+ * throws on its own account, so nothing here needs a try/catch around it.
+ */
+export async function generateIdeasForNewOutliers(
+  channelId: string,
+  opts: {
+    threshold?: number;
+    cap?: number;
+    llm?: LlmClient;
+    shouldStop?: () => Promise<boolean>;
+    tick?: () => Promise<void>;
+  } = {}
+): Promise<{ candidates: number; created: number; stopped: boolean }> {
+  const threshold = opts.threshold ?? 3;
+  const cap = opts.cap ?? 20;
+
+  let candidates: { id: string }[];
+  try {
+    candidates = await db
+      .select({ id: tables.videos.id })
+      .from(tables.videos)
+      .innerJoin(tables.videoAnalyses, eq(tables.videoAnalyses.videoId, tables.videos.id))
+      .where(
+        and(
+          eq(tables.videos.channelId, channelId),
+          gte(tables.videos.outlierScore, threshold),
+          isNull(tables.videos.deletedAt)
+        )
+      )
+      .orderBy(desc(tables.videos.postedAt))
+      .limit(cap);
+  } catch (err) {
+    log.error("idea.auto_pass.candidates_failed", {
+      channelId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { candidates: 0, created: 0, stopped: true };
+  }
+
+  let created = 0;
+  for (const row of candidates) {
+    try {
+      await opts.tick?.();
+      if (await opts.shouldStop?.()) {
+        return { candidates: candidates.length, created, stopped: true };
+      }
+    } catch (err) {
+      log.error("idea.auto_pass.tracker_failed", {
+        channelId,
+        error: err instanceof Error ? err.message : String(err),
+        candidates: candidates.length,
+        created,
+      });
+      return { candidates: candidates.length, created, stopped: true };
+    }
+
+    const result = await generateIdea(row.id, { llm: opts.llm });
+    if (result.created) created += 1;
+  }
+
+  return { candidates: candidates.length, created, stopped: false };
 }

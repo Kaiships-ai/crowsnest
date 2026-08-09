@@ -8,12 +8,13 @@ let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let generateIdea: typeof import("./ideas")["generateIdea"];
+let generateIdeasForNewOutliers: typeof import("./ideas")["generateIdeasForNewOutliers"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ generateIdea } = await import("./ideas"));
+  ({ generateIdea, generateIdeasForNewOutliers } = await import("./ideas"));
   migrate();
 });
 
@@ -62,6 +63,55 @@ async function seedAnalyzedVideo(opts: { handle: string; score: number }) {
   });
   return { channelId, videoId };
 }
+
+/** One fresh channel with N analyzed videos, one per score in `scores` — same shape as
+ *  `seedAnalyzedVideo` above, just sharing a single channel so the auto pass has more
+ *  than one candidate to filter. */
+async function seedChannelWithAnalyzed(scores: number[]) {
+  const channelId = newId();
+  const now = nowIso();
+  await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@auto-${channelId}`, trackedSince: now });
+
+  const videoIds: string[] = [];
+  for (const score of scores) {
+    const videoId = newId();
+    videoIds.push(videoId);
+    await db.insert(tables.videos).values({
+      id: videoId,
+      channelId,
+      platform: "instagram",
+      externalId: `ideas-auto-${videoId}`,
+      url: "https://example.com/source",
+      caption: "the topic nobody talks about",
+      postedAt: now,
+      durationSec: 30,
+      viewCount: 100_000,
+      outlierScore: score,
+      firstSeenAt: now,
+    });
+    await db.insert(tables.videoAnalyses).values({
+      videoId,
+      hookType: "curiosity-gap",
+      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "cold open with a question" }],
+      formatTags: ["talking-head"],
+      styleTags: ["fast-cut"],
+      whyItWorked: "strong hook",
+      summary: "a creator explains a counterintuitive mechanism",
+      model: "claude-sonnet-5",
+      createdAt: now,
+    });
+  }
+  return { channelId, videoIds };
+}
+
+describe("generateIdeasForNewOutliers", () => {
+  test("the auto pass covers analyzed outliers at or above the threshold", async () => {
+    const { channelId } = await seedChannelWithAnalyzed([5, 2, 4]);
+    await generateIdeasForNewOutliers(channelId, { threshold: 3, cap: 20, llm: fakeLlm() });
+    const rows = await db.select().from(tables.idea);
+    expect(rows.length).toBe(2);
+  });
+});
 
 describe("generateIdea", () => {
   test("writes one idea from the analysis and persona", async () => {
