@@ -187,6 +187,7 @@ export const videoAnalyses = sqliteTable("video_analyses", {
   formatTags: text("format_tags", { mode: "json" }).$type<string[]>(),
   styleTags: text("style_tags", { mode: "json" }).$type<string[]>(),
   whyItWorked: text("why_it_worked"),
+  summary: text("summary"),
   model: text("model"),
   createdAt: text("created_at").notNull(),
 
