@@ -274,6 +274,44 @@ describe("getOutlierFeed", () => {
     expect(none.total).toBe(2);
   });
 
+  test("minEngagement filters by engagement rate, using the same (likeCount+commentCount)/viewCount formula as toFeedItem", async () => {
+    const channelId = await seedChannel();
+    const eng10 = await seedVideo(channelId, { viewCount: 1000, likeCount: 80, commentCount: 20 }); // 10%
+    const eng1 = await seedVideo(channelId, { viewCount: 1000, likeCount: 5, commentCount: 5 }); // 1%
+    const eng6 = await seedVideo(channelId, { viewCount: 1000, likeCount: 40, commentCount: 20 }); // 6%
+
+    const { items } = await getOutlierFeed({ minEngagement: 0.05, sort: "recent", limit: 200, offset: 0 });
+    const ids = items.map((i) => i.videoId).sort();
+
+    expect(ids).toEqual([eng10, eng6].sort());
+    expect(ids).not.toContain(eng1);
+  });
+
+  test("minEngagement excludes a row with a null count even at a high view count, matching toFeedItem's null engagementRate for it", async () => {
+    const channelId = await seedChannel();
+    const nullLikes = await seedVideo(channelId, { viewCount: 1_000_000, likeCount: null, commentCount: 20 });
+    const nullComments = await seedVideo(channelId, { viewCount: 1_000_000, likeCount: 20, commentCount: null });
+
+    const { items } = await getOutlierFeed({ minEngagement: 0.0001, sort: "recent", limit: 200, offset: 0 });
+    const ids = items.map((i) => i.videoId);
+
+    expect(ids).not.toContain(nullLikes);
+    expect(ids).not.toContain(nullComments);
+  });
+
+  test("analyzed=yes returns only videos with a video_analyses row; analyzed=no returns only videos without one", async () => {
+    const channelId = await seedChannel();
+    const withAnalysis = await seedVideo(channelId);
+    const withoutAnalysis = await seedVideo(channelId);
+    await db.insert(tables.videoAnalyses).values({ videoId: withAnalysis, createdAt: nowIso() });
+
+    const yes = await getOutlierFeed({ analyzed: "yes", sort: "recent", limit: 200, offset: 0 });
+    expect(yes.items.map((i) => i.videoId)).toEqual([withAnalysis]);
+
+    const no = await getOutlierFeed({ analyzed: "no", sort: "recent", limit: 200, offset: 0 });
+    expect(no.items.map((i) => i.videoId)).toEqual([withoutAnalysis]);
+  });
+
   test("score sort puts real scores desc then nulls last, and uses the outlier_score index", async () => {
     const channelId = await seedChannel();
     await seedVideo(channelId, { outlierScore: 5 });

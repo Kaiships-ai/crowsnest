@@ -45,6 +45,8 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
     sinceDays,
     followerBand: bandOrAny(sp.band),
     query: first(sp.q),
+    minEngagement: resolved.minEngagement,
+    analyzed: resolved.analyzed,
     sort: (first(sp.sort) as FeedSort | undefined) ?? "score",
     limit: num(sp.limit) ?? DEFAULT_LIMIT,
     offset: 0,

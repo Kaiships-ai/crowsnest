@@ -15,6 +15,13 @@ export interface FeedFilters {
    *  Case-insensitive substring match. Undefined or blank means no search — this is
    *  the field the command palette's post search and the feed's search box both drive. */
   query?: string;
+  /** Rate, e.g. 0.02 for 2%. Same formula `toFeedItem` uses for the displayed
+   *  `engagementRate` — (likeCount + commentCount) / viewCount — so the filter and the
+   *  shown number never disagree. */
+  minEngagement?: number;
+  /** "yes" scopes to videos with a `video_analyses` row, "no" to videos without one.
+   *  Undefined applies no filter. */
+  analyzed?: "yes" | "no";
   sort: FeedSort;
   limit: number;
   offset: number;
@@ -180,6 +187,24 @@ async function buildWhere(f: WhereFilters): Promise<SQL | undefined> {
       like(tables.channels.displayName, pattern)
     );
     if (clause) conditions.push(clause);
+  }
+  if (typeof f.minEngagement === "number") {
+    // Mirrors toFeedItem's engagement formula exactly: engagement is defined only when
+    // likeCount, commentCount, and viewCount are all present and viewCount > 0 — the
+    // same three conditions toFeedItem checks before computing (likeCount + commentCount)
+    // / viewCount. Every other case (any count null, or viewCount null/0) is undefined,
+    // matching toFeedItem's `null`. A CASE that falls through to `else null` makes this
+    // explicit rather than relying on coalesce()-to-zero, which would let a row with a
+    // null count pass the filter even though it shows no engagement number in the UI.
+    // SQL `NULL >= x` is neither true nor false, so the row is excluded, same as a null
+    // engagementRate never satisfying "at least this rate" on the card.
+    conditions.push(
+      sql`case when ${tables.videos.likeCount} is not null and ${tables.videos.commentCount} is not null and ${tables.videos.viewCount} > 0 then (${tables.videos.likeCount} + ${tables.videos.commentCount}) * 1.0 / ${tables.videos.viewCount} else null end >= ${f.minEngagement}`
+    );
+  }
+  if (f.analyzed === "yes" || f.analyzed === "no") {
+    const exists = sql`exists (select 1 from ${tables.videoAnalyses} where ${tables.videoAnalyses.videoId} = ${tables.videos.id})`;
+    conditions.push(f.analyzed === "yes" ? exists : sql`not ${exists}`);
   }
   if (f.fleetId) {
     const rows = await db

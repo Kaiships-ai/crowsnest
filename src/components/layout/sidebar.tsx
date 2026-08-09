@@ -115,9 +115,15 @@ const RAIL_COLLAPSED = "w-14";
 
 export interface SidebarProps {
   getStartedItems: GetStartedItem[];
+  /** `countInboxIdeas()`, read once per full navigation by `(shell)/layout.tsx` — same
+   *  flow `getStartedItems` already uses to get real per-user data into this otherwise
+   *  static rail (see nav-items.ts's module doc for why the count isn't a NAV_ITEMS
+   *  field). Rendered only on the Ideas item, and only as a plain count — DESIGN-SYSTEM.md
+   *  §3 bans amber on a sidebar count badge, so this is neutral text, never a color. */
+  ideasInboxCount: number;
 }
 
-export function Sidebar({ getStartedItems }: SidebarProps) {
+export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -235,7 +241,20 @@ export function Sidebar({ getStartedItems }: SidebarProps) {
                 )}
               >
                 <Icon className="size-4 shrink-0" />
-                {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
+                {!collapsed && (
+                  <>
+                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                    {/* Count only, never amber (DESIGN-SYSTEM.md §3: "Logo, checklist,
+                        progress bar, sidebar count badge" are banned amber surfaces).
+                        Hidden at zero — an empty inbox needs no badge to say so, matching
+                        1.3 "silence is the default". */}
+                    {item.href === "/ideas" && ideasInboxCount > 0 && (
+                      <span className="shrink-0 rounded-none bg-popover px-1.5 py-0.5 font-mono text-2xs tabular-nums text-muted-foreground">
+                        {ideasInboxCount}
+                      </span>
+                    )}
+                  </>
+                )}
               </Link>
             </div>
           );

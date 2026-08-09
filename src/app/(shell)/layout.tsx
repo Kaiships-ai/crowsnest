@@ -9,6 +9,7 @@ import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
 import { getDashboardStats } from "@/server/queries/dashboard";
+import { countInboxIdeas } from "@/server/queries/ideas";
 import { getSavedPosts } from "@/server/queries/saved-posts";
 
 // Same reasoning as `(shell)/page.tsx`'s own `force-dynamic`: a layout has no route
@@ -31,16 +32,19 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const gate = await getFirstRunGate();
   if (gate.redirectToFirstRun) redirect("/first-run");
 
-  // Three independent reads, none dependent on the others — the same "one Promise.all"
+  // Four independent reads, none dependent on the others — the same "one Promise.all"
   // shape (shell)/page.tsx uses for its own queries. `getDashboardStats` and
   // `getSavedPosts` are reused as-is rather than duplicated in a leaner form: this is a
   // rendering-layer pass, and at this app's single-user/local-SQLite scale a couple of
   // extra count queries on a full navigation is not a real cost. See sidebar.tsx and
-  // get-started-checklist.tsx for what each result backs.
-  const [strip, stats, savedPosts] = await Promise.all([
+  // get-started-checklist.tsx for what each result backs. `countInboxIdeas` backs the
+  // Ideas nav item's pending count (Task 9) — see nav-items.ts's module doc for why that
+  // count is threaded down as a prop instead of living on NAV_ITEMS itself.
+  const [strip, stats, savedPosts, ideasInboxCount] = await Promise.all([
     getFailureStrip(),
     getDashboardStats(),
     getSavedPosts(),
+    countInboxIdeas(),
   ]);
 
   // Four real facts, not the prototype's four session flags — see
@@ -61,7 +65,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
           pixel that isn't rail. A fixed grid column would have kept the old 240px
           gutter reserved even after the rail collapsed to an icon strip. */}
       <div className="flex h-screen">
-        <Sidebar getStartedItems={getStartedItems} />
+        <Sidebar getStartedItems={getStartedItems} ideasInboxCount={ideasInboxCount} />
         <div className="flex h-full min-w-0 flex-1 flex-col">
           <Topbar strip={strip} />
           <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

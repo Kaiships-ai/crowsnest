@@ -27,6 +27,7 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix Studio" },
   { pattern: /^\/feed\/[^/]+$/, title: "Video Detail" },
   { pattern: /^\/feed$/, title: "Outlier Feed" },
+  { pattern: /^\/ideas$/, title: "Ideas" },
   { pattern: /^\/channels\/[^/]+$/, title: "Channel Detail" },
   { pattern: /^\/channels$/, title: "Channels" },
   { pattern: /^\/mine$/, title: "My channel" },
@@ -34,6 +35,7 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/runs\/[^/]+$/, title: "Run Detail" },
   { pattern: /^\/runs$/, title: "Runs" },
   { pattern: /^\/logs$/, title: "Logs" },
+  { pattern: /^\/persona$/, title: "Persona" },
   { pattern: /^\/settings$/, title: "Settings" },
 ];
 

@@ -6,6 +6,7 @@ import { igClient, type IgClient, type IgMedia, type IgMediaStats } from "../ig/
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
+import { generateIdeasForNewOutliers } from "./ideas";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
 import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
@@ -1399,6 +1400,23 @@ async function syncOneChannel(
       followerCount: profile.followerCount,
       medianViews,
     });
+
+    // After scoring, same reasoning as the enrichment gate above: this pass reads
+    // `videos.outlier_score`, which `recomputeChannelScores` just wrote, and the same
+    // Stop click that should not buy the enrichment pass more live requests should not
+    // buy this one more LLM calls either. `generateIdeasForNewOutliers` never throws, so
+    // unlike the page walk above there is nothing here to catch — the same guarantee
+    // `enrichViewCounts` makes for itself.
+    if (stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
+      const ideas = await generateIdeasForNewOutliers(channel.id, {
+        shouldStop: () => tracker.isCancelRequested(),
+        // One heartbeat per candidate idea, same contract as the enrichment pass's own
+        // `tick`: reuses the "scoring" phase so the run doesn't appear to sit on a phase
+        // it already finished.
+        tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
+      });
+      log.info("sync.ideas.finished", { channelId: channel.id, handle: channel.handle, ...ideas }, runId);
+    }
 
     log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters }, runId);
     return { counters, stopReason };

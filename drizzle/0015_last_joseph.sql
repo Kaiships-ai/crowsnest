@@ -1,0 +1,1 @@
+ALTER TABLE `video_analyses` ADD `summary` text;

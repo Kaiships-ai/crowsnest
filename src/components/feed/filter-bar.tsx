@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Grid2x2, Grid3x3, LayoutGrid, Rows3, Search, Settings2, X } from "lucide-react";
+import { Grid2x2, Grid3x3, LayoutGrid, Plus, Rows3, Search, Settings2, X } from "lucide-react";
 
+import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ManageSavedViewsDialog } from "@/components/feed/manage-saved-views-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +51,21 @@ const VIEWS_OPTIONS = [
   { value: "500000", label: "500K+ views" },
   { value: "1000000", label: "1M+ views" },
 ];
+const ENGAGEMENT_OPTIONS = [
+  { value: "any", label: "Any engagement" },
+  { value: "2", label: "2%+" },
+  { value: "5", label: "5%+" },
+  { value: "8", label: "8%+" },
+];
+// Not a Select — Analyzed/Unanalyzed is its own persistent two-state row (task-4 brief),
+// same "first-class control, not a menu" treatment the follower band row already gets
+// below. Selected state is `bg-card text-foreground`, never amber: amber is reserved for
+// the outlier multiplier (HANDOFF.md "amber = the multiplier"), and this is a plain
+// on/off filter state, not a score.
+const ANALYZED_OPTIONS = [
+  { value: "yes", label: "Analyzed" },
+  { value: "no", label: "Unanalyzed" },
+];
 const SINCE_OPTIONS = [
   { value: "any", label: "Any timeframe" },
   { value: "7", label: "Last 7d" },
@@ -83,9 +99,10 @@ const CRITERIA_TO_PARAM: Record<(typeof PRESET_CRITERIA_KEYS)[number], string> =
 };
 
 // Selects whose "any"/clear option must persist as an explicit `key=any` URL token
-// rather than deleting the key (fix 1b) — score, views, timeframe, and follower band.
-// Fleet's "all channels" placeholder is deliberately not in this set (see `set` below).
-const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band"]);
+// rather than deleting the key (fix 1b) — score, views, timeframe, follower band, and
+// engagement. Fleet's "all channels" placeholder is deliberately not in this set (see
+// `set` below).
+const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band", "minEng"]);
 
 // Filters read as current state, not a form to fill in (brief): plain text with a
 // chevron, no input-style border, until opened or hovered. Matches the prototype's
@@ -115,6 +132,7 @@ export function FilterBar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [manageViewsOpen, setManageViewsOpen] = useState(false);
+  const [addVideoOpen, setAddVideoOpen] = useState(false);
 
   const urlQuery = searchParams.get("q") ?? "";
   // Local echo of the search box so typing feels instant; the URL (and therefore the
@@ -209,6 +227,11 @@ export function FilterBar({
   const minScore = resolveChipValue(searchParams.get("minScore"), applied.minScore);
   const minViews = resolveChipValue(searchParams.get("minViews"), applied.minViews);
   const since = resolveChipValue(searchParams.get("since"), applied.sinceDays);
+  // No applied-side fallback for engagement (unlike score/views/timeframe): no saved
+  // preset constrains it, so the URL's own token — or "any" absent one — is the whole
+  // story.
+  const minEng = resolveChipValue(searchParams.get("minEng"), null);
+  const analyzed = searchParams.get("analyzed") ?? "all";
   const band = searchParams.get("band") ?? "any";
   const sort = searchParams.get("sort") ?? "score";
   const view = searchParams.get("view") ?? "grid";
@@ -289,6 +312,19 @@ export function FilterBar({
           </SelectContent>
         </Select>
 
+        <Select items={ENGAGEMENT_OPTIONS} value={minEng} onValueChange={(v) => set("minEng", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum engagement" className={FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ENGAGEMENT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         <Select items={SINCE_OPTIONS} value={since} onValueChange={(v) => set("since", v as string)}>
           <SelectTrigger size="sm" aria-label="Timeframe" className={FILTER_TRIGGER_CLASS}>
             <SelectValue />
@@ -301,6 +337,31 @@ export function FilterBar({
             ))}
           </SelectContent>
         </Select>
+
+        {/* Two-state segmented control, not a Select — mirrors the layout/density toggles
+            below rather than the four dropdown chips above it, since there's no "any"
+            third state to pick from a menu: the clear action is re-clicking the active
+            one. Selected state is `bg-card text-foreground` (amber law: amber names the
+            multiplier, never a plain filter's on-state). */}
+        <div className="flex items-center gap-0.5 rounded-lg p-0.5" role="group" aria-label="Analyzed status">
+          {ANALYZED_OPTIONS.map((o) => {
+            const active = analyzed === o.value;
+            return (
+              <button
+                key={o.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => set("analyzed", active ? "all" : o.value)}
+                className={cn(
+                  "h-7 rounded-[min(var(--radius-md),10px)] px-2 text-sm transition-colors",
+                  active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card hover:text-foreground",
+                )}
+              >
+                {o.label}
+              </button>
+            );
+          })}
+        </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -347,6 +408,19 @@ export function FilterBar({
             <X /> Clear filters
           </Button>
         )}
+
+        {/* Opens the same single-reel import as the Channels board's "Add channel" ->
+            "Paste reel URL" tab (add-channel-dialog.tsx) — that dialog is now controllable
+            from here (open/onOpenChange/initialTab) rather than this button driving a
+            second call to bridgeImportReel itself. */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setAddVideoOpen(true)}
+          className="rounded-full text-muted-foreground hover:text-foreground"
+        >
+          <Plus /> Add video URL
+        </Button>
 
         <div className="ml-auto flex items-center gap-1.5">
           <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
@@ -437,6 +511,8 @@ export function FilterBar({
         savedFilters={savedFilters}
         currentCriteria={viewCriteria}
       />
+
+      <AddChannelDialog open={addVideoOpen} onOpenChange={setAddVideoOpen} initialTab="url" showTrigger={false} />
     </div>
   );
 }

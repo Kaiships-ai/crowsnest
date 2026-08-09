@@ -88,7 +88,7 @@ export default async function SettingsPage() {
           instead of pushing the nav out of the sticky column it needs to stay in. */}
       <div className="flex min-w-0 flex-1 flex-col">
         <div id="niche-profile" className="scroll-mt-6 border-b border-border pb-8">
-          <NicheProfileSection initialNiche={nicheSettings.niche} initialKeywords={nicheSettings.keywords} />
+          <NicheProfileSection initialNiche={nicheSettings.niche} />
         </div>
 
         <div id="instagram" className="scroll-mt-6 border-b border-border py-8">
