@@ -287,6 +287,18 @@ describe("getOutlierFeed", () => {
     expect(ids).not.toContain(eng1);
   });
 
+  test("minEngagement excludes a row with a null count even at a high view count, matching toFeedItem's null engagementRate for it", async () => {
+    const channelId = await seedChannel();
+    const nullLikes = await seedVideo(channelId, { viewCount: 1_000_000, likeCount: null, commentCount: 20 });
+    const nullComments = await seedVideo(channelId, { viewCount: 1_000_000, likeCount: 20, commentCount: null });
+
+    const { items } = await getOutlierFeed({ minEngagement: 0.0001, sort: "recent", limit: 200, offset: 0 });
+    const ids = items.map((i) => i.videoId);
+
+    expect(ids).not.toContain(nullLikes);
+    expect(ids).not.toContain(nullComments);
+  });
+
   test("analyzed=yes returns only videos with a video_analyses row; analyzed=no returns only videos without one", async () => {
     const channelId = await seedChannel();
     const withAnalysis = await seedVideo(channelId);

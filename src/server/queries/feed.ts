@@ -189,12 +189,17 @@ async function buildWhere(f: WhereFilters): Promise<SQL | undefined> {
     if (clause) conditions.push(clause);
   }
   if (typeof f.minEngagement === "number") {
-    // Mirrors toFeedItem's engagement formula exactly: (likeCount + commentCount) /
-    // viewCount. coalesce(...,0) on the counts and nullif(viewCount,0) keep this a plain
-    // SQL comparison (never NULL >= number, which is neither true nor false) while
-    // landing on the same ratio toFeedItem computes for display.
+    // Mirrors toFeedItem's engagement formula exactly: engagement is defined only when
+    // likeCount, commentCount, and viewCount are all present and viewCount > 0 — the
+    // same three conditions toFeedItem checks before computing (likeCount + commentCount)
+    // / viewCount. Every other case (any count null, or viewCount null/0) is undefined,
+    // matching toFeedItem's `null`. A CASE that falls through to `else null` makes this
+    // explicit rather than relying on coalesce()-to-zero, which would let a row with a
+    // null count pass the filter even though it shows no engagement number in the UI.
+    // SQL `NULL >= x` is neither true nor false, so the row is excluded, same as a null
+    // engagementRate never satisfying "at least this rate" on the card.
     conditions.push(
-      sql`(coalesce(${tables.videos.likeCount},0) + coalesce(${tables.videos.commentCount},0)) * 1.0 / nullif(${tables.videos.viewCount},0) >= ${f.minEngagement}`
+      sql`case when ${tables.videos.likeCount} is not null and ${tables.videos.commentCount} is not null and ${tables.videos.viewCount} > 0 then (${tables.videos.likeCount} + ${tables.videos.commentCount}) * 1.0 / ${tables.videos.viewCount} else null end >= ${f.minEngagement}`
     );
   }
   if (f.analyzed === "yes" || f.analyzed === "no") {
