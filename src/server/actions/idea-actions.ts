@@ -3,6 +3,7 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
 import { generateIdea } from "../services/ideas";
+import { seedSessionFromIdea } from "../services/remix";
 
 /**
  * Server actions backing the ideas loop: the manual "Generate idea" trigger (a video's
@@ -73,6 +74,21 @@ export async function setIdeaStatusAction(id: string, status: string): Promise<S
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "IDEA_STATUS_UNKNOWN" };
+  }
+}
+
+/**
+ * The Ideas inbox's "Create script" button: seeds (or reuses) a remix session from an
+ * idea and marks it scripted, via `seedSessionFromIdea`. Wraps that function's own
+ * "idea not found" throw into the same `ok: false` shape every other action here
+ * uses, rather than letting it cross the server-action boundary as an exception.
+ */
+export async function createScriptFromIdeaAction(id: string): Promise<ActionResult<{ sessionId: string }>> {
+  try {
+    const sessionId = await seedSessionFromIdea(id);
+    return { ok: true, sessionId };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "IDEA_CREATE_SCRIPT_FAILED" };
   }
 }
 

@@ -16,12 +16,13 @@ let generateOutline: typeof import("./remix")["generateOutline"];
 let generateVariants: typeof import("./remix")["generateVariants"];
 let saveScript: typeof import("./remix")["saveScript"];
 let quickRemix: typeof import("./remix")["quickRemix"];
+let seedSessionFromIdea: typeof import("./remix")["seedSessionFromIdea"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOrCreateSession, updateStage, buildResearch, generateHooks, generateOutline, generateVariants, saveScript, quickRemix } =
+  ({ getOrCreateSession, updateStage, buildResearch, generateHooks, generateOutline, generateVariants, saveScript, quickRemix, seedSessionFromIdea } =
     await import("./remix"));
 });
 
@@ -65,6 +66,39 @@ async function seedVideo(opts: { withTranscript?: boolean; withAnalysis?: boolea
   }
   return { channelId, videoId };
 }
+
+/** Fresh idea row (+ its source video), unique per test — mirrors seedVideo's shape. */
+async function seedIdea(opts: { concept: string }) {
+  const { videoId } = await seedVideo();
+  const ideaId = newId();
+  const now = nowIso();
+  await db.insert(tables.idea).values({
+    id: ideaId,
+    sourceVideoId: videoId,
+    concept: opts.concept,
+    angle: "a short angle",
+    status: "inbox",
+    scoreAtCreation: 8,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { ideaId, videoId };
+}
+
+describe("seedSessionFromIdea", () => {
+  test("createScriptFromIdea seeds a remix session and marks the idea scripted", async () => {
+    const { ideaId, videoId } = await seedIdea({ concept: "Expose the synthetic swap" });
+    const sessionId = await seedSessionFromIdea(ideaId);
+
+    const [session] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, sessionId));
+    expect(session.sourceVideoId).toBe(videoId);
+    expect(session.topic).toContain("synthetic swap");
+
+    const [idea] = await db.select().from(tables.idea).where(eq(tables.idea.id, ideaId));
+    expect(idea.status).toBe("scripted");
+    expect(idea.remixSessionId).toBe(sessionId);
+  });
+});
 
 describe("getOrCreateSession", () => {
   test("reuses the latest session for a video; a different video gets its own", async () => {

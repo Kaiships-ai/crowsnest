@@ -488,6 +488,29 @@ export async function saveScript(id: string, content: string, title: string): Pr
 }
 
 /**
+ * The Ideas inbox's "Create script" action (Task 10): reads the idea, seeds/reuses a
+ * remix session for its source video (`getOrCreateSession`), seeds that session's
+ * topic from the idea's concept, then marks the idea `scripted` and links it to the
+ * session — the same `remixSessionId` FK `saveScript` sets on a finished script, so an
+ * idea and the session it spawned stay traceable to each other from the moment it's
+ * created, not only once a script is saved.
+ */
+export async function seedSessionFromIdea(ideaId: string): Promise<string> {
+  const [idea] = await db.select().from(tables.idea).where(eq(tables.idea.id, ideaId)).limit(1);
+  if (!idea) throw new Error(`Idea not found: ${ideaId}`);
+
+  const session = await getOrCreateSession(idea.sourceVideoId);
+  await updateStage(session.id, { topic: idea.concept });
+
+  await db
+    .update(tables.idea)
+    .set({ status: "scripted", remixSessionId: session.id, updatedAt: nowIso() })
+    .where(eq(tables.idea.id, ideaId));
+
+  return session.id;
+}
+
+/**
  * The <60s "Quick Remix" path (DESIGN.md §2.5): research -> hooks (auto-picking the
  * first option) -> outline -> variants, sequentially, ending at stage "script" with
  * every field populated so the studio can land directly on the Script stage while

@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCompact, formatEngagementRate, formatMultiplier, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { setIdeaNotesAction, setIdeaStatusAction } from "@/server/actions/idea-actions";
+import { createScriptFromIdeaAction, setIdeaNotesAction, setIdeaStatusAction } from "@/server/actions/idea-actions";
 import type { IdeaListItem, IdeaTab } from "@/server/queries/ideas";
 
 const TABS: { value: IdeaTab; label: string }[] = [
@@ -161,12 +161,15 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
 
   async function handleCreateScript(idea: IdeaListItem) {
     setPending(idea.id);
-    const result = await setIdeaStatusAction(idea.id, "scripted");
+    const result = await createScriptFromIdeaAction(idea.id);
     setPending(null);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
+    // Same destination the video detail's own Remix entry point uses — the seeded
+    // session is looked up there by source video, not by session id, so there's no
+    // separate "session detail" route to carry `result.sessionId` to.
     router.push(`/feed/${idea.sourceVideoId}/remix`);
   }
 
