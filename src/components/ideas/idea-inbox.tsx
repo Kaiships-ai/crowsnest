@@ -1,14 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { IdeaCommandMenu, type IdeaCommandAction } from "@/components/ideas/command-menu";
 import { formatCompact, formatEngagementRate, formatMultiplier, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { createScriptFromIdeaAction, setIdeaNotesAction, setIdeaStatusAction } from "@/server/actions/idea-actions";
 import type { IdeaListItem, IdeaTab } from "@/server/queries/ideas";
 
@@ -106,6 +108,7 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
   const router = useRouter();
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // A tab switch (new `items`) or an action that moves the picked idea out of the
   // current tab both leave `pickedId` pointing at a row that's no longer in the list —
@@ -128,50 +131,160 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
     router.refresh();
   }
 
-  async function handleStatus(idea: IdeaListItem, status: "shortlisted" | "discarded") {
-    setPending(idea.id);
-    const result = await setIdeaStatusAction(idea.id, status);
-    setPending(null);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    if (status === "discarded") {
-      // Discard is soft and reversible (idea.status stays a real, revertible column) —
-      // the undo puts it straight back to the status it had in this tab, since that's
-      // the only status this list ever shows before a discard.
-      toast.success("Discarded", {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            const restored = await setIdeaStatusAction(idea.id, tab === "inbox" ? "inbox" : "shortlisted");
-            if (!restored.ok) {
-              toast.error(restored.error);
-              return;
-            }
-            router.refresh();
+  // Wrapped in useCallback (deps: [tab, router]) rather than a plain function
+  // declaration solely so runCommandAction/the keydown effect below can list it as a
+  // dependency without that dependency's identity churning on every render — the
+  // memoized identity is what keeps `useEffect`'s exhaustive-deps check satisfied
+  // without re-subscribing the window listener on every keystroke elsewhere in the tree.
+  const handleStatus = useCallback(
+    async (idea: IdeaListItem, status: "shortlisted" | "discarded") => {
+      setPending(idea.id);
+      const result = await setIdeaStatusAction(idea.id, status);
+      setPending(null);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (status === "discarded") {
+        // Discard is soft and reversible (idea.status stays a real, revertible column) —
+        // the undo puts it straight back to the status it had in this tab, since that's
+        // the only status this list ever shows before a discard.
+        toast.success("Discarded", {
+          action: {
+            label: "Undo",
+            onClick: async () => {
+              const restored = await setIdeaStatusAction(idea.id, tab === "inbox" ? "inbox" : "shortlisted");
+              if (!restored.ok) {
+                toast.error(restored.error);
+                return;
+              }
+              router.refresh();
+            },
           },
-        },
-      });
-    } else {
-      toast.success("Shortlisted");
-    }
-    router.refresh();
-  }
+        });
+      } else {
+        toast.success("Shortlisted");
+      }
+      router.refresh();
+    },
+    [tab, router]
+  );
 
-  async function handleCreateScript(idea: IdeaListItem) {
-    setPending(idea.id);
-    const result = await createScriptFromIdeaAction(idea.id);
-    setPending(null);
+  const handleCreateScript = useCallback(
+    async (idea: IdeaListItem) => {
+      setPending(idea.id);
+      const result = await createScriptFromIdeaAction(idea.id);
+      setPending(null);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      // Same destination the video detail's own Remix entry point uses — the seeded
+      // session is looked up there by source video, not by session id, so there's no
+      // separate "session detail" route to carry `result.sessionId` to.
+      router.push(`/feed/${idea.sourceVideoId}/remix`);
+    },
+    [router]
+  );
+
+  /** Export for LLM: the idea has no export path of its own — it reuses the video
+   *  detail's Copy-as-Prompt block (`buildVideoPromptAction`, Task 7) against the
+   *  idea's `sourceVideoId`, so an idea and its source post always produce the exact
+   *  same paste-ready markdown rather than a second, idea-specific export format. Same
+   *  clipboard-write-can-reject handling and toast copy `video-detail.tsx`'s own
+   *  `createPrompt` uses. */
+  const handleExport = useCallback(async (idea: IdeaListItem) => {
+    const result = await buildVideoPromptAction(idea.sourceVideoId);
     if (!result.ok) {
       toast.error(result.error);
       return;
     }
-    // Same destination the video detail's own Remix entry point uses — the seeded
-    // session is looked up there by source video, not by session id, so there's no
-    // separate "session detail" route to carry `result.sessionId` to.
-    router.push(`/feed/${idea.sourceVideoId}/remix`);
-  }
+    try {
+      await navigator.clipboard.writeText(result.prompt);
+      toast.success("Prompt copied, paste into any LLM");
+    } catch {
+      toast.error("Couldn't copy to clipboard. Check browser permissions.");
+    }
+  }, []);
+
+  // Shared by the letter-key shortcuts below and the command menu's own row clicks, so
+  // "press E" and "click Export for LLM" can never drift into two different code paths.
+  const runCommandAction = useCallback(
+    (action: IdeaCommandAction, idea: IdeaListItem) => {
+      switch (action) {
+        case "create-script":
+          handleCreateScript(idea);
+          break;
+        case "shortlist":
+          handleStatus(idea, "shortlisted");
+          break;
+        case "discard":
+          handleStatus(idea, "discarded");
+          break;
+        case "export":
+          handleExport(idea);
+          break;
+        case "open":
+          window.open(`/feed/${idea.sourceVideoId}`, "_blank", "noopener,noreferrer");
+          break;
+      }
+    },
+    [handleCreateScript, handleStatus, handleExport]
+  );
+
+  // The inbox's own keyboard command menu (Task 11): arrow up/down move the picked idea
+  // through the list, Esc closes the reference popover, K opens it, and C/S/E/O/D fire
+  // their action on whichever idea is currently selected — independent of whether the
+  // popover is open, the same way Gmail's "c" composes without the cheat sheet showing.
+  // Guarded first against a focused text input (the notes textarea) exactly the way
+  // video-detail.tsx's own ArrowLeft/ArrowRight nav guards against it, so typing a note
+  // never fires a shortcut mid-sentence.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+
+      if (e.key === "Escape") {
+        if (menuOpen) setMenuOpen(false);
+        return;
+      }
+      if (e.key.toLowerCase() === "k") {
+        setMenuOpen((prev) => !prev);
+        return;
+      }
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        if (items.length === 0) return;
+        e.preventDefault();
+        const currentIndex = items.findIndex((item) => item.id === selectedId);
+        const base = currentIndex === -1 ? 0 : currentIndex;
+        const nextIndex = e.key === "ArrowDown" ? Math.min(base + 1, items.length - 1) : Math.max(base - 1, 0);
+        setPickedId(items[nextIndex].id);
+        return;
+      }
+
+      const currentSelected = items.find((item) => item.id === selectedId) ?? null;
+      if (!currentSelected) return;
+      switch (e.key.toLowerCase()) {
+        case "c":
+          runCommandAction("create-script", currentSelected);
+          break;
+        case "s":
+          runCommandAction("shortlist", currentSelected);
+          break;
+        case "e":
+          runCommandAction("export", currentSelected);
+          break;
+        case "o":
+          runCommandAction("open", currentSelected);
+          break;
+        case "d":
+          runCommandAction("discard", currentSelected);
+          break;
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [items, selectedId, menuOpen, runCommandAction]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -279,6 +392,13 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
           )}
         </div>
       </div>
+
+      {menuOpen && selected !== null && (
+        <IdeaCommandMenu
+          onAction={(action) => runCommandAction(action, selected)}
+          onClose={() => setMenuOpen(false)}
+        />
+      )}
     </div>
   );
 }
