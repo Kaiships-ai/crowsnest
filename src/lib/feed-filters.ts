@@ -6,7 +6,17 @@
  * coarser `Object.keys(sp).length === 0` check that also tripped on non-filter params
  * like `density`, `view`, `sort`, and `limit`.
  */
-export const FILTER_PARAM_KEYS = ["fleet", "platform", "minScore", "minViews", "since", "band", "q"] as const;
+export const FILTER_PARAM_KEYS = [
+  "fleet",
+  "platform",
+  "minScore",
+  "minViews",
+  "since",
+  "band",
+  "q",
+  "minEng",
+  "analyzed",
+] as const;
 
 /**
  * `sort` picks an order, not a slice — it must never join `FILTER_PARAM_KEYS`
@@ -68,6 +78,30 @@ export function numOrAny(v: string | string[] | undefined): number | undefined {
   const s = first(v);
   if (s === "any") return undefined;
   return num(v);
+}
+
+/**
+ * `minEng`'s URL token is a plain percent integer ("2", "5", "8"), matching
+ * `ENGAGEMENT_OPTIONS` in `filter-bar.tsx` — the same shape `minScore`'s token already
+ * has. `FeedFilters.minEngagement` (`server/queries/feed.ts`) wants the rate that formula
+ * divides by, e.g. `0.02` for "2", so the conversion happens once here rather than at
+ * every call site. Reuses `numOrAny`'s "any" convention: the literal string "any", an
+ * absent param, or garbage all resolve to `undefined`, "no condition".
+ */
+export function minEngOrAny(v: string | string[] | undefined): number | undefined {
+  const n = numOrAny(v);
+  return n === undefined ? undefined : n / 100;
+}
+
+/**
+ * Whitelists the analyzed-status URL token against the two real values, same shape as
+ * `bandOrAny`: "yes"/"no" pass through as `FeedFilters.analyzed`, and everything else —
+ * the explicit `analyzed=all` clear token `filter-bar.tsx`'s segmented control writes, an
+ * absent param, or garbage — resolves to `undefined`, "no condition".
+ */
+export function analyzedOrAny(v: string | string[] | undefined): "yes" | "no" | undefined {
+  const s = first(v);
+  return s === "yes" || s === "no" ? s : undefined;
 }
 
 /**
@@ -145,6 +179,8 @@ export interface ResolvedFeedCriteria {
   minScore: number | undefined;
   minViews: number | undefined;
   sinceDays: number | undefined;
+  minEngagement: number | undefined;
+  analyzed: "yes" | "no" | undefined;
 }
 
 /**
@@ -162,6 +198,8 @@ export function resolveFeedCriteria(sp: SearchParams): ResolvedFeedCriteria {
     minScore: numOrAny(sp.minScore),
     minViews: numOrAny(sp.minViews),
     sinceDays: numOrAny(sp.since),
+    minEngagement: minEngOrAny(sp.minEng),
+    analyzed: analyzedOrAny(sp.analyzed),
   };
 }
 

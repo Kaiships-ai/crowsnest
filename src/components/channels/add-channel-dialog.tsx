@@ -25,10 +25,31 @@ import { bridgeAddChannel, bridgeImportReel } from "./sync-bridge";
 // row that silently never updated. An option that cannot work is worse than no option.
 // The `platform` column stays in the schema for a future second source.
 
-export function AddChannelDialog() {
+export function AddChannelDialog({
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+  initialTab = "handle",
+  showTrigger = true,
+}: {
+  /** Externally-controlled open state — the feed toolbar's "Add video URL" button drives
+   *  this same dialog instance rather than owning a second submit path (task-4 brief:
+   *  reuse the existing single-reel import, don't write a second one). Omitted, the
+   *  dialog falls back to its own internal `open` state, unchanged from before. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Which tab the dialog opens on. The feed toolbar opens straight to "url" so "Add
+   *  video URL" doesn't land on the handle form first. */
+  initialTab?: "handle" | "url";
+  /** The channels board renders its own "Add channel" trigger button; the feed toolbar
+   *  supplies its own "Add video URL" button instead and drives `open` itself, so it
+   *  passes `false` here to skip rendering a second, redundant trigger. */
+  showTrigger?: boolean;
+} = {}) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"handle" | "url">("handle");
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+  const [tab, setTab] = useState<"handle" | "url">(initialTab);
   const [handle, setHandle] = useState("");
   const [reelUrl, setReelUrl] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +63,12 @@ export function AddChannelDialog() {
   }
 
   function onOpenChange(next: boolean) {
-    setOpen(next);
+    if (isControlled) controlledOnOpenChange?.(next);
+    else setUncontrolledOpen(next);
+    // Every open starts back on `initialTab` — without this, a caller-driven open (e.g.
+    // the feed toolbar wanting "url") would land on whatever tab a *previous* open left
+    // the still-mounted dialog on.
+    if (next) setTab(initialTab);
     if (!next) reset();
   }
 
@@ -81,7 +107,7 @@ export function AddChannelDialog() {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button size="sm" />}>Add channel</DialogTrigger>
+      {showTrigger && <DialogTrigger render={<Button size="sm" />}>Add channel</DialogTrigger>}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a channel</DialogTitle>
