@@ -176,6 +176,25 @@ describe("autoAnalyzeNewOutliers", () => {
     expect(analyze).not.toHaveBeenCalledWith(firstId);
   });
 
+  test("a null analyze result (video row gone) is counted as a failure, not a success", async () => {
+    // getOrCreateAnalysis's documented behavior when the video row vanishes between the
+    // candidate query and the call itself (analyze.ts:92-95): it returns null instead of
+    // throwing. The loop's success/failure split must not rely on the catch alone.
+    const { channelId, videoIds } = await seedChannelWithOutliers([{ score: 5 }, { score: 4 }, { score: 3.5 }]);
+    const [nullId] = videoIds;
+
+    const analyze = vi.fn().mockImplementation(async (videoId: string) =>
+      videoId === nullId ? null : { hookType: "curiosity-gap", structureSegments: [], formatTags: [], styleTags: [], whyItWorked: "worked" }
+    );
+
+    const summary = await autoAnalyzeNewOutliers(channelId, { download: fakeDownload(), analyze });
+
+    expect(summary.attempted).toBe(3);
+    expect(summary.analyzed).toBe(2);
+    expect(summary.failed).toBe(1);
+    expect(analyze).toHaveBeenCalledTimes(3); // did not abort on the null result
+  });
+
   test("shouldStop() true stops the pass early", async () => {
     const { channelId } = await seedChannelWithOutliers([{ score: 5 }, { score: 4 }, { score: 3 }]);
 

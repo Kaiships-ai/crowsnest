@@ -152,7 +152,22 @@ export async function autoAnalyzeNewOutliers(
         summary.downloaded += 1;
       }
 
-      await analyze(row.id);
+      const analysis = await analyze(row.id);
+      if (analysis === null || analysis === undefined) {
+        // getOrCreateAnalysis's documented null case (analyze.ts:92-95): the video row
+        // vanished between the candidate query above and this call. No `video_analyses`
+        // row was written, so counting this as `analyzed` would lie to the run log and,
+        // worse, leave the candidate query re-selecting the same row forever (it never
+        // gets a `video_analyses` row to exclude it) while every future sync reports it a
+        // success. Route it into `failed` instead, same bucket a thrown error lands in.
+        summary.failed += 1;
+        log.error("auto_analyze.analysis_missing", {
+          channelId,
+          videoId: row.id,
+          reason: "getOrCreateAnalysis returned null; no video_analyses row was written",
+        }, opts.runId);
+        continue;
+      }
       summary.analyzed += 1;
     } catch (err) {
       summary.failed += 1;
