@@ -7,6 +7,7 @@ import { igClient, type IgClient, type IgMedia, type IgMediaStats } from "../ig/
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
+import { autoAnalyzeNewOutliers } from "./auto-analyze";
 import { generateIdeasForNewOutliers } from "./ideas";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
@@ -1401,10 +1402,27 @@ async function syncOneChannel(
     // After scoring, same reasoning as the enrichment gate above: this pass reads
     // `videos.outlier_score`, which `recomputeChannelScores` just wrote, and the same
     // Stop click that should not buy the enrichment pass more live requests should not
-    // buy this one more LLM calls either. `generateIdeasForNewOutliers` never throws, so
-    // unlike the page walk above there is nothing here to catch — the same guarantee
+    // buy this one more downloads/transcriptions/LLM calls either. Neither
+    // `autoAnalyzeNewOutliers` nor `generateIdeasForNewOutliers` ever throws, so unlike
+    // the page walk above there is nothing here to catch — the same guarantee
     // `enrichViewCounts` makes for itself.
+    //
+    // Order matters: auto-analyze BEFORE generate-ideas. `generateIdeasForNewOutliers`
+    // only sees outliers that already have a `video_analyses` row (it inner-joins the
+    // table), so running it first would still find nothing to do on a freshly-scored
+    // outlier. Auto-analyze fills that row for the run's top unanalyzed outliers, and the
+    // ideas pass immediately behind it turns those same rows into inbox ideas in the same
+    // sync, instead of waiting for someone to click "Analyze" on each one first.
     if (stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
+      const autoAnalyzed = await autoAnalyzeNewOutliers(channel.id, {
+        shouldStop: () => tracker.isCancelRequested(),
+        // Same heartbeat contract as the enrichment pass's own `tick`: reuses the
+        // "scoring" phase so the run doesn't appear to sit on a phase it already finished.
+        tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
+        runId,
+      });
+      log.info("sync.auto_analyze.finished", { channelId: channel.id, handle: channel.handle, ...autoAnalyzed }, runId);
+
       const ideas = await generateIdeasForNewOutliers(channel.id, {
         shouldStop: () => tracker.isCancelRequested(),
         // One heartbeat per candidate idea, same contract as the enrichment pass's own
