@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
+import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { scriptExists } from "../queries/planned-posts";
 
 /**
@@ -13,20 +14,10 @@ import { scriptExists } from "../queries/planned-posts";
  * Instagram, no job scheduler, and no path that sets `publishedOwnPostId` except
  * `markPlanPublishedAction`, which only ever runs from a direct, explicit call. A
  * planned post is a record of intent, not a mechanism.
+ * `ActionResult`/`SimpleResult`/`errorMessage` live in `../lib/action-result`.
  */
 
-type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
-// Not ActionResult<Record<string, never>> for the no-payload actions below: an object
-// literal's `ok: true` property can't simultaneously satisfy Record<string, never>'s
-// index signature — matches channel-actions.ts's/fleet-actions.ts's own SimpleResult
-// for the identical reason.
-type SimpleResult = { ok: true } | { ok: false; error: string; code?: string };
-
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 function isValidDate(date: string): boolean {
   if (!DATE_RE.test(date)) return false;

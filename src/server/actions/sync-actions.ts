@@ -4,6 +4,7 @@ import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
 import { after } from "next/server";
 import { db, nowIso, tables } from "../db";
 import { log } from "../lib/logger";
+import { errorMessage, type ActionResult } from "../lib/action-result";
 import { IgError, SyncAlreadyRunningError } from "../ig/errors";
 import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
@@ -17,8 +18,6 @@ import {
   type SyncPhase,
   type SyncProgress,
 } from "../services/sync-types";
-
-type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
 
 /**
  * Thin "use server" wrappers around the sync engine. Every export returns a result
@@ -51,10 +50,6 @@ function errorCodeOf(err: unknown): string {
   return "IG_UNKNOWN";
 }
 
-function errorMessageOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
 // ---------------------------------------------------------------- detached start
 
 /**
@@ -80,11 +75,11 @@ async function markJobFailed(jobId: string, err: unknown): Promise<void> {
         status: "failed",
         finishedAt: nowIso(),
         errorCode: errorCodeOf(err),
-        errorMessage: errorMessageOf(err),
+        errorMessage: errorMessage(err),
       })
       .where(and(eq(tables.syncJobs.id, jobId), eq(tables.syncJobs.status, "running")));
   } catch (writeErr) {
-    log.error("sync.detached.record_failed", { jobId, message: errorMessageOf(writeErr) });
+    log.error("sync.detached.record_failed", { jobId, message: errorMessage(writeErr) });
   }
 }
 
@@ -103,7 +98,7 @@ function keepAlive(work: Promise<void>): void {
   try {
     after(work);
   } catch (err) {
-    log.debug("sync.detached.no_request_scope", { message: errorMessageOf(err) });
+    log.debug("sync.detached.no_request_scope", { message: errorMessage(err) });
   }
 }
 
@@ -146,7 +141,7 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
         // where it was not, so the await below cannot deadlock.
         resolveJobId(null);
         const jobId = await jobIdKnown;
-        log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessageOf(err) });
+        log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessage(err) });
         if (jobId) await markJobFailed(jobId, err);
       }
     );
@@ -201,7 +196,7 @@ export async function startViewCountBackfillAction(): Promise<ActionResult<{ job
       async (err: unknown) => {
         failure = err;
         resolveJobId(null);
-        log.error("backfill.detached.failed", { code: errorCodeOf(err), message: errorMessageOf(err) });
+        log.error("backfill.detached.failed", { code: errorCodeOf(err), message: errorMessage(err) });
       }
     );
 
@@ -496,7 +491,7 @@ export async function addChannelAction(
     // The old channel.add.profile_failed line was the only record of this; keep a record,
     // now that the user gets the reason on screen rather than instead of it.
     if (opts.requireProfile) {
-      log.warn("channel.add.rejected", { handle, code: errorCodeOf(err), message: errorMessageOf(err) });
+      log.warn("channel.add.rejected", { handle, code: errorCodeOf(err), message: errorMessage(err) });
     }
     return toResult(err);
   }

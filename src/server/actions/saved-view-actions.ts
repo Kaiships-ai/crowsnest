@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, newId, tables } from "../db";
+import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 
 /**
  * Server actions backing the feed's "saved views" — B1 on the V1-to-product backlog.
@@ -18,16 +19,9 @@ import { db, newId, tables } from "../db";
  *
  * Follows the same shape every other action module in this codebase uses: nothing
  * throws across the boundary, and every failure carries a `code`.
+ * `ActionResult`/`SimpleResult`/`errorMessage` live in `../lib/action-result` — see
+ * saved-post-actions.ts's comment for why.
  */
-
-type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
-// Not ActionResult<Record<string, never>> for the no-payload actions below — see
-// saved-post-actions.ts's SimpleResult comment for why.
-type SimpleResult = { ok: true } | { ok: false; error: string; code?: string };
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 async function findSavedFilter(id: string) {
   const [row] = await db

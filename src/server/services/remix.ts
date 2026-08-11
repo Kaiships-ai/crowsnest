@@ -1,5 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
+import { errorMessage } from "@/server/lib/action-result";
 import { getLlm, type LlmClient } from "@/server/llm/client";
 import { HookOptionsSchema, OutlineSchema, type Outline, type VideoAnalysis } from "@/server/llm/schemas";
 import { getSimilarOutliers } from "./similar";
@@ -65,10 +66,6 @@ export interface StagePatch {
 const DEFAULT_TARGET_LENGTH_SEC = 45;
 const DEFAULT_VARIANT_COUNT = 3;
 const TRANSCRIPT_EXCERPT_CHARS = 500;
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * Writes one `remix_runs` row (v1-scope.md, Remix studio P0: "remix_sessions records

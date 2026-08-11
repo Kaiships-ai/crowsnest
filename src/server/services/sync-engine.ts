@@ -2,6 +2,7 @@ import { and, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
+import { errorMessage } from "../lib/action-result";
 import { igClient, type IgClient, type IgMedia, type IgMediaStats } from "../ig/client";
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
@@ -133,10 +134,6 @@ function addCounters(a: SyncCounters, b?: SyncCounters): SyncCounters {
   const sum = zeroCounters();
   for (const k of Object.keys(sum) as (keyof SyncCounters)[]) sum[k] = a[k] + b[k];
   return sum;
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 function errorCode(err: unknown): string {
