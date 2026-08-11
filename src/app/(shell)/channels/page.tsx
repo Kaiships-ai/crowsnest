@@ -5,5 +5,9 @@ import { getKanbanBoard } from "@/server/queries/channels";
 // line and the actions, so there is exactly one "Channels" heading on the screen.
 export default async function ChannelsPage() {
   const board = await getKanbanBoard();
-  return <ChannelsKanban board={board} />;
+  return (
+    <div className="mx-auto h-full max-w-[1120px]">
+      <ChannelsKanban board={board} />
+    </div>
+  );
 }

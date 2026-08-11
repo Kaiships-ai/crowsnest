@@ -263,13 +263,13 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       {phase === "connecting" && (
         <div className="mt-14 flex max-w-[460px] items-center gap-6">
           <span className="font-mono text-xs whitespace-nowrap">Authorising</span>
-          <div className="h-px flex-1 animate-pulse bg-primary" />
+          <div className="h-px flex-1 animate-pulse bg-line-strong" />
         </div>
       )}
 
       {phase === "idle" && status?.loggedIn && (
         <div className="mt-14">
-          <span className="font-mono text-2xs text-primary">CONNECTED</span>
+          <span className="font-mono text-2xs text-pos">CONNECTED</span>
           <p className="mt-4 text-lg">{status.username ? `@${status.username}` : "—"}</p>
           <Button className="mt-12" onClick={() => onContinue(statusResult)}>
             Choose channels
