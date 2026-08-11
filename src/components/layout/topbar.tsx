@@ -17,22 +17,23 @@ import type { FailureStrip as FailureStripData } from "@/server/queries/failure-
  *
  * Titles for a route that also sits in the rail match NAV_ITEMS' label exactly ("Runs",
  * "Logs"), so the highlighted rail entry and the heading agree. Detail routes follow the
- * "Video Detail" / "Channel Detail" convention already set below.
+ * sentence-case "Channel detail" / "Run detail" convention already set below — copy is
+ * sentence case throughout per DESIGN-SYSTEM.md section 4.
  *
  * `first-run` deliberately has no entry: it lives outside the `(shell)` group and never
  * renders a Topbar at all.
  */
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Dashboard" },
-  { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix Studio" },
+  { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix studio" },
   { pattern: /^\/feed\/[^/]+$/, title: "Post detail" },
   { pattern: /^\/feed$/, title: "Feed" },
   { pattern: /^\/ideas$/, title: "Ideas" },
-  { pattern: /^\/channels\/[^/]+$/, title: "Channel Detail" },
+  { pattern: /^\/channels\/[^/]+$/, title: "Channel detail" },
   { pattern: /^\/channels$/, title: "Channels" },
   { pattern: /^\/mine$/, title: "My channel" },
   { pattern: /^\/vault$/, title: "Vault" },
-  { pattern: /^\/runs\/[^/]+$/, title: "Run Detail" },
+  { pattern: /^\/runs\/[^/]+$/, title: "Run detail" },
   { pattern: /^\/runs$/, title: "Runs" },
   { pattern: /^\/logs$/, title: "Logs" },
   { pattern: /^\/persona$/, title: "Persona" },
