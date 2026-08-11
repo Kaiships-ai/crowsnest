@@ -24,7 +24,7 @@ const SOURCE_ITEMS: { value: LogSource | "all"; label: string }[] = [
   { value: "all", label: "All sources" },
   { value: "backend", label: "backend" },
   { value: "frontend", label: "frontend" },
-  { value: "sidecar", label: "sidecar" },
+  { value: "sidecar", label: "local service" },
 ];
 
 // Same read-as-state trigger treatment the feed's filter row uses (filter-bar.tsx) —

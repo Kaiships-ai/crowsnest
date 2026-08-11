@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
+import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { generateIdea } from "../services/ideas";
 import { seedSessionFromIdea } from "../services/remix";
 
@@ -11,15 +12,9 @@ import { seedSessionFromIdea } from "../services/remix";
  *
  * Follows the same shape every other action module in this codebase uses: nothing
  * throws across the boundary, every failure carries a `code` so the caller can tell
- * apart "nothing came back" from a genuine surprise. Matches `saved-post-actions.ts`'s
- * own `ActionResult` union.
+ * apart "nothing came back" from a genuine surprise. `ActionResult`/`SimpleResult`
+ * import from `../lib/action-result` — the shape saved-post-actions.ts defines.
  */
-
-type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
-// Not ActionResult<Record<string, never>> for the no-payload actions below — an object
-// literal's `ok: true` can't simultaneously satisfy Record<string, never>'s index
-// signature. Matches saved-post-actions.ts's own SimpleResult.
-type SimpleResult = { ok: true } | { ok: false; error: string; code?: string };
 
 /** The four values `idea.status` accepts (db/schema.ts's comment on the `idea` table).
  *  Not exported from schema.ts as a type, so it's restated here — the one place a
@@ -29,10 +24,6 @@ export type IdeaStatus = (typeof IDEA_STATUSES)[number];
 
 function isIdeaStatus(value: string): value is IdeaStatus {
   return (IDEA_STATUSES as readonly string[]).includes(value);
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /** Generates (or refreshes) the one inbox idea for a video. `generateIdea` itself never

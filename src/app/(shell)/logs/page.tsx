@@ -42,7 +42,7 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const rows = queryLogEvents(filter);
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-[1120px] p-6">
       <LogsView rows={rows} filter={filter} />
     </div>
   );

@@ -31,7 +31,7 @@ export function ContextRail({ detail }: { detail: VideoDetail }) {
         href={`/feed/${item.videoId}`}
         className="flex w-fit items-center gap-1 font-mono text-2xs tracking-wide text-faint uppercase hover:text-foreground"
       >
-        <ChevronLeft className="size-3.5" /> Video Detail
+        <ChevronLeft className="size-3.5" /> Post detail
       </Link>
 
       <span data-lab className="font-mono text-2xs text-faint uppercase">

@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
+import { errorMessage } from "../lib/action-result";
 import { GroqProvider, groqAvailability } from "./groq";
 import { WhisperCppProvider, whisperAvailability } from "./whispercpp";
 
@@ -117,8 +118,4 @@ export async function availableTranscriptProviders(): Promise<
     { name: whisperProvider.name, available: whisper.available, reason: whisper.reason },
     { name: groqProvider.name, available: groq.available, reason: groq.reason },
   ];
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }

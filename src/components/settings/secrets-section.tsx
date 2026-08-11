@@ -13,7 +13,7 @@
  */
 
 import { useState, useTransition } from "react";
-import { ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +58,9 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
   const meta = SECRET_META[status.name];
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState("");
+  // A typo in a masked field only ever shows up later as a connection failure — this
+  // just flips the input between password and text so it can be read before saving.
+  const [revealed, setRevealed] = useState(false);
   const [pending, startTransition] = useTransition();
   const [testing, setTesting] = useState(false);
   // Set only by a regenerate that happened while the sidecar was answering — see
@@ -81,6 +84,7 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
       }
       setValue("");
       setEditing(false);
+      setRevealed(false);
       toast.success(`${meta.label} saved.`);
       await refresh();
     });
@@ -182,18 +186,29 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
 
       {editing && !isServiceToken && (
         <div className="flex items-center gap-2">
-          <Input
-            type="password"
-            autoComplete="off"
-            placeholder={`New ${meta.label} value`}
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !pending) save();
-            }}
-            className="max-w-sm"
-            aria-label={`${meta.label} value`}
-          />
+          <div className="relative max-w-sm flex-1">
+            <Input
+              type={revealed ? "text" : "password"}
+              autoComplete="off"
+              placeholder={`New ${meta.label} value`}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !pending) save();
+              }}
+              className="pr-8"
+              aria-label={`${meta.label} value`}
+            />
+            <button
+              type="button"
+              onClick={() => setRevealed((r) => !r)}
+              aria-label={revealed ? `Hide ${meta.label} value` : `Show ${meta.label} value`}
+              aria-pressed={revealed}
+              className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground"
+            >
+              {revealed ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
+            </button>
+          </div>
           <Button size="sm" variant="secondary" onClick={save} disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
@@ -203,6 +218,7 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
             onClick={() => {
               setEditing(false);
               setValue("");
+              setRevealed(false);
             }}
             disabled={pending}
           >

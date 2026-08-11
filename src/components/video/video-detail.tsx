@@ -1,9 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Bookmark, ChevronLeft, ChevronRight, Copy, ExternalLink, Image as ImageIcon, Wand2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  ExternalLink,
+  Image as ImageIcon,
+  Lightbulb,
+  Wand2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
@@ -26,6 +36,7 @@ import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { SavePostButton } from "./save-post-button";
 import { analyzeVideoAction } from "@/server/actions/analyze-actions";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
+import { generateIdeaAction } from "@/server/actions/idea-actions";
 import type { FeedItem } from "@/server/queries/feed";
 import type { MedianBasis } from "@/server/queries/channels";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
@@ -259,6 +270,7 @@ export function VideoDetail({
   const { item } = detail;
   const hasTranscript = detail.transcript !== null;
   const router = useRouter();
+  const [generatingIdea, startGenerateIdea] = useTransition();
 
   // Reading twelve posts in a row is the daily loop (V1 scope §2, Video detail
   // criterion 11) — arrow keys move without a trip back to the feed grid. Skipped
@@ -268,6 +280,12 @@ export function VideoDetail({
     function onKeyDown(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      // A carousel post (carousel-viewer.tsx) claims ArrowLeft/ArrowRight for its own
+      // slide navigation and calls preventDefault so this handler doesn't also page
+      // to the next/prev post — checked via defaultPrevented rather than relying on
+      // stopPropagation, since both listeners sit on `window` and a sibling listener
+      // on the same target isn't stopped by that alone.
+      if (e.defaultPrevented) return;
       if (e.key === "ArrowLeft" && feedNav.prevHref) router.push(feedNav.prevHref);
       if (e.key === "ArrowRight" && feedNav.nextHref) router.push(feedNav.nextHref);
     }
@@ -316,6 +334,22 @@ export function VideoDetail({
     } catch {
       toast.error("Couldn't copy to clipboard. Check browser permissions.");
     }
+  }
+
+  /** Design review finding: `generateIdeaAction` existed but nothing on this screen
+   * called it, so the Ideas inbox only ever filled from the background sync — there
+   * was no manual way to turn a post into an idea. Only rendered once `detail.analysis`
+   * exists (same gate `SaveToVaultDialog` below uses): `generateIdea` reads the
+   * `video_analyses` row, so calling it any earlier would just fail. */
+  function generateIdea() {
+    startGenerateIdea(async () => {
+      const result = await generateIdeaAction(item.videoId);
+      if (result.ok) {
+        toast.success(result.created ? "Idea added to the inbox" : "Idea updated");
+      } else {
+        toast.error(result.error);
+      }
+    });
   }
 
   return (
@@ -588,6 +622,12 @@ export function VideoDetail({
             <Button variant="outline" size="sm" onClick={createPrompt}>
               <Wand2 className="size-3.5" /> Copy as prompt
             </Button>
+
+            {detail.analysis ? (
+              <Button variant="outline" size="sm" onClick={generateIdea} disabled={generatingIdea}>
+                <Lightbulb className="size-3.5" /> {generatingIdea ? "Generating…" : "Generate idea"}
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

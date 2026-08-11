@@ -419,7 +419,7 @@ export function FilterBar({
           onClick={() => setAddVideoOpen(true)}
           className="rounded-full text-muted-foreground hover:text-foreground"
         >
-          <Plus /> Add video URL
+          <Plus /> Add post URL
         </Button>
 
         <div className="ml-auto flex items-center gap-1.5">

@@ -30,6 +30,28 @@ export interface LogQueryFilter {
 export const RETENTION_MAX = 50000;
 const DEFAULT_LIMIT = 200;
 
+/** How many inserts happen between prune passes. The prune used to run the
+ *  DELETE-with-MAX(id)-subquery on every single insert; batching it here turns N deletes
+ *  into N / PRUNE_INTERVAL, at the cost of letting the table grow up to
+ *  RETENTION_MAX + PRUNE_INTERVAL rows between passes instead of holding exactly
+ *  RETENTION_MAX at all times. That is the retention invariant this module now
+ *  guarantees: never more than RETENTION_MAX + PRUNE_INTERVAL rows, oldest pruned first. */
+export const PRUNE_INTERVAL = 500;
+
+/** Inserts since the last prune pass. Module-level, not per-call — this is what lets
+ *  the prune skip almost every insert instead of running unconditionally. */
+let insertsSincePrune = 0;
+
+/** Test-only escape hatch: a fresh test typically starts from an empty `log_events`
+ *  table (see store.test.ts's `beforeEach`), but this counter is a module singleton
+ *  that does not reset itself when the table is cleared, so a retention test run
+ *  after other tests in the same file would inherit drift from their insert calls.
+ *  Resetting explicitly keeps a batch-boundary test deterministic regardless of
+ *  insert-call counts in tests that ran before it. */
+export function resetPruneCounterForTests(): void {
+  insertsSincePrune = 0;
+}
+
 /**
  * A key in this set (case-insensitively) is never stored as a value, at any
  * nesting depth. Union of this store's own keys and the Python sidecar's
@@ -81,9 +103,17 @@ export function insertLogEvent(input: LogEventInput): void {
   db.insert(logEvents)
     .values({ ts: input.ts, level: input.level, source: input.source, event: input.event, fields: JSON.stringify(clean), runId })
     .run();
-  // Monotonic autoincrement id means MAX(id) - RETENTION_MAX is the cutoff; the
-  // kept window has no gaps, so this leaves exactly the newest RETENTION_MAX rows.
-  db.run(sql`delete from log_events where id <= (select max(id) - ${RETENTION_MAX} from log_events)`);
+
+  // Batched, not unconditional: this DELETE (with its MAX(id) subquery) used to run on
+  // every single insert. Running it every PRUNE_INTERVAL inserts instead still holds
+  // the retention invariant — monotonic autoincrement id means MAX(id) - RETENTION_MAX
+  // is a gap-free cutoff, so each pass leaves exactly the newest RETENTION_MAX rows —
+  // while cutting the number of DELETEs by a factor of PRUNE_INTERVAL.
+  insertsSincePrune += 1;
+  if (insertsSincePrune >= PRUNE_INTERVAL) {
+    insertsSincePrune = 0;
+    db.run(sql`delete from log_events where id <= (select max(id) - ${RETENTION_MAX} from log_events)`);
+  }
 }
 
 export function queryLogEvents(filter: LogQueryFilter = {}): LogEventRow[] {

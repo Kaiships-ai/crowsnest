@@ -149,6 +149,30 @@ describe("listRuns", () => {
     expect(listRuns(2)).toHaveLength(2);
   });
 
+  test("caps at the SQL level, not just by slicing an unbounded fetch: seeding well past the limit still returns exactly `limit`, newest first", () => {
+    // 220 rows is deliberately far past any plausible limit, so a regression back to
+    // "fetch everything, slice in JS" would still pass a small-seed test but would mean
+    // every one of these rows round-trips out of sqlite on every call — this is the
+    // shape of the real SSE tick pulling the entire sync_jobs history every 2s.
+    const seeded = 220;
+    for (let i = 0; i < seeded; i++) {
+      seedSyncJob({ startedAt: `2026-08-01T${String(10 + Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z` });
+    }
+    const runs = listRuns(100);
+    expect(runs).toHaveLength(100);
+    // Newest-first: the run at index 0 must be the row seeded last (the largest startedAt).
+    for (let i = 0; i < runs.length - 1; i++) {
+      expect(runs[i].startedAt >= runs[i + 1].startedAt).toBe(true);
+    }
+  });
+
+  test("the default limit is 100", () => {
+    for (let i = 0; i < 150; i++) {
+      seedSyncJob({ startedAt: `2026-08-01T${String(10 + Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}:00.000Z` });
+    }
+    expect(listRuns()).toHaveLength(100);
+  });
+
   test("a running run's duration is measured against now, not a null finishedAt", () => {
     const startedAt = new Date(Date.now() - 60_000).toISOString();
     seedSyncJob({ status: "running", finishedAt: null, startedAt });

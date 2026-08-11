@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
+import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 
 /**
  * Server actions backing saved posts (V1 data contracts, Vault): the detail screen's
@@ -10,17 +11,9 @@ import { db, newId, nowIso, tables } from "../db";
  * Follows the same shape every other action module in this codebase uses: nothing
  * throws across the boundary, every failure carries a `code` so the caller can tell
  * "already saved" apart from "that post is gone" apart from a genuine surprise.
+ * `ActionResult`/`SimpleResult`/`errorMessage` live in `../lib/action-result` — this
+ * module is their canonical shape, several other action files used to hand-copy it.
  */
-
-type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: string };
-// Not ActionResult<Record<string, never>> for the no-payload actions below — an object
-// literal's `ok: true` can't simultaneously satisfy Record<string, never>'s index
-// signature. Matches channel-actions.ts's/fleet-actions.ts's own SimpleResult.
-type SimpleResult = { ok: true } | { ok: false; error: string; code?: string };
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /** Saves a video to the Vault. One row per video — a second call on an
  *  already-saved video is refused rather than silently duplicating it, since the

@@ -45,7 +45,7 @@ export interface RunDetail extends RunSummary {
   itemsEnriched: number | null;
 }
 
-const DEFAULT_LIST_LIMIT = 50;
+const DEFAULT_LIST_LIMIT = 100;
 const DEFAULT_EVENT_LIMIT = 500;
 
 /** Whole-library sync jobs are keyed on this literal lock, not a real channel id — see
@@ -111,12 +111,21 @@ function fromRemixRun(row: RemixRunSelect): RunSummary {
   };
 }
 
-/** Every Run, newest first, sync and remix unified. Default limit 50 matches the
- *  Runs list screen's first page. */
+/** Every Run, newest first, sync and remix unified. Default limit 100 matches the
+ *  Runs list screen's first page — and, since the Runs SSE route re-runs this every
+ *  2s (REFRESH_MS in api/runs/stream/route.ts), bounds what each tick reads.
+ *
+ *  The `limit` is pushed into each table's own SQL query, not applied by slicing a
+ *  full table scan in JS: without a SQL-level LIMIT this pulled the entire sync_jobs
+ *  and remix_runs history on every poll, growing without bound as history
+ *  accumulates. Taking the top `limit` rows (by startedAt) from each table before
+ *  merging is still correct for "the newest `limit` overall" — a row ranked past
+ *  `limit` within its own table can never place inside the global top `limit`, since
+ *  `limit` other rows in that same table already outrank it. */
 export function listRuns(limit = DEFAULT_LIST_LIMIT): RunSummary[] {
   const now = Date.now();
-  const syncRows = db.select().from(tables.syncJobs).orderBy(desc(tables.syncJobs.startedAt)).all();
-  const remixRows = db.select().from(tables.remixRuns).orderBy(desc(tables.remixRuns.startedAt)).all();
+  const syncRows = db.select().from(tables.syncJobs).orderBy(desc(tables.syncJobs.startedAt)).limit(limit).all();
+  const remixRows = db.select().from(tables.remixRuns).orderBy(desc(tables.remixRuns.startedAt)).limit(limit).all();
 
   const runs = [...syncRows.map((r) => fromSyncJob(r, now)), ...remixRows.map(fromRemixRun)];
   runs.sort((a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0));

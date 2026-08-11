@@ -5,10 +5,11 @@
    so this rule misfires here. */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { MoreHorizontal } from "lucide-react";
+import { GripVertical, MoreHorizontal } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,9 @@ function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleS
   const [removing, setRemoving] = useState(false);
   const sortable = useSortable({ id: channel.id });
   const style = { transform: CSS.Translate.toString(sortable.transform), transition: sortable.transition };
+  // Same target the ... menu's "View" item pushes to — the card body below and that
+  // menu item now agree on one route instead of the route living in two places.
+  const href = `/channels/${channel.id}`;
 
   return (
     <>
@@ -145,26 +149,40 @@ function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleS
         className="border border-border bg-card px-4 pt-3 pb-4 select-none data-[dragging]:opacity-40"
       >
         <div className="flex items-center gap-2.5">
-          <span
+          {/* dnd-kit's drag handle used to be the whole body span below, which meant
+              clicking the card to open it fought with dragging it and lost — the ...
+              menu's View item was the only way in. The handle is a small dedicated
+              grip now (a real button, so dnd-kit's attributes give it proper
+              keyboard/aria semantics), and setNodeRef stays on the article so the
+              whole card is still the draggable/droppable node; only the listeners
+              moved. */}
+          <button
+            type="button"
             {...sortable.attributes}
             {...sortable.listeners}
-            className="flex min-w-0 flex-1 items-center gap-2.5 cursor-grab active:cursor-grabbing"
+            aria-label={`Drag to reorder ${channel.handle}`}
+            className="shrink-0 cursor-grab p-1 text-faint hover:text-muted-foreground active:cursor-grabbing"
           >
+            <GripVertical className="size-4" aria-hidden />
+          </button>
+          <Link href={href} className="flex min-w-0 flex-1 items-center gap-2.5">
             <ChannelCardBody channel={channel} />
-          </span>
+          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Channel actions" />}>
               <MoreHorizontal className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => void start([channel.id])}>Sync now</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(`/channels/${channel.id}`)}>View</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(href)}>View</DropdownMenuItem>
               <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}>Remove channel</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
 
-        <ChannelCardStats channel={channel} sampleSize={sampleSize} />
+        <Link href={href} className="block">
+          <ChannelCardStats channel={channel} sampleSize={sampleSize} />
+        </Link>
       </article>
 
       {removing && (

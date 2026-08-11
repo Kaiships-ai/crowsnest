@@ -2,13 +2,13 @@
 
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
+import { type SimpleResult } from "../lib/action-result";
 
-// Not the generic `ActionResult<T extends object>` shape the other action modules use
-// for a payload-bearing result: both actions below have no success payload, and
-// `ActionResult<Record<string, never>>` does not actually type-check (an object
-// literal's `ok: true` property can't simultaneously satisfy `Record<string, never>`'s
-// index signature). Matches `fleet-actions.ts`'s own `SimpleResult` for the same reason.
-type SimpleResult = { ok: true } | { ok: false; error: string; code?: string };
+// SimpleResult imported from ../lib/action-result: both actions below have no success
+// payload, and the generic `ActionResult<T extends object>` shape the other action
+// modules use does not actually type-check for a no-payload case
+// (`ActionResult<Record<string, never>>` fails because an object literal's `ok: true`
+// property can't simultaneously satisfy `Record<string, never>`'s index signature).
 
 /**
  * The own-channel concept: marking which one tracked channel is Kai's own account.

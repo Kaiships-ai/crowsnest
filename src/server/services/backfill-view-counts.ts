@@ -22,6 +22,7 @@ import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { igClient, type IgClient } from "../ig/client";
 import { log } from "../lib/logger";
+import { errorMessage } from "../lib/action-result";
 import { BACKFILL_LOCK_KEY } from "./sync-types";
 import { ENRICH_MAX_CONSECUTIVE_SKIPS, recomputeChannelScores } from "./sync-engine";
 
@@ -48,10 +49,6 @@ function defaultSleep(ms: number): Promise<void> {
 
 function errorCode(err: unknown): string {
   return typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : "IG_UNKNOWN";
-}
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 /** Raised when something else owns the upstream right now. Not a failure of the backfill:

@@ -130,6 +130,16 @@ export const videos = sqliteTable("videos", {
   uniqueIndex("videos_platform_external").on(t.platform, t.externalId),
   index("videos_channel_posted").on(t.channelId, t.postedAt),
   index("videos_outlier_score").on(t.outlierScore),
+  // The feed's "views" sort (buildOrderBy in queries/feed.ts: `desc(videos.viewCount)`,
+  // unscoped by channel) — without this, SQLite has no index whose leading column is
+  // view_count, so it does a full table scan plus a temp b-tree to satisfy ORDER BY.
+  index("videos_view_count").on(t.viewCount),
+  // The feed's "recent" sort (buildOrderBy: `desc(videos.postedAt)`, unscoped). This is
+  // deliberately a second, single-column index rather than reusing
+  // `videos_channel_posted` — that index leads on channelId, so it only serves
+  // ORDER BY posted_at when the query is also scoped to one channel via an equality
+  // filter on channelId, not this unscoped feed-wide sort.
+  index("videos_posted_at").on(t.postedAt),
 ]);
 
 /**

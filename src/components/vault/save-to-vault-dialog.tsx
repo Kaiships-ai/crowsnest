@@ -106,7 +106,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Save to Vault</DialogTitle>
-          <DialogDescription>Prefilled from this video&rsquo;s analysis — edit before saving.</DialogDescription>
+          <DialogDescription>Prefilled from this post&rsquo;s analysis — edit before saving.</DialogDescription>
         </DialogHeader>
 
         <ToggleGroup

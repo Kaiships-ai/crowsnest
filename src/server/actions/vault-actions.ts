@@ -2,12 +2,12 @@
 
 import { eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
+import { errorMessage } from "../lib/action-result";
 
+// Deliberately not the shared `ActionResult<T>` (../lib/action-result): this module's
+// actions never carry a `code`, and there is no generic payload branch, so it stays
+// local rather than being force-fit to the shared shape.
 type ActionResult = { ok: true } | { ok: false; error: string };
-
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 export async function createVaultItemAction(input: {
   type: "hook" | "style";

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -10,6 +10,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import type { ChannelRow, KanbanBoard as KanbanBoardData } from "@/server/queries/channels";
 import { moveChannelsAction, reorderFleetsAction } from "@/server/actions/fleet-actions";
 import {
@@ -81,6 +82,32 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
   const dirty = isDirty(overlay);
   const moveCount = commitDiff(overlay).length;
   const neverSynced = board.channels.filter((c) => c.lastSyncedAt === null).length;
+
+  // Same `dirty` the footer already reads for "No unsaved changes" vs the Save button —
+  // reused, not duplicated, as the single source of truth for both leave-guards below.
+  const { setIsBlocked } = useNavigationBlocker();
+  useEffect(() => {
+    setIsBlocked(dirty);
+    // Unmounting (the route actually changed, or this board got swapped for another)
+    // clears the flag rather than leaving a stale "blocked" behind for whatever mounts
+    // next in the shell.
+    return () => setIsBlocked(false);
+  }, [dirty, setIsBlocked]);
+
+  // Tab close, refresh, or a bare `<a>`/bookmark navigation never runs React effects on
+  // the way out, so `onNavigate` on the sidebar's `Link`s (which does cover in-app
+  // navigation) cannot reach those cases — only the browser's own confirm can. Standard
+  // pattern: set `returnValue` to opt into the native prompt, clear it once nothing is
+  // pending so an already-saved board can't still hold the tab hostage.
+  useEffect(() => {
+    if (!dirty) return;
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   /** over.id is a column droppable id (UNASSIGNED or a fleet id) or a card id; a card
    *  resolves to whichever column that card is currently sitting in. */

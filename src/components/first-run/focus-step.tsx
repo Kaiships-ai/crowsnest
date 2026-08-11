@@ -90,7 +90,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
               >
                 <span
                   aria-hidden
-                  className={`size-3 flex-none ${isSelected ? "bg-primary" : "bg-transparent ring-1 ring-inset ring-border"}`}
+                  className={`size-3 flex-none ${isSelected ? "bg-foreground" : "bg-transparent ring-1 ring-inset ring-border"}`}
                 />
                 <span className={`text-base ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
               </button>
@@ -104,7 +104,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
           >
             <span
               aria-hidden
-              className={`size-3 flex-none ${mode === "other" ? "bg-primary" : "bg-transparent ring-1 ring-inset ring-border"}`}
+              className={`size-3 flex-none ${mode === "other" ? "bg-foreground" : "bg-transparent ring-1 ring-inset ring-border"}`}
             />
             <span className={`text-base ${mode === "other" ? "text-foreground" : "text-muted-foreground"}`}>{OTHER}</span>
           </button>
