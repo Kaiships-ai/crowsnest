@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 import { GetStartedChecklist, type GetStartedItem } from "@/components/layout/get-started-checklist";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { phaseLabel, statusHeadline, syncViewState, type SyncViewState } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
@@ -135,6 +136,12 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
   // status exactly once on mount, which is why anything started elsewhere was invisible
   // until a reload.
   const { progress, isRunning, stalled, error, start, cancel } = useSyncProgress();
+  // Set by whichever page currently holds state a navigation would drop (the channels
+  // board's unsaved drag moves, so far) — see navigation-blocker.tsx. A confirm() rather
+  // than a custom dialog: it is native, blocks synchronously so `onNavigate`'s
+  // preventDefault lands before Next starts the transition, and this is the one place in
+  // the app that asks "leave anyway?" at all.
+  const { isBlocked } = useNavigationBlocker();
 
   const state = syncViewState(progress, stalled);
   const active = state === "running" || state === "cancelling";
@@ -230,6 +237,11 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
                 href={item.href}
                 title={item.label}
                 aria-current={itemActive ? "page" : undefined}
+                onNavigate={(e) => {
+                  if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
+                    e.preventDefault();
+                  }
+                }}
                 className={cn(
                   "mx-3 flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
                   collapsed && "justify-center px-0",
