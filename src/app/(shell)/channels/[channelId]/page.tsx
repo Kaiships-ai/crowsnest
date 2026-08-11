@@ -144,13 +144,13 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
 
       <Tabs defaultValue="recent">
         <TabsList>
-          <TabsTrigger value="recent">Recent Reels</TabsTrigger>
+          <TabsTrigger value="recent">Recent posts</TabsTrigger>
           <TabsTrigger value="outliers">Outliers Only</TabsTrigger>
           <TabsTrigger value="vault">In Vault</TabsTrigger>
         </TabsList>
 
         <TabsContent value="recent">
-          <ChannelVideoGrid items={detail.videos} emptyLabel="No reels tracked yet." />
+          <ChannelVideoGrid items={detail.videos} emptyLabel="No posts tracked yet." />
         </TabsContent>
         <TabsContent value="outliers">
           <ChannelVideoGrid items={outliersOnly} emptyLabel="No outliers (2x+) yet." />

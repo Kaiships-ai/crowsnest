@@ -53,7 +53,7 @@ function EmptyTemplates({ kind, templatesEmpty }: { kind: "hook" | "style"; temp
           Saving a hook or style keeps it with its source video, so a remix run can start from it later.
         </p>
         <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-2")}>
-          Browse the Feed
+          Open the feed
         </Link>
       </div>
     );

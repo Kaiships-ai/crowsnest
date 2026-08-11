@@ -91,7 +91,7 @@ function EmptyPane({ tab }: { tab: IdeaTab }) {
     <div className="flex flex-1 flex-col items-start justify-center gap-4 p-6">
       <p className="max-w-[46ch] text-sm text-muted-foreground">{copy}</p>
       <Link href="/feed" className="text-sm text-foreground underline underline-offset-4">
-        Browse the feed
+        Open the feed
       </Link>
     </div>
   );

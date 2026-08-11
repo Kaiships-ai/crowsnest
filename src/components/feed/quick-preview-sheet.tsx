@@ -78,7 +78,7 @@ export function QuickPreviewSheet({
               <Skeleton className="h-4 w-1/3" />
             </>
           ) : !detail ? (
-            <p className="text-sm text-muted-foreground">This video couldn&rsquo;t be found.</p>
+            <p className="text-sm text-muted-foreground">This post couldn&rsquo;t be found.</p>
           ) : (
             <>
               <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">

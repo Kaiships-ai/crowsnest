@@ -61,7 +61,7 @@ export function StageResearch({
   if (session.researchNotes === null) {
     return (
       <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">Assembling research from the source video…</p>
+        <p className="text-sm text-muted-foreground">Assembling research from the source post…</p>
         <Skeleton className="h-24 w-full rounded-none" />
         <Skeleton className="h-32 w-full rounded-none" />
       </div>
@@ -97,7 +97,7 @@ export function StageResearch({
             <p className="text-muted-foreground">{notes.sourceAnalysis.whyItWorked}</p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">No analysis yet — analyze the source video from Video Detail first for richer research.</p>
+          <p className="text-sm text-muted-foreground">No analysis yet — analyze the source post from Post detail first for richer research.</p>
         )}
       </div>
 

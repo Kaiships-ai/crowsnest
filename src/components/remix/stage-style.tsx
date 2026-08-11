@@ -86,7 +86,7 @@ export function StageStyle({
   // to the source video's own structure — so the empty state is just a disabled
   // option explaining why there's nothing else to pick, not a dead end.
   const styleOptions: { value: string; label: string; disabled?: boolean }[] = [
-    { value: SOURCE_VALUE, label: "Source video's structure" },
+    { value: SOURCE_VALUE, label: "Source post's structure" },
     ...(vaultStyles.length > 0
       ? vaultStyles.map((item) => ({ value: item.id, label: item.title }))
       : [{ value: EMPTY_VALUE, label: "No saved styles yet", disabled: true }]),

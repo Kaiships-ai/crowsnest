@@ -97,7 +97,7 @@ export function AddChannelDialog({
     const result = await bridgeImportReel(reelUrl);
     setPending(false);
     if (result.ok) {
-      toast.success("Reel imported");
+      toast.success("Post imported");
       onOpenChange(false);
       router.refresh();
     } else {
@@ -111,7 +111,7 @@ export function AddChannelDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a channel</DialogTitle>
-          <DialogDescription>Track a channel by handle, or import a single reel by URL.</DialogDescription>
+          <DialogDescription>Track a channel by handle, or import a single post by URL.</DialogDescription>
         </DialogHeader>
 
         <Tabs
@@ -123,7 +123,7 @@ export function AddChannelDialog({
         >
           <TabsList>
             <TabsTrigger value="handle">By handle</TabsTrigger>
-            <TabsTrigger value="url">Paste reel URL</TabsTrigger>
+            <TabsTrigger value="url">Paste post URL</TabsTrigger>
           </TabsList>
 
           <TabsContent value="handle" className="pt-2">
@@ -165,7 +165,7 @@ export function AddChannelDialog({
               }}
             >
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="reel-url">Reel URL</Label>
+                <Label htmlFor="reel-url">Post URL</Label>
                 <Input
                   id="reel-url"
                   placeholder="https://…"
@@ -174,7 +174,7 @@ export function AddChannelDialog({
                 />
               </div>
               <Button type="submit" disabled={!reelUrl || pending}>
-                {pending ? "Importing…" : "Import reel"}
+                {pending ? "Importing…" : "Import post"}
               </Button>
             </form>
           </TabsContent>

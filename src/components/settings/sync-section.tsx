@@ -321,7 +321,7 @@ export function SyncSection({
         </SettingRow>
         <SettingRow
           label="View counts per channel"
-          hint={`How many of each channel's newest reels a sync asks Instagram about individually, to recover the play count the listing endpoint withholds. 0 turns the pass off. ${enrichRecommendation(scoreBaselineWindow)}`}
+          hint={`How many of each channel's newest posts a sync asks Instagram about individually, to recover the play count the listing endpoint withholds. 0 turns the pass off. ${enrichRecommendation(scoreBaselineWindow)}`}
           infoNote={envNote("viewCountEnrichPerChannel")}
         >
           <NumberField
@@ -329,7 +329,7 @@ export function SyncSection({
             onChange={setEnrichPerChannel}
             min={0}
             max={200}
-            suffix="reels"
+            suffix="posts"
             ariaLabel="View counts per channel"
           />
         </SettingRow>
