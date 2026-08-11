@@ -90,8 +90,21 @@ export function CarouselViewer({ items }: { items: CarouselChild[] }) {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      // video-detail.tsx adds its own window keydown listener for the same two keys,
+      // to move between posts. Both listeners are on `window` itself, so
+      // stopPropagation doesn't stop a sibling listener on the same target — only
+      // preventDefault does, since it flips a flag on the event object that any
+      // later-run listener for this same event can read regardless of target. This
+      // component mounts as a child of VideoDetail, and React runs child effects
+      // before the parent's, so this listener is always registered — and always
+      // runs — before video-detail's. As long as a carousel is on screen it owns
+      // left/right outright, including at the first/last slide, rather than only
+      // stopping the feed nav on the moves it can actually take.
+      e.preventDefault();
+      e.stopPropagation();
       if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
-      if (e.key === "ArrowRight") setIndex((i) => Math.min(i + 1, lastIndex));
+      else setIndex((i) => Math.min(i + 1, lastIndex));
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);

@@ -63,16 +63,27 @@ export function NewFleetDialog() {
           <DialogDescription>Group channels into a named watchlist.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="fleet-name">Name</Label>
-          <Input id="fleet-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fitness Niche" />
-        </div>
+        {/* A form, not just an Input + Button, so Enter in the name field submits the
+            same way the button click does — matching how the Settings secret fields
+            submit on Enter (secrets-section.tsx). */}
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submit();
+          }}
+        >
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="fleet-name">Name</Label>
+            <Input id="fleet-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fitness Niche" />
+          </div>
 
-        <DialogFooter>
-          <Button onClick={submit} disabled={!name.trim() || pending}>
-            {pending ? "Creating…" : "Create"}
-          </Button>
-        </DialogFooter>
+          <DialogFooter>
+            <Button type="submit" disabled={!name.trim() || pending}>
+              {pending ? "Creating…" : "Create"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

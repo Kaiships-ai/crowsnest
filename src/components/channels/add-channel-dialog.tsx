@@ -126,37 +126,57 @@ export function AddChannelDialog({
             <TabsTrigger value="url">Paste reel URL</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="handle" className="flex flex-col gap-3 pt-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="channel-handle">Instagram handle</Label>
-              <Input
-                id="channel-handle"
-                placeholder="@handle or instagram.com/handle"
-                value={handle}
-                onChange={(e) => setHandle(e.target.value)}
-              />
-              <p className="text-muted-foreground text-xs">
-                A profile URL works too — it&apos;s normalised to a handle.
-              </p>
-            </div>
-            <Button onClick={submitHandle} disabled={!handle || pending}>
-              {pending ? "Checking handle…" : "Track channel"}
-            </Button>
+          <TabsContent value="handle" className="pt-2">
+            {/* A form, not just an Input + Button, so Enter in the field submits the
+                same way the button click does — same pattern the Settings secret
+                fields use (secrets-section.tsx), just via a real submit event instead
+                of an onKeyDown check, since there's exactly one field per tab here. */}
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitHandle();
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="channel-handle">Instagram handle</Label>
+                <Input
+                  id="channel-handle"
+                  placeholder="@handle or instagram.com/handle"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                />
+                <p className="text-muted-foreground text-xs">
+                  A profile URL works too — it&apos;s normalised to a handle.
+                </p>
+              </div>
+              <Button type="submit" disabled={!handle || pending}>
+                {pending ? "Checking handle…" : "Track channel"}
+              </Button>
+            </form>
           </TabsContent>
 
-          <TabsContent value="url" className="flex flex-col gap-3 pt-2">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="reel-url">Reel URL</Label>
-              <Input
-                id="reel-url"
-                placeholder="https://…"
-                value={reelUrl}
-                onChange={(e) => setReelUrl(e.target.value)}
-              />
-            </div>
-            <Button onClick={submitReel} disabled={!reelUrl || pending}>
-              {pending ? "Importing…" : "Import reel"}
-            </Button>
+          <TabsContent value="url" className="pt-2">
+            <form
+              className="flex flex-col gap-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submitReel();
+              }}
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="reel-url">Reel URL</Label>
+                <Input
+                  id="reel-url"
+                  placeholder="https://…"
+                  value={reelUrl}
+                  onChange={(e) => setReelUrl(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={!reelUrl || pending}>
+                {pending ? "Importing…" : "Import reel"}
+              </Button>
+            </form>
           </TabsContent>
 
           {error && (

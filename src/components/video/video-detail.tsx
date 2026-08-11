@@ -280,6 +280,12 @@ export function VideoDetail({
     function onKeyDown(e: KeyboardEvent) {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      // A carousel post (carousel-viewer.tsx) claims ArrowLeft/ArrowRight for its own
+      // slide navigation and calls preventDefault so this handler doesn't also page
+      // to the next/prev post — checked via defaultPrevented rather than relying on
+      // stopPropagation, since both listeners sit on `window` and a sibling listener
+      // on the same target isn't stopped by that alone.
+      if (e.defaultPrevented) return;
       if (e.key === "ArrowLeft" && feedNav.prevHref) router.push(feedNav.prevHref);
       if (e.key === "ArrowRight" && feedNav.nextHref) router.push(feedNav.nextHref);
     }
