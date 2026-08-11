@@ -4,6 +4,20 @@ export interface VideoForCalc {
   postedAt: string;
 }
 
+/**
+ * The outlier score (`videos.outlier_score`, computed by {@link scoreVideosAgainstBaseline}
+ * above) a post must clear before the sync pass treats it as worth turning into work — an
+ * auto-analyze download+transcribe+LLM pass (`auto-analyze.ts`) or an auto-generated inbox
+ * idea (`ideas.ts`). One shared constant rather than each file writing its own `3` so the
+ * two passes cannot quietly drift apart — a post that would qualify for an idea should
+ * always also qualify to be analyzed first, since the ideas pass only sees analyzed
+ * outliers. The two passes' CAPS (how many candidates each will act on per sync) are
+ * intentionally separate values, not shared here: auto-analyze's cap is tighter because it
+ * buys real work per candidate (a download, a transcription, an LLM call) versus the ideas
+ * pass's single LLM call.
+ */
+export const OUTLIER_IDEA_THRESHOLD = 3;
+
 export function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);

@@ -3,6 +3,7 @@ import { db, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 import { getOrCreateAnalysis } from "./analyze";
+import { OUTLIER_IDEA_THRESHOLD } from "./outlier-calc";
 
 /**
  * The sync's auto-analyze pass (phase-0 9router-supervisor plan, Task 2).
@@ -16,15 +17,15 @@ import { getOrCreateAnalysis } from "./analyze";
  * analyzing the channel's top unanalyzed outliers itself, so `video_analyses` is populated
  * by the time `generateIdeasForNewOutliers` runs later in the same sync.
  *
- * Same threshold as the ideas pass (`>= 3`, `ideas.ts`'s `threshold ?? 3`) so a post that
- * would qualify for an idea today also qualifies to be analyzed. A tighter, hard-coded cap
- * (10, not the ideas pass's 20): this pass buys real work per candidate — a download plus
- * a transcription plus an LLM call, versus the ideas pass's single LLM call — so a channel
- * with a long backlog of unanalyzed outliers should not spend a whole sync on it. No
- * settings key for either number yet (deliberately out of scope here); a later task can
- * expose them.
+ * Same threshold as the ideas pass — {@link OUTLIER_IDEA_THRESHOLD} (`outlier-calc.ts`),
+ * shared rather than each file writing its own `3` — so a post that would qualify for an
+ * idea today also qualifies to be analyzed. A tighter, hard-coded cap (10, not the ideas
+ * pass's 20) stays separate on purpose: this pass buys real work per candidate — a
+ * download plus a transcription plus an LLM call, versus the ideas pass's single LLM call
+ * — so a channel with a long backlog of unanalyzed outliers should not spend a whole sync
+ * on it. No settings key for either number yet (deliberately out of scope here); a later
+ * task can expose them.
  */
-export const AUTO_ANALYZE_THRESHOLD = 3;
 export const AUTO_ANALYZE_CAP = 10;
 
 export interface AutoAnalyzeSummary {
@@ -84,13 +85,23 @@ export async function autoAnalyzeNewOutliers(
     download?: DownloadFn;
     analyze?: AnalyzeFn;
     shouldStop?: () => Promise<boolean>;
+    /** Heartbeat, called at multiple points per candidate (not just once per loop
+     *  iteration): download-then-analyze is real work — a slow download plus a
+     *  transcription plus an LLM call — and a single call at the top of the loop leaves
+     *  the whole substep uncovered. `flushIfDue` (what `sync-engine.ts` wires this to) is
+     *  clock-gated, so calling it more than once per candidate is nearly free and only
+     *  writes when `HEARTBEAT_MAX_SILENCE_MS` has actually elapsed — same contract as the
+     *  enrichment pass's own `tick` (`sync-engine.ts`'s `enrichViewCounts`). Residual gap:
+     *  a single multi-minute transcription still has no heartbeat hook of its own, so
+     *  per-item granularity stays bounded by whichever substep (download or analyze) is
+     *  the slow one. */
     tick?: () => Promise<void>;
     /** The run whose trace these log lines belong to. Optional so a test (or a one-off
      *  script) can call the pass on its own. */
     runId?: string;
   } = {}
 ): Promise<AutoAnalyzeSummary> {
-  const threshold = opts.threshold ?? AUTO_ANALYZE_THRESHOLD;
+  const threshold = opts.threshold ?? OUTLIER_IDEA_THRESHOLD;
   const cap = opts.cap ?? AUTO_ANALYZE_CAP;
   const download = opts.download ?? downloadVideoAction;
   const analyze = opts.analyze ?? getOrCreateAnalysis;
@@ -152,7 +163,16 @@ export async function autoAnalyzeNewOutliers(
         summary.downloaded += 1;
       }
 
+      // Between download and analyze: the loop's other real time sink (transcription +
+      // LLM call) is still ahead of us here, so this is the point most likely to be
+      // reached right as the previous heartbeat is going stale.
+      await opts.tick?.();
+
       const analysis = await analyze(row.id);
+      // After analyze, regardless of outcome: fires whether the row came back null
+      // (video vanished, handled below) or a real analysis, since the analyze call
+      // itself — the slowest single step — has already happened either way.
+      await opts.tick?.();
       if (analysis === null || analysis === undefined) {
         // getOrCreateAnalysis's documented null case (analyze.ts:92-95): the video row
         // vanished between the candidate query above and this call. No `video_analyses`

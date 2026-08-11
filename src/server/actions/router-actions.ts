@@ -1,6 +1,7 @@
 "use server";
 
 import { errorMessage, type SimpleResult } from "@/server/lib/action-result";
+import { log } from "@/server/lib/logger";
 import { probeLlmGeneration } from "@/server/llm/generation-probe";
 import { routerPidAlive, routerReachable, startRouter, stopRouter, waitForRouterHealthy } from "@/server/llm/router-control";
 import { getSetting } from "@/server/settings";
@@ -69,14 +70,28 @@ export interface RouterStatus {
 const AUTO_RESTART_COOLDOWN_MS = 30_000;
 let lastAutoRestartAttemptAt = 0;
 
+/**
+ * Wrapped in its own try/catch so it can never throw: `getRouterStatusAction`'s "Never
+ * throws" guarantee below covers `routerReachable`/`probeLlmGeneration` catching their own
+ * failures, but `getSetting` is a plain async DB read with no such guard. A DB failure
+ * here is treated the same as "do not auto-restart" — the safe default — rather than
+ * rejecting a status read that would otherwise have succeeded.
+ */
 async function maybeAutoRestart(reachable: boolean): Promise<void> {
-  if (reachable) return;
-  const autoManage = await getSetting("routerAutoManage");
-  if (!autoManage) return;
-  const now = Date.now();
-  if (now - lastAutoRestartAttemptAt < AUTO_RESTART_COOLDOWN_MS) return;
-  lastAutoRestartAttemptAt = now;
-  await startRouter();
+  try {
+    if (reachable) return;
+    const autoManage = await getSetting("routerAutoManage");
+    if (!autoManage) return;
+    const now = Date.now();
+    if (now - lastAutoRestartAttemptAt < AUTO_RESTART_COOLDOWN_MS) return;
+    lastAutoRestartAttemptAt = now;
+    const result = await startRouter();
+    if (!result.ok) {
+      log.error("router.auto_restart.failed", { error: result.error });
+    }
+  } catch (err) {
+    log.error("router.auto_restart.errored", { error: errorMessage(err) });
+  }
 }
 
 /**

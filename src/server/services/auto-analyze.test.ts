@@ -222,13 +222,53 @@ describe("autoAnalyzeNewOutliers", () => {
     expect(analyze).toHaveBeenCalledWith(videoIds[0]);
   });
 
-  test("tick is called once per candidate reached", async () => {
+  test("tick is called more than once per candidate — between substeps, not just once per loop iteration", async () => {
+    // A slow download+transcribe+analyze can outlast SYNC_STALL_SECONDS on its own; a
+    // single tick at the top of the loop leaves that whole substep with no heartbeat.
+    // This proves the loop body itself calls tick between the download and analyze
+    // steps, and again after analyze, using the injectable download/analyze seams to
+    // observe ordering.
     const { channelId } = await seedChannelWithOutliers([{ score: 5 }, { score: 4 }, { score: 3 }]);
 
-    const tick = vi.fn().mockResolvedValue(undefined);
-    await autoAnalyzeNewOutliers(channelId, { download: fakeDownload(), analyze: fakeAnalyze(), tick });
+    const calls: string[] = [];
+    const tick = vi.fn().mockImplementation(async () => {
+      calls.push("tick");
+    });
+    const download = vi.fn().mockImplementation(async () => {
+      calls.push("download");
+      return { ok: true };
+    });
+    const analyze = vi.fn().mockImplementation(async () => {
+      calls.push("analyze");
+      return { hookType: "curiosity-gap", structureSegments: [], formatTags: [], styleTags: [], whyItWorked: "worked" };
+    });
+
+    await autoAnalyzeNewOutliers(channelId, { download, analyze, tick });
+
+    // 3 candidates x (top-of-loop + between-download-and-analyze + after-analyze) = 9.
+    expect(tick).toHaveBeenCalledTimes(9);
+    // First candidate's sequence proves a tick actually sits between the download and
+    // analyze substeps, and one more follows analyze, rather than all three ticks
+    // bunching before or after the real work.
+    expect(calls.slice(0, 5)).toEqual(["tick", "download", "tick", "analyze", "tick"]);
+  });
+
+  test("tick still fires between substeps when the download is skipped (asset already present)", async () => {
+    const { channelId } = await seedChannelWithOutliers([{ score: 5, hasAsset: true }]);
+
+    const calls: string[] = [];
+    const tick = vi.fn().mockImplementation(async () => {
+      calls.push("tick");
+    });
+    const analyze = vi.fn().mockImplementation(async () => {
+      calls.push("analyze");
+      return { hookType: "curiosity-gap", structureSegments: [], formatTags: [], styleTags: [], whyItWorked: "worked" };
+    });
+
+    await autoAnalyzeNewOutliers(channelId, { download: fakeDownload(), analyze, tick });
 
     expect(tick).toHaveBeenCalledTimes(3);
+    expect(calls).toEqual(["tick", "tick", "analyze", "tick"]);
   });
 
   test("defaults to the real downloadVideoAction and getOrCreateAnalysis when no overrides are given", async () => {

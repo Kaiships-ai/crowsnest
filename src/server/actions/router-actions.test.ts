@@ -14,6 +14,7 @@ vi.mock("@/server/llm/router-control", () => ({
 }));
 vi.mock("@/server/llm/generation-probe", () => ({ probeLlmGeneration: vi.fn() }));
 vi.mock("@/server/settings", () => ({ getSetting: vi.fn() }));
+vi.mock("@/server/lib/logger", () => ({ log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -141,5 +142,42 @@ describe("getRouterStatusAction", () => {
     // not trigger a second spawn — this is the hot-loop guard the brief requires.
     await getRouterStatusAction();
     expect(startRouter).toHaveBeenCalledTimes(1);
+  });
+
+  test("never throws when getSetting rejects — treated as do-not-auto-restart", async () => {
+    vi.resetModules();
+    const { routerReachable, startRouter, routerPidAlive } = await import("@/server/llm/router-control");
+    const { probeLlmGeneration } = await import("@/server/llm/generation-probe");
+    const { getSetting } = await import("@/server/settings");
+    vi.mocked(routerPidAlive).mockReturnValue(false);
+    vi.mocked(routerReachable).mockResolvedValue(false);
+    vi.mocked(probeLlmGeneration).mockResolvedValue({ state: "down", detail: null });
+    vi.mocked(getSetting).mockRejectedValue(new Error("db is locked"));
+    const { getRouterStatusAction } = await import("./router-actions");
+
+    // The whole point of the fix: a DB failure inside maybeAutoRestart must not reject
+    // this function's own promise, and must not attempt a restart either.
+    await expect(getRouterStatusAction()).resolves.toEqual({ pidAlive: false, reachable: false, generationOk: false });
+    expect(startRouter).not.toHaveBeenCalled();
+  });
+
+  test("logs once when the guarded auto-restart attempt itself fails", async () => {
+    vi.resetModules();
+    const { routerReachable, startRouter, routerPidAlive } = await import("@/server/llm/router-control");
+    const { probeLlmGeneration } = await import("@/server/llm/generation-probe");
+    const { getSetting } = await import("@/server/settings");
+    const { log } = await import("@/server/lib/logger");
+    vi.mocked(routerPidAlive).mockReturnValue(false);
+    vi.mocked(routerReachable).mockResolvedValue(false);
+    vi.mocked(probeLlmGeneration).mockResolvedValue({ state: "down", detail: null });
+    vi.mocked(getSetting).mockResolvedValue(true);
+    vi.mocked(startRouter).mockResolvedValue({ ok: false, error: "spawn 9router ENOENT" });
+    const { getRouterStatusAction } = await import("./router-actions");
+
+    await getRouterStatusAction();
+
+    expect(startRouter).toHaveBeenCalledTimes(1);
+    expect(log.error).toHaveBeenCalledTimes(1);
+    expect(log.error).toHaveBeenCalledWith("router.auto_restart.failed", { error: "spawn 9router ENOENT" });
   });
 });

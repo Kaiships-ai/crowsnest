@@ -4,6 +4,7 @@ import { getLlm, type LlmClient } from "@/server/llm/client";
 import { IdeaSchema } from "@/server/llm/schemas";
 import { getPersona } from "./persona";
 import { log } from "@/server/lib/logger";
+import { OUTLIER_IDEA_THRESHOLD } from "./outlier-calc";
 
 const IDEA_SYSTEM =
   `You are a short-form content strategist. Given how one video worked (its hook, structure, ` +
@@ -163,7 +164,7 @@ export async function generateIdeasForNewOutliers(
     tick?: () => Promise<void>;
   } = {}
 ): Promise<{ candidates: number; created: number; stopped: boolean }> {
-  const threshold = opts.threshold ?? 3;
+  const threshold = opts.threshold ?? OUTLIER_IDEA_THRESHOLD;
   const cap = opts.cap ?? 20;
 
   let candidates: { id: string }[];
