@@ -82,6 +82,37 @@ describe("router control", () => {
     expect(fs.writeFileSync).toHaveBeenCalledWith("data/9router.pid", "9999");
   });
 
+  test("concurrent startRouter calls collapse onto one spawn and one pid write (in-flight guard)", async () => {
+    unreachable();
+    const { spawn } = await import("node:child_process");
+    const fs = await import("node:fs");
+
+    // Both calls see `routerReachable()` as false (the race the in-flight guard exists
+    // to close): without the guard, each would independently spawn its own child and
+    // the second `writeFileSync` would silently overwrite the first child's tracked
+    // pid, leaving it running but untracked.
+    const [first, second] = await Promise.all([control.startRouter(), control.startRouter()]);
+
+    expect(first).toEqual({ ok: true, alreadyUp: false });
+    // Same promise shared, not just two calls that happened to agree — proves the
+    // second caller never started its own spawn attempt at all.
+    expect(second).toBe(first);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  test("a startRouter call after the in-flight one has settled spawns again if still unreachable (guard doesn't wedge)", async () => {
+    unreachable();
+
+    const first = await control.startRouter();
+    const second = await control.startRouter();
+
+    const { spawn } = await import("node:child_process");
+    expect(first).toEqual({ ok: true, alreadyUp: false });
+    expect(second).toEqual({ ok: true, alreadyUp: false });
+    expect(spawn).toHaveBeenCalledTimes(2);
+  });
+
   test("startRouter resolves the binary from ROUTER_BIN when set", async () => {
     unreachable();
     const { spawn } = await import("node:child_process");

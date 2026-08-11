@@ -61,14 +61,37 @@ export async function routerReachable(timeoutMs: number = ROUTER_REACHABLE_TIMEO
 
 export type StartRouterResult = { ok: true; alreadyUp: boolean } | { ok: false; error: string };
 
+// Guards against a race that would otherwise break the pid-tracking guarantee this
+// whole module exists for: `routerReachable()` and `spawn()` below are not atomic, and
+// with no lock, two overlapping callers (e.g. the auto-restart watchdog firing while a
+// manual Start click or a second status read is also mid-flight) can each see
+// `routerReachable()` return false and each spawn their own child. The second
+// `writeFileSync(PID_FILE, ...)` would then silently overwrite the first child's pid,
+// leaving it running but untracked, so `stopRouter()` could never kill it again.
+//
+// The fix is a module-level in-flight promise: the first call starts the real work and
+// stores the promise here; any call that arrives before that promise settles reuses it
+// instead of starting a second one. Because JS is single-threaded, there is no `await`
+// between reading `inFlightStart` and setting it below, so this check-and-set can never
+// interleave with another call the way the reachable-check-then-spawn sequence can.
+let inFlightStart: Promise<StartRouterResult> | null = null;
+
 /**
  * Idempotent: if 9router already answers, this is a no-op success — Start clicked
  * twice, or Start after 9router was already running from a previous session, must
  * never spawn a second process. Otherwise spawns the tray server detached, with
  * stdout/stderr appended to `~/.crowsnest/9router.log`, and tracks the child's pid in
- * `data/9router.pid`.
+ * `data/9router.pid`. Concurrent calls collapse onto one spawn — see `inFlightStart`.
  */
 export async function startRouter(): Promise<StartRouterResult> {
+  if (inFlightStart) return inFlightStart;
+  inFlightStart = doStartRouter().finally(() => {
+    inFlightStart = null;
+  });
+  return inFlightStart;
+}
+
+async function doStartRouter(): Promise<StartRouterResult> {
   if (await routerReachable()) return { ok: true, alreadyUp: true };
   try {
     mkdirSync(LOG_DIR, { recursive: true });
