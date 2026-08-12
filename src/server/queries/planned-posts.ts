@@ -22,6 +22,9 @@ export interface PlannedPostRow {
   plannedDate: string | null;
   plannedTime: string | null;
   targetLengthSec: number | null;
+  /** One of VIDEO_KINDS (src/server/services/video-kind.ts), or null when no kind has
+   *  been chosen — see the schema comment on plannedPosts.videoKind. */
+  videoKind: string | null;
   scriptId: string | null;
   /** Denormalized so a calendar cell does not join scripts to print a marker. */
   scriptTitle: string | null;
@@ -72,6 +75,7 @@ function toRow(
     plannedDate: row.plannedDate,
     plannedTime: row.plannedTime,
     targetLengthSec: row.targetLengthSec,
+    videoKind: row.videoKind,
     scriptId: row.scriptId,
     scriptTitle,
     scriptLengthChars,

@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { scriptExists } from "../queries/planned-posts";
+import { isVideoKind } from "../services/video-kind";
 
 /**
  * Server actions backing the manual planner (V1 data contracts, contract 6). Every
@@ -39,6 +40,7 @@ export async function createPlannedPostAction(input: {
   scriptId?: string;
   remixSessionId?: string;
   sourceVideoId?: string;
+  videoKind?: string;
 }): Promise<ActionResult<{ id: string }>> {
   try {
     const title = input.title.trim();
@@ -50,6 +52,10 @@ export async function createPlannedPostAction(input: {
 
     if (input.scriptId !== undefined && !(await scriptExists(input.scriptId))) {
       return { ok: false, error: "That script no longer exists.", code: "PLAN_SCRIPT_NOT_FOUND" };
+    }
+
+    if (input.videoKind !== undefined && !isVideoKind(input.videoKind)) {
+      return { ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" };
     }
 
     const id = newId();
@@ -67,6 +73,7 @@ export async function createPlannedPostAction(input: {
       scriptId: input.scriptId ?? null,
       remixSessionId: input.remixSessionId ?? null,
       sourceVideoId: input.sourceVideoId ?? null,
+      videoKind: input.videoKind ?? null,
       createdAt: now,
       updatedAt: now,
     });
@@ -78,7 +85,7 @@ export async function createPlannedPostAction(input: {
 
 export async function updatePlannedPostAction(
   id: string,
-  patch: { title?: string; note?: string; targetLengthSec?: number | null }
+  patch: { title?: string; note?: string; targetLengthSec?: number | null; videoKind?: string | null }
 ): Promise<SimpleResult> {
   try {
     const plan = await getPlan(id);
@@ -87,12 +94,17 @@ export async function updatePlannedPostAction(
     const title = patch.title !== undefined ? patch.title.trim() : undefined;
     if (title !== undefined && !title) return { ok: false, error: "A planned post needs a title.", code: "PLAN_INVALID_TITLE" };
 
+    if (patch.videoKind !== undefined && patch.videoKind !== null && !isVideoKind(patch.videoKind)) {
+      return { ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" };
+    }
+
     await db
       .update(tables.plannedPosts)
       .set({
         ...(title !== undefined ? { title } : {}),
         ...(patch.note !== undefined ? { note: patch.note.trim() || null } : {}),
         ...(patch.targetLengthSec !== undefined ? { targetLengthSec: patch.targetLengthSec } : {}),
+        ...(patch.videoKind !== undefined ? { videoKind: patch.videoKind } : {}),
         updatedAt: nowIso(),
       })
       .where(eq(tables.plannedPosts.id, id));

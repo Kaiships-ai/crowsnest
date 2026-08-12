@@ -1,0 +1,1 @@
+ALTER TABLE `planned_posts` ADD `video_kind` text;
