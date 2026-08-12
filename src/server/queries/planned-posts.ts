@@ -127,6 +127,37 @@ export async function getPlannedPosts(range?: { from: string; to: string }): Pro
   });
 }
 
+/** One plan by id, same `PlannedPostRow` shape (script join, computed `state` and
+ *  `reconciledOwnPostId`) as `getPlannedPosts` — the studio brief's single-record
+ *  counterpart to that list query. Null when no plan has this id. */
+export async function getPlannedPostById(id: string): Promise<PlannedPostRow | null> {
+  const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id)).limit(1);
+  if (!row) return null;
+
+  let scriptTitle: string | null = null;
+  let scriptLengthChars: number | null = null;
+  if (row.scriptId) {
+    const [script] = await db
+      .select({ title: tables.scripts.title, content: tables.scripts.content })
+      .from(tables.scripts)
+      .where(eq(tables.scripts.id, row.scriptId))
+      .limit(1);
+    if (script) {
+      scriptTitle = script.title;
+      scriptLengthChars = script.content.length;
+    }
+  }
+
+  let reconciledOwnPostId: string | null = null;
+  if (row.plannedDate !== null && row.publishedOwnPostId === null) {
+    const ownPosts = await getPostsWithLatestInsights();
+    const match = ownPosts.find((p) => p.postedAt.slice(0, 10) === row.plannedDate);
+    reconciledOwnPostId = match?.ownPostId ?? null;
+  }
+
+  return toRow(row, scriptTitle, scriptLengthChars, reconciledOwnPostId);
+}
+
 export interface CalendarMonth {
   month: string; // "YYYY-MM"
   published: { ownPostId: string; date: string; reach: number | null; title: string | null }[];
