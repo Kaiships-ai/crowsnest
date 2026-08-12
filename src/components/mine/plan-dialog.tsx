@@ -38,6 +38,7 @@ import {
   updatePlannedPostAction,
 } from "@/server/actions/planned-post-actions";
 import type { PlannedPostRow } from "@/server/queries/planned-posts";
+import { VIDEO_KINDS } from "@/server/services/video-kind";
 
 export interface ScriptOption {
   id: string;
@@ -68,6 +69,7 @@ export function PlanDialog({
   const [note, setNote] = useState(plan?.note ?? "");
   const [date, setDate] = useState(plan?.plannedDate ?? presetDate ?? "");
   const [scriptId, setScriptId] = useState<string>(plan?.scriptId ?? "");
+  const [videoKind, setVideoKind] = useState<string>(plan?.videoKind ?? "");
   const [noScriptAck, setNoScriptAck] = useState(isEdit && !plan?.scriptId && !plan?.remixSessionId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export function PlanDialog({
     setNote("");
     setDate("");
     setScriptId("");
+    setVideoKind("");
     setNoScriptAck(false);
     setError(null);
   }
@@ -95,6 +98,7 @@ export function PlanDialog({
         note: note.trim() || undefined,
         plannedDate: date || undefined,
         scriptId: scriptId || undefined,
+        videoKind: videoKind || undefined,
       });
       setSaving(false);
       if (!result.ok) {
@@ -132,6 +136,14 @@ export function PlanDialog({
     }
     if (scriptId !== (planRow.scriptId ?? "")) {
       const r = scriptId ? await attachScriptToPlanAction(planRow.id, scriptId) : await detachScriptFromPlanAction(planRow.id);
+      if (!r.ok) {
+        setSaving(false);
+        setError(r.error);
+        return;
+      }
+    }
+    if (videoKind !== (planRow.videoKind ?? "")) {
+      const r = await updatePlannedPostAction(planRow.id, { videoKind: videoKind || null });
       if (!r.ok) {
         setSaving(false);
         setError(r.error);
@@ -211,6 +223,23 @@ export function PlanDialog({
               )}
             </div>
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="plan-video-kind">Video kind</Label>
+            <Select value={videoKind || "none"} onValueChange={(v) => setVideoKind(!v || v === "none" ? "" : v)}>
+              <SelectTrigger id="plan-video-kind">
+                <SelectValue placeholder="Not set" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not set</SelectItem>
+                {VIDEO_KINDS.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
