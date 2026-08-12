@@ -15,6 +15,7 @@ let attachScriptToPlanAction: typeof import("./planned-post-actions")["attachScr
 let detachScriptFromPlanAction: typeof import("./planned-post-actions")["detachScriptFromPlanAction"];
 let markPlanPublishedAction: typeof import("./planned-post-actions")["markPlanPublishedAction"];
 let deleteScriptAction: typeof import("./remix-actions")["deleteScriptAction"];
+let getPlannedPosts: typeof import("../queries/planned-posts")["getPlannedPosts"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -34,6 +35,7 @@ beforeAll(async () => {
     markPlanPublishedAction,
   } = await import("./planned-post-actions"));
   ({ deleteScriptAction } = await import("./remix-actions"));
+  ({ getPlannedPosts } = await import("../queries/planned-posts"));
 });
 
 beforeEach(async () => {
@@ -118,6 +120,66 @@ describe("createPlannedPostAction", () => {
     const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, result.id));
     expect(row.scriptId).toBe(scriptId);
     expect(row.remixSessionId).toBe(remixSessionId);
+  });
+});
+
+describe("videoKind (content machine v1, task 1)", () => {
+  test("creating with a valid videoKind persists it, and the calendar query returns it", async () => {
+    const result = await createPlannedPostAction({ title: "Kitchen tour", videoKind: "talking-head" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, result.id));
+    expect(row.videoKind).toBe("talking-head");
+
+    const [planRow] = await getPlannedPosts();
+    expect(planRow.videoKind).toBe("talking-head");
+  });
+
+  test("creating with an unknown videoKind is refused with BAD_VIDEO_KIND, and nothing is written", async () => {
+    const result = await createPlannedPostAction({ title: "Bad kind", videoKind: "reel" });
+    expect(result).toEqual({ ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" });
+
+    const rows = await db.select().from(tables.plannedPosts);
+    expect(rows).toHaveLength(0);
+  });
+
+  test("creating with no videoKind leaves it null", async () => {
+    const result = await createPlannedPostAction({ title: "No kind given" });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, result.id));
+    expect(row.videoKind).toBeNull();
+  });
+
+  test("updating with a valid videoKind persists it, and the calendar query returns it", async () => {
+    const created = (await createPlannedPostAction({ title: "Original" })) as { ok: true; id: string };
+    const result = await updatePlannedPostAction(created.id, { videoKind: "product-promo" });
+    expect(result).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.videoKind).toBe("product-promo");
+
+    const [planRow] = await getPlannedPosts();
+    expect(planRow.videoKind).toBe("product-promo");
+  });
+
+  test("updating with an unknown videoKind returns BAD_VIDEO_KIND and does not write", async () => {
+    const created = (await createPlannedPostAction({ title: "Original", videoKind: "talking-head" })) as { ok: true; id: string };
+    const result = await updatePlannedPostAction(created.id, { videoKind: "reel" });
+    expect(result).toEqual({ ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" });
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.videoKind).toBe("talking-head"); // unchanged
+  });
+
+  test("updating with videoKind: null clears it", async () => {
+    const created = (await createPlannedPostAction({ title: "Original", videoKind: "talking-head" })) as { ok: true; id: string };
+    const result = await updatePlannedPostAction(created.id, { videoKind: null });
+    expect(result).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.videoKind).toBeNull();
   });
 });
 

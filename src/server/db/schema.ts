@@ -384,6 +384,10 @@ export const plannedPosts = sqliteTable("planned_posts", {
   plannedDate: text("planned_date"),
   plannedTime: text("planned_time"), // "HH:MM", null when only a date is set
   targetLengthSec: integer("target_length_sec"),
+  /** One of VIDEO_KINDS (src/server/services/video-kind.ts), or null when no kind has
+   *  been chosen. Validated at the action layer, not here — this column just stores
+   *  whatever string the write action already checked. */
+  videoKind: text("video_kind"),
   /** The load-bearing link: a plan that carries a script is a plan with the work
    *  already in it. `set null` — see the comment on `scripts.remixSessionId` above for
    *  why deleting a script instead is refused at the action layer rather than left to
