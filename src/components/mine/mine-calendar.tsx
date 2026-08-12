@@ -236,12 +236,15 @@ export function MineCalendar({
                   onClick={() => setSelectedKey(cell.key)}
                   aria-pressed={selectedKey === cell.key}
                   className={cn(
-                    "flex min-h-[76px] flex-col gap-1.5 border p-2 text-left",
+                    "relative flex min-h-[76px] flex-col gap-1.5 border p-2 text-left",
                     CELL_STYLE[cell.kind],
                     !cell.inMonth && "opacity-40",
                     selectedKey === cell.key && "ring-1 ring-foreground/40"
                   )}
                 >
+                  {cell.plan?.publishedOwnPostId != null && (
+                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 bg-pos" />
+                  )}
                   <span className="flex w-full items-baseline gap-1.5">
                     <span data-num className="font-mono text-2xs text-faint">
                       {cell.day}
@@ -285,6 +288,9 @@ export function MineCalendar({
         <span className="flex items-center gap-2">
           <i aria-hidden className="size-3 border border-border" /> open
         </span>
+        <span className="flex items-center gap-2">
+          <i aria-hidden className="size-2 bg-pos" /> plan published
+        </span>
       </div>
 
       {selectedCell && (
@@ -312,6 +318,7 @@ export function MineCalendar({
               <p className="font-mono text-2xs tracking-wide text-faint uppercase">
                 {selectedCell.plan.state}
                 {selectedCell.plan.scriptId === null && !selectedCell.plan.remixSessionId && " · no script yet"}
+                {selectedCell.plan.publishedOwnPostId !== null && <span className="text-pos"> · published</span>}
               </p>
               {selectedCell.plan.scriptDetachedNote && (
                 <p className="text-xs text-destructive">{selectedCell.plan.scriptDetachedNote}</p>
