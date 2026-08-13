@@ -69,9 +69,37 @@ vi.mock("@/server/actions/create-run-actions", () => ({
 
 const updateCreateRun = vi.fn();
 const getCreateRun = vi.fn((_id: string) => ({ status: "running" }));
+// D1 Task 5: the reattach path reads the latest run for a post to report its status to
+// a newly-attached socket. Defaults to null (no prior run) so every existing test
+// (none of which reattach) is unaffected; reattach-specific tests override this.
+const getLatestCreateRunForPost = vi.fn((_postId: string) => null as { id: string; status: string } | null);
 vi.mock("@/server/queries/create-runs", () => ({
   updateCreateRun: (...args: never[]) => updateCreateRun(...args),
   getCreateRun: (id: string) => getCreateRun(id),
+  getLatestCreateRunForPost: (postId: string) => getLatestCreateRunForPost(postId),
+}));
+
+// D1 Task 5: a real Map-backed fake, not just vi.fn() stubs, so the reattach test can
+// exercise genuine put/get roundtrip semantics (a second attach for the same postId
+// must see the first attach's entry). Cleared in afterEach so postId "abc" -- reused
+// by nearly every test in this file -- never leaks a registered cook from one test
+// into the next and accidentally takes the reattach branch instead of spawning fresh.
+const cookRegistry = new Map<string, unknown>();
+const getCookEntry = vi.fn((postId: string) => cookRegistry.get(postId));
+const putCookEntry = vi.fn((postId: string, entry: unknown) => {
+  cookRegistry.set(postId, entry);
+});
+const dropCookEntry = vi.fn((postId: string) => {
+  cookRegistry.delete(postId);
+});
+const setCookEntryWs = vi.fn((entry: { ws: unknown }, ws: unknown) => {
+  entry.ws = ws;
+});
+vi.mock("./session-registry", () => ({
+  getCookEntry: (postId: string) => getCookEntry(postId),
+  putCookEntry: (postId: string, entry: unknown) => putCookEntry(postId, entry),
+  dropCookEntry: (postId: string) => dropCookEntry(postId),
+  setCookEntryWs: (entry: { ws: unknown }, ws: unknown) => setCookEntryWs(entry, ws),
 }));
 
 // Existing tests never care about the vault-missing guard, so existsSync defaults to
@@ -99,6 +127,8 @@ describe("attachTerminal", () => {
     capturedOnFound = undefined;
     startCreateRunAction.mockImplementation(async () => ({ ok: true as const, runId: "run-1" }));
     getCreateRun.mockImplementation(() => ({ status: "running" }));
+    getLatestCreateRunForPost.mockImplementation(() => null);
+    cookRegistry.clear();
   });
 
   // Flushes the microtask queue so the fire-and-forget `startCreateRunAction(...).then(...)`
@@ -177,7 +207,7 @@ describe("attachTerminal", () => {
     expect(ws.close).toHaveBeenCalled();
   });
 
-  it("kills the session when the ws closes", async () => {
+  it("does NOT kill the session when the ws closes while the cook is still running (D1 Task 5: a tab closing must not kill a running cook)", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
     const ws = fakeWs();
@@ -185,7 +215,21 @@ describe("attachTerminal", () => {
 
     ws.emit("close");
 
-    expect(kill).toHaveBeenCalled();
+    expect(kill).not.toHaveBeenCalled();
+    // The cook stays registered so a later reattach can find it.
+    expect(dropCookEntry).not.toHaveBeenCalled();
+  });
+
+  it("detaches (nulls the entry's ws) but keeps the registry entry when the ws closes", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("close");
+
+    expect(setCookEntryWs).toHaveBeenCalledWith(expect.anything(), null);
+    expect(getCookEntry("abc")).toBeDefined();
   });
 
   it("closes the ws with 1008 when the post is unknown", async () => {
@@ -209,7 +253,7 @@ describe("attachTerminal", () => {
     expect(getPlannedPostTitleById).not.toHaveBeenCalled();
   });
 
-  it("kills the session when the ws emits an error", async () => {
+  it("does NOT kill the session when the ws emits an error (detach only, not a cook kill)", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
     const ws = fakeWs();
@@ -217,7 +261,8 @@ describe("attachTerminal", () => {
 
     ws.emit("error", new Error("ECONNRESET"));
 
-    expect(kill).toHaveBeenCalled();
+    expect(kill).not.toHaveBeenCalled();
+    expect(dropCookEntry).not.toHaveBeenCalled();
   });
 
   it("closes the ws with 1011 and does not throw when setup fails", async () => {
@@ -285,7 +330,7 @@ describe("attachTerminal", () => {
     expect(frame).toEqual({ type: "render", assetId: "asset-1", url: "/api/media/asset-1" });
   });
 
-  it("stops the render watcher when the ws closes", async () => {
+  it("does NOT stop the render watcher when the ws closes (the cook, and its render watch, keep running headless)", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
     const ws = fakeWs();
@@ -293,7 +338,7 @@ describe("attachTerminal", () => {
 
     ws.emit("close");
 
-    expect(renderWatchStop).toHaveBeenCalled();
+    expect(renderWatchStop).not.toHaveBeenCalled();
   });
 
   it("prunes old renders once at attach time", async () => {
@@ -324,7 +369,7 @@ describe("attachTerminal", () => {
     expect(renderWatchStop).toHaveBeenCalled();
   });
 
-  it("clears the watchdog timer when the ws closes", async () => {
+  it("does NOT clear the watchdog timer when the ws closes (the cook is still running and still needs it)", async () => {
     vi.useFakeTimers();
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
@@ -335,10 +380,10 @@ describe("attachTerminal", () => {
 
     ws.emit("close");
 
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
-  it("clears the watchdog timer when the ws errors", async () => {
+  it("does NOT clear the watchdog timer when the ws errors", async () => {
     vi.useFakeTimers();
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
@@ -349,7 +394,7 @@ describe("attachTerminal", () => {
 
     ws.emit("error", new Error("ECONNRESET"));
 
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
   it("kills the session and closes the ws with 1011 when the watchdog elapses", async () => {
@@ -478,5 +523,67 @@ describe("attachTerminal", () => {
       return frame.type === "run" && frame.status === "failed";
     });
     expect(call).toBeUndefined();
+  });
+
+  // D1 Task 5: a cook now lives in the session registry independent of any socket, so
+  // a second attach for the same post must bind to the existing cook instead of
+  // spawning a duplicate. These tests use the real Map-backed registry mock declared
+  // above, not per-call vi.fn() stubs, so "the second attach sees the first attach's
+  // entry" is a genuine roundtrip, not an assumption.
+  it("reattaches to a live cook instead of spawning a second session, and does not start a second create_run", async () => {
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await flush();
+
+    getLatestCreateRunForPost.mockReturnValueOnce({ id: "run-1", status: "running" });
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(createTerminalSession).toHaveBeenCalledTimes(1);
+    expect(startCreateRunAction).toHaveBeenCalledTimes(1);
+    expect(wsB.send).toHaveBeenCalledWith(JSON.stringify({ type: "run", runId: "run-1", status: "running" }));
+  });
+
+  it("relays input from the reattached socket to the original (only) session", async () => {
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    wsB.emit("message", JSON.stringify({ type: "input", data: "y" }));
+
+    expect(write).toHaveBeenCalledWith("y");
+    expect(createTerminalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("reattaching after a detach (ws close) does not double-spawn a session for the same post", async () => {
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    wsA.emit("close");
+
+    const wsB = fakeWs();
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(createTerminalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the registry entry when the session exits", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(getCookEntry("abc")).toBeDefined();
+
+    onExitCb?.(0);
+
+    expect(dropCookEntry).toHaveBeenCalledWith("abc");
+    expect(getCookEntry("abc")).toBeUndefined();
   });
 });
