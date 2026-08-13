@@ -25,10 +25,11 @@ const getPlannedPostTitleById = vi.fn();
 vi.mock("./resolve-post", () => ({ getPlannedPostTitleById }));
 
 /** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
- *  shape closely enough for attachTerminal's `.on("message"|"close", ...)` wiring. */
+ *  shape closely enough for attachTerminal's `.on("message"|"close"|"error", ...)`
+ *  wiring, plus the readyState/OPEN pair the setup catch block reads before closing. */
 function fakeWs() {
   const emitter = new EventEmitter();
-  return Object.assign(emitter, { send: vi.fn(), close: vi.fn() });
+  return Object.assign(emitter, { send: vi.fn(), close: vi.fn(), readyState: 1, OPEN: 1 });
 }
 
 describe("attachTerminal", () => {
@@ -137,5 +138,40 @@ describe("attachTerminal", () => {
 
     expect(ws.close).toHaveBeenCalledWith(1008, "missing post");
     expect(getPlannedPostTitleById).not.toHaveBeenCalled();
+  });
+
+  it("kills the session when the ws emits an error", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("error", new Error("ECONNRESET"));
+
+    expect(kill).toHaveBeenCalled();
+  });
+
+  it("closes the ws with 1011 and does not throw when setup fails", async () => {
+    getPlannedPostTitleById.mockRejectedValueOnce(new Error("database is locked"));
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await expect(attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never)).resolves.toBeUndefined();
+
+    expect(ws.close).toHaveBeenCalledWith(1011, "terminal setup failed");
+    expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+
+  it("kills a partially-created session and closes with 1011 when session creation throws", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    createTerminalSession.mockImplementationOnce(() => {
+      throw new Error("spawn ENOENT");
+    });
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await expect(attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never)).resolves.toBeUndefined();
+
+    expect(ws.close).toHaveBeenCalledWith(1011, "terminal setup failed");
   });
 });
