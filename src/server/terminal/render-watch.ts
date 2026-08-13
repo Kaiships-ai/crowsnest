@@ -1,5 +1,5 @@
 // src/server/terminal/render-watch.ts
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
 import { config } from "@/server/config";
 
@@ -10,7 +10,7 @@ interface WatchOpts {
 
 const POLL_INTERVAL_MS = 700;
 
-function rendersRoot(): string {
+export function rendersRoot(): string {
   return path.join(config.VAULT_PATH, "Studio", "workspace", "renders");
 }
 
@@ -66,4 +66,29 @@ export function watchForRender({ slug, onFound }: WatchOpts): { stop: () => void
   timer = setInterval(tick, POLL_INTERVAL_MS);
 
   return { stop };
+}
+
+/**
+ * Deletes render dirs under `root` older than maxAgeMs so the renders root does not grow
+ * without bound across cook sessions. Takes an explicit root (rather than reading
+ * `config.VAULT_PATH` itself via `rendersRoot()`) so callers and tests can point it at
+ * any directory without mocking config. Best-effort: a failure to stat or remove one
+ * entry must not throw or stop the rest of the sweep.
+ */
+export function pruneOldRenders(root: string, maxAgeMs: number, now: number = Date.now()): void {
+  let entries;
+  try {
+    entries = readdirSync(root, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const p = path.join(root, entry.name);
+    try {
+      if (now - statSync(p).mtimeMs > maxAgeMs) rmSync(p, { recursive: true, force: true });
+    } catch {
+      // ignore a single bad entry and keep pruning the rest
+    }
+  }
 }

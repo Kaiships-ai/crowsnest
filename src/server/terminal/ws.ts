@@ -6,8 +6,13 @@ import { getAssetStore } from "@/server/media/asset-store";
 import { sandboxDir, slugify } from "@/server/studio/paths";
 import { buildCookProfile } from "./harness-profile";
 import { getPlannedPostTitleById } from "./resolve-post";
-import { watchForRender } from "./render-watch";
+import { pruneOldRenders, rendersRoot, watchForRender } from "./render-watch";
 import { createTerminalSession } from "./session";
+
+// A stale sandbox render sits around only long enough for its poll to pick it up and
+// hand it to AssetStore; anything still there a day later is orphaned (a session that
+// never exited cleanly, a crash mid-cook) and safe to sweep.
+const RENDER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Relays a per-post pty session over the websocket. The cwd is always server-computed
@@ -22,7 +27,31 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
   // uncleaned disconnect (ECONNRESET, a tab or laptop closing) would otherwise take
   // down the whole single-process app, not just this connection.
   let session: ReturnType<typeof createTerminalSession> | null = null;
+  let renderWatch: { stop: () => void } | null = null;
+  let watchdog: NodeJS.Timeout | null = null;
+
+  // One controller per attach owns both timers, so every teardown path (session exit,
+  // ws close, ws error, setup failure) converges on a single `ac.abort()` instead of
+  // each repeating "stop the poll, clear the watchdog" and risking one of them drifting
+  // out of sync as the handlers evolve. The listener reads `watchdog`/`renderWatch`
+  // through the closure at fire time, so it works regardless of whether abort() is
+  // called before or after either one exists (e.g. a setup failure before the session
+  // spawns).
+  const ac = new AbortController();
+  ac.signal.addEventListener(
+    "abort",
+    () => {
+      if (watchdog) {
+        clearTimeout(watchdog);
+        watchdog = null;
+      }
+      renderWatch?.stop();
+    },
+    { once: true },
+  );
+
   ws.on("error", () => {
+    ac.abort();
     session?.kill();
   });
 
@@ -53,9 +82,22 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     const dir = sandboxDir(slug);
     mkdirSync(dir, { recursive: true });
 
+    // Best-effort sweep of orphaned render dirs from earlier sessions (a crash, a
+    // watchdog kill) that never got cleaned up. Runs once per attach, not on a timer,
+    // so it stays cheap and never competes with the poll below.
+    pruneOldRenders(rendersRoot(), RENDER_MAX_AGE_MS);
+
     session = createTerminalSession(buildCookProfile(dir));
 
-    const renderWatch = watchForRender({
+    // Cooks are human-gated and can sit idle a long time waiting on input, so this is a
+    // hung-process safety net only, not a cook time limit: it must stay long (config
+    // defaults to 6h) and must not become gate-aware here.
+    watchdog = setTimeout(() => {
+      session?.kill();
+      ws.close(1011, "cook watchdog");
+    }, config.COOK_WATCHDOG_MS ?? 21_600_000);
+
+    renderWatch = watchForRender({
       slug,
       onFound: (mp4Path) => {
         void (async () => {
@@ -75,7 +117,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     });
 
     session.onExit((code) => {
-      renderWatch.stop();
+      ac.abort();
       ws.send(JSON.stringify({ type: "exit", code }));
       ws.close();
     });
@@ -97,7 +139,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     });
 
     ws.on("close", () => {
-      renderWatch.stop();
+      ac.abort();
       session?.kill();
     });
   } catch (err) {
@@ -107,6 +149,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     // so an unhandled rejection here would crash the whole process. Kill any session
     // that was already created and close the socket instead of letting it propagate.
     console.error("attachTerminal setup failed", err);
+    ac.abort();
     session?.kill();
     if (ws.readyState === ws.OPEN) {
       ws.close(1011, "terminal setup failed");

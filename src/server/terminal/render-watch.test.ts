@@ -1,6 +1,6 @@
 // src/server/terminal/render-watch.test.ts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -10,10 +10,11 @@ let vaultDir: string;
 vi.mock("@/server/config", () => ({ config: { get VAULT_PATH() { return vaultDir; } } }));
 
 let watchForRender: typeof import("./render-watch")["watchForRender"];
+let pruneOldRenders: typeof import("./render-watch")["pruneOldRenders"];
 beforeEach(async () => {
   vaultDir = mkdtempSync(path.join(tmpdir(), "render-watch-"));
   mkdirSync(rendersRoot(), { recursive: true });
-  ({ watchForRender } = await import("./render-watch"));
+  ({ watchForRender, pruneOldRenders } = await import("./render-watch"));
 });
 afterEach(() => { rmSync(vaultDir, { recursive: true, force: true }); vi.resetModules(); });
 
@@ -38,5 +39,33 @@ describe("watchForRender", () => {
     await new Promise((r) => setTimeout(r, 1600));
     expect(onFound).not.toHaveBeenCalled();
     handle.stop();
+  });
+});
+
+describe("pruneOldRenders", () => {
+  it("removes only dirs older than maxAgeMs, in a root passed explicitly", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "prune-root-"));
+    const oldDir = path.join(root, "2026-08-01-old-post");
+    const freshDir = path.join(root, "2026-08-13-fresh-post");
+    mkdirSync(oldDir, { recursive: true });
+    mkdirSync(freshDir, { recursive: true });
+
+    const now = Date.now();
+    const oldMtime = new Date(now - 2 * 60 * 60 * 1000); // 2h old
+    const freshMtime = new Date(now - 60 * 1000); // 1min old
+    utimesSync(oldDir, oldMtime, oldMtime);
+    utimesSync(freshDir, freshMtime, freshMtime);
+
+    pruneOldRenders(root, 60 * 60 * 1000, now); // 1h max age
+
+    expect(existsSync(oldDir)).toBe(false);
+    expect(existsSync(freshDir)).toBe(true);
+
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("does not throw when the root does not exist", () => {
+    const missingRoot = path.join(vaultDir, "does-not-exist");
+    expect(() => pruneOldRenders(missingRoot, 60 * 60 * 1000)).not.toThrow();
   });
 });

@@ -32,7 +32,13 @@ const watchForRender = vi.fn((opts: { slug: string; onFound: (p: string) => void
   capturedOnFound = opts.onFound;
   return { stop: renderWatchStop };
 });
-vi.mock("./render-watch", () => ({ watchForRender: (opts: never) => watchForRender(opts) }));
+const pruneOldRenders = vi.fn();
+const rendersRoot = vi.fn(() => "/fake/vault/Studio/workspace/renders");
+vi.mock("./render-watch", () => ({
+  watchForRender: (opts: never) => watchForRender(opts),
+  pruneOldRenders: (...args: never[]) => pruneOldRenders(...args),
+  rendersRoot: () => rendersRoot(),
+}));
 
 const assetStorePut = vi.fn(async () => "asset-1");
 const assetStorePublicUrl = vi.fn((id: string) => `/api/media/${id}`);
@@ -45,7 +51,7 @@ vi.mock("@/server/media/asset-store", () => ({
 const existsSync = vi.fn((_path: string) => true);
 vi.mock("node:fs", () => ({ existsSync: (path: string) => existsSync(path), mkdirSync: vi.fn() }));
 
-vi.mock("@/server/config", () => ({ config: { VAULT_PATH: "/fake/vault" } }));
+vi.mock("@/server/config", () => ({ config: { VAULT_PATH: "/fake/vault", COOK_WATCHDOG_MS: 1000 } }));
 
 /** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
  *  shape closely enough for attachTerminal's `.on("message"|"close"|"error", ...)`
@@ -57,6 +63,7 @@ function fakeWs() {
 
 describe("attachTerminal", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     existsSync.mockReturnValue(true);
     onDataCb = undefined;
@@ -252,5 +259,74 @@ describe("attachTerminal", () => {
     ws.emit("close");
 
     expect(renderWatchStop).toHaveBeenCalled();
+  });
+
+  it("prunes old renders once at attach time", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(pruneOldRenders).toHaveBeenCalledTimes(1);
+    expect(pruneOldRenders).toHaveBeenCalledWith("/fake/vault/Studio/workspace/renders", expect.any(Number));
+  });
+
+  it("clears the watchdog timer and stops the render watch when the session exits", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    // Only the watchdog is a real timer here: watchForRender is mocked, so no interval
+    // is actually scheduled by this test.
+    expect(vi.getTimerCount()).toBe(1);
+
+    onExitCb?.(0);
+
+    expect(vi.getTimerCount()).toBe(0);
+    expect(renderWatchStop).toHaveBeenCalled();
+  });
+
+  it("clears the watchdog timer when the ws closes", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(vi.getTimerCount()).toBe(1);
+
+    ws.emit("close");
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("clears the watchdog timer when the ws errors", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(vi.getTimerCount()).toBe(1);
+
+    ws.emit("error", new Error("ECONNRESET"));
+
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("kills the session and closes the ws with 1011 when the watchdog elapses", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(kill).toHaveBeenCalled();
+    expect(ws.close).toHaveBeenCalledWith(1011, "cook watchdog");
   });
 });
