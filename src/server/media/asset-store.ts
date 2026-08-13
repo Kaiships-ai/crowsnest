@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { assetUrl, getAsset, recordAsset, resolveAssetPath, storagePathFor, type MediaKind } from "@/server/media/store";
 
@@ -28,15 +29,15 @@ export class LocalAssetStore implements AssetStore {
       throw new Error(`LocalAssetStore.put: unsupported kind ${JSON.stringify(kind)}`);
     }
 
-    const bytes = readFileSync(file.path);
+    const bytes = await readFile(file.path);
     const sha256 = createHash("sha256").update(bytes).digest("hex");
     const storagePath = storagePathFor(sha256, contentType);
     const destination = resolveAssetPath(storagePath);
 
     if (!existsSync(destination)) {
       // Reuse the bytes already read for hashing rather than re-reading the source file.
-      mkdirSync(path.dirname(destination), { recursive: true });
-      writeFileSync(destination, bytes);
+      await mkdir(path.dirname(destination), { recursive: true });
+      await writeFile(destination, bytes);
     }
 
     const row = await recordAsset({
