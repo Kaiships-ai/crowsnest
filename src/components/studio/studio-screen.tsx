@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
 import { formatMultiplier } from "@/lib/format";
+import { StudioPanel } from "@/components/studio/studio-panel";
 import type { VideoLayoutField } from "@/server/llm/schemas";
 import type { getStudioBrief } from "@/server/queries/studio";
 
@@ -97,33 +97,7 @@ export function StudioScreen({ brief }: { brief: StudioBrief }) {
         </div>
       </div>
 
-      {/* Center: Claude Code — a labelled slot, not a fake terminal. The web-terminal
-          plan wires an actual connection into this pane. */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-2 border-r border-border p-6">
-        <span className="font-mono text-2xs tracking-wide text-faint uppercase">Claude Code</span>
-        <p className="text-sm text-muted-foreground">Terminal connects here.</p>
-      </div>
-
-      {/* Right: Output — a labelled slot, not a fake video. The render plan wires a real
-          9:16 preview and enables Publish once a render exists. */}
-      <div className="flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto p-6">
-        <span className="font-mono text-2xs tracking-wide text-faint uppercase">Output</span>
-        <div className="flex aspect-[9/16] w-full items-center justify-center border border-border bg-card text-xs text-muted-foreground">
-          Preview
-        </div>
-        <div className="flex flex-col gap-2">
-          <Button type="button" variant="secondary" disabled className="w-full">
-            Publish
-          </Button>
-          <p className="text-xs text-muted-foreground">Publish unlocks when the render completes.</p>
-          {/* Disabled alongside Publish: there is no render yet for either control to act
-              on, and an enabled control with no handler would read as wired when it is
-              not. */}
-          <Button type="button" variant="outline" disabled className="w-full">
-            Save to calendar
-          </Button>
-        </div>
-      </div>
+      <StudioPanel postId={plan.id} hasFramePass={layout !== null} />
     </div>
   );
 }
