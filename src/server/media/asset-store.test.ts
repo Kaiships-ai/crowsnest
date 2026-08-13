@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, test } from "vitest";
 
 /**
@@ -66,5 +68,34 @@ describe("LocalAssetStore", () => {
   test("getAssetStore returns a singleton", async () => {
     const { getAssetStore } = await importAssetStore();
     expect(getAssetStore()).toBe(getAssetStore());
+  });
+
+  test("put streams the sha256 rather than buffering, matching a hash computed over the same bytes", async () => {
+    const { db, tables } = await import("@/server/db");
+    const { getAssetStore } = await importAssetStore();
+    const store = getAssetStore();
+
+    // Large enough to span several stream chunks, so a streaming hash implementation is
+    // actually exercised rather than trivially matching on a single-chunk read.
+    const contents = Buffer.alloc(5 * 1024 * 1024, "streamed-render-bytes-");
+    const src = path.join(sandbox, "large-render.mp4");
+    writeFileSync(src, contents);
+    const expectedSha256 = createHash("sha256").update(contents).digest("hex");
+
+    const id = await store.put({ path: src }, "video", "video/mp4");
+    const rows = await db.select().from(tables.mediaAssets).where(eq(tables.mediaAssets.id, id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].sha256).toBe(expectedSha256);
+    expect(rows[0].byteSize).toBe(contents.length);
+
+    // Round-trip: identical bytes under a different source path still dedup to the same id.
+    const src2 = path.join(sandbox, "large-render-copy.mp4");
+    writeFileSync(src2, contents);
+    const id2 = await store.put({ path: src2 }, "video", "video/mp4");
+    expect(id2).toBe(id);
+
+    const got = await store.get(id);
+    expect(got).not.toBeNull();
+    expect(readFileSync(got!.path).equals(contents)).toBe(true);
   });
 });

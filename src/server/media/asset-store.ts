@@ -1,8 +1,17 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createReadStream, existsSync } from "node:fs";
+import { copyFile, mkdir, stat } from "node:fs/promises";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { assetUrl, getAsset, recordAsset, resolveAssetPath, storagePathFor, type MediaKind } from "@/server/media/store";
+
+/** Streams a file through sha256 rather than buffering it, so a large render (a video)
+ *  never holds its whole byte content in memory just to be hashed. */
+async function hashFile(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(filePath), hash);
+  return hash.digest("hex");
+}
 
 /**
  * A local-file-in, media-asset-id-out seam over the content-addressed media store. This
@@ -29,23 +38,21 @@ export class LocalAssetStore implements AssetStore {
       throw new Error(`LocalAssetStore.put: unsupported kind ${JSON.stringify(kind)}`);
     }
 
-    const bytes = await readFile(file.path);
-    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const sha256 = await hashFile(file.path);
     const storagePath = storagePathFor(sha256, contentType);
     const destination = resolveAssetPath(storagePath);
 
     if (!existsSync(destination)) {
-      // Reuse the bytes already read for hashing rather than re-reading the source file.
       await mkdir(path.dirname(destination), { recursive: true });
-      await writeFile(destination, bytes);
+      await copyFile(file.path, destination);
     }
 
+    const { size: byteSize } = await stat(file.path);
     const row = await recordAsset({
       sha256,
       kind,
       contentType,
-      // The bytes already in memory from hashing are the ones on disk — no second stat.
-      byteSize: bytes.length,
+      byteSize,
       storagePath,
     });
     return row.id;
