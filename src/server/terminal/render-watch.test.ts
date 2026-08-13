@@ -24,10 +24,10 @@ describe("watchForRender", () => {
     const dir = path.join(rendersRoot(), "2026-08-13-my-post");
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "video.mp4"), "aaaa");
-    await vi.waitFor(() => expect(onFound).toHaveBeenCalledTimes(1), { timeout: 10000 });
+    await vi.waitFor(() => expect(onFound).toHaveBeenCalledTimes(1), { timeout: 3000 });
     expect(onFound.mock.calls[0][0]).toBe(path.join(dir, "video.mp4"));
     handle.stop();
-  }, 12000);
+  });
 
   it("ignores a video.mp4 for a different slug", async () => {
     const onFound = vi.fn();
@@ -35,7 +35,7 @@ describe("watchForRender", () => {
     const dir = path.join(rendersRoot(), "2026-08-13-other-post");
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "video.mp4"), "aaaa");
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 1600));
     expect(onFound).not.toHaveBeenCalled();
     handle.stop();
   });
