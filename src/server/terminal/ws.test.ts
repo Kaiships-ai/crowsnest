@@ -1,0 +1,129 @@
+import { EventEmitter } from "node:events";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { sandboxDir, slugify } from "@/server/studio/paths";
+
+const write = vi.fn();
+const resize = vi.fn();
+const kill = vi.fn();
+let onDataCb: ((s: string) => void) | undefined;
+let onExitCb: ((code: number) => void) | undefined;
+
+const createTerminalSession = vi.fn(() => ({
+  onData: (cb: (s: string) => void) => {
+    onDataCb = cb;
+  },
+  write,
+  resize,
+  onExit: (cb: (code: number) => void) => {
+    onExitCb = cb;
+  },
+  kill,
+}));
+vi.mock("./session", () => ({ createTerminalSession }));
+
+const getPlannedPostTitleById = vi.fn();
+vi.mock("./resolve-post", () => ({ getPlannedPostTitleById }));
+
+/** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
+ *  shape closely enough for attachTerminal's `.on("message"|"close", ...)` wiring. */
+function fakeWs() {
+  const emitter = new EventEmitter();
+  return Object.assign(emitter, { send: vi.fn(), close: vi.fn() });
+}
+
+describe("attachTerminal", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    onDataCb = undefined;
+    onExitCb = undefined;
+  });
+
+  it("resolves the post's title, computes the sandbox dir, and creates a session there", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    const req = { url: "/api/terminal/ws?post=abc" };
+
+    await attachTerminal(ws as never, req as never);
+
+    expect(getPlannedPostTitleById).toHaveBeenCalledWith("abc");
+    expect(createTerminalSession).toHaveBeenCalledWith({ cwd: sandboxDir(slugify("My Great Post")) });
+  });
+
+  it("relays an input message to session.write", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("message", JSON.stringify({ type: "input", data: "x" }));
+
+    expect(write).toHaveBeenCalledWith("x");
+  });
+
+  it("relays a resize message to session.resize", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("message", JSON.stringify({ type: "resize", cols: 80, rows: 24 }));
+
+    expect(resize).toHaveBeenCalledWith(80, 24);
+  });
+
+  it("sends an output frame when the pty emits data", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    onDataCb?.("hello");
+
+    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: "output", data: "hello" }));
+  });
+
+  it("sends an exit frame and closes the socket when the pty exits", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    onExitCb?.(0);
+
+    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ type: "exit", code: 0 }));
+    expect(ws.close).toHaveBeenCalled();
+  });
+
+  it("kills the session when the ws closes", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("close");
+
+    expect(kill).toHaveBeenCalled();
+  });
+
+  it("closes the ws with 1008 when the post is unknown", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce(null);
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=missing" } as never);
+
+    expect(ws.close).toHaveBeenCalledWith(1008, "unknown post");
+    expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+
+  it("closes the ws with 1008 when no post param is given", async () => {
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws" } as never);
+
+    expect(ws.close).toHaveBeenCalledWith(1008, "missing post");
+    expect(getPlannedPostTitleById).not.toHaveBeenCalled();
+  });
+});

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import next from "next";
 import { WebSocketServer } from "ws";
 import { ensurePtyExecutable } from "./src/server/terminal/pty-perms";
+import { attachTerminal } from "./src/server/terminal/ws";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
@@ -16,9 +17,8 @@ app.prepare().then(() => {
   const server = createServer((req, res) => handle(req, res));
   const wss = new WebSocketServer({ noServer: true });
 
-  wss.on("connection", (ws) => {
-    // Task 4 replaces this echo with the pty relay.
-    ws.on("message", (data) => ws.send(data.toString()));
+  wss.on("connection", (ws, req) => {
+    void attachTerminal(ws, req);
   });
 
   server.on("upgrade", (req, socket, head) => {
