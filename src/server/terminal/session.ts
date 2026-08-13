@@ -1,5 +1,6 @@
 import { spawn } from "node-pty";
 import { scrubClaudeEnv } from "../services/claude-task";
+import { buildHarnessArgs, type HarnessProfile } from "./harness-profile";
 
 /**
  * Absolute on purpose, same reasoning as claude-task.ts's DEFAULT_BINARY: `claude` on PATH
@@ -28,14 +29,14 @@ export function scrubbedTerminalEnv(): NodeJS.ProcessEnv {
   return out;
 }
 
-export function createTerminalSession(opts: { cwd: string }): TerminalSession {
+export function createTerminalSession(profile: HarnessProfile): TerminalSession {
   const binary = process.env.CLAUDE_BINARY_PATH ?? DEFAULT_BINARY;
-  const child = spawn(binary, ["--dangerously-skip-permissions"], {
+  const child = spawn(binary, buildHarnessArgs(profile), {
     name: "xterm-256color",
     cols: 120,
     rows: 40,
-    cwd: opts.cwd,
-    env: scrubbedTerminalEnv(),
+    cwd: profile.cwd,
+    env: profile.env,
   });
 
   return {
@@ -52,6 +53,18 @@ export function createTerminalSession(opts: { cwd: string }): TerminalSession {
       child.onExit(({ exitCode }) => cb(exitCode));
     },
     kill() {
+      const pid = child.pid;
+      if (typeof pid === "number") {
+        try {
+          // Negative pid signals the whole process group so ffmpeg/kokoro/sub-agent
+          // children die with the cook, not orphaned. On darwin the pty child leads
+          // its own session, so its pid is its pgid.
+          process.kill(-pid, "SIGTERM");
+          return;
+        } catch {
+          // ESRCH (group already gone) or EPERM: fall through to the single kill.
+        }
+      }
       child.kill();
     },
   };

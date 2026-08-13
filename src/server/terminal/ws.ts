@@ -4,6 +4,7 @@ import type { WebSocket } from "ws";
 import { config } from "@/server/config";
 import { getAssetStore } from "@/server/media/asset-store";
 import { sandboxDir, slugify } from "@/server/studio/paths";
+import { buildCookProfile } from "./harness-profile";
 import { getPlannedPostTitleById } from "./resolve-post";
 import { watchForRender } from "./render-watch";
 import { createTerminalSession } from "./session";
@@ -52,7 +53,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     const dir = sandboxDir(slug);
     mkdirSync(dir, { recursive: true });
 
-    session = createTerminalSession({ cwd: dir });
+    session = createTerminalSession(buildCookProfile(dir));
 
     const renderWatch = watchForRender({
       slug,

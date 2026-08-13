@@ -19,7 +19,9 @@ const createTerminalSession = vi.fn(() => ({
   },
   kill,
 }));
-vi.mock("./session", () => ({ createTerminalSession }));
+// buildCookProfile (called by attachTerminal via harness-profile.ts) imports
+// scrubbedTerminalEnv from this same module, so the mock must keep exporting it too.
+vi.mock("./session", () => ({ createTerminalSession, scrubbedTerminalEnv: vi.fn(() => ({})) }));
 
 const getPlannedPostTitleById = vi.fn();
 vi.mock("./resolve-post", () => ({ getPlannedPostTitleById }));
@@ -71,7 +73,9 @@ describe("attachTerminal", () => {
     await attachTerminal(ws as never, req as never);
 
     expect(getPlannedPostTitleById).toHaveBeenCalledWith("abc");
-    expect(createTerminalSession).toHaveBeenCalledWith({ cwd: sandboxDir(slugify("My Great Post")) });
+    expect(createTerminalSession).toHaveBeenCalledWith(
+      expect.objectContaining({ cwd: sandboxDir(slugify("My Great Post")) }),
+    );
   });
 
   it("relays an input message to session.write", async () => {
