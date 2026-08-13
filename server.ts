@@ -8,10 +8,10 @@ const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
 
 const app = next({ dev, port });
-const handle = app.getRequestHandler();
-const upgrade = app.getUpgradeHandler();
 
 app.prepare().then(() => {
+  const handle = app.getRequestHandler();
+  const upgrade = app.getUpgradeHandler();
   ensurePtyExecutable();
   const server = createServer((req, res) => handle(req, res));
   const wss = new WebSocketServer({ noServer: true });
