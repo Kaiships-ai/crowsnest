@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-const spawn = vi.fn(() => ({ onData: vi.fn(), onExit: vi.fn(), write: vi.fn(), resize: vi.fn(), kill: vi.fn() }));
+const spawn = vi.fn((_file: string, _args: string[], _opts: { name: string; cols: number; rows: number; cwd: string; env: NodeJS.ProcessEnv }) => ({
+  onData: vi.fn(),
+  onExit: vi.fn(),
+  write: vi.fn(),
+  resize: vi.fn(),
+  kill: vi.fn(),
+}));
 vi.mock("node-pty", () => ({ spawn }));
 
 describe("createTerminalSession", () => {

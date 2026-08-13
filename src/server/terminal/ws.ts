@@ -39,11 +39,18 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
   });
 
   ws.on("message", (raw) => {
-    const msg = JSON.parse(raw.toString());
-    if (msg.type === "input") {
-      session.write(msg.data);
-    } else if (msg.type === "resize") {
-      session.resize(msg.cols, msg.rows);
+    try {
+      const msg = JSON.parse(raw.toString());
+      if (msg.type === "input") {
+        session.write(msg.data);
+      } else if (msg.type === "resize") {
+        session.resize(msg.cols, msg.rows);
+      }
+    } catch {
+      // A malformed frame must not throw out of a ws "message" listener: this custom
+      // server hosts the whole Next app in one process, and an uncaught throw here
+      // would take the entire dev server down, not just this connection.
+      ws.close(1008, "bad frame");
     }
   });
 

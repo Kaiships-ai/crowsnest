@@ -61,6 +61,18 @@ describe("attachTerminal", () => {
     expect(write).toHaveBeenCalledWith("x");
   });
 
+  it("closes the ws with 1008 on a non-JSON message instead of throwing", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(() => ws.emit("message", "not json")).not.toThrow();
+
+    expect(ws.close).toHaveBeenCalledWith(1008, "bad frame");
+    expect(write).not.toHaveBeenCalled();
+  });
+
   it("relays a resize message to session.resize", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
