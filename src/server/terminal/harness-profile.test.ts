@@ -5,7 +5,7 @@ const base: HarnessProfile = {
   cwd: "/tmp/sandbox",
   permissionMode: "bypassPermissions",
   settingsJson: '{"hooks":{"SessionStart":[]}}',
-  env: {},
+  env: {} as NodeJS.ProcessEnv,
 };
 
 describe("buildHarnessArgs", () => {

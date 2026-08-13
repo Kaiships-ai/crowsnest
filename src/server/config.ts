@@ -82,6 +82,11 @@ const schema = z.object({
    *  lower value fixes the number the feed prints without producing a score to go with it. */
   VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(0, 0, 200),
 
+  // --- cook harness ---
+  COOK_MODEL: z.string().optional(),
+  COOK_CONCURRENCY: intWithDefault(2, 1, 16),
+  COOK_WATCHDOG_MS: intWithDefault(21_600_000, 60_000, 86_400_000),
+
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),
 
