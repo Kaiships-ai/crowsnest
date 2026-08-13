@@ -8,6 +8,7 @@ import { buildCookProfile } from "./harness-profile";
 import { getPlannedPostTitleById } from "./resolve-post";
 import { pruneOldRenders, rendersRoot, watchForRender } from "./render-watch";
 import { createTerminalSession } from "./session";
+import { runOnCookQueue } from "./cook-queue";
 
 // A stale sandbox render sits around only long enough for its poll to pick it up and
 // hand it to AssetStore; anything still there a day later is orphaned (a session that
@@ -29,6 +30,17 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
   let session: ReturnType<typeof createTerminalSession> | null = null;
   let renderWatch: { stop: () => void } | null = null;
   let watchdog: NodeJS.Timeout | null = null;
+
+  // A named helper, not an inline `session?.kill()`, on purpose: TypeScript's control
+  // flow narrowing treats `session = createTerminalSession(...)` inside the queued
+  // task's nested closure (below) as if it could run synchronously as part of the
+  // `runOnCookQueue(...)` call, which then makes an inline `session?.kill()` read
+  // right after that call site (in the outer catch block) spuriously narrow to
+  // `never`. Routing every read through this indirection sidesteps that false
+  // positive without an `as` cast.
+  const killSession = (): void => {
+    session?.kill();
+  };
 
   // One controller per attach owns both timers, so every teardown path (session exit,
   // ws close, ws error, setup failure) converges on a single `ac.abort()` instead of
@@ -52,7 +64,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
   ws.on("error", () => {
     ac.abort();
-    session?.kill();
+    killSession();
   });
 
   try {
@@ -87,41 +99,10 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     // so it stays cheap and never competes with the poll below.
     pruneOldRenders(rendersRoot(), RENDER_MAX_AGE_MS);
 
-    session = createTerminalSession(buildCookProfile(dir));
-
-    // Cooks are human-gated and can sit idle a long time waiting on input, so this is a
-    // hung-process safety net only, not a cook time limit: it must stay long (config
-    // defaults to 6h) and must not become gate-aware here.
-    watchdog = setTimeout(() => {
-      session?.kill();
-      ws.close(1011, "cook watchdog");
-    }, config.COOK_WATCHDOG_MS ?? 21_600_000);
-
-    renderWatch = watchForRender({
-      slug,
-      onFound: (mp4Path) => {
-        void (async () => {
-          try {
-            const assetId = await getAssetStore().put({ path: mp4Path }, "video", "video/mp4");
-            const url = getAssetStore().publicUrl(assetId);
-            ws.send(JSON.stringify({ type: "render", assetId, url }));
-          } catch (err) {
-            console.error("render capture failed", err);
-          }
-        })();
-      },
-    });
-
-    session.onData((data) => {
-      ws.send(JSON.stringify({ type: "output", data }));
-    });
-
-    session.onExit((code) => {
-      ac.abort();
-      ws.send(JSON.stringify({ type: "exit", code }));
-      ws.close();
-    });
-
+    // Attached before the cook is queued (which may wait behind other cooks at the
+    // concurrency limit) so nothing sent while queued is lost. Both handlers
+    // null-guard on `session`, which stays null until the queued task below actually
+    // spawns it.
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -140,7 +121,92 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
     ws.on("close", () => {
       ac.abort();
-      session?.kill();
+      killSession();
+    });
+
+    // The queued task holds its concurrency slot for the whole cook lifetime, not just
+    // the spawn call: the returned promise only settles once the cook exits (session
+    // onExit -> ac.abort()) or the socket goes away while queued/running (ws close or
+    // error -> ac.abort()). Both converge on the same "abort" listener below, so a cook
+    // that never gets to spawn (ws closed while still queued) still resolves and frees
+    // its slot instead of leaking it.
+    void runOnCookQueue(
+      () =>
+        new Promise<void>((resolve) => {
+          if (ac.signal.aborted) {
+            // The socket closed or errored while this task was waiting in the queue:
+            // never spawn a cook nobody can see, just free the slot.
+            resolve();
+            return;
+          }
+
+          try {
+            session = createTerminalSession(buildCookProfile(dir));
+
+            // Cooks are human-gated and can sit idle a long time waiting on input, so
+            // this is a hung-process safety net only, not a cook time limit: it must
+            // stay long (config defaults to 6h) and must not become gate-aware here.
+            watchdog = setTimeout(() => {
+              session?.kill();
+              ws.close(1011, "cook watchdog");
+            }, config.COOK_WATCHDOG_MS ?? 21_600_000);
+
+            renderWatch = watchForRender({
+              slug,
+              onFound: (mp4Path) => {
+                void (async () => {
+                  try {
+                    const assetId = await getAssetStore().put({ path: mp4Path }, "video", "video/mp4");
+                    const url = getAssetStore().publicUrl(assetId);
+                    ws.send(JSON.stringify({ type: "render", assetId, url }));
+                  } catch (err) {
+                    console.error("render capture failed", err);
+                  }
+                })();
+              },
+            });
+
+            session.onData((data) => {
+              ws.send(JSON.stringify({ type: "output", data }));
+            });
+
+            session.onExit((code) => {
+              ac.abort();
+              ws.send(JSON.stringify({ type: "exit", code }));
+              ws.close();
+            });
+
+            // The one place that frees the queue slot: fires on a normal exit (via the
+            // onExit -> ac.abort() above) and on an external teardown (ws close/error,
+            // or the setup catch block below), whichever comes first.
+            ac.signal.addEventListener(
+              "abort",
+              () => {
+                session?.kill();
+                resolve();
+              },
+              { once: true },
+            );
+          } catch (err) {
+            // Spawning the pty can throw synchronously (ENOENT if the claude binary is
+            // missing). This runs inside the queued task, not attachTerminal's own
+            // try/catch below, so it needs its own handling: kill any partial session,
+            // abort to clear the watchdog and render poll, close the socket, and
+            // resolve so the queue slot frees instead of leaking.
+            console.error("attachTerminal cook setup failed", err);
+            ac.abort();
+            session?.kill();
+            if (ws.readyState === ws.OPEN) {
+              ws.close(1011, "terminal setup failed");
+            }
+            resolve();
+          }
+        }),
+    ).catch((err) => {
+      // runOnCookQueue only rejects if the executor above rejects, which it no longer
+      // does (every path calls resolve()); this is a last-resort net, not an expected
+      // path.
+      console.error("cook queue task failed", err);
     });
   } catch (err) {
     // Setup can throw or reject: the title lookup can hit a DB error or a locked
@@ -150,7 +216,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     // that was already created and close the socket instead of letting it propagate.
     console.error("attachTerminal setup failed", err);
     ac.abort();
-    session?.kill();
+    killSession();
     if (ws.readyState === ws.OPEN) {
       ws.close(1011, "terminal setup failed");
     }

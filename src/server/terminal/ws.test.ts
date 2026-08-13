@@ -40,6 +40,14 @@ vi.mock("./render-watch", () => ({
   rendersRoot: () => rendersRoot(),
 }));
 
+// Passthrough queue mock: calls fn() immediately (synchronously, since attachTerminal's
+// executor never awaits before wiring session/watchdog/renderWatch) so every existing
+// test's "await attachTerminal(...)" still observes the session already created,
+// without pulling in the real p-queue concurrency behavior (that lives in
+// cook-queue.test.ts).
+const runOnCookQueue = vi.fn((fn: () => Promise<unknown>) => fn());
+vi.mock("./cook-queue", () => ({ runOnCookQueue: (fn: () => Promise<unknown>) => runOnCookQueue(fn) }));
+
 const assetStorePut = vi.fn(async () => "asset-1");
 const assetStorePublicUrl = vi.fn((id: string) => `/api/media/${id}`);
 vi.mock("@/server/media/asset-store", () => ({
@@ -328,5 +336,46 @@ describe("attachTerminal", () => {
 
     expect(kill).toHaveBeenCalled();
     expect(ws.close).toHaveBeenCalledWith(1011, "cook watchdog");
+  });
+
+  it("runs the cook spawn through the concurrency queue", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(runOnCookQueue).toHaveBeenCalledTimes(1);
+    // The queue held the session creation itself, not just a wrapper around an
+    // already-spawned session: this only holds if createTerminalSession happened
+    // inside the function passed to runOnCookQueue.
+    expect(createTerminalSession).toHaveBeenCalled();
+  });
+
+  it("never spawns a session, and frees the queue slot, when the ws closes before the queued task runs", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    // Simulate the cook still waiting for a concurrency slot: the queue accepts the
+    // task but does not invoke it yet.
+    let queuedTask: (() => Promise<unknown>) | undefined;
+    runOnCookQueue.mockImplementationOnce((fn: () => Promise<unknown>) => {
+      queuedTask = fn;
+      return new Promise(() => {
+        /* never settles while queued, matching a real PQueue task waiting for a slot */
+      });
+    });
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(createTerminalSession).not.toHaveBeenCalled();
+
+    // The socket goes away while still queued.
+    ws.emit("close");
+
+    // The queue now runs the task (as a real queue would once a slot frees up, or as
+    // this test does directly to exercise the aborted-before-spawn branch).
+    const settled = queuedTask?.();
+    await expect(settled).resolves.toBeUndefined();
+    expect(createTerminalSession).not.toHaveBeenCalled();
   });
 });
