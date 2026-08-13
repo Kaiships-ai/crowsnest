@@ -9,6 +9,7 @@ let onDataCb: ((s: string) => void) | undefined;
 let onExitCb: ((code: number) => void) | undefined;
 
 const createTerminalSession = vi.fn(() => ({
+  pid: 4321,
   onData: (cb: (s: string) => void) => {
     onDataCb = cb;
   },
@@ -54,6 +55,25 @@ vi.mock("@/server/media/asset-store", () => ({
   getAssetStore: () => ({ put: assetStorePut, publicUrl: assetStorePublicUrl }),
 }));
 
+// D1 create-run tracking: ws.ts claims a create_runs row when the cook spawns and
+// updates it as the cook progresses. Defaults to a happy-path ok result so every
+// existing test (none of which care about the run wiring) still exercises the real
+// call site without needing to stub it individually.
+const startCreateRunAction = vi.fn(async (input: { postId: string; slug: string }) => {
+  void input;
+  return { ok: true as const, runId: "run-1" };
+});
+vi.mock("@/server/actions/create-run-actions", () => ({
+  startCreateRunAction: (input: { postId: string; slug: string }) => startCreateRunAction(input),
+}));
+
+const updateCreateRun = vi.fn();
+const getCreateRun = vi.fn((_id: string) => ({ status: "running" }));
+vi.mock("@/server/queries/create-runs", () => ({
+  updateCreateRun: (...args: never[]) => updateCreateRun(...args),
+  getCreateRun: (id: string) => getCreateRun(id),
+}));
+
 // Existing tests never care about the vault-missing guard, so existsSync defaults to
 // true here; the one test that needs it false overrides this mock per-test.
 const existsSync = vi.fn((_path: string) => true);
@@ -77,7 +97,14 @@ describe("attachTerminal", () => {
     onDataCb = undefined;
     onExitCb = undefined;
     capturedOnFound = undefined;
+    startCreateRunAction.mockImplementation(async () => ({ ok: true as const, runId: "run-1" }));
+    getCreateRun.mockImplementation(() => ({ status: "running" }));
   });
+
+  // Flushes the microtask queue so the fire-and-forget `startCreateRunAction(...).then(...)`
+  // chain in ws.ts (deliberately not awaited by attachTerminal, so the sync
+  // onData/onExit/watchdog wiring is never delayed by it) has settled before assertions run.
+  const flush = () => new Promise((r) => setTimeout(r, 0));
 
   it("resolves the post's title, computes the sandbox dir, and creates a session there", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
@@ -377,5 +404,79 @@ describe("attachTerminal", () => {
     const settled = queuedTask?.();
     await expect(settled).resolves.toBeUndefined();
     expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+
+  it("claims a create_runs row when the cook spawns and sends a running run frame", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await flush();
+
+    expect(startCreateRunAction).toHaveBeenCalledWith({ postId: "abc", slug: slugify("My Great Post") });
+    expect(updateCreateRun).toHaveBeenCalledWith("run-1", expect.objectContaining({ pid: 4321 }));
+    const call = ws.send.mock.calls.find((args: unknown[]) => JSON.parse(args[0] as string).type === "run");
+    expect(call).toBeDefined();
+    expect(JSON.parse((call as unknown[])[0] as string)).toEqual({ type: "run", runId: "run-1", status: "running" });
+  });
+
+  it("marks the run success and sends a run frame when a render is captured", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await flush();
+
+    capturedOnFound?.("/tmp/x/video.mp4");
+    await flush();
+
+    expect(updateCreateRun).toHaveBeenCalledWith(
+      "run-1",
+      expect.objectContaining({ status: "success", renderAssetId: "asset-1" }),
+    );
+    const call = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "success";
+    });
+    expect(call).toBeDefined();
+  });
+
+  it("marks the run failed and sends a run frame when the session exits with no render", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await flush();
+
+    onExitCb?.(1);
+
+    expect(updateCreateRun).toHaveBeenCalledWith("run-1", expect.objectContaining({ status: "failed" }));
+    const call = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "failed";
+    });
+    expect(call).toBeDefined();
+  });
+
+  it("does not clobber a status Stop already set when the session exits after being killed", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    // Simulates the DB row Stop already moved to `canceled` (stopCreateRunAction runs
+    // outside ws.ts, as a separate server action) before the killed process's exit
+    // event reaches this handler.
+    getCreateRun.mockImplementation(() => ({ status: "canceled" }));
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await flush();
+
+    onExitCb?.(null as unknown as number);
+
+    expect(updateCreateRun).not.toHaveBeenCalledWith("run-1", expect.objectContaining({ status: "failed" }));
+    const call = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "failed";
+    });
+    expect(call).toBeUndefined();
   });
 });

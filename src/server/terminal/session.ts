@@ -14,6 +14,10 @@ export interface TerminalSession {
   resize(cols: number, rows: number): void;
   onExit(cb: (code: number) => void): void;
   kill(): void;
+  /** The cook pty's pid, stable for the session's lifetime (it doubles as the process
+   *  group id on darwin/linux, so it's what stopCreateRunAction signals to kill the
+   *  whole cook process group). Undefined only if node-pty ever fails to report one. */
+  readonly pid: number | undefined;
 }
 
 /**
@@ -40,6 +44,7 @@ export function createTerminalSession(profile: HarnessProfile): TerminalSession 
   });
 
   return {
+    pid: child.pid,
     onData(cb) {
       child.onData(cb);
     },

@@ -12,17 +12,23 @@ export interface TerminalHandle {
 interface TerminalPaneProps {
   postId: string;
   onRender?: (payload: { assetId: string; url: string }) => void;
+  onRun?: (payload: { runId: string; status: string }) => void;
 }
 
 interface TerminalOutputMessage { type: "output"; data: string }
 interface TerminalExitMessage { type: "exit"; code: number }
 interface TerminalRenderMessage { type: "render"; assetId: string; url: string }
-type TerminalServerMessage = TerminalOutputMessage | TerminalExitMessage | TerminalRenderMessage;
+interface TerminalRunMessage { type: "run"; runId: string; status: string }
+type TerminalServerMessage =
+  | TerminalOutputMessage
+  | TerminalExitMessage
+  | TerminalRenderMessage
+  | TerminalRunMessage;
 
 function isTerminalServerMessage(value: unknown): value is TerminalServerMessage {
   if (typeof value !== "object" || value === null || !("type" in value)) return false;
   const type = (value as { type: unknown }).type;
-  return type === "output" || type === "exit" || type === "render";
+  return type === "output" || type === "exit" || type === "render" || type === "run";
 }
 
 /**
@@ -33,13 +39,15 @@ function isTerminalServerMessage(value: unknown): value is TerminalServerMessage
  * the live session, and `onRender` reports captured render frames back to the studio.
  */
 export const TerminalPane = forwardRef<TerminalHandle, TerminalPaneProps>(function TerminalPane(
-  { postId, onRender },
+  { postId, onRender, onRun },
   ref
 ) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const onRenderRef = useRef(onRender);
   onRenderRef.current = onRender;
+  const onRunRef = useRef(onRun);
+  onRunRef.current = onRun;
 
   useImperativeHandle(ref, () => ({
     send: (text: string) => {
@@ -91,6 +99,8 @@ export const TerminalPane = forwardRef<TerminalHandle, TerminalPaneProps>(functi
         term.write(parsed.data);
       } else if (parsed.type === "render") {
         onRenderRef.current?.({ assetId: parsed.assetId, url: parsed.url });
+      } else if (parsed.type === "run") {
+        onRunRef.current?.({ runId: parsed.runId, status: parsed.status });
       } else {
         term.write("\r\nsession ended\r\n");
       }

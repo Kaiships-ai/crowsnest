@@ -2,8 +2,11 @@ import { existsSync, mkdirSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
 import { config } from "@/server/config";
+import { nowIso } from "@/server/db";
 import { getAssetStore } from "@/server/media/asset-store";
 import { sandboxDir, slugify } from "@/server/studio/paths";
+import { startCreateRunAction } from "@/server/actions/create-run-actions";
+import { getCreateRun, updateCreateRun } from "@/server/queries/create-runs";
 import { buildCookProfile } from "./harness-profile";
 import { getPlannedPostTitleById } from "./resolve-post";
 import { pruneOldRenders, rendersRoot, watchForRender } from "./render-watch";
@@ -30,6 +33,13 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
   let session: ReturnType<typeof createTerminalSession> | null = null;
   let renderWatch: { stop: () => void } | null = null;
   let watchdog: NodeJS.Timeout | null = null;
+
+  // The create_runs row id for this cook (D1, create-run tracking). Set once
+  // startCreateRunAction resolves, after the session is already spawned; `renderCaptured`
+  // guards the exit handler so a normal exit right after a successful render does not
+  // clobber the "success" status that the render-watch path already wrote.
+  let runId: string | null = null;
+  let renderCaptured = false;
 
   // A named helper, not an inline `session?.kill()`, on purpose: TypeScript's control
   // flow narrowing treats `session = createTerminalSession(...)` inside the queued
@@ -143,6 +153,24 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
           try {
             session = createTerminalSession(buildCookProfile(dir));
 
+            // Fire-and-forget: claims a create_runs row for this cook. Deliberately not
+            // awaited — the executor above must stay synchronous so the existing
+            // onData/onExit/watchdog wiring below is in place before anything can race
+            // it, exactly as it was before this task. The `ac.signal.aborted` guard
+            // covers the (rare) case where the ws already closed/errored by the time
+            // this resolves: if so, this leaves the row `running` with no pid rather
+            // than writing to a torn-down connection, and reconcileOrphanCreateRuns
+            // cleans it up on the next server start, same as any other orphaned run.
+            void startCreateRunAction({ postId, slug }).then((res) => {
+              if (ac.signal.aborted || !res.ok) return;
+              runId = res.runId;
+              const patch: Parameters<typeof updateCreateRun>[1] = { heartbeatAt: nowIso() };
+              const pid = session?.pid;
+              if (typeof pid === "number") patch.pid = pid;
+              updateCreateRun(runId, patch);
+              ws.send(JSON.stringify({ type: "run", runId, status: "running" }));
+            });
+
             // Cooks are human-gated and can sit idle a long time waiting on input, so
             // this is a hung-process safety net only, not a cook time limit: it must
             // stay long (config defaults to 6h) and must not become gate-aware here.
@@ -154,11 +182,23 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             renderWatch = watchForRender({
               slug,
               onFound: (mp4Path) => {
+                // Set synchronously, before the async capture below, so a session exit
+                // that races the asset-store write still sees a render as "found" and
+                // does not mark the run failed underneath it.
+                renderCaptured = true;
                 void (async () => {
                   try {
                     const assetId = await getAssetStore().put({ path: mp4Path }, "video", "video/mp4");
                     const url = getAssetStore().publicUrl(assetId);
                     ws.send(JSON.stringify({ type: "render", assetId, url }));
+                    if (runId) {
+                      updateCreateRun(runId, {
+                        status: "success",
+                        finishedAt: nowIso(),
+                        renderAssetId: assetId,
+                      });
+                      ws.send(JSON.stringify({ type: "run", runId, status: "success" }));
+                    }
                   } catch (err) {
                     console.error("render capture failed", err);
                   }
@@ -174,6 +214,24 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
               ac.abort();
               ws.send(JSON.stringify({ type: "exit", code }));
               ws.close();
+
+              // No render landed before the process exited: mark the run failed, unless
+              // it already reached a terminal status another way (Stop already set it
+              // to `canceled`, or the render-capture path above already set `success`
+              // in the race window between renderCaptured flipping and this handler
+              // running). Reading the row fresh, rather than trusting local state,
+              // is what avoids clobbering a Stop that raced this exit.
+              if (runId && !renderCaptured) {
+                const current = getCreateRun(runId);
+                if (current && (current.status === "running" || current.status === "waiting")) {
+                  updateCreateRun(runId, {
+                    status: "failed",
+                    finishedAt: nowIso(),
+                    errorMessage: `cook session ended without a render (exit code ${code})`,
+                  });
+                  ws.send(JSON.stringify({ type: "run", runId, status: "failed" }));
+                }
+              }
             });
 
             // The one place that frees the queue slot: fires on a normal exit (via the
