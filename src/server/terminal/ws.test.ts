@@ -24,6 +24,27 @@ vi.mock("./session", () => ({ createTerminalSession }));
 const getPlannedPostTitleById = vi.fn();
 vi.mock("./resolve-post", () => ({ getPlannedPostTitleById }));
 
+const renderWatchStop = vi.fn();
+let capturedOnFound: ((p: string) => void) | undefined;
+const watchForRender = vi.fn((opts: { slug: string; onFound: (p: string) => void }) => {
+  capturedOnFound = opts.onFound;
+  return { stop: renderWatchStop };
+});
+vi.mock("./render-watch", () => ({ watchForRender: (opts: never) => watchForRender(opts) }));
+
+const assetStorePut = vi.fn(async () => "asset-1");
+const assetStorePublicUrl = vi.fn((id: string) => `/api/media/${id}`);
+vi.mock("@/server/media/asset-store", () => ({
+  getAssetStore: () => ({ put: assetStorePut, publicUrl: assetStorePublicUrl }),
+}));
+
+// Existing tests never care about the vault-missing guard, so existsSync defaults to
+// true here; the one test that needs it false overrides this mock per-test.
+const existsSync = vi.fn((_path: string) => true);
+vi.mock("node:fs", () => ({ existsSync: (path: string) => existsSync(path), mkdirSync: vi.fn() }));
+
+vi.mock("@/server/config", () => ({ config: { VAULT_PATH: "/fake/vault" } }));
+
 /** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
  *  shape closely enough for attachTerminal's `.on("message"|"close"|"error", ...)`
  *  wiring, plus the readyState/OPEN pair the setup catch block reads before closing. */
@@ -35,8 +56,10 @@ function fakeWs() {
 describe("attachTerminal", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    existsSync.mockReturnValue(true);
     onDataCb = undefined;
     onExitCb = undefined;
+    capturedOnFound = undefined;
   });
 
   it("resolves the post's title, computes the sandbox dir, and creates a session there", async () => {
@@ -173,5 +196,57 @@ describe("attachTerminal", () => {
     await expect(attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never)).resolves.toBeUndefined();
 
     expect(ws.close).toHaveBeenCalledWith(1011, "terminal setup failed");
+  });
+
+  it("closes the ws with 1008 when the title slugifies to an empty string", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("!!!");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(ws.close).toHaveBeenCalledWith(1008, "unusable post title");
+    expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+
+  it("closes the ws with 1011 when the vault directory is missing", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    existsSync.mockReturnValue(false);
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(ws.close).toHaveBeenCalledWith(1011, "vault missing");
+    expect(createTerminalSession).not.toHaveBeenCalled();
+  });
+
+  it("captures a finished render and sends it as a render frame", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(watchForRender).toHaveBeenCalledWith(expect.objectContaining({ slug: slugify("My Great Post") }));
+
+    capturedOnFound?.("/tmp/x/video.mp4");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(assetStorePut).toHaveBeenCalledWith({ path: "/tmp/x/video.mp4" }, "video", "video/mp4");
+    const call = ws.send.mock.calls.find((args: unknown[]) => JSON.parse(args[0] as string).type === "render");
+    expect(call).toBeDefined();
+    const frame = JSON.parse((call as unknown[])[0] as string);
+    expect(frame).toEqual({ type: "render", assetId: "asset-1", url: "/api/media/asset-1" });
+  });
+
+  it("stops the render watcher when the ws closes", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("close");
+
+    expect(renderWatchStop).toHaveBeenCalled();
   });
 });

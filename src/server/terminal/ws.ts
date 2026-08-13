@@ -1,8 +1,11 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
+import { config } from "@/server/config";
+import { getAssetStore } from "@/server/media/asset-store";
 import { sandboxDir, slugify } from "@/server/studio/paths";
 import { getPlannedPostTitleById } from "./resolve-post";
+import { watchForRender } from "./render-watch";
 import { createTerminalSession } from "./session";
 
 /**
@@ -36,16 +39,42 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
       return;
     }
 
-    const dir = sandboxDir(slugify(title));
+    const slug = slugify(title);
+    if (slug === "") {
+      ws.close(1008, "unusable post title");
+      return;
+    }
+    if (!existsSync(config.VAULT_PATH)) {
+      ws.close(1011, "vault missing");
+      return;
+    }
+
+    const dir = sandboxDir(slug);
     mkdirSync(dir, { recursive: true });
 
     session = createTerminalSession({ cwd: dir });
+
+    const renderWatch = watchForRender({
+      slug,
+      onFound: (mp4Path) => {
+        void (async () => {
+          try {
+            const assetId = await getAssetStore().put({ path: mp4Path }, "video", "video/mp4");
+            const url = getAssetStore().publicUrl(assetId);
+            ws.send(JSON.stringify({ type: "render", assetId, url }));
+          } catch (err) {
+            console.error("render capture failed", err);
+          }
+        })();
+      },
+    });
 
     session.onData((data) => {
       ws.send(JSON.stringify({ type: "output", data }));
     });
 
     session.onExit((code) => {
+      renderWatch.stop();
       ws.send(JSON.stringify({ type: "exit", code }));
       ws.close();
     });
@@ -67,6 +96,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     });
 
     ws.on("close", () => {
+      renderWatch.stop();
       session?.kill();
     });
   } catch (err) {
