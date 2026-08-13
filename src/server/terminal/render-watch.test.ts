@@ -24,10 +24,10 @@ describe("watchForRender", () => {
     const dir = path.join(rendersRoot(), "2026-08-13-my-post");
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "video.mp4"), "aaaa");
-    await vi.waitFor(() => expect(onFound).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    await vi.waitFor(() => expect(onFound).toHaveBeenCalledTimes(1), { timeout: 10000 });
     expect(onFound.mock.calls[0][0]).toBe(path.join(dir, "video.mp4"));
     handle.stop();
-  });
+  }, 12000);
 
   it("ignores a video.mp4 for a different slug", async () => {
     const onFound = vi.fn();

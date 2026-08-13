@@ -64,9 +64,13 @@ export function watchForRender({ slug, onFound }: WatchOpts): { stop: () => void
 
   try {
     watcher = watch(root, { recursive: true }, (_event, filename) => {
-      if (done || filename === null) return;
-      const rel = filename.toString();
-      if (matchesSlug(rel)) confirmStableThenFire(path.join(root, rel));
+      try {
+        if (done || filename === null) return;
+        const rel = filename.toString();
+        if (matchesSlug(rel)) confirmStableThenFire(path.join(root, rel));
+      } catch {
+        // A watch event must never crash the single-process server; drop it.
+      }
     });
   } catch {
     // If the platform cannot watch (or the root disappeared), the watcher stays null and
