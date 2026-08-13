@@ -30,6 +30,7 @@ beforeEach(() => {
   db.delete(tables.videos).run();
   db.delete(tables.channels).run();
   db.delete(tables.syncJobs).run();
+  db.delete(tables.createRuns).run();
 });
 
 function seedSyncJob(overrides: Partial<typeof tables.syncJobs.$inferInsert> = {}): string {
@@ -80,6 +81,23 @@ function seedRemixRun(overrides: Partial<typeof tables.remixRuns.$inferInsert> =
       finishedAt: "2026-08-01T09:00:03.000Z",
       elapsedMs: 3000,
       detail: "5 hooks generated",
+      ...overrides,
+    })
+    .run();
+  return id;
+}
+
+/** create_runs.postId is not a foreign key (see schema.ts), so a bare id is enough. */
+function seedCreateRun(overrides: Partial<typeof tables.createRuns.$inferInsert> = {}): string {
+  const id = overrides.id ?? newId();
+  db.insert(tables.createRuns)
+    .values({
+      id,
+      postId: overrides.postId ?? newId(),
+      slug: "my-post",
+      status: "running",
+      startedAt: "2026-08-01T11:00:00.000Z",
+      finishedAt: null,
       ...overrides,
     })
     .run();
@@ -180,6 +198,38 @@ describe("listRuns", () => {
     expect(run.finishedAt).toBeNull();
     expect(run.durationMs).toBeGreaterThanOrEqual(60_000);
   });
+
+  test("lists a create_runs row as a Run", () => {
+    const id = seedCreateRun({ slug: "kai-hook", status: "running" });
+    const runs = listRuns();
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({
+      runId: id,
+      type: "create",
+      title: "Create: kai-hook",
+      status: "running",
+      sub: "cooking",
+    });
+  });
+
+  test("a create run's sub reflects each status", () => {
+    seedCreateRun({ id: newId(), status: "waiting" });
+    seedCreateRun({ id: newId(), status: "failed", errorMessage: "renderer crashed" });
+    seedCreateRun({ id: newId(), status: "success" });
+    seedCreateRun({ id: newId(), status: "canceled" });
+    const subs = listRuns()
+      .map((r) => r.sub)
+      .sort();
+    expect(subs).toEqual(["canceled", "rendered", "renderer crashed", "waiting on you"]);
+  });
+
+  test("unifies sync, remix, and create runs sorted newest first", () => {
+    const oldest = seedSyncJob({ startedAt: "2026-08-01T08:00:00.000Z", finishedAt: "2026-08-01T08:05:00.000Z" });
+    const middle = seedRemixRun({ startedAt: "2026-08-01T12:00:00.000Z", finishedAt: "2026-08-01T12:00:03.000Z" });
+    const newest = seedCreateRun({ startedAt: "2026-08-01T15:00:00.000Z" });
+    const runs = listRuns();
+    expect(runs.map((r) => r.runId)).toEqual([newest, middle, oldest]);
+  });
 });
 
 describe("getRun", () => {
@@ -214,6 +264,14 @@ describe("getRun", () => {
     const detail = getRun(id);
     expect(detail!.events).toHaveLength(1);
     expect(detail!.events[0].event).toBe("sync.failed");
+  });
+
+  test("finds a create run by id, with itemsEnriched always null", () => {
+    const id = seedCreateRun({ slug: "kai-hook", status: "success" });
+    const detail = getRun(id);
+    expect(detail).not.toBeNull();
+    expect(detail).toMatchObject({ runId: id, type: "create", title: "Create: kai-hook", status: "success", sub: "rendered" });
+    expect(detail!.itemsEnriched).toBeNull();
   });
 });
 

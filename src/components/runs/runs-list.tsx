@@ -26,9 +26,11 @@ import { useRunStream } from "./use-run-stream";
  */
 const STATUS_DOT: Record<RunStatus, string> = {
   running: "bg-foreground animate-pulse",
+  waiting: "bg-foreground animate-pulse",
   success: "bg-[var(--pos)]",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
+  canceled: "bg-muted-foreground",
 };
 
 /** The staleness threshold the sidebar's own "stalled" read already uses

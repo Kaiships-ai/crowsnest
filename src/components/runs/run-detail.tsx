@@ -38,23 +38,29 @@ export function firstErrorEvent(events: LogEventRow[]): LogEventRow | null {
 // only success/failed get a live hue.
 const STATUS_DOT: Record<RunStatus, string> = {
   running: "bg-foreground animate-pulse",
+  waiting: "bg-foreground animate-pulse",
   success: "bg-[var(--pos)]",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
+  canceled: "bg-muted-foreground",
 };
 
 const STATUS_WORD_CLASS: Record<RunStatus, string> = {
   running: "text-foreground",
+  waiting: "text-foreground",
   success: "text-[var(--pos)]",
   partial: "text-muted-foreground",
   failed: "text-destructive",
+  canceled: "text-muted-foreground",
 };
 
 const STATUS_WORD_LABEL: Record<RunStatus, string> = {
   running: "Running",
+  waiting: "Waiting",
   success: "Success",
   partial: "Partial",
   failed: "Failed",
+  canceled: "Canceled",
 };
 
 // Same convention logs-view.tsx's LEVEL_LABEL_CLASS uses: info leans on muted text,

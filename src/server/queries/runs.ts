@@ -2,6 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { queryLogEvents, type LogEventRow } from "@/server/logs/store";
+import { getCreateRun, type CreateRunSelect } from "@/server/queries/create-runs";
 
 /**
  * The Runs query layer (Runs and observability, spec 2026-08-02). A "Run" is not its
@@ -14,8 +15,8 @@ import { queryLogEvents, type LogEventRow } from "@/server/logs/store";
  * `services/sync-engine.ts` and `services/remix.ts` respectively.
  */
 
-export type RunType = "sync" | "remix" | "download";
-export type RunStatus = "running" | "success" | "partial" | "failed";
+export type RunType = "sync" | "remix" | "download" | "create";
+export type RunStatus = "running" | "waiting" | "success" | "partial" | "failed" | "canceled";
 
 export interface RunSummary {
   runId: string;
@@ -111,6 +112,43 @@ function fromRemixRun(row: RemixRunSelect): RunSummary {
   };
 }
 
+function createSub(row: CreateRunSelect): string {
+  switch (row.status) {
+    case "running":
+      return "cooking";
+    case "waiting":
+      return "waiting on you";
+    case "failed":
+      return row.errorMessage ?? "Cook failed";
+    case "success":
+      return "rendered";
+    case "canceled":
+      return "canceled";
+    default:
+      return row.status;
+  }
+}
+
+function fromCreateRun(row: CreateRunSelect, now: number): RunSummary {
+  return {
+    runId: row.id,
+    type: "create",
+    title: `Create: ${row.slug}`,
+    sub: createSub(row),
+    status: row.status as RunStatus,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    heartbeatAt: row.heartbeatAt,
+    durationMs: durationOf(row.startedAt, row.finishedAt, now),
+    itemsSeen: 0,
+    itemsCreated: 0,
+    itemsUpdated: 0,
+    itemsFailed: 0,
+    channelsDone: null,
+    channelsTotal: null,
+  };
+}
+
 /** Every Run, newest first, sync and remix unified. Default limit 100 matches the
  *  Runs list screen's first page — and, since the Runs SSE route re-runs this every
  *  2s (REFRESH_MS in api/runs/stream/route.ts), bounds what each tick reads.
@@ -126,8 +164,13 @@ export function listRuns(limit = DEFAULT_LIST_LIMIT): RunSummary[] {
   const now = Date.now();
   const syncRows = db.select().from(tables.syncJobs).orderBy(desc(tables.syncJobs.startedAt)).limit(limit).all();
   const remixRows = db.select().from(tables.remixRuns).orderBy(desc(tables.remixRuns.startedAt)).limit(limit).all();
+  const createRows = db.select().from(tables.createRuns).orderBy(desc(tables.createRuns.startedAt)).limit(limit).all();
 
-  const runs = [...syncRows.map((r) => fromSyncJob(r, now)), ...remixRows.map(fromRemixRun)];
+  const runs = [
+    ...syncRows.map((r) => fromSyncJob(r, now)),
+    ...remixRows.map(fromRemixRun),
+    ...createRows.map((r) => fromCreateRun(r, now)),
+  ];
   runs.sort((a, b) => (a.startedAt < b.startedAt ? 1 : a.startedAt > b.startedAt ? -1 : 0));
   return runs.slice(0, limit);
 }
@@ -146,7 +189,17 @@ export function getRun(runId: string): RunDetail | null {
         return remixRow ? fromRemixRun(remixRow) : null;
       })();
 
-  if (!summary) return null;
+  if (!summary) {
+    const createRow = getCreateRun(runId);
+    if (!createRow) return null;
+
+    // Create runs have no enrich pass, so itemsEnriched is always null — not derived
+    // from events like a sync run's, deliberately, since "did not measure" and
+    // "measured nothing" stay distinct throughout this codebase.
+    const createSummary = fromCreateRun(createRow, now);
+    const createEvents = queryLogEvents({ runId, levels: ["info", "warn", "error"], limit: DEFAULT_EVENT_LIMIT });
+    return { ...createSummary, events: createEvents, itemsEnriched: null };
+  }
 
   // Derived from the trace, not from a column on sync_jobs: the pass has always logged
   // these counts, and since the run_id threading the events are reachable by run, so this
