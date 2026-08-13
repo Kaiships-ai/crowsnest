@@ -149,7 +149,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             watchdog = setTimeout(() => {
               session?.kill();
               ws.close(1011, "cook watchdog");
-            }, config.COOK_WATCHDOG_MS ?? 21_600_000);
+            }, config.COOK_WATCHDOG_MS);
 
             renderWatch = watchForRender({
               slug,
