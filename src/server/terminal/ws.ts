@@ -91,13 +91,17 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
       setCookEntryWs(existing, ws);
 
+      // `existing.session` can still be null here: this reattach may have landed on a
+      // placeholder entry whose spawn is still sitting in the concurrency queue (see
+      // the fresh-spawn path below). Null-guarded so an input/resize frame that
+      // arrives before the cook actually exists is dropped instead of throwing.
       ws.on("message", (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
           if (msg.type === "input") {
-            existing.session.write(msg.data);
+            existing.session?.write(msg.data);
           } else if (msg.type === "resize") {
-            existing.session.resize(msg.cols, msg.rows);
+            existing.session?.resize(msg.cols, msg.rows);
           }
         } catch {
           ws.close(1008, "bad frame");
@@ -125,29 +129,42 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     // so it stays cheap and never competes with the poll below.
     pruneOldRenders(rendersRoot(), RENDER_MAX_AGE_MS);
 
-    let session: ReturnType<typeof createTerminalSession> | null = null;
-    // Set once the queued task below actually spawns the cook and registers it. Read
-    // by handleDetach (below) to tell "still queued, nothing spawned yet" apart from
-    // "cook is live" -- see its comment.
-    let entry: CookEntry | null = null;
-
     // One controller per SPAWN, not per socket, now owns the cook's teardown: it
     // aborts on session exit, a watchdog kill, a Stop-triggered process death, or a
-    // synchronous spawn failure -- never because this socket closes or errors. Once
-    // the cook spawns it moves into the registry entry (`entry.ac`), so later
-    // reattaches share the same controller.
+    // synchronous spawn failure -- never because this socket closes or errors.
     const ac = new AbortController();
 
+    // Reserves the postId SYNCHRONOUSLY, before the actual spawn is handed to
+    // runOnCookQueue (which may defer it under concurrency pressure): `session` starts
+    // null and the queued task below fills it in once it actually runs. Registering
+    // here, not inside the queued task, is what closes the double-spawn window --
+    // without it, two attaches for the same post that both land while both
+    // concurrency slots are busy would each see no existing entry (getCookEntry above
+    // runs before either one's task has had a turn) and each queue its own spawn.
+    // Because the entry exists from this point on, any attach for this postId from
+    // here forward -- queued or not -- takes the REATTACH branch above instead.
+    const cookEntry: CookEntry = {
+      session: null,
+      watchdog: null,
+      renderWatch: null,
+      runId: null,
+      renderCaptured: false,
+      ac,
+      ws,
+    };
+    putCookEntry(postId, cookEntry);
+
     // Attached before the cook is queued (which may wait behind other cooks at the
-    // concurrency limit) so nothing sent while queued is lost. Null-guards on
-    // `session`, which stays null until the queued task below actually spawns it.
+    // concurrency limit) so nothing sent while queued is lost. Null-guarded on
+    // `cookEntry.session`, which stays null until the queued task below actually
+    // spawns it.
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "input") {
-          session?.write(msg.data);
+          cookEntry.session?.write(msg.data);
         } else if (msg.type === "resize") {
-          session?.resize(msg.cols, msg.rows);
+          cookEntry.session?.resize(msg.cols, msg.rows);
         }
       } catch {
         // A malformed frame must not throw out of a ws "message" listener: this custom
@@ -157,21 +174,23 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
       }
     });
 
-    // DETACH ONLY. If the cook has not spawned yet (`entry` still null -- this
-    // attach's queued task hasn't run, still waiting behind other cooks at the
-    // concurrency limit), there is nothing to detach from: free the queue slot
-    // instead, so a tab closed before its cook ever started doesn't leak a slot
-    // forever. Once the cook has spawned, this only clears the currently-attached
-    // socket pointer, and only if it still points at *this* socket -- a reattach may
-    // already have replaced it with a newer one, in which case this is a no-op. It
-    // must never kill the session or abort the controller while the cook is running.
+    // DETACH ONLY. If the cook has not actually spawned yet (`cookEntry.session` still
+    // null -- this attach's queued task hasn't run, still waiting behind other cooks
+    // at the concurrency limit), there is nothing running to detach from: abort
+    // instead, so a tab closed before its cook ever started doesn't leak a queue slot
+    // or a placeholder registry entry forever (the queued task's own aborted-check,
+    // below, drops it once it gets its turn). Once the cook has spawned, this only
+    // clears the currently-attached socket pointer, and only if it still points at
+    // *this* socket -- a reattach may already have replaced it with a newer one, in
+    // which case this is a no-op. It must never kill the session or abort the
+    // controller while the cook is running.
     const handleDetach = () => {
-      if (!entry) {
+      if (cookEntry.session === null) {
         ac.abort();
         return;
       }
-      if (entry.ws === ws) {
-        setCookEntryWs(entry, null);
+      if (cookEntry.ws === ws) {
+        setCookEntryWs(cookEntry, null);
       }
     };
     ws.on("close", handleDetach);
@@ -180,33 +199,25 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     // The queued task holds its concurrency slot for the cook's whole real lifetime,
     // not just the spawn call: the returned promise only settles once the cook exits
     // (session onExit -> ac.abort()), the watchdog kills it, or the socket goes away
-    // while still queued (handleDetach -> ac.abort() before any entry exists). A cook
-    // that never gets to spawn (ws closed while still queued) still resolves and
+    // while still queued (handleDetach -> ac.abort() before the cook ever spawned). A
+    // cook that never gets to spawn (ws closed while still queued) still resolves and
     // frees its slot instead of leaking it.
     void runOnCookQueue(
       () =>
         new Promise<void>((resolve) => {
           if (ac.signal.aborted) {
             // The socket closed or errored while this task was waiting in the queue:
-            // never spawn a cook nobody can see, just free the slot.
+            // never spawn a cook nobody can see. Drop the placeholder this attach
+            // reserved (identity-checked, so this is a no-op if a newer registration
+            // already replaced it) and free the slot.
+            dropCookEntry(postId, cookEntry);
             resolve();
             return;
           }
 
           try {
-            session = createTerminalSession(buildCookProfile(dir));
-
-            const cookEntry: CookEntry = {
-              session,
-              watchdog: null,
-              renderWatch: null,
-              runId: null,
-              renderCaptured: false,
-              ac,
-              ws,
-            };
-            entry = cookEntry;
-            putCookEntry(postId, cookEntry);
+            const session = createTerminalSession(buildCookProfile(dir));
+            cookEntry.session = session;
 
             // Fire-and-forget: claims a create_runs row for this cook. Deliberately not
             // awaited -- the executor above must stay synchronous so the existing
@@ -219,7 +230,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
               if (ac.signal.aborted || !res.ok) return;
               cookEntry.runId = res.runId;
               const patch: Parameters<typeof updateCreateRun>[1] = { heartbeatAt: nowIso() };
-              const pid = cookEntry.session.pid;
+              const pid = session.pid;
               if (typeof pid === "number") patch.pid = pid;
               updateCreateRun(cookEntry.runId, patch);
               sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "running" });
@@ -229,7 +240,7 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             // this is a hung-process safety net only, not a cook time limit: it must
             // stay long (config defaults to 6h) and must not become gate-aware here.
             cookEntry.watchdog = setTimeout(() => {
-              cookEntry.session.kill();
+              session.kill();
               cookEntry.ws?.close(1011, "cook watchdog");
             }, config.COOK_WATCHDOG_MS);
 
@@ -260,11 +271,11 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
               },
             });
 
-            cookEntry.session.onData((data) => {
+            session.onData((data) => {
               sendIfAttached(cookEntry, { type: "output", data });
             });
 
-            cookEntry.session.onExit((code) => {
+            session.onExit((code) => {
               ac.abort();
               sendIfAttached(cookEntry, { type: "exit", code });
               cookEntry.ws?.close();
@@ -289,9 +300,8 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             });
 
             // The one place that tears down a live cook: fires on a normal exit (via
-            // the onExit -> ac.abort() above), a watchdog kill (which kills the
-            // process, which fires onExit), or an external teardown from the setup
-            // catch block below. Frees the queue slot, whichever comes first.
+            // the onExit -> ac.abort() above) or a watchdog kill (which kills the
+            // process, which fires onExit). Frees the queue slot.
             ac.signal.addEventListener(
               "abort",
               () => {
@@ -300,8 +310,8 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
                   cookEntry.watchdog = null;
                 }
                 cookEntry.renderWatch?.stop();
-                dropCookEntry(postId);
-                cookEntry.session.kill();
+                dropCookEntry(postId, cookEntry);
+                session.kill();
                 resolve();
               },
               { once: true },
@@ -309,16 +319,25 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
           } catch (err) {
             // Spawning the pty can throw synchronously (ENOENT if the claude binary is
             // missing). This runs inside the queued task, not attachTerminal's own
-            // try/catch below, so it needs its own handling: drop any partial
-            // registration, kill any partial session, abort to mark the controller
-            // torn down, close the socket, and resolve so the queue slot frees
-            // instead of leaking. The `ac.signal.addEventListener("abort", ...)`
-            // above is only reached after this whole block succeeds, so if that
-            // point was never reached, `ac.abort()` here does not double-run it.
+            // try/catch below, so it needs its own handling. The
+            // `ac.signal.addEventListener("abort", ...)` above is only reached after
+            // this whole block succeeds, so if a throw lands here the watchdog and
+            // render watch may already be armed (e.g. watchForRender threw after the
+            // watchdog's setTimeout succeeded) with nothing yet registered to clear
+            // them -- clear them directly here rather than relying on an abort
+            // listener that may not exist yet, drop the placeholder/partial
+            // registration (identity-checked), kill any partial session, mark the
+            // controller aborted, close the socket, and resolve so the queue slot
+            // frees instead of leaking.
             console.error("attachTerminal cook setup failed", err);
-            if (entry) dropCookEntry(postId);
+            if (cookEntry.watchdog) {
+              clearTimeout(cookEntry.watchdog);
+              cookEntry.watchdog = null;
+            }
+            cookEntry.renderWatch?.stop();
+            dropCookEntry(postId, cookEntry);
             ac.abort();
-            session?.kill();
+            cookEntry.session?.kill();
             if (ws.readyState === ws.OPEN) {
               ws.close(1011, "terminal setup failed");
             }

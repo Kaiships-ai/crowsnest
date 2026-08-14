@@ -10,9 +10,15 @@ import type { TerminalSession } from "./session";
  * swapped on reattach, `null` when no tab has this post open. Output produced while
  * `ws` is null is simply dropped, not buffered: a reattach only recovers the current
  * run status (via `getLatestCreateRunForPost`), not replayed terminal output.
+ *
+ * `session` starts `null`: attachTerminal reserves the postId by registering a
+ * placeholder entry synchronously, before the actual spawn is queued (which may be
+ * deferred under concurrency pressure), so a second attach for the same post can never
+ * land in the window between "decided to spawn" and "actually spawned" and race a
+ * duplicate cook into existence. The queued task fills `session` in once it runs.
  */
 export interface CookEntry {
-  session: TerminalSession;
+  session: TerminalSession | null;
   watchdog: NodeJS.Timeout | null;
   renderWatch: { stop: () => void } | null;
   /** The create_runs row id for this cook, set once startCreateRunAction resolves. */
@@ -37,8 +43,15 @@ export function putCookEntry(postId: string, entry: CookEntry): void {
   registry.set(postId, entry);
 }
 
-export function dropCookEntry(postId: string): void {
-  registry.delete(postId);
+/** Identity-checked: only deletes when the registry still holds *this exact* entry.
+ *  Without the check, a stale teardown (e.g. a placeholder that lost a race and was
+ *  never the one actually spawned, or any other delayed cleanup racing a newer
+ *  registration for the same postId) could delete a different, still-live cook's
+ *  entry out from under it. */
+export function dropCookEntry(postId: string, entry: CookEntry): void {
+  if (registry.get(postId) === entry) {
+    registry.delete(postId);
+  }
 }
 
 /** Swaps the socket currently attached to a live cook. Used on reattach (a new tab

@@ -89,8 +89,14 @@ const getCookEntry = vi.fn((postId: string) => cookRegistry.get(postId));
 const putCookEntry = vi.fn((postId: string, entry: unknown) => {
   cookRegistry.set(postId, entry);
 });
-const dropCookEntry = vi.fn((postId: string) => {
-  cookRegistry.delete(postId);
+// Identity-checked, mirroring the real implementation (D1 Task 5 fix round 1): only
+// deletes when the registry still holds this exact entry, so a stale/aborted-while-
+// queued teardown can never clobber a different, newer registration for the same
+// postId.
+const dropCookEntry = vi.fn((postId: string, entry: unknown) => {
+  if (cookRegistry.get(postId) === entry) {
+    cookRegistry.delete(postId);
+  }
 });
 const setCookEntryWs = vi.fn((entry: { ws: unknown }, ws: unknown) => {
   entry.ws = ws;
@@ -98,7 +104,7 @@ const setCookEntryWs = vi.fn((entry: { ws: unknown }, ws: unknown) => {
 vi.mock("./session-registry", () => ({
   getCookEntry: (postId: string) => getCookEntry(postId),
   putCookEntry: (postId: string, entry: unknown) => putCookEntry(postId, entry),
-  dropCookEntry: (postId: string) => dropCookEntry(postId),
+  dropCookEntry: (postId: string, entry: unknown) => dropCookEntry(postId, entry),
   setCookEntryWs: (entry: { ws: unknown }, ws: unknown) => setCookEntryWs(entry, ws),
 }));
 
@@ -449,6 +455,54 @@ describe("attachTerminal", () => {
     const settled = queuedTask?.();
     await expect(settled).resolves.toBeUndefined();
     expect(createTerminalSession).not.toHaveBeenCalled();
+    // The placeholder this attach reserved synchronously (D1 Task 5 fix round 1) must
+    // not be left registered once its task confirms it will never spawn.
+    expect(getCookEntry("abc")).toBeUndefined();
+  });
+
+  // D1 Task 5 fix round 1 (Finding 1, Part B): the dedupe check alone is not enough
+  // once spawning can be deferred by the concurrency queue -- two attaches for the
+  // same post could both pass `getCookEntry` before either one's task ever runs and
+  // both end up spawning. The fix reserves the postId with a placeholder entry
+  // SYNCHRONOUSLY, before the task is even handed to the queue, so a second attach
+  // that arrives while the first is still queued finds that placeholder and
+  // reattaches instead of racing a second spawn.
+  it("reserves the postId synchronously so a second attach while the first is still queued reattaches instead of double-spawning", async () => {
+    // The queued task's promise deliberately never resolves in this test (nothing
+    // makes the cook "end"), which would otherwise leave a live watchdog setTimeout
+    // running past this test's lifetime; fake timers keep it inert.
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    // Simulate both concurrency slots busy: the queue accepts the task but never
+    // invokes it during this test.
+    let queuedTask: (() => Promise<unknown>) | undefined;
+    runOnCookQueue.mockImplementationOnce((fn: () => Promise<unknown>) => {
+      queuedTask = fn;
+      return new Promise(() => {
+        /* never settles while queued */
+      });
+    });
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(createTerminalSession).not.toHaveBeenCalled();
+    // The reservation already exists even though wsA's own task never ran.
+    expect(getCookEntry("abc")).toBeDefined();
+
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    // wsB reattached to the reservation instead of queuing a second spawn.
+    expect(runOnCookQueue).toHaveBeenCalledTimes(1);
+    expect(createTerminalSession).not.toHaveBeenCalled();
+
+    // Once a slot frees and the original queued task actually runs, exactly one
+    // session gets created (spawning happens synchronously at the top of the
+    // executor, so this is observable without awaiting the returned promise, which
+    // deliberately does not resolve until the cook itself ends).
+    void queuedTask?.();
+    expect(createTerminalSession).toHaveBeenCalledTimes(1);
   });
 
   it("claims a create_runs row when the cook spawns and sends a running run frame", async () => {
@@ -583,7 +637,7 @@ describe("attachTerminal", () => {
 
     onExitCb?.(0);
 
-    expect(dropCookEntry).toHaveBeenCalledWith("abc");
+    expect(dropCookEntry).toHaveBeenCalledWith("abc", expect.anything());
     expect(getCookEntry("abc")).toBeUndefined();
   });
 });

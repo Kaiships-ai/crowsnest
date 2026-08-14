@@ -44,13 +44,36 @@ describe("session-registry", () => {
     putCookEntry("post-2", entry);
     expect(getCookEntry("post-2")).toBe(entry);
 
-    dropCookEntry("post-2");
+    dropCookEntry("post-2", entry);
 
     expect(getCookEntry("post-2")).toBeUndefined();
   });
 
   it("drop is a no-op (does not throw) for a postId that was never registered", () => {
-    expect(() => dropCookEntry("never-registered")).not.toThrow();
+    expect(() => dropCookEntry("never-registered", fakeEntry())).not.toThrow();
+  });
+
+  // D1 Task 5 fix round 1: a stale teardown (a placeholder that lost the reattach
+  // race, or any other delayed cleanup) must never delete a *different* entry that
+  // has since taken over the same postId slot -- only the exact entry it was handed.
+  it("drop is identity-checked: does not remove a different entry now registered at the same postId", () => {
+    const original = fakeEntry();
+    putCookEntry("post-4", original);
+    const replacement = fakeEntry();
+    putCookEntry("post-4", replacement);
+
+    dropCookEntry("post-4", original);
+
+    expect(getCookEntry("post-4")).toBe(replacement);
+  });
+
+  it("drop removes the entry when it is still the one currently registered, even after other churn", () => {
+    const entry = fakeEntry();
+    putCookEntry("post-5", entry);
+
+    dropCookEntry("post-5", entry);
+
+    expect(getCookEntry("post-5")).toBeUndefined();
   });
 
   it("put overwrites any existing entry for the same postId", () => {
@@ -70,7 +93,7 @@ describe("session-registry", () => {
 
     putCookEntry("post-a", a);
     putCookEntry("post-b", b);
-    dropCookEntry("post-a");
+    dropCookEntry("post-a", a);
 
     expect(getCookEntry("post-a")).toBeUndefined();
     expect(getCookEntry("post-b")).toBe(b);
