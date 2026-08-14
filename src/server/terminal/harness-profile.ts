@@ -1,12 +1,16 @@
+import path from "node:path";
 import { config } from "@/server/config";
 import { scrubbedTerminalEnv } from "./session";
+
+/** absolute path to the ksa plugin the cook loads via --plugin-dir */
+export const KSA_PLUGIN_DIR = path.join(process.cwd(), "plugins", "ksa");
 
 export interface HarnessProfile {
   /** maps to --model; unset means the CLI default */
   model?: string;
   /** the sandbox dir the cook runs in */
   cwd: string;
-  /** maps to --plugin-dir; UNSET in E1, filled by E3 */
+  /** maps to --plugin-dir */
   pluginDir?: string;
   /** maps to --permission-mode */
   permissionMode: "bypassPermissions";
@@ -36,6 +40,7 @@ export function buildCookProfile(cwd: string): HarnessProfile {
     permissionMode: "bypassPermissions",
     settingsJson: HOOKS_OFF_SETTINGS,
     model: config.COOK_MODEL,
+    pluginDir: KSA_PLUGIN_DIR,
     env: scrubbedTerminalEnv(),
   };
 }

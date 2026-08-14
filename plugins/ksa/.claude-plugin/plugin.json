@@ -1,0 +1,7 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "ksa",
+  "version": "0.1.0",
+  "description": "Crowsnest cook and serve commands plus the baoyu skills the cook uses",
+  "author": { "name": "Crowsnest" }
+}
