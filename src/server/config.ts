@@ -86,6 +86,11 @@ const schema = z.object({
   COOK_MODEL: z.string().optional(),
   COOK_CONCURRENCY: intWithDefault(2, 1, 16),
   COOK_WATCHDOG_MS: intWithDefault(21_600_000, 60_000, 86_400_000),
+  /** How long a cook's pty can produce no output before ws.ts treats it as sitting at a
+   *  human gate (an AskUserQuestion prompt) rather than hung. Flips the run's status to
+   *  `waiting` and clears the watchdog -- see src/server/terminal/ws.ts -- so a person
+   *  reading a gate never trips the 6h watchdog. Any new output flips it back. */
+  WAITING_IDLE_MS: intWithDefault(20_000, 2_000, 600_000),
 
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),

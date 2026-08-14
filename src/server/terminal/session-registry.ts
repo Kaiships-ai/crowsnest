@@ -31,6 +31,21 @@ export interface CookEntry {
    *  abort because the attached socket merely closed or errored; that only detaches. */
   ac: AbortController;
   ws: WebSocket | null;
+  /** Timestamp (Date.now()) of the most recent pty output. Reset on every
+   *  session.onData frame; the waiting-idle check compares against this rather than
+   *  reading the DB row on every data event. */
+  lastOutputAt: number;
+  /** Local mirror of "the run is sitting at a human gate", cheaper to check on every
+   *  onData frame than a DB read. Set true by the waiting-idle check when output has
+   *  been quiet past WAITING_IDLE_MS (which also clears `watchdog`); set false the
+   *  moment output resumes (which re-arms it). Kept in lockstep with `watchdog` so the
+   *  two never say different things: watchdog present <=> not waiting. */
+  waiting: boolean;
+  /** Handle for the recurring waiting-idle check, armed once at spawn alongside the
+   *  watchdog and render watch and cleared on every cook-end path (never re-created),
+   *  so there is exactly one of these per cook regardless of how many times the run
+   *  flips between running and waiting. */
+  waitingCheck: NodeJS.Timeout | null;
 }
 
 const registry = new Map<string, CookEntry>();

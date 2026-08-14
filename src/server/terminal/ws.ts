@@ -19,6 +19,11 @@ import { type CookEntry, dropCookEntry, getCookEntry, putCookEntry, setCookEntry
 // never exited cleanly, a crash mid-cook) and safe to sweep.
 const RENDER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+// Cadence of the waiting-idle check, not the threshold itself (that's
+// config.WAITING_IDLE_MS). A few seconds is frequent enough that a gate is detected
+// promptly without polling Date.now() on every pty byte.
+const WAITING_CHECK_INTERVAL_MS = 5_000;
+
 /** Sends only if a tab is currently attached and its socket is open. Output can arrive
  *  (pty data, a captured render, a run status change) while no tab has this post open
  *  -- the cook keeps running headless -- so every send on the cook's lifetime path
@@ -151,6 +156,9 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
       renderCaptured: false,
       ac,
       ws,
+      lastOutputAt: Date.now(),
+      waiting: false,
+      waitingCheck: null,
     };
     putCookEntry(postId, cookEntry);
 
@@ -244,11 +252,40 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
             // Cooks are human-gated and can sit idle a long time waiting on input, so
             // this is a hung-process safety net only, not a cook time limit: it must
-            // stay long (config defaults to 6h) and must not become gate-aware here.
-            cookEntry.watchdog = setTimeout(() => {
-              session.kill();
-              cookEntry.ws?.close(1011, "cook watchdog");
-            }, config.COOK_WATCHDOG_MS);
+            // stay long (config defaults to 6h). It IS gate-aware, though: the
+            // waiting-idle check below clears it while a human is sitting at a gate and
+            // this same function re-arms it (via armWatchdog) the moment output
+            // resumes, so a person reading a prompt never trips it. Named rather than
+            // inlined so both the initial arm below and the resume-from-waiting arm in
+            // onData go through one path -- never two setTimeouts alive at once.
+            const armWatchdog = () => {
+              cookEntry.watchdog = setTimeout(() => {
+                session.kill();
+                cookEntry.ws?.close(1011, "cook watchdog");
+              }, config.COOK_WATCHDOG_MS);
+            };
+            armWatchdog();
+
+            // Recurring waiting-idle check: if output has been quiet past
+            // WAITING_IDLE_MS while the run is still `running` (not already flagged
+            // waiting), flip it to `waiting` and clear the watchdog. Tied to the
+            // CookEntry, not the socket -- a cook waiting with no tab attached must
+            // still be tracked -- and cleared on every cook-end path alongside the
+            // watchdog and render watch below.
+            cookEntry.waitingCheck = setInterval(() => {
+              if (cookEntry.waiting) return;
+              if (Date.now() - cookEntry.lastOutputAt <= config.WAITING_IDLE_MS) return;
+
+              cookEntry.waiting = true;
+              if (cookEntry.watchdog) {
+                clearTimeout(cookEntry.watchdog);
+                cookEntry.watchdog = null;
+              }
+              if (cookEntry.runId) {
+                updateCreateRun(cookEntry.runId, { status: "waiting" });
+                sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "waiting" });
+              }
+            }, WAITING_CHECK_INTERVAL_MS);
 
             cookEntry.renderWatch = watchForRender({
               slug,
@@ -278,6 +315,24 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             });
 
             session.onData((data) => {
+              cookEntry.lastOutputAt = Date.now();
+
+              // Any output while the run was sitting at a gate means the human
+              // answered it: flip back to running and re-arm exactly one watchdog
+              // (guarded on `cookEntry.watchdog` being null -- it always is here,
+              // since the only way `waiting` becomes true is the check above, which
+              // clears it in the same breath -- so this can never double-arm).
+              if (cookEntry.waiting) {
+                cookEntry.waiting = false;
+                if (cookEntry.runId) {
+                  updateCreateRun(cookEntry.runId, { status: "running" });
+                  sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "running" });
+                }
+                if (!cookEntry.watchdog) {
+                  armWatchdog();
+                }
+              }
+
               sendIfAttached(cookEntry, { type: "output", data });
             });
 
@@ -315,6 +370,10 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
                   clearTimeout(cookEntry.watchdog);
                   cookEntry.watchdog = null;
                 }
+                if (cookEntry.waitingCheck) {
+                  clearInterval(cookEntry.waitingCheck);
+                  cookEntry.waitingCheck = null;
+                }
                 cookEntry.renderWatch?.stop();
                 dropCookEntry(postId, cookEntry);
                 session.kill();
@@ -339,6 +398,10 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             if (cookEntry.watchdog) {
               clearTimeout(cookEntry.watchdog);
               cookEntry.watchdog = null;
+            }
+            if (cookEntry.waitingCheck) {
+              clearInterval(cookEntry.waitingCheck);
+              cookEntry.waitingCheck = null;
             }
             cookEntry.renderWatch?.stop();
             dropCookEntry(postId, cookEntry);

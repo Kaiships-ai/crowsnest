@@ -22,6 +22,9 @@ function fakeEntry(overrides: Partial<CookEntry> = {}): CookEntry {
     renderCaptured: false,
     ac: new AbortController(),
     ws: null,
+    lastOutputAt: 0,
+    waiting: false,
+    waitingCheck: null,
     ...overrides,
   };
 }

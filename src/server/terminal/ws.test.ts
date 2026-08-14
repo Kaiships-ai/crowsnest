@@ -113,7 +113,9 @@ vi.mock("./session-registry", () => ({
 const existsSync = vi.fn((_path: string) => true);
 vi.mock("node:fs", () => ({ existsSync: (path: string) => existsSync(path), mkdirSync: vi.fn() }));
 
-vi.mock("@/server/config", () => ({ config: { VAULT_PATH: "/fake/vault", COOK_WATCHDOG_MS: 1000 } }));
+vi.mock("@/server/config", () => ({
+  config: { VAULT_PATH: "/fake/vault", COOK_WATCHDOG_MS: 1000, WAITING_IDLE_MS: 20_000 },
+}));
 
 /** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
  *  shape closely enough for attachTerminal's `.on("message"|"close"|"error", ...)`
@@ -365,9 +367,10 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    // Only the watchdog is a real timer here: watchForRender is mocked, so no interval
-    // is actually scheduled by this test.
-    expect(vi.getTimerCount()).toBe(1);
+    // Two real timers here: the watchdog and the waiting-idle check (D1 Task 6).
+    // watchForRender is mocked, so no render-poll interval is actually scheduled by
+    // this test.
+    expect(vi.getTimerCount()).toBe(2);
 
     onExitCb?.(0);
 
@@ -382,11 +385,11 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
 
     ws.emit("close");
 
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
   });
 
   it("does NOT clear the watchdog timer when the ws errors", async () => {
@@ -396,11 +399,11 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
 
     ws.emit("error", new Error("ECONNRESET"));
 
-    expect(vi.getTimerCount()).toBe(1);
+    expect(vi.getTimerCount()).toBe(2);
   });
 
   it("kills the session and closes the ws with 1011 when the watchdog elapses", async () => {
@@ -414,6 +417,64 @@ describe("attachTerminal", () => {
 
     expect(kill).toHaveBeenCalled();
     expect(ws.close).toHaveBeenCalledWith(1011, "cook watchdog");
+  });
+
+  // D1 Task 6: the cook produces pty output while working and goes quiet at a human
+  // gate (an AskUserQuestion prompt). ws.ts detects that quiet via a recurring
+  // waiting-idle check and must not let the 6h watchdog fire while a human is reading
+  // a gate -- so the flip to `waiting` clears it, and the flip back re-arms exactly
+  // one.
+  it("flips the run to waiting and clears the watchdog once output goes idle past WAITING_IDLE_MS, then flips back to running with a re-armed watchdog on new output", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    // Lets the fire-and-forget startCreateRunAction(...).then(...) chain settle so
+    // cookEntry.runId is set before anything below depends on it.
+    await vi.advanceTimersByTimeAsync(0);
+
+    onDataCb?.("hello");
+    // Two real timers right after spawn: the watchdog and the waiting-idle check.
+    expect(vi.getTimerCount()).toBe(2);
+    updateCreateRun.mockClear();
+    ws.send.mockClear();
+
+    // No further output: advance past WAITING_IDLE_MS (20_000ms, mocked above). The
+    // waiting-idle check only samples every few seconds, so advance well past the
+    // next sample after the threshold rather than landing exactly on it.
+    await vi.advanceTimersByTimeAsync(25_001);
+
+    expect(updateCreateRun).toHaveBeenCalledWith("run-1", { status: "waiting" });
+    const waitingFrame = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "waiting";
+    });
+    expect(waitingFrame).toBeDefined();
+    // The watchdog was cleared, not merely paused: only the waiting-idle check
+    // remains as a live timer.
+    expect(vi.getTimerCount()).toBe(1);
+
+    updateCreateRun.mockClear();
+    ws.send.mockClear();
+
+    // A human answers the gate: new output arrives.
+    onDataCb?.("answer");
+
+    expect(updateCreateRun).toHaveBeenCalledWith("run-1", { status: "running" });
+    const runningFrame = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "running";
+    });
+    expect(runningFrame).toBeDefined();
+    // Exactly one watchdog re-armed alongside the still-live waiting-idle check --
+    // never two watchdogs stacked from a double-arm.
+    expect(vi.getTimerCount()).toBe(2);
+
+    // And the re-armed watchdog is a live one, not inert: it still fires on its own
+    // schedule (COOK_WATCHDOG_MS, mocked to 1000ms) if the cook then actually hangs.
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(kill).toHaveBeenCalled();
   });
 
   it("runs the cook spawn through the concurrency queue", async () => {
