@@ -34,7 +34,7 @@ const watchForRender = vi.fn((opts: { slug: string; onFound: (p: string) => void
   return { stop: renderWatchStop };
 });
 const pruneOldRenders = vi.fn();
-const rendersRoot = vi.fn(() => "/fake/vault/Studio/workspace/renders");
+const rendersRoot = vi.fn(() => "/fake/workspace/renders");
 vi.mock("./render-watch", () => ({
   watchForRender: (opts: never) => watchForRender(opts),
   pruneOldRenders: (...args: never[]) => pruneOldRenders(...args),
@@ -108,13 +108,10 @@ vi.mock("./session-registry", () => ({
   setCookEntryWs: (entry: { ws: unknown }, ws: unknown) => setCookEntryWs(entry, ws),
 }));
 
-// Existing tests never care about the vault-missing guard, so existsSync defaults to
-// true here; the one test that needs it false overrides this mock per-test.
-const existsSync = vi.fn((_path: string) => true);
-vi.mock("node:fs", () => ({ existsSync: (path: string) => existsSync(path), mkdirSync: vi.fn() }));
+vi.mock("node:fs", () => ({ mkdirSync: vi.fn() }));
 
 vi.mock("@/server/config", () => ({
-  config: { VAULT_PATH: "/fake/vault", COOK_WATCHDOG_MS: 1000, WAITING_IDLE_MS: 20_000 },
+  config: { WORKSPACE_ROOT: "/fake/workspace", COOK_WATCHDOG_MS: 1000, WAITING_IDLE_MS: 20_000 },
 }));
 
 /** Mocks ws as an EventEmitter with send/close spies, matching the real `ws.WebSocket`
@@ -129,7 +126,6 @@ describe("attachTerminal", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
-    existsSync.mockReturnValue(true);
     onDataCb = undefined;
     onExitCb = undefined;
     capturedOnFound = undefined;
@@ -308,18 +304,6 @@ describe("attachTerminal", () => {
     expect(createTerminalSession).not.toHaveBeenCalled();
   });
 
-  it("closes the ws with 1011 when the vault directory is missing", async () => {
-    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
-    existsSync.mockReturnValue(false);
-    const { attachTerminal } = await import("./ws");
-    const ws = fakeWs();
-
-    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
-
-    expect(ws.close).toHaveBeenCalledWith(1011, "vault missing");
-    expect(createTerminalSession).not.toHaveBeenCalled();
-  });
-
   it("captures a finished render and sends it as a render frame", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
@@ -357,7 +341,7 @@ describe("attachTerminal", () => {
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
     expect(pruneOldRenders).toHaveBeenCalledTimes(1);
-    expect(pruneOldRenders).toHaveBeenCalledWith("/fake/vault/Studio/workspace/renders", expect.any(Number));
+    expect(pruneOldRenders).toHaveBeenCalledWith("/fake/workspace/renders", expect.any(Number));
   });
 
   it("clears the watchdog timer and stops the render watch when the session exits", async () => {

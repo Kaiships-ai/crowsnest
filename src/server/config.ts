@@ -56,6 +56,10 @@ const schema = z.object({
 
   // --- media storage ---
   MEDIA_ROOT: z.string().min(1).default("data/media"),
+  /** Root for the studio's per-post sandbox and render dirs (`src/server/studio/paths.ts`).
+   *  Lives under the app's own data dir, not the vault: the create studio's Claude Code
+   *  cwd and its rendered output no longer need the vault to exist. */
+  WORKSPACE_ROOT: z.string().min(1).default("data/workspace"),
   /** Absolute path to the Kai-Official-OS Obsidian vault. The create studio runs Claude
    *  Code with a per-post subdir of this as its cwd (see `src/server/studio/paths.ts`),
    *  and reads the craft playbooks here read-only. */

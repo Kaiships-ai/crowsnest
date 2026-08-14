@@ -1,7 +1,9 @@
 // src/server/terminal/render-watch.ts
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
 import path from "node:path";
-import { config } from "@/server/config";
+import { rendersRoot } from "@/server/studio/paths";
+
+export { rendersRoot };
 
 interface WatchOpts {
   slug: string;
@@ -10,12 +12,8 @@ interface WatchOpts {
 
 const POLL_INTERVAL_MS = 700;
 
-export function rendersRoot(): string {
-  return path.join(config.VAULT_PATH, "Studio", "workspace", "renders");
-}
-
 /**
- * Polls the vault renders root for this post's finished MP4. The render directory is
+ * Polls the workspace renders root for this post's finished MP4. The render directory is
  * named `<date>-<slug>`, and this only needs the slug, so it matches on the suffix and
  * ignores whatever date /ksa:cooking stamps. Fires onFound once, after the file's size
  * holds steady across two consecutive poll ticks, so a half-written file is never
@@ -70,10 +68,10 @@ export function watchForRender({ slug, onFound }: WatchOpts): { stop: () => void
 
 /**
  * Deletes render dirs under `root` older than maxAgeMs so the renders root does not grow
- * without bound across cook sessions. Takes an explicit root (rather than reading
- * `config.VAULT_PATH` itself via `rendersRoot()`) so callers and tests can point it at
- * any directory without mocking config. Best-effort: a failure to stat or remove one
- * entry must not throw or stop the rest of the sweep.
+ * without bound across cook sessions. Takes an explicit root (rather than calling
+ * `rendersRoot()` itself) so callers and tests can point it at any directory without
+ * mocking config. Best-effort: a failure to stat or remove one entry must not throw or
+ * stop the rest of the sweep.
  */
 export function pruneOldRenders(root: string, maxAgeMs: number, now: number = Date.now()): void {
   let entries;

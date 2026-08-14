@@ -8,7 +8,7 @@ export function slugify(title: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-const workspace = () => path.join(config.VAULT_PATH, "Studio", "workspace");
+const workspace = () => path.join(config.WORKSPACE_ROOT);
 
 export function sandboxDir(slug: string): string {
   return path.join(workspace(), "videos", slug);
@@ -16,4 +16,8 @@ export function sandboxDir(slug: string): string {
 
 export function rendersDir(dateISO: string, slug: string): string {
   return path.join(workspace(), "renders", `${dateISO}-${slug}`);
+}
+
+export function rendersRoot(): string {
+  return path.join(workspace(), "renders");
 }

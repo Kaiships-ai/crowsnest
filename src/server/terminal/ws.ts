@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
 import type { WebSocket } from "ws";
 import { config } from "@/server/config";
@@ -77,10 +77,6 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     const slug = slugify(title);
     if (slug === "") {
       ws.close(1008, "unusable post title");
-      return;
-    }
-    if (!existsSync(config.VAULT_PATH)) {
-      ws.close(1011, "vault missing");
       return;
     }
 

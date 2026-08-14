@@ -4,19 +4,19 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-const rendersRoot = () => path.join(vaultDir, "Studio", "workspace", "renders");
-let vaultDir: string;
+const rendersRoot = () => path.join(workspaceDir, "renders");
+let workspaceDir: string;
 
-vi.mock("@/server/config", () => ({ config: { get VAULT_PATH() { return vaultDir; } } }));
+vi.mock("@/server/config", () => ({ config: { get WORKSPACE_ROOT() { return workspaceDir; } } }));
 
 let watchForRender: typeof import("./render-watch")["watchForRender"];
 let pruneOldRenders: typeof import("./render-watch")["pruneOldRenders"];
 beforeEach(async () => {
-  vaultDir = mkdtempSync(path.join(tmpdir(), "render-watch-"));
+  workspaceDir = mkdtempSync(path.join(tmpdir(), "render-watch-"));
   mkdirSync(rendersRoot(), { recursive: true });
   ({ watchForRender, pruneOldRenders } = await import("./render-watch"));
 });
-afterEach(() => { rmSync(vaultDir, { recursive: true, force: true }); vi.resetModules(); });
+afterEach(() => { rmSync(workspaceDir, { recursive: true, force: true }); vi.resetModules(); });
 
 describe("watchForRender", () => {
   it("fires onFound once when this slug's video.mp4 lands and its size is stable", async () => {
@@ -65,7 +65,7 @@ describe("pruneOldRenders", () => {
   });
 
   it("does not throw when the root does not exist", () => {
-    const missingRoot = path.join(vaultDir, "does-not-exist");
+    const missingRoot = path.join(workspaceDir, "does-not-exist");
     expect(() => pruneOldRenders(missingRoot, 60 * 60 * 1000)).not.toThrow();
   });
 });
