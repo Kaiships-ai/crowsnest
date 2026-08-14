@@ -15,7 +15,7 @@ This command runs from the Crowsnest ksa plugin. Its cwd is the per-post sandbox
 (`data/workspace/videos/<slug>`), and the finished renders sit next to it at
 `data/workspace/renders/<date>-<slug>/`, which is `../../renders/` from the sandbox.
 The two helper scripts are bundled in the plugin at
-`${CLAUDE_PLUGIN_ROOT}/commands/ksa/serve/`.
+`${CLAUDE_PLUGIN_ROOT}/commands/serve/`.
 
 ## Steps
 
@@ -27,7 +27,7 @@ The two helper scripts are bundled in the plugin at
 
 4. **Host on public URLs** (auto-publish path only). The publish API needs public HTTPS URLs. Host via the bundled helper (copies into the website repo, deploys via Vercel CLI, waits for HTTP 200, prints URLs in the order passed):
    ```
-   ${CLAUDE_PLUGIN_ROOT}/commands/ksa/serve/host_to_web.sh <slug> <files...>
+   ${CLAUDE_PLUGIN_ROOT}/commands/serve/host_to_web.sh <slug> <files...>
    ```
    - carousel: pass `slide1.jpg ... slideN.jpg`.
    - Reel: pass `video.mp4 cover.jpg`.
@@ -40,11 +40,11 @@ The two helper scripts are bundled in the plugin at
 7. **Auto-publish** (bundled helper; never echo the token - it reads the env file resolved in step 3):
    - **carousel:**
      ```
-     python3 ${CLAUDE_PLUGIN_ROOT}/commands/ksa/serve/ig_publish.py publish --caption-file <asset>/caption.txt --images <url1> <url2> ...
+     python3 ${CLAUDE_PLUGIN_ROOT}/commands/serve/ig_publish.py publish --caption-file <asset>/caption.txt --images <url1> <url2> ...
      ```
    - **Reel:**
      ```
-     python3 ${CLAUDE_PLUGIN_ROOT}/commands/ksa/serve/ig_publish.py publish-reel --caption-file <asset>/caption.txt --video <mp4_url> --cover <cover_url>
+     python3 ${CLAUDE_PLUGIN_ROOT}/commands/serve/ig_publish.py publish-reel --caption-file <asset>/caption.txt --video <mp4_url> --cover <cover_url>
      ```
    Both return JSON `{media_id, permalink}`. Reels take longer (video processing) - the helper polls up to ~6 min. Record the result (platform, type, time, media_id, permalink) to `../../served/YYYY-MM-DD-<slug>.md` (the Crowsnest served dir, `data/workspace/served/`) and stop.
 
@@ -53,6 +53,6 @@ The two helper scripts are bundled in the plugin at
 9. **Handoff - measure it.** Publishing without measuring loses track of what is live. Tell Kai to run **`/ksa:measure`** now for a baseline, and again roughly 48 hours later once reach has settled. A served record with no performance data is an incomplete record.
 
 ## Notes
-- Token maintenance: `python3 ${CLAUDE_PLUGIN_ROOT}/commands/ksa/serve/ig_publish.py refresh` before the 60-day expiry (set `IG_ENV_PATH` first so it rewrites the right file). Quota: `... limit`.
+- Token maintenance: `python3 ${CLAUDE_PLUGIN_ROOT}/commands/serve/ig_publish.py refresh` before the 60-day expiry (set `IG_ENV_PATH` first so it rewrites the right file). Quota: `... limit`.
 - Never print or commit the access token. The env file it reads stays outside this repo and is gitignored where it lives.
 - **Every publish MUST leave a served record** at `../../served/YYYY-MM-DD-<slug>.md`, on both the auto and the manual path.

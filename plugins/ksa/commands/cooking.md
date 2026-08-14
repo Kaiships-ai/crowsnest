@@ -15,7 +15,7 @@ This command runs from the Crowsnest ksa plugin. Its cwd is the per-post sandbox
 the sandbox. The editable project (the `hyperframes init` project and its `index.html`)
 stays in the sandbox cwd itself, which is `.`.
 
-Post reference: `${CLAUDE_PLUGIN_ROOT}/commands/ksa/cooking/baoyu-skill-selection.md`.
+Post reference: `${CLAUDE_PLUGIN_ROOT}/commands/cooking/baoyu-skill-selection.md`.
 
 ## Craft laws - READ BEFORE BUILDING, and put them in every render sub-agent brief
 
@@ -360,7 +360,7 @@ reason for a carousel.
 ## POST branch (carousel)
 
 3p. **Requirements gate (MANDATORY, AskUserQuestion):** style (vibe), layout (card/deck/single), aspect ratio (IG crops slides to the first).
-4p. **Pick the baoyu skill/combo** via `${CLAUDE_PLUGIN_ROOT}/commands/ksa/cooking/baoyu-skill-selection.md` + gate answers; confirm the pick to Kai.
+4p. **Pick the baoyu skill/combo** via `${CLAUDE_PLUGIN_ROOT}/commands/cooking/baoyu-skill-selection.md` + gate answers; confirm the pick to Kai.
 5p. **Render via a named sub-agent in a pane.** Brief it with the brief's per-slide sections, gate answers, chosen skill, output folder, and the craft laws inline above. Same aspect on every slide; on-niche; no slop; no fabrication.
 6p. **Output** `slide1.jpg`..`slideN.jpg` + `caption.txt` (from the brief's caption) to `../../renders/YYYY-MM-DD-<slug>/`.
 7p. **HITL gate.** AskUserQuestion "Approve this carousel?" Approve / Revise.
