@@ -5,6 +5,7 @@ import { config } from "@/server/config";
 import { nowIso } from "@/server/db";
 import { getAssetStore } from "@/server/media/asset-store";
 import { sandboxDir, slugify } from "@/server/studio/paths";
+import { writeBrief } from "@/server/studio/write-brief";
 import { startCreateRunAction } from "@/server/actions/create-run-actions";
 import { getCreateRun, getLatestCreateRunForPost, updateCreateRun } from "@/server/queries/create-runs";
 import { buildCookProfile } from "./harness-profile";
@@ -205,6 +206,21 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
     };
     ws.on("close", handleDetach);
     ws.on("error", handleDetach);
+
+    // Writes ./brief.md into the sandbox (E2/E3 task 4) before the cook's queued task
+    // below can spawn it -- awaited here, after the entry is already reserved
+    // (putCookEntry above) so this cannot reopen the synchronous double-spawn window
+    // that reservation exists to close, and before `runOnCookQueue` so the write is
+    // always complete before the queued executor's `createTerminalSession` call, even
+    // when the queue is empty and the executor runs on the very next tick. A brief
+    // write failure (bad postId, disk error) is logged and swallowed, never thrown:
+    // /ksa:cooking reading a missing brief.md is the cook's problem to surface, not a
+    // reason to refuse the attach.
+    try {
+      await writeBrief(dir, postId);
+    } catch (err) {
+      console.error("writeBrief failed", err);
+    }
 
     // The queued task holds its concurrency slot for the cook's whole real lifetime,
     // not just the spawn call: the returned promise only settles once the cook exits

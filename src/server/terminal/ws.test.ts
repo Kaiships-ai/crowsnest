@@ -110,6 +110,12 @@ vi.mock("./session-registry", () => ({
 
 vi.mock("node:fs", () => ({ mkdirSync: vi.fn() }));
 
+// E2/E3 task 4: the fresh-spawn path writes brief.md before the cook can read it.
+// Mocked so these tests never touch the real getStudioBrief/db chain writeBrief
+// pulls in; write-brief.test.ts covers the serializer itself.
+const writeBrief = vi.fn(async (_dir: string, _postId: string) => {});
+vi.mock("@/server/studio/write-brief", () => ({ writeBrief: (dir: string, postId: string) => writeBrief(dir, postId) }));
+
 vi.mock("@/server/config", () => ({
   config: { WORKSPACE_ROOT: "/fake/workspace", COOK_WATCHDOG_MS: 1000, WAITING_IDLE_MS: 20_000 },
 }));
@@ -761,6 +767,67 @@ describe("attachTerminal", () => {
     await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
 
     expect(createTerminalSession).toHaveBeenCalledTimes(1);
+  });
+
+  // E2/E3 task 4: brief.md must exist before the cook (createTerminalSession) reads
+  // it, and only on a fresh spawn -- a reattach binds to an already-running cook
+  // whose brief was already written by the original spawn.
+  it("writes the brief before spawning the cook session, on the fresh-spawn path only", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    const callOrder: string[] = [];
+    writeBrief.mockImplementationOnce(async () => {
+      callOrder.push("writeBrief");
+    });
+    createTerminalSession.mockImplementationOnce((...args: never[]) => {
+      callOrder.push("spawn");
+      return {
+        pid: 4321,
+        onData: (cb: (s: string) => void) => {
+          onDataCb = cb;
+        },
+        write,
+        resize,
+        onExit: (cb: (code: number) => void) => {
+          onExitCb = cb;
+        },
+        kill,
+      };
+    });
+
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(writeBrief).toHaveBeenCalledWith(sandboxDir(slugify("My Great Post")), "abc");
+    expect(callOrder).toEqual(["writeBrief", "spawn"]);
+  });
+
+  it("does not write the brief again on a reattach to an already-live cook", async () => {
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(writeBrief).toHaveBeenCalledTimes(1);
+
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(writeBrief).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs and continues (never crashes the attach) when writeBrief rejects", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    writeBrief.mockRejectedValueOnce(new Error("no plan found"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+
+    await expect(attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never)).resolves.toBeUndefined();
+
+    expect(createTerminalSession).toHaveBeenCalled();
+    expect(consoleError).toHaveBeenCalledWith("writeBrief failed", expect.any(Error));
+    consoleError.mockRestore();
   });
 
   it("drops the registry entry when the session exits", async () => {
