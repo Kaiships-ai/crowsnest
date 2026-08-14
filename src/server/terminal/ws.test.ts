@@ -505,6 +505,49 @@ describe("attachTerminal", () => {
     expect(createTerminalSession).toHaveBeenCalledTimes(1);
   });
 
+  // D1 Task 5 fix round 2: handleDetach's placeholder-abort branch used to fire
+  // unconditionally whenever the cook hadn't spawned yet, with no check on which
+  // socket was closing. But a second tab can reattach onto a still-queued placeholder
+  // (swapping `cookEntry.ws` to itself) while the original tab is still open. If the
+  // original tab's socket then closes, its handleDetach must not abort a reservation
+  // the reattached tab still wants -- it should just detach (a no-op here, since it
+  // is no longer the attached socket), the same identity-guard the post-spawn branch
+  // already used.
+  it("does not abort a still-queued reservation when the socket that closes is not the one currently attached (a reattach happened first)", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    let queuedTask: (() => Promise<unknown>) | undefined;
+    runOnCookQueue.mockImplementationOnce((fn: () => Promise<unknown>) => {
+      queuedTask = fn;
+      return new Promise(() => {
+        /* never settles while queued */
+      });
+    });
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+
+    // A reserves the placeholder (still queued, nothing spawned yet).
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(getCookEntry("abc")).toBeDefined();
+
+    // B reattaches onto that same placeholder before it ever spawns, taking over as
+    // the currently-attached socket.
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+    expect(runOnCookQueue).toHaveBeenCalledTimes(1);
+
+    // A's tab closes. A is no longer the attached socket (B is), so this must be a
+    // no-op detach, not an abort of the reservation B is still waiting on.
+    wsA.emit("close");
+
+    expect(getCookEntry("abc")).toBeDefined();
+
+    // The reservation is still good: once a slot frees, it still spawns exactly one
+    // session, for B.
+    void queuedTask?.();
+    expect(createTerminalSession).toHaveBeenCalledTimes(1);
+  });
+
   it("claims a create_runs row when the cook spawns and sends a running run frame", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");

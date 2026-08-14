@@ -176,17 +176,23 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
     // DETACH ONLY. If the cook has not actually spawned yet (`cookEntry.session` still
     // null -- this attach's queued task hasn't run, still waiting behind other cooks
-    // at the concurrency limit), there is nothing running to detach from: abort
-    // instead, so a tab closed before its cook ever started doesn't leak a queue slot
-    // or a placeholder registry entry forever (the queued task's own aborted-check,
-    // below, drops it once it gets its turn). Once the cook has spawned, this only
-    // clears the currently-attached socket pointer, and only if it still points at
-    // *this* socket -- a reattach may already have replaced it with a newer one, in
-    // which case this is a no-op. It must never kill the session or abort the
-    // controller while the cook is running.
+    // at the concurrency limit) AND this socket is still the one attached to the
+    // reservation, abort it: a tab closed before its cook ever started shouldn't leak
+    // a queue slot or a placeholder registry entry forever (the queued task's own
+    // aborted-check, below, drops it once it gets its turn). The `cookEntry.ws === ws`
+    // guard matters here too, not just in the post-spawn branch below: a second tab
+    // can reattach onto a still-queued placeholder (swapping `cookEntry.ws` to itself)
+    // while the first tab is still open, and if the first tab then closes, its
+    // handleDetach must not abort a reservation the reattached tab still wants. Once
+    // the cook has spawned, this only clears the currently-attached socket pointer,
+    // and only if it still points at *this* socket -- a reattach may already have
+    // replaced it with a newer one, in which case this is a no-op. It must never kill
+    // the session or abort the controller while the cook is running.
     const handleDetach = () => {
       if (cookEntry.session === null) {
-        ac.abort();
+        if (cookEntry.ws === ws) {
+          ac.abort();
+        }
         return;
       }
       if (cookEntry.ws === ws) {
