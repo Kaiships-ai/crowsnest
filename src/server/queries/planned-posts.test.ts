@@ -92,7 +92,7 @@ describe("getPlannedPosts", () => {
     expect(rows.map((r) => r.title).sort()).toEqual(["In range", "Undated"]);
   });
 
-  test("a plan carrying a script denormalizes its title and content length", async () => {
+  test("a plan carrying a script denormalizes its title, content length, and full content", async () => {
     const scriptId = await seedScript("0123456789"); // 10 chars
     await db.insert(tables.plannedPosts).values({
       id: newId(), state: "draft", title: "With script", scriptId, createdAt: nowIso(), updatedAt: nowIso(),
@@ -101,13 +101,15 @@ describe("getPlannedPosts", () => {
     const [row] = await getPlannedPosts();
     expect(row.scriptTitle).toBe("A Script");
     expect(row.scriptLengthChars).toBe(10);
+    expect(row.scriptContent).toBe("0123456789");
   });
 
-  test("a plan with no script has null scriptTitle/scriptLengthChars, not a crash", async () => {
+  test("a plan with no script has null scriptTitle/scriptLengthChars/scriptContent, not a crash", async () => {
     await db.insert(tables.plannedPosts).values({ id: newId(), state: "draft", title: "No script", createdAt: nowIso(), updatedAt: nowIso() });
     const [row] = await getPlannedPosts();
     expect(row.scriptTitle).toBeNull();
     expect(row.scriptLengthChars).toBeNull();
+    expect(row.scriptContent).toBeNull();
   });
 
   test("reconciledOwnPostId is set when an own post exists on the plan's date and nothing has been marked published by hand", async () => {

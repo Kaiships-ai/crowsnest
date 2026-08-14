@@ -72,6 +72,7 @@ describe("getPlannedPostById", () => {
     expect(row?.title).toBe("Studio subject");
     expect(row?.videoKind).toBe("talking-head");
     expect(row?.scriptTitle).toBe("A Script");
+    expect(row?.scriptContent).toBe("HOOK: ...\nBUILD: ...\nCTA: ...");
   });
 
   test("returns null for an unknown id", async () => {

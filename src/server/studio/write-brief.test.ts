@@ -21,6 +21,7 @@ function fakePlan(overrides: Partial<PlannedPostRow> = {}): PlannedPostRow {
     scriptId: "script-1",
     scriptTitle: "Draft v1",
     scriptLengthChars: 812,
+    scriptContent: "Hook: stop scrolling.\n\nBeat 1: here's mistake one...\n\nBeat 2: here's mistake two...",
     scriptDetachedNote: null,
     remixSessionId: null,
     sourceVideoId: "video-1",
@@ -110,6 +111,9 @@ describe("writeBrief", () => {
     expect(content).toContain("## Script");
     expect(content).toContain("Draft v1");
     expect(content).toContain("812 chars");
+    expect(content).toContain("Hook: stop scrolling.");
+    expect(content).toContain("Beat 1: here's mistake one...");
+    expect(content).toContain("Beat 2: here's mistake two...");
     expect(content).toContain("## Target length");
     expect(content).toContain("45s");
     expect(content).toContain("## Video kind");
@@ -148,8 +152,11 @@ describe("writeBrief", () => {
     expect(content).toContain("(frame pass not run)");
   });
 
-  it("writes '(no script attached)' when the plan carries no scriptId", async () => {
-    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan({ scriptId: null, scriptTitle: null, scriptLengthChars: null }), video: null });
+  it("writes '(no script attached)' rather than fabricating a body when the plan carries no script", async () => {
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({ scriptId: null, scriptTitle: null, scriptLengthChars: null, scriptContent: null }),
+      video: null,
+    });
     const { writeBrief } = await import("./write-brief");
 
     await writeBrief(dir, "post-1");
@@ -157,6 +164,23 @@ describe("writeBrief", () => {
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
     expect(content).toContain("(no script attached)");
+    expect(content).not.toContain("Hook: stop scrolling.");
+  });
+
+  it("prints the full script body (not just title/length) when a script is attached", async () => {
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({ scriptContent: "Line one of the script.\nLine two of the script." }),
+      video: null,
+    });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+    const scriptSection = content.split("## Script")[1].split("##")[0];
+
+    expect(scriptSection).toContain("Line one of the script.");
+    expect(scriptSection).toContain("Line two of the script.");
   });
 
   it("says '(not set)' for target length and video kind instead of fabricating a value when absent", async () => {

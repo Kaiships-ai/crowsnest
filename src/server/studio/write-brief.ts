@@ -20,6 +20,10 @@ function formatLayoutField(field: VideoLayoutField): string {
  * them rather than printing an invented value. See task-4-report.md for the list of
  * proposed sections with no backing field.
  *
+ * Fix round 1: `plan.scriptContent` (planned-posts.ts) carries the attached script's
+ * full body text -- the same `scripts.content` row `getPlannedPostById` already
+ * selects to compute `scriptLengthChars`, just no longer discarded after that.
+ *
  * Throws if `postId` resolves to no plan at all (nothing to write) or if the write
  * itself fails; the caller (ws.ts's fresh-spawn path) is the one that decides a
  * brief-write failure must not crash the attach, so it owns the try/catch.
@@ -50,13 +54,10 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
   lines.push("");
 
   lines.push("## Script");
-  if (plan.scriptId) {
+  if (plan.scriptContent !== null) {
     lines.push(`- Title: ${plan.scriptTitle ?? "Untitled script"}`);
     lines.push(`- Length: ${plan.scriptLengthChars !== null ? `${plan.scriptLengthChars} chars` : "(unknown)"}`);
-    // getStudioBrief carries only the script's title/length (PlannedPostRow's
-    // denormalized columns), not its body text -- there is no script content in
-    // this object to print here.
-    lines.push("- Body: (not available -- getStudioBrief carries only the script's title and length, not its content)");
+    lines.push("", plan.scriptContent);
   } else if (plan.scriptDetachedNote) {
     lines.push(`(script detached: ${plan.scriptDetachedNote})`);
   } else {

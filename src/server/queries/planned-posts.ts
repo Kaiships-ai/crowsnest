@@ -29,6 +29,11 @@ export interface PlannedPostRow {
   /** Denormalized so a calendar cell does not join scripts to print a marker. */
   scriptTitle: string | null;
   scriptLengthChars: number | null;
+  /** The attached script's full body text, null when no script is attached. Carried
+   *  alongside scriptTitle/scriptLengthChars (same already-fetched row, just not
+   *  discarded) so a single-record consumer like the studio brief (write-brief.ts)
+   *  can print the actual script instead of only its title and length. */
+  scriptContent: string | null;
   /** Set when a carried script was deliberately detached. Lets a plan that lost its
    *  script say so instead of rendering like a plan that never had one. */
   scriptDetachedNote: string | null;
@@ -61,7 +66,8 @@ function toRow(
   row: PlannedPostSelect,
   scriptTitle: string | null,
   scriptLengthChars: number | null,
-  reconciledOwnPostId: string | null
+  reconciledOwnPostId: string | null,
+  scriptContent: string | null
 ): PlannedPostRow {
   const today = todayDateOnly();
   const state: PlannedPostState =
@@ -79,6 +85,7 @@ function toRow(
     scriptId: row.scriptId,
     scriptTitle,
     scriptLengthChars,
+    scriptContent,
     scriptDetachedNote: row.scriptDetachedNote,
     remixSessionId: row.remixSessionId,
     sourceVideoId: row.sourceVideoId,
@@ -123,7 +130,7 @@ export async function getPlannedPosts(range?: { from: string; to: string }): Pro
   return rows.map((row) => {
     const script = row.scriptId ? scriptById.get(row.scriptId) : undefined;
     const reconciledOwnPostId = row.plannedDate ? (ownPostDateMap.get(row.plannedDate) ?? null) : null;
-    return toRow(row, script?.title ?? null, script?.content.length ?? null, reconciledOwnPostId);
+    return toRow(row, script?.title ?? null, script?.content.length ?? null, reconciledOwnPostId, script?.content ?? null);
   });
 }
 
@@ -136,6 +143,7 @@ export async function getPlannedPostById(id: string): Promise<PlannedPostRow | n
 
   let scriptTitle: string | null = null;
   let scriptLengthChars: number | null = null;
+  let scriptContent: string | null = null;
   if (row.scriptId) {
     const [script] = await db
       .select({ title: tables.scripts.title, content: tables.scripts.content })
@@ -145,6 +153,7 @@ export async function getPlannedPostById(id: string): Promise<PlannedPostRow | n
     if (script) {
       scriptTitle = script.title;
       scriptLengthChars = script.content.length;
+      scriptContent = script.content;
     }
   }
 
@@ -155,7 +164,7 @@ export async function getPlannedPostById(id: string): Promise<PlannedPostRow | n
     reconciledOwnPostId = match?.ownPostId ?? null;
   }
 
-  return toRow(row, scriptTitle, scriptLengthChars, reconciledOwnPostId);
+  return toRow(row, scriptTitle, scriptLengthChars, reconciledOwnPostId, scriptContent);
 }
 
 export interface CalendarMonth {
