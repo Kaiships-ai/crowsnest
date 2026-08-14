@@ -282,8 +282,20 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
                 cookEntry.watchdog = null;
               }
               if (cookEntry.runId) {
-                updateCreateRun(cookEntry.runId, { status: "waiting" });
-                sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "waiting" });
+                // Re-read the row rather than trusting local state, same guard the
+                // exit handler below already uses: a Stop can write `canceled` (SIGTERM
+                // then a DB write) with a grace window before the pty actually reports
+                // exit, and this interval can land inside that window. Flipping
+                // unconditionally would stomp `canceled` back to `waiting`, which the
+                // exit handler's own allow-list would then read as still-active and
+                // mark `failed` -- turning a user Stop into a silently-recorded
+                // failure. Skip the flip (and the frame) entirely once the run has
+                // already reached a terminal status some other way.
+                const current = getCreateRun(cookEntry.runId);
+                if (current && (current.status === "running" || current.status === "waiting")) {
+                  updateCreateRun(cookEntry.runId, { status: "waiting" });
+                  sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "waiting" });
+                }
               }
             }, WAITING_CHECK_INTERVAL_MS);
 
@@ -325,8 +337,15 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
               if (cookEntry.waiting) {
                 cookEntry.waiting = false;
                 if (cookEntry.runId) {
-                  updateCreateRun(cookEntry.runId, { status: "running" });
-                  sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "running" });
+                  // Same re-read guard as the waiting flip above: a Stop's `canceled`
+                  // write can land in the grace window before this data frame arrives
+                  // (a buffered chunk flushing out of a process already sent SIGTERM),
+                  // and must not be stomped back to `running`.
+                  const current = getCreateRun(cookEntry.runId);
+                  if (current && (current.status === "running" || current.status === "waiting")) {
+                    updateCreateRun(cookEntry.runId, { status: "running" });
+                    sendIfAttached(cookEntry, { type: "run", runId: cookEntry.runId, status: "running" });
+                  }
                 }
                 if (!cookEntry.watchdog) {
                   armWatchdog();

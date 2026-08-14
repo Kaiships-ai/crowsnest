@@ -477,6 +477,53 @@ describe("attachTerminal", () => {
     expect(kill).toHaveBeenCalled();
   });
 
+  // D1 Task 6 fix round 1: stopCreateRunAction writes `canceled` directly (SIGTERM to
+  // the process group, then a DB write), and there is a grace window before the pty
+  // actually reports exit. Both flip sites above used to call updateCreateRun
+  // unconditionally, so the idle check or a late buffered onData frame landing inside
+  // that window could stomp `canceled` back to `waiting`/`running` -- which the exit
+  // handler's own allow-list (`current.status === "running" || "waiting"`) would then
+  // read as still-active and mark `failed`, silently recording a user Stop as a
+  // failure. Both sites now re-read the row first, matching the exit handler's own
+  // guard, and skip the flip (and the frame) once the run is already terminal.
+  it("does not stomp a Stop-canceled run when the idle check or a late onData frame race it", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await vi.advanceTimersByTimeAsync(0);
+
+    onDataCb?.("hello");
+
+    // Simulates a Stop mid-cook: stopCreateRunAction already wrote `canceled` (the
+    // process was sent SIGTERM but has not yet reported exit).
+    getCreateRun.mockImplementation(() => ({ status: "canceled" }));
+    updateCreateRun.mockClear();
+    ws.send.mockClear();
+
+    // The idle-interval check fires inside that grace window.
+    await vi.advanceTimersByTimeAsync(25_001);
+
+    expect(updateCreateRun).not.toHaveBeenCalled();
+    const waitingFrame = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "waiting";
+    });
+    expect(waitingFrame).toBeUndefined();
+
+    // A buffered output chunk flushes out of the already-signaled process, also
+    // landing inside the grace window.
+    onDataCb?.("late chunk");
+
+    expect(updateCreateRun).not.toHaveBeenCalled();
+    const runningFrame = ws.send.mock.calls.find((args: unknown[]) => {
+      const frame = JSON.parse(args[0] as string);
+      return frame.type === "run" && frame.status === "running";
+    });
+    expect(runningFrame).toBeUndefined();
+  });
+
   it("runs the cook spawn through the concurrency queue", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
