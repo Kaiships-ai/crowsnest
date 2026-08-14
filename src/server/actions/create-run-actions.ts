@@ -2,7 +2,7 @@
 
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult } from "../lib/action-result";
-import { getCreateRun, updateCreateRun } from "../queries/create-runs";
+import { getCreateRun, getLatestCreateRunForPost, updateCreateRun } from "../queries/create-runs";
 
 /**
  * Thin "use server" wrappers around the create-runs query layer (D1, create-run
@@ -58,6 +58,27 @@ export async function stopCreateRunAction(runId: string): Promise<ActionResult<{
 
     updateCreateRun(runId, { status: "canceled", finishedAt: nowIso() });
     return { ok: true, stopped: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * Decoupled publish (D1 task 7 / B2): what the studio panel reads on mount to decide
+ * whether Publish should be enabled. Gates strictly on the persisted `renderAssetId` on
+ * the post's latest create run, not on the ephemeral client `render` state that a page
+ * reload throws away — a render that finished before a reload still counts as publishable.
+ *
+ * Returns null (not an error) when the post has no create run yet, or its latest run has
+ * no renderAssetId (still running, or it never finished).
+ */
+export async function getPublishStateAction(
+  postId: string
+): Promise<ActionResult<{ publish: { runId: string; renderAssetId: string } | null }>> {
+  try {
+    const run = getLatestCreateRunForPost(postId);
+    if (!run || !run.renderAssetId) return { ok: true, publish: null };
+    return { ok: true, publish: { runId: run.id, renderAssetId: run.renderAssetId } };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

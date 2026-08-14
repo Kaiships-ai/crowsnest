@@ -4,6 +4,7 @@ import next from "next";
 import { WebSocketServer } from "ws";
 import { ensurePtyExecutable } from "./src/server/terminal/pty-perms";
 import { attachTerminal } from "./src/server/terminal/ws";
+import { reconcileOrphanCreateRuns } from "./src/server/queries/create-runs";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
@@ -29,6 +30,18 @@ app.prepare().then(() => {
       upgrade(req, socket, head); // Next HMR and everything else, do not destroy
     }
   });
+
+  // Any create_run left `running`/`waiting` by a previous process (killed, crashed,
+  // redeployed) died with that process — its pid is gone, and nothing will ever move it
+  // to a terminal status. Reconcile once at boot so the runs list and studio panel don't
+  // show a cook as forever in progress. Never let a reconcile bug block the server from
+  // listening — see create-runs.ts's reconcileOrphanCreateRuns for the pid-liveness check.
+  try {
+    const changed = reconcileOrphanCreateRuns();
+    if (changed > 0) console.log(`reconciled ${changed} orphaned create run(s) on boot`);
+  } catch (err) {
+    console.error("reconcileOrphanCreateRuns failed on boot:", err);
+  }
 
   server.listen(port, () => console.log(`ready on http://localhost:${port}`));
 });

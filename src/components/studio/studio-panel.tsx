@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { markPlanPublishedAction } from "@/server/actions/planned-post-actions";
-import { stopCreateRunAction } from "@/server/actions/create-run-actions";
+import { getPublishStateAction, stopCreateRunAction } from "@/server/actions/create-run-actions";
 import { TerminalPane, type TerminalHandle } from "@/components/studio/terminal-pane";
 
 interface CapturedRender { assetId: string; url: string }
@@ -59,6 +59,22 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
   const [elapsedSec, setElapsedSec] = useState(0);
   const [stopPending, startStopTransition] = useTransition();
 
+  // Persisted render, gating Publish (D1 task 7 / B2): loaded once on mount so Publish
+  // stays enabled across a reload even though `render` (the live capture) resets to null.
+  // Independent of `render` — either one being set is enough to unlock the button.
+  const [persistedRenderAssetId, setPersistedRenderAssetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getPublishStateAction(postId).then((res) => {
+      if (cancelled || !res.ok) return;
+      if (res.publish) setPersistedRenderAssetId(res.publish.renderAssetId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [postId]);
+
   const handleRun = (message: RunState) => {
     setRun((prev) => {
       // A fresh runId is always a fresh spawn (task 4 assumes one run per ws attach,
@@ -83,7 +99,12 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
 
   const inject = (cmd: string) => termRef.current?.send(`${cmd}\r`);
   const cook = () => { setStarted(true); inject("/ksa:cooking"); };
-  const publish = () => inject("/ksa:serve");
+  const canPublish = render !== null || persistedRenderAssetId !== null;
+  const publish = () => {
+    if (!canPublish) return;
+    if (!window.confirm("Publish this render to Instagram?")) return;
+    inject("/ksa:serve");
+  };
   const stop = () => {
     if (!run) return;
     const runId = run.runId;
@@ -163,11 +184,12 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <Button type="button" variant="secondary" disabled={!render} onClick={publish} className="w-full">
+          <Button type="button" variant="secondary" disabled={!canPublish} onClick={publish} className="w-full">
             Publish
           </Button>
           <p className="text-xs text-muted-foreground">
-            Publish runs /ksa:serve in the session (official Graph API). It unlocks once a render exists.
+            Publish runs /ksa:serve in the session (official Graph API). It unlocks once a render exists, and
+            stays unlocked after a reload as long as that render is saved.
           </p>
           <Button type="button" variant="outline" disabled={!render || pending || saved} onClick={saveToCalendar} className="w-full">
             {saved ? "Saved to calendar" : "Save to calendar"}

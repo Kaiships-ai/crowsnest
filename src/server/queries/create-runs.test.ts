@@ -3,6 +3,7 @@ import { beforeAll, beforeEach, describe, expect, test } from "vitest";
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
+let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let getCreateRun: typeof import("./create-runs")["getCreateRun"];
 let getLatestCreateRunForPost: typeof import("./create-runs")["getLatestCreateRunForPost"];
@@ -10,6 +11,7 @@ let updateCreateRun: typeof import("./create-runs")["updateCreateRun"];
 let reconcileOrphanCreateRuns: typeof import("./create-runs")["reconcileOrphanCreateRuns"];
 let startCreateRunAction: typeof import("../actions/create-run-actions")["startCreateRunAction"];
 let stopCreateRunAction: typeof import("../actions/create-run-actions")["stopCreateRunAction"];
+let getPublishStateAction: typeof import("../actions/create-run-actions")["getPublishStateAction"];
 
 beforeAll(async () => {
   // Must be set before @/server/db (and anything importing it) is ever loaded — that
@@ -18,10 +20,10 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   process.env.IG_SERVICE_TOKEN ??= "test-token";
 
-  ({ db, tables, newId } = await import("@/server/db"));
+  ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ getCreateRun, getLatestCreateRunForPost, updateCreateRun, reconcileOrphanCreateRuns } = await import("./create-runs"));
-  ({ startCreateRunAction, stopCreateRunAction } = await import("../actions/create-run-actions"));
+  ({ startCreateRunAction, stopCreateRunAction, getPublishStateAction } = await import("../actions/create-run-actions"));
 });
 
 beforeEach(() => {
@@ -106,6 +108,30 @@ describe("stopCreateRunAction", () => {
   test("errors for an unknown run id", async () => {
     const result = await stopCreateRunAction("nope");
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("getPublishStateAction", () => {
+  test("returns the persisted renderAssetId when the latest run has one", async () => {
+    const postId = seedPost();
+    const { runId } = (await startCreateRunAction({ postId, slug: "s" })) as { ok: true; runId: string };
+    updateCreateRun(runId, { status: "success", finishedAt: nowIso(), renderAssetId: "asset_1" });
+
+    const result = await getPublishStateAction(postId);
+    expect(result).toMatchObject({ ok: true, publish: { runId, renderAssetId: "asset_1" } });
+  });
+
+  test("returns null when the post has no create run yet", async () => {
+    const result = await getPublishStateAction(seedPost());
+    expect(result).toMatchObject({ ok: true, publish: null });
+  });
+
+  test("returns null when the latest run has not produced a render yet", async () => {
+    const postId = seedPost();
+    await startCreateRunAction({ postId, slug: "s" });
+
+    const result = await getPublishStateAction(postId);
+    expect(result).toMatchObject({ ok: true, publish: null });
   });
 });
 
