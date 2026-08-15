@@ -130,7 +130,7 @@ describe("writeBrief", () => {
     expect(content).toContain("Beat 2: here's mistake two...");
     expect(content).toContain("Target length: 45s");
     expect(content).toContain("Video kind: talking-head");
-    expect(content).toContain("### Source layout per beat");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("3 MISTAKES");
     expect(content).toContain("upper third");
     expect(content).toContain("fast cuts");
@@ -185,10 +185,10 @@ describe("writeBrief", () => {
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
     expect(content).toContain("- Hook: Everyone is sleeping on this.");
-    expect(content).toContain("### Source beats");
+    expect(content).toContain("### Original beats (source video)");
     expect(content).toContain("Hey, here are three mistakes"); // the beat's verbatim words
     expect(content).toContain("opens on a warning"); // the beat's summary
-    expect(content).toContain("### Source layout per beat");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("3 MISTAKES");
   });
 
@@ -330,7 +330,7 @@ describe("writeBrief", () => {
 
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
-    expect(content).toContain("### Source layout per beat");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("(frame pass not run)");
   });
 

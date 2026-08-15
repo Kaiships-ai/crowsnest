@@ -109,9 +109,10 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
     lines.push("## Persona", ...personaLines, "");
   }
 
-  // Everything below is the source outlier, not the deliverable. One heading so the
-  // reader never mistakes the reference for the output.
-  lines.push("## Source reference", "");
+  // Everything below is the source outlier, not the deliverable. One heading plus a
+  // one-line framing so the reader never mistakes the reference for the output.
+  lines.push("## Source reference");
+  lines.push("Everything below describes the ORIGINAL video this remix is based on, for reference. Your script is the section above.", "");
 
   const segments = remix?.sourceAnalysis?.structureSegments ?? [];
   // The per-beat transcripts ARE the source's spoken words, sliced by beat. When they
@@ -138,7 +139,7 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
   lines.push("");
 
   if (remix) {
-    lines.push("### Source beats");
+    lines.push("### Original beats (source video)");
     if (segments.length === 0) {
       lines.push("(the remixed video has no analyzed beats)");
       lines.push("");
@@ -163,7 +164,7 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
     }
   }
 
-  lines.push("### Source layout per beat");
+  lines.push("### Original layout per beat (source video)");
   // One block per story beat. `asBeatLayout` returns null for a row written before the
   // layout went per beat: that flat reading has no beat timecodes, so it is reported as
   // absent rather than pinned onto beats it never described.
