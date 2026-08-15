@@ -46,6 +46,7 @@ export function StageScript({
   proxyDown,
   llmProxyUrl,
   onVariantsChange,
+  onChosenVariantChange,
   onRunRecorded,
 }: {
   session: RemixSessionRow;
@@ -53,6 +54,7 @@ export function StageScript({
   proxyDown: boolean;
   llmProxyUrl: string | null;
   onVariantsChange: (variants: string[]) => void;
+  onChosenVariantChange: (index: number | null) => void;
   onRunRecorded: () => void;
 }) {
   // Initialized once from the session prop — this component only mounts while the
@@ -63,7 +65,9 @@ export function StageScript({
   const [results, setResults] = useState<VariantResult[]>(session.variants ?? []);
   const [pending, setPending] = useState(false);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("0");
+  // Opens on the variant the session already records as chosen, so coming back to this
+  // stage does not silently move the pick to variant 1.
+  const [activeTab, setActiveTab] = useState(String(session.chosenVariantIndex ?? 0));
   const [saveOpen, setSaveOpen] = useState(false);
   // Derived, not the raw topic: the Prompt stage prefills session.topic with the whole
   // source caption, which used to land in scripts.title verbatim (rows of two thousand
@@ -94,6 +98,11 @@ export function StageScript({
     if (result.ok) {
       setResults(result.variants);
       setActiveTab("0");
+      // Every variant just got replaced, so any earlier pick points at text that no
+      // longer exists. Clearing it back to "no pick" is honest; carrying the index
+      // forward would relabel a script the user never read as the one they chose.
+      onChosenVariantChange(null);
+      autosave(updateStageAction(session.id, { chosenVariantIndex: null }));
     } else {
       toast.error(result.error);
     }
@@ -118,6 +127,18 @@ export function StageScript({
     // hack") would risk clobbering a sibling slot's concurrent autosave with a stale
     // copy instead of the merge the server already did correctly.
     onVariantsChange(next.filter((r): r is string => typeof r === "string"));
+  }
+
+  /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
+   *  cook brief read the variant in front of the user rather than variants[0]. Saving
+   *  re-records the same index server-side (see saveScript), which keeps a save without
+   *  a tab change honest too. */
+  function selectVariant(value: string) {
+    setActiveTab(value);
+    const index = Number(value);
+    if (!Number.isInteger(index) || index === session.chosenVariantIndex) return;
+    onChosenVariantChange(index);
+    autosave(updateStageAction(session.id, { chosenVariantIndex: index }));
   }
 
   function commitEdit(index: number, text: string) {
@@ -164,10 +185,11 @@ export function StageScript({
     const content = results[index];
     if (typeof content !== "string") return;
     setSaving(true);
-    const result = await saveScriptAction(session.id, content, saveTitle);
+    const result = await saveScriptAction(session.id, content, saveTitle, index);
     setSaving(false);
     if (result.ok) {
       setSavedScriptId(result.scriptId);
+      onChosenVariantChange(index);
       // A later save (a different variant, or the same one again) is a different
       // scripts row — any earlier "added to plan" confirmation was about the
       // previous one, so it can't carry over onto this save.
@@ -242,7 +264,7 @@ export function StageScript({
 
   return (
     <div className="flex flex-col gap-4">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={selectVariant}>
         <TabsList>
           {results.map((_, i) => (
             <TabsTrigger key={i} value={String(i)}>

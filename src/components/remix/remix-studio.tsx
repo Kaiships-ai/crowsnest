@@ -11,6 +11,7 @@ import { isProxyLikelyDown } from "@/components/remix/run-log-view";
 import { StageHook } from "@/components/remix/stage-hook";
 import { StagePrompt } from "@/components/remix/stage-prompt";
 import { StageResearch } from "@/components/remix/stage-research";
+import { StageFinish } from "@/components/remix/stage-finish";
 import { StageScript } from "@/components/remix/stage-script";
 import { StageStyle } from "@/components/remix/stage-style";
 import { STAGE_ORDER, Stepper } from "@/components/remix/stepper";
@@ -135,7 +136,11 @@ export function RemixStudio({
     (activeStage === "prompt" && Boolean(session.topic)) ||
     (activeStage === "research" && true) ||
     (activeStage === "hook" && Boolean(session.chosenHook)) ||
-    (activeStage === "style" && Boolean(session.outline));
+    (activeStage === "style" && Boolean(session.outline)) ||
+    // The Script stage advances once a variant exists. Not once one is PICKED: the
+    // Finish view is where the pick is confirmed, and gating entry to it on the pick
+    // would hide the screen that explains what is missing.
+    (activeStage === "script" && (session.variants?.length ?? 0) > 0);
 
   async function handleContinue() {
     const nextStage = STAGE_ORDER[activeIndex + 1];
@@ -238,9 +243,11 @@ export function RemixStudio({
               proxyDown={proxyDown}
               llmProxyUrl={llmProxyUrl}
               onVariantsChange={(variants) => patchSession({ variants })}
+              onChosenVariantChange={(chosenVariantIndex) => patchSession({ chosenVariantIndex })}
               onRunRecorded={refreshRunLog}
             />
           )}
+          {activeStage === "finish" && <StageFinish session={session} />}
 
           {activeStage !== "prompt" && <RunLog runs={runs} />}
         </div>
@@ -253,7 +260,7 @@ export function RemixStudio({
             <Button variant="ghost" onClick={handleRestart} disabled={session.stage === "prompt"}>
               Restart
             </Button>
-            {activeStage !== "script" && (
+            {activeStage !== "finish" && (
               <Button onClick={handleContinue} disabled={!canContinue}>
                 Continue →
               </Button>

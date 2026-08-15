@@ -148,6 +148,13 @@
       "when": 1786645117003,
       "tag": "0020_majestic_paladin",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1786763592815,
+      "tag": "0021_rapid_fantastic_four",
+      "breakpoints": true
     }
   ]
 }

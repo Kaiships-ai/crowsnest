@@ -17,20 +17,21 @@ let generateVariants: typeof import("./remix")["generateVariants"];
 let saveScript: typeof import("./remix")["saveScript"];
 let quickRemix: typeof import("./remix")["quickRemix"];
 let seedSessionFromIdea: typeof import("./remix")["seedSessionFromIdea"];
+let finishRemix: typeof import("./remix")["finishRemix"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOrCreateSession, updateStage, buildResearch, generateHooks, generateOutline, generateVariants, saveScript, quickRemix, seedSessionFromIdea } =
+  ({ getOrCreateSession, updateStage, buildResearch, generateHooks, generateOutline, generateVariants, saveScript, quickRemix, seedSessionFromIdea, finishRemix } =
     await import("./remix"));
 });
 
 const FAKE_ANALYSIS = {
   hookType: "curiosity-gap",
   structureSegments: [
-    { label: "Hook", startSec: 0, endSec: 3, note: "cold open with a question" },
-    { label: "Build", startSec: 3, endSec: 20, note: "explains the mechanism" },
+    { label: "Hook", startSec: 0, endSec: 3, note: "cold open with a question", transcript: "wait, do this before you post" },
+    { label: "Build", startSec: 3, endSec: 20, note: "explains the mechanism", transcript: "the reason it works is retention" },
   ],
   formatTags: ["talking-head"],
   styleTags: ["fast-cut"],
@@ -376,6 +377,79 @@ describe("saveScript", () => {
     expect(row.styleVaultItemId).toBe(styleVaultItemId);
     expect(row.hookVaultItemId).toBeNull();
     expect(row.status).toBe("draft");
+  });
+
+  test("records the saved variant's index on the session, so the pick is not inferred later", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["variant one", "variant two", "variant three"] });
+
+    await saveScript(session.id, "variant three", "My Script", 2);
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.chosenVariantIndex).toBe(2);
+  });
+
+  test("leaves chosenVariantIndex alone when no index is passed, rather than defaulting it to 0", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+
+    await saveScript(session.id, "some text", "My Script");
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.chosenVariantIndex).toBeNull();
+  });
+});
+
+describe("finishRemix", () => {
+  test("creates an undated planned post linked to the session and advances the stage to finish", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { topic: "Three mistakes killing your reach.", targetLengthSec: 45 });
+    const { scriptId } = await saveScript(session.id, "the script body", "Three Mistakes", 0);
+
+    const result = await finishRemix(session.id);
+
+    expect(result.created).toBe(true);
+    expect(result.scriptId).toBe(scriptId);
+    const [plan] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, result.postId));
+    expect(plan.remixSessionId).toBe(session.id);
+    expect(plan.scriptId).toBe(scriptId);
+    expect(plan.sourceVideoId).toBe(videoId);
+    expect(plan.targetLengthSec).toBe(45);
+    // No date is invented: finishing a script is not a decision about when to post it.
+    expect(plan.plannedDate).toBeNull();
+    expect(plan.state).toBe("draft");
+
+    const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(row.stage).toBe("finish");
+  });
+
+  test("is idempotent: a second finish reuses the plan it already linked instead of duplicating it", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await saveScript(session.id, "the script body", "Three Mistakes", 0);
+
+    const first = await finishRemix(session.id);
+    const second = await finishRemix(session.id);
+
+    expect(second.created).toBe(false);
+    expect(second.postId).toBe(first.postId);
+    const plans = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.remixSessionId, session.id));
+    expect(plans).toHaveLength(1);
+  });
+
+  test("finishes a session with no saved script, carrying a derived title and a null scriptId", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { topic: "Why your reach died. And how to fix it." });
+
+    const result = await finishRemix(session.id);
+
+    expect(result.scriptId).toBeNull();
+    const [plan] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, result.postId));
+    expect(plan.scriptId).toBeNull();
+    expect(plan.title).toBe("Why your reach died");
   });
 });
 

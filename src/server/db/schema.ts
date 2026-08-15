@@ -299,7 +299,7 @@ export const savedFilters = sqliteTable("saved_filters", {
 export const remixSessions = sqliteTable("remix_sessions", {
   id: text("id").primaryKey(),
   sourceVideoId: text("source_video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),
-  stage: text("stage").notNull().default("prompt"), // "prompt"|"research"|"hook"|"style"|"script"
+  stage: text("stage").notNull().default("prompt"), // "prompt"|"research"|"hook"|"style"|"script"|"finish"
   topic: text("topic"),
   niche: text("niche"),
   targetLengthSec: integer("target_length_sec"),
@@ -309,6 +309,13 @@ export const remixSessions = sqliteTable("remix_sessions", {
   styleVaultItemId: text("style_vault_item_id"),
   outline: text("outline"),
   variants: text("variants", { mode: "json" }).$type<string[]>(),
+  /**
+   * Which entry of `variants` the user actually picked. Null means no pick yet, which
+   * is a real state and not a stand-in for zero: the remix prompt and the cook brief
+   * both read the chosen variant, and defaulting a missing pick to variant 0 would put
+   * words in front of the user that they never chose.
+   */
+  chosenVariantIndex: integer("chosen_variant_index"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 });

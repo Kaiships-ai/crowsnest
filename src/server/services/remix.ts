@@ -6,9 +6,10 @@ import { HookOptionsSchema, OutlineSchema, type Outline, type StoredAnalysisFiel
 import { getSimilarOutliers } from "./similar";
 import { rowToAnalysis } from "./analyze";
 import { getPersona, type Persona } from "./persona";
+import { deriveScriptTitle } from "@/lib/script-title";
 import { HOOK_SYSTEM, OUTLINE_SYSTEM, SCRIPT_SYSTEM, buildHookUser, buildOutlineUser, buildScriptUser } from "./prompts/remix-prompts";
 
-export type RemixStage = "prompt" | "research" | "hook" | "style" | "script";
+export type RemixStage = "prompt" | "research" | "hook" | "style" | "script" | "finish";
 
 export interface ResearchSimilarItem {
   videoId: string;
@@ -37,6 +38,8 @@ export interface RemixSessionRow {
   styleVaultItemId: string | null;
   outline: Outline | null;
   variants: string[] | null;
+  /** Index into `variants` of the variant the user picked. Null means no pick yet. */
+  chosenVariantIndex: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +64,10 @@ export interface StagePatch {
   researchNotes: ResearchNotes;
   outline: Outline;
   variants: string[];
+  /** Nullable for the same reason `styleVaultItemId` is: the user must be able to
+   *  un-pick, and `Partial<StagePatch>` already distinguishes "clear it" from "leave
+   *  it alone". */
+  chosenVariantIndex: number | null;
 }
 
 const DEFAULT_TARGET_LENGTH_SEC = 45;
@@ -115,6 +122,7 @@ function toSessionRow(row: typeof tables.remixSessions.$inferSelect): RemixSessi
     styleVaultItemId: row.styleVaultItemId,
     outline: parseOutline(row.outline),
     variants: row.variants,
+    chosenVariantIndex: row.chosenVariantIndex,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -463,7 +471,12 @@ export async function generateVariants(
  * carrying it) keeps everything that matters when the session is gone. Only the
  * "which run made this" provenance line is lost, via the column's `set null` FK.
  */
-export async function saveScript(id: string, content: string, title: string): Promise<{ scriptId: string }> {
+export async function saveScript(
+  id: string,
+  content: string,
+  title: string,
+  variantIndex?: number
+): Promise<{ scriptId: string }> {
   const session = await getSession(id);
   const scriptId = newId();
   const now = nowIso();
@@ -481,7 +494,80 @@ export async function saveScript(id: string, content: string, title: string): Pr
     updatedAt: now,
   });
 
+  // Saving IS the pick. Recorded here, alongside the script row, so the remix prompt
+  // (buildRemixPrompt) and the cook brief read the variant the user actually chose
+  // rather than falling back to variants[0], which would put words in front of them
+  // that they never selected.
+  if (variantIndex !== undefined) {
+    await updateStage(id, { chosenVariantIndex: variantIndex });
+  }
+
   return { scriptId };
+}
+
+export interface RemixFinishResult {
+  /** The planned post whose studio the finish view opens. */
+  postId: string;
+  /** True when this call created the plan, false when it reused one already linked. */
+  created: boolean;
+  /** The script the plan carries, when one has been saved from this session. */
+  scriptId: string | null;
+}
+
+/**
+ * The Finish stage's action: make sure the session has a planned post to cook, and
+ * report which one.
+ *
+ * The remix-to-cook bridge is the planned post, not the session: the studio spawns for
+ * a postId, and `planned_posts.remixSessionId` is the column that carries the remix back
+ * into the brief. Without this step a finished remix stopped at "script saved, maybe
+ * added to a plan if the user filled in a date", and the cook had no way in.
+ *
+ * Idempotent. Calling it twice reuses the plan it already linked rather than filling the
+ * calendar with duplicates, which matters because the finish view's button is a plain
+ * button a user can click twice.
+ *
+ * The plan is created with no date. A finish is not a scheduling decision, and inventing
+ * a date the user did not pick would put a commitment on their calendar that they never
+ * made; a dateless plan reads as a draft, which is what it is.
+ */
+export async function finishRemix(id: string): Promise<RemixFinishResult> {
+  const session = await getSession(id);
+
+  const [script] = await db
+    .select({ id: tables.scripts.id, title: tables.scripts.title })
+    .from(tables.scripts)
+    .where(eq(tables.scripts.remixSessionId, id))
+    .orderBy(desc(tables.scripts.createdAt))
+    .limit(1);
+
+  const [existing] = await db
+    .select({ id: tables.plannedPosts.id })
+    .from(tables.plannedPosts)
+    .where(eq(tables.plannedPosts.remixSessionId, id))
+    .orderBy(desc(tables.plannedPosts.createdAt))
+    .limit(1);
+
+  await updateStage(id, { stage: "finish" });
+
+  if (existing) return { postId: existing.id, created: false, scriptId: script?.id ?? null };
+
+  const postId = newId();
+  const now = nowIso();
+  await db.insert(tables.plannedPosts).values({
+    id: postId,
+    state: "draft",
+    title: script?.title ?? deriveScriptTitle(session.topic),
+    plannedDate: null,
+    scriptId: script?.id ?? null,
+    remixSessionId: id,
+    sourceVideoId: session.sourceVideoId,
+    targetLengthSec: session.targetLengthSec,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  return { postId, created: true, scriptId: script?.id ?? null };
 }
 
 /**

@@ -9,6 +9,7 @@ import { getPlansCarryingScript } from "../queries/planned-posts";
 import { getRemixRunLog, type RemixRunRow } from "../queries/remix-runs";
 import {
   buildResearch,
+  finishRemix,
   generateHooks,
   generateOutline,
   generateVariants,
@@ -16,6 +17,7 @@ import {
   quickRemix,
   saveScript,
   updateStage,
+  type RemixFinishResult,
   type RemixSessionRow,
   type ResearchNotes,
   type StagePatch,
@@ -93,10 +95,28 @@ export async function generateVariantsAction(
   }
 }
 
-export async function saveScriptAction(id: string, content: string, title: string): Promise<ActionResult<{ scriptId: string }>> {
+export async function saveScriptAction(
+  id: string,
+  content: string,
+  title: string,
+  variantIndex?: number
+): Promise<ActionResult<{ scriptId: string }>> {
   try {
-    const result = await saveScript(id, content, title);
+    const result = await saveScript(id, content, title, variantIndex);
     return { ok: true, ...result };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/**
+ * The Finish stage's action: ensure the session has a planned post to cook and hand
+ * back its id so the view can link to `/mine/<postId>/studio`. Idempotent, so the
+ * button can be clicked twice without dropping a duplicate on the calendar.
+ */
+export async function finishRemixAction(id: string): Promise<ActionResult<RemixFinishResult>> {
+  try {
+    return { ok: true, ...(await finishRemix(id)) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

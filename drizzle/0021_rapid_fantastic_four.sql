@@ -1,0 +1,1 @@
+ALTER TABLE `remix_sessions` ADD `chosen_variant_index` integer;

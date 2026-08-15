@@ -134,4 +134,45 @@ Verification:
 - Whole suite: 1503 passed, 1 failed, and the 1 failure is the pre-existing
   outlier-calc median. Same 15 red files as the baseline.
 
+Commit: 8bdc7d7
+
+## Task 3: remix finish stage and chosen-variant tracking
+
+Changed:
+
+- `remix_sessions.chosenVariantIndex integer`, migration `drizzle/0021_rapid_fantastic_four.sql`
+  (generated with `npm run db:generate`, applied against a temp DB at
+  `data/tmp/hotfix-test.db` and then deleted; `data/crowsnest.db` was never touched).
+  Null means "no pick yet", which is a real state: nothing anywhere defaults a missing
+  pick to variant 0, because that would show the user a script they never chose and call
+  it their pick.
+- `RemixStage` and `STAGES` gain `"finish"`.
+- `saveScript(id, content, title, variantIndex?)` records the index alongside the script
+  row. Saving is the definitive pick.
+- `finishRemix(sessionId)` in `services/remix.ts` plus `finishRemixAction`: finds the
+  planned post already linked to the session or creates one, sets the stage to "finish",
+  and returns the postId. Idempotent, because the finish button is a plain button a user
+  can click twice. The plan is created undated: a finish is not a scheduling decision,
+  and stamping a date the user did not pick would put a commitment on their calendar.
+- `components/remix/stage-finish.tsx`: shows the chosen hook and the chosen variant, each
+  falling back to an explicit placeholder rather than a default, then the "Finish and open
+  studio" action which links to `/mine/<postId>/studio`.
+- `stage-script.tsx`: opening a variant tab persists `chosenVariantIndex`; the stage opens
+  on the recorded pick rather than always on variant 1; "Regenerate all" clears the pick
+  back to null, since every variant it pointed at was just replaced.
+- `remix-studio.tsx`: renders the finish view, the Script stage's Continue now advances to
+  it (gated on a variant existing, not on one being picked, so the finish screen is what
+  explains a missing pick), and the footer Continue hides on "finish" instead of on
+  "script".
+
+Tests: `remix.test.ts` gains index-persisted and index-left-null cases on saveScript, and
+a `finishRemix` describe covering the created-plan shape (undated, linked, carries the
+script and target length), idempotency, and finishing with no saved script.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run src/server/services/remix.test.ts`: 32 passed.
+- Whole `src/` suite: 1503 passed, 1 failed (the pre-existing outlier-calc median).
+
 Commit: (pending)

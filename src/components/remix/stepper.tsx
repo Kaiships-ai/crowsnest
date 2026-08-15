@@ -12,12 +12,13 @@ export const STAGES: { key: RemixStage; label: string }[] = [
   { key: "hook", label: "Hook" },
   { key: "style", label: "Style" },
   { key: "script", label: "Script" },
+  { key: "finish", label: "Finish" },
 ];
 
 export const STAGE_ORDER: RemixStage[] = STAGES.map((stage) => stage.key);
 
 /**
- * DESIGN.md §2.5: 5 numbered segments joined by a hairline. Current stage gets the
+ * DESIGN.md §2.5: numbered segments joined by a hairline. Current stage gets the
  * `--primary` fill; completed stages get a success checkmark and stay clickable to
  * jump back and edit; future stages are dimmed and not clickable until reached. No
  * shadcn primitive covers this — built from Separator + styled buttons per the spec.
