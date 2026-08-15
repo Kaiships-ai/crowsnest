@@ -228,6 +228,18 @@ describe("generateHooks", () => {
     const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
   });
+
+  test("passes the source's whyItWorked and its opening line (first beat's transcript) into the prompt (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(FAKE_ANALYSIS.structureSegments[0].transcript);
+  });
 });
 
 describe("generateOutline", () => {
@@ -278,6 +290,18 @@ describe("generateOutline", () => {
     const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
   });
+
+  test("passes the source's whyItWorked and each beat's per-beat transcript into the prompt (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [] }) });
+
+    await generateOutline(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(`(said: ${FAKE_ANALYSIS.structureSegments[0].transcript})`);
+  });
 });
 
 describe("generateVariants", () => {
@@ -326,6 +350,36 @@ describe("generateVariants", () => {
 
     const call = (llm.generateText as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
+  });
+
+  test("passes the source's whyItWorked and a beat's per-beat transcript into the 'Source that worked' block (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateVariants(session.id, { llm });
+
+    const call = (llm.generateText as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(`said: ${FAKE_ANALYSIS.structureSegments[0].transcript}`);
+  });
+
+  test("appends a distinct angle line per call for the full set, and a single regenerate keeps its slot's own angle (spec part 5)", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    const generateText = vi.fn().mockResolvedValue("script");
+    const llm = fakeLlm({ generateText });
+
+    await generateVariants(session.id, { llm, count: 3 });
+
+    const fullSetUsers = (generateText as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0].user as string);
+    const angleLines = fullSetUsers.map((user) => user.match(/Angle: .+/)?.[0]);
+    expect(new Set(angleLines).size).toBe(3); // three distinct angle lines, not three identical prompts
+
+    generateText.mockClear();
+    await generateVariants(session.id, { llm, index: 1 });
+    const regenerateUser = (generateText as ReturnType<typeof vi.fn>).mock.calls[0][0].user as string;
+    expect(regenerateUser).toContain(angleLines[1]); // slot 1's regenerate keeps slot 1's own angle
   });
 
   test("index option merges a single regenerated slot into existing variants[] (read-modify-write), leaving siblings untouched (review finding M2)", async () => {
@@ -435,6 +489,48 @@ describe("finishRemix", () => {
 
     expect(second.created).toBe(false);
     expect(second.postId).toBe(first.postId);
+    const plans = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.remixSessionId, session.id));
+    expect(plans).toHaveLength(1);
+  });
+
+  test("finishing again re-attaches the current chosen variant after a regenerate invalidated the earlier save", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["variant zero", "variant one", "variant two"] });
+    const { scriptId: staleScriptId } = await saveScript(session.id, "variant zero", "Stale Title", 0);
+
+    const first = await finishRemix(session.id);
+    expect(first.scriptId).toBe(staleScriptId);
+
+    // Regenerate all variants (fresh text) and pick a different one, without saving
+    // again — mirrors the live-db scenario: the plan already exists, the session moves
+    // on, and the attached script's content ends up matching none of the current
+    // variants.
+    await updateStage(session.id, { variants: ["fresh zero", "fresh one", "fresh two"], chosenVariantIndex: 1 });
+
+    const second = await finishRemix(session.id);
+
+    expect(second.created).toBe(false); // reuses the plan `first` created, no duplicate
+    expect(second.postId).toBe(first.postId);
+    expect(second.scriptId).not.toBe(staleScriptId);
+
+    const [attached] = await db.select().from(tables.scripts).where(eq(tables.scripts.id, second.scriptId!));
+    expect(attached.content).toBe("fresh one"); // variants[chosenVariantIndex], not the stale save
+
+    const [plan] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, second.postId));
+    expect(plan.scriptId).toBe(second.scriptId); // the existing plan's script_id was refreshed
+
+    // Idempotency: nothing changed since, so a third finish must not create a second
+    // plan, nor a second reconciled script for the same chosen text.
+    const scriptsBefore = await db.select().from(tables.scripts).where(eq(tables.scripts.remixSessionId, session.id));
+    const third = await finishRemix(session.id);
+    const scriptsAfter = await db.select().from(tables.scripts).where(eq(tables.scripts.remixSessionId, session.id));
+
+    expect(third.created).toBe(false);
+    expect(third.postId).toBe(first.postId);
+    expect(third.scriptId).toBe(second.scriptId);
+    expect(scriptsAfter).toHaveLength(scriptsBefore.length);
+
     const plans = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.remixSessionId, session.id));
     expect(plans).toHaveLength(1);
   });

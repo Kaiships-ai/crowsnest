@@ -64,18 +64,18 @@ export async function buildResearchAction(id: string): Promise<ActionResult<{ no
   }
 }
 
-export async function generateHooksAction(id: string, vaultItemId?: string): Promise<ActionResult<{ hooks: string[] }>> {
+export async function generateHooksAction(id: string, vaultItemId?: string, steer?: string): Promise<ActionResult<{ hooks: string[] }>> {
   try {
-    const hooks = await generateHooks(id, { vaultItemId });
+    const hooks = await generateHooks(id, { vaultItemId, steer });
     return { ok: true, hooks };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
 }
 
-export async function generateOutlineAction(id: string): Promise<ActionResult<{ outline: Outline }>> {
+export async function generateOutlineAction(id: string, steer?: string): Promise<ActionResult<{ outline: Outline }>> {
   try {
-    const outline = await generateOutline(id);
+    const outline = await generateOutline(id, { steer });
     return { ok: true, outline };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -85,10 +85,11 @@ export async function generateOutlineAction(id: string): Promise<ActionResult<{ 
 export async function generateVariantsAction(
   id: string,
   count?: number,
-  index?: number
+  index?: number,
+  steer?: string
 ): Promise<ActionResult<{ variants: (string | { error: string })[] }>> {
   try {
-    const variants = await generateVariants(id, { count, index });
+    const variants = await generateVariants(id, { count, index, steer });
     return { ok: true, variants };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

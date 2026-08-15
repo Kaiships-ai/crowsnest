@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GroundedIn } from "@/components/remix/grounded-in";
+import { SteerBox } from "@/components/remix/steer-box";
 import { cn } from "@/lib/utils";
 import { generateHooksAction, updateStageAction } from "@/server/actions/remix-actions";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
@@ -61,9 +63,9 @@ export function StageHook({
   // afterward, and it already calls setDrafts directly — no sync effect needed.
   const [drafts, setDrafts] = useState<string[]>(session.hookOptions ?? []);
 
-  async function generate() {
+  async function generate(steer?: string) {
     setGenerating(true);
-    const result = await generateHooksAction(session.id, vaultItemId === NONE_VALUE ? undefined : vaultItemId);
+    const result = await generateHooksAction(session.id, vaultItemId === NONE_VALUE ? undefined : vaultItemId, steer);
     setGenerating(false);
     if (result.ok) {
       onHooksChange(result.hooks);
@@ -99,6 +101,25 @@ export function StageHook({
       ? vaultHooks.map((item) => ({ value: item.id, label: item.title }))
       : [{ value: EMPTY_VALUE, label: "No saved hooks yet", disabled: true }]),
   ];
+
+  // 2026-08-15 spec part 7: names what actually fed the last/next hook generation,
+  // read straight off session state already in this component — no server round trip.
+  // The hook-pattern clause is gated on vaultItemId: when a Vault hook template is
+  // picked, generateHooks (remix.ts) swaps the pattern to that template instead of
+  // describeSourceHookPattern, so the source no longer fed the pattern (review
+  // finding: misattribution when a vault template is selected).
+  const hookAnalysis = session.researchNotes?.sourceAnalysis;
+  const usingVaultHook = vaultItemId !== NONE_VALUE && vaultItemId !== EMPTY_VALUE;
+  const vaultHookTitle = usingVaultHook ? vaultHooks.find((item) => item.id === vaultItemId)?.title : undefined;
+  const groundedInParts = [
+    hookAnalysis ? `why it worked` : null,
+    usingVaultHook ? `hook pattern (Vault template${vaultHookTitle ? `: ${vaultHookTitle}` : ""})` : hookAnalysis ? `hook pattern (${hookAnalysis.hookType})` : null,
+    hookAnalysis?.structureSegments[0]?.transcript ? "opening beat transcript" : null,
+    session.topic ? "your topic" : null,
+    session.niche ? "your niche" : null,
+    session.researchNotes?.facts ? "your facts" : null,
+  ].filter((part): part is string => Boolean(part));
+  const groundedInText = groundedInParts.length > 0 ? groundedInParts.join(", ") : "nothing yet, fill in Prompt and Research first";
 
   // Generation is offline, not broken. This swaps the whole picker for the block —
   // the same posture as Style/Script — instead of graying out controls that can't do
@@ -137,10 +158,12 @@ export function StageHook({
         </div>
         {/* Secondary, not primary — Continue in the footer is the one amber action on
             this screen (brief: amber capped at one primary per screen). */}
-        <Button variant="secondary" onClick={generate} disabled={generating}>
+        <Button variant="secondary" onClick={() => generate()} disabled={generating}>
           {generating ? "Generating…" : drafts.length > 0 ? "Regenerate hooks" : "Generate hooks"}
         </Button>
       </div>
+
+      <GroundedIn>{groundedInText}</GroundedIn>
 
       {generating ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -149,6 +172,7 @@ export function StageHook({
           ))}
         </div>
       ) : drafts.length > 0 ? (
+        <>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {drafts.map((hook, i) => {
             const isChosen = session.chosenHook === hook;
@@ -181,6 +205,12 @@ export function StageHook({
             );
           })}
         </div>
+        <SteerBox
+          placeholder="e.g. punchier, lead with the number, less clickbait"
+          pending={generating}
+          onRegenerate={(note) => generate(note)}
+        />
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">Generate hooks to get started.</p>
       )}

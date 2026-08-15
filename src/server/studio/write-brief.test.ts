@@ -8,6 +8,9 @@ import type { VideoDetail } from "@/server/queries/video";
 const getStudioBrief = vi.fn();
 vi.mock("@/server/queries/studio", () => ({ getStudioBrief: (postId: string) => getStudioBrief(postId) }));
 
+const getPersona = vi.fn();
+vi.mock("@/server/services/persona", () => ({ getPersona: () => getPersona() }));
+
 function fakePlan(overrides: Partial<PlannedPostRow> = {}): PlannedPostRow {
   return {
     id: "post-1",
@@ -96,6 +99,7 @@ describe("writeBrief", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "write-brief-test-"));
+    getPersona.mockResolvedValue({ audience: "", voice: "", do: "", dont: "" });
   });
 
   afterEach(async () => {
@@ -112,26 +116,27 @@ describe("writeBrief", () => {
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
     expect(content).toContain("# Cook brief: 3 Mistakes Killing Your Reach");
-    expect(content).toContain("## Source outlier");
+    expect(content).toContain("## Your script");
+    expect(content).toContain("## Source reference");
+    expect(content).toContain("### Source outlier");
     expect(content).toContain("@some_creator");
     expect(content).toContain("https://instagram.com/reel/abc123");
     expect(content).toContain("3 mistakes that kill your reach");
     expect(content).toContain("Hey, here are three mistakes...");
-    expect(content).toContain("## Script");
     expect(content).toContain("Draft v1");
     expect(content).toContain("812 chars");
     expect(content).toContain("Hook: stop scrolling.");
     expect(content).toContain("Beat 1: here's mistake one...");
     expect(content).toContain("Beat 2: here's mistake two...");
-    expect(content).toContain("## Target length");
-    expect(content).toContain("45s");
-    expect(content).toContain("## Video kind");
-    expect(content).toContain("talking-head");
-    expect(content).toContain("## Layout per beat");
+    expect(content).toContain("Target length: 45s");
+    expect(content).toContain("Video kind: talking-head");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("3 MISTAKES");
     expect(content).toContain("upper third");
     expect(content).toContain("fast cuts");
-    expect(content).toContain("### Hook (0s to 3s)"); // one block per beat, keyed to the beat window
+    expect(content).toContain("#### Hook (0s to 3s)"); // one block per beat, keyed to the beat window
+    // The script leads the file; source reference comes after it.
+    expect(content.indexOf("## Your script")).toBeLessThan(content.indexOf("## Source reference"));
   });
 
   it("writes '(no source video)' rather than fabricating a source section when the plan has no video", async () => {
@@ -179,13 +184,88 @@ describe("writeBrief", () => {
     await writeBrief(dir, "post-1");
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
-    expect(content).toContain("## Hook");
-    expect(content).toContain("Everyone is sleeping on this.");
-    expect(content).toContain("## Beats");
+    expect(content).toContain("- Hook: Everyone is sleeping on this.");
+    expect(content).toContain("### Original beats (source video)");
     expect(content).toContain("Hey, here are three mistakes"); // the beat's verbatim words
     expect(content).toContain("opens on a warning"); // the beat's summary
-    expect(content).toContain("## Layout per beat");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("3 MISTAKES");
+  });
+
+  it("uses the remix session's chosen variant as the script, not the plan's stale attached script", async () => {
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({
+        remixSessionId: "session-1",
+        scriptContent: "STALE attached script from an earlier save",
+        scriptTitle: "Old draft",
+      }),
+      video: fakeVideo(),
+      remix: {
+        session: {
+          id: "session-1",
+          sourceVideoId: "video-1",
+          stage: "finish",
+          topic: null,
+          niche: null,
+          targetLengthSec: null,
+          researchNotes: null,
+          hookOptions: null,
+          chosenHook: "Everyone is sleeping on this.",
+          styleVaultItemId: null,
+          outline: null,
+          variants: ["first variant text", "FRESH chosen variant text", "third variant text"],
+          chosenVariantIndex: 1,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-15T00:00:00.000Z",
+        },
+        sourceAnalysis: fakeVideo().analysis,
+      },
+    });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+    const scriptSection = content.split("## Your script")[1].split("##")[0];
+
+    expect(scriptSection).toContain("FRESH chosen variant text");
+    expect(scriptSection).not.toContain("STALE attached script from an earlier save");
+    expect(scriptSection).not.toContain("first variant text");
+  });
+
+  it("drops the flat source transcript when the beats already carry per-beat transcripts", async () => {
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({ remixSessionId: "session-1" }),
+      video: fakeVideo(), // transcript "Hey, here are three mistakes...", beat transcript "Hey, here are three mistakes"
+      remix: {
+        session: {
+          id: "session-1",
+          sourceVideoId: "video-1",
+          stage: "finish",
+          topic: null,
+          niche: null,
+          targetLengthSec: null,
+          researchNotes: null,
+          hookOptions: null,
+          chosenHook: null,
+          styleVaultItemId: null,
+          outline: null,
+          variants: ["v"],
+          chosenVariantIndex: 0,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        },
+        sourceAnalysis: fakeVideo().analysis,
+      },
+    });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    // The flat "Transcript:" block under Source outlier is gone (the per-beat beats carry
+    // the same words); the per-beat copy stays.
+    expect(content).not.toContain("\nTranscript:\n");
+    expect(content).toContain("Hey, here are three mistakes"); // still present per beat
   });
 
   it("writes no Hook or Beats section at all for a plan that did not come from a remix", async () => {
@@ -238,7 +318,8 @@ describe("writeBrief", () => {
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
     expect(content).toContain("(not captured; re-analyze the source video)");
-    expect(content).toContain("(no hook chosen in the remix)");
+    // No chosen hook, so no "- Hook:" line at all (rather than a "(none)" placeholder).
+    expect(content).not.toContain("- Hook:");
   });
 
   it("writes '(frame pass not run)' rather than fabricating a layout when the video has no analysis", async () => {
@@ -249,7 +330,7 @@ describe("writeBrief", () => {
 
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
-    expect(content).toContain("## Layout per beat");
+    expect(content).toContain("### Original layout per beat (source video)");
     expect(content).toContain("(frame pass not run)");
   });
 
@@ -278,13 +359,13 @@ describe("writeBrief", () => {
     await writeBrief(dir, "post-1");
 
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
-    const scriptSection = content.split("## Script")[1].split("##")[0];
+    const scriptSection = content.split("## Your script")[1].split("##")[0];
 
     expect(scriptSection).toContain("Line one of the script.");
     expect(scriptSection).toContain("Line two of the script.");
   });
 
-  it("says '(not set)' for target length and video kind instead of fabricating a value when absent", async () => {
+  it("omits the target length and video kind lines when absent instead of printing '(not set)'", async () => {
     getStudioBrief.mockResolvedValueOnce({
       plan: fakePlan({ targetLengthSec: null, videoKind: null }),
       video: null,
@@ -294,11 +375,31 @@ describe("writeBrief", () => {
     await writeBrief(dir, "post-1");
 
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
-    const targetSection = content.split("## Target length")[1].split("##")[0];
-    const kindSection = content.split("## Video kind")[1].split("##")[0];
 
-    expect(targetSection).toContain("(not set)");
-    expect(kindSection).toContain("(not set)");
+    expect(content).not.toContain("(not set)");
+    expect(content).not.toContain("Target length:");
+    expect(content).not.toContain("Video kind:");
+  });
+
+  it("emits a Persona section with its fields when persona is set, and omits it entirely when empty", async () => {
+    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: null });
+    getPersona.mockResolvedValueOnce({ audience: "ambitious solo founders", voice: "direct, no fluff", do: "short sentences", dont: "buzzwords" });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const withPersona = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(withPersona).toContain("## Persona");
+    expect(withPersona).toContain("ambitious solo founders");
+    expect(withPersona).toContain("direct, no fluff");
+
+    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: null });
+    getPersona.mockResolvedValueOnce({ audience: "", voice: "", do: "", dont: "" });
+
+    await writeBrief(dir, "post-1");
+    const withoutPersona = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(withoutPersona).not.toContain("## Persona");
   });
 
   it("throws rather than writing a file when no plan exists for the postId", async () => {

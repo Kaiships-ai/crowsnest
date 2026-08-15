@@ -185,7 +185,27 @@ function describeSourceStructure(analysis: StoredAnalysisFields | null): string 
   if (!analysis || analysis.structureSegments.length === 0) {
     return "No source structure available — use a natural hook / build / payoff / CTA structure.";
   }
-  return analysis.structureSegments.map((segment) => `${segment.label} (${segment.startSec}-${segment.endSec}s): ${segment.note}`).join("; ");
+  return analysis.structureSegments
+    .map((segment) => {
+      const base = `${segment.label} (${segment.startSec}-${segment.endSec}s): ${segment.note}`;
+      // Anti-fabrication: `transcript` is only appended when it was actually captured
+      // (undefined on a beat analyzed before that field shipped) — never a placeholder.
+      return segment.transcript ? `${base} (said: ${segment.transcript})` : base;
+    })
+    .join("; ");
+}
+
+// Fixed per-slot angles (spec part 5): the full variant set reads as three deliberately
+// different takes instead of three near-duplicate samples, and a single-slot regenerate
+// keeps the angle that slot already had rather than drawing a new one.
+const VARIANT_ANGLES = [
+  "stay close to the source structure and pacing",
+  "open from a different hook angle",
+  "tighten the pacing, cut the setup",
+];
+
+function angleFor(index: number): string {
+  return VARIANT_ANGLES[index % VARIANT_ANGLES.length];
 }
 
 /**
@@ -286,7 +306,7 @@ function withPersona(user: string, persona: Persona): string {
  * hook item if `opts.vaultItemId` is given, else falls back to the source video's own
  * hookType. Persists the result to `hookOptions`.
  */
-export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient }): Promise<string[]> {
+export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient; steer?: string }): Promise<string[]> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
@@ -304,10 +324,16 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
     const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
     const facts = session.researchNotes?.facts || undefined;
+    // The source hook's opening line, verbatim, when the first beat's transcript was
+    // captured (spec part 1) — undefined otherwise, never a placeholder.
+    const openingLine = analysis?.structureSegments[0]?.transcript;
 
     const result = await client.generateParsed({
       system: HOOK_SYSTEM,
-      user: withPersona(buildHookUser({ topic, niche, pattern, facts }), persona),
+      user: withPersona(
+        buildHookUser({ topic, niche, pattern, facts, whyItWorked: analysis?.whyItWorked, openingLine, steer: opts?.steer }),
+        persona
+      ),
       schema: HookOptionsSchema,
     });
 
@@ -332,7 +358,7 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
  * style item if `styleVaultItemId` is set, else the source video's own structure
  * segments. Persists the result (JSON-stringified — `outline` is a plain text column).
  */
-export async function generateOutline(id: string, opts?: { llm?: LlmClient }): Promise<Outline> {
+export async function generateOutline(id: string, opts?: { llm?: LlmClient; steer?: string }): Promise<Outline> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
@@ -354,7 +380,10 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
 
     const outline = await client.generateParsed({
       system: OUTLINE_SYSTEM,
-      user: withPersona(buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }), persona),
+      user: withPersona(
+        buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts, whyItWorked: analysis?.whyItWorked, steer: opts?.steer }),
+        persona
+      ),
       schema: OutlineSchema,
     });
 
@@ -390,12 +419,13 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
  */
 export async function generateVariants(
   id: string,
-  opts?: { count?: number; index?: number; llm?: LlmClient }
+  opts?: { count?: number; index?: number; llm?: LlmClient; steer?: string }
 ): Promise<(string | { error: string })[]> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
   const video = await getVideoRow(session.sourceVideoId);
+  const analysis = await getAnalysis(session.sourceVideoId);
   const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
   const client = opts?.llm ?? getLlm();
   const niche = await getNicheProfile();
@@ -405,21 +435,27 @@ export async function generateVariants(
     ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
     : undefined;
 
-  const user = withPersona(
-    buildScriptUser({
-      topic: session.topic ?? video?.caption ?? "this topic",
-      niche,
-      hook: session.chosenHook ?? "",
-      outline: session.outline ?? { beats: [] },
-      targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
-      facts,
-      similar,
-    }),
-    persona
-  );
+  const baseUser = buildScriptUser({
+    topic: session.topic ?? video?.caption ?? "this topic",
+    niche,
+    hook: session.chosenHook ?? "",
+    outline: session.outline ?? { beats: [] },
+    targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
+    facts,
+    similar,
+    sourceBeats: analysis?.structureSegments,
+    whyItWorked: analysis?.whyItWorked,
+    steer: opts?.steer,
+  });
+
+  // One angle per slot (spec part 5): the full set gets `count` distinct angles, a
+  // single-slot regenerate (`opts.index` set) keeps that slot's own angle rather than
+  // drawing a fresh one, via `angleFor`'s deterministic index -> angle mapping.
+  const slotIndexes = opts?.index !== undefined ? [opts.index] : Array.from({ length: count }, (_, i) => i);
+  const users = slotIndexes.map((i) => withPersona(`${baseUser}\nAngle: ${angleFor(i)}`, persona));
 
   const settled = await Promise.allSettled(
-    Array.from({ length: count }, () => client.generateText({ system: SCRIPT_SYSTEM, user }))
+    users.map((user) => client.generateText({ system: SCRIPT_SYSTEM, user }))
   );
 
   const results: (string | { error: string })[] = settled.map((outcome) =>
@@ -524,6 +560,60 @@ export interface RemixFinishResult {
 }
 
 /**
+ * Makes sure the scripts row a session's plan would carry matches the session's CURRENT
+ * chosen variant (`variants[chosenVariantIndex]`), and returns it.
+ *
+ * Without this, the "latest saved script" and "the variant the user has open right now"
+ * can diverge two ways: the user saves, then regenerates or re-picks without saving
+ * again (the latest script row is now stale text), or the plan already exists and was
+ * never told a later save happened at all. Both leave `planned_posts.script_id` pointing
+ * at words the user never chose, even though the cook brief (which reads the session
+ * directly, not this column) already shows the right ones.
+ *
+ * Anti-fabrication: with no chosen variant yet, this returns the latest saved script
+ * untouched rather than inventing one — a finish with nothing picked must behave exactly
+ * as before.
+ *
+ * Idempotent by construction: a script row whose content already equals the chosen
+ * variant (the latest one, or any earlier one the user saved and has now picked again)
+ * is reused rather than re-inserted, so repeated calls with nothing changed create
+ * nothing new.
+ */
+async function reconcileAttachedScript(session: RemixSessionRow): Promise<{ id: string; title: string } | null> {
+  const scriptRows = await db
+    .select({ id: tables.scripts.id, title: tables.scripts.title, content: tables.scripts.content })
+    .from(tables.scripts)
+    .where(eq(tables.scripts.remixSessionId, session.id))
+    .orderBy(desc(tables.scripts.createdAt));
+
+  const latest = scriptRows[0] ?? null;
+  const chosenText = session.chosenVariantIndex !== null ? (session.variants?.[session.chosenVariantIndex] ?? null) : null;
+
+  if (chosenText === null) return latest ? { id: latest.id, title: latest.title } : null;
+  if (latest && latest.content === chosenText) return { id: latest.id, title: latest.title };
+
+  const match = scriptRows.find((row) => row.content === chosenText);
+  if (match) return { id: match.id, title: match.title };
+
+  const scriptId = newId();
+  const now = nowIso();
+  const title = latest?.title ?? deriveScriptTitle(session.topic);
+  await db.insert(tables.scripts).values({
+    id: scriptId,
+    title,
+    content: chosenText,
+    sourceVideoId: session.sourceVideoId,
+    hookVaultItemId: null,
+    styleVaultItemId: session.styleVaultItemId,
+    remixSessionId: session.id,
+    status: "draft",
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { id: scriptId, title };
+}
+
+/**
  * The Finish stage's action: make sure the session has a planned post to cook, and
  * report which one.
  *
@@ -534,7 +624,10 @@ export interface RemixFinishResult {
  *
  * Idempotent. Calling it twice reuses the plan it already linked rather than filling the
  * calendar with duplicates, which matters because the finish view's button is a plain
- * button a user can click twice.
+ * button a user can click twice — and also re-reconciles the attached script every time,
+ * which matters because the finish view's local "already finished" state resets on a
+ * page reload, so revisiting this stage after a regenerate is exactly when a stale
+ * attach needs to be caught and repaired.
  *
  * The plan is created with no date. A finish is not a scheduling decision, and inventing
  * a date the user did not pick would put a commitment on their calendar that they never
@@ -543,23 +636,26 @@ export interface RemixFinishResult {
 export async function finishRemix(id: string): Promise<RemixFinishResult> {
   const session = await getSession(id);
 
-  const [script] = await db
-    .select({ id: tables.scripts.id, title: tables.scripts.title })
-    .from(tables.scripts)
-    .where(eq(tables.scripts.remixSessionId, id))
-    .orderBy(desc(tables.scripts.createdAt))
-    .limit(1);
-
   const [existing] = await db
-    .select({ id: tables.plannedPosts.id })
+    .select({ id: tables.plannedPosts.id, scriptId: tables.plannedPosts.scriptId })
     .from(tables.plannedPosts)
     .where(eq(tables.plannedPosts.remixSessionId, id))
     .orderBy(desc(tables.plannedPosts.createdAt))
     .limit(1);
 
+  const script = await reconcileAttachedScript(session);
+
   await updateStage(id, { stage: "finish" });
 
-  if (existing) return { postId: existing.id, created: false, scriptId: script?.id ?? null };
+  if (existing) {
+    if (existing.scriptId !== (script?.id ?? null)) {
+      await db
+        .update(tables.plannedPosts)
+        .set({ scriptId: script?.id ?? null, updatedAt: nowIso() })
+        .where(eq(tables.plannedPosts.id, existing.id));
+    }
+    return { postId: existing.id, created: false, scriptId: script?.id ?? null };
+  }
 
   const postId = newId();
   const now = nowIso();

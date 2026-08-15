@@ -23,6 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GroundedIn } from "@/components/remix/grounded-in";
+import { SteerBox } from "@/components/remix/steer-box";
 import { deriveScriptTitle } from "@/lib/script-title";
 import { buildRemixPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
@@ -75,6 +77,11 @@ export function StageScript({
   const [saveTitle, setSaveTitle] = useState(() => deriveScriptTitle(session.topic));
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
+  // Which variant slot savedScriptId's content came from — tracked so a later
+  // regenerate of that same slot, or a tab switch away from it, can be told apart from
+  // an unrelated action and used to invalidate the save (see the comments in
+  // writeScript/regenerate/selectVariant below).
+  const [savedVariantIndex, setSavedVariantIndex] = useState<number | null>(null);
   // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
   // once a script exists, never required — the script above is already saved by the
   // time this appears, so declining the date here can't leave the run unfinishable.
@@ -103,15 +110,23 @@ export function StageScript({
       // forward would relabel a script the user never read as the one they chose.
       onChosenVariantChange(null);
       autosave(updateStageAction(session.id, { chosenVariantIndex: null }));
+      // A prior "Save script" now points at text that no longer exists in variants[] —
+      // same staleness the remix-to-cook bridge guards against in finishRemix. Clearing
+      // it hides "Add to plan" until the user saves again, rather than letting it attach
+      // stale content under a plan built from a variant they can no longer even see.
+      setSavedScriptId(null);
+      setSavedVariantIndex(null);
+      setAddedPlanDate(null);
+      setPlanDate("");
     } else {
       toast.error(result.error);
     }
     onRunRecorded();
   }
 
-  async function regenerate(index: number) {
+  async function regenerate(index: number, steer?: string) {
     setRegeneratingIndex(index);
-    const result = await generateVariantsAction(session.id, undefined, index);
+    const result = await generateVariantsAction(session.id, undefined, index, steer);
     setRegeneratingIndex(null);
     onRunRecorded();
     if (!result.ok) {
@@ -127,6 +142,15 @@ export function StageScript({
     // hack") would risk clobbering a sibling slot's concurrent autosave with a stale
     // copy instead of the merge the server already did correctly.
     onVariantsChange(next.filter((r): r is string => typeof r === "string"));
+    // The exact slot a prior "Save script" came from just got overwritten — same
+    // staleness finishRemix guards against server-side. Every other slot's save stays
+    // valid, so this only clears when it's the saved one.
+    if (index === savedVariantIndex) {
+      setSavedScriptId(null);
+      setSavedVariantIndex(null);
+      setAddedPlanDate(null);
+      setPlanDate("");
+    }
   }
 
   /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
@@ -139,6 +163,16 @@ export function StageScript({
     if (!Number.isInteger(index) || index === session.chosenVariantIndex) return;
     onChosenVariantChange(index);
     autosave(updateStageAction(session.id, { chosenVariantIndex: index }));
+    // "Add to plan" attaches whatever savedScriptId points at — picking a different
+    // variant than the one that was saved would let it attach text the user is no
+    // longer looking at under a pick they didn't make. Hiding it until they save the
+    // newly-picked variant keeps the same invariant finishRemix enforces server-side.
+    if (savedVariantIndex !== null && index !== savedVariantIndex) {
+      setSavedScriptId(null);
+      setSavedVariantIndex(null);
+      setAddedPlanDate(null);
+      setPlanDate("");
+    }
   }
 
   function commitEdit(index: number, text: string) {
@@ -147,8 +181,16 @@ export function StageScript({
     setResults(next);
   }
 
-  function commitEditBlur() {
+  function commitEditBlur(index: number) {
     persistSuccesses(results);
+    // Same staleness guard as regenerate(): a hand-edit to the saved slot's own text
+    // invalidates that save just as much as a regenerate of it would.
+    if (index === savedVariantIndex) {
+      setSavedScriptId(null);
+      setSavedVariantIndex(null);
+      setAddedPlanDate(null);
+      setPlanDate("");
+    }
   }
 
   // Clipboard writes can reject (denied permission, insecure context, etc.) — caught
@@ -191,6 +233,7 @@ export function StageScript({
     setSaving(false);
     if (result.ok) {
       setSavedScriptId(result.scriptId);
+      setSavedVariantIndex(index);
       onChosenVariantChange(index);
       // A later save (a different variant, or the same one again) is a different
       // scripts row — any earlier "added to plan" confirmation was about the
@@ -232,6 +275,17 @@ export function StageScript({
     }
   }
 
+  // 2026-08-15 spec part 7: names what fed the last/next script generation, read
+  // straight off session state already in this component — no server round trip.
+  const scriptAnalysis = session.researchNotes?.sourceAnalysis;
+  const groundedInParts = [
+    scriptAnalysis ? "structure beats (note + transcript)" : null,
+    scriptAnalysis ? "why it worked" : null,
+    session.chosenHook ? "chosen hook" : null,
+    session.researchNotes?.facts ? "your facts" : null,
+  ].filter((part): part is string => Boolean(part));
+  const groundedInText = groundedInParts.length > 0 ? groundedInParts.join(", ") : "nothing yet, fill in Prompt and Research first";
+
   // Script writing is offline, not broken — same block treatment as Hook/Style. This
   // is the last stage (no footer Continue), so its own CTA gets to be the one amber
   // action once the key comes back. Two distinct reasons share one surface — see
@@ -243,6 +297,7 @@ export function StageScript({
   if (results.length === 0 && !pending) {
     return (
       <div className="flex flex-col items-start gap-3">
+        <GroundedIn>{groundedInText}</GroundedIn>
         <p className="text-sm text-muted-foreground">Generate to see variants here.</p>
         <Button onClick={writeScript}>Write script</Button>
       </div>
@@ -266,6 +321,8 @@ export function StageScript({
 
   return (
     <div className="flex flex-col gap-4">
+      <GroundedIn>{groundedInText}</GroundedIn>
+
       <Tabs value={activeTab} onValueChange={selectVariant}>
         <TabsList>
           {results.map((_, i) => (
@@ -286,7 +343,7 @@ export function StageScript({
               <Textarea
                 value={result}
                 onChange={(e) => commitEdit(i, e.target.value)}
-                onBlur={commitEditBlur}
+                onBlur={() => commitEditBlur(i)}
                 rows={12}
                 className="font-mono text-sm"
               />
@@ -302,6 +359,11 @@ export function StageScript({
                 </Button>
               )}
             </div>
+            <SteerBox
+              placeholder="e.g. cut the setup, make beat 2 faster, warmer tone"
+              pending={regeneratingIndex === i}
+              onRegenerate={(note) => regenerate(i, note)}
+            />
           </TabsContent>
         ))}
       </Tabs>
