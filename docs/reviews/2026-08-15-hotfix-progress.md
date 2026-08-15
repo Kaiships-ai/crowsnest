@@ -258,4 +258,54 @@ Verification:
 - `npx vitest run` on write-brief (10 passed) and studio queries (7 passed).
 - Whole `src/` suite: 1514 passed, 1 failed (the pre-existing outlier-calc median).
 
+Commit: f8cb6db
+
+## Task 6: calendar detail opens as a side panel
+
+Changed, all in `components/mine/mine-calendar.tsx`:
+
+- The detail block (previously a sibling appended under the grid) now lives inside the
+  existing `Sheet` from `components/ui/sheet.tsx`, opened off `selectedCell !== null`,
+  closed by `onOpenChange`. The hand-rolled close button is gone: `SheetContent` already
+  ships one, and Escape and click-outside come from the Sheet.
+- The selected cell's `ring-1` is untouched, so it stays the spatial anchor for where the
+  panel came from.
+- `useNarrowViewport()` subscribes to `(max-width: 639px)` and `detailPanelSide()` maps it
+  to `right` or `bottom`. Subscribed rather than read once (unlike the reduced-motion
+  read in kanban-board.tsx) because this decides layout, not a flourish, and a rotate or
+  a resize should move the panel. It starts false so the server render and the first
+  client render agree.
+- Motion: the Sheet's own transition is already transform plus opacity over 200ms. Added
+  `motion-reduce:` overrides that pin the translate to 0, so reduced motion collapses the
+  slide to a fade instead of disabling the transition entirely.
+- The three text actions in the panel got `active:translate-y-px`. The `Button` component
+  already had `active:not-aria-[haspopup]:translate-y-px`; these are plain `<button>`
+  elements styled as links and had nothing.
+
+Correction worth recording: `sync-progress-panel.test.tsx` says this repo has no DOM test
+environment and that neither jsdom nor testing-library is installed. That is out of date.
+Both `jsdom` and `@testing-library/react` are in devDependencies, and `logs-view.test.tsx`
+already uses them via a per-file `@vitest-environment jsdom` docblock. So the new
+`mine-calendar.test.tsx` is a real DOM test, not a static-markup approximation.
+
+That matters, because the first version of this test was a static-markup one asserting the
+detail text was absent from the inline output. It passed, and it was worthless: with
+nothing selected the detail never renders anyway, so it would have passed against the old
+code too, and against code with the feature deleted. It was replaced with three tests that
+actually exercise the change: closed until a cell is selected, then the detail rendering
+inside `[data-slot='sheet-content']` with the grid still on screen, then Escape closing
+it. All three fail on the old inline block.
+
+`@testing-library/user-event` is not installed, so the clicks and the Escape key go
+through `fireEvent`.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run src/components/mine/mine-calendar.test.tsx`: 6 passed.
+- `npm run lint`: the 14 errors are all in the vendored `plugins/ksa` tree and predate
+  this branch. Cleared one warning this branch introduced (an unused `VideoAnalysis`
+  import left in analyze.ts by T1).
+- Whole `src/` suite: 1520 passed, 1 failed (the pre-existing outlier-calc median).
+
 Commit: (pending)

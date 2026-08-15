@@ -4,7 +4,6 @@ import { getLlm, resolveModel, type LlmClient } from "@/server/llm/client";
 import {
   VideoAnalysisSchema,
   type StoredAnalysisFields,
-  type VideoAnalysis,
   type StoredVideoLayout,
 } from "@/server/llm/schemas";
 import { getOrCreateTranscript } from "@/server/transcribe";

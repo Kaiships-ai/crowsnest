@@ -23,13 +23,14 @@
  *   which needs no Graph connection at all.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { createPlannedPostAction, deletePlannedPostAction, markPlanPublishedAction } from "@/server/actions/planned-post-actions";
 import type { CalendarMonth, PlannedPostRow } from "@/server/queries/planned-posts";
@@ -40,6 +41,33 @@ const MONTH_LABELS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
+
+/** Below this the viewport is too narrow for a side panel to leave the grid usable, so
+ *  the detail comes up from the bottom instead. */
+export const NARROW_VIEWPORT = "(max-width: 639px)";
+
+/** Which edge the day detail slides in from. Pulled out of the component so the rule is
+ *  testable without a DOM: the panel itself lives in a portal, which `renderToStaticMarkup`
+ *  (this repo's only rendering path in tests) never emits. */
+export function detailPanelSide(narrow: boolean): "right" | "bottom" {
+  return narrow ? "bottom" : "right";
+}
+
+/** Subscribed, not read once: a rotate or a window resize should move the panel, and
+ *  unlike the drag animation in kanban-board.tsx this decides layout, not a flourish.
+ *  Starts false so the server render and the first client render agree on side="right". */
+function useNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(NARROW_VIEWPORT);
+    const sync = () => setNarrow(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+  return narrow;
+}
 
 type CellKind = "published" | "scheduled" | "missed" | "deadAir" | "open";
 
@@ -139,6 +167,7 @@ export function MineCalendar({
   const today = todayKey();
   const undatedDrafts = calendar.plans.filter((p) => p.plannedDate === null);
   const selectedCell = selectedKey ? grid.flat().find((c) => c.key === selectedKey) ?? null : null;
+  const narrow = useNarrowViewport();
 
   async function reconcile(plan: PlannedPostRow) {
     if (!plan.reconciledOwnPostId) return;
@@ -293,99 +322,108 @@ export function MineCalendar({
         </span>
       </div>
 
-      {selectedCell && (
-        <div className="mt-6 flex flex-col gap-3 bg-popover p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
+      {/* The day detail slides in beside the grid rather than pushing it down the page, so
+          the month stays visible and the selected cell's ring stays the spatial anchor
+          for where the panel came from. Escape and click-outside close come from the
+          Sheet; there is no hand-rolled close button any more. Under 640px there is no
+          room beside the grid, so it comes up from the bottom. */}
+      <Sheet open={selectedCell !== null} onOpenChange={(open) => !open && setSelectedKey(null)}>
+        <SheetContent
+          side={detailPanelSide(narrow)}
+          // The base transition is transform plus opacity over 200ms. Under reduced
+          // motion the translate is pinned to 0 so the panel fades rather than travels.
+          className="motion-reduce:data-[side=bottom]:data-ending-style:translate-y-0 motion-reduce:data-[side=bottom]:data-starting-style:translate-y-0 motion-reduce:data-[side=right]:data-ending-style:translate-x-0 motion-reduce:data-[side=right]:data-starting-style:translate-x-0"
+        >
+          {selectedCell && (
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
+            <SheetHeader className="p-0">
               <p className="font-mono text-2xs tracking-wide text-faint">{selectedCell.key}</p>
-              <p className="mt-1 text-lg font-medium text-foreground">
+              <SheetTitle className="mt-1 text-lg font-medium text-foreground">
                 {selectedCell.title ?? (selectedCell.kind === "open" ? "Nothing planned" : "—")}
-              </p>
-            </div>
-            <Button size="icon-xs" variant="ghost" aria-label="Close" onClick={() => setSelectedKey(null)}>
-              ×
-            </Button>
-          </div>
+              </SheetTitle>
+            </SheetHeader>
 
-          {selectedCell.kind === "published" && (
-            <p className="font-mono text-sm text-muted-foreground">
-              Reach {selectedCell.reach === null ? "—" : selectedCell.reach.toLocaleString("en-US")}
-            </p>
-          )}
-
-          {selectedCell.plan && (
-            <div className="flex flex-col gap-2 border-t border-border pt-3">
-              <p className="font-mono text-2xs tracking-wide text-faint uppercase">
-                {selectedCell.plan.state}
-                {selectedCell.plan.scriptId === null && !selectedCell.plan.remixSessionId && " · no script yet"}
-                {selectedCell.plan.publishedOwnPostId !== null && <span className="text-pos"> · published</span>}
+            {selectedCell.kind === "published" && (
+              <p className="font-mono text-sm text-muted-foreground">
+                Reach {selectedCell.reach === null ? "—" : selectedCell.reach.toLocaleString("en-US")}
               </p>
-              {selectedCell.plan.scriptDetachedNote && (
-                <p className="text-xs text-destructive">{selectedCell.plan.scriptDetachedNote}</p>
-              )}
-              {selectedCell.plan.note && <p className="text-sm text-muted-foreground">{selectedCell.plan.note}</p>}
-              {selectedCell.plan.scriptId && (
-                <p className="text-xs text-muted-foreground">
-                  Script: {selectedCell.plan.scriptTitle ?? "—"}
-                  {selectedCell.plan.sourceVideoId && (
-                    <>
-                      {" · "}
-                      <Link href={`/feed/${selectedCell.plan.sourceVideoId}`} className="underline hover:text-foreground">
-                        source outlier
-                      </Link>
-                    </>
-                  )}
+            )}
+
+            {selectedCell.plan && (
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <p className="font-mono text-2xs tracking-wide text-faint uppercase">
+                  {selectedCell.plan.state}
+                  {selectedCell.plan.scriptId === null && !selectedCell.plan.remixSessionId && " · no script yet"}
+                  {selectedCell.plan.publishedOwnPostId !== null && <span className="text-pos"> · published</span>}
                 </p>
-              )}
-
-              {selectedCell.plan.reconciledOwnPostId && (
-                <div className="border-l-2 border-border pl-3">
-                  <p className="text-sm text-foreground">
-                    You posted something on this date. Mark this plan published against it?
+                {selectedCell.plan.scriptDetachedNote && (
+                  <p className="text-xs text-destructive">{selectedCell.plan.scriptDetachedNote}</p>
+                )}
+                {selectedCell.plan.note && <p className="text-sm text-muted-foreground">{selectedCell.plan.note}</p>}
+                {selectedCell.plan.scriptId && (
+                  <p className="text-xs text-muted-foreground">
+                    Script: {selectedCell.plan.scriptTitle ?? "—"}
+                    {selectedCell.plan.sourceVideoId && (
+                      <>
+                        {" · "}
+                        <Link href={`/feed/${selectedCell.plan.sourceVideoId}`} className="underline hover:text-foreground">
+                          source outlier
+                        </Link>
+                      </>
+                    )}
                   </p>
-                  <div className="mt-2 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => reconcile(selectedCell.plan!)}>
-                      Yes, that&apos;s it
-                    </Button>
-                  </div>
-                </div>
-              )}
+                )}
 
-              <div className="mt-1 flex flex-wrap gap-4">
-                <button
-                  type="button"
-                  className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline"
-                  onClick={() => setDialogState({ mode: "edit", plan: selectedCell.plan! })}
-                >
-                  edit / reschedule
-                </button>
-                {selectedCell.plan.publishedOwnPostId === null && (
+                {selectedCell.plan.reconciledOwnPostId && (
+                  <div className="border-l-2 border-border pl-3">
+                    <p className="text-sm text-foreground">
+                      You posted something on this date. Mark this plan published against it?
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => reconcile(selectedCell.plan!)}>
+                        Yes, that&apos;s it
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-1 flex flex-wrap gap-4">
                   <button
                     type="button"
-                    className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline"
-                    onClick={() => markPublishedNoLink(selectedCell.plan!)}
+                    className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline active:translate-y-px"
+                    onClick={() => setDialogState({ mode: "edit", plan: selectedCell.plan! })}
                   >
-                    mark published, no post linked
+                    edit / reschedule
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline"
-                  onClick={() => remove(selectedCell.plan!)}
-                >
-                  delete
-                </button>
+                  {selectedCell.plan.publishedOwnPostId === null && (
+                    <button
+                      type="button"
+                      className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline active:translate-y-px"
+                      onClick={() => markPublishedNoLink(selectedCell.plan!)}
+                    >
+                      mark published, no post linked
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline active:translate-y-px"
+                    onClick={() => remove(selectedCell.plan!)}
+                  >
+                    delete
+                  </button>
+                </div>
               </div>
+            )}
+
+            {!selectedCell.plan && selectedCell.kind !== "published" && (
+              <Button size="sm" variant="outline" className="w-fit" onClick={() => setDialogState({ mode: "create", date: selectedCell.key })}>
+                Plan something for this day
+              </Button>
+            )}
             </div>
           )}
-
-          {!selectedCell.plan && selectedCell.kind !== "published" && (
-            <Button size="sm" variant="outline" className="w-fit" onClick={() => setDialogState({ mode: "create", date: selectedCell.key })}>
-              Plan something for this day
-            </Button>
-          )}
-        </div>
-      )}
+        </SheetContent>
+      </Sheet>
 
       {undatedDrafts.length > 0 && (
         <div className="mt-10 border-t border-border pt-6">
