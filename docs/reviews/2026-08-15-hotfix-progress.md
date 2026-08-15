@@ -461,4 +461,4 @@ Verification:
 - `npx vitest run src/server/terminal/`: 81 passed.
 - Whole suite: 1542 passed, 1 failed (the pre-existing outlier-calc median).
 
-Commit: (pending)
+Commit: ac665e4
