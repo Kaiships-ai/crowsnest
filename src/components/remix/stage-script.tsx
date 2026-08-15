@@ -23,6 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GroundedIn } from "@/components/remix/grounded-in";
+import { SteerBox } from "@/components/remix/steer-box";
 import { deriveScriptTitle } from "@/lib/script-title";
 import { buildRemixPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
@@ -109,9 +111,9 @@ export function StageScript({
     onRunRecorded();
   }
 
-  async function regenerate(index: number) {
+  async function regenerate(index: number, steer?: string) {
     setRegeneratingIndex(index);
-    const result = await generateVariantsAction(session.id, undefined, index);
+    const result = await generateVariantsAction(session.id, undefined, index, steer);
     setRegeneratingIndex(null);
     onRunRecorded();
     if (!result.ok) {
@@ -232,6 +234,17 @@ export function StageScript({
     }
   }
 
+  // 2026-08-15 spec part 7: names what fed the last/next script generation, read
+  // straight off session state already in this component — no server round trip.
+  const scriptAnalysis = session.researchNotes?.sourceAnalysis;
+  const groundedInParts = [
+    scriptAnalysis ? "structure beats (note + transcript)" : null,
+    scriptAnalysis ? "why it worked" : null,
+    session.chosenHook ? "chosen hook" : null,
+    session.researchNotes?.facts ? "your facts" : null,
+  ].filter((part): part is string => Boolean(part));
+  const groundedInText = groundedInParts.length > 0 ? groundedInParts.join(", ") : "nothing yet, fill in Prompt and Research first";
+
   // Script writing is offline, not broken — same block treatment as Hook/Style. This
   // is the last stage (no footer Continue), so its own CTA gets to be the one amber
   // action once the key comes back. Two distinct reasons share one surface — see
@@ -243,6 +256,7 @@ export function StageScript({
   if (results.length === 0 && !pending) {
     return (
       <div className="flex flex-col items-start gap-3">
+        <GroundedIn>{groundedInText}</GroundedIn>
         <p className="text-sm text-muted-foreground">Generate to see variants here.</p>
         <Button onClick={writeScript}>Write script</Button>
       </div>
@@ -266,6 +280,8 @@ export function StageScript({
 
   return (
     <div className="flex flex-col gap-4">
+      <GroundedIn>{groundedInText}</GroundedIn>
+
       <Tabs value={activeTab} onValueChange={selectVariant}>
         <TabsList>
           {results.map((_, i) => (
@@ -302,6 +318,11 @@ export function StageScript({
                 </Button>
               )}
             </div>
+            <SteerBox
+              placeholder="e.g. cut the setup, make beat 2 faster, warmer tone"
+              pending={regeneratingIndex === i}
+              onRegenerate={(note) => regenerate(i, note)}
+            />
           </TabsContent>
         ))}
       </Tabs>

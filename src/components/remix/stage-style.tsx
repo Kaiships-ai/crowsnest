@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GroundedIn } from "@/components/remix/grounded-in";
+import { SteerBox } from "@/components/remix/steer-box";
 import { generateOutlineAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { Outline } from "@/server/llm/schemas";
 import type { VaultItemRow } from "@/server/queries/vault";
@@ -56,9 +58,9 @@ export function StageStyle({
     autosave(updateStageAction(session.id, { styleVaultItemId: id }));
   }
 
-  async function generate() {
+  async function generate(steer?: string) {
     setGenerating(true);
-    const result = await generateOutlineAction(session.id);
+    const result = await generateOutlineAction(session.id, steer);
     setGenerating(false);
     if (result.ok) {
       onOutlineChange(result.outline);
@@ -92,6 +94,18 @@ export function StageStyle({
       : [{ value: EMPTY_VALUE, label: "No saved styles yet", disabled: true }]),
   ];
 
+  // 2026-08-15 spec part 7: names what fed the last/next outline generation, read
+  // straight off session state already in this component — no server round trip.
+  const styleAnalysis = session.researchNotes?.sourceAnalysis;
+  const groundedInParts = [
+    styleAnalysis ? "source structure beats (note + transcript)" : null,
+    styleAnalysis ? "why it worked" : null,
+    session.chosenHook ? "chosen hook" : null,
+    session.topic ? "your topic" : null,
+    session.researchNotes?.facts ? "your facts" : null,
+  ].filter((part): part is string => Boolean(part));
+  const groundedInText = groundedInParts.length > 0 ? groundedInParts.join(", ") : "nothing yet, fill in Prompt and Research first";
+
   // Same posture as Hook/Script: block the whole stage rather than gray out a
   // toolbar that can't do anything, whether the reason is no key or the local
   // proxy being unreachable (generation-blocked.tsx).
@@ -120,10 +134,12 @@ export function StageStyle({
           </Select>
         </div>
         {/* Secondary, not primary — Continue in the footer stays the one amber action. */}
-        <Button variant="secondary" onClick={generate} disabled={generating}>
+        <Button variant="secondary" onClick={() => generate()} disabled={generating}>
           {generating ? "Generating…" : beats.length > 0 ? "Regenerate outline" : "Generate outline"}
         </Button>
       </div>
+
+      <GroundedIn>{groundedInText}</GroundedIn>
 
       {generating ? (
         <div className="flex flex-col gap-3">
@@ -132,6 +148,7 @@ export function StageStyle({
           ))}
         </div>
       ) : beats.length > 0 ? (
+        <>
         <ol className="flex flex-col gap-3">
           {beats.map((beat, i) => (
             <li key={i} className="flex gap-3 border border-border p-3">
@@ -161,6 +178,12 @@ export function StageStyle({
             </li>
           ))}
         </ol>
+        <SteerBox
+          placeholder="e.g. add a beat before the payoff, tighten the build"
+          pending={generating}
+          onRegenerate={(note) => generate(note)}
+        />
+        </>
       ) : (
         <p className="text-sm text-muted-foreground">Generate an outline to get started.</p>
       )}
