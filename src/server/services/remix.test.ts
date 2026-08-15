@@ -493,6 +493,48 @@ describe("finishRemix", () => {
     expect(plans).toHaveLength(1);
   });
 
+  test("finishing again re-attaches the current chosen variant after a regenerate invalidated the earlier save", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["variant zero", "variant one", "variant two"] });
+    const { scriptId: staleScriptId } = await saveScript(session.id, "variant zero", "Stale Title", 0);
+
+    const first = await finishRemix(session.id);
+    expect(first.scriptId).toBe(staleScriptId);
+
+    // Regenerate all variants (fresh text) and pick a different one, without saving
+    // again — mirrors the live-db scenario: the plan already exists, the session moves
+    // on, and the attached script's content ends up matching none of the current
+    // variants.
+    await updateStage(session.id, { variants: ["fresh zero", "fresh one", "fresh two"], chosenVariantIndex: 1 });
+
+    const second = await finishRemix(session.id);
+
+    expect(second.created).toBe(false); // reuses the plan `first` created, no duplicate
+    expect(second.postId).toBe(first.postId);
+    expect(second.scriptId).not.toBe(staleScriptId);
+
+    const [attached] = await db.select().from(tables.scripts).where(eq(tables.scripts.id, second.scriptId!));
+    expect(attached.content).toBe("fresh one"); // variants[chosenVariantIndex], not the stale save
+
+    const [plan] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, second.postId));
+    expect(plan.scriptId).toBe(second.scriptId); // the existing plan's script_id was refreshed
+
+    // Idempotency: nothing changed since, so a third finish must not create a second
+    // plan, nor a second reconciled script for the same chosen text.
+    const scriptsBefore = await db.select().from(tables.scripts).where(eq(tables.scripts.remixSessionId, session.id));
+    const third = await finishRemix(session.id);
+    const scriptsAfter = await db.select().from(tables.scripts).where(eq(tables.scripts.remixSessionId, session.id));
+
+    expect(third.created).toBe(false);
+    expect(third.postId).toBe(first.postId);
+    expect(third.scriptId).toBe(second.scriptId);
+    expect(scriptsAfter).toHaveLength(scriptsBefore.length);
+
+    const plans = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.remixSessionId, session.id));
+    expect(plans).toHaveLength(1);
+  });
+
   test("finishes a session with no saved script, carrying a derived title and a null scriptId", async () => {
     const { videoId } = await seedVideo();
     const session = await getOrCreateSession(videoId);
