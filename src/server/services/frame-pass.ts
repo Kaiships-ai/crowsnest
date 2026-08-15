@@ -38,16 +38,20 @@ export async function resolveVideoFile(videoId: string): Promise<{ ok: true; pat
  * The vision itself does not happen in this process. `src/server/llm/client.ts` still has
  * no image path and the 9router proxy relays no live vision model, so the reading is
  * produced by a Claude Code subprocess instead: `frame-pass-runner.ts` extracts frames
- * with watch.py, hands the paths to a session limited to `--allowedTools Read`, and the
- * four Layout fields come back as a `VideoLayout`. This function is where that result
- * lands in the database. `runFramePassAction` no longer refuses; it starts a job that
- * ends up here. See `docs/product/frame-pass-workflow.md`.
+ * with watch.py, hands the paths and the analysis's beat windows to a session limited to
+ * `--allowedTools Read`, and a `VideoLayout` comes back: one row per story beat, each
+ * carrying the beat's timecodes plus six readings (on-screen text, animation, demo
+ * cursor, tool demo, text position, voice pace). This function is where that result lands
+ * in the database. `runFramePassAction` no longer refuses; it starts a job that ends up
+ * here. See `docs/product/frame-pass-workflow.md`.
  *
  * Anti-fabrication guard (the reason the `fromFramesSec` field exists): a field may only
  * carry a non-null `value` if it names at least one frame timestamp it was read from. A
  * value with no backing frames is a guess, which is exactly what this whole feature
  * exists to prevent, so it is rejected here rather than silently stored (the UI would
- * render it as a dash anyway, but the row must not hold a lie).
+ * render it as a dash anyway, but the row must not hold a lie). The check runs per field
+ * per beat row, so going per beat multiplied the places a guess could hide but not the
+ * places it can survive.
  */
 export interface FramePassInput {
   videoId: string;

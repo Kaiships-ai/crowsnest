@@ -207,12 +207,16 @@ export const videoAnalyses = sqliteTable("video_analyses", {
   /**
    * The Layout section (V1 data contracts, contract 5): what a video looks like rather
    * than what it says. All five columns below are nullable and all five stay null
-   * together until a frame pass actually runs — there is no frame pass wired up yet
-   * (no image-input path on the LLM client, no frame sampler; see
-   * `docs/product/frame-pass-spike-prep.md`), so every row in this table has `layout:
-   * null` today. That is the correct, honest default, not a placeholder waiting to be
-   * filled by a stub: a null `layout` renders as four dashes and the "run frame pass"
-   * action, and it must never be backfilled from the transcript.
+   * together until a frame pass actually runs (frame-pass-runner.ts: watch.py samples
+   * frames, a read-only Claude Code subprocess reads them). Null is the correct, honest
+   * default, not a placeholder waiting to be filled by a stub: the Layout tab renders the
+   * "run frame pass" prompt for it, and it must never be backfilled from the transcript.
+   *
+   * Two stored shapes live in this column. New rows are `VideoLayout`, one row per story
+   * beat keyed to the beat's timecodes; rows written before the reshape are the old flat
+   * whole-video object. `asBeatLayout` narrows a read to the per-beat rows or to null, and
+   * every reader treats the flat case as "re-run the frame pass" rather than translating
+   * it into beats it never described.
    */
   layout: text("layout", { mode: "json" }).$type<StoredVideoLayout>(),
   /** How many frames the pass actually sampled. The section's caption prints this

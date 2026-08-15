@@ -462,3 +462,32 @@ Verification:
 - Whole suite: 1542 passed, 1 failed (the pre-existing outlier-calc median).
 
 Commit: ac665e4
+
+## Final-review cleanup
+
+Four items off the opus final review, one commit.
+
+1. `write-brief.ts` `formatLayoutField` now returns a dash when `value` is non-null but
+   `fromFramesSec` is empty, matching `export.ts`'s `layoutPerBeatSection` and
+   `layout-section.tsx`'s `fieldValue`. `persistFramePass` already refuses to store that
+   combination, so it is unreachable for validated data. Written defensively anyway
+   because of the three readers this is the one that feeds a cook: the other two put an
+   uncited value on a screen a human is reading, this one puts it in a brief a model
+   treats as ground truth.
+2. `frame-pass.ts` doc comment said "the four Layout fields come back as a VideoLayout".
+   Reworded to the per-beat shape, and it now says the guard runs per field per beat.
+3. `schema.ts` layout column doc comment said "there is no frame pass wired up yet" and
+   "a null layout renders as four dashes". Both stale. Reworded to name the real runner,
+   the per-beat shape, and the two shapes the column can hold.
+4. `vitest.config.ts` excludes `plugins/**`. The vendored
+   `plugins/ksa/skills/baoyu-image-gen` suite is written for a different runner; under
+   vitest all 14 files failed with "No test suite found". Fourteen permanently red files
+   say nothing about this repo and would hide a real regression in the noise. `tsconfig`
+   already excluded `plugins` for the same reason.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run`: 115 files, 1542 passed, 1 failed. The plugin noise is gone (was 129
+  files with 15 red). The single remaining failure is `outlier-calc.test.ts`, which was
+  already red on a clean checkout of this branch before any of this work started.

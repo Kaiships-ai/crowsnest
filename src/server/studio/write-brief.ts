@@ -3,8 +3,6 @@ import path from "node:path";
 import { getStudioBrief } from "@/server/queries/studio";
 import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
 
-/** "value (t=1.2s, 3.4s)" for a reading, or a dash for "the pass ran and could not
- *  tell" -- same distinction LayoutField in studio-screen.tsx renders, just as text. */
 const LAYOUT_FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> = {
   onScreenText: "On-screen text",
   animation: "Animation",
@@ -14,9 +12,20 @@ const LAYOUT_FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> =
   voicePace: "Voice pace",
 };
 
+/**
+ * "value (frames: 1.2s, 3.4s)" for a reading, or a dash. Same anti-fabrication rule the
+ * two other readers apply (export.ts's `layoutPerBeatSection`, layout-section.tsx's
+ * `fieldValue`): a value that names no source frame is not a reading, so it renders as a
+ * dash rather than as a fact the cook would then build on.
+ *
+ * `persistFramePass` already refuses to store that combination, so this is unreachable
+ * for validated data. It is written this way anyway because this is the reader that feeds
+ * a cook, and of the three it is the one where a slipped invariant would do real damage:
+ * the other two put an uncited value on a screen a human is reading, this one puts it in
+ * a brief a model treats as ground truth.
+ */
 function formatLayoutField(field: VideoLayoutField): string {
-  if (field.value === null) return "—";
-  if (field.fromFramesSec.length === 0) return field.value;
+  if (field.value === null || field.fromFramesSec.length === 0) return "—";
   return `${field.value} (frames: ${field.fromFramesSec.join("s, ")}s)`;
 }
 
