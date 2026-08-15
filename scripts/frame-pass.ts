@@ -1,6 +1,6 @@
 /**
- * Frame-pass bridge CLI. The layout read (on-screen text, its position, cut rhythm,
- * framing) is a vision task, and no vision-capable model is reachable in-app: the LLM
+ * Frame-pass bridge CLI. The layout read (per beat: on-screen text, animation, demo
+ * cursor, tool demo, text position, voice pace) is a vision task, and no vision-capable model is reachable in-app: the LLM
  * client has no image path and the 9router proxy relays no live vision model. So the
  * read is produced out of process, in a Claude Code terminal session that runs the
  * `/watch` skill over the video's frames, and this script is how that result gets back
@@ -12,13 +12,14 @@
  *   fail    <videoId> --error M  record that a pass ran and produced no reading
  *
  * write flags:
- *   --layout <path|->            JSON file with the four-field VideoLayout ("-" = stdin)
+ *   --layout <path|->            JSON file with the per-beat VideoLayout array ("-" = stdin)
  *   --frames-sampled N           how many frames /watch extracted
  *   --model <name>               vision model that read them (default: claude-code/watch)
  *
  * Point CROWSNEST_DB_PATH at a copy to rehearse without touching data/crowsnest.db.
  */
 import { readFileSync } from "node:fs";
+import { BEAT_LAYOUT_FIELDS } from "@/server/llm/schemas";
 import {
   persistFramePass,
   recordFramePassFailure,
@@ -57,7 +58,7 @@ async function main(): Promise<number> {
   if (cmd === "write") {
     const layoutSource = flag("--layout");
     if (!layoutSource) {
-      console.error("write needs --layout <path|-> (JSON with the four VideoLayout fields)");
+      console.error("write needs --layout <path|-> (a JSON array of per-beat VideoLayout rows)");
       return 2;
     }
     const framesSampled = Number(flag("--frames-sampled"));
@@ -72,10 +73,13 @@ async function main(): Promise<number> {
       framesSampled,
       frameModel,
     });
-    const read = Object.entries(stored)
-      .filter(([, f]) => f.value !== null)
-      .map(([k]) => k);
-    console.log(`wrote layout for ${videoId}: ${read.length ? read.join(", ") : "no field readable"} (${framesSampled} frames, ${frameModel})`);
+    const readCount = stored.reduce(
+      (n, beat) => n + BEAT_LAYOUT_FIELDS.filter((k) => beat[k].value !== null).length,
+      0
+    );
+    console.log(
+      `wrote layout for ${videoId}: ${stored.length} beat rows, ${readCount} of ${stored.length * BEAT_LAYOUT_FIELDS.length} fields readable (${framesSampled} frames, ${frameModel})`
+    );
     return 0;
   }
 

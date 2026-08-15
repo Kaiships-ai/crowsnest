@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import type { VideoLayoutField } from "@/server/llm/schemas";
+import { asBeatLayout, type BeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
 import { fieldValue, framePassCta } from "./layout-section";
 
 /**
@@ -62,5 +62,51 @@ describe("framePassCta", () => {
       label: "Run frame pass",
       kind: "run",
     });
+  });
+});
+
+/**
+ * The per-beat reshape left one old shape in the database: the flat whole-video layout.
+ * It has no beat timecodes, so it cannot be shown in a per-beat table, and translating it
+ * into beat rows would be inventing a mapping it never described. `asBeatLayout` is the
+ * single place that decision is made, so it is the place worth pinning down.
+ */
+describe("asBeatLayout", () => {
+  const beat: BeatLayout = {
+    startSec: 0,
+    endSec: 3,
+    label: "Hook",
+    onScreenText: { value: "3 MISTAKES", fromFramesSec: [0.5] },
+    animation: { value: null, fromFramesSec: [] },
+    demoCursor: { value: null, fromFramesSec: [] },
+    toolDemo: { value: null, fromFramesSec: [] },
+    textPosition: { value: null, fromFramesSec: [] },
+    voicePace: { value: null, fromFramesSec: [] },
+  };
+
+  test("returns the rows for a per-beat layout", () => {
+    expect(asBeatLayout([beat])).toEqual([beat]);
+  });
+
+  test("returns null for a flat layout written before the reshape, so it renders as re-run rather than as beats", () => {
+    const flat = {
+      onScreenText: { value: "3 MISTAKES", fromFramesSec: [0.5] },
+      textPosition: { value: "upper third", fromFramesSec: [0.5] },
+      cutRhythm: { value: "fast", fromFramesSec: [1] },
+      framing: { value: "close-up", fromFramesSec: [0] },
+    };
+    expect(asBeatLayout(flat)).toBeNull();
+  });
+
+  test("returns null when no pass has run at all", () => {
+    expect(asBeatLayout(null)).toBeNull();
+    expect(asBeatLayout(undefined)).toBeNull();
+  });
+});
+
+describe("fieldValue on a beat row", () => {
+  test("still refuses a value that names no source frames, now per beat", () => {
+    const unbacked: VideoLayoutField = { value: "Figma", fromFramesSec: [] };
+    expect(fieldValue(unbacked)).toBeNull();
   });
 });

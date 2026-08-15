@@ -4,7 +4,8 @@ import Link from "next/link";
 
 import { formatMultiplier } from "@/lib/format";
 import { StudioPanel } from "@/components/studio/studio-panel";
-import type { VideoLayoutField } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
+import { formatDuration } from "@/lib/format";
 import type { getStudioBrief } from "@/server/queries/studio";
 
 type StudioBrief = NonNullable<Awaited<ReturnType<typeof getStudioBrief>>>;
@@ -26,6 +27,15 @@ function ScoreBadge({ score }: { score: number | null }) {
  *  the pass ran and could not read this field — still renders as a dash, same "a dash
  *  means the pass ran and came back empty" rule the field's own schema comment sets, not
  *  as an empty string that would look indistinguishable from a positive blank reading. */
+const FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> = {
+  onScreenText: "On-screen text",
+  animation: "Animation",
+  demoCursor: "Demo cursor",
+  toolDemo: "Tool demo",
+  textPosition: "Text position",
+  voicePace: "Voice pace",
+};
+
 function LayoutField({ label, field }: { label: string; field: VideoLayoutField }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-border py-2 last:border-b-0">
@@ -45,7 +55,9 @@ function LayoutField({ label, field }: { label: string; field: VideoLayoutField 
  */
 export function StudioScreen({ brief }: { brief: StudioBrief }) {
   const { plan, video } = brief;
-  const layout = video?.analysis?.layout ?? null;
+  // The per-beat rows, or null when no pass has run or the row is the old flat shape
+  // (which carries no beat timecodes and is not reshaped into beats it never described).
+  const beats = asBeatLayout(video?.analysis?.layout);
 
   return (
     <div className="flex h-full">
@@ -84,12 +96,21 @@ export function StudioScreen({ brief }: { brief: StudioBrief }) {
 
         <div className="flex flex-col border-t border-border pt-4">
           <span className="font-mono text-2xs tracking-wide text-faint uppercase">Visual direction</span>
-          {layout ? (
-            <div className="mt-2 flex flex-col">
-              <LayoutField label="On-screen text" field={layout.onScreenText} />
-              <LayoutField label="Text position" field={layout.textPosition} />
-              <LayoutField label="Cut rhythm" field={layout.cutRhythm} />
-              <LayoutField label="Framing" field={layout.framing} />
+          {beats ? (
+            <div className="mt-2 flex flex-col gap-4">
+              {beats.map((beat, i) => (
+                <div key={i} className="flex flex-col">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-foreground">{beat.label}</span>
+                    <span className="font-mono text-2xs text-faint">
+                      {formatDuration(beat.startSec)}–{formatDuration(beat.endSec)}
+                    </span>
+                  </div>
+                  {BEAT_LAYOUT_FIELDS.map((key) => (
+                    <LayoutField key={key} label={FIELD_LABELS[key]} field={beat[key]} />
+                  ))}
+                </div>
+              ))}
             </div>
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">Frame pass not run.</p>
@@ -97,7 +118,7 @@ export function StudioScreen({ brief }: { brief: StudioBrief }) {
         </div>
       </div>
 
-      <StudioPanel postId={plan.id} hasFramePass={layout !== null} />
+      <StudioPanel postId={plan.id} hasFramePass={beats !== null} />
     </div>
   );
 }

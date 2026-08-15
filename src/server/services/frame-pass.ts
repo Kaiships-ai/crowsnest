@@ -1,7 +1,7 @@
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
-import { VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
 
 /**
  * Resolve the on-disk video file the frame pass session should run `/watch` against.
@@ -63,8 +63,6 @@ export class FramePassNoVideoError extends Error {
   }
 }
 
-const LAYOUT_FIELDS = ["onScreenText", "textPosition", "cutRhythm", "framing"] as const;
-
 /** A layout field is a short phrase ("centered, upper third"). Anything past this is not a
  *  reading, it is a blob, so refuse it rather than store it. */
 export const MAX_LAYOUT_VALUE_LEN = 1000;
@@ -72,23 +70,34 @@ export const MAX_LAYOUT_VALUE_LEN = 1000;
 export async function persistFramePass(input: FramePassInput): Promise<VideoLayout> {
   const layout = VideoLayoutSchema.parse(input.layout);
 
+  if (layout.length === 0) {
+    throw new FramePassValidationError("A layout must carry at least one beat row; an empty array is a failed pass, not a reading.");
+  }
   if (!Number.isInteger(input.framesSampled) || input.framesSampled <= 0) {
     throw new FramePassValidationError(`framesSampled must be a positive integer, got ${input.framesSampled}.`);
   }
   if (input.frameModel.trim() === "") {
     throw new FramePassValidationError("frameModel must name the model that read the frames.");
   }
-  for (const key of LAYOUT_FIELDS) {
-    const field = layout[key];
-    if (field.value !== null && field.fromFramesSec.length === 0) {
-      throw new FramePassValidationError(
-        `Layout field "${key}" has a value but names no source frames. A reading with no backing frame is a guess; drop the value or cite the frames it came from.`
-      );
+  // The anti-fabrication guard, now applied per beat row rather than once for the whole
+  // video. Six readings times N beats is a lot more places for a guess to hide, which is
+  // exactly why the check is per field rather than per row.
+  for (const [i, beat] of layout.entries()) {
+    if (beat.endSec < beat.startSec) {
+      throw new FramePassValidationError(`Beat ${i} ("${beat.label}") ends at ${beat.endSec}s, before it starts at ${beat.startSec}s.`);
     }
-    if (field.value !== null && field.value.length > MAX_LAYOUT_VALUE_LEN) {
-      throw new FramePassValidationError(
-        `Layout field "${key}" is ${field.value.length} chars, over the ${MAX_LAYOUT_VALUE_LEN} cap. A reading is a short phrase, not a dump.`
-      );
+    for (const key of BEAT_LAYOUT_FIELDS) {
+      const field = beat[key];
+      if (field.value !== null && field.fromFramesSec.length === 0) {
+        throw new FramePassValidationError(
+          `Layout field "${key}" on beat ${i} ("${beat.label}") has a value but names no source frames. A reading with no backing frame is a guess; drop the value or cite the frames it came from.`
+        );
+      }
+      if (field.value !== null && field.value.length > MAX_LAYOUT_VALUE_LEN) {
+        throw new FramePassValidationError(
+          `Layout field "${key}" on beat ${i} ("${beat.label}") is ${field.value.length} chars, over the ${MAX_LAYOUT_VALUE_LEN} cap. A reading is a short phrase, not a dump.`
+        );
+      }
     }
   }
 

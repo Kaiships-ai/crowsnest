@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
-import type { StoredStructureSegment, VideoLayout } from "../llm/schemas";
+import type { StoredStructureSegment, StoredVideoLayout } from "../llm/schemas";
 
 /**
  * Every binary we serve ourselves. Instagram CDN URLs are signed and expire within
@@ -214,7 +214,7 @@ export const videoAnalyses = sqliteTable("video_analyses", {
    * filled by a stub: a null `layout` renders as four dashes and the "run frame pass"
    * action, and it must never be backfilled from the transcript.
    */
-  layout: text("layout", { mode: "json" }).$type<VideoLayout>(),
+  layout: text("layout", { mode: "json" }).$type<StoredVideoLayout>(),
   /** How many frames the pass actually sampled. The section's caption prints this
    *  number, so it is data, not decoration. Null means no pass has run. */
   framesSampled: integer("frames_sampled"),

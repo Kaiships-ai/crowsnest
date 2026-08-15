@@ -74,13 +74,77 @@ export const VideoLayoutFieldSchema = z.object({
 });
 export type VideoLayoutField = z.infer<typeof VideoLayoutFieldSchema>;
 
-export const VideoLayoutSchema = z.object({
+/**
+ * The layout of ONE beat, keyed to that beat's timecodes so the reading lines up with
+ * the story beats the analyze pass found rather than describing the whole video at once.
+ * A flat whole-video reading averaged over a video whose hook is a hard-cut close-up and
+ * whose payoff is a slow screen recording described neither.
+ *
+ * Every one of the six readings keeps its own `fromFramesSec` rather than the row
+ * carrying a single shared citation. A shared citation would let one field earn the
+ * frames and the other five ride along unbacked, which is the exact failure the guard
+ * exists to stop.
+ */
+export const BeatLayoutSchema = z.object({
+  /** The beat's window, copied from the analysis's `structureSegments` so the two line up. */
+  startSec: z.number(),
+  endSec: z.number(),
+  label: z.string(),
+  /** What the burned-in caption says during this beat. */
+  onScreenText: VideoLayoutFieldSchema,
+  /** Motion applied to the frame or its elements: zoom, whip pan, shake, none. */
+  animation: VideoLayoutFieldSchema,
+  /** Whether a mouse cursor is visible and what it is doing. */
+  demoCursor: VideoLayoutFieldSchema,
+  /** Which tool or app is on screen if this beat shows one. */
+  toolDemo: VideoLayoutFieldSchema,
+  /** Where the caption sits in frame. */
+  textPosition: VideoLayoutFieldSchema,
+  /** How fast the delivery reads from the frames: mouth activity, cut density, subtitle churn. */
+  voicePace: VideoLayoutFieldSchema,
+});
+export type BeatLayout = z.infer<typeof BeatLayoutSchema>;
+
+/** The stored layout: one row per beat, in beat order. */
+export const VideoLayoutSchema = z.array(BeatLayoutSchema);
+export type VideoLayout = z.infer<typeof VideoLayoutSchema>;
+
+/** The six reading keys on a beat row, in the order the Layout table shows them. */
+export const BEAT_LAYOUT_FIELDS = [
+  "onScreenText",
+  "animation",
+  "demoCursor",
+  "toolDemo",
+  "textPosition",
+  "voicePace",
+] as const;
+
+/**
+ * The shape `videoAnalyses.layout` held before the layout went per beat: one flat
+ * whole-video reading. Rows written by the old frame pass still hold it and nothing
+ * migrates them, because a flat reading carries no beat timecodes and inventing a
+ * mapping onto beats would be fabrication. Those rows show the re-run affordance.
+ */
+export const LegacyFlatVideoLayoutSchema = z.object({
   onScreenText: VideoLayoutFieldSchema,
   textPosition: VideoLayoutFieldSchema,
   cutRhythm: VideoLayoutFieldSchema,
   framing: VideoLayoutFieldSchema,
 });
-export type VideoLayout = z.infer<typeof VideoLayoutSchema>;
+export type LegacyFlatVideoLayout = z.infer<typeof LegacyFlatVideoLayoutSchema>;
+
+/** What a read of the `layout` column can actually be: the per-beat array, or a flat
+ *  row written before the reshape. */
+export type StoredVideoLayout = VideoLayout | LegacyFlatVideoLayout;
+
+/**
+ * Narrows a stored layout to the per-beat array, or null when the row predates the
+ * reshape. Callers render the null case as the re-run prompt; nothing translates a flat
+ * reading into beat rows.
+ */
+export function asBeatLayout(layout: StoredVideoLayout | null | undefined): BeatLayout[] | null {
+  return Array.isArray(layout) ? layout : null;
+}
 
 export const HookOptionsSchema = z.object({ hooks: z.array(z.string()).min(3).max(7) });
 export type HookOptions = z.infer<typeof HookOptionsSchema>;

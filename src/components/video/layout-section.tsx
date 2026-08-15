@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { getFramePassJobAction, runFramePassAction } from "@/server/actions/analyze-actions";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 import type { StoredVideoAnalysis } from "@/server/services/analyze";
-import type { VideoLayoutField } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
+import { formatDuration } from "@/lib/format";
 
 /** A field only counts as a reading when it's backed by at least one sampled frame
  *  (schema.ts's VideoLayoutField: `fromFramesSec.length === 0` means "not a reading").
@@ -32,11 +33,24 @@ export function framePassCta(state: { hasLayout: boolean; lastCode: string | nul
   return { label: "Run frame pass", kind: "run" };
 }
 
+/** Column headers for the per-beat table, in `BEAT_LAYOUT_FIELDS` order. */
+const FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> = {
+  onScreenText: "On-screen text",
+  animation: "Animation",
+  demoCursor: "Demo cursor",
+  toolDemo: "Tool demo",
+  textPosition: "Text position",
+  voicePace: "Voice pace",
+};
+
 /**
  * The Layout section (V1 scope §2, Video detail criterion 9; V1 data contracts
- * contract 5): what a video looks like — on-screen text, its position, cut rhythm,
- * framing — as opposed to what it says. Read only from a frame pass, never guessed
- * from the transcript.
+ * contract 5): what a video looks like as opposed to what it says. Read only from a frame
+ * pass, never guessed from the transcript.
+ *
+ * One row per story beat, keyed to the beat's timecodes, with six readings per row. The
+ * flat whole-video reading this replaced averaged a hard-cut close-up hook and a slow
+ * screen-recording payoff into one description that fit neither.
  *
  * The pass runs out of process: watch.py samples frames, a Claude Code subprocess limited
  * to Read looks at them, and the result is written through the validator that rejects a
@@ -116,16 +130,14 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
     }
   }
 
-  const layout = analysis?.layout ?? null;
+  const stored = analysis?.layout ?? null;
+  // Null here means either no pass has run or the stored row is the old flat shape.
+  // A flat reading carries no beat timecodes, so it cannot be shown in a per-beat table
+  // and nothing translates one into beat rows; those videos get the re-run prompt.
+  const beats = asBeatLayout(stored);
+  const isLegacyFlat = stored !== null && beats === null;
   const everRun = analysis?.framePassAt !== null && analysis?.framePassAt !== undefined;
-  const failed = everRun && layout === null && !!analysis?.framePassError;
-
-  const rows: { key: string; label: string; value: string | null }[] = [
-    { key: "onScreenText", label: "On-screen text", value: fieldValue(layout?.onScreenText) },
-    { key: "textPosition", label: "Text position", value: fieldValue(layout?.textPosition) },
-    { key: "cutRhythm", label: "Cut rhythm", value: fieldValue(layout?.cutRhythm) },
-    { key: "framing", label: "Framing", value: fieldValue(layout?.framing) },
-  ];
+  const failed = everRun && stored === null && !!analysis?.framePassError;
 
   return (
     // No top margin: this is the whole of its own tab now, not a section trailing the
@@ -135,24 +147,65 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
         Layout
       </span>
 
-      <div className="mt-6 flex flex-col gap-5">
-        {rows.map((row) => (
-          <div key={row.key} className="grid grid-cols-[172px_minmax(0,1fr)] items-baseline gap-6">
-            <span data-lab className="font-mono text-2xs text-faint">
-              {row.label}
-            </span>
-            <span className={row.value !== null ? "text-sm text-foreground" : "text-sm text-faint"}>
-              {row.value ?? "—"}
-            </span>
-          </div>
-        ))}
-      </div>
+      {beats !== null && (
+        // Scrolls inside its own container: six reading columns plus the beat key is wider
+        // than the detail pane, and the page body must not scroll sideways.
+        <div className="mt-6 overflow-x-auto">
+          <table className="w-full min-w-[880px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-border">
+                <th data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">Beat</th>
+                {BEAT_LAYOUT_FIELDS.map((key) => (
+                  <th key={key} data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">
+                    {FIELD_LABELS[key]}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {beats.map((beat, i) => (
+                <tr key={i} className="border-b border-border last:border-b-0 align-top">
+                  <td className="py-3 pr-6">
+                    <div className="text-sm font-semibold text-foreground">{beat.label}</div>
+                    <div data-num className="font-mono text-2xs text-faint">
+                      {formatDuration(beat.startSec)}–{formatDuration(beat.endSec)}
+                    </div>
+                  </td>
+                  {BEAT_LAYOUT_FIELDS.map((key) => {
+                    const value = fieldValue(beat[key]);
+                    return (
+                      <td
+                        key={key}
+                        className={value !== null ? "py-3 pr-6 text-sm text-foreground" : "py-3 pr-6 text-sm text-faint"}
+                      >
+                        {value ?? "—"}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <p className="mt-5 max-w-[56ch] text-sm text-muted-foreground">
-        {layout !== null ? (
+        {beats !== null ? (
           <>
             Read from <span data-num>{analysis?.framesSampled ?? "—"}</span> sampled frames
-            {analysis?.frameModel ? ` via ${analysis.frameModel}` : ""}.
+            {analysis?.frameModel ? ` via ${analysis.frameModel}` : ""}, one row per story beat.
+          </>
+        ) : isLegacyFlat ? (
+          <>
+            This video&rsquo;s layout was read before the reading went per beat, so it is one
+            flat description with no beat timecodes to hang it on. Re-run the frame pass to
+            get the per-beat table. Nothing is translated across; the old reading is not
+            reshaped into beats it never described.
+          </>
+        ) : lastCode === "FRAME_NO_BEATS" ? (
+          <>
+            The layout is read per story beat, and this video has no beats yet. Analyze it
+            on the Hook &amp; structure tab first, then run the frame pass.
           </>
         ) : lastCode === "FRAME_NO_VIDEO_ASSET" ? (
           // Checked before `failed` because `analysis` is the server render's copy: right
@@ -163,15 +216,15 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
           <>Last frame pass didn&rsquo;t produce a reading: {analysis?.framePassError}.</>
         ) : (
           <>
-            No frame pass has run for this video yet. Running one samples frames and reads
-            on-screen text, its position, cut rhythm, and framing from them. Nothing above
-            is a guess standing in for a reading.
+            No frame pass has run for this video yet. Running one samples frames and reads,
+            for each story beat, its on-screen text, animation, demo cursor, tool demo, text
+            position, and voice pace. Nothing above is a guess standing in for a reading.
           </>
         )}
       </p>
 
       {(() => {
-        const cta = framePassCta({ hasLayout: layout !== null, lastCode });
+        const cta = framePassCta({ hasLayout: beats !== null, lastCode });
         return (
           <Button
             variant="outline"

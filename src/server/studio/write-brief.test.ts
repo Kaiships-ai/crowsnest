@@ -62,17 +62,26 @@ function fakeVideo(overrides: Partial<VideoDetail> = {}): VideoDetail {
     transcript: { text: "Hey, here are three mistakes...", source: "whisper" },
     analysis: {
       hookType: "curiosity-gap",
-      structureSegments: [],
+      structureSegments: [
+        { label: "Hook", startSec: 0, endSec: 3, note: "opens on a warning", transcript: "Hey, here are three mistakes" },
+      ],
       formatTags: [],
       styleTags: [],
       whyItWorked: "strong hook",
       summary: null,
-      layout: {
-        onScreenText: { value: "3 MISTAKES", fromFramesSec: [0.5, 1.2] },
-        textPosition: { value: "upper third", fromFramesSec: [0.5] },
-        cutRhythm: { value: "fast cuts", fromFramesSec: [1, 2, 3] },
-        framing: { value: "close-up", fromFramesSec: [0.5] },
-      },
+      layout: [
+        {
+          startSec: 0,
+          endSec: 3,
+          label: "Hook",
+          onScreenText: { value: "3 MISTAKES", fromFramesSec: [0.5, 1.2] },
+          animation: { value: "hard shake", fromFramesSec: [1.2] },
+          demoCursor: { value: null, fromFramesSec: [] },
+          toolDemo: { value: null, fromFramesSec: [] },
+          textPosition: { value: "upper third", fromFramesSec: [0.5] },
+          voicePace: { value: "fast cuts", fromFramesSec: [1, 2, 3] },
+        },
+      ],
       framesSampled: 12,
       frameModel: "claude-code/watch",
       framePassAt: "2026-08-01T01:00:00.000Z",
@@ -122,7 +131,7 @@ describe("writeBrief", () => {
     expect(content).toContain("3 MISTAKES");
     expect(content).toContain("upper third");
     expect(content).toContain("fast cuts");
-    expect(content).toContain("close-up");
+    expect(content).toContain("### Hook (0s to 3s)"); // one block per beat, keyed to the beat window
   });
 
   it("writes '(no source video)' rather than fabricating a source section when the plan has no video", async () => {

@@ -1,55 +1,91 @@
-import { VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
 import type { SampledFrame } from "./watch-frames";
 
 export class LayoutParseError extends Error {}
 
-const LAYOUT_KEYS = ["onScreenText", "textPosition", "cutRhythm", "framing"] as const;
+/** The beat window the layout rows are keyed to. Structurally the subset of the
+ *  analysis's `structureSegments` this prompt needs. */
+export interface LayoutBeat {
+  label: string;
+  startSec: number;
+  endSec: number;
+}
 
 /**
  * The prompt handed to the read-only Claude subprocess.
  *
- * The "2 to 5 representative" citation rule is load-bearing and came from a failed pass,
- * not from taste. Left to choose, the model cited every sampled frame in all four fields;
- * on a 27 frame video that repetition ran long enough that the JSON came back truncated
- * mid-array and the pass failed outright. The short citation is also the more honest one,
- * since a field claiming all 27 frames as its source is not really citing anything.
+ * The short-citation rule is load-bearing and came from a failed pass, not from taste.
+ * Left to choose, the model cited every sampled frame in every field; on a 27 frame video
+ * that repetition ran long enough that the JSON came back truncated mid-array and the
+ * pass failed outright. Going per beat multiplies the number of fields, so the cap is
+ * tighter here than the flat pass's 2 to 5: a beat spans a handful of frames, and 1 or 2
+ * of them is a real citation. A field claiming every frame is not citing anything.
+ *
+ * Beats come from the analysis, never from this pass. A frame reader inventing its own
+ * beat boundaries would produce a layout that lines up with nothing.
  */
-export function buildLayoutPrompt(frames: SampledFrame[]): string {
+export function buildLayoutPrompt(frames: SampledFrame[], beats: LayoutBeat[]): string {
   const list = frames.map((f) => `${f.path} at t=${f.timestampSeconds}s`).join("\n");
+  const beatList = beats
+    .map((b, i) => `${i + 1}. "${b.label}" covering t=${b.startSec}s to t=${b.endSec}s`)
+    .join("\n");
+  const example = JSON.stringify(
+    beats.map((b) => ({
+      startSec: b.startSec,
+      endSec: b.endSec,
+      label: b.label,
+      ...Object.fromEntries(BEAT_LAYOUT_FIELDS.map((k) => [k, { value: null, fromFramesSec: [] }])),
+    }))
+  );
+
   return `You are reading ${frames.length} still frames sampled from one vertical short-form video.
 
 ${list}
 
 Read EVERY frame listed above.
 
-Then report the video's LAYOUT as JSON only. No prose, no markdown fence.
+This video has already been broken into ${beats.length} story beats:
 
-Fields:
-  onScreenText - what the burned-in caption text says. Summarise if it changes across the video.
-  textPosition - where that text sits in frame, e.g. "centered, upper third".
-  cutRhythm    - how often the shot cuts, e.g. "hard cut about every 2s".
-  framing      - shot type, e.g. "close-up talking head", "split screen, screen recording above".
+${beatList}
+
+Report the video's LAYOUT as JSON only: one object per beat, in the order listed, as a
+single JSON array. No prose, no markdown fence.
+
+Each beat object carries startSec, endSec and label copied EXACTLY from the beat list
+above, plus these six readings:
+  onScreenText - what the burned-in caption says during this beat.
+  animation    - motion applied to the frame or its contents, e.g. "slow push in", "hard shake on the cut", "none".
+  demoCursor   - whether a mouse cursor is visible and what it is doing, e.g. "cursor dragging a slider".
+  toolDemo     - which app or tool is on screen during this beat, e.g. "VS Code", "none, talking head".
+  textPosition - where the caption sits in frame, e.g. "centered, upper third".
+  voicePace    - how fast the delivery reads FROM THE FRAMES, e.g. "rapid, subtitle changes every frame".
 
 Rules that matter more than completeness:
-- fromFramesSec cites 2 to 5 REPRESENTATIVE timestamps in seconds that best evidence that value. Do NOT list every frame.
-- If you cannot read a field from the frames, set value to null and fromFramesSec to [].
+- Read each beat only from the frames whose timestamp falls inside that beat's window. A frame outside the window is evidence about a different beat.
+- fromFramesSec cites 1 to 2 REPRESENTATIVE timestamps in seconds from inside that beat's window. Do NOT list every frame.
+- If a beat's window contains no sampled frame, set all six values to null and every fromFramesSec to [].
+- If you cannot read a field from that beat's frames, set value to null and fromFramesSec to [].
 - Never state a value you did not see. A value with no backing frame is rejected on write.
 
-Output exactly this shape:
-{"onScreenText":{"value":null,"fromFramesSec":[]},"textPosition":{"value":null,"fromFramesSec":[]},"cutRhythm":{"value":null,"fromFramesSec":[]},"framing":{"value":null,"fromFramesSec":[]}}`;
+Output exactly this shape, with your readings filled in:
+${example}`;
 }
 
 /**
- * Find every substring of `s` that is a balanced `{...}` span, starting the scan from
- * each `{` in turn. String-aware: a brace inside a quoted JSON string value (and a
- * quote escaped with a backslash inside that string) does not affect brace depth, so
- * a value like "use {curly} braces" does not corrupt the match boundary. A span with
- * no matching close (depth never returns to 0) yields nothing for that start index.
+ * Find every substring of `s` that is a balanced `open...close` span, starting the scan
+ * from each `open` in turn. String-aware: a bracket inside a quoted JSON string value
+ * (and a quote escaped with a backslash inside that string) does not affect depth, so a
+ * value like "use [square] brackets" does not corrupt the match boundary. A span with no
+ * matching close (depth never returns to 0) yields nothing for that start index.
+ *
+ * Nested braces inside an array span do not need their own tracking: they are balanced
+ * by construction in any JSON the scan would accept, and an unbalanced one just makes
+ * `JSON.parse` reject that candidate.
  */
-function balancedBraceCandidates(s: string): string[] {
+function balancedCandidates(s: string, open: string, close: string): string[] {
   const candidates: string[] = [];
   for (let i = 0; i < s.length; i++) {
-    if (s[i] !== "{") continue;
+    if (s[i] !== open) continue;
 
     let depth = 0;
     let inString = false;
@@ -69,9 +105,9 @@ function balancedBraceCandidates(s: string): string[] {
       }
       if (ch === '"') {
         inString = true;
-      } else if (ch === "{") {
+      } else if (ch === open) {
         depth++;
-      } else if (ch === "}") {
+      } else if (ch === close) {
         depth--;
         if (depth === 0) {
           end = j;
@@ -104,7 +140,10 @@ function balancedBraceCandidates(s: string): string[] {
 export function parseLayoutResult(text: string): VideoLayout {
   const stripped = text.replace(/```(?:json)?/g, "").trim();
 
-  for (const candidate of balancedBraceCandidates(stripped)) {
+  // Square brackets now, because the layout is an array of beat rows. An empty array is
+  // not a layout (it would mean "the pass read no beats at all", which is a failure, not
+  // a reading), so the length check keeps `[]` from parsing as a success.
+  for (const candidate of balancedCandidates(stripped, "[", "]")) {
     let raw: unknown;
     try {
       raw = JSON.parse(candidate);
@@ -113,11 +152,13 @@ export function parseLayoutResult(text: string): VideoLayout {
     }
 
     const parsed = VideoLayoutSchema.safeParse(raw);
-    if (!parsed.success) continue;
+    if (!parsed.success || parsed.data.length === 0) continue;
 
     const layout = parsed.data;
-    for (const key of LAYOUT_KEYS) {
-      layout[key].fromFramesSec = [...new Set(layout[key].fromFramesSec)].sort((a, b) => a - b);
+    for (const beat of layout) {
+      for (const key of BEAT_LAYOUT_FIELDS) {
+        beat[key].fromFramesSec = [...new Set(beat[key].fromFramesSec)].sort((a, b) => a - b);
+      }
     }
     return layout;
   }

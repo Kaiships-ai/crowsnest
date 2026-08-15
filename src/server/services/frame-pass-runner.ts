@@ -7,7 +7,7 @@ import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { extractFrames as realExtractFrames, type SampledFrame } from "./watch-frames";
 import { runClaudeTask as realRunClaudeTask, type ClaudeTaskResult } from "./claude-task";
-import { buildLayoutPrompt, parseLayoutResult, LayoutParseError } from "./frame-pass-prompt";
+import { buildLayoutPrompt, parseLayoutResult, LayoutParseError, type LayoutBeat } from "./frame-pass-prompt";
 import { persistFramePass, recordFramePassFailure, resolveVideoFile } from "./frame-pass";
 
 /**
@@ -112,6 +112,17 @@ function isUniqueViolation(err: unknown): boolean {
   return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
 }
 
+/** The beat windows this video's layout will be keyed to, straight off the analysis row.
+ *  Empty when no text analysis has run (or it returned no beats). */
+async function loadBeats(videoId: string): Promise<LayoutBeat[]> {
+  const [row] = await db
+    .select({ structureSegments: tables.videoAnalyses.structureSegments })
+    .from(tables.videoAnalyses)
+    .where(eq(tables.videoAnalyses.videoId, videoId))
+    .limit(1);
+  return (row?.structureSegments ?? []).map((s) => ({ label: s.label, startSec: s.startSec, endSec: s.endSec }));
+}
+
 export async function runFramePass(videoId: string, deps: Partial<FramePassDeps> = {}): Promise<FramePassRunResult> {
   // Declared before `ask` so the closure below can read it. It is null here and assigned
   // the temp frame dir long before `ask` is ever called, so the call sees the real dir.
@@ -148,6 +159,20 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
       return await fail(jobId, videoId, "FRAME_NO_VIDEO_ASSET", resolved.reason);
     }
 
+    // The layout is keyed to the analysis's beats, so a video with no beats has nothing
+    // to key it to. Refusing here is the honest outcome: the alternative is letting the
+    // frame reader invent its own beat boundaries, which would produce a layout that
+    // lines up with nothing the Hook and structure tab shows.
+    const beats = await loadBeats(videoId);
+    if (beats.length === 0) {
+      return await fail(
+        jobId,
+        videoId,
+        "FRAME_NO_BEATS",
+        "This video has no story beats yet. Analyze it first; the layout is read per beat and needs the beat timecodes."
+      );
+    }
+
     workDir = mkdtempSync(path.join(tmpdir(), "crowsnest-frames-"));
 
     let frames: SampledFrame[];
@@ -164,7 +189,7 @@ export async function runFramePass(videoId: string, deps: Partial<FramePassDeps>
     try {
       // The read is the long part of a pass, tens of seconds. The heartbeat ticks under it
       // so the reaper cannot mistake a slow-but-alive pass for a crashed one.
-      result = await withHeartbeat(jobId, () => ask(buildLayoutPrompt(frames)));
+      result = await withHeartbeat(jobId, () => ask(buildLayoutPrompt(frames, beats)));
     } catch (err) {
       return await fail(jobId, videoId, "FRAME_MODEL_FAILED", (err as Error).message);
     }

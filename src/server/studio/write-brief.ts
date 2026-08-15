@@ -1,10 +1,19 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getStudioBrief } from "@/server/queries/studio";
-import type { VideoLayoutField } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
 
 /** "value (t=1.2s, 3.4s)" for a reading, or a dash for "the pass ran and could not
  *  tell" -- same distinction LayoutField in studio-screen.tsx renders, just as text. */
+const LAYOUT_FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> = {
+  onScreenText: "On-screen text",
+  animation: "Animation",
+  demoCursor: "Demo cursor",
+  toolDemo: "Tool demo",
+  textPosition: "Text position",
+  voicePace: "Voice pace",
+};
+
 function formatLayoutField(field: VideoLayoutField): string {
   if (field.value === null) return "—";
   if (field.fromFramesSec.length === 0) return field.value;
@@ -74,16 +83,22 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
   lines.push("");
 
   lines.push("## Frame-pass layout");
-  const layout = video?.analysis?.layout ?? null;
-  if (layout) {
-    lines.push(`- On-screen text: ${formatLayoutField(layout.onScreenText)}`);
-    lines.push(`- Text position: ${formatLayoutField(layout.textPosition)}`);
-    lines.push(`- Cut rhythm: ${formatLayoutField(layout.cutRhythm)}`);
-    lines.push(`- Framing: ${formatLayoutField(layout.framing)}`);
+  // One block per story beat. `asBeatLayout` returns null for a row written before the
+  // layout went per beat: that flat reading has no beat timecodes, so it is reported as
+  // absent rather than pinned onto beats it never described.
+  const beats = asBeatLayout(video?.analysis?.layout);
+  if (beats) {
+    for (const beat of beats) {
+      lines.push(`### ${beat.label} (${beat.startSec}s to ${beat.endSec}s)`);
+      for (const key of BEAT_LAYOUT_FIELDS) {
+        lines.push(`- ${LAYOUT_FIELD_LABELS[key]}: ${formatLayoutField(beat[key])}`);
+      }
+      lines.push("");
+    }
   } else {
     lines.push("(frame pass not run)");
+    lines.push("");
   }
-  lines.push("");
 
   await mkdir(dir, { recursive: true });
   await writeFile(path.join(dir, "brief.md"), lines.join("\n"), "utf8");

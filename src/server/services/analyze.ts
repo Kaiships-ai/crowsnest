@@ -5,7 +5,7 @@ import {
   VideoAnalysisSchema,
   type StoredAnalysisFields,
   type VideoAnalysis,
-  type VideoLayout,
+  type StoredVideoLayout,
 } from "@/server/llm/schemas";
 import { getOrCreateTranscript } from "@/server/transcribe";
 import { ANALYZE_SYSTEM, buildAnalyzeUser } from "./prompts/analyze-prompt";
@@ -24,7 +24,7 @@ type TranscribeFn = (videoId: string) => Promise<{ text: string; source: string;
 export interface StoredVideoAnalysis extends StoredAnalysisFields {
   /** Null until a frame pass has run. Never partially fabricated from the transcript —
    *  see the doc comment on `videoAnalyses.layout` in schema.ts. */
-  layout: VideoLayout | null;
+  layout: StoredVideoLayout | null;
   framesSampled: number | null;
   frameModel: string | null;
   framePassAt: string | null;

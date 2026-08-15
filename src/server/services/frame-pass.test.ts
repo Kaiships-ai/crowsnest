@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import type { VideoLayout } from "@/server/llm/schemas";
+import type { BeatLayout, VideoLayout } from "@/server/llm/schemas";
 
 // Test-DB pattern (phase-1 final-review M7): env must be set in beforeAll BEFORE any
 // dynamic import of "@/server/db", mirrored across the other service tests.
@@ -13,6 +13,7 @@ let persistFramePass: typeof import("./frame-pass")["persistFramePass"];
 let recordFramePassFailure: typeof import("./frame-pass")["recordFramePassFailure"];
 let FramePassValidationError: typeof import("./frame-pass")["FramePassValidationError"];
 let FramePassNoVideoError: typeof import("./frame-pass")["FramePassNoVideoError"];
+let asBeatLayout: typeof import("@/server/llm/schemas")["asBeatLayout"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -21,20 +22,32 @@ beforeAll(async () => {
   ({ persistFramePass, recordFramePassFailure, FramePassValidationError, FramePassNoVideoError } = await import(
     "./frame-pass"
   ));
+  ({ asBeatLayout } = await import("@/server/llm/schemas"));
 });
 
 function field(value: string | null, frames: number[]) {
   return { value, fromFramesSec: frames };
 }
 
-function layout(over: Partial<VideoLayout> = {}): VideoLayout {
+function beat(over: Partial<BeatLayout> = {}): BeatLayout {
   return {
+    startSec: 0,
+    endSec: 3,
+    label: "Hook",
     onScreenText: field("3 MISTAKES", [0.5, 1.2]),
+    animation: field("hard shake on the cut", [1.2]),
+    demoCursor: field(null, []),
+    toolDemo: field(null, []),
     textPosition: field("centered, upper third", [0.5]),
-    cutRhythm: field("hard cut every 2s", [2, 4, 6]),
-    framing: field("close-up talking head", [0]),
+    voicePace: field("rapid", [0.5, 1.2]),
     ...over,
   };
+}
+
+/** Two beat rows, the first one overridable. Two rather than one so a test can tell a
+ *  per-row guard from a guard that only ever looks at the head of the array. */
+function layout(over: Partial<BeatLayout> = {}): VideoLayout {
+  return [beat(over), beat({ startSec: 3, endSec: 9, label: "Payoff" })];
 }
 
 async function seedVideo(): Promise<string> {
@@ -62,7 +75,8 @@ describe("persistFramePass", () => {
 
     const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
     expect(row.hookType).toBeNull();
-    expect(row.layout?.onScreenText.value).toBe("3 MISTAKES");
+    expect(asBeatLayout(row.layout)?.[0].onScreenText.value).toBe("3 MISTAKES");
+    expect(asBeatLayout(row.layout)).toHaveLength(2);
     expect(row.framesSampled).toBe(12);
     expect(row.frameModel).toBe("claude-code/watch");
     expect(row.framePassAt).not.toBeNull();
@@ -78,7 +92,7 @@ describe("persistFramePass", () => {
     const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
     expect(row.hookType).toBe("curiosity-gap");
     expect(row.model).toBe("claude-sonnet-5");
-    expect(row.layout?.framing.value).toBe("close-up talking head");
+    expect(asBeatLayout(row.layout)?.[1].label).toBe("Payoff");
   });
 
   test("rejects a field that has a value but names no source frames (anti-fabrication)", async () => {
@@ -93,10 +107,10 @@ describe("persistFramePass", () => {
 
   test("allows a null-value field with no frames (the pass ran, could not read this one)", async () => {
     const videoId = await seedVideo();
-    const partial = layout({ framing: field(null, []) });
+    const partial = layout({ onScreenText: field(null, []) });
     await persistFramePass({ videoId, layout: partial, framesSampled: 6, frameModel: "claude-code/watch" });
     const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
-    expect(row.layout?.framing.value).toBeNull();
+    expect(asBeatLayout(row.layout)?.[0].onScreenText.value).toBeNull();
   });
 
   test("rejects a field value longer than the cap", async () => {
@@ -121,6 +135,43 @@ describe("persistFramePass", () => {
     await expect(persistFramePass({ videoId, layout: layout(), framesSampled: 4, frameModel: "  " })).rejects.toBeInstanceOf(
       FramePassValidationError
     );
+  });
+
+  test("the anti-fabrication guard reaches beat rows past the first, not just the head of the array", async () => {
+    const videoId = await seedVideo();
+    const bad = [beat(), beat({ startSec: 3, endSec: 9, label: "Payoff", toolDemo: field("Figma", []) })];
+    await expect(
+      persistFramePass({ videoId, layout: bad, framesSampled: 5, frameModel: "claude-code/watch" })
+    ).rejects.toBeInstanceOf(FramePassValidationError);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+    expect(row).toBeUndefined();
+  });
+
+  test("rejects an empty layout array (a pass that read no beats failed, it did not read nothing)", async () => {
+    const videoId = await seedVideo();
+    await expect(
+      persistFramePass({ videoId, layout: [], framesSampled: 5, frameModel: "claude-code/watch" })
+    ).rejects.toBeInstanceOf(FramePassValidationError);
+  });
+
+  test("rejects a beat whose window runs backwards", async () => {
+    const videoId = await seedVideo();
+    const bad = [beat({ startSec: 9, endSec: 3 })];
+    await expect(
+      persistFramePass({ videoId, layout: bad, framesSampled: 5, frameModel: "claude-code/watch" })
+    ).rejects.toBeInstanceOf(FramePassValidationError);
+  });
+
+  test("a per-beat layout round-trips through the json column with its beat keys intact", async () => {
+    const videoId = await seedVideo();
+    await persistFramePass({ videoId, layout: layout(), framesSampled: 9, frameModel: "claude-code/watch" });
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+    const beats = asBeatLayout(row.layout);
+    expect(beats?.map((b) => [b.label, b.startSec, b.endSec])).toEqual([
+      ["Hook", 0, 3],
+      ["Payoff", 3, 9],
+    ]);
+    expect(beats?.[0].voicePace.fromFramesSec).toEqual([0.5, 1.2]);
   });
 
   test("throws when the video does not exist", async () => {
@@ -148,7 +199,7 @@ describe("recordFramePassFailure", () => {
     await recordFramePassFailure(videoId, "ffmpeg exploded on the re-run");
 
     const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
-    expect(row.layout?.onScreenText.value).toBe("3 MISTAKES"); // still there
+    expect(asBeatLayout(row.layout)?.[0].onScreenText.value).toBe("3 MISTAKES"); // still there
     expect(row.framePassError).toBe("ffmpeg exploded on the re-run");
     expect(row.framePassAt).not.toBeNull();
   });

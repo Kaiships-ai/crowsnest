@@ -63,6 +63,8 @@ export async function analyzeVideoAction(videoId: string): Promise<ActionResult>
  *  action convention: the UI branches on `code`, not on `error`'s prose. */
 export type FramePassCode =
   | "FRAME_NO_VIDEO_ASSET"
+  /** No story beats to key the per-beat layout to. Fixed by analyzing, not by re-running. */
+  | "FRAME_NO_BEATS"
   | "FRAME_DOWNLOAD_FAILED"
   | "FRAME_FFMPEG_MISSING"
   | "FRAME_EXTRACT_FAILED"

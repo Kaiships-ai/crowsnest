@@ -21,27 +21,41 @@ beforeAll(async () => {
   migrate();
 });
 
-const GOOD_JSON = JSON.stringify({
-  onScreenText: { value: "Claude", fromFramesSec: [0] },
-  textPosition: { value: "centered", fromFramesSec: [0] },
-  cutRhythm: { value: "every 2s", fromFramesSec: [0, 3] },
-  framing: { value: "talking head", fromFramesSec: [0] },
-});
+const GOOD_JSON = JSON.stringify([
+  {
+    startSec: 0,
+    endSec: 3,
+    label: "Hook",
+    onScreenText: { value: "Claude", fromFramesSec: [0] },
+    animation: { value: "slow push", fromFramesSec: [0] },
+    demoCursor: { value: null, fromFramesSec: [] },
+    toolDemo: { value: null, fromFramesSec: [] },
+    textPosition: { value: "centered", fromFramesSec: [0] },
+    voicePace: { value: "rapid", fromFramesSec: [0] },
+  },
+]);
 
 // Fix round 1: parses fine (schema does not enforce anti-fabrication, only
 // persistFramePass does) but persistFramePass must reject the "invented" field: it
 // carries a value while citing zero frames.
-const VALIDATION_REJECTED_JSON = JSON.stringify({
-  onScreenText: { value: "invented, never actually seen", fromFramesSec: [] },
-  textPosition: { value: null, fromFramesSec: [] },
-  cutRhythm: { value: null, fromFramesSec: [] },
-  framing: { value: null, fromFramesSec: [] },
-});
+const VALIDATION_REJECTED_JSON = JSON.stringify([
+  {
+    startSec: 0,
+    endSec: 3,
+    label: "Hook",
+    onScreenText: { value: "invented, never actually seen", fromFramesSec: [] },
+    animation: { value: null, fromFramesSec: [] },
+    demoCursor: { value: null, fromFramesSec: [] },
+    toolDemo: { value: null, fromFramesSec: [] },
+    textPosition: { value: null, fromFramesSec: [] },
+    voicePace: { value: null, fromFramesSec: [] },
+  },
+]);
 
 const FRAMES = [{ path: "/tmp/f/frame_0001.jpg", timestampSeconds: 0, reason: "first-frame" }];
 const OK_TASK = { text: GOOD_JSON, costUsd: null, turns: null, durationMs: null };
 
-async function seedVideoWithFile(): Promise<string> {
+async function seedVideoWithFile(opts: { withBeats?: boolean } = {}): Promise<string> {
   const channelId = newId();
   const videoId = newId();
   const assetId = newId();
@@ -62,6 +76,16 @@ async function seedVideoWithFile(): Promise<string> {
     id: videoId, channelId, platform: "instagram", externalId: `r-${videoId}`,
     url: "https://example.com/reel", postedAt: now, firstSeenAt: now, videoAssetId: assetId,
   });
+  // The layout is read per story beat, so a pass has nothing to key its rows to until
+  // the text analysis has produced beats. Every runner test that expects to get past the
+  // beat check seeds one.
+  if (opts.withBeats !== false) {
+    await db.insert(tables.videoAnalyses).values({
+      videoId,
+      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens cold", transcript: "watch this" }],
+      createdAt: now,
+    });
+  }
   return videoId;
 }
 
@@ -80,6 +104,19 @@ describe("runFramePass", () => {
     const [job] = await db.select().from(tables.framePassJobs).where(eq(tables.framePassJobs.id, out.jobId));
     expect(job.status).toBe("success");
     expect(job.finishedAt).not.toBeNull();
+  });
+
+  test("refuses a video with no story beats rather than letting the frame reader invent its own", async () => {
+    const videoId = await seedVideoWithFile({ withBeats: false });
+    const extractFrames = vi.fn(async () => FRAMES);
+    const out = await runFramePass(videoId, { extractFrames, runClaudeTask: async () => OK_TASK });
+
+    expect(out.ok).toBe(false);
+    expect(out.errorCode).toBe("FRAME_NO_BEATS");
+    expect(extractFrames).not.toHaveBeenCalled(); // refuses before spending an ffmpeg run
+    const [analysis] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(analysis.layout).toBeNull();
+    expect(analysis.framePassError).toContain("no story beats");
   });
 
   test("records a failure and closes the job when extraction dies", async () => {
