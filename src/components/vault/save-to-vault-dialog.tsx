@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
-import type { VideoAnalysis } from "@/server/llm/schemas";
+import type { StoredAnalysisFields } from "@/server/llm/schemas";
 
 type Choice = "hook" | "style" | "both";
 
@@ -33,7 +33,7 @@ function titleCaseSlug(slug: string): string {
 }
 
 /** DESIGN.md §2.4/§2.6: prefilled from the video's analysis, editable before save. */
-function suggestHook(analysis: VideoAnalysis) {
+function suggestHook(analysis: StoredAnalysisFields) {
   const firstNote = analysis.structureSegments[0]?.note;
   return {
     title: `${titleCaseSlug(analysis.hookType)} Hook`,
@@ -42,7 +42,7 @@ function suggestHook(analysis: VideoAnalysis) {
   };
 }
 
-function suggestStyle(analysis: VideoAnalysis) {
+function suggestStyle(analysis: StoredAnalysisFields) {
   const labels = analysis.structureSegments.map((segment) => segment.label);
   const summary = [labels.length > 0 ? labels.join(" → ") : null, analysis.styleTags.length > 0 ? analysis.styleTags.join(", ") : null]
     .filter(Boolean)
@@ -54,7 +54,7 @@ function suggestStyle(analysis: VideoAnalysis) {
   };
 }
 
-export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; analysis: VideoAnalysis }) {
+export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; analysis: StoredAnalysisFields }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [choice, setChoice] = useState<Choice>("hook");

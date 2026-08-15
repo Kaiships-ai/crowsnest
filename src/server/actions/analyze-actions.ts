@@ -28,6 +28,23 @@ function errorMessage(err: unknown): string {
   return llmErrorMessage(err);
 }
 
+/**
+ * Re-runs the text analysis over an already-analyzed video, replacing the stored
+ * hook/beats/tags/why. The reason it exists: beats gained a verbatim per-beat
+ * `transcript` and nothing backfills the rows written before that field, so without a
+ * way to ask for a fresh pass those videos would show the "(re-analyze …)" placeholder
+ * forever. The Layout columns are left alone (see getOrCreateAnalysis).
+ */
+export async function reanalyzeVideoAction(videoId: string): Promise<ActionResult> {
+  try {
+    const analysis = await getOrCreateAnalysis(videoId, { force: true });
+    if (!analysis) return { ok: false, error: "Video not found — try refreshing the page." };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function analyzeVideoAction(videoId: string): Promise<ActionResult> {
   try {
     const analysis = await getOrCreateAnalysis(videoId);

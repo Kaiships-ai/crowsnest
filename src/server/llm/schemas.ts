@@ -10,16 +10,45 @@ import { z } from "zod";
  * `z.object`s are the enforced contract).
  */
 
+/**
+ * One story beat. `note` is the model's one-sentence summary of the beat; `transcript`
+ * is the verbatim words spoken inside the beat window, copied out of the full transcript
+ * the analyze prompt already carries (spec decision D1, path b). The words are assigned
+ * to beats by the model rather than sliced against provider segment times, so the
+ * alignment is model-judged; the words themselves are quoted, never paraphrased.
+ */
+export const StructureSegmentSchema = z.object({
+  label: z.string(),
+  startSec: z.number(),
+  endSec: z.number(),
+  note: z.string(),
+  transcript: z.string(),
+});
+export type StructureSegment = z.infer<typeof StructureSegmentSchema>;
+
 export const VideoAnalysisSchema = z.object({
   hookType: z.string(), // e.g. "negative-warning", "curiosity-gap"
-  structureSegments: z.array(
-    z.object({ label: z.string(), startSec: z.number(), endSec: z.number(), note: z.string() })
-  ),
+  structureSegments: z.array(StructureSegmentSchema),
   formatTags: z.array(z.string()),
   styleTags: z.array(z.string()),
   whyItWorked: z.string(),
 });
 export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
+
+/**
+ * A beat as it comes back OUT of the database. Identical to `StructureSegment` except
+ * `transcript` may be absent: rows written before the per-beat transcript existed have
+ * only a `note`, and nothing backfills them — re-analyzing the video is what fills the
+ * field in. Readers render the missing case as a placeholder and never invent words.
+ * The write path stays strict (`VideoAnalysisSchema` requires `transcript`), so every
+ * new analysis has one.
+ */
+export type StoredStructureSegment = Omit<StructureSegment, "transcript"> & { transcript?: string };
+
+/** `VideoAnalysis` with the tolerant stored beat shape. See `StoredStructureSegment`. */
+export type StoredAnalysisFields = Omit<VideoAnalysis, "structureSegments"> & {
+  structureSegments: StoredStructureSegment[];
+};
 
 /**
  * The video detail screen's Layout section (V1 data contracts, contract 5). Read from

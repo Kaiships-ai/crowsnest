@@ -26,7 +26,15 @@ beforeAll(async () => {
 
 const FAKE_ANALYSIS = {
   hookType: "curiosity-gap",
-  structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens with a direct question" }],
+  structureSegments: [
+    {
+      label: "Hook",
+      startSec: 0,
+      endSec: 3,
+      note: "opens with a direct question",
+      transcript: "Here's the mistake almost everyone makes in their first month",
+    },
+  ],
   formatTags: ["talking-head"],
   styleTags: ["fast-cut"],
   whyItWorked: "The cold-open question plus fast cuts kept retention high through the payoff.",
@@ -134,5 +142,69 @@ describe("getOrCreateAnalysis", () => {
 
     const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
     expect(rows).toHaveLength(0); // failed generation must not leave a partial row
+  });
+
+  test("a beat's verbatim transcript survives the round trip through video_analyses", async () => {
+    const { videoId } = await seedVideo({ withTranscript: true });
+    await getOrCreateAnalysis(videoId, { llm: fakeLlm(vi.fn().mockResolvedValue(FAKE_ANALYSIS)) });
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.structureSegments?.[0].transcript).toBe(
+      "Here's the mistake almost everyone makes in their first month"
+    );
+  });
+
+  test("force re-analyzes an already-analyzed video and replaces the beats without touching the layout columns", async () => {
+    const { videoId } = await seedVideo({ withTranscript: true });
+    // A row from before the per-beat transcript existed, carrying a real frame pass.
+    await db.insert(tables.videoAnalyses).values({
+      videoId,
+      hookType: "stale-hook",
+      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "the old summary" }],
+      formatTags: [],
+      styleTags: [],
+      whyItWorked: "stale",
+      model: "claude-sonnet-5",
+      createdAt: nowIso(),
+      layout: {
+        onScreenText: { value: "SIGN UP", fromFramesSec: [1.5] },
+        textPosition: { value: "lower third", fromFramesSec: [1.5] },
+        cutRhythm: { value: "fast", fromFramesSec: [1.5, 4] },
+        framing: { value: "medium", fromFramesSec: [1.5] },
+      },
+      framesSampled: 8,
+      frameModel: "claude-frame-reader",
+    });
+
+    const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
+    await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), force: true });
+
+    expect(generateParsed).toHaveBeenCalledTimes(1); // force means the cache does not short-circuit
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.hookType).toBe("curiosity-gap");
+    expect(row.structureSegments?.[0].transcript).toBe(
+      "Here's the mistake almost everyone makes in their first month"
+    );
+    // The frame pass is a separate provenance; a text re-analysis must not clear it.
+    expect(row.framesSampled).toBe(8);
+    expect(row.frameModel).toBe("claude-frame-reader");
+    expect(row.layout).not.toBeNull();
+  });
+});
+
+describe("VideoAnalysisSchema", () => {
+  test("a structureSegment carrying a verbatim transcript validates", () => {
+    const parsed = VideoAnalysisSchema.parse(FAKE_ANALYSIS);
+    expect(parsed.structureSegments[0].transcript).toBe(
+      "Here's the mistake almost everyone makes in their first month"
+    );
+  });
+
+  test("a structureSegment with no transcript is rejected, so the write path can never store a beat with no words", () => {
+    const noTranscript = {
+      ...FAKE_ANALYSIS,
+      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens with a direct question" }],
+    };
+    expect(() => VideoAnalysisSchema.parse(noTranscript)).toThrow();
   });
 });

@@ -34,7 +34,7 @@ import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { SavePostButton } from "./save-post-button";
-import { analyzeVideoAction } from "@/server/actions/analyze-actions";
+import { analyzeVideoAction, reanalyzeVideoAction } from "@/server/actions/analyze-actions";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { generateIdeaAction } from "@/server/actions/idea-actions";
 import type { FeedItem } from "@/server/queries/feed";
@@ -138,6 +138,32 @@ function AnalysisGate({
   );
 }
 
+/** Asks for a fresh text pass over a video that already has one. Needed because beats
+ *  only carry a verbatim per-beat transcript from the analysis that produced them, and
+ *  older rows have none — this is the only way to fill them in. */
+function ReanalyzeButton({ videoId }: { videoId: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  async function rerun() {
+    setPending(true);
+    const result = await reanalyzeVideoAction(videoId);
+    setPending(false);
+    if (result.ok) {
+      toast.success("Re-analysis complete");
+      router.refresh();
+    } else {
+      toast.error(result.error);
+    }
+  }
+
+  return (
+    <Button variant="ghost" size="sm" onClick={rerun} disabled={pending}>
+      {pending ? "Re-analyzing…" : "Re-analyze"}
+    </Button>
+  );
+}
+
 /**
  * DESIGN.md §2.4: hook type + format/style tags, then the beat-by-beat structure
  * (Hook 0–3s / Build / Payoff / CTA). The Layout section used to hang off the end of
@@ -153,9 +179,11 @@ function AnalysisGate({
  */
 function HookStructureTab({
   analysis,
+  videoId,
   durationSec,
 }: {
   analysis: StoredVideoAnalysis;
+  videoId: string;
   durationSec: number | null;
 }) {
   return (
@@ -180,9 +208,12 @@ function HookStructureTab({
       </div>
 
       <div>
-        <span data-lab className="font-mono text-2xs text-faint">
-          Beats
-        </span>
+        <div className="flex items-baseline justify-between gap-4">
+          <span data-lab className="font-mono text-2xs text-faint">
+            Beats
+          </span>
+          <ReanalyzeButton videoId={videoId} />
+        </div>
         {analysis.structureSegments.length > 0 ? (
           <div className="mt-6 flex flex-col gap-6">
             {analysis.structureSegments.map((segment, i) => {
@@ -197,7 +228,29 @@ function HookStructureTab({
                   </span>
                   <div>
                     <span className="text-sm font-semibold">{segment.label}</span>
-                    <span className="text-sm text-muted-foreground">, {segment.note}</span>
+                    {/* Verbatim words for this beat, quoted out of the transcript by the
+                        analyze pass. Absent on rows analyzed before the field existed —
+                        those show the re-analyze hint rather than an invented quote. */}
+                    <div className="mt-3 border-l-2 border-border pl-3">
+                      <span data-lab className="font-mono text-2xs text-faint">
+                        transcript
+                      </span>
+                      {segment.transcript !== undefined ? (
+                        segment.transcript.trim().length > 0 ? (
+                          <p className="mt-1 text-sm whitespace-pre-wrap text-foreground">{segment.transcript}</p>
+                        ) : (
+                          <p className="mt-1 text-sm text-muted-foreground">(no words spoken in this beat)</p>
+                        )
+                      ) : (
+                        <p className="mt-1 text-sm text-muted-foreground">(re-analyze to capture the transcript per beat)</p>
+                      )}
+                    </div>
+                    <div className="mt-3">
+                      <span data-lab className="font-mono text-2xs text-faint">
+                        summary
+                      </span>
+                      <p className="mt-1 text-sm text-muted-foreground">{segment.note}</p>
+                    </div>
                     <div
                       className="mt-3 h-0.5 bg-line-strong"
                       style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
@@ -544,7 +597,7 @@ export function VideoDetail({
 
             <TabsContent value="hook" className="pt-4">
               {detail.analysis ? (
-                <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
+                <HookStructureTab analysis={detail.analysis} videoId={item.videoId} durationSec={item.durationSec} />
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
                   <AnalysisGate

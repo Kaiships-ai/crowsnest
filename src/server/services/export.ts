@@ -4,7 +4,7 @@ import { formatCompact, formatMultiplier } from "@/lib/format";
 import { rowToAnalysis } from "./analyze";
 import { getNicheProfile } from "./remix";
 import { getSimilarOutliers } from "./similar";
-import type { VideoAnalysis } from "@/server/llm/schemas";
+import type { StoredAnalysisFields } from "@/server/llm/schemas";
 
 /**
  * Copy-as-Prompt (Task 7, spec §8): one structured markdown block — topic framing,
@@ -32,13 +32,13 @@ function metricsSection(metrics: SourceMetrics): string {
   ].join("\n");
 }
 
-function hookSection(analysis: VideoAnalysis | null): string {
+function hookSection(analysis: StoredAnalysisFields | null): string {
   if (!analysis) return "Analysis pending — analyze this video first for a grounded hook strategy.";
   const firstBeat = analysis.structureSegments[0];
   return firstBeat ? `${analysis.hookType} — ${firstBeat.note}` : analysis.hookType;
 }
 
-function structureSection(analysis: VideoAnalysis | null): string {
+function structureSection(analysis: StoredAnalysisFields | null): string {
   if (!analysis) return "Analysis pending.";
   if (analysis.structureSegments.length === 0) return "No structure segments recorded.";
   return analysis.structureSegments
@@ -46,7 +46,7 @@ function structureSection(analysis: VideoAnalysis | null): string {
     .join("\n");
 }
 
-function styleSection(analysis: VideoAnalysis | null): string {
+function styleSection(analysis: StoredAnalysisFields | null): string {
   if (!analysis) return "Analysis pending.";
   const parts: string[] = [];
   if (analysis.formatTags.length > 0) parts.push(`Format: ${analysis.formatTags.join(", ")}`);
@@ -60,7 +60,7 @@ interface SimilarFact {
   outlierScore: number | null;
 }
 
-function researchSection(analysis: VideoAnalysis | null, similar: SimilarFact[]): string {
+function researchSection(analysis: StoredAnalysisFields | null, similar: SimilarFact[]): string {
   const lines: string[] = [];
   lines.push(analysis ? `Why it worked: ${analysis.whyItWorked}` : "Analysis pending.");
   if (similar.length > 0) {
@@ -171,7 +171,7 @@ export async function buildScriptPrompt(scriptId: string): Promise<string | null
     styleTags = v?.tags ?? [];
   }
 
-  let analysis: VideoAnalysis | null = null;
+  let analysis: StoredAnalysisFields | null = null;
   let sourceMetricsText = "No source video linked.";
   if (script.sourceVideoId) {
     const [video] = await db

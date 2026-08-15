@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { errorMessage } from "@/server/lib/action-result";
 import { getLlm, type LlmClient } from "@/server/llm/client";
-import { HookOptionsSchema, OutlineSchema, type Outline, type VideoAnalysis } from "@/server/llm/schemas";
+import { HookOptionsSchema, OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/llm/schemas";
 import { getSimilarOutliers } from "./similar";
 import { rowToAnalysis } from "./analyze";
 import { getPersona, type Persona } from "./persona";
@@ -18,7 +18,7 @@ export interface ResearchSimilarItem {
 }
 
 export interface ResearchNotes {
-  sourceAnalysis: VideoAnalysis | null;
+  sourceAnalysis: StoredAnalysisFields | null;
   transcriptExcerpt: string | null;
   similar: ResearchSimilarItem[];
   facts: string;
@@ -135,13 +135,13 @@ async function getVideoRow(videoId: string) {
   return row ?? null;
 }
 
-async function getAnalysis(videoId: string): Promise<VideoAnalysis | null> {
+async function getAnalysis(videoId: string): Promise<StoredAnalysisFields | null> {
   const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
   if (!row) return null;
   // Strips the Layout section's provenance columns (contract 5) back off: the prompt
   // builders below only ever read hookType/structureSegments/formatTags/styleTags/
   // whyItWorked, and `researchNotes.sourceAnalysis` is typed and persisted as plain
-  // `VideoAnalysis` — layout has no business riding along into a remix prompt or a
+  // `StoredAnalysisFields` — layout has no business riding along into a remix prompt or a
   // stored research note.
   const { hookType, structureSegments, formatTags, styleTags, whyItWorked } = rowToAnalysis(row);
   return { hookType, structureSegments, formatTags, styleTags, whyItWorked };
@@ -160,11 +160,11 @@ export async function getNicheProfile(): Promise<string> {
   return row?.value ?? "general short-form content";
 }
 
-function describeSourceHookPattern(analysis: VideoAnalysis | null): string {
+function describeSourceHookPattern(analysis: StoredAnalysisFields | null): string {
   return analysis?.hookType || "curiosity-gap";
 }
 
-function describeSourceStructure(analysis: VideoAnalysis | null): string {
+function describeSourceStructure(analysis: StoredAnalysisFields | null): string {
   if (!analysis || analysis.structureSegments.length === 0) {
     return "No source structure available — use a natural hook / build / payoff / CTA structure.";
   }

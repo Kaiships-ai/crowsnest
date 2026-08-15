@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
-import type { VideoLayout } from "../llm/schemas";
+import type { StoredStructureSegment, VideoLayout } from "../llm/schemas";
 
 /**
  * Every binary we serve ourselves. Instagram CDN URLs are signed and expire within
@@ -193,7 +193,10 @@ export const transcripts = sqliteTable("transcripts", {
 export const videoAnalyses = sqliteTable("video_analyses", {
   videoId: text("video_id").primaryKey().references(() => videos.id, { onDelete: "cascade" }),
   hookType: text("hook_type"),
-  structureSegments: text("structure_segments", { mode: "json" }).$type<{ label: string; startSec: number; endSec: number; note: string }[]>(),
+  /** `transcript` is optional on read only: rows written before the per-beat transcript
+   *  landed carry a `note` and nothing else, and no migration invents words for them.
+   *  Every analysis written from now on has one (VideoAnalysisSchema requires it). */
+  structureSegments: text("structure_segments", { mode: "json" }).$type<StoredStructureSegment[]>(),
   formatTags: text("format_tags", { mode: "json" }).$type<string[]>(),
   styleTags: text("style_tags", { mode: "json" }).$type<string[]>(),
   whyItWorked: text("why_it_worked"),

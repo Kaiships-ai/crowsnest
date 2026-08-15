@@ -1,7 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
 import { getLlm, resolveModel, type LlmClient } from "@/server/llm/client";
-import { VideoAnalysisSchema, type VideoAnalysis, type VideoLayout } from "@/server/llm/schemas";
+import {
+  VideoAnalysisSchema,
+  type StoredAnalysisFields,
+  type VideoAnalysis,
+  type VideoLayout,
+} from "@/server/llm/schemas";
 import { getOrCreateTranscript } from "@/server/transcribe";
 import { ANALYZE_SYSTEM, buildAnalyzeUser } from "./prompts/analyze-prompt";
 
@@ -16,7 +21,7 @@ type TranscribeFn = (videoId: string) => Promise<{ text: string; source: string;
  * wants hook/structure/format/style/why (remix.ts's prompt building) still gets a valid
  * `VideoAnalysis` for free, since this type is a strict superset.
  */
-export interface StoredVideoAnalysis extends VideoAnalysis {
+export interface StoredVideoAnalysis extends StoredAnalysisFields {
   /** Null until a frame pass has run. Never partially fabricated from the transcript —
    *  see the doc comment on `videoAnalyses.layout` in schema.ts. */
   layout: VideoLayout | null;
@@ -65,14 +70,14 @@ export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): St
  */
 export async function getOrCreateAnalysis(
   videoId: string,
-  opts?: { llm?: LlmClient; transcribe?: TranscribeFn }
-): Promise<VideoAnalysis | null> {
+  opts?: { llm?: LlmClient; transcribe?: TranscribeFn; force?: boolean }
+): Promise<StoredAnalysisFields | null> {
   const [existing] = await db
     .select()
     .from(tables.videoAnalyses)
     .where(eq(tables.videoAnalyses.videoId, videoId))
     .limit(1);
-  if (existing) {
+  if (existing && !opts?.force) {
     // This function's own contract is plain `VideoAnalysis` (the text-model shape);
     // the Layout columns are a separate concern read by `getVideoDetail` directly via
     // `rowToAnalysis`, not by this cache-or-generate path. Stripped here rather than
@@ -104,16 +109,26 @@ export async function getOrCreateAnalysis(
     schema: VideoAnalysisSchema,
   });
 
-  await db.insert(tables.videoAnalyses).values({
-    videoId,
+  const textFields = {
     hookType: analysis.hookType,
     structureSegments: analysis.structureSegments,
     formatTags: analysis.formatTags,
     styleTags: analysis.styleTags,
     whyItWorked: analysis.whyItWorked,
     model: resolveModel(),
-    createdAt: nowIso(),
-  });
+  };
+
+  if (existing) {
+    // A forced re-analysis updates the TEXT-model columns only. The Layout columns
+    // (layout / framesSampled / frameModel / framePassAt / framePassError) belong to a
+    // separate frame pass with its own provenance, and a re-analysis has seen no
+    // frames — wiping them here would throw away a real reading, and copying them
+    // forward under a new `model` would misattribute it. `createdAt` also stays: it
+    // records when this video was first analyzed, which is still true.
+    await db.update(tables.videoAnalyses).set(textFields).where(eq(tables.videoAnalyses.videoId, videoId));
+  } else {
+    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, createdAt: nowIso() });
+  }
 
   return analysis;
 }
