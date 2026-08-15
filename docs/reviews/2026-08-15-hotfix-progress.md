@@ -216,4 +216,46 @@ Verification:
 - `npx vitest run src/server/services/export.test.ts`: 13 passed.
 - Whole `src/` suite: 1509 passed, 1 failed (the pre-existing outlier-calc median).
 
+Commit: 68d494f
+
+## Task 5: brief.md follows remixSessionId
+
+D3 as ruled: `writeBrief` follows the planned post's `remixSessionId` rather than adding
+hook and outline columns to the plan. The link column already existed and was already
+populated (stage-script's add-to-plan, and now finishRemix); nothing read it until now.
+
+Changed:
+
+- `queries/studio.ts`: `getStudioBrief` gains a `remix` field, `{ session, sourceAnalysis }`
+  or null. The analysis is loaded off the SESSION'S `sourceVideoId`, not reused from the
+  plan's `video`. In the normal flow those are the same row, but a plan can be hand
+  edited, and if they diverge the hook and beats must describe the video the remix was
+  actually built from rather than attributing one video's beats to another remix's hook.
+- `studio/write-brief.ts`: new `## Hook` and `## Beats` sections, emitted only when the
+  plan came from a remix. A hand-made plan gets neither heading: "## Hook" over "(none)"
+  would imply a hook was chosen and then lost.
+- The layout section is renamed `## Frame-pass layout` to `## Layout per beat` and now
+  prefers the remix's own source analysis, so it describes the same video as the Beats
+  section above it. Checked `plugins/ksa/commands/cooking.md` first: the cook reads the
+  brief generically and only looks up "video kind" by name, so the rename is safe.
+
+Beat transcripts print three ways and never invent: the quote, "(no words spoken in this
+beat)" for an empty string, "(not captured; re-analyze the source video)" when the field
+is absent.
+
+Tests: `studio.test.ts` gains the follow-the-link case (asserting it reads the session's
+own analysis) and the null case. `write-brief.test.ts` gains a remix-present case
+(hook, beat transcript, beat summary, layout row), a remix-absent case asserting neither
+heading appears, and a not-captured-transcript case.
+
+One thing worth knowing: the not-a-heading assertion is line-anchored, because the layout
+section's per-beat `### Hook (0s to 3s)` contains `## Hook` as a substring. A plain
+`not.toContain` there passes for the wrong reason.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run` on write-brief (10 passed) and studio queries (7 passed).
+- Whole `src/` suite: 1514 passed, 1 failed (the pre-existing outlier-calc median).
+
 Commit: (pending)

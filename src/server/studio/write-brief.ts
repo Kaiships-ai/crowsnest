@@ -42,10 +42,44 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
   if (!brief) {
     throw new Error(`writeBrief: no plan found for postId ${postId}`);
   }
-  const { plan, video } = brief;
+  const { plan, video, remix } = brief;
 
   const lines: string[] = [];
   lines.push(`# Cook brief: ${plan.title}`, "");
+
+  // The remix half. Present only when the plan came out of a remix session, because
+  // there is nothing to say otherwise and a "## Hook" heading over "(none)" on a
+  // hand-made plan would imply a hook was chosen and lost.
+  if (remix) {
+    lines.push("## Hook");
+    lines.push(remix.session.chosenHook ?? "(no hook chosen in the remix)");
+    lines.push("");
+
+    lines.push("## Beats");
+    const segments = remix.sourceAnalysis?.structureSegments ?? [];
+    if (segments.length === 0) {
+      lines.push("(the remixed video has no analyzed beats)");
+      lines.push("");
+    } else {
+      for (const segment of segments) {
+        lines.push(`### ${segment.label} (${segment.startSec}s to ${segment.endSec}s)`);
+        // Absent and empty are different facts and neither is filled in: a beat analyzed
+        // before the per-beat transcript existed has no words recorded, and a beat that
+        // covers silence genuinely has none.
+        lines.push(
+          `- Transcript: ${
+            segment.transcript === undefined
+              ? "(not captured; re-analyze the source video)"
+              : segment.transcript.trim() === ""
+                ? "(no words spoken in this beat)"
+                : segment.transcript
+          }`
+        );
+        lines.push(`- Summary: ${segment.note}`);
+        lines.push("");
+      }
+    }
+  }
 
   lines.push("## Source outlier");
   if (video) {
@@ -82,11 +116,15 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
   lines.push(plan.videoKind ?? "(not set)");
   lines.push("");
 
-  lines.push("## Frame-pass layout");
+  lines.push("## Layout per beat");
   // One block per story beat. `asBeatLayout` returns null for a row written before the
   // layout went per beat: that flat reading has no beat timecodes, so it is reported as
   // absent rather than pinned onto beats it never described.
-  const beats = asBeatLayout(video?.analysis?.layout);
+  //
+  // The remix's own source analysis wins when there is one, so the layout describes the
+  // same video as the Beats section above rather than drifting to the plan's video if a
+  // hand edit ever separated the two.
+  const beats = asBeatLayout(remix?.sourceAnalysis?.layout ?? video?.analysis?.layout);
   if (beats) {
     for (const beat of beats) {
       lines.push(`### ${beat.label} (${beat.startSec}s to ${beat.endSec}s)`);

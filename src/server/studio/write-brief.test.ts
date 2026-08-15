@@ -127,7 +127,7 @@ describe("writeBrief", () => {
     expect(content).toContain("45s");
     expect(content).toContain("## Video kind");
     expect(content).toContain("talking-head");
-    expect(content).toContain("## Frame-pass layout");
+    expect(content).toContain("## Layout per beat");
     expect(content).toContain("3 MISTAKES");
     expect(content).toContain("upper third");
     expect(content).toContain("fast cuts");
@@ -149,6 +149,98 @@ describe("writeBrief", () => {
     expect(content).not.toContain("@some_creator");
   });
 
+  it("carries the remix's chosen hook, per-beat transcript, and per-beat layout when the plan came from a remix", async () => {
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({ remixSessionId: "session-1" }),
+      video: fakeVideo(),
+      remix: {
+        session: {
+          id: "session-1",
+          sourceVideoId: "video-1",
+          stage: "finish",
+          topic: null,
+          niche: null,
+          targetLengthSec: null,
+          researchNotes: null,
+          hookOptions: null,
+          chosenHook: "Everyone is sleeping on this.",
+          styleVaultItemId: null,
+          outline: null,
+          variants: ["one"],
+          chosenVariantIndex: 0,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        },
+        sourceAnalysis: fakeVideo().analysis,
+      },
+    });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(content).toContain("## Hook");
+    expect(content).toContain("Everyone is sleeping on this.");
+    expect(content).toContain("## Beats");
+    expect(content).toContain("Hey, here are three mistakes"); // the beat's verbatim words
+    expect(content).toContain("opens on a warning"); // the beat's summary
+    expect(content).toContain("## Layout per beat");
+    expect(content).toContain("3 MISTAKES");
+  });
+
+  it("writes no Hook or Beats section at all for a plan that did not come from a remix", async () => {
+    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: fakeVideo(), remix: null });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    // A "## Hook" heading over "(none)" would imply a hook was chosen and then lost.
+    // Matched line-anchored, because the layout section's per-beat "### Hook (0s to 3s)"
+    // headings contain "## Hook" as a substring.
+    expect(content.split("\n")).not.toContain("## Hook");
+    expect(content.split("\n")).not.toContain("## Beats");
+  });
+
+  it("names a beat with no captured transcript instead of quoting words it does not have", async () => {
+    const analysis = fakeVideo().analysis;
+    getStudioBrief.mockResolvedValueOnce({
+      plan: fakePlan({ remixSessionId: "session-1" }),
+      video: fakeVideo(),
+      remix: {
+        session: {
+          id: "session-1",
+          sourceVideoId: "video-1",
+          stage: "finish",
+          topic: null,
+          niche: null,
+          targetLengthSec: null,
+          researchNotes: null,
+          hookOptions: null,
+          chosenHook: null,
+          styleVaultItemId: null,
+          outline: null,
+          variants: null,
+          chosenVariantIndex: null,
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-01T00:00:00.000Z",
+        },
+        sourceAnalysis: {
+          ...analysis,
+          // A row from before beats carried a transcript.
+          structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens on a warning" }],
+        },
+      },
+    });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const content = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(content).toContain("(not captured; re-analyze the source video)");
+    expect(content).toContain("(no hook chosen in the remix)");
+  });
+
   it("writes '(frame pass not run)' rather than fabricating a layout when the video has no analysis", async () => {
     getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: fakeVideo({ analysis: null }) });
     const { writeBrief } = await import("./write-brief");
@@ -157,7 +249,7 @@ describe("writeBrief", () => {
 
     const content = await readFile(path.join(dir, "brief.md"), "utf8");
 
-    expect(content).toContain("## Frame-pass layout");
+    expect(content).toContain("## Layout per beat");
     expect(content).toContain("(frame pass not run)");
   });
 

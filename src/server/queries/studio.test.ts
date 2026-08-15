@@ -29,6 +29,33 @@ beforeEach(async () => {
   await db.delete(tables.channels);
 });
 
+/** A remix session over `videoId`, with an analysis carrying one beat and its verbatim
+ *  transcript, so the brief has something real to follow the link to. */
+async function seedRemixSession(videoId: string): Promise<string> {
+  const sessionId = newId();
+  await db.insert(tables.videoAnalyses).values({
+    videoId,
+    hookType: "curiosity-gap",
+    structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens cold", transcript: "stop scrolling for a second" }],
+    formatTags: [],
+    styleTags: [],
+    whyItWorked: "cold open",
+    model: "claude-sonnet-5",
+    createdAt: nowIso(),
+  });
+  await db.insert(tables.remixSessions).values({
+    id: sessionId,
+    sourceVideoId: videoId,
+    stage: "finish",
+    chosenHook: "Everyone is sleeping on this.",
+    variants: ["one", "two"],
+    chosenVariantIndex: 1,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+  });
+  return sessionId;
+}
+
 async function seedScript(content = "HOOK: ...\nBUILD: ...\nCTA: ..."): Promise<string> {
   const id = newId();
   await db.insert(tables.scripts).values({ id, title: "A Script", content, status: "draft", createdAt: nowIso(), updatedAt: nowIso() });
@@ -108,5 +135,29 @@ describe("getStudioBrief", () => {
 
   test("returns null for an unknown id", async () => {
     expect(await getStudioBrief("does-not-exist")).toBeNull();
+  });
+
+  test("follows remixSessionId to the session and the analysis of the video that session remixed", async () => {
+    const channelId = await seedChannel();
+    const videoId = await seedVideo(channelId);
+    const sessionId = await seedRemixSession(videoId);
+    const id = newId();
+    await db.insert(tables.plannedPosts).values({
+      id, state: "draft", title: "From a remix", sourceVideoId: videoId, remixSessionId: sessionId,
+      createdAt: nowIso(), updatedAt: nowIso(),
+    });
+
+    const brief = await getStudioBrief(id);
+    expect(brief?.remix?.session.chosenHook).toBe("Everyone is sleeping on this.");
+    expect(brief?.remix?.session.chosenVariantIndex).toBe(1);
+    expect(brief?.remix?.sourceAnalysis?.structureSegments[0].transcript).toBe("stop scrolling for a second");
+  });
+
+  test("remix is null when the plan carries no remixSessionId", async () => {
+    const id = newId();
+    await db.insert(tables.plannedPosts).values({
+      id, state: "draft", title: "Hand made", createdAt: nowIso(), updatedAt: nowIso(),
+    });
+    expect((await getStudioBrief(id))?.remix).toBeNull();
   });
 });
