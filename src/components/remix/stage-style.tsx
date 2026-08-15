@@ -96,9 +96,20 @@ export function StageStyle({
 
   // 2026-08-15 spec part 7: names what fed the last/next outline generation, read
   // straight off session state already in this component — no server round trip.
+  // The structure-beats clause is gated on styleChoice: when a Vault style template is
+  // picked, generateOutline (remix.ts) uses that template's structure instead of
+  // describeSourceStructure, so the source no longer fed the structure (review
+  // finding: misattribution when a vault template is selected). whyItWorked stays
+  // unconditional — remix.ts passes it regardless of styleVaultItemId.
   const styleAnalysis = session.researchNotes?.sourceAnalysis;
+  const usingVaultStyle = styleChoice !== SOURCE_VALUE && styleChoice !== EMPTY_VALUE;
+  const vaultStyleTitle = usingVaultStyle ? vaultStyles.find((item) => item.id === styleChoice)?.title : undefined;
   const groundedInParts = [
-    styleAnalysis ? "source structure beats (note + transcript)" : null,
+    usingVaultStyle
+      ? `structure (Vault template${vaultStyleTitle ? `: ${vaultStyleTitle}` : ""})`
+      : styleAnalysis
+        ? "source structure beats (note + transcript)"
+        : null,
     styleAnalysis ? "why it worked" : null,
     session.chosenHook ? "chosen hook" : null,
     session.topic ? "your topic" : null,

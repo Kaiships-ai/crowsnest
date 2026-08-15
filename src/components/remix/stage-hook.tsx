@@ -104,11 +104,17 @@ export function StageHook({
 
   // 2026-08-15 spec part 7: names what actually fed the last/next hook generation,
   // read straight off session state already in this component — no server round trip.
+  // The hook-pattern clause is gated on vaultItemId: when a Vault hook template is
+  // picked, generateHooks (remix.ts) swaps the pattern to that template instead of
+  // describeSourceHookPattern, so the source no longer fed the pattern (review
+  // finding: misattribution when a vault template is selected).
   const hookAnalysis = session.researchNotes?.sourceAnalysis;
+  const usingVaultHook = vaultItemId !== NONE_VALUE && vaultItemId !== EMPTY_VALUE;
+  const vaultHookTitle = usingVaultHook ? vaultHooks.find((item) => item.id === vaultItemId)?.title : undefined;
   const groundedInParts = [
     hookAnalysis ? `why it worked` : null,
-    hookAnalysis ? `hook pattern (${hookAnalysis.hookType})` : null,
-    hookAnalysis?.structureSegments[0]?.transcript ? "opening beat transcript" : null,
+    usingVaultHook ? `hook pattern (Vault template${vaultHookTitle ? `: ${vaultHookTitle}` : ""})` : hookAnalysis ? `hook pattern (${hookAnalysis.hookType})` : null,
+    !usingVaultHook && hookAnalysis?.structureSegments[0]?.transcript ? "opening beat transcript" : null,
     session.topic ? "your topic" : null,
     session.niche ? "your niche" : null,
     session.researchNotes?.facts ? "your facts" : null,
