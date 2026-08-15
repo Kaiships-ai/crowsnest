@@ -328,6 +328,24 @@ describe("generateVariants", () => {
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
   });
 
+  test("appends a distinct angle line per call for the full set, and a single regenerate keeps its slot's own angle (spec part 5)", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    const generateText = vi.fn().mockResolvedValue("script");
+    const llm = fakeLlm({ generateText });
+
+    await generateVariants(session.id, { llm, count: 3 });
+
+    const fullSetUsers = (generateText as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0].user as string);
+    const angleLines = fullSetUsers.map((user) => user.match(/Angle: .+/)?.[0]);
+    expect(new Set(angleLines).size).toBe(3); // three distinct angle lines, not three identical prompts
+
+    generateText.mockClear();
+    await generateVariants(session.id, { llm, index: 1 });
+    const regenerateUser = (generateText as ReturnType<typeof vi.fn>).mock.calls[0][0].user as string;
+    expect(regenerateUser).toContain(angleLines[1]); // slot 1's regenerate keeps slot 1's own angle
+  });
+
   test("index option merges a single regenerated slot into existing variants[] (read-modify-write), leaving siblings untouched (review finding M2)", async () => {
     const { videoId } = await seedVideo();
     const session = await getOrCreateSession(videoId);

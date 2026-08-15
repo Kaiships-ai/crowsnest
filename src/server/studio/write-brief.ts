@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { getStudioBrief } from "@/server/queries/studio";
+import { getPersona } from "@/server/services/persona";
 import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
 
 const LAYOUT_FIELD_LABELS: Record<(typeof BEAT_LAYOUT_FIELDS)[number], string> = {
@@ -52,9 +53,25 @@ export async function writeBrief(dir: string, postId: string): Promise<void> {
     throw new Error(`writeBrief: no plan found for postId ${postId}`);
   }
   const { plan, video, remix } = brief;
+  // Called directly (persona.ts) rather than folded into getStudioBrief's query, per
+  // the spec: the query stays unchanged, and this reader already prefers direct calls
+  // (see the Layout-per-beat comment below) over reshaping what it's handed.
+  const persona = await getPersona();
 
   const lines: string[] = [];
   lines.push(`# Cook brief: ${plan.title}`, "");
+
+  // Same optional-line shape `withPersona` (remix.ts) uses for the generation prompts:
+  // each field is skipped when empty, and the whole section is skipped when nothing is
+  // set, rather than printing a "## Persona" heading over nothing to say.
+  const personaLines: string[] = [];
+  if (persona.audience) personaLines.push(`- Audience: ${persona.audience}`);
+  if (persona.voice) personaLines.push(`- Voice: ${persona.voice}`);
+  if (persona.do) personaLines.push(`- Do: ${persona.do}`);
+  if (persona.dont) personaLines.push(`- Don't: ${persona.dont}`);
+  if (personaLines.length > 0) {
+    lines.push("## Persona", ...personaLines, "");
+  }
 
   // The remix half. Present only when the plan came out of a remix session, because
   // there is nothing to say otherwise and a "## Hook" heading over "(none)" on a

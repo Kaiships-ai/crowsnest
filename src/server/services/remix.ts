@@ -185,7 +185,27 @@ function describeSourceStructure(analysis: StoredAnalysisFields | null): string 
   if (!analysis || analysis.structureSegments.length === 0) {
     return "No source structure available — use a natural hook / build / payoff / CTA structure.";
   }
-  return analysis.structureSegments.map((segment) => `${segment.label} (${segment.startSec}-${segment.endSec}s): ${segment.note}`).join("; ");
+  return analysis.structureSegments
+    .map((segment) => {
+      const base = `${segment.label} (${segment.startSec}-${segment.endSec}s): ${segment.note}`;
+      // Anti-fabrication: `transcript` is only appended when it was actually captured
+      // (undefined on a beat analyzed before that field shipped) — never a placeholder.
+      return segment.transcript ? `${base} (said: ${segment.transcript})` : base;
+    })
+    .join("; ");
+}
+
+// Fixed per-slot angles (spec part 5): the full variant set reads as three deliberately
+// different takes instead of three near-duplicate samples, and a single-slot regenerate
+// keeps the angle that slot already had rather than drawing a new one.
+const VARIANT_ANGLES = [
+  "stay close to the source structure and pacing",
+  "open from a different hook angle",
+  "tighten the pacing, cut the setup",
+];
+
+function angleFor(index: number): string {
+  return VARIANT_ANGLES[index % VARIANT_ANGLES.length];
 }
 
 /**
@@ -286,7 +306,7 @@ function withPersona(user: string, persona: Persona): string {
  * hook item if `opts.vaultItemId` is given, else falls back to the source video's own
  * hookType. Persists the result to `hookOptions`.
  */
-export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient }): Promise<string[]> {
+export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient; steer?: string }): Promise<string[]> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
@@ -304,10 +324,16 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
     const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
     const facts = session.researchNotes?.facts || undefined;
+    // The source hook's opening line, verbatim, when the first beat's transcript was
+    // captured (spec part 1) — undefined otherwise, never a placeholder.
+    const openingLine = analysis?.structureSegments[0]?.transcript;
 
     const result = await client.generateParsed({
       system: HOOK_SYSTEM,
-      user: withPersona(buildHookUser({ topic, niche, pattern, facts }), persona),
+      user: withPersona(
+        buildHookUser({ topic, niche, pattern, facts, whyItWorked: analysis?.whyItWorked, openingLine, steer: opts?.steer }),
+        persona
+      ),
       schema: HookOptionsSchema,
     });
 
@@ -332,7 +358,7 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
  * style item if `styleVaultItemId` is set, else the source video's own structure
  * segments. Persists the result (JSON-stringified — `outline` is a plain text column).
  */
-export async function generateOutline(id: string, opts?: { llm?: LlmClient }): Promise<Outline> {
+export async function generateOutline(id: string, opts?: { llm?: LlmClient; steer?: string }): Promise<Outline> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
@@ -354,7 +380,10 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
 
     const outline = await client.generateParsed({
       system: OUTLINE_SYSTEM,
-      user: withPersona(buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts }), persona),
+      user: withPersona(
+        buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts, whyItWorked: analysis?.whyItWorked, steer: opts?.steer }),
+        persona
+      ),
       schema: OutlineSchema,
     });
 
@@ -390,12 +419,13 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient }): P
  */
 export async function generateVariants(
   id: string,
-  opts?: { count?: number; index?: number; llm?: LlmClient }
+  opts?: { count?: number; index?: number; llm?: LlmClient; steer?: string }
 ): Promise<(string | { error: string })[]> {
   const session = await getSession(id);
   const startedAt = nowIso();
   const startedAtMs = Date.now();
   const video = await getVideoRow(session.sourceVideoId);
+  const analysis = await getAnalysis(session.sourceVideoId);
   const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
   const client = opts?.llm ?? getLlm();
   const niche = await getNicheProfile();
@@ -405,21 +435,27 @@ export async function generateVariants(
     ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
     : undefined;
 
-  const user = withPersona(
-    buildScriptUser({
-      topic: session.topic ?? video?.caption ?? "this topic",
-      niche,
-      hook: session.chosenHook ?? "",
-      outline: session.outline ?? { beats: [] },
-      targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
-      facts,
-      similar,
-    }),
-    persona
-  );
+  const baseUser = buildScriptUser({
+    topic: session.topic ?? video?.caption ?? "this topic",
+    niche,
+    hook: session.chosenHook ?? "",
+    outline: session.outline ?? { beats: [] },
+    targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
+    facts,
+    similar,
+    sourceBeats: analysis?.structureSegments,
+    whyItWorked: analysis?.whyItWorked,
+    steer: opts?.steer,
+  });
+
+  // One angle per slot (spec part 5): the full set gets `count` distinct angles, a
+  // single-slot regenerate (`opts.index` set) keeps that slot's own angle rather than
+  // drawing a fresh one, via `angleFor`'s deterministic index -> angle mapping.
+  const slotIndexes = opts?.index !== undefined ? [opts.index] : Array.from({ length: count }, (_, i) => i);
+  const users = slotIndexes.map((i) => withPersona(`${baseUser}\nAngle: ${angleFor(i)}`, persona));
 
   const settled = await Promise.allSettled(
-    Array.from({ length: count }, () => client.generateText({ system: SCRIPT_SYSTEM, user }))
+    users.map((user) => client.generateText({ system: SCRIPT_SYSTEM, user }))
   );
 
   const results: (string | { error: string })[] = settled.map((outcome) =>

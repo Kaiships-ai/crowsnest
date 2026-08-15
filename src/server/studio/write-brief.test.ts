@@ -8,6 +8,9 @@ import type { VideoDetail } from "@/server/queries/video";
 const getStudioBrief = vi.fn();
 vi.mock("@/server/queries/studio", () => ({ getStudioBrief: (postId: string) => getStudioBrief(postId) }));
 
+const getPersona = vi.fn();
+vi.mock("@/server/services/persona", () => ({ getPersona: () => getPersona() }));
+
 function fakePlan(overrides: Partial<PlannedPostRow> = {}): PlannedPostRow {
   return {
     id: "post-1",
@@ -96,6 +99,7 @@ describe("writeBrief", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(os.tmpdir(), "write-brief-test-"));
+    getPersona.mockResolvedValue({ audience: "", voice: "", do: "", dont: "" });
   });
 
   afterEach(async () => {
@@ -299,6 +303,27 @@ describe("writeBrief", () => {
 
     expect(targetSection).toContain("(not set)");
     expect(kindSection).toContain("(not set)");
+  });
+
+  it("emits a Persona section with its fields when persona is set, and omits it entirely when empty", async () => {
+    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: null });
+    getPersona.mockResolvedValueOnce({ audience: "ambitious solo founders", voice: "direct, no fluff", do: "short sentences", dont: "buzzwords" });
+    const { writeBrief } = await import("./write-brief");
+
+    await writeBrief(dir, "post-1");
+    const withPersona = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(withPersona).toContain("## Persona");
+    expect(withPersona).toContain("ambitious solo founders");
+    expect(withPersona).toContain("direct, no fluff");
+
+    getStudioBrief.mockResolvedValueOnce({ plan: fakePlan(), video: null });
+    getPersona.mockResolvedValueOnce({ audience: "", voice: "", do: "", dont: "" });
+
+    await writeBrief(dir, "post-1");
+    const withoutPersona = await readFile(path.join(dir, "brief.md"), "utf8");
+
+    expect(withoutPersona).not.toContain("## Persona");
   });
 
   it("throws rather than writing a file when no plan exists for the postId", async () => {
