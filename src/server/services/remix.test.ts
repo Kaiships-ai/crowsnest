@@ -228,6 +228,18 @@ describe("generateHooks", () => {
     const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
   });
+
+  test("passes the source's whyItWorked and its opening line (first beat's transcript) into the prompt (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateHooks(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(FAKE_ANALYSIS.structureSegments[0].transcript);
+  });
 });
 
 describe("generateOutline", () => {
@@ -278,6 +290,18 @@ describe("generateOutline", () => {
     const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
   });
+
+  test("passes the source's whyItWorked and each beat's per-beat transcript into the prompt (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [] }) });
+
+    await generateOutline(session.id, { llm });
+
+    const call = (llm.generateParsed as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(`(said: ${FAKE_ANALYSIS.structureSegments[0].transcript})`);
+  });
 });
 
 describe("generateVariants", () => {
@@ -326,6 +350,18 @@ describe("generateVariants", () => {
 
     const call = (llm.generateText as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(call.user).toContain("the giraffe eats 34kg of acacia daily");
+  });
+
+  test("passes the source's whyItWorked and a beat's per-beat transcript into the 'Source that worked' block (spec part 1)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm();
+
+    await generateVariants(session.id, { llm });
+
+    const call = (llm.generateText as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
+    expect(call.user).toContain(`said: ${FAKE_ANALYSIS.structureSegments[0].transcript}`);
   });
 
   test("appends a distinct angle line per call for the full set, and a single regenerate keeps its slot's own angle (spec part 5)", async () => {
