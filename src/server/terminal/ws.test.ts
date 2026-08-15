@@ -101,11 +101,19 @@ const dropCookEntry = vi.fn((postId: string, entry: unknown) => {
 const setCookEntryWs = vi.fn((entry: { ws: unknown }, ws: unknown) => {
   entry.ws = ws;
 });
+// The registry MAP is faked (above) so a reattach test can drive put/get by hand, but
+// the input queue is real logic, not storage: writeCookInput/flushCookInput are pure
+// over a CookEntry, and stubbing them would leave these tests unable to say anything
+// about whether early input actually survives. So they come from the real module.
+const registryActual = await vi.importActual<typeof import("./session-registry")>("./session-registry");
 vi.mock("./session-registry", () => ({
   getCookEntry: (postId: string) => getCookEntry(postId),
   putCookEntry: (postId: string, entry: unknown) => putCookEntry(postId, entry),
   dropCookEntry: (postId: string, entry: unknown) => dropCookEntry(postId, entry),
   setCookEntryWs: (entry: { ws: unknown }, ws: unknown) => setCookEntryWs(entry, ws),
+  writeCookInput: (entry: never, data: string) => registryActual.writeCookInput(entry, data),
+  flushCookInput: (entry: never) => registryActual.flushCookInput(entry),
+  MAX_QUEUED_INPUT: registryActual.MAX_QUEUED_INPUT,
 }));
 
 vi.mock("node:fs", () => ({ mkdirSync: vi.fn() }));
@@ -160,15 +168,62 @@ describe("attachTerminal", () => {
     );
   });
 
-  it("relays an input message to session.write", async () => {
+  it("relays an input message to session.write once the cook has produced output", async () => {
     getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
     const { attachTerminal } = await import("./ws");
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
+    onDataCb?.("welcome to claude\n"); // the REPL prompt: the cook is listening now
     ws.emit("message", JSON.stringify({ type: "input", data: "x" }));
 
     expect(write).toHaveBeenCalledWith("x");
+  });
+
+  it("holds input that arrives before the cook's first output, then writes it in order", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    // This is the Cook button: it injects the moment it is clicked, which is before the
+    // claude REPL has printed anything and would swallow the keystrokes.
+    ws.emit("message", JSON.stringify({ type: "input", data: "/ksa:cooking\r" }));
+    ws.emit("message", JSON.stringify({ type: "input", data: "second\r" }));
+    expect(write).not.toHaveBeenCalled();
+
+    onDataCb?.("welcome to claude\n");
+
+    expect(write.mock.calls).toEqual([["/ksa:cooking\r"], ["second\r"]]);
+  });
+
+  it("writes directly, not through the queue, once the cook is ready", async () => {
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    onDataCb?.("prompt\n");
+    ws.emit("message", JSON.stringify({ type: "input", data: "a" }));
+    onDataCb?.("more output\n"); // a later frame must not replay anything
+    ws.emit("message", JSON.stringify({ type: "input", data: "b" }));
+
+    expect(write.mock.calls).toEqual([["a"], ["b"]]);
+  });
+
+  it("flushes queued input on the fallback timer when the cook boots silently", async () => {
+    vi.useFakeTimers();
+    getPlannedPostTitleById.mockResolvedValueOnce("My Great Post");
+    const { attachTerminal, INPUT_FLUSH_FALLBACK_MS } = await import("./ws");
+    const ws = fakeWs();
+    await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    ws.emit("message", JSON.stringify({ type: "input", data: "/ksa:cooking\r" }));
+    expect(write).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(INPUT_FLUSH_FALLBACK_MS);
+
+    expect(write).toHaveBeenCalledWith("/ksa:cooking\r");
   });
 
   it("closes the ws with 1008 on a non-JSON message instead of throwing", async () => {
@@ -357,10 +412,10 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    // Two real timers here: the watchdog and the waiting-idle check (D1 Task 6).
-    // watchForRender is mocked, so no render-poll interval is actually scheduled by
-    // this test.
-    expect(vi.getTimerCount()).toBe(2);
+    // Three real timers here: the watchdog, the waiting-idle check (D1 Task 6), and the
+    // input-flush fallback. watchForRender is mocked, so no render-poll interval is
+    // actually scheduled by this test.
+    expect(vi.getTimerCount()).toBe(3);
 
     onExitCb?.(0);
 
@@ -375,11 +430,12 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    expect(vi.getTimerCount()).toBe(2);
+    // Watchdog, waiting-idle check, input-flush fallback.
+    expect(vi.getTimerCount()).toBe(3);
 
     ws.emit("close");
 
-    expect(vi.getTimerCount()).toBe(2);
+    expect(vi.getTimerCount()).toBe(3);
   });
 
   it("does NOT clear the watchdog timer when the ws errors", async () => {
@@ -389,11 +445,12 @@ describe("attachTerminal", () => {
     const ws = fakeWs();
     await attachTerminal(ws as never, { url: "/api/terminal/ws?post=abc" } as never);
 
-    expect(vi.getTimerCount()).toBe(2);
+    // Watchdog, waiting-idle check, input-flush fallback.
+    expect(vi.getTimerCount()).toBe(3);
 
     ws.emit("error", new Error("ECONNRESET"));
 
-    expect(vi.getTimerCount()).toBe(2);
+    expect(vi.getTimerCount()).toBe(3);
   });
 
   it("kills the session and closes the ws with 1011 when the watchdog elapses", async () => {
@@ -750,10 +807,39 @@ describe("attachTerminal", () => {
     await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
     await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
 
+    onDataCb?.("prompt\n"); // the cook is already up by the time a second tab attaches
     wsB.emit("message", JSON.stringify({ type: "input", data: "y" }));
 
     expect(write).toHaveBeenCalledWith("y");
     expect(createTerminalSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("a reattach that lands on a still-queued placeholder holds its input instead of dropping it", async () => {
+    getPlannedPostTitleById.mockResolvedValue("My Great Post");
+    // Hold the spawn in the queue so the registry entry exists with session === null,
+    // which is exactly the window the reattach branch documents.
+    let releaseQueue: (() => void) | undefined;
+    runOnCookQueue.mockImplementationOnce(async (fn: () => Promise<unknown>) => {
+      await new Promise<void>((r) => {
+        releaseQueue = r;
+      });
+      return fn();
+    });
+
+    const { attachTerminal } = await import("./ws");
+    const wsA = fakeWs();
+    const wsB = fakeWs();
+    await attachTerminal(wsA as never, { url: "/api/terminal/ws?post=abc" } as never);
+    await attachTerminal(wsB as never, { url: "/api/terminal/ws?post=abc" } as never);
+
+    expect(createTerminalSession).not.toHaveBeenCalled(); // still queued
+    wsB.emit("message", JSON.stringify({ type: "input", data: "/ksa:cooking\r" }));
+
+    releaseQueue?.();
+    await flush();
+    onDataCb?.("prompt\n");
+
+    expect(write).toHaveBeenCalledWith("/ksa:cooking\r");
   });
 
   it("reattaching after a detach (ws close) does not double-spawn a session for the same post", async () => {

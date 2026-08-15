@@ -13,7 +13,15 @@ import { getPlannedPostTitleById } from "./resolve-post";
 import { pruneOldRenders, rendersRoot, watchForRender } from "./render-watch";
 import { createTerminalSession } from "./session";
 import { runOnCookQueue } from "./cook-queue";
-import { type CookEntry, dropCookEntry, getCookEntry, putCookEntry, setCookEntryWs } from "./session-registry";
+import {
+  type CookEntry,
+  dropCookEntry,
+  flushCookInput,
+  getCookEntry,
+  putCookEntry,
+  setCookEntryWs,
+  writeCookInput,
+} from "./session-registry";
 
 // A stale sandbox render sits around only long enough for its poll to pick it up and
 // hand it to AssetStore; anything still there a day later is orphaned (a session that
@@ -24,6 +32,12 @@ const RENDER_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 // config.WAITING_IDLE_MS). A few seconds is frequent enough that a gate is detected
 // promptly without polling Date.now() on every pty byte.
 const WAITING_CHECK_INTERVAL_MS = 5_000;
+
+/** How long after the spawn the queued input is written even with no output to prove the
+ *  REPL is up. First output is the real signal; this only exists so a cook that starts
+ *  silently cannot hold the queue forever. Long enough that a normally-booting REPL wins
+ *  the race and the queue lands on a ready prompt. */
+export const INPUT_FLUSH_FALLBACK_MS = 8_000;
 
 /** Sends only if a tab is currently attached and its socket is open. Output can arrive
  *  (pty data, a captured render, a run status change) while no tab has this post open
@@ -95,13 +109,15 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
 
       // `existing.session` can still be null here: this reattach may have landed on a
       // placeholder entry whose spawn is still sitting in the concurrency queue (see
-      // the fresh-spawn path below). Null-guarded so an input/resize frame that
-      // arrives before the cook actually exists is dropped instead of throwing.
+      // the fresh-spawn path below). Input goes through `writeCookInput`, which holds it
+      // until the cook can take it rather than dropping it. Resize stays null-guarded and
+      // is NOT queued: a stale size for a terminal nobody is watching yet is worth
+      // nothing, and the client sends a fresh resize on every dimension change anyway.
       ws.on("message", (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
           if (msg.type === "input") {
-            existing.session?.write(msg.data);
+            writeCookInput(existing, msg.data);
           } else if (msg.type === "resize") {
             existing.session?.resize(msg.cols, msg.rows);
           }
@@ -156,18 +172,22 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
       lastOutputAt: Date.now(),
       waiting: false,
       waitingCheck: null,
+      inputQueue: [],
+      inputReady: false,
+      inputFlush: null,
     };
     putCookEntry(postId, cookEntry);
 
     // Attached before the cook is queued (which may wait behind other cooks at the
-    // concurrency limit) so nothing sent while queued is lost. Null-guarded on
-    // `cookEntry.session`, which stays null until the queued task below actually
-    // spawns it.
+    // concurrency limit) so nothing sent while queued is lost. `writeCookInput` is what
+    // makes that true rather than aspirational: `cookEntry.session` stays null until the
+    // queued task below spawns it, and the old `session?.write` dropped everything that
+    // arrived first. The Cook button injects its command on click, which is exactly then.
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "input") {
-          cookEntry.session?.write(msg.data);
+          writeCookInput(cookEntry, msg.data);
         } else if (msg.type === "resize") {
           cookEntry.session?.resize(msg.cols, msg.rows);
         }
@@ -244,6 +264,12 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
           try {
             const session = createTerminalSession(buildCookProfile(dir));
             cookEntry.session = session;
+
+            // The queued input is NOT written here. A pty that exists is not a REPL that
+            // is listening: claude prints its prompt a beat after the process starts, and
+            // anything written before that is swallowed. The flush happens on the first
+            // onData below; this timer is only the backstop for a cook that boots silently.
+            cookEntry.inputFlush = setTimeout(() => flushCookInput(cookEntry), INPUT_FLUSH_FALLBACK_MS);
 
             // Fire-and-forget: claims a create_runs row for this cook. Deliberately not
             // awaited -- the executor above must stay synchronous so the existing
@@ -341,6 +367,11 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             session.onData((data) => {
               cookEntry.lastOutputAt = Date.now();
 
+              // First output means the REPL is up and listening, which is the moment
+              // anything queued can actually land. Idempotent, so every later frame is a
+              // cheap no-op.
+              if (!cookEntry.inputReady) flushCookInput(cookEntry);
+
               // Any output while the run was sitting at a gate means the human
               // answered it: flip back to running and re-arm exactly one watchdog
               // (guarded on `cookEntry.watchdog` being null -- it always is here,
@@ -405,6 +436,10 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
                   clearInterval(cookEntry.waitingCheck);
                   cookEntry.waitingCheck = null;
                 }
+                if (cookEntry.inputFlush) {
+                  clearTimeout(cookEntry.inputFlush);
+                  cookEntry.inputFlush = null;
+                }
                 cookEntry.renderWatch?.stop();
                 dropCookEntry(postId, cookEntry);
                 session.kill();
@@ -433,6 +468,10 @@ export async function attachTerminal(ws: WebSocket, req: IncomingMessage): Promi
             if (cookEntry.waitingCheck) {
               clearInterval(cookEntry.waitingCheck);
               cookEntry.waitingCheck = null;
+            }
+            if (cookEntry.inputFlush) {
+              clearTimeout(cookEntry.inputFlush);
+              cookEntry.inputFlush = null;
             }
             cookEntry.renderWatch?.stop();
             dropCookEntry(postId, cookEntry);

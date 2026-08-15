@@ -46,6 +46,81 @@ export interface CookEntry {
    *  so there is exactly one of these per cook regardless of how many times the run
    *  flips between running and waiting. */
   waitingCheck: NodeJS.Timeout | null;
+  /**
+   * Client input that arrived before the cook could take it, in arrival order.
+   *
+   * The Cook button injects `/ksa:cooking\r` the instant it is clicked, and there are
+   * two windows where that used to be thrown away: `session` is still null (the spawn is
+   * sitting behind other cooks at the concurrency limit), or the pty exists but the
+   * claude REPL has not printed its prompt yet and would swallow the keystrokes. Both
+   * are covered by holding the bytes here and writing them once the session's first
+   * output proves the REPL is listening.
+   *
+   * Kept on the ENTRY rather than in an attach's closure on purpose: a reattach can land
+   * on a placeholder whose spawn has not run yet (see attachTerminal's reattach branch),
+   * and a per-attach queue would leave that socket's input dropped, which is the same bug
+   * one layer over.
+   */
+  inputQueue: string[];
+  /** False until the cook's first output. While false every input frame is queued
+   *  instead of written; the flush flips it true and drains the queue in order. */
+  inputReady: boolean;
+  /** Fallback flush. A cook that starts silently would otherwise hold the queue
+   *  forever, so the flush is armed on a timer as well as on first output; whichever
+   *  fires first clears the other. */
+  inputFlush: NodeJS.Timeout | null;
+}
+
+/** Ceiling on queued input, in frames. Far above any real pre-spawn burst (the Cook
+ *  button sends one), low enough that a client cannot make the server hold arbitrary
+ *  memory by typing at a cook that never spawns. */
+export const MAX_QUEUED_INPUT = 256;
+
+/**
+ * Writes client input to the cook, or holds it until the cook can take it.
+ *
+ * The old code was `entry.session?.write(data)`, which silently discarded anything that
+ * arrived early. That is what lost the Cook button's injected command.
+ */
+export function writeCookInput(entry: CookEntry, data: string): void {
+  if (entry.session && entry.inputReady) {
+    entry.session.write(data);
+    return;
+  }
+  if (entry.inputQueue.length >= MAX_QUEUED_INPUT) {
+    // Logged rather than swallowed: dropping input silently is the bug being fixed, and
+    // hitting this ceiling means something is wrong upstream, not that a user typed fast.
+    console.warn(`cook input queue full (${MAX_QUEUED_INPUT} frames); dropping further input until the cook is ready`);
+    return;
+  }
+  entry.inputQueue.push(data);
+}
+
+/**
+ * Marks the cook ready for input and drains whatever queued up, in arrival order.
+ *
+ * Called from the session's first output (the REPL prompt) and from the fallback timer.
+ * Idempotent: a second call finds an empty queue and writes nothing.
+ */
+export function flushCookInput(entry: CookEntry): void {
+  const session = entry.session;
+  // Nothing to flush into. Cannot happen through either real caller (both run after the
+  // spawn assigned `session`, and the fallback timer is armed there too, so it cannot
+  // fire earlier), but returning without setting `inputReady` keeps the invariant honest:
+  // ready must never be true while there is no session, or the write path would take the
+  // direct branch and drop the bytes.
+  if (!session) return;
+
+  if (entry.inputFlush) {
+    clearTimeout(entry.inputFlush);
+    entry.inputFlush = null;
+  }
+  entry.inputReady = true;
+  const queued = entry.inputQueue;
+  entry.inputQueue = [];
+  for (const chunk of queued) {
+    session.write(chunk);
+  }
 }
 
 const registry = new Map<string, CookEntry>();

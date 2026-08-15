@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { TerminalSession } from "./session";
-import { dropCookEntry, getCookEntry, putCookEntry, setCookEntryWs, type CookEntry } from "./session-registry";
+import {
+  dropCookEntry,
+  flushCookInput,
+  getCookEntry,
+  MAX_QUEUED_INPUT,
+  putCookEntry,
+  setCookEntryWs,
+  writeCookInput,
+  type CookEntry,
+} from "./session-registry";
 
 function fakeSession(): TerminalSession {
   return {
@@ -25,6 +34,9 @@ function fakeEntry(overrides: Partial<CookEntry> = {}): CookEntry {
     lastOutputAt: 0,
     waiting: false,
     waitingCheck: null,
+    inputQueue: [],
+    inputReady: false,
+    inputFlush: null,
     ...overrides,
   };
 }
@@ -115,5 +127,111 @@ describe("session-registry", () => {
 
     setCookEntryWs(entry, null);
     expect(entry.ws).toBeNull();
+  });
+});
+
+/**
+ * The Cook button injects `/ksa:cooking\r` on click, and the two windows where that used
+ * to be thrown away are "the pty has not spawned yet" and "the pty exists but the REPL
+ * has not printed a prompt". Both are the same fix: hold the bytes, write them once the
+ * cook proves it is listening.
+ */
+describe("writeCookInput", () => {
+  it("queues input while the cook has not spawned, instead of dropping it", () => {
+    const entry = fakeEntry({ session: null });
+
+    writeCookInput(entry, "/ksa:cooking\r");
+
+    expect(entry.inputQueue).toEqual(["/ksa:cooking\r"]);
+  });
+
+  it("queues input while the session exists but has not produced output yet", () => {
+    const entry = fakeEntry();
+
+    writeCookInput(entry, "/ksa:cooking\r");
+
+    // A pty that exists is not a REPL that is listening.
+    expect(entry.session!.write).not.toHaveBeenCalled();
+    expect(entry.inputQueue).toEqual(["/ksa:cooking\r"]);
+  });
+
+  it("writes straight through once the cook is ready", () => {
+    const entry = fakeEntry({ inputReady: true });
+
+    writeCookInput(entry, "hello");
+
+    expect(entry.session!.write).toHaveBeenCalledWith("hello");
+    expect(entry.inputQueue).toEqual([]);
+  });
+
+  it("stops queueing at the ceiling rather than holding unbounded client input", () => {
+    const entry = fakeEntry({ session: null });
+
+    for (let i = 0; i < MAX_QUEUED_INPUT + 10; i++) writeCookInput(entry, `k${i}`);
+
+    expect(entry.inputQueue).toHaveLength(MAX_QUEUED_INPUT);
+    expect(entry.inputQueue[0]).toBe("k0"); // the oldest frames are the ones kept
+  });
+});
+
+describe("flushCookInput", () => {
+  it("drains the queue into the pty in arrival order", () => {
+    const entry = fakeEntry();
+    writeCookInput(entry, "first");
+    writeCookInput(entry, "second");
+    writeCookInput(entry, "third");
+
+    flushCookInput(entry);
+
+    expect((entry.session!.write as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+      ["first"],
+      ["second"],
+      ["third"],
+    ]);
+    expect(entry.inputQueue).toEqual([]);
+  });
+
+  it("leaves the cook writing directly afterwards", () => {
+    const entry = fakeEntry();
+    writeCookInput(entry, "queued");
+
+    flushCookInput(entry);
+    writeCookInput(entry, "typed later");
+
+    expect((entry.session!.write as ReturnType<typeof vi.fn>).mock.calls).toEqual([
+      ["queued"],
+      ["typed later"],
+    ]);
+    expect(entry.inputQueue).toEqual([]);
+  });
+
+  it("clears the fallback timer it may have raced", () => {
+    const timer = setTimeout(() => {}, 60_000);
+    const entry = fakeEntry({ inputFlush: timer });
+
+    flushCookInput(entry);
+
+    expect(entry.inputFlush).toBeNull();
+    clearTimeout(timer);
+  });
+
+  it("is idempotent: a second flush writes nothing more", () => {
+    const entry = fakeEntry();
+    writeCookInput(entry, "once");
+
+    flushCookInput(entry);
+    flushCookInput(entry);
+
+    expect(entry.session!.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not mark a session-less entry ready, which would make the write path drop input", () => {
+    const entry = fakeEntry({ session: null });
+    writeCookInput(entry, "still waiting");
+
+    flushCookInput(entry);
+
+    expect(entry.inputReady).toBe(false);
+    expect(entry.inputQueue).toEqual(["still waiting"]);
   });
 });

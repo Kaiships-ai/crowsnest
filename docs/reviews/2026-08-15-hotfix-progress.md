@@ -399,4 +399,66 @@ Verification:
   for the new flag; `session.test.ts` had two fixtures and one exact-argv assertion on the
   old flag.
 
+Commit: 035277b
+
+## Task 8: no lost keystrokes on Cook
+
+D6 as ruled: a server-side buffer flushed on the session's first output.
+
+Two windows used to swallow input, and `entry.session?.write(data)` dropped both on the
+floor. The pty may not exist yet, because the spawn can sit behind other cooks at the
+concurrency limit. And once it does exist, the claude REPL has not printed its prompt yet
+and swallows anything written before it. The Cook button injects `/ksa:cooking\r` the
+instant it is clicked, which lands in exactly those windows.
+
+Changed:
+
+- `session-registry.ts`: `CookEntry` gains `inputQueue`, `inputReady`, `inputFlush`, plus
+  `writeCookInput(entry, data)` and `flushCookInput(entry)`. The queue is bounded at
+  `MAX_QUEUED_INPUT = 256` frames and logs on overflow, so a client cannot make the
+  server hold arbitrary memory by typing at a cook that never spawns, and hitting the
+  ceiling is visible rather than another silent drop.
+- `ws.ts`: both message handlers route input through `writeCookInput`. The fallback timer
+  (`INPUT_FLUSH_FALLBACK_MS = 8_000`) is armed right after the spawn, the flush runs on
+  the session's first `onData`, and the timer is cleared on the abort path and in the
+  synchronous setup-failure catch alongside the watchdog and the waiting check.
+
+Deviation from the plan, deliberate: the plan said "the queue is per attach". It is per
+ENTRY instead. The plan's own note on the reattach branch says a reattach can land on a
+placeholder whose spawn has not run yet, and a per-attach queue would leave that socket's
+input dropped, which is the same bug one layer over. Putting it on the entry fixes both
+paths with one mechanism. There is a test for the placeholder-reattach case specifically.
+
+Resize is NOT queued. A stale terminal size for a pty nobody is watching yet is worth
+nothing, and the client sends a fresh resize on every dimension change.
+
+Invariant worth naming: `inputReady` is never set true while `session` is null.
+`flushCookInput` returns early in that case rather than flagging ready, because the write
+path takes its direct branch on `session && inputReady`, and a ready flag with no session
+would put the drop back exactly where it was.
+
+The shipped cook feature is intact: the render-watch capture, the per-post registry, the
+reattach branch, the double-spawn reservation, and the gate-aware watchdog are all
+unchanged. The only edits to their code paths are the three timer-clear additions.
+
+Tests: `session-registry.test.ts` gains 11 unit tests over the queue (queued before spawn,
+queued before first output, direct after ready, bounded, drained in order, idempotent
+flush, and the no-session-means-not-ready invariant). `ws.test.ts` gains four integration
+tests: input before first output is held then written in order, later input goes direct,
+the fallback timer flushes a silently-booting cook, and a reattach onto a still-queued
+placeholder holds its input. Three existing timer-count assertions moved from 2 to 3, and
+the existing "relays an input message" test now emits an onData frame first, since that
+is what makes the cook ready.
+
+`ws.test.ts` mocks the registry with a fake Map. `writeCookInput` and `flushCookInput`
+come from `vi.importActual` rather than being stubbed: they are logic, not storage, and
+stubbing them would leave those tests unable to say anything about whether early input
+actually survives.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run src/server/terminal/`: 81 passed.
+- Whole suite: 1542 passed, 1 failed (the pre-existing outlier-calc median).
+
 Commit: (pending)
