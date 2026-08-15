@@ -114,7 +114,7 @@ export function StageHook({
   const groundedInParts = [
     hookAnalysis ? `why it worked` : null,
     usingVaultHook ? `hook pattern (Vault template${vaultHookTitle ? `: ${vaultHookTitle}` : ""})` : hookAnalysis ? `hook pattern (${hookAnalysis.hookType})` : null,
-    !usingVaultHook && hookAnalysis?.structureSegments[0]?.transcript ? "opening beat transcript" : null,
+    hookAnalysis?.structureSegments[0]?.transcript ? "opening beat transcript" : null,
     session.topic ? "your topic" : null,
     session.niche ? "your niche" : null,
     session.researchNotes?.facts ? "your facts" : null,
