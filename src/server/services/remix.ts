@@ -138,6 +138,15 @@ async function getSession(id: string): Promise<RemixSessionRow> {
   return toSessionRow(await getRawSession(id));
 }
 
+/** The session row by id, or null when there is none. Exported for the remix-scoped
+ *  prompt builder (export.ts), which reads the session rather than the source video.
+ *  Unlike the internal `getSession` it does not throw on a missing id: a builder asked
+ *  about a session that no longer exists should return null, not blow up an action. */
+export async function getRemixSession(id: string): Promise<RemixSessionRow | null> {
+  const [row] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).limit(1);
+  return row ? toSessionRow(row) : null;
+}
+
 async function getVideoRow(videoId: string) {
   const [row] = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
   return row ?? null;

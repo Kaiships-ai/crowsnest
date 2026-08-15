@@ -175,4 +175,45 @@ Verification:
 - `npx vitest run src/server/services/remix.test.ts`: 32 passed.
 - Whole `src/` suite: 1503 passed, 1 failed (the pre-existing outlier-calc median).
 
+Commit: 81e29c4
+
+## Task 4: remix-scoped Create Prompt builder
+
+`buildVideoPrompt` answers "describe this outlier", which is right on the video detail
+screen and wrong at the end of a remix: by the Script stage the user has chosen a hook and
+a variant that the source analysis knows nothing about.
+
+Changed:
+
+- `services/export.ts`: `buildRemixPrompt(sessionId)` with sections Source outlier, Chosen
+  hook, Beats (per-beat transcript above the summary), Layout per beat, Script (the chosen
+  variant), Target length. Plus two helpers, `beatsSection` and `layoutPerBeatSection`.
+- `services/remix.ts`: exports `getRemixSession(id)`, which returns null rather than
+  throwing on a missing id, so a builder asked about a dead session returns null instead
+  of blowing up an action.
+- `actions/export-actions.ts`: `buildRemixPromptAction`.
+- `stage-script.tsx`: Create Prompt calls `buildRemixPromptAction(session.id)`.
+  `buildVideoPromptAction` stays exactly where it was on the video detail screen, which is
+  the surface it is correct for.
+
+Three anti-fabrication rules carried into the prompt text:
+
+- No fallback to `variants[0]`. An unpicked session prints "(no variant picked; N
+  written.)" and none of the variant text, because presenting a script the user never
+  chose under the heading "Script" is a fabrication with a confident label on it.
+- A layout value citing no source frame renders as a dash, the same rule the UI applies.
+- No full source transcript. The per-beat quotes already carry the words, split the way
+  the remix will be shot; dumping the raw blob again would bury the chosen script under
+  the source's own words. There is a test asserting the blob is absent.
+
+Tests: an export `buildRemixPrompt` describe with six cases, including the
+transcript-blob-absent case, the unbacked-layout-value case, and the missing hook and
+missing pick case.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run src/server/services/export.test.ts`: 13 passed.
+- Whole `src/` suite: 1509 passed, 1 failed (the pre-existing outlier-calc median).
+
 Commit: (pending)

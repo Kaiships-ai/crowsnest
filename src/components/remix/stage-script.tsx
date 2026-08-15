@@ -24,7 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
 import { deriveScriptTitle } from "@/lib/script-title";
-import { buildVideoPromptAction } from "@/server/actions/export-actions";
+import { buildRemixPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
 import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
@@ -163,11 +163,13 @@ export function StageScript({
     }
   }
 
-  /** DESIGN.md §2.5 stage ⑤: "same affordance as Video Detail" — Copy-as-Prompt is
-   * scoped to the source video (services/export.ts's buildVideoPrompt), not the
-   * in-progress draft variant text. */
+  /** Scoped to the remix SESSION (services/export.ts's buildRemixPrompt), not to the
+   * source video. The source-scoped `buildVideoPrompt` is still what the video detail
+   * screen's Copy-as-Prompt uses, and it is correct there; here it was wrong, because it
+   * described the outlier and knew nothing about the hook or the variant the user had
+   * just chosen. */
   async function createPrompt() {
-    const result = await buildVideoPromptAction(session.sourceVideoId);
+    const result = await buildRemixPromptAction(session.id);
     if (!result.ok) {
       toast.error(result.error);
       return;
