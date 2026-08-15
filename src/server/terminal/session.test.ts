@@ -15,13 +15,13 @@ describe("createTerminalSession", () => {
     const profile = {
       cwd: "/tmp/sandbox",
       permissionMode: "bypassPermissions" as const,
-      settingsJson: '{"hooks":{"SessionStart":[]}}',
+      settingSources: "",
       env: { FOO: "bar" } as unknown as NodeJS.ProcessEnv,
     };
     createTerminalSession(profile);
     expect(spawn).toHaveBeenCalledWith(
       expect.any(String),
-      ["--permission-mode", "bypassPermissions", "--settings", '{"hooks":{"SessionStart":[]}}'],
+      ["--permission-mode", "bypassPermissions", "--setting-sources", ""],
       expect.objectContaining({ cwd: "/tmp/sandbox", env: { FOO: "bar" } }),
     );
   });
@@ -31,7 +31,7 @@ describe("createTerminalSession", () => {
     createTerminalSession({
       cwd: "/tmp/sandbox",
       permissionMode: "bypassPermissions" as const,
-      settingsJson: "{}",
+      settingSources: "",
       env: {} as NodeJS.ProcessEnv,
     });
     const [bin] = spawn.mock.calls[spawn.mock.calls.length - 1];
@@ -46,7 +46,7 @@ describe("createTerminalSession", () => {
     const session = createTerminalSession({
       cwd: "/tmp/sandbox",
       permissionMode: "bypassPermissions" as const,
-      settingsJson: "{}",
+      settingSources: "",
       env: {} as NodeJS.ProcessEnv,
     });
     const child = spawn.mock.results[spawn.mock.results.length - 1].value;

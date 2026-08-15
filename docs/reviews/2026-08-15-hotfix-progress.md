@@ -308,4 +308,95 @@ Verification:
   import left in analyze.ts by T1).
 - Whole `src/` suite: 1520 passed, 1 failed (the pre-existing outlier-calc median).
 
+Commit: b094c13
+
+## Task 7: cook hooks-off actually suppresses SessionStart hooks
+
+This was a live investigation, run from a real sandbox-style cwd
+(`data/workspace/videos/hooks-probe`, deleted afterwards) against
+`/Users/kienbeovl/.local/bin/claude` with the real `plugins/ksa`.
+
+### The baseline, reproduced
+
+With today's flags (`--settings '{"hooks":{"SessionStart":[]}}'`, no source scoping), a
+`-p` session asked to quote any line in its own context mentioning MODE ACTIVE, vault
+context, ADHD, caveman, superpowers, humanizer, last30days, or second-brain answered with,
+among others:
+
+```
+SessionStart:startup hook success: ADHD MODE ACTIVE (always-on). The ruleset below applies
+to every response.
+```
+```
+You have superpowers.
+```
+```
+The `humanizer@humanizer` plugin skill, based on Wikipedia "Signs of AI writing").
+```
+
+So the leak is real and `--settings` is confirmed additive: an empty SessionStart array
+merged in cannot delete an inherited one.
+
+### Candidates tested
+
+The CLI rejects anything outside the three named sources: `--setting-sources none` errors
+with "Invalid setting source: none. Valid options are: user, project, local". An empty
+string is accepted.
+
+| value | hook banners | notes |
+| --- | --- | --- |
+| (flag omitted, today) | ADHD, superpowers, humanizer all present | the bug |
+| `local` | none | still enables the humanizer and ponytail plugins via settings.local.json |
+| `project` | none | loads the repo's own hooks, which the cook has no use for |
+| `project,local` | none | both of the above |
+| `""` | none | loads no settings file at all |
+
+### The winner: `--setting-sources ""`
+
+Verified live, all three requirements, under that exact value:
+
+1. No hook banner. The same probe came back with no SessionStart line at all.
+2. Still authenticates. The session answered, and there is no `ANTHROPIC_API_KEY` in the
+   environment, so that was Claude Max OAuth through the keychain. Dropping settings.json
+   does not touch auth.
+3. Still resolves the plugin. Asked to list every available command whose name contains
+   "ksa", the session printed `ksa:cooking`, `ksa:serve`, and the seven baoyu commands.
+
+`--bare` stays disqualified: it kills plugin sync, which the cook needs, and restricts auth
+to an API key.
+
+Why the empty value over `project` or `local`, which also suppressed the banner: those
+load a settings file the cook has no use for and that can be changed under it later.
+Loading nothing is the narrower and more stable promise.
+
+Changed in `server/terminal/harness-profile.ts`: `settingsJson` is replaced by
+`settingSources`, `--settings` is dropped entirely (with `""` there is nothing left to
+override, so keeping it would be a flag that reads like it does something), and
+`COOK_SETTING_SOURCES = ""` carries the finding plus the live evidence in its doc comment.
+
+One trap worth naming: `buildHarnessArgs` emits the flag on `!== undefined`, not on
+truthiness. `""` is falsy, and a truthiness check would silently drop the flag and undo
+the entire fix while every other test stayed green. There is a test pinning that exact
+case.
+
+### Two things the probe found that are NOT hook leaks
+
+The cook's context still carries the auto-memory index (`MEMORY.md`) and the gitStatus
+block. Those come from auto-memory and CLAUDE.md discovery, not from settings hooks, so
+`--setting-sources` does not touch them and acceptance criterion 5 (no hook banners) is
+still met. Flagging them because they are Kai's personal notes riding into a cook's
+context, which may or may not be wanted. Not fixed here; not in this plan's scope.
+
+Also worth knowing: under `--setting-sources project` the repo's `humanizer-doc-check.sh`
+PreToolUse hook did NOT block a markdown write containing an em dash from the sandbox cwd.
+Tested directly, expecting it to fire. So that hook was never the risk to the cook it
+looked like.
+
+Verification:
+
+- `npm run typecheck`: clean.
+- `npx vitest run src/server/terminal/`: 68 passed. `harness-profile.test.ts` rewritten
+  for the new flag; `session.test.ts` had two fixtures and one exact-argv assertion on the
+  old flag.
+
 Commit: (pending)
