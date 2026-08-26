@@ -55,3 +55,8 @@ data/
 
 # personal per-machine Claude Code overrides
 .claude/settings.local.json
+
+# local SQLite db (do not track)
+crowsnest.db
+crowsnest.db-wal
+crowsnest.db-shm
