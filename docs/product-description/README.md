@@ -199,7 +199,7 @@ Status is one of `not started`, `drafted`, or `verified`.
 | feed/quick-preview.md | not started |
 | feed/video-detail.md | not started |
 | feed/analysis.md | not started |
-| feed/save-to-vault.md | not started |
+| feed/save-to-vault.md | drafted |
 | feed/generate-idea.md | not started |
 | remix/remix-overview.md | not started |
 | remix/stage-prompt.md | not started |
