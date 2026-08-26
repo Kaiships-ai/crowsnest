@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude character identity chart</title>
+<style>
+  :root{ --orange:#DD775B; --ink:#2b2b26; --line:#c9c3b4; }
+  html,body{margin:0}
+  body{background:#F0EEE6;color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif;padding:36px 20px 60px}
+  .wrap{max-width:860px;margin:0 auto}
+  h1{font-weight:600;font-size:24px;margin:0 0 4px}
+  .lede{opacity:.6;font-size:14px;margin:0 0 30px}
+  h2{font-weight:600;font-size:15px;margin:34px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:640px){.panels{grid-template-columns:1fr}}
+  .panel{background:#faf9f5;border:1px solid #e4dfd2;border-radius:14px;padding:16px;display:flex;flex-direction:column;align-items:center;gap:10px}
+  .panel svg{width:100%;height:auto;overflow:visible}
+  .panel .tag{font-size:12px;opacity:.55}
+  table{border-collapse:collapse;width:100%;font-size:13px;font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #e8e3d6}
+  th{opacity:.6;font-weight:600}
+  td.n{text-align:right}
+  .chips{display:flex;gap:16px;flex-wrap:wrap}
+  .chip{display:flex;align-items:center;gap:10px;font-size:13px}
+  .sw{width:34px;height:34px;border-radius:8px;border:1px solid rgba(0,0,0,.12)}
+  ol{padding-left:18px;line-height:1.6;font-size:14px}
+  ol code{background:#efe9db;padding:1px 5px;border-radius:4px;font-size:12px}
+  .foot{margin-top:26px;font-size:13px}
+  a{color:#b7623f}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Claude character identity chart</h1>
+  <p class="lede">Fixed reference for the mascot. Every animation transforms this sprite. None of it edits the sprite.</p>
+
+  <div class="panels">
+    <div class="panel">
+      <svg viewBox="-10 -12 127 108" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+        <g id="claude">
+          <rect x="11" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="32" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="64" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="85" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="11" y="0" width="85" height="65" fill="#DD775B"/>
+          <rect x="85" y="21" width="22" height="23" fill="#DD775B"/>
+          <rect x="0" y="21" width="22" height="23" fill="#DD775B"/>
+          <rect x="21" y="11" width="11" height="11" fill="#000"/>
+          <rect x="75" y="11" width="11" height="11" fill="#000"/>
+        </g>
+      </svg>
+      <span class="tag">the sprite, clean</span>
+    </div>
+
+    <div class="panel">
+      <svg viewBox="-14 -16 135 116" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges" font-family="ui-monospace,monospace">
+        <!-- grid -->
+        <g stroke="#e2dccb" stroke-width="0.3">
+          <line x1="0" y1="0" x2="107" y2="0"/><line x1="0" y1="86" x2="107" y2="86"/>
+          <line x1="0" y1="0" x2="0" y2="86"/><line x1="107" y1="0" x2="107" y2="86"/>
+        </g>
+        <!-- sprite, dimmed -->
+        <g opacity="0.9">
+          <rect x="11" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="32" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="64" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="85" y="60" width="11" height="26" fill="#DD775B"/>
+          <rect x="11" y="0" width="85" height="65" fill="#DD775B"/>
+          <rect x="85" y="21" width="22" height="23" fill="#DD775B"/>
+          <rect x="0" y="21" width="22" height="23" fill="#DD775B"/>
+          <rect x="21" y="11" width="11" height="11" fill="#000"/>
+          <rect x="75" y="11" width="11" height="11" fill="#000"/>
+        </g>
+        <!-- bounding box -->
+        <rect x="0" y="0" width="107" height="86" fill="none" stroke="#3d7a8c" stroke-width="0.5" stroke-dasharray="2 2"/>
+        <!-- center line -->
+        <line x1="53" y1="-6" x2="53" y2="92" stroke="#3d7a8c" stroke-width="0.4" stroke-dasharray="1.5 2"/>
+        <!-- dimensions -->
+        <g fill="#25506a" font-size="4">
+          <text x="53" y="-9" text-anchor="middle">107 wide</text>
+          <text x="-12" y="45" text-anchor="middle" transform="rotate(-90 -12 45)">86 tall</text>
+          <text x="53" y="35" text-anchor="middle" fill="#fff">85 x 65</text>
+          <text x="26.5" y="8.5" text-anchor="middle" fill="#fff" font-size="3.2">11</text>
+        </g>
+        <!-- pivots -->
+        <g>
+          <circle cx="53" cy="65" r="1.8" fill="#e23"/>
+          <text x="56" y="66.5" fill="#c1281e" font-size="3.6">body 53,65</text>
+          <circle cx="16.5" cy="86" r="1.3" fill="#e23"/>
+          <circle cx="37.5" cy="86" r="1.3" fill="#e23"/>
+          <circle cx="69.5" cy="86" r="1.3" fill="#e23"/>
+          <circle cx="90.5" cy="86" r="1.3" fill="#e23"/>
+          <text x="53" y="98" text-anchor="middle" fill="#c1281e" font-size="3.4">leg pivots 16.5 / 37.5 / 69.5 / 90.5</text>
+        </g>
+      </svg>
+      <span class="tag">measurements and pivots</span>
+    </div>
+  </div>
+
+  <h2>Colors</h2>
+  <div class="chips">
+    <div class="chip"><span class="sw" style="background:#DD775B"></span><div>orange<br><code>#DD775B</code></div></div>
+    <div class="chip"><span class="sw" style="background:#000"></span><div>eyes<br><code>#000000</code></div></div>
+  </div>
+  <p class="lede" style="margin-top:10px">Two colors only. The body, hands, and legs share the one orange. The eyes are black. No outline, no shading, no gradient. The official name of the orange is unknown, so the hex is the reference.</p>
+
+  <h2>Parts</h2>
+  <table>
+    <thead><tr><th>part</th><th class="n">x</th><th class="n">y</th><th class="n">w</th><th class="n">h</th><th>fill</th></tr></thead>
+    <tbody>
+      <tr><td>body</td><td class="n">11</td><td class="n">0</td><td class="n">85</td><td class="n">65</td><td>#DD775B</td></tr>
+      <tr><td>hand left</td><td class="n">0</td><td class="n">21</td><td class="n">22</td><td class="n">23</td><td>#DD775B</td></tr>
+      <tr><td>hand right</td><td class="n">85</td><td class="n">21</td><td class="n">22</td><td class="n">23</td><td>#DD775B</td></tr>
+      <tr><td>eye left</td><td class="n">21</td><td class="n">11</td><td class="n">11</td><td class="n">11</td><td>#000000</td></tr>
+      <tr><td>eye right</td><td class="n">75</td><td class="n">11</td><td class="n">11</td><td class="n">11</td><td>#000000</td></tr>
+      <tr><td>leg 1</td><td class="n">11</td><td class="n">60</td><td class="n">11</td><td class="n">26</td><td>#DD775B</td></tr>
+      <tr><td>leg 2</td><td class="n">32</td><td class="n">60</td><td class="n">11</td><td class="n">26</td><td>#DD775B</td></tr>
+      <tr><td>leg 3</td><td class="n">64</td><td class="n">60</td><td class="n">11</td><td class="n">26</td><td>#DD775B</td></tr>
+      <tr><td>leg 4</td><td class="n">85</td><td class="n">60</td><td class="n">11</td><td class="n">26</td><td>#DD775B</td></tr>
+    </tbody>
+  </table>
+  <p class="lede" style="margin-top:10px">viewBox <code style="background:#efe9db;padding:1px 5px;border-radius:4px">0 0 107 86</code>. shape-rendering <code style="background:#efe9db;padding:1px 5px;border-radius:4px">crispEdges</code> keeps the blocks hard-edged.</p>
+
+  <h2>Pivots for animation</h2>
+  <table>
+    <thead><tr><th>use</th><th>svgOrigin</th><th>notes</th></tr></thead>
+    <tbody>
+      <tr><td>body lean and squash</td><td>53 65</td><td>center x, base y</td></tr>
+      <tr><td>eyes blink and widen</td><td>53 16</td><td>squash the real eye rects here, do not redraw them</td></tr>
+      <tr><td>leg hip swing</td><td>16.5 / 37.5 / 69.5 / 90.5 at y 60</td><td>per leg center x</td></tr>
+      <tr><td>leg foot plant</td><td>same x at y 86</td><td>use when standing</td></tr>
+    </tbody>
+  </table>
+
+  <h2>The rule</h2>
+  <ol>
+    <li>Keep the sprite exact. Do not move, resize, recolor, or drop a single rect.</li>
+    <li>Express an action only through transforms: <code>x</code>, <code>y</code>, <code>rotation</code>, <code>scale</code>, <code>svgOrigin</code>, plus display toggles.</li>
+    <li>Closed or blinking eyes are a <code>scaleY</code> squash on the real eye rects.</li>
+    <li>Accessories are added as separate elements around the sprite. A laptop, a lightbulb, and floating Z's are fine. Editing the body to fake them is not.</li>
+    <li>Build every scene from <code>claude-sprite.js</code> so there is one source and no drift.</li>
+  </ol>
+
+  <p class="foot"><a href="gallery.html">back to all animations</a></p>
+</div>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude typing</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{background:#F0EEE6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:ui-sans-serif,system-ui,sans-serif;color:#3d3d3a}
+  .stage{display:flex;align-items:center;justify-content:center;min-height:230px}
+  svg{width:210px;height:auto;overflow:visible}
+  .caption{font-size:13px;opacity:.55;max-width:38ch;text-align:center}
+  a{color:#b7623f}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <svg id="scene" viewBox="0 0 150 120" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+      <g id="claude" transform="translate(21,4)"><rect x="11" y="60" width="11" height="26" fill="#DD775B"/><rect x="32" y="60" width="11" height="26" fill="#DD775B"/><rect x="64" y="60" width="11" height="26" fill="#DD775B"/><rect x="85" y="60" width="11" height="26" fill="#DD775B"/><g id="body"><rect id="bdy" x="11" y="0" width="85" height="65" fill="#DD775B"/><rect id="hand-r" x="85" y="21" width="22" height="23" fill="#DD775B"/><rect id="hand-l" x="0" y="21" width="22" height="23" fill="#DD775B"/><g id="eyes"><rect x="21" y="11" width="11" height="11" fill="black"/><rect x="75" y="11" width="11" height="11" fill="black"/></g></g></g>
+      <!-- macbook facing us, lower body hidden behind it -->
+      <rect x="46" y="42" width="58" height="40" fill="#d8d2c7"/>
+      <rect x="50" y="46" width="50" height="32" fill="#4b5a5a"/>
+      <rect class="tline" x="55" y="51" width="26" height="3" fill="#d7e6e6" opacity="0"/>
+      <rect class="tline" x="55" y="57" width="40" height="3" fill="#d7e6e6" opacity="0"/>
+      <rect class="tline" x="55" y="63" width="20" height="3" fill="#d7e6e6" opacity="0"/>
+      <rect class="tline" x="55" y="69" width="34" height="3" fill="#d7e6e6" opacity="0"/>
+      <rect x="38" y="82" width="74" height="8" fill="#e2ddd2"/>
+      <rect x="38" y="89" width="74" height="4" fill="#a29b8f"/>
+    </svg>
+  </div>
+  <p class="caption">Typing on a laptop. The mascot's hand blocks tap the keyboard, eyes glance down, text appears on the screen.</p>
+  <p class="caption"><a href="gallery.html">back to all</a></p>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+  window.addEventListener("load", () => {
+    const svg = document.querySelector("#scene");
+    const q = s => svg.querySelector(s);
+    const qa = s => [...svg.querySelectorAll(s)];
+    const handL=q("#hand-l"), handR=q("#hand-r"), eyes=q("#eyes"), body=q("#body");
+    // bring the side hands forward onto the keyboard (sprite is translated 21,4)
+    gsap.set(handL,{x:32,y:53});
+    gsap.set(handR,{x:-20,y:53});
+    gsap.set(eyes,{y:2});                 // glance down
+    gsap.to(handL,{y:"-=4",duration:0.11,repeat:-1,yoyo:true,ease:"power1.inOut"});
+    gsap.to(handR,{y:"-=4",duration:0.11,repeat:-1,yoyo:true,ease:"power1.inOut",delay:0.055});
+    gsap.to(body,{y:1,duration:0.22,repeat:-1,yoyo:true,ease:"sine.inOut"});
+    const lines=qa(".tline");
+    const type=gsap.timeline({repeat:-1,repeatDelay:0.5});
+    lines.forEach((l)=> type.to(l,{opacity:1,duration:0.05},"+=0.35"));
+    type.to(lines,{opacity:0,duration:0.3},"+=0.6");
+    (function blink(){
+      gsap.to(eyes,{scaleY:0.1,duration:0.07,yoyo:true,repeat:1,svgOrigin:"74 21",
+        onComplete:()=>gsap.delayedCall(gsap.utils.random(2.5,4.5),blink)});
+    })();
+  });
+  </script>
+</body>
+</html>

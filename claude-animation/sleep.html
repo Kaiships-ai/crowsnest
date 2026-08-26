@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude sleeping</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{background:#EDEBF0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:ui-sans-serif,system-ui,sans-serif;color:#3d3d3a}
+  .stage{display:flex;align-items:center;justify-content:center;min-height:230px}
+  svg{width:210px;height:auto;overflow:visible}
+  .caption{font-size:13px;opacity:.55;max-width:38ch;text-align:center}
+  a{color:#b7623f}
+</style>
+</head>
+<body>
+  <div class="stage">
+    <svg id="scene" viewBox="0 0 150 100" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+      <rect x="0" y="94" width="150" height="4" fill="#DED9C9"/>
+      <g id="claude" transform="translate(21,8)"><rect x="11" y="60" width="11" height="26" fill="#DD775B"/><rect x="32" y="60" width="11" height="26" fill="#DD775B"/><rect x="64" y="60" width="11" height="26" fill="#DD775B"/><rect x="85" y="60" width="11" height="26" fill="#DD775B"/><g id="body"><rect id="bdy" x="11" y="0" width="85" height="65" fill="#DD775B"/><rect id="hand-r" x="85" y="21" width="22" height="23" fill="#DD775B"/><rect id="hand-l" x="0" y="21" width="22" height="23" fill="#DD775B"/><g id="eyes"><rect x="21" y="11" width="11" height="11" fill="black"/><rect x="75" y="11" width="11" height="11" fill="black"/></g></g></g>
+      <g transform="translate(112,20)"><g class="z"><rect x="0" y="0" width="11" height="2.5" fill="#7c776b"/><rect x="8" y="1.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="5.5" y="3.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="3" y="5.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="0" y="7" width="11" height="2.5" fill="#7c776b"/></g></g>
+      <g transform="translate(112,20)"><g class="z"><rect x="0" y="0" width="11" height="2.5" fill="#7c776b"/><rect x="8" y="1.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="5.5" y="3.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="3" y="5.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="0" y="7" width="11" height="2.5" fill="#7c776b"/></g></g>
+      <g transform="translate(112,20)"><g class="z"><rect x="0" y="0" width="11" height="2.5" fill="#7c776b"/><rect x="8" y="1.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="5.5" y="3.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="3" y="5.5" width="2.5" height="2.5" fill="#7c776b"/><rect x="0" y="7" width="11" height="2.5" fill="#7c776b"/></g></g>
+    </svg>
+  </div>
+  <p class="caption">Sleeping. Eyes shut to thin lines, slow breathing, three Z's drifting up.</p>
+  <p class="caption"><a href="gallery.html">back to all</a></p>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script>
+  window.addEventListener("load", () => {
+    const svg = document.querySelector("#scene");
+    const q = s => svg.querySelector(s);
+    const qa = s => [...svg.querySelectorAll(s)];
+    const body=q("#body"), claude=q("#claude");
+    // shape stays exact. eyes close by squashing the real 11x11 eye rects, not redrawing them
+    qa("#eyes rect").forEach(e => gsap.to(e,{scaleY:0.14,duration:0.5,transformOrigin:"50% 50%",ease:"power2.inOut"}));
+    // slow breathing from the seat (body group is translated 21,8)
+    gsap.to(body,{scaleY:1.04,duration:1.8,repeat:-1,yoyo:true,ease:"sine.inOut",svgOrigin:"74 73"});
+    gsap.to(claude,{y:1.5,duration:1.8,repeat:-1,yoyo:true,ease:"sine.inOut"});
+    const zs=qa(".z");
+    zs.forEach((z,i)=>{
+      gsap.set(z,{transformOrigin:"50% 50%"});
+      gsap.fromTo(z,
+        {x:0,y:0,scale:0.6,opacity:0},
+        {keyframes:[{opacity:1,duration:0.4},{x:20,y:-26,scale:1.5,opacity:0,duration:2.0,ease:"power1.out"}],
+         repeat:-1, delay:i*0.9});
+    });
+  });
+  </script>
+</body>
+</html>

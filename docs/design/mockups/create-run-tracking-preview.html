@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Create-run tracking — preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Hallmark · studied-DNA build (system-managed project)
+ * source: docs/design/DESIGN-SYSTEM.md + src/components/studio/* + src/components/runs/*
+ * catalog/macrostructure rotation skipped — this extends Crowsnest's locked visual system,
+ * not a fresh page. Fonts: Archivo (words) + IBM Plex Mono (numbers/ids/status), tabular-nums.
+ * Amber budget: score badges + the running-state dot/pill only. Radius 0 everywhere except pills.
+ */
+
+/* ---------- tokens (verbatim from src/app/globals.css :root) ---------- */
+:root{
+  --background:#0b0b0c; --card:#141416; --popover:#1c1c1f;
+  --border:#1f1f23; --line-strong:#3e3e46; --input:#3e3e46;
+  --foreground:#f2f2f0; --muted-foreground:#9a9a96; --faint:#868682; --dim:#55554f;
+  --primary:#e8a33d; --primary-foreground:#0b0b0c;
+  --secondary:#1c1c1f; --secondary-foreground:#f2f2f0;
+  --destructive:#d9503f; --destructive-wash:rgba(217,80,63,.12);
+  --pos:#6fad86;
+  --score:#e8a33d; --score-on:#0b0b0c; --score-wash:rgba(232,163,61,.12); --score-line:rgba(232,163,61,.35);
+  --muted:#1c1c1f;
+  /* terminal, exact values shipped in terminal-pane.tsx */
+  --term-bg:#08080a; --term-fg:#f2f2f0;
+
+  --font-sans:"Archivo",ui-sans-serif,system-ui,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,monospace;
+
+  /* six-step type scale, DESIGN-SYSTEM.md §4 */
+  --text-2xs:0.8125rem; --text-xs:0.9375rem; --text-sm:1.0625rem;
+  --text-base:1.1875rem; --text-lg:1.5rem; --text-xl:2.125rem;
+
+  /* spacing scale, §5 */
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-6:24px; --sp-8:32px; --sp-12:48px; --sp-16:64px;
+}
+
+*{box-sizing:border-box}
+html,body{overflow-x:clip;background:var(--background)}
+body{
+  margin:0;color:var(--foreground);font-family:var(--font-sans);line-height:1.55;
+  font-size:var(--text-sm);-webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+.mono{font-family:var(--font-mono)}
+.tabular{font-variant-numeric:tabular-nums slashed-zero}
+.upper-label{
+  font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:.06em;
+  color:var(--faint);text-transform:uppercase;
+}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+
+/* ---------- doc shell (not part of the app itself) ---------- */
+.doc{max-width:1180px;margin:0 auto;padding:var(--sp-8) var(--sp-6) var(--sp-16)}
+.doc-head{padding-bottom:var(--sp-6);margin-bottom:var(--sp-8);border-bottom:1px solid var(--border)}
+.kicker{font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:0 0 var(--sp-3)}
+h1{font-size:var(--text-xl);line-height:1.12;font-weight:700;letter-spacing:-.01em;margin:0 0 var(--sp-3)}
+.lede{font-size:var(--text-base);color:var(--muted-foreground);max-width:66ch;margin:0}
+.toc{display:flex;flex-wrap:wrap;gap:var(--sp-2);margin-top:var(--sp-6)}
+.toc a{
+  font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:.03em;
+  color:var(--muted-foreground);text-decoration:none;border:1px solid var(--border);
+  padding:6px 12px;transition:border-color .15s ease,color .15s ease;
+}
+.toc a:hover{color:var(--foreground);border-color:var(--line-strong)}
+
+.doc-section{margin-bottom:var(--sp-16)}
+.doc-section > .sec-head{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3);margin-bottom:var(--sp-4)}
+.sec-head h2{font-size:var(--text-lg);font-weight:700;margin:0;letter-spacing:-.005em}
+.sec-head .num{font-family:var(--font-mono);color:var(--muted-foreground);font-weight:500;margin-right:var(--sp-2);font-size:var(--text-sm)}
+.sec-sub{color:var(--muted-foreground);font-size:var(--text-sm);max-width:74ch;margin:0 0 var(--sp-6)}
+.cap{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint);margin-top:var(--sp-3)}
+.scrollframe{overflow-x:auto;padding-bottom:2px}
+
+/* ---------- segmented state switcher (radio group, no JS) ---------- */
+.stateset{display:inline-flex;border:1px solid var(--border);background:var(--card)}
+.stateset input{position:absolute;opacity:0;pointer-events:none}
+.stateset label{
+  font-family:var(--font-mono);font-size:var(--text-2xs);letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted-foreground);padding:8px 14px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  border-right:1px solid var(--border);transition:background .12s ease,color .12s ease;user-select:none;
+}
+.stateset label:last-of-type{border-right:none}
+.stateset label:hover{color:var(--foreground)}
+.stateset input:focus-visible + label{outline:2px solid var(--primary);outline-offset:-2px}
+/* selected = raised surface + foreground text, never amber — §3 bans amber on a
+   selected toggle/segmented control. */
+.stateset input:checked + label{background:var(--popover);color:var(--foreground);font-weight:600}
+.stateset label .d{width:6px;height:6px;border-radius:50%;background:var(--dim);flex-shrink:0}
+.stateset label[data-tone="run"] .d{background:var(--score)}
+.stateset label[data-tone="ok"] .d{background:var(--pos)}
+.stateset label[data-tone="fail"] .d{background:var(--destructive)}
+.stateset label[data-tone="cxl"] .d{background:var(--muted-foreground)}
+
+.statepanel{display:none}
+
+/* ============================================================
+   SCREEN 1 — STUDIO
+   ============================================================ */
+.studio-frame{border:1px solid var(--border);background:var(--background)}
+.studio-topbar{
+  display:flex;align-items:center;gap:var(--sp-2);padding:10px var(--sp-4);
+  border-bottom:1px solid var(--border);background:var(--card);
+}
+.studio-topbar .path{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint)}
+.studio-body{display:grid;grid-template-columns:280px 1fr;min-width:900px}
+/* Each state panel is the studio-body's single second track; it splits itself into
+   center + output internally so the outer grid never reserves a third, unused track. */
+.statepanel.split{display:grid;grid-template-columns:1fr 260px}
+
+/* Brief pane — matches studio-screen.tsx */
+.pane-brief{border-right:1px solid var(--border);padding:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-4)}
+.brief-title{margin:4px 0 0;font-size:var(--text-base);font-weight:500;color:var(--foreground);line-height:1.3}
+.chip-row{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.chip{
+  display:inline-flex;align-items:center;border:1px solid var(--border);padding:2px 8px;
+  font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--muted-foreground);text-transform:uppercase;
+}
+.score-badge{
+  display:inline-flex;align-items:center;border:1px solid var(--score-line);background:var(--score-wash);
+  padding:2px 8px;font-family:var(--font-mono);font-size:var(--text-2xs);font-weight:500;color:var(--score);
+}
+.tabular{font-variant-numeric:tabular-nums slashed-zero}
+.field-block{border-top:1px solid var(--border);padding-top:var(--sp-4);display:flex;flex-direction:column;gap:4px}
+.field-block p{margin:0;font-size:var(--text-sm);color:var(--foreground)}
+.layout-field{display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--border);padding:8px 0}
+.layout-field:last-child{border-bottom:none}
+.layout-field span.v{font-size:var(--text-sm);color:var(--foreground)}
+
+/* Center pane — terminal + NEW status strip */
+.pane-center{display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:340px}
+.center-bar{
+  display:flex;align-items:center;gap:var(--sp-3);padding:10px var(--sp-4);border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
+}
+.center-bar .spacer{margin-left:auto;display:flex;align-items:center;gap:var(--sp-3)}
+.pill{
+  display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:var(--text-2xs);
+  padding:3px 10px;border-radius:999px;border:1px solid var(--border);color:var(--muted-foreground);font-weight:500;
+}
+.pill .d{width:6px;height:6px;border-radius:50%;background:var(--dim)}
+.pill.run{color:var(--score);border-color:#5e4a1c}
+.pill.run .d{background:var(--score);animation:pulse-dot 1.6s ease-in-out infinite}
+.pill.ok{color:var(--pos);border-color:#31513f}
+.pill.ok .d{background:var(--pos)}
+.pill.fail{color:var(--destructive);border-color:#5a2e28}
+.pill.fail .d{background:var(--destructive)}
+.pill.cxl{color:var(--muted-foreground);border-color:var(--line-strong)}
+.pill.cxl .d{background:var(--muted-foreground)}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){.pill.run .d{animation:none}}
+.elapsed{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint)}
+/* Real link affordance, matching the underline the app already uses for the "source
+   outlier" link in studio-screen.tsx — not a status readout, so it can't share the
+   pill/elapsed row's plain-text treatment. */
+.view-run{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--muted-foreground);text-decoration:underline;text-underline-offset:2px}
+.view-run:hover{color:var(--foreground)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid transparent;
+  font-family:var(--font-sans);font-size:var(--text-2xs);font-weight:500;padding:6px 14px;cursor:pointer;
+  transition:background .12s ease,opacity .12s ease;white-space:nowrap;
+}
+.btn.secondary{background:var(--secondary);color:var(--secondary-foreground)}
+.btn.secondary:hover{background:#232327}
+.btn.outline{background:transparent;border-color:var(--border);color:var(--foreground)}
+.btn.outline:hover{background:var(--popover)}
+/* Stop, while a cook is running — matches the real Cancel button's destructive
+   variant already shipped on runs-list.tsx, not a new color invented for this. */
+.btn.destructive{background:rgba(217,80,63,.12);color:var(--destructive)}
+.btn.destructive:hover{background:rgba(217,80,63,.2)}
+.btn[disabled],.btn.is-disabled{opacity:.5;pointer-events:none}
+.btn.block{width:100%}
+
+.term{
+  flex:1;background:var(--term-bg);color:var(--term-fg);font-family:var(--font-mono);font-size:12.5px;
+  line-height:1.7;padding:var(--sp-4);overflow:auto;
+}
+.term .g{color:#6b6f76}
+.term .prompt{color:#8b98a8}
+.term .cmd{color:#8fd19e}
+.term .err{color:var(--destructive)}
+
+/* Right pane — Output, driven by run status */
+.pane-output{padding:var(--sp-6);display:flex;flex-direction:column;gap:var(--sp-4)}
+.preview-box{
+  aspect-ratio:9/16;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:var(--sp-4);font-size:var(--text-2xs);color:var(--muted-foreground);
+}
+.preview-box.video{
+  border-style:solid;background:linear-gradient(160deg,#1a2027,#0d1013 65%);color:var(--foreground);
+  flex-direction:column;gap:8px;font-family:var(--font-mono);
+}
+.preview-box.video .play{width:34px;height:34px;border-radius:50%;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center;font-size:12px}
+.preview-box.error{border-color:#5a2e28;background:var(--destructive-wash);color:var(--destructive);flex-direction:column;gap:4px}
+/* Dimmed on purpose — this variant is not what Layer 1 ships, and the previous pass
+   rendered it fully opaque, which read as real shipped UI on a quick skim. */
+.later-progress{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px dashed var(--border);opacity:.5}
+.later-progress .heading{font-family:var(--font-mono);font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--faint)}
+.later-progress .lbl{font-family:var(--font-mono);font-size:11px;color:var(--faint)}
+.prog-track{height:5px;background:var(--muted);overflow:hidden}
+.prog-fill{height:100%;background:var(--muted-foreground)}
+.err-copy{font-size:var(--text-2xs);line-height:1.5;color:var(--destructive)}
+.err-copy b{color:var(--foreground)}
+
+/* ============================================================
+   SCREEN 2 — /runs
+   ============================================================ */
+.app-frame{border:1px solid var(--border);background:var(--background);display:flex;min-width:1040px}
+.rail{width:200px;flex-shrink:0;border-right:1px solid var(--border);background:var(--card);padding:var(--sp-4) 0}
+.rail .brand{padding:0 var(--sp-4) var(--sp-4);font-size:var(--text-sm);font-weight:600;letter-spacing:-.01em}
+.rail .group{padding:8px var(--sp-4) 6px;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.rail .item{
+  display:flex;align-items:center;gap:8px;margin:0 12px;padding:7px 10px;font-size:13px;color:var(--muted-foreground);
+}
+.rail .item.active{background:var(--popover);color:var(--foreground);font-weight:600}
+.rail .item .ico{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.5;flex-shrink:0}
+.rail hr{border:none;border-top:1px solid var(--border);margin:var(--sp-3) 12px}
+
+.runs-main{flex:1;min-width:0;padding:var(--sp-6)}
+.runs-count{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint);margin:0 0 var(--sp-3)}
+.live{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint);margin-bottom:var(--sp-4)}
+.live .d{width:6px;height:6px;border-radius:50%;background:var(--foreground);animation:pulse-dot 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion: reduce){.live .d{animation:none}}
+
+table.runs{width:100%;border-collapse:collapse;border:1px solid var(--border);background:var(--card)}
+table.runs th{
+  text-align:left;font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--faint);font-weight:400;padding:10px var(--sp-4);border-bottom:1px solid var(--border);
+}
+table.runs th.r,table.runs td.r{text-align:right}
+table.runs td{padding:0 var(--sp-4);border-bottom:1px solid var(--border);height:56px;vertical-align:middle;font-size:13px}
+table.runs tr:last-child td{border-bottom:none}
+.run-cell{display:flex;align-items:center;gap:10px;min-width:0}
+.run-cell .d{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.run-cell .d.run{background:var(--foreground);animation:pulse-dot 1.6s ease-in-out infinite}
+.run-cell .d.ok{background:var(--pos)}
+.run-cell .d.fail{background:var(--destructive)}
+.run-cell .d.cxl{background:var(--muted-foreground)}
+@media (prefers-reduced-motion: reduce){.run-cell .d.run{animation:none}}
+.run-cell .t{min-width:0}
+.run-cell .t .title{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:340px}
+.run-cell .t .sub{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--muted-foreground)}
+.type-tag{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint)}
+.mono-cell{font-family:var(--font-mono);color:var(--muted-foreground);font-size:13px}
+.mono-cell.strong{color:var(--foreground)}
+
+/* ============================================================
+   SCREEN 3 — /runs/[runId]
+   ============================================================ */
+.detail-wrap{max-width:900px}
+.back{display:inline-flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--muted-foreground);text-decoration:none;margin-bottom:var(--sp-4)}
+.back:hover{color:var(--foreground)}
+.status-card{border:1px solid var(--border);background:var(--card);padding:var(--sp-6)}
+.status-row{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap}
+.status-row .d{width:7px;height:7px;border-radius:50%}
+.status-word{font-weight:600}
+.status-word.run{color:var(--foreground)}
+.status-word.ok{color:var(--pos)}
+.status-word.fail{color:var(--destructive)}
+.status-meta{font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint)}
+
+.meta-line{display:flex;flex-wrap:wrap;gap:var(--sp-6);margin-top:var(--sp-3);font-size:12.5px;color:var(--muted-foreground)}
+.meta-line b{font-weight:400;font-family:var(--font-mono);color:var(--foreground)}
+
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:var(--sp-4)}
+.tile{background:var(--card);padding:12px var(--sp-4)}
+.tile .lbl{font-family:var(--font-mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.tile .val{margin-top:6px;font-family:var(--font-mono);font-size:var(--text-lg);}
+.tile .val.bad{color:var(--destructive)}
+
+.status-actions{display:flex;gap:8px;margin-top:var(--sp-4)}
+
+.error-callout{
+  display:flex;align-items:flex-start;gap:10px;border:1px solid #5a2e28;background:var(--destructive-wash);
+  padding:12px var(--sp-4);margin-top:var(--sp-6);
+}
+.error-callout .lbl{font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--destructive);flex-shrink:0;padding-top:2px}
+.error-callout .msg{font-family:var(--font-mono);font-size:12.5px;color:var(--destructive);line-height:1.6}
+
+.detail-grid{display:grid;grid-template-columns:1fr 220px;gap:var(--sp-6);margin-top:var(--sp-6)}
+@media(max-width:760px){.detail-grid{grid-template-columns:1fr}}
+.detail-side{display:flex;flex-direction:column;gap:10px}
+.vidbox{
+  aspect-ratio:9/16;border:1px solid var(--border);background:linear-gradient(160deg,#1a2027,#0d1013 65%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--foreground);font-family:var(--font-mono);font-size:12px;
+}
+.vidbox .play{width:32px;height:32px;border-radius:50%;border:1px solid var(--line-strong);display:flex;align-items:center;justify-content:center}
+.vidbox.error{background:var(--destructive-wash);border-color:#5a2e28;color:var(--destructive)}
+
+.trace-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-3)}
+table.trace{width:100%;border-collapse:collapse;border:1px solid var(--border);background:var(--card)}
+table.trace th{text-align:left;font-family:var(--font-mono);font-size:11px;color:var(--faint);font-weight:400;padding:8px var(--sp-4);border-bottom:1px solid var(--line-strong)}
+table.trace td{padding:8px var(--sp-4);border-bottom:1px solid var(--border);font-size:12.5px;vertical-align:top}
+table.trace tr:last-child td{border-bottom:none}
+.lvl-info{color:var(--muted-foreground)}
+.lvl-warn{color:var(--foreground);font-weight:500}
+.lvl-error{color:var(--destructive);font-weight:500}
+.later-note{margin-top:var(--sp-4);font-family:var(--font-mono);font-size:var(--text-2xs);color:var(--faint)}
+
+footer{max-width:1180px;margin:0 auto;padding:var(--sp-8) var(--sp-6) var(--sp-12);color:var(--dim);font-size:12px;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+
+<div class="doc">
+  <div class="doc-head">
+    <p class="kicker">Crowsnest · design preview, not built</p>
+    <h1>Create-run tracking</h1>
+    <p class="lede">Today a cook runs inside the embedded terminal and Crowsnest cannot see it — the only signal back is the finished file. This gives a cook a tracked run: a status strip in the studio, and durable records on <span class="mono">/runs</span> and <span class="mono">/runs/[runId]</span>. One run per Cook press; Stop ends a run early, Retry cook always starts a new one.</p>
+    <div class="toc">
+      <a href="#studio">01 · Studio status strip</a>
+      <a href="#runs">02 · /runs list</a>
+      <a href="#detail">03 · /runs/[runId]</a>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       SCREEN 1 — STUDIO
+       ============================================================ -->
+  <section class="doc-section" id="studio">
+    <div class="sec-head">
+      <h2><span class="num">01</span>Studio — run status strip</h2>
+      <div class="stateset" role="radiogroup" aria-label="Studio run state">
+        <input type="radio" name="studio-state" id="st-idle" />
+        <label for="st-idle" data-tone="idle"><span class="d"></span>Idle</label>
+        <input type="radio" name="studio-state" id="st-run" checked />
+        <label for="st-run" data-tone="run"><span class="d"></span>Running</label>
+        <input type="radio" name="studio-state" id="st-ok" />
+        <label for="st-ok" data-tone="ok"><span class="d"></span>Success</label>
+        <input type="radio" name="studio-state" id="st-fail" />
+        <label for="st-fail" data-tone="fail"><span class="d"></span>Failed</label>
+        <input type="radio" name="studio-state" id="st-cxl" />
+        <label for="st-cxl" data-tone="cxl"><span class="d"></span>Canceled</label>
+      </div>
+    </div>
+    <p class="sec-sub">The dashed pieces in the plan land here: a status pill, elapsed time, and a <span class="mono">view run</span> link, next to the terminal that already ships. Layer 1 ships no progress bar — that line is a later-phase variant, shown once below under Running.</p>
+
+    <div class="scrollframe">
+    <div class="studio-frame">
+      <div class="studio-topbar"><span class="path mono">/mine/[postId]/studio</span></div>
+      <div class="studio-body">
+
+        <!-- Brief pane: identical across states, matches studio-screen.tsx -->
+        <div class="pane-brief">
+          <div>
+            <span class="upper-label">Brief</span>
+            <h3 class="brief-title">15 Free Google AI Tools Nobody Talks About</h3>
+          </div>
+          <div class="chip-row">
+            <span class="chip">Short</span>
+            <span class="score-badge tabular">15.9x score</span>
+          </div>
+          <div class="field-block">
+            <span class="upper-label">Script</span>
+            <p>Google AI toolkit — cold open</p>
+          </div>
+          <div class="field-block">
+            <span class="upper-label">Visual direction</span>
+            <div>
+              <div class="layout-field"><span class="upper-label">On-screen text</span><span class="v">Tool name, top third</span></div>
+              <div class="layout-field"><span class="upper-label">Cut rhythm</span><span class="v">~1.4s per tool</span></div>
+              <div class="layout-field"><span class="upper-label">Framing</span><span class="v">Screen capture, centered</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Idle -->
+        <div class="statepanel split" data-panel="idle">
+          <div class="pane-center">
+            <div class="center-bar">
+              <span class="upper-label">Claude Code</span>
+              <div class="spacer">
+                <span class="pill"><span class="d"></span>no run</span>
+                <span class="btn secondary">Cook</span>
+              </div>
+            </div>
+            <div class="term"><span class="g">session ready</span><br /><span class="prompt">&rsaquo;</span> <span class="cursor">_</span></div>
+          </div>
+          <div class="pane-output">
+            <span class="upper-label">Output</span>
+            <div class="preview-box">Run Cook to start the session.</div>
+            <div class="btn secondary block is-disabled">Publish</div>
+            <div class="btn outline block is-disabled">Save to calendar</div>
+          </div>
+        </div>
+
+        <!-- Running -->
+        <div class="statepanel split" data-panel="run">
+          <div class="pane-center">
+            <div class="center-bar">
+              <span class="upper-label">Claude Code</span>
+              <div class="spacer">
+                <span class="pill run"><span class="d"></span>cooking</span>
+                <span class="elapsed tabular">2:14</span>
+                <a class="view-run" href="#detail">view run &rsaquo;</a>
+                <span class="btn destructive">Stop</span>
+              </div>
+            </div>
+            <div class="term">
+              <span class="g">bypass permissions on</span><br />
+              <span class="prompt">&rsaquo;</span> <span class="cmd">/ksa:cooking</span><br />
+              <span class="g">Envisioning the piece&hellip;</span><br />
+              <span class="g">writing scenes&hellip; 6 cards</span><br />
+              <span class="g">voiceover: kokoro, rendering</span><br />
+              <span class="g">phase: rendering scenes, 60%</span>
+            </div>
+          </div>
+          <div class="pane-output">
+            <span class="upper-label">Output</span>
+            <div class="preview-box">Cooking. The render appears here when it finishes.</div>
+            <div class="later-progress">
+              <div class="heading">Layer 2 &middot; later, not in this release</div>
+              <div class="lbl">rendering &middot; 60%</div>
+              <div class="prog-track"><div class="prog-fill" style="width:60%"></div></div>
+            </div>
+            <div class="btn secondary block is-disabled">Publish</div>
+            <div class="btn outline block is-disabled">Save to calendar</div>
+          </div>
+        </div>
+
+        <!-- Success -->
+        <div class="statepanel split" data-panel="ok">
+          <div class="pane-center">
+            <div class="center-bar">
+              <span class="upper-label">Claude Code</span>
+              <div class="spacer">
+                <span class="pill ok"><span class="d"></span>done</span>
+                <span class="elapsed tabular">6:41</span>
+                <a class="view-run" href="#detail">view run &rsaquo;</a>
+                <span class="btn secondary">Retry cook</span>
+              </div>
+            </div>
+            <div class="term">
+              <span class="prompt">&rsaquo;</span> <span class="cmd">/ksa:cooking</span><br />
+              <span class="g">phase: rendering scenes, 100%</span><br />
+              <span class="g">wrote renders/2026-08-13-.../video.mp4, 4.2 MB</span>
+            </div>
+          </div>
+          <div class="pane-output">
+            <span class="upper-label">Output</span>
+            <div class="preview-box video"><span class="play">&#9654;</span><span>0:32 &middot; 9:16</span></div>
+            <div class="btn secondary block">Publish</div>
+            <div class="btn outline block">Save to calendar</div>
+          </div>
+        </div>
+
+        <!-- Failed -->
+        <div class="statepanel split" data-panel="fail">
+          <div class="pane-center">
+            <div class="center-bar">
+              <span class="upper-label">Claude Code</span>
+              <div class="spacer">
+                <span class="pill fail"><span class="d"></span>failed</span>
+                <span class="elapsed tabular">12:00</span>
+                <a class="view-run" href="#detail">view run &rsaquo;</a>
+                <span class="btn secondary">Retry cook</span>
+              </div>
+            </div>
+            <div class="term">
+              <span class="prompt">&rsaquo;</span> <span class="cmd">/ksa:cooking</span><br />
+              <span class="g">phase: rendering scenes, 60%</span><br />
+              <span class="g">no heartbeat for 6:00&hellip;</span><br />
+              <span class="err">timed out after 12:00 &middot; no render produced</span>
+            </div>
+          </div>
+          <div class="pane-output">
+            <span class="upper-label">Output</span>
+            <div class="preview-box error">
+              <p class="err-copy"><b>Render failed</b> &mdash; no render after 12 minutes, the session stopped responding.<br />E-TIMEOUT &middot; 14:36.<br />Press Retry cook to start a new run.</p>
+            </div>
+            <div class="btn secondary block is-disabled">Publish</div>
+            <div class="btn outline block is-disabled">Save to calendar</div>
+          </div>
+        </div>
+
+        <!-- Canceled -->
+        <div class="statepanel split" data-panel="cxl">
+          <div class="pane-center">
+            <div class="center-bar">
+              <span class="upper-label">Claude Code</span>
+              <div class="spacer">
+                <span class="pill cxl"><span class="d"></span>canceled</span>
+                <span class="elapsed tabular">0:38</span>
+                <a class="view-run" href="#detail">view run &rsaquo;</a>
+                <span class="btn secondary">Retry cook</span>
+              </div>
+            </div>
+            <div class="term">
+              <span class="prompt">&rsaquo;</span> <span class="cmd">/ksa:cooking</span><br />
+              <span class="g">Envisioning the piece&hellip;</span><br />
+              <span class="g">session ended &middot; stopped before a render finished</span>
+            </div>
+          </div>
+          <div class="pane-output">
+            <span class="upper-label">Output</span>
+            <div class="preview-box">Canceled before a render finished.</div>
+            <div class="btn secondary block is-disabled">Publish</div>
+            <div class="btn outline block is-disabled">Save to calendar</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    </div>
+    <p class="cap">Stop appears only while a cook is running and ends the session (the run moves to Canceled). Retry cook appears once a run has a result &mdash; success, failed, or canceled &mdash; and always starts a new run, never resumes the old one. Amber stays reserved for the score badge and the running-state pill. A render crash (for example ffmpeg exited 1) fails the same way as the timeout shown here, just with a different error line.</p>
+  </section>
+
+  <!-- ============================================================
+       SCREEN 2 — /runs
+       ============================================================ -->
+  <section class="doc-section" id="runs">
+    <div class="sec-head"><h2><span class="num">02</span>The <span class="mono" style="font-size:inherit">/runs</span> list</h2></div>
+    <p class="sec-sub">Create runs join the existing list next to sync and remix — same table, one new type. This is where a cook becomes a durable record instead of only living in the terminal.</p>
+
+    <div class="scrollframe">
+    <div class="app-frame">
+      <div class="rail">
+        <div class="brand">Crowsnest</div>
+        <div class="group">Research</div>
+        <div class="item"><span class="ico"></span>Feed</div>
+        <div class="item"><span class="ico"></span>Ideas</div>
+        <div class="group">Create</div>
+        <div class="item"><span class="ico"></span>Vault</div>
+        <div class="group">Sources</div>
+        <div class="item"><span class="ico"></span>Channels</div>
+        <div class="item"><span class="ico"></span>My channel</div>
+        <div class="group">System</div>
+        <div class="item"><span class="ico"></span>Dashboard</div>
+        <div class="item"><span class="ico"></span>Logs</div>
+        <div class="item active"><span class="ico"></span>Runs</div>
+      </div>
+
+      <div class="runs-main">
+        <p class="runs-count tabular">6 runs</p>
+        <div class="live"><span class="d"></span>Live</div>
+
+        <table class="runs">
+          <thead>
+            <tr><th>Run</th><th>Type</th><th>Started</th><th>Duration</th><th>Progress</th><th class="r">Actions</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d run"></span>
+                  <div class="t"><div class="title">15 Free Google AI Tools Nobody Talks About</div><div class="sub">create run</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">create</span></td>
+              <td class="mono-cell">2m ago</td>
+              <td class="mono-cell strong tabular">2:14</td>
+              <td></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d ok"></span>
+                  <div class="t"><div class="title">7 Notion templates for solo founders</div><div class="sub">create run</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">create</span></td>
+              <td class="mono-cell">1h ago</td>
+              <td class="mono-cell strong tabular">6:41</td>
+              <td></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d ok"></span>
+                  <div class="t"><div class="title">@competitor channel</div><div class="sub">sync run</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">sync</span></td>
+              <td class="mono-cell">3h ago</td>
+              <td class="mono-cell strong tabular">3:12</td>
+              <td><div class="prog-track" style="width:96px"><div class="prog-fill" style="width:100%"></div></div></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d fail"></span>
+                  <div class="t"><div class="title">AI voice cloning in 2 minutes</div><div class="sub">create run</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">create</span></td>
+              <td class="mono-cell">yesterday</td>
+              <td class="mono-cell strong tabular">1:52</td>
+              <td></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d ok"></span>
+                  <div class="t"><div class="title">outlier &rarr; script</div><div class="sub">remix run</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">remix</span></td>
+              <td class="mono-cell">1 day ago</td>
+              <td class="mono-cell strong tabular">0:48</td>
+              <td></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+            <tr>
+              <td>
+                <div class="run-cell">
+                  <span class="d cxl"></span>
+                  <div class="t"><div class="title">AI tool comparison, cold open</div><div class="sub">create run &middot; canceled</div></div>
+                </div>
+              </td>
+              <td><span class="type-tag">create</span></td>
+              <td class="mono-cell">2 days ago</td>
+              <td class="mono-cell strong tabular">0:38</td>
+              <td></td>
+              <td class="r"><span class="btn outline">View</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    </div>
+    <p class="cap">Reuses <span class="mono">listRuns()</span> with a new <span class="mono">create</span> run type — no new route. Progress column stays empty for create runs in Layer 1, same as the studio strip.</p>
+  </section>
+
+  <!-- ============================================================
+       SCREEN 3 — /runs/[runId]
+       ============================================================ -->
+  <section class="doc-section" id="detail">
+    <div class="sec-head">
+      <h2><span class="num">03</span><span class="mono" style="font-size:inherit">/runs/[runId]</span> — run detail</h2>
+      <div class="stateset" role="radiogroup" aria-label="Run detail state">
+        <input type="radio" name="detail-state" id="dt-ok" checked />
+        <label for="dt-ok" data-tone="ok"><span class="d"></span>Success</label>
+        <input type="radio" name="detail-state" id="dt-fail" />
+        <label for="dt-fail" data-tone="fail"><span class="d"></span>Failed</label>
+      </div>
+    </div>
+    <p class="sec-sub">A timeline, the captured video, and the error if it failed — the durable answer to "where do I see the cook." Same header, tile, and trace shapes the sync and remix run pages already use.</p>
+
+    <div class="detail-wrap">
+      <a class="back" href="#runs">&lsaquo; Back to runs</a>
+
+      <!-- Success -->
+      <div class="statepanel" data-panel="ok" data-group="detail">
+        <div class="status-card">
+          <div class="status-row">
+            <span class="d" style="background:var(--pos)"></span>
+            <span class="status-word ok">Success</span>
+            <span class="status-meta">run_id crt_9f2a1c &middot; create</span>
+          </div>
+          <div class="meta-line">
+            <span>Started <b>14:23:00</b></span>
+            <span>Elapsed <b>6:41</b></span>
+            <span>Heartbeat <b>4s ago</b></span>
+            <span>Budget <b>12:00</b></span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="lbl">Scenes</div><div class="val tabular">6</div></div>
+            <div class="tile"><div class="lbl">Voiceover</div><div class="val tabular">32s</div></div>
+            <div class="tile"><div class="lbl">Render</div><div class="val tabular">0:32</div></div>
+            <div class="tile"><div class="lbl">File size</div><div class="val tabular">4.2 MB</div></div>
+          </div>
+          <div class="status-actions">
+            <span class="btn outline">Open in studio</span>
+            <span class="btn outline">Retry cook</span>
+          </div>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <div class="trace-head">
+              <span class="upper-label">Timeline &middot; run_id crt_9f2a1c</span>
+              <div class="live" style="margin:0"><span class="d"></span>Live</div>
+            </div>
+            <table class="trace">
+              <thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Event</th></tr></thead>
+              <tbody>
+                <tr><td class="mono-cell">14:23:00</td><td class="lvl-info">info</td><td>studio</td><td class="mono-cell strong">Cook started</td></tr>
+                <tr><td class="mono-cell">14:23:04</td><td class="lvl-info">info</td><td>terminal</td><td class="mono-cell strong">/ksa:cooking accepted</td></tr>
+                <tr><td class="mono-cell">14:23:41</td><td class="lvl-info">info</td><td>session</td><td class="mono-cell strong">phase: scripting &rarr; voiceover &rarr; rendering</td></tr>
+                <tr><td class="mono-cell">14:29:41</td><td class="lvl-info">info</td><td>render-watch</td><td class="mono-cell strong">Render captured &middot; video.mp4, 4.2 MB</td></tr>
+              </tbody>
+            </table>
+            <p class="later-note">Transcript &middot; Layer 3, later</p>
+          </div>
+          <div class="detail-side">
+            <span class="upper-label">Render</span>
+            <div class="vidbox"><span class="play">&#9654;</span><span>0:32</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Failed -->
+      <div class="statepanel" data-panel="fail" data-group="detail">
+        <div class="status-card">
+          <div class="status-row">
+            <span class="d" style="background:var(--destructive)"></span>
+            <span class="status-word fail">Failed</span>
+            <span class="status-meta">run_id crt_7b40e2 &middot; create</span>
+          </div>
+          <div class="meta-line">
+            <span>Started <b>09:04:12</b></span>
+            <span>Elapsed <b>12:04</b></span>
+            <span>Heartbeat <b>6:02 ago</b></span>
+            <span>Budget <b>12:00</b></span>
+          </div>
+          <div class="tiles">
+            <div class="tile"><div class="lbl">Scenes</div><div class="val tabular">4</div></div>
+            <div class="tile"><div class="lbl">Voiceover</div><div class="val tabular">&mdash;</div></div>
+            <div class="tile"><div class="lbl">Render</div><div class="val tabular">&mdash;</div></div>
+            <div class="tile"><div class="lbl">Failed</div><div class="val tabular bad">1</div></div>
+          </div>
+          <div class="status-actions">
+            <span class="btn outline">Retry cook</span>
+          </div>
+        </div>
+
+        <div class="error-callout">
+          <span class="lbl">First error</span>
+          <span class="msg">no render after 12 minutes, the session stopped responding &middot; E-TIMEOUT, 09:16:16</span>
+        </div>
+
+        <div class="detail-grid">
+          <div>
+            <div class="trace-head">
+              <span class="upper-label">Timeline &middot; run_id crt_7b40e2</span>
+              <div class="live" style="margin:0"><span class="d" style="animation:none;background:var(--dim)"></span>Reconnecting&hellip;</div>
+            </div>
+            <table class="trace">
+              <thead><tr><th>Time</th><th>Level</th><th>Source</th><th>Event</th></tr></thead>
+              <tbody>
+                <tr><td class="mono-cell">09:04:12</td><td class="lvl-info">info</td><td>studio</td><td class="mono-cell strong">Cook started</td></tr>
+                <tr><td class="mono-cell">09:04:15</td><td class="lvl-info">info</td><td>terminal</td><td class="mono-cell strong">/ksa:cooking accepted</td></tr>
+                <tr><td class="mono-cell">09:04:50</td><td class="lvl-info">info</td><td>session</td><td class="mono-cell strong">phase: scripting &rarr; voiceover &rarr; rendering, 60%</td></tr>
+                <tr><td class="mono-cell">09:10:52</td><td class="lvl-warn">warn</td><td>render-watch</td><td class="mono-cell strong">No heartbeat for 6:00</td></tr>
+                <tr><td class="mono-cell">09:16:16</td><td class="lvl-error">error</td><td>render-watch</td><td class="mono-cell strong">Timed out after 12:00 &middot; no render produced</td></tr>
+              </tbody>
+            </table>
+            <p class="later-note">Transcript &middot; Layer 3, later</p>
+          </div>
+          <div class="detail-side">
+            <span class="upper-label">Render</span>
+            <div class="vidbox error">No render &middot; timed out after 12 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="cap">Failed runs show the error in place of the video and keep the timeline, so a broken cook is diagnosable after the fact.</p>
+  </section>
+</div>
+
+<footer>
+  Preview mockup, not built. Grounded against docs/design/DESIGN-SYSTEM.md, src/components/studio/studio-screen.tsx
+  and studio-panel.tsx, and src/components/runs/runs-list.tsx and run-detail.tsx. Layer 1 scope only — no progress
+  bar, no transcript; both are marked "later" above.
+</footer>
+
+<script>
+  // Pure display toggle for the two independent radio groups above — no framework, no
+  // network calls, nothing that reaches outside this file.
+  function wireGroup(inputSelector, panelSelector) {
+    var inputs = document.querySelectorAll(inputSelector);
+    var panels = document.querySelectorAll(panelSelector);
+    function sync() {
+      var checked = document.querySelector(inputSelector + ':checked');
+      var key = checked ? checked.id.replace(/^st-|^dt-/, '') : null;
+      panels.forEach(function (p) {
+        var shown = p.dataset.panel === key;
+        p.style.setProperty('display', shown ? (p.classList.contains('split') ? 'grid' : 'block') : 'none');
+      });
+    }
+    inputs.forEach(function (i) { i.addEventListener('change', sync); });
+    sync();
+  }
+  wireGroup('input[name="studio-state"]', '.studio-body .statepanel');
+  wireGroup('input[name="detail-state"]', '.detail-wrap .statepanel');
+</script>
+</body>
+</html>
