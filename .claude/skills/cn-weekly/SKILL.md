@@ -53,6 +53,7 @@ judgment against the offer; blank until you fill them.
 
 - `crowsnest_feed` with `sinceDays: 7`, a high `minScore`, `analyzed: "yes"`, `sort: "score"`.
 - Inspect the strongest few with `crowsnest_video` for hook type, structure, and the "why it worked" note.
+- Optionally pull the ideas inbox with `crowsnest_ideas` to seed concepts the user already saved, and `crowsnest_metrics` to see what the own channel recently did (so a concept can fill a gap).
 
 ### 1b: Synthesize five concepts
 

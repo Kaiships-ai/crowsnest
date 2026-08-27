@@ -17,6 +17,8 @@ import {
   saveScript,
   finishRemix,
 } from "@/server/services/remix";
+import { listIdeas } from "@/server/queries/ideas";
+import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -106,6 +108,37 @@ export function buildMcpServer(): McpServer {
       inputSchema: {},
     },
     async () => text(await getScripts())
+  );
+
+  server.registerTool(
+    "crowsnest_ideas",
+    {
+      title: "Ideas",
+      description: "The ideas inbox or shortlist: short concepts generated from videos, for the weekly plan. Defaults to the inbox.",
+      inputSchema: { tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox.") },
+    },
+    async (args) => text(await listIdeas({ tab: args.tab ?? "inbox" }))
+  );
+
+  server.registerTool(
+    "crowsnest_metrics",
+    {
+      title: "Own channel metrics",
+      description: "How the user's own channel is doing: a window overview plus the recent measured own posts (from the Graph API). Needs an own channel set and a valid Graph token; returns an error otherwise.",
+      inputSchema: {
+        windowDays: z.number().optional().describe("Overview window in days."),
+        limit: z.number().optional().describe("How many recent own posts, default 20."),
+      },
+    },
+    async (args) => {
+      try {
+        const overview = await getOwnChannelOverview(args.windowDays);
+        const posts = await getOwnPosts({ limit: args.limit ?? 20 });
+        return text({ overview, posts });
+      } catch (err) {
+        return text({ error: err instanceof Error ? err.message : "metrics unavailable", hint: "set an own channel and a valid Graph token" });
+      }
+    }
   );
 
   server.registerTool(
