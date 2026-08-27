@@ -22,7 +22,7 @@ The core loop does not poll. Pages render on the server with a snapshot of the d
 
 A full navigation re runs the page and the shell. Moving between feed, mine, and studio re reads everything, so counts and strips are current after any navigation.
 
-An explicit refresh re reads the current page without a navigation. After a write, a client component calls a refresh so the server data it depends on reappears with the change: the [keep this post button](../feed/save-to-vault.md) flips to "Kept", the [calendar](../mine/calendar.md) shows a new plan, the failure strip freshens when a run finishes while the shell is already mounted. The refresh is how a server rendered value reflects a client action without a manual reload.
+An explicit refresh re reads the current page without a navigation. After a write, a client component calls a refresh so the server data it depends on reappears with the change: the [keep this post button](../feed/keep-this-post.md) flips to "Kept", the [calendar](../mine/calendar.md) shows a new plan, the failure strip freshens when a run finishes while the shell is already mounted. The refresh is how a server rendered value reflects a client action without a manual reload.
 
 > Technical note: the refresh is `router.refresh()`. Between a write landing and the refresh completing there is a brief window where the client and the database disagree; each feature document notes where that window is visible.
 

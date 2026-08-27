@@ -18,7 +18,7 @@ That is the whole rule in one screen: what was committed to the server is there,
 
 Four layers, from most durable to least. The tables in [the data model](../foundations/data-model.md) are the durable ones; the URL and the browser hold the rest.
 
-**Committed durable records.** A database row, written by a server action that [commits](../foundations/interaction-model.md). These survive a reload, a navigation, a new tab, and a machine restart. In the core loop they are: a saved post (the [keep this post](../feed/save-to-vault.md) row), a script, a planned post, a create run, a video analysis, and the remix session itself. A record exists or it does not; a half written row is not a state the user can reach, because each of these commits as one row. The remix session is the interesting one: it is disposable working state in intent, but it is a durable row in fact, so its autosaved fields survive exactly as any other row does.
+**Committed durable records.** A database row, written by a server action that [commits](../foundations/interaction-model.md). These survive a reload, a navigation, a new tab, and a machine restart. In the core loop they are: a saved post (the [keep this post](../feed/keep-this-post.md) row), a script, a planned post, a create run, a video analysis, and the remix session itself. A record exists or it does not; a half written row is not a state the user can reach, because each of these commits as one row. The remix session is the interesting one: it is disposable working state in intent, but it is a durable row in fact, so its autosaved fields survive exactly as any other row does.
 
 **Autosaved session fields.** The remix session's own columns (topic, target length, research notes, chosen hook, style choice, outline, variants, chosen variant), each written by a fire and forget autosave as the user edits. These are durable once the write lands, but the write is deferred: some fields save on blur, some on change (see below). Between an edit and its save there is a window where the field on screen is ahead of the database. A reload inside that window keeps the last saved value, not the on screen one.
 
@@ -86,7 +86,7 @@ Stage advances (Continue, Restart) are a separate, awaited write of the session'
 
 Three dialogs hold their fields in the browser and commit only on submit, so a reload or a close before submit loses what was typed:
 
-- The [keep this post](../feed/save-to-vault.md) note. It lives in the dialog until Keep is clicked; a cancel or a reload discards it. It is retained across a cancel and reopen in the same page visit but not across a reload.
+- The [keep this post](../feed/keep-this-post.md) note. It lives in the dialog until Keep is clicked; a cancel or a reload discards it. It is retained across a cancel and reopen in the same page visit but not across a reload.
 - The [plan dialog](../mine/plan-dialog.md) fields. The title, date, and any script choice hold in the dialog until the plan is saved.
 - The [save script](../remix/stage-script.md) title. It is prefilled from a derived short title and held in the dialog; closing the dialog with Escape discards the title but not the variants underneath.
 
@@ -123,7 +123,7 @@ This document is the persistence concern itself, so the first row below is the w
 
 **Persistence and autosave.** The subject of this document. The remix session autosaves per field (blur or change, per the table above); dialogs commit on submit; filters and the remix stage seed live in the URL; recently viewed and the niche live in the settings store; saved views are their own rows. A failed autosave surfaces as a toast.
 
-**History and undo.** There is no cross-loop undo stack. Overwriting an autosaved field discards its previous value with no way back except the [run log](../glossary.md)'s record that an attempt happened. The one scoped undo is the [keep this post](../feed/save-to-vault.md) remove toast, which re creates the row it deleted. See [interaction model](../foundations/interaction-model.md).
+**History and undo.** There is no cross-loop undo stack. Overwriting an autosaved field discards its previous value with no way back except the [run log](../glossary.md)'s record that an attempt happened. The one scoped undo is the [keep this post](../feed/keep-this-post.md) remove toast, which re creates the row it deleted. See [interaction model](../foundations/interaction-model.md).
 
 **Navigation and refresh.** URL held state is restored by [navigation and the shell](../foundations/navigation-and-shell.md)'s model: a filter change is a URL replace, a deep link seeds the opening stage, and back and forward move between saved URL states. After a dialog write, a `router.refresh` re reads the server data so a committed row appears without a manual reload.
 
@@ -141,7 +141,7 @@ This document is the persistence concern itself, so the first row below is the w
 
 - An unblurred studio field is the single most common loss: the value is on screen and in the live copy but not yet in the database, so a reload or a Continue that unmounts the stage before blur drops it. Whether a Continue click's stage change lets the field's blur fire first is not settled in the code and is called out below.
 - The prompt prefill writes the topic even when the user does nothing, so a fresh session is never left with a null topic. Clearing the field later does not restore the prefill, because the prefill only runs while the stored topic is null.
-- A dialog's fields can appear to persist across a cancel and reopen in the same page visit (the [keep this post](../feed/save-to-vault.md) note does, because its component state is only reset on a successful keep), but this is per visit, not per reload. A reload clears it.
+- A dialog's fields can appear to persist across a cancel and reopen in the same page visit (the [keep this post](../feed/keep-this-post.md) note does, because its component state is only reset on a successful keep), but this is per visit, not per reload. A reload clears it.
 - URL state is the only core loop state that is shareable and visible to another person: a copied feed URL carries its filters, and a remix deep link carries its stage and seed. Nothing else in the loop leaves the user's own database.
 - A saved view applied into the URL is a copy of its criteria, not a link to the row, so deleting the view later does not disturb a feed already filtered by it.
 - The recently viewed list is capped at 8 but the dashboard reads only the front 4, leaving headroom for ids whose videos were deleted between the write and the read.

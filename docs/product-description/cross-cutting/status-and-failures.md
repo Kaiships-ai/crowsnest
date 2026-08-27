@@ -90,7 +90,7 @@ Destructive actions carry their undo inside the toast. Removing a kept post show
 from the vault" with an Undo action that re creates the row; the same pattern covers the
 other destructive actions in the loop. The undo lives only as long as the toast: once it
 fades, the action is the only way back. This is the app's undo model for these actions,
-described in full for the keep button in [save to vault](../feed/save-to-vault.md); there is
+described in full for the keep button in [save to vault](../feed/keep-this-post.md); there is
 no global undo stack behind it.
 
 A toast reports the result; it does not change the page. Where the display depends on server
@@ -208,7 +208,7 @@ data is a server rendered snapshot re read on each navigation. See
 **History and undo.** Undo lives inside the toast for destructive actions and nowhere else;
 once the toast fades, the action is the only way back. The run log is append only history,
 not an undo stack: it records that an attempt happened but does not restore what an attempt
-replaced. See [save to vault](../feed/save-to-vault.md) for the undo pattern in full.
+replaced. See [save to vault](../feed/keep-this-post.md) for the undo pattern in full.
 
 **Navigation and refresh.** The strip is read once per server render and freshened by the
 live sync poll while the shell is mounted; a `router.refresh()` after a write is what flips

@@ -4,7 +4,7 @@
 
 Generate idea turns one analyzed video into a single content idea and drops it into the ideas inbox. It is a plain outline button in the action row at the bottom of the [video detail page](video-detail.md), sharing that row with Remix this, the two save actions, and Copy as prompt. The button carries a lightbulb icon and reads "Generate idea". Pressing it asks the language model, through the [LLM proxy](../foundations/background-jobs.md), for a short concept and an angle grounded in the video's analysis and the creator's persona, then writes an idea row. This is an exit from the core loop: the idea lands in the ideas inbox, which is a separate surface out of scope for this repo. The button is the only core loop touchpoint, and its whole visible result is a toast. The user does not leave the video detail page.
 
-The button appears only on a video that has been analyzed, the same gate the [save to vault](save-to-vault.md) dialog beside it uses. On an unanalyzed video there is no Generate idea button at all, because the underlying generation reads the video's analysis and has nothing to work from without it.
+The button appears only on a video that has been analyzed, the same gate the [save to vault](keep-this-post.md) dialog beside it uses. On an unanalyzed video there is no Generate idea button at all, because the underlying generation reads the video's analysis and has nothing to work from without it.
 
 > Technical note: unlike the analyze gate in the same page, this button does not check whether generation is actually available before rendering. It shows on any analyzed video, and a missing key or a down proxy surfaces only after the click, as a failed toast.
 

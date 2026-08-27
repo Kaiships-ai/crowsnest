@@ -102,7 +102,7 @@ After an interrupt the plan is left in whatever state the committed writes produ
 
 **External services.** None. The dialog calls no LLM proxy, no Graph API, no transcript provider. It is one of the parts of the core loop that works fully in every restricted state.
 
-**Status and failures.** Success is a toast; failure is red inline text inside the dialog, not a toast. This differs from the [keep this post button](../feed/save-to-vault.md), which shows failures as toasts and keeps no inline error. Delete and mark-published, run from the calendar and studio, report through toasts.
+**Status and failures.** Success is a toast; failure is red inline text inside the dialog, not a toast. This differs from the [keep this post button](../feed/keep-this-post.md), which shows failures as toasts and keeps no inline error. Delete and mark-published, run from the calendar and studio, report through toasts.
 
 **Configuration and settings.** None. No app setting changes this dialog. The video kind options come from a fixed eight-item list in the code (explainer, site-tour, product-promo, music-video, pr-announcement, talking-head, slideshow, general), not from settings; the stale flag mentioned in the checkbox text (a scriptless plan gets flagged stale after 30 days) is applied by the calendar's read, not by this dialog.
 

@@ -1,6 +1,6 @@
 # Goal: complete the Crowsnest core loop product description
 
-You are working in the `docs/product-description/` directory of the Crowsnest repo. Read `README.md`, `glossary.md`, `foundations/interaction-model.md`, and `feed/save-to-vault.md` first. The README defines the purpose, the document template, the method, the structure, and the coverage table. The other files are the exemplars: match their depth, tone, and structure exactly. Your job is to write every document in the README's structure until the coverage table has no `not started` rows, then run a consistency pass.
+You are working in the `docs/product-description/` directory of the Crowsnest repo. Read `README.md`, `glossary.md`, `foundations/interaction-model.md`, and `feed/keep-this-post.md` first. The README defines the purpose, the document template, the method, the structure, and the coverage table. The other files are the exemplars: match their depth, tone, and structure exactly. Your job is to write every document in the README's structure until the coverage table has no `not started` rows, then run a consistency pass.
 
 ## Source of truth
 

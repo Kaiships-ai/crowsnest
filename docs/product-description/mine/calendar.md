@@ -16,7 +16,7 @@ Because of that split it is available in every restricted state. With no own
 channel set the my channel page shows a picker and the calendar does not render
 at all. With the Graph token invalid or the channel never measured, the grid
 still renders every plan; only the published and dead air cells stay off, and a
-line says so. The [LLM proxy](../glossary.md#generation) and the sidecar have no
+line says so. The [LLM proxy](../glossary.md#generation-and-background-work) and the sidecar have no
 part in this tab.
 
 Rescheduling a plan is an edit in the [plan dialog](plan-dialog.md), not a drag.

@@ -38,7 +38,7 @@ The text of a video, from one of the [transcript providers](background-jobs.md).
 
 ### Saved post
 
-A video the user has kept for later, written by the [keep this post button](save-to-vault.md). The table is `savedPosts`, capped at one row per video by a unique index, carrying an optional free text note. Deleting the video removes the saved post with it.
+A video the user has kept for later, written by the [keep this post button](../feed/keep-this-post.md). The table is `savedPosts`, capped at one row per video by a unique index, carrying an optional free text note. Deleting the video removes the saved post with it.
 
 ### Remix session
 

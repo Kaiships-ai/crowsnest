@@ -27,7 +27,7 @@ The documents are for people who need to understand or change the product: the s
 
 ## The work to be done
 
-Each document describes one feature. Features are large (the remix studio, the studio cook run) or small (the save to vault dialog), but each is described in full, including its edge cases and its interactions with other features.
+Each document describes one feature. Features are large (the remix studio, the studio cook run) or small (the keep this post button), but each is described in full, including its edge cases and its interactions with other features.
 
 ### Document template
 
@@ -105,7 +105,7 @@ Drafting reads the code; verification watches the product. The `verification/` d
 
 ### Order of work
 
-1. Pilot: the save to vault dialog on the video detail page. Small and self contained. Used to settle the template, tone, and depth.
+1. Pilot: the keep this post button on the video detail page. Small and self contained. Used to settle the template, tone, and depth.
 2. Foundations: the data model, the interaction model, the shell and navigation, the background jobs. Everything else links to them.
 3. The remix studio. The bulk of the experience and the hardest part, a six stage generation wizard. Written third so the template is already proven.
 4. Everything else: the rest of the feed, mine, studio, and the cross-cutting documents. Drafted in parallel once the template and the exemplars exist, then a consistency pass and a verification pass across the whole set.
@@ -152,7 +152,8 @@ feed/
   quick-preview.md                 the quick preview sheet opened from a card
   video-detail.md                  the detail page: player and carousel, metric chips, median baseline, layout section, similar outliers, arrow key navigation
   analysis.md                      analyze and reanalyze a video, the analysis gate, transcript providers
-  save-to-vault.md                 the save to vault dialog (pilot)
+  keep-this-post.md                 the keep this post button, saving a video to the shortlist (pilot)
+  save-to-vault.md                  the save to vault dialog, lifting a hook or a layout into a reusable vault template
   generate-idea.md                 generate an idea from a video, an exit from the core loop into the ideas inbox
 
 remix/
@@ -166,7 +167,7 @@ remix/
 
 mine/
   mine-overview.md                 the my channel page: own channel picker, stat tiles, progress, tabs, graph connect panel
-  calendar.md                      the month calendar, day cells, draft and scheduled and missed and published states, drag moves
+  calendar.md                      the month calendar, day cells, draft and scheduled and missed and published states, opening a day to plan (rescheduling is through the plan dialog, not a drag)
   plan-dialog.md                   create and edit a planned post, attach and detach a script, schedule, unschedule, delete, mark published
   posts-and-metrics.md             the own post list, weekday rhythm, reach by post bars
 
@@ -199,7 +200,8 @@ Status is one of `not started`, `drafted`, or `verified`.
 | feed/quick-preview.md | drafted |
 | feed/video-detail.md | drafted |
 | feed/analysis.md | drafted |
-| feed/save-to-vault.md | drafted |
+| feed/keep-this-post.md | drafted |
+| feed/save-to-vault.md | not started |
 | feed/generate-idea.md | drafted |
 | remix/remix-overview.md | drafted |
 | remix/stage-prompt.md | drafted |
