@@ -10,7 +10,7 @@ import { getPostsWithLatestInsights } from "./own-channel";
  * driven way `publishedOwnPostId` is ever set.
  */
 
-export type PlannedPostState = "draft" | "scheduled" | "missed";
+export type PlannedPostState = "draft" | "scheduled" | "missed" | "published";
 
 export interface PlannedPostRow {
   id: string;
@@ -71,7 +71,11 @@ function toRow(
 ): PlannedPostRow {
   const today = todayDateOnly();
   const state: PlannedPostState =
-    row.state === "scheduled" && row.plannedDate !== null && row.plannedDate < today ? "missed" : (row.state as "draft" | "scheduled");
+    row.state === "published"
+      ? "published"
+      : row.state === "scheduled" && row.plannedDate !== null && row.plannedDate < today
+        ? "missed"
+        : (row.state as "draft" | "scheduled");
 
   return {
     id: row.id,

@@ -391,7 +391,7 @@ export const savedPosts = sqliteTable("saved_posts", {
  */
 export const plannedPosts = sqliteTable("planned_posts", {
   id: text("id").primaryKey(),
-  state: text("state").notNull().default("draft"), // "draft" | "scheduled" — never "missed"
+  state: text("state").notNull().default("draft"), // "draft" | "scheduled" | "published"; "missed" is derived on read, never stored
   title: text("title").notNull(),
   note: text("note"),
   /** Null for an undated draft. Date only, no time zone handling: one Mac, one place. */
