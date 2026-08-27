@@ -194,13 +194,13 @@ Status is one of `not started`, `drafted`, or `verified`.
 | foundations/interaction-model.md | drafted |
 | foundations/navigation-and-shell.md | drafted |
 | foundations/background-jobs.md | drafted |
-| feed/feed.md | not started |
-| feed/filters-and-saved-views.md | not started |
+| feed/feed.md | drafted |
+| feed/filters-and-saved-views.md | drafted |
 | feed/quick-preview.md | drafted |
-| feed/video-detail.md | not started |
-| feed/analysis.md | not started |
+| feed/video-detail.md | drafted |
+| feed/analysis.md | drafted |
 | feed/save-to-vault.md | drafted |
-| feed/generate-idea.md | not started |
+| feed/generate-idea.md | drafted |
 | remix/remix-overview.md | drafted |
 | remix/stage-prompt.md | drafted |
 | remix/stage-research.md | drafted |
@@ -208,13 +208,13 @@ Status is one of `not started`, `drafted`, or `verified`.
 | remix/stage-style.md | drafted |
 | remix/stage-script.md | drafted |
 | remix/stage-finish.md | drafted |
-| mine/mine-overview.md | not started |
-| mine/calendar.md | not started |
-| mine/plan-dialog.md | not started |
-| mine/posts-and-metrics.md | not started |
-| studio/studio-overview.md | not started |
-| studio/cook-run.md | not started |
-| studio/publish.md | not started |
+| mine/mine-overview.md | drafted |
+| mine/calendar.md | drafted |
+| mine/plan-dialog.md | drafted |
+| mine/posts-and-metrics.md | drafted |
+| studio/studio-overview.md | drafted |
+| studio/cook-run.md | drafted |
+| studio/publish.md | drafted |
 | cross-cutting/external-services.md | not started |
 | cross-cutting/status-and-failures.md | not started |
 | cross-cutting/persistence.md | not started |
