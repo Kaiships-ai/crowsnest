@@ -1,6 +1,6 @@
 # Bug triage
 
-A consolidated list of the defects and inconsistencies the feature documents raised, in their "Open questions and verification" sections and in their bodies. Each entry is read from the code and tests at commit `4f26fb9`. None has been confirmed against the running product yet, so none carries a Status line; the [verification](verification/README.md) pass is what will add them. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
+A consolidated list of the defects and inconsistencies the feature documents raised, in their "Open questions and verification" sections and in their bodies. Each entry is read from the code and tests at commit `4f26fb9`. A first scripted read pass against the running product on localhost:3000 has confirmed two (B-10 and B-14) and found two more (B-01 and B-08) consistent with the data but not yet reproduced with a positive case; those four carry a Status line. The rest await the interactive part of the [verification](verification/README.md) pass, which needs a browser to click, watch toasts, and reload. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
 
 ## Summary
 
@@ -37,6 +37,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: high. The one action whose whole purpose is to mark a plan published does not durably do so.
 - Decision needed: fix. Either pass a real own post id, or derive published from an explicit flag rather than only from `publishedOwnPostId`.
 - Raised by: [studio/publish.md](studio/publish.md#open-questions-and-verification).
+- Status: data consistent, not yet reproduced. No planned post in the dev database has a non null `publishedOwnPostId`, which is what this bug would produce, but that also matches a user who never published. Confirming needs a live Save to calendar and a reload, which needs a browser.
 
 ## Medium
 
@@ -109,6 +110,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: medium. The calendar contradicts the user's own action. Related to B-01.
 - Decision needed: product call. A published plan should probably never read as missed.
 - Raised by: [mine/calendar.md](mine/calendar.md#open-questions-and-verification).
+- Status: data consistent, not yet reproduced. No plan in the dev database is hand published (see B-01), so there is no positive case to observe on the calendar yet. Confirming needs a plan marked published on a past date, which needs a browser.
 
 ### B-09: The calendar delete Undo is lossy, dropping several fields on re-create
 
@@ -130,6 +132,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: low. A blank field, not a broken flow.
 - Decision needed: fix. Either write the summary or stop rendering it.
 - Raised by: [feed/analysis.md](feed/analysis.md#open-questions-and-verification), [feed/video-detail.md](feed/video-detail.md#open-questions-and-verification).
+- Status: confirmed by a scripted read pass against the running product on localhost:3000. All 24 analyzed videos in the dev database have a null or empty summary, and the detail page renders an empty Summary section. Item DETAIL-05 and ANALYZE-09.
 
 ### B-11: Quick Remix is not blocked when the proxy is down, unlike the other generation controls
 
@@ -166,6 +169,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: low. A wrong status code, not a visible break.
 - Decision needed: fix.
 - Raised by: [feed/video-detail.md](feed/video-detail.md#open-questions-and-verification).
+- Status: confirmed by a scripted read pass on localhost:3000. Requesting `/feed/does-not-exist-123` returns HTTP 200 rather than 404. Item DETAIL-04.
 
 ### B-15: There is no way to clear the own channel from the my channel page
 

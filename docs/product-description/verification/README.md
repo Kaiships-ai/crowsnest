@@ -44,6 +44,20 @@ Where a claim is purely about a database write or an exit state, the test suite 
 
 ## Results so far
 
-No pass has been run. Every Result column is `—`. The dev server was not running when the documents were drafted, so nothing has been checked against the running product. The checklists were written from the same code reading as the documents, so a first pass should expect the suspected bugs in [bug-triage.md](../bug-triage.md) to reproduce, and should treat a P1 suspected bug that does not reproduce as a sign the document is wrong, not the product.
+One scripted read pass has run against the running dev server on localhost:3000, using HTTP GET on server rendered pages and direct database reads. It checked what pages render and what the database holds. It did not click anything, watch a toast, drive a cook run, or reload mid action, so the interactive claims (dialogs, run pills, autosave on blur, the reload behaviors) are untouched. The dev database was well populated: 627 videos, 24 analyzed with transcripts, 14 channels, an own channel, 3 planned posts, 13 scripts, 15 remix sessions.
 
-No document is marked `verified`, and none should be until a pass fills these columns.
+What it confirmed:
+
+- B-10: all 24 analyzed videos have a null or empty summary, and the analyzed video detail page renders an empty Summary section. Confirmed.
+- B-14: requesting a video detail URL for a non existent id returns HTTP 200, not 404. Confirmed.
+- The analyzed detail page renders the analysis (why it worked), the median baseline, and the engagement rate, as the document says.
+
+What it found consistent but could not prove without a browser:
+
+- B-01 and B-08: no planned post in the database is hand published (`publishedOwnPostId` is null on all), which is what both bugs would produce, but also matches a user who never published. A live Save to calendar and a reload are needed to prove them.
+
+What it could not confirm:
+
+- The studio brief on the one plan checked showed a Visual direction section without the "Frame pass not run" text the document expects. Either that plan carries a stored layout or the wording differs; this needs the specific plan and wording checked by eye.
+
+Most items remain `—`. No document is marked `verified`, and none should be until the interactive pass fills the rest. The scripted pass covers output and stored state, not what a user sees happen, per the note above.
