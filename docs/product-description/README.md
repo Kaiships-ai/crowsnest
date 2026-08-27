@@ -196,18 +196,18 @@ Status is one of `not started`, `drafted`, or `verified`.
 | foundations/background-jobs.md | drafted |
 | feed/feed.md | not started |
 | feed/filters-and-saved-views.md | not started |
-| feed/quick-preview.md | not started |
+| feed/quick-preview.md | drafted |
 | feed/video-detail.md | not started |
 | feed/analysis.md | not started |
 | feed/save-to-vault.md | drafted |
 | feed/generate-idea.md | not started |
 | remix/remix-overview.md | drafted |
-| remix/stage-prompt.md | not started |
-| remix/stage-research.md | not started |
-| remix/stage-hook.md | not started |
-| remix/stage-style.md | not started |
+| remix/stage-prompt.md | drafted |
+| remix/stage-research.md | drafted |
+| remix/stage-hook.md | drafted |
+| remix/stage-style.md | drafted |
 | remix/stage-script.md | drafted |
-| remix/stage-finish.md | not started |
+| remix/stage-finish.md | drafted |
 | mine/mine-overview.md | not started |
 | mine/calendar.md | not started |
 | mine/plan-dialog.md | not started |
