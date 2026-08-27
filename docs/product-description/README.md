@@ -215,9 +215,9 @@ Status is one of `not started`, `drafted`, or `verified`.
 | studio/studio-overview.md | drafted |
 | studio/cook-run.md | drafted |
 | studio/publish.md | drafted |
-| cross-cutting/external-services.md | not started |
-| cross-cutting/status-and-failures.md | not started |
-| cross-cutting/persistence.md | not started |
+| cross-cutting/external-services.md | drafted |
+| cross-cutting/status-and-failures.md | drafted |
+| cross-cutting/persistence.md | drafted |
 
 ## Reference
 
