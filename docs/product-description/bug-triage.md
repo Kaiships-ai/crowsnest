@@ -1,6 +1,6 @@
 # Bug triage
 
-A consolidated list of the defects and inconsistencies the feature documents raised, in their "Open questions and verification" sections and in their bodies. Each entry is read from the code and tests at commit `4f26fb9`. A first scripted read pass against the running product on localhost:3000 has confirmed two (B-10 and B-14) and found two more (B-01 and B-08) consistent with the data but not yet reproduced with a positive case; those four carry a Status line. The rest await the interactive part of the [verification](verification/README.md) pass, which needs a browser to click, watch toasts, and reload. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
+A consolidated list of the defects and inconsistencies the feature documents raised, in their "Open questions and verification" sections and in their bodies. Each entry is read from the code and tests at commit `4f26fb9`. Two verification passes have run against the running product on localhost:3000: a scripted read pass and a Playwright interactive pass. Between them, three are confirmed (B-08, B-10, B-14) and one more (B-01) is consistent with the data but not yet reproduced with a positive case; those four carry a Status line. The generation dependent entries (B-02, B-03, B-11) stay unconfirmed because the LLM proxy was down during the pass, and B-05 could not be forced from the UI. The rest await further checks. The list exists so the product team can decide, item by item, whether to fix, to document as intended, or to leave.
 
 ## Summary
 
@@ -110,7 +110,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: medium. The calendar contradicts the user's own action. Related to B-01.
 - Decision needed: product call. A published plan should probably never read as missed.
 - Raised by: [mine/calendar.md](mine/calendar.md#open-questions-and-verification).
-- Status: data consistent, not yet reproduced. No plan in the dev database is hand published (see B-01), so there is no positive case to observe on the calendar yet. Confirming needs a plan marked published on a past date, which needs a browser.
+- Status: confirmed by a Playwright pass on localhost:3000. A plan dated in the past, marked published by hand with no linked post, still renders as a red missed cell after a reload (screenshots b08-before-publish.png and b08-after-publish.png in the pass scratch dir). Entangled with B-01: the mark published action passes a null id, so the publish may not persist, which is likely why the missed styling wins after reload. Item CAL-05.
 
 ### B-09: The calendar delete Undo is lossy, dropping several fields on re-create
 
