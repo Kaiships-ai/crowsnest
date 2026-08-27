@@ -300,10 +300,25 @@ describe("markPlanPublishedAction", () => {
     expect(row.publishedOwnPostId).toBe(ownPostId);
   });
 
-  test("marking published with null is legal — 'it went out, not linking it'", async () => {
+  test("marking published with null still reads back as published (B-01)", async () => {
     const created = (await createPlannedPostAction({ title: "Went out unlinked" })) as { ok: true; id: string };
     const result = await markPlanPublishedAction(created.id, null);
     expect(result).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.state).toBe("published");
+    const derived = (await getPlannedPosts()).find((p) => p.id === created.id);
+    expect(derived?.state).toBe("published");
+  });
+
+  test("a past-dated plan marked published reads as published, not missed (B-08)", async () => {
+    const created = (await createPlannedPostAction({ title: "Went out on a past date", plannedDate: "2020-01-01" })) as { ok: true; id: string };
+    await schedulePlannedPostAction(created.id, "2020-01-01");
+    await markPlanPublishedAction(created.id, null);
+
+    const derived = (await getPlannedPosts()).find((p) => p.id === created.id);
+    expect(derived?.state).toBe("published");
+    expect(derived?.state).not.toBe("missed");
   });
 
   test("refuses an own post id that doesn't exist", async () => {

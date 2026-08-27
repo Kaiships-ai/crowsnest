@@ -214,7 +214,11 @@ export async function markPlanPublishedAction(id: string, ownPostId: string | nu
       if (!ownPost) return { ok: false, error: "That own-channel post doesn't exist.", code: "PLAN_OWN_POST_NOT_FOUND" };
     }
 
-    await db.update(tables.plannedPosts).set({ publishedOwnPostId: ownPostId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    // Mark the plan published durably by storing the state, not only the optional own-post
+    // id. Before this, a hand mark with a null id wrote nothing that read back as published
+    // (B-01), and a past plan still derived as "missed" on the calendar (B-08). Storing the
+    // state fixes both; the own-post id is still recorded when one is given.
+    await db.update(tables.plannedPosts).set({ state: "published", publishedOwnPostId: ownPostId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };

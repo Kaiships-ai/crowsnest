@@ -119,6 +119,7 @@ function buildGrid(month: string, calendar: CalendarMonth): DayCell[][] {
 
       let kind: CellKind = "open";
       if (published) kind = "published";
+      else if (plan?.state === "published") kind = "published"; // hand-marked published, no measured own post yet
       else if (plan?.state === "missed") kind = "missed";
       else if (plan?.state === "scheduled") kind = "scheduled";
       else if (hasMeasurement && inDeadAir(key)) kind = "deadAir";

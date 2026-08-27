@@ -37,6 +37,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: high. The one action whose whole purpose is to mark a plan published does not durably do so.
 - Decision needed: fix. Either pass a real own post id, or derive published from an explicit flag rather than only from `publishedOwnPostId`.
 - Raised by: [studio/publish.md](studio/publish.md#open-questions-and-verification).
+- Status: fixed on branch feat/mcp-server. `markPlanPublishedAction` now stores `state: "published"` durably, so a hand mark reads back as published without a real own post id, no schema migration. Tests added in `planned-post-actions.test.ts`. This also fixed B-08.
 
 ## Medium
 
@@ -109,6 +110,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Severity: medium. The calendar contradicts the user's own action. Related to B-01.
 - Decision needed: product call. A published plan should probably never read as missed.
 - Raised by: [mine/calendar.md](mine/calendar.md#open-questions-and-verification).
+- Status: fixed on branch feat/mcp-server, alongside B-01. A plan in the stored `published` state derives as published, so the missed rule no longer fires on it, and the calendar renders it as published. Test added in `planned-post-actions.test.ts`.
 
 ### B-09: The calendar delete Undo is lossy, dropping several fields on re-create
 
