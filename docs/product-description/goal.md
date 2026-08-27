@@ -28,14 +28,28 @@ Do not describe code. Describe what the user sees and does. Technical detail goe
 
 ## Things already established (do not re-derive, do not contradict)
 
-Empty at first. As each foundation document is written, add its load bearing facts here as one line bullets: numbers, defaults, rules, naming decisions. The shape of it:
+Facts the foundations settled. Do not re-derive or contradict these.
 
-- Thresholds and defaults: feed page size and load more step; follower band bounds; remix target length, variant count, transcript excerpt length; recently viewed cap; own posts limit. Fill in from the foundations once written.
-- How variants are read: which record states exist for each object, and whether a state can change mid action.
-- Naming decisions: video vs post vs run, and which "run" a document means.
-- What each action commits and what dispatches it: cancel, stop, interrupt.
-- Which features are unavailable in restricted states (no own channel, LLM proxy down, sidecar not running, Graph token invalid).
-- Which document owns which states of the remix studio, once decided.
+Thresholds and defaults (from the map and config.ts):
+- Feed page size 24, load more step 24.
+- Follower bands: nano 0 to 10k, mid 100k to 1M, macro 1M and up. Feed navigation order cap 5000. Recently viewed cap 8.
+- Remix: target length default 45s, variant count default 3, three fixed variant angles, transcript excerpt 500 chars, research and similar cap 5, six stages.
+- My channel: own posts limit 100.
+- Sync defaults (environment, not user settings): lookback 30 days, at most 200 items per sync, 3 retries, auto interval off by default (0).
+
+Naming and records (data-model.md owns these):
+- video = a scraped post from a tracked channel (photo, video, or carousel). post = a planned post (a dated intention on the own channel). own post = a measured published post, read only. script = saved text copied from a chosen variant. remix session = disposable working state, one per source video. create run = a cook; remix run = one generation attempt. When a document says run, it says which.
+- Record states: video is analyzed or not, saved or not, present or removed. planned post state is draft or scheduled; missed is derived on read; published is set by hand. create run status is one of running, waiting, success, failed, canceled.
+
+Actions (interaction-model.md owns these):
+- Every server action returns {ok:true,...} or {ok:false,error,code}; nothing throws across the boundary. While an action runs the trigger is disabled (a React transition). After it settles the client shows a toast and, where display depends on server data, calls router.refresh().
+- Commit is the durable step (a row). Cancel discards uncommitted work on purpose. Stop ends a running cook. Interrupt is anything unplanned that disturbs an action; the seven rows are fixed.
+- Direct server reads (feed, video detail, calendar) cannot fail as actions; they render data or an empty state and change through the URL.
+
+Restricted states (interaction-model.md):
+- LLM proxy down: generation fails, everything else works. Sidecar off: no new videos, existing feed and all downstream actions work. Graph token invalid: my channel metrics unavailable, connect panel shown, planning and studio still work. No own channel set: my channel shows a picker.
+
+Remix ownership: to be decided when the remix studio is read (Phase 2 step 2); record it here then.
 
 ## Order of work
 

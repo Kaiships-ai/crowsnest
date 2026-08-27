@@ -190,10 +190,10 @@ Status is one of `not started`, `drafted`, or `verified`.
 | glossary.md | drafted |
 | bug-triage.md | not started |
 | verification/ (6 checklists) | not started |
-| foundations/data-model.md | not started |
-| foundations/interaction-model.md | not started |
-| foundations/navigation-and-shell.md | not started |
-| foundations/background-jobs.md | not started |
+| foundations/data-model.md | drafted |
+| foundations/interaction-model.md | drafted |
+| foundations/navigation-and-shell.md | drafted |
+| foundations/background-jobs.md | drafted |
 | feed/feed.md | not started |
 | feed/filters-and-saved-views.md | not started |
 | feed/quick-preview.md | not started |
