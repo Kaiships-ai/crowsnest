@@ -201,7 +201,7 @@ Status is one of `not started`, `drafted`, or `verified`.
 | feed/video-detail.md | drafted |
 | feed/analysis.md | drafted |
 | feed/keep-this-post.md | drafted |
-| feed/save-to-vault.md | not started |
+| feed/save-to-vault.md | drafted |
 | feed/generate-idea.md | drafted |
 | remix/remix-overview.md | drafted |
 | remix/stage-prompt.md | drafted |
