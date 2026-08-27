@@ -201,12 +201,12 @@ Status is one of `not started`, `drafted`, or `verified`.
 | feed/analysis.md | not started |
 | feed/save-to-vault.md | drafted |
 | feed/generate-idea.md | not started |
-| remix/remix-overview.md | not started |
+| remix/remix-overview.md | drafted |
 | remix/stage-prompt.md | not started |
 | remix/stage-research.md | not started |
 | remix/stage-hook.md | not started |
 | remix/stage-style.md | not started |
-| remix/stage-script.md | not started |
+| remix/stage-script.md | drafted |
 | remix/stage-finish.md | not started |
 | mine/mine-overview.md | not started |
 | mine/calendar.md | not started |

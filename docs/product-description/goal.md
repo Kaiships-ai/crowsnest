@@ -49,7 +49,15 @@ Actions (interaction-model.md owns these):
 Restricted states (interaction-model.md):
 - LLM proxy down: generation fails, everything else works. Sidecar off: no new videos, existing feed and all downstream actions work. Graph token invalid: my channel metrics unavailable, connect panel shown, planning and studio still work. No own channel set: my channel shows a picker.
 
-Remix ownership: to be decided when the remix studio is read (Phase 2 step 2); record it here then.
+Remix stage ownership (decided after reading remix.ts and the stage components):
+- remix-overview.md owns the studio shell: the stepper, active vs furthest stage, Back/Restart/Continue and their per-stage gates, Quick Remix, the run log, the context rail, the generation-blocked posture (no key vs proxy down, inferred from the run log), the session lifecycle (one per source video, get or create, deep link seed), and autosave in general.
+- stage-prompt.md owns topic (prefilled "source topic for my niche"), the niche chip, target length (default 45s, options 30/45/60/90), the Quick Remix button, the keyless note. Continue gated on a topic.
+- stage-research.md owns buildResearch (local assembly, no model call), the source inputs (why it worked, hook pattern, structure beats), the editable facts box (autosave on blur), the transcript fallback, and the reference lists (vault saved posts, similar outliers). Continue always allowed.
+- stage-hook.md owns the vault-hook seed select, Generate hooks (the option cards), choosing a hook (pins it), save as template, the steer box. Its generation logs under the hook stage. Continue gated on a chosen hook.
+- stage-style.md owns the structure select (source vs a vault style), Generate outline, the editable beats (targetSec/label/content, autosave on blur), the steer box. Its outline generation logs under the style stage. Continue gated on an outline.
+- stage-script.md owns variant generation (3, three fixed angles), per-variant edit/regenerate/copy/retry, Regenerate all, Create Prompt (remix scoped), Save script (title dialog, records the pick), Add to plan (dated), and the staleness rules that clear a save. Its generation logs under the script stage. Continue gated on a variant existing (not picked).
+- stage-finish.md owns finishRemix (idempotent, creates an undated draft planned post, reconciles the attached script to the chosen variant), the chosen hook and script summary, and the open studio link.
+- Shared UI (steer box, grounded-in line, generation-blocked panel, context rail, run log) is described in remix-overview.md; each stage names its own use of the steer box and grounded-in line.
 
 ## Order of work
 
