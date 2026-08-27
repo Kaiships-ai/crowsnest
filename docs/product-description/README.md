@@ -190,7 +190,7 @@ Status is one of `not started`, `drafted`, or `verified`.
 | --- | --- |
 | glossary.md | drafted |
 | bug-triage.md | drafted |
-| verification/ (6 checklists) | not started |
+| verification/ (6 checklists) | drafted |
 | foundations/data-model.md | drafted |
 | foundations/interaction-model.md | drafted |
 | foundations/navigation-and-shell.md | drafted |
