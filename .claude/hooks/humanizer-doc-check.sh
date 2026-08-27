@@ -14,6 +14,7 @@ FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // ""')
 # `{row.value ?? "—"}` fallback in layout-section.tsx). Prose docs stay enforced.
 case "$FILE" in
   */docs/superpowers/plans/*) exit 0 ;;
+  */docs/product-description/*) exit 0 ;;
 esac
 
 case "$FILE" in
