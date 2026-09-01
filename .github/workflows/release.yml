@@ -1,0 +1,58 @@
+name: release
+
+# Cut a crowsnest release by pushing a tag:
+#   git tag v0.2.1 && git push origin v0.2.1
+#
+# Builds the arm64 bundle, bakes install.sh, and uploads the tarball + install.sh +
+# latest.json to R2. The version is the tag minus its leading "v".
+#
+# Repo secrets required (Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   token with Workers R2 Storage:Edit on this account
+#   CLOUDFLARE_ACCOUNT_ID  8745b6916d47f1b2411136b18c77333a
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    # Apple Silicon runner: native modules (better-sqlite3, node-pty) and the arm64
+    # wheelhouse must be built on arm64 macOS, matching what buyers run.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Derive version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Changelog has an entry for this version
+        run: |
+          grep -q "^## ${{ steps.ver.outputs.version }}\$" packaging/CHANGELOG.md \
+            || { echo "No CHANGELOG.md entry for ${{ steps.ver.outputs.version }}"; exit 1; }
+
+      - name: Build the bundle
+        run: bash packaging/build-bundle.sh "${{ steps.ver.outputs.version }}" darwin-arm64 dist
+
+      - name: Generate install.sh
+        run: bash packaging/gen-install.sh "${{ steps.ver.outputs.version }}" "dist/crowsnest-v${{ steps.ver.outputs.version }}-darwin-arm64.tar.gz" > dist/install.sh
+
+      - name: Upload to R2
+        working-directory: packaging/worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm install --no-audit --no-fund
+          V="${{ steps.ver.outputs.version }}"
+          npx wrangler r2 object put "crowsnest-releases/releases/v$V/crowsnest-v$V-darwin-arm64.tar.gz" \
+            --file "../../dist/crowsnest-v$V-darwin-arm64.tar.gz" --content-type application/gzip
+          npx wrangler r2 object put "crowsnest-releases/install.sh" \
+            --file "../../dist/install.sh" --content-type text/x-shellscript
+          printf '{"version":"%s"}' "$V" > /tmp/latest.json
+          npx wrangler r2 object put "crowsnest-releases/latest.json" \
+            --file /tmp/latest.json --content-type application/json

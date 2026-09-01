@@ -79,6 +79,23 @@ chmod +x "$STAGE/bin/node" "$STAGE/bin/uv"
 
 # ---------------------------------------------------------------- build the app
 
+# A fresh checkout (CI) has no node_modules, so `next build` would fail with
+# "next: command not found". Install the repo's dev deps first when they are missing.
+if [ ! -x "$REPO/node_modules/.bin/next" ]; then
+  say "installing repo dependencies (fresh checkout)"
+  ( cd "$REPO" && npm ci )
+fi
+
+# next build collects page data by importing route modules, and some touch the SQLite db
+# (e.g. /api/logs/ingest). A fresh checkout has no data/crowsnest.db, which surfaces as
+# "database is locked" during collection. Create and migrate it first, mirroring a dev repo.
+# This build-time db is not copied into the bundle (see the copy list below); the buyer's db
+# is built by kai kit init.
+if [ ! -f "$REPO/data/crowsnest.db" ]; then
+  say "creating a build-time database"
+  ( cd "$REPO" && npm run db:migrate )
+fi
+
 say "next build (this is the slow step)"
 ( cd "$REPO" && MACOSX_DEPLOYMENT_TARGET="$DEPLOY_TARGET" npm run build )
 
