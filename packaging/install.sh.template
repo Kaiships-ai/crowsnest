@@ -1,0 +1,164 @@
+#!/bin/sh
+# crowsnest installer. Generated per release from packaging/install.sh.template.
+# The __PLACEHOLDER__ tokens are filled in by packaging/gen-install.sh at release time.
+#
+#   curl -fsSL https://crowsnest-gate.kaiships.workers.dev/install.sh | sh
+#
+# Installs everything crowsnest needs (its own node, python, and app) under ~/.kai.
+# No Node, Python, git, Xcode, or Homebrew required. No sudo. Apple Silicon only for now.
+set -eu
+
+VERSION="__VERSION__"
+PLATFORM="darwin-arm64"
+TARBALL_SHA256="__SHA256__"
+TARBALL_SIZE="__SIZE__"
+REQUIRED_MB="__REQUIRED_MB__"          # free space needed: tarball + extraction + venv
+GATE_URL="${KAI_GATE_URL:-https://crowsnest-gate.kaiships.workers.dev}"
+INSTALL_URL="${KAI_INSTALL_URL:-https://crowsnest-gate.kaiships.workers.dev/install.sh}"
+
+KAI="$HOME/.kai"
+APPS="$KAI/app"
+STATE="$KAI/state"
+BIN="$HOME/.local/bin"
+
+say()  { printf '%s\n' "$*"; }
+warn() { printf 'warning: %s\n' "$*" >&2; }
+die()  { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+# ---------------------------------------------------------------- 1. arch guard
+OS="$(uname -s)"; ARCH="$(uname -m)"
+[ "$OS" = "Darwin" ] || die "crowsnest is macOS only right now. Reply to your receipt for a refund."
+if [ "$ARCH" != "arm64" ]; then
+  # Rosetta reports x86_64 even on Apple Silicon; sysctl distinguishes it.
+  if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" != "1" ]; then
+    die "crowsnest needs an Apple Silicon Mac (M1 or newer). Yours is Intel. Reply to your receipt for a refund."
+  fi
+fi
+
+# ---------------------------------------------------------------- 2. license key
+# Order: --key arg, KAI_LICENSE_KEY env, cached key (update path), then prompt.
+KEY=""
+case "${1:-}" in --key) KEY="${2:-}" ;; esac
+[ -n "$KEY" ] || KEY="${KAI_LICENSE_KEY:-}"
+if [ -z "$KEY" ] && [ -f "$STATE/entitlement.json" ]; then
+  KEY="$(sed -n 's/.*"key"[ ]*:[ ]*"\([^"]*\)".*/\1/p' "$STATE/entitlement.json" | head -1)"
+  [ -n "$KEY" ] && say "Reusing your saved license key."
+fi
+if [ -z "$KEY" ]; then
+  # stdin is the piped script under `curl | sh`, so read the human from the terminal.
+  [ -e /dev/tty ] || die "No license key given and no terminal to prompt. Rerun: sh install.sh --key KSA-XXXX"
+  printf 'Paste your crowsnest license key: ' > /dev/tty
+  read -r KEY < /dev/tty
+fi
+[ -n "$KEY" ] || die "No license key given."
+
+# ---------------------------------------------------------------- 3. gate: key -> signed URL
+say "Checking your license..."
+GATE_RESP="$(curl -fsS -X POST "$GATE_URL/download" \
+  -H 'Content-Type: application/json' \
+  -d "{\"key\":\"$KEY\",\"platform\":\"$PLATFORM\",\"version\":\"$VERSION\"}" 2>/dev/null || true)"
+DL_URL="$(printf '%s' "$GATE_RESP" | sed -n 's/.*"url"[ ]*:[ ]*"\([^"]*\)".*/\1/p')"
+[ -n "$DL_URL" ] || die "License not recognized. Check the key from your receipt and try again."
+
+# ---------------------------------------------------------------- 4. disk preflight
+AVAIL_MB="$(df -m "$HOME" | awk 'NR==2 {print $4}')"
+if [ -n "$AVAIL_MB" ] && [ "$AVAIL_MB" -lt "$REQUIRED_MB" ]; then
+  die "Not enough disk space: need ${REQUIRED_MB} MB free, have ${AVAIL_MB} MB. Free some space and rerun."
+fi
+
+# ---------------------------------------------------------------- 5. download + verify
+mkdir -p "$KAI/tmp"
+TARBALL="$KAI/tmp/crowsnest-v$VERSION-$PLATFORM.tar.gz"
+say "Downloading crowsnest v$VERSION (about $((TARBALL_SIZE/1024/1024)) MB)..."
+curl -fL --retry 3 --retry-delay 2 -o "$TARBALL" "$DL_URL" || die "Download failed. Check your connection and rerun."
+
+GOT_SIZE="$(stat -f %z "$TARBALL" 2>/dev/null || stat -c %s "$TARBALL")"
+[ "$GOT_SIZE" = "$TARBALL_SIZE" ] || { rm -f "$TARBALL"; die "Download size wrong (got $GOT_SIZE, want $TARBALL_SIZE). Rerun."; }
+GOT_SHA="$(shasum -a 256 "$TARBALL" | awk '{print $1}')"
+[ "$GOT_SHA" = "$TARBALL_SHA256" ] || { rm -f "$TARBALL"; die "Checksum mismatch. The download was corrupted or tampered with. Rerun."; }
+
+# ---------------------------------------------------------------- 6. extract (atomic)
+mkdir -p "$APPS"
+rm -rf "$APPS"/v"$VERSION".partial       # any leftover from a killed run
+PARTIAL="$APPS/v$VERSION.partial"
+mkdir -p "$PARTIAL"
+tar xzf "$TARBALL" -C "$PARTIAL" --strip-components=1
+rm -rf "$APPS/v$VERSION"
+mv "$PARTIAL" "$APPS/v$VERSION"
+rm -f "$TARBALL"
+APP="$APPS/v$VERSION"
+
+# Free on the curl path, saves the buyer who downloaded the tarball with a browser.
+xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+
+# ---------------------------------------------------------------- 7. buyer state, linked in
+mkdir -p "$STATE/data"
+ln -sfn "$STATE/data" "$APP/app/data"
+[ -f "$STATE/env.local" ] && ln -sfn "$STATE/env.local" "$APP/app/.env.local"
+
+# ---------------------------------------------------------------- 8. python bootstrap (offline)
+say "Setting up the Instagram helper..."
+IG="$APP/app/services/ig"
+"$APP/bin/uv" venv --python "$APP/runtime/python/bin/python3" "$IG/.venv" >/dev/null 2>&1 \
+  || die "Python setup failed. Run 'kai doctor' after install for details."
+REQ="$KAI/tmp/ig-reqs.txt"
+( cd "$IG" && "$APP/bin/uv" export --no-hashes --no-dev --no-emit-project 2>/dev/null ) \
+  | grep -E '^[a-zA-Z0-9]' | sed 's/ ;.*//' > "$REQ"
+VIRTUAL_ENV="$IG/.venv" "$APP/bin/uv" pip install --python "$IG/.venv/bin/python" \
+  --no-index --find-links "$APP/wheelhouse" -r "$REQ" >/dev/null 2>&1 \
+  || die "Python packages failed to install. Run 'kai doctor' for details."
+# The sidecar runs as `python -m crowsnest_ig` from its source dir (see kai start); it is
+# not pip-installed, so there is no build backend to fetch offline.
+rm -f "$REQ"
+
+# ---------------------------------------------------------------- 9. flip current + launcher
+UPDATING=0
+[ -L "$APPS/current" ] && UPDATING=1
+ln -sfn "$APP" "$APPS/current.tmp"
+mv -f "$APPS/current.tmp" "$APPS/current" 2>/dev/null || ln -sfn "$APP" "$APPS/current"
+mkdir -p "$BIN"
+ln -sfn "$APPS/current/bin/kai" "$BIN/kai"
+
+# keep exactly one previous version
+for d in "$APPS"/v*; do
+  [ -d "$d" ] || continue
+  [ "$d" = "$APP" ] && continue
+  case "$(readlink "$APPS/current")" in *"$(basename "$d")") continue ;; esac
+  rm -rf "$d"
+done
+
+if [ "$UPDATING" = 1 ]; then
+  "$BIN/kai" _postupdate >/dev/null 2>&1 || true   # db:migrate + restart if running
+fi
+
+# ---------------------------------------------------------------- 10. PATH
+case ":$PATH:" in
+  *":$BIN:"*) ;;
+  *)
+    RC=""; SH="${SHELL##*/}"
+    case "$SH" in
+      zsh)  RC="$HOME/.zshrc" ;;
+      bash) [ "$OS" = "Darwin" ] && RC="$HOME/.bash_profile" || RC="$HOME/.bashrc" ;;
+      fish) RC="$HOME/.config/fish/config.fish" ;;
+    esac
+    LINE='export PATH="$HOME/.local/bin:$PATH"'
+    [ "$SH" = "fish" ] && LINE='fish_add_path $HOME/.local/bin'
+    if [ -n "$RC" ] && ! grep -q '.local/bin' "$RC" 2>/dev/null; then
+      printf '\n# added by crowsnest\n%s\n' "$LINE" >> "$RC"
+      say "Added ~/.local/bin to your PATH in $RC (open a new terminal to pick it up)."
+    else
+      say "Add this to your shell startup: $LINE"
+    fi
+    ;;
+esac
+
+# ---------------------------------------------------------------- 11. done
+say ""
+if [ "$UPDATING" = 1 ]; then
+  say "Updated crowsnest to v$VERSION."
+else
+  say "crowsnest v$VERSION installed. Next:"
+  say "  kai login $KEY"
+  say "  kai kit init"
+  say "  kai up"
+fi

@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 /**
@@ -14,7 +16,8 @@ export interface SampledFrame {
 export class WatchExtractError extends Error {}
 
 const DEFAULT_SCRIPT =
-  "/Users/kienbeovl/.claude/plugins/cache/claude-video/watch/0.2.0/skills/watch/scripts/watch.py";
+  process.env.WATCH_SCRIPT_PATH ??
+  join(homedir(), ".claude/plugins/cache/claude-video/watch/0.2.0/skills/watch/scripts/watch.py");
 
 /** Frame lines look like: - `/abs/frame_0002.jpg` (t=00:03, reason=scene-change) */
 const FRAME_LINE = /^- `([^`]+\.jpg)` \(t=([0-9:]+), reason=([^)]+)\)/;

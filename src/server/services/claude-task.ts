@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "node:child_process";
 
 /**
@@ -25,7 +27,7 @@ export interface ClaudeTaskResult {
  * Absolute on purpose. `claude` on PATH here is a cmux shim that exits with
  * "claude not found in PATH", so resolving from PATH fails in a confusing way.
  */
-const DEFAULT_BINARY = "/Users/kienbeovl/.local/bin/claude";
+const DEFAULT_BINARY = join(homedir(), ".local", "bin", "claude");
 
 export interface ClaudeTaskOpts {
   binaryPath?: string;

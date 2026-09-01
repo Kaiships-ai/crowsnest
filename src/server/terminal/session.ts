@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { spawn } from "node-pty";
 import { scrubClaudeEnv } from "../services/claude-task";
 import { buildHarnessArgs, type HarnessProfile } from "./harness-profile";
@@ -6,7 +8,7 @@ import { buildHarnessArgs, type HarnessProfile } from "./harness-profile";
  * Absolute on purpose, same reasoning as claude-task.ts's DEFAULT_BINARY: `claude` on PATH
  * here is a cmux shim, so resolving from PATH fails in a confusing way.
  */
-const DEFAULT_BINARY = "/Users/kienbeovl/.local/bin/claude";
+const DEFAULT_BINARY = join(homedir(), ".local", "bin", "claude");
 
 export interface TerminalSession {
   onData(cb: (s: string) => void): void;

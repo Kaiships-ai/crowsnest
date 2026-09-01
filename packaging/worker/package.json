@@ -1,0 +1,14 @@
+{
+  "name": "crowsnest-gate",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260101.0",
+    "typescript": "^5",
+    "wrangler": "^3"
+  }
+}

@@ -52,5 +52,11 @@ app.prepare().then(() => {
     console.error("reconcileOrphanCreateRuns failed on boot:", err);
   }
 
-  server.listen(port, () => console.log(`ready on http://localhost:${port}`));
+  // HOST is unset in dev (binds all interfaces, unchanged). The packaged LaunchAgent sets
+  // HOST=127.0.0.1 so a buyer's Mac never shows the "accept incoming connections" firewall
+  // prompt on first run.
+  const host = process.env.HOST;
+  const onReady = () => console.log(`ready on http://localhost:${port}`);
+  if (host) server.listen(port, host, onReady);
+  else server.listen(port, onReady);
 });
