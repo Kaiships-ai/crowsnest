@@ -5,6 +5,7 @@ import { WebSocketServer } from "ws";
 import { ensurePtyExecutable } from "./src/server/terminal/pty-perms";
 import { attachTerminal } from "./src/server/terminal/ws";
 import { reconcileOrphanCreateRuns } from "./src/server/queries/create-runs";
+import { handleMcpRequest } from "./src/server/mcp/http";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
@@ -15,7 +16,15 @@ app.prepare().then(() => {
   const handle = app.getRequestHandler();
   const upgrade = app.getUpgradeHandler();
   ensurePtyExecutable();
-  const server = createServer((req, res) => handle(req, res));
+  const server = createServer((req, res) => {
+    // The MCP endpoint is served in-process so its tools share this server's one SQLite
+    // connection (see src/server/mcp/http.ts). Everything else goes to Next.
+    if (req.url && req.url.startsWith("/api/mcp")) {
+      void handleMcpRequest(req, res);
+      return;
+    }
+    handle(req, res);
+  });
   const wss = new WebSocketServer({ noServer: true });
 
   wss.on("connection", (ws, req) => {

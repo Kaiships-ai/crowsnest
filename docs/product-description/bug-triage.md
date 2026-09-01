@@ -112,6 +112,7 @@ The drafting raised roughly twenty suspected issues across the core loop. After 
 - Raised by: [mine/calendar.md](mine/calendar.md#open-questions-and-verification).
 - Status: confirmed by a Playwright pass on localhost:3000. A plan dated in the past, marked published by hand with no linked post, still renders as a red missed cell after a reload (screenshots b08-before-publish.png and b08-after-publish.png in the pass scratch dir). Entangled with B-01: the mark published action passes a null id, so the publish may not persist, which is likely why the missed styling wins after reload. Item CAL-05.
 
+
 ### B-09: The calendar delete Undo is lossy, dropping several fields on re-create
 
 - Where the user meets it: deleting a plan on the calendar and clicking Undo.
