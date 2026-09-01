@@ -12,8 +12,8 @@ binding = "RELEASES"
 bucket_name = "crowsnest-releases"
 
 [vars]
-POLAR_API = "https://sandbox-api.polar.sh"
-POLAR_ORG_ID = "f66a6080-81b7-4cab-966a-a9225bac4f45"
+POLAR_API = "https://api.polar.sh"
+POLAR_ORG_ID = "ef96ed5d-6721-403c-98a8-184d43d13334"
 
 # Optional per-key throttle. Create the namespace, then uncomment and paste the id:
 # [[kv_namespaces]]
