@@ -1,0 +1,32 @@
+{
+  "_comment": "Single source of truth for bundled runtime pins. CI matrix and the install.sh template both read this. Adding an OS/arch later is a new key here plus its wheels, not new build code. All shas are sha256, verified against upstream on 2026-09-01.",
+  "schema": 1,
+  "python_version": "3.12",
+  "platforms": {
+    "darwin-arm64": {
+      "node": {
+        "version": "22.23.1",
+        "url": "https://nodejs.org/dist/v22.23.1/node-v22.23.1-darwin-arm64.tar.gz",
+        "sha256": "ef28d8fab2c0e4314522d4bb1b7173270aa3937e93b92cb7de79c112ac1fa953",
+        "strip_components": 1,
+        "bin": "bin/node"
+      },
+      "python": {
+        "version": "3.12.14",
+        "release": "20260825",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20260825/cpython-3.12.14+20260825-aarch64-apple-darwin-install_only.tar.gz",
+        "sha256": "62eef3fcf48fa4f792d0d6d267c140b81aaea0edca4ae0641d8021854314f966",
+        "size": 25128196
+      },
+      "uv": {
+        "version": "0.12.8",
+        "url": "https://github.com/astral-sh/uv/releases/download/0.12.8/uv-aarch64-apple-darwin.tar.gz",
+        "sha256": "8ce083658dbff20143607ca7af8e0c1d64b6fd7bf03a5cdcb62bf3d47d991b5f",
+        "strip_components": 1,
+        "bin": "uv"
+      },
+      "wheel_platform_tag": "macosx_11_0_arm64",
+      "macosx_deployment_target": "12.0"
+    }
+  }
+}

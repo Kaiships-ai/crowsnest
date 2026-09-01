@@ -60,3 +60,11 @@ data/
 crowsnest.db
 crowsnest.db-wal
 crowsnest.db-shm
+
+# packaging build artifacts (bundles + runtimes live on R2, not in git)
+/dist/
+/packaging/.cache/
+/packaging/worker/node_modules/
+
+# SDD scratch (ledger + review packages)
+/.superpowers/

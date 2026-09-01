@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 
 /**
@@ -63,7 +65,7 @@ const schema = z.object({
   /** Absolute path to the Kai-Official-OS Obsidian vault. The create studio runs Claude
    *  Code with a per-post subdir of this as its cwd (see `src/server/studio/paths.ts`),
    *  and reads the craft playbooks here read-only. */
-  VAULT_PATH: z.string().min(1).default("/Users/kienbeovl/Desktop/entrepreneur/Kai-Official-OS"),
+  VAULT_PATH: z.string().min(1).default(join(homedir(), ".crowsnest", "vault")),
   EAGER_VIDEO_DOWNLOAD: boolish(false),
   MEDIA_RETENTION_DAYS: intWithDefault(90, 1, 3650),
   /** How many of a channel's newest reels each sync asks Instagram about individually,

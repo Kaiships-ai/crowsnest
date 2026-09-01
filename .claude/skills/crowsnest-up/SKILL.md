@@ -42,12 +42,13 @@ Check with a short poll, not a single shot, since tray boot takes a second or
 two. If it stays 000, read `$HOME/.crowsnest/9router.log` and report. Do not
 retry more than once.
 
-## Step 2: Dev server on 3000 (run it in a cmux pane)
+## Step 2: Dev server on 3000 (run it in an orca pane)
 
-The dev server MUST run in a real cmux pane, not from a Bash tool call. This
-shell runs with `CLAUDE_CODE_SANDBOXED=1`; a backgrounded `npm run dev` from the
-tool gets reaped within a minute or two (log ends mid-request, no crash trace).
-A cmux pane runs in a real shell that survives.
+The dev server MUST run in a real orca terminal pane, not from a Bash tool
+call. This shell runs with `CLAUDE_CODE_SANDBOXED=1`; a backgrounded
+`npm run dev` from the tool gets reaped within a minute or two (log ends
+mid-request, no crash trace). An orca pane runs in a real shell that
+survives.
 
 First check port 3000:
 
@@ -55,14 +56,25 @@ First check port 3000:
 - Held by something else: stop, report what holds it (`lsof -nP -iTCP:3000 -sTCP:LISTEN`), do not kill.
 - Down: open a pane and run the dev server in it.
 
-Open the pane, send the command, capture the surface ref from `new-split`:
+Open the pane and capture its handle. Prefer splitting off the current pane
+for this worktree (`orca terminal list` gives its handle); if no pane exists
+yet for this worktree, `orca terminal create` opens one directly. Then send
+the command — do not rely on a `--command` passed to split/create surviving
+the pane, verify with `send` instead:
 
 ```bash
-CMUX="${CMUX_CLAUDE_TEAMS_CMUX_BIN:-/Applications/cmux.app/Contents/Resources/bin/cmux}"
-SURF=$("$CMUX" new-split right --focus false 2>&1 | grep -oE 'surface:[0-9]+' | head -1)
+REPO="$(git rev-parse --show-toplevel)"
+CUR=$(orca terminal list --worktree "path:$REPO" --json 2>/dev/null | jq -r '.result.terminals[0].handle // empty')
+if [ -n "$CUR" ]; then
+  SURF=$(orca terminal split --terminal "$CUR" --direction vertical --json 2>&1 | jq -r '.result.split.handle // empty')
+else
+  SURF=$(orca terminal create --worktree "path:$REPO" --title "crowsnest-dev-3000" --json 2>&1 | jq -r '.result.terminal.handle // empty')
+fi
 echo "dev pane: $SURF"
-"$CMUX" send --surface "$SURF" 'cd "$(git rev-parse --show-toplevel)" && PORT=3000 npm run dev'
-"$CMUX" send-key --surface "$SURF" enter
+# tui-idle can time out even on a plain idle prompt; treat it as best-effort,
+# not a gate — do not skip the send on timeout.
+orca terminal wait --terminal "$SURF" --for tui-idle --timeout-ms 15000 >/dev/null 2>&1 || true
+orca terminal send --terminal "$SURF" --text 'cd "$(git rev-parse --show-toplevel)" && PORT=3000 npm run dev' --enter
 ```
 
 Then verify it comes up AND survives. Poll for ~20s:
@@ -75,10 +87,10 @@ for i in $(seq 1 6); do
 done
 ```
 
-Completion: the last three polls all read 200. If it never reaches 200, read the
-pane with `cmux read-screen --surface "$SURF" --lines 20` and report what it
-shows (compile error, wrong cwd, port conflict). Do not fall back to nohup, it
-will not stay up.
+Completion: the last three polls all read 200. If it never reaches 200, read
+the pane with `orca terminal read --terminal "$SURF" --screen --json` and
+report what it shows (compile error, wrong cwd, port conflict). Do not fall
+back to nohup, it will not stay up.
 
 ## Step 3: Connect browser and open the app
 
