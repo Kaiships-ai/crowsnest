@@ -50,9 +50,9 @@ jobs:
           npm install --no-audit --no-fund
           V="${{ steps.ver.outputs.version }}"
           npx wrangler r2 object put "crowsnest-releases/releases/v$V/crowsnest-v$V-darwin-arm64.tar.gz" \
-            --file "../../dist/crowsnest-v$V-darwin-arm64.tar.gz" --content-type application/gzip --remote
+            --file "../../dist/crowsnest-v$V-darwin-arm64.tar.gz" --content-type application/gzip
           npx wrangler r2 object put "crowsnest-releases/install.sh" \
-            --file "../../dist/install.sh" --content-type text/x-shellscript --remote
+            --file "../../dist/install.sh" --content-type text/x-shellscript
           printf '{"version":"%s"}' "$V" > /tmp/latest.json
           npx wrangler r2 object put "crowsnest-releases/latest.json" \
-            --file /tmp/latest.json --content-type application/json --remote
+            --file /tmp/latest.json --content-type application/json
