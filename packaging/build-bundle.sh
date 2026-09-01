@@ -79,6 +79,13 @@ chmod +x "$STAGE/bin/node" "$STAGE/bin/uv"
 
 # ---------------------------------------------------------------- build the app
 
+# A fresh checkout (CI) has no node_modules, so `next build` would fail with
+# "next: command not found". Install the repo's dev deps first when they are missing.
+if [ ! -x "$REPO/node_modules/.bin/next" ]; then
+  say "installing repo dependencies (fresh checkout)"
+  ( cd "$REPO" && npm ci )
+fi
+
 say "next build (this is the slow step)"
 ( cd "$REPO" && MACOSX_DEPLOYMENT_TARGET="$DEPLOY_TARGET" npm run build )
 
