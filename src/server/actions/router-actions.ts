@@ -37,7 +37,8 @@ export async function startRouterAction(
   if (healthy) return { ok: true };
   return {
     ok: false,
-    error: "9router did not start (check the binary path — ROUTER_BIN if overridden, otherwise /opt/homebrew/bin/9router — and $HOME/.crowsnest/9router.log)",
+    error:
+      "9router did not start (checked ROUTER_BIN if set, then PATH, then /opt/homebrew/bin/9router - if you haven't installed it yet, run `npm install -g 9router`; also check $HOME/.crowsnest/9router.log)",
   };
 }
 

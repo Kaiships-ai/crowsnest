@@ -112,7 +112,7 @@ export function RouterSection({
   }
 
   return (
-    <section className="flex flex-col gap-3">
+    <section id="router" className="flex flex-col gap-3">
       <div>
         <h2 className="text-lg font-semibold">9router</h2>
         <p className="text-sm text-muted-foreground">
@@ -123,16 +123,16 @@ export function RouterSection({
 
       <div className="flex flex-col gap-2 border border-border bg-card p-3">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm" data-testid="router-status-badge">
             <StatusDot tone={view.tone} />
             <span className="font-medium">9router: {view.label}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => void handleCheck()} disabled={busy !== null}>
+            <Button size="sm" variant="outline" data-testid="router-check-button" onClick={() => void handleCheck()} disabled={busy !== null}>
               {busy === "check" ? <Loader2 className="animate-spin" aria-hidden /> : null}
               Check
             </Button>
-            <Button size="sm" variant="secondary" onClick={() => void handleStart()} disabled={busy !== null}>
+            <Button size="sm" variant="secondary" data-testid="router-start-button" onClick={() => void handleStart()} disabled={busy !== null}>
               {busy === "start" ? "Starting…" : "Start"}
             </Button>
             <Button size="sm" variant="outline" onClick={() => void handleRestart()} disabled={busy !== null}>
