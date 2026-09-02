@@ -1,9 +1,9 @@
 ---
-status: active
+status: shipped
 components: [feed, analyze, remix, studio, mine, ig-sync, llm, kit, onboarding, shared]
 backlog: none
 owner: session-docs-restructure
-shipped: null
+shipped: 2026-09-02 df430f0
 ---
 # Migrate product-description content into the documents tree
 
