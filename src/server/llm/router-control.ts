@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -34,10 +34,25 @@ const LOG_FILE = path.join(LOG_DIR, "9router.log");
  *  should fail fast. */
 const ROUTER_REACHABLE_TIMEOUT_MS = 3000;
 
-/** Resolves the 9router binary: `ROUTER_BIN` env override, else the Homebrew default
- *  this app was verified against. */
+/** Best-effort PATH lookup for a binary name. Never throws: `execFileSync("which", ...)`
+ *  exits non-zero (and this mocked-`vi.fn()` default returns `undefined`) when nothing on
+ *  PATH matches, which is the common case before a first `npm install -g 9router`. */
+function resolveFromPath(bin: string): string | null {
+  try {
+    const out = execFileSync("which", [bin], { encoding: "utf8" });
+    return typeof out === "string" && out.trim() ? out.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Resolves the 9router binary: `ROUTER_BIN` env override wins first (unchanged), then
+ *  whatever `which 9router` finds on PATH -- this is what makes `npm install -g 9router`
+ *  (the guided keyless-install path) work without also requiring `ROUTER_BIN` to be set
+ *  by hand, since npm's global bin directory is on PATH for essentially every shell
+ *  setup. The hardcoded Homebrew default from before this change is now the last resort. */
 function routerBin(): string {
-  return process.env.ROUTER_BIN ?? "/opt/homebrew/bin/9router";
+  return process.env.ROUTER_BIN ?? resolveFromPath("9router") ?? "/opt/homebrew/bin/9router";
 }
 
 /** Resolves the health-check URL from `LLM_BASE_URL` (the same env var `getLlm()`

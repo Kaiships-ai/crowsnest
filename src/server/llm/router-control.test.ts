@@ -2,7 +2,10 @@ import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 
 // `node:child_process` is only ever touched by router-control.ts in this test, same
 // reasoning as sidecar/control.test.ts's own top-level mock.
-vi.mock("node:child_process", () => ({ spawn: vi.fn(() => ({ pid: 9999, unref: vi.fn(), on: vi.fn() })) }));
+vi.mock("node:child_process", () => ({
+  spawn: vi.fn(() => ({ pid: 9999, unref: vi.fn(), on: vi.fn() })),
+  execFileSync: vi.fn(),
+}));
 
 vi.mock("@/server/lib/logger", () => ({ log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 
@@ -123,6 +126,33 @@ describe("router control", () => {
     const call = (spawn as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
     expect(call[0]).toBe("/custom/path/9router");
     delete process.env.ROUTER_BIN;
+  });
+
+  test("startRouter resolves the binary from PATH when ROUTER_BIN is unset and `which` finds it", async () => {
+    unreachable();
+    const { spawn, execFileSync } = await import("node:child_process");
+    delete process.env.ROUTER_BIN;
+    vi.mocked(execFileSync).mockReturnValue("/Users/kai/.npm-global/bin/9router\n");
+
+    await control.startRouter();
+
+    const call = (spawn as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call[0]).toBe("/Users/kai/.npm-global/bin/9router");
+    expect(execFileSync).toHaveBeenCalledWith("which", ["9router"], { encoding: "utf8" });
+  });
+
+  test("startRouter falls back to the hardcoded Homebrew path when neither ROUTER_BIN nor PATH resolve it", async () => {
+    unreachable();
+    const { spawn, execFileSync } = await import("node:child_process");
+    delete process.env.ROUTER_BIN;
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw new Error("which: no 9router in PATH");
+    });
+
+    await control.startRouter();
+
+    const call = (spawn as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+    expect(call[0]).toBe("/opt/homebrew/bin/9router");
   });
 
   test("startRouter registers an error handler so an async spawn failure doesn't crash this process", async () => {
