@@ -132,7 +132,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   const [credUsername, setCredUsername] = useState("");
   const [credPassword, setCredPassword] = useState("");
   // Set only while a credentials-path login is mid-flow (2FA/challenge not yet resolved)
-  // — tells submitCode/chooseChallengeChannel below whether a final "ok" should also
+  // - tells submitCode/chooseChallengeChannel below whether a final "ok" should also
   // persist IG_USERNAME/IG_PASSWORD, since igLoginWithCredentialsAction only persists on
   // an *immediate* ok (see that action's own doc).
   const [credentialsPending, setCredentialsPending] = useState<{ username: string; password: string } | null>(null);
@@ -149,6 +149,12 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   async function recheck() {
     setBusy(true);
     setLoginFailure(null);
+    // Cancelling a mid-flow 2FA/challenge abandons any credentials-path attempt too, so
+    // nothing stale is left for a later, unrelated login to silently persist.
+    setCredentialsPending(null);
+    setCredUsername("");
+    setCredPassword("");
+    setCredError(null);
     setPhase("idle");
     await refreshStatus();
     setBusy(false);
@@ -183,7 +189,14 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
     setLoginFailure(null);
     setPhase("connecting");
     const result = await igLoginWithCredentialsAction(user, credPassword);
-    if (result.ok && result.status === "ok") {
+    if (!result.ok) {
+      // Surfaced through ig-credentials-error only - afterLogin's failure branch would
+      // also set the generic loginFailure banner, rendering the same error twice.
+      setCredError(result.error);
+      setPhase("idle");
+      return;
+    }
+    if (result.status === "ok") {
       await Promise.all([setSecretAction("IG_USERNAME", user), setSecretAction("IG_PASSWORD", credPassword)]);
       setCredUsername("");
       setCredPassword("");
@@ -191,8 +204,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       await refreshStatus();
       return;
     }
-    if (result.ok) setCredentialsPending({ username: user, password: credPassword });
-    if (!result.ok) setCredError(result.error);
+    setCredentialsPending({ username: user, password: credPassword });
     afterLogin(result);
   }
 
@@ -202,6 +214,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
     setBusy(false);
     if (!result.ok) {
       setLoginFailure(result);
+      setCredentialsPending(null);
       setPhase("idle");
       return;
     }
