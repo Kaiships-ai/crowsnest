@@ -13,10 +13,11 @@ import { Button } from "@/components/ui/button";
  *  - "no-key": `ANTHROPIC_API_KEY` is unset. Fixed in this app, in Settings.
  *  - "proxy-down": a key is configured (routing through the local 9router proxy) but
  *    the most recent attempt(s) in the run log below failed to connect — see
- *    `run-log-view.ts`'s `isProxyLikelyDown`. Fixed outside this app, in a terminal.
- *    There is no button here that "starts" it — this app has no mechanism to launch
- *    an external process, and a button that pretended to is exactly the kind of
- *    fabricated capability the truth pass exists to remove.
+ *    `run-log-view.ts`'s `isProxyLikelyDown`. `src/server/llm/router-control.ts`'s
+ *    `startRouter()` can launch 9router from this app (Settings' 9router section uses
+ *    it), so the fix belongs there, not here: Settings already has Start/Restart
+ *    controls, and this panel stays a link, not a duplicate button, to avoid two
+ *    places that can both spawn the same process.
  */
 export function GenerationBlocked({
   reason,
@@ -36,6 +37,17 @@ export function GenerationBlocked({
         <Button variant="secondary" render={<Link href="/settings" />}>
           Add API key in Settings
         </Button>
+        <div className="max-w-[42ch] text-sm text-muted-foreground">
+          <p>No key on hand? 9router is a free, keyless alternative - install it once from a terminal:</p>
+          <pre className="mt-2 overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm install -g 9router</pre>
+          <p className="mt-2">
+            Then start it from{" "}
+            <Link href="/settings#router" className="underline underline-offset-2 hover:text-foreground">
+              Settings&apos; 9router section
+            </Link>
+            .
+          </p>
+        </div>
       </div>
     );
   }
