@@ -20,6 +20,12 @@ documents/architect/core-components/<name>/
   05-backlog-to-enhance.md   bugs and enhancements, one table
 ```
 
+## Quality bar for each doc
+
+This skill owns the five-doc invariant and the index and mkdocs wiring. For what each of
+the five docs must contain, see `.claude/skills/crowsnest-component/house-style.md`. That
+doc is the quality bar per file; it does not change the count or the writing rule below.
+
 ## Create a new component
 
 1. Pick a short kebab-case name. Confirm it is a real seam, not a feature of an existing block.
