@@ -140,6 +140,7 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
             {run && pill && (
               <>
                 <span
+                  data-testid="studio-run-pill"
                   className={cn(
                     "inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-0.5 font-mono text-2xs font-medium",
                     pill.text,
@@ -162,7 +163,7 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
                 {stopPending ? "Stopping…" : "Stop"}
               </Button>
             ) : (
-              <Button type="button" variant="secondary" size="sm" onClick={cook}>
+              <Button type="button" variant="secondary" size="sm" data-testid="studio-cook-button" onClick={cook}>
                 {run || started ? "Retry cook" : "Cook"}
               </Button>
             )}
@@ -177,14 +178,26 @@ export function StudioPanel({ postId, hasFramePass }: { postId: string; hasFrame
       <div className="flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto p-6">
         <span className="font-mono text-2xs tracking-wide text-faint uppercase">Output</span>
         {render ? (
-          <video src={render.url} controls className="aspect-[9/16] w-full border border-border bg-black" />
+          <video
+            src={render.url}
+            controls
+            data-testid="studio-render-video"
+            className="aspect-[9/16] w-full border border-border bg-black"
+          />
         ) : (
           <div className="flex aspect-[9/16] w-full items-center justify-center border border-border bg-card px-4 text-center text-xs text-muted-foreground">
             {started ? "Cooking. The render appears here when it finishes." : "Run Cook to start the session."}
           </div>
         )}
         <div className="flex flex-col gap-2">
-          <Button type="button" variant="secondary" disabled={!canPublish} onClick={publish} className="w-full">
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={!canPublish}
+            data-testid="studio-publish-button"
+            onClick={publish}
+            className="w-full"
+          >
             Publish
           </Button>
           <p className="text-xs text-muted-foreground">

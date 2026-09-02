@@ -100,7 +100,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+      <DialogTrigger render={<Button variant="outline" size="sm" data-testid="save-to-vault-trigger" />}>
         <Bookmark className="size-3.5" /> Save to Vault
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -151,7 +151,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
         )}
 
         <DialogFooter>
-          <Button onClick={save} disabled={pending}>
+          <Button onClick={save} data-testid="save-to-vault-confirm" disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

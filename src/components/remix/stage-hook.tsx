@@ -144,7 +144,7 @@ export function StageHook({
             Seed from a Vault hook
           </Label>
           <Select items={vaultOptions} value={vaultItemId} onValueChange={(v) => setVaultItemId(v as string)}>
-            <SelectTrigger id="hook-vault-select" className="w-64">
+            <SelectTrigger id="hook-vault-select" data-testid="remix-hook-seed-select" className="w-64">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

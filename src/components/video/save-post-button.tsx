@@ -104,7 +104,7 @@ export function SavePostButton({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger
         render={
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" data-testid="save-post-button">
             <Star className="size-3.5" /> Keep this post
           </Button>
         }
@@ -130,7 +130,7 @@ export function SavePostButton({
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>
             Cancel
           </Button>
-          <Button size="sm" onClick={keep} disabled={pending}>
+          <Button size="sm" data-testid="save-post-confirm" onClick={keep} disabled={pending}>
             {pending ? "Keeping" : "Keep"}
           </Button>
         </DialogFooter>

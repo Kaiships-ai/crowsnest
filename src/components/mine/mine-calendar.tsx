@@ -263,6 +263,8 @@ export function MineCalendar({
                 <button
                   key={cell.key}
                   type="button"
+                  data-testid="mine-calendar-day"
+                  data-id={cell.key}
                   onClick={() => setSelectedKey(cell.key)}
                   aria-pressed={selectedKey === cell.key}
                   className={cn(
@@ -399,6 +401,7 @@ export function MineCalendar({
                   {selectedCell.plan.publishedOwnPostId === null && (
                     <button
                       type="button"
+                      data-testid="mine-calendar-mark-published"
                       className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline active:translate-y-px"
                       onClick={() => markPublishedNoLink(selectedCell.plan!)}
                     >
@@ -417,7 +420,13 @@ export function MineCalendar({
             )}
 
             {!selectedCell.plan && selectedCell.kind !== "published" && (
-              <Button size="sm" variant="outline" className="w-fit" onClick={() => setDialogState({ mode: "create", date: selectedCell.key })}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-fit"
+                data-testid="mine-calendar-plan-day"
+                onClick={() => setDialogState({ mode: "create", date: selectedCell.key })}
+              >
                 Plan something for this day
               </Button>
             )}
