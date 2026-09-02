@@ -33,6 +33,7 @@ import {
   igChallengeCodeAction,
   igLoginAction,
   igLoginBySessionAction,
+  igLoginWithCredentialsAction,
   igLogoutAction,
   igTwoFactorAction,
 } from "./ig-actions";
@@ -296,6 +297,52 @@ describe("igTwoFactorAction", () => {
 
     expect(result).toMatchObject({ ok: false, code: "IG_INVALID_INPUT" });
     expect(sidecar.submitTwoFactor).not.toHaveBeenCalled();
+  });
+});
+
+describe("igLoginWithCredentialsAction", () => {
+  test("validates first: a wrong password is rejected and nothing is saved", async () => {
+    sidecar.login.mockRejectedValue(new IgError("IG_BAD_CREDENTIALS", "rejected"));
+
+    const result = await igLoginWithCredentialsAction("burner.acct", "wrong-password");
+
+    expect(result).toMatchObject({ ok: false, code: "IG_BAD_CREDENTIALS" });
+    expect(sidecar.login).toHaveBeenCalledWith({ username: "burner.acct", password: "wrong-password" });
+    expect(secretsStore.setSecret).not.toHaveBeenCalled();
+  });
+
+  test("an immediate ok persists IG_USERNAME and IG_PASSWORD", async () => {
+    sidecar.login.mockResolvedValue({ status: "ok" });
+
+    const result = await igLoginWithCredentialsAction("burner.acct", "correct-password");
+
+    expect(result).toEqual({ ok: true, status: "ok" });
+    expect(secretsStore.setSecret).toHaveBeenCalledWith("IG_USERNAME", "burner.acct");
+    expect(secretsStore.setSecret).toHaveBeenCalledWith("IG_PASSWORD", "correct-password");
+  });
+
+  test("two_factor_required is returned unsaved - the login isn't finished yet", async () => {
+    sidecar.login.mockResolvedValue({ status: "two_factor_required" });
+
+    const result = await igLoginWithCredentialsAction("burner.acct", "correct-password");
+
+    expect(result).toEqual({ ok: true, status: "two_factor_required" });
+    expect(secretsStore.setSecret).not.toHaveBeenCalled();
+  });
+
+  test("rejects a blank username or password locally, without calling the sidecar", async () => {
+    const result = await igLoginWithCredentialsAction("", "something");
+
+    expect(result).toMatchObject({ ok: false, code: "IG_INVALID_INPUT" });
+    expect(sidecar.login).not.toHaveBeenCalled();
+  });
+
+  test("a rate limit from the sidecar's own cooldown is reported as retryable, not swallowed", async () => {
+    sidecar.login.mockRejectedValue(new IgError("IG_RATE_LIMITED", "429"));
+
+    const result = await igLoginWithCredentialsAction("burner.acct", "correct-password");
+
+    expect(result).toMatchObject({ ok: false, code: "IG_RATE_LIMITED", retryable: true });
   });
 });
 
