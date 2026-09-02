@@ -1,0 +1,45 @@
+# Builds the crowsnest documentation site from documents/.
+#   uv pip install mkdocs-material && mkdocs serve   (http://127.0.0.1:8000)
+site_name: crowsnest
+docs_dir: documents
+site_dir: site
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+exclude_docs: |
+  planning/
+  archive/
+  .mkdocs-venv/
+nav:
+  - Home: index.md
+  - Business requirement:
+      - Overview: business-requirement/README.md
+      - Product document: business-requirement/product-document.md
+      - BRD: business-requirement/brd/README.md
+  - Architect:
+      - High-level architecture: architect/highlevel-architecture.md
+      - Shared:
+          - Data contracts: architect/shared/data-contracts.md
+          - External services: architect/shared/external-services.md
+          - Persistence: architect/shared/persistence.md
+          - Packaging and release: architect/shared/packaging-and-release.md
+          - Database recovery: architect/shared/db-recovery.md
+          - Glossary: architect/shared/glossary.md
+          - Shared backlog: architect/shared/backlog-to-enhance.md
+      - Components:
+          - Kit: architect/core-components/kit/01-concept-brief.md
+          - Onboarding: architect/core-components/onboarding/01-concept-brief.md
+          - Feed: architect/core-components/feed/01-concept-brief.md
+          - Analyze: architect/core-components/analyze/01-concept-brief.md
+          - Remix: architect/core-components/remix/01-concept-brief.md
+          - Studio: architect/core-components/studio/01-concept-brief.md
+          - Mine: architect/core-components/mine/01-concept-brief.md
+          - IG sync: architect/core-components/ig-sync/01-concept-brief.md
+          - LLM: architect/core-components/llm/01-concept-brief.md
