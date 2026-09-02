@@ -114,6 +114,73 @@ export async function updatePlannedPostAction(
   }
 }
 
+/**
+ * Applies a whole plan edit (fields, schedule, script) as ONE unit (B-04). The dialog
+ * used to fire updatePlannedPostAction, schedule/unschedule, and attach/detach as separate
+ * awaited calls, so a failure partway through left a partial edit. Here every input is
+ * validated first, then all writes run in a single transaction, so the edit either lands
+ * whole or not at all.
+ */
+export async function savePlanEditAction(
+  id: string,
+  edit: {
+    title?: string;
+    note?: string;
+    targetLengthSec?: number | null;
+    videoKind?: string | null;
+    date?: string | null; // undefined leaves it, null unschedules, a string schedules
+    scriptId?: string | null; // undefined leaves it, null detaches, a string attaches
+    scriptDetachNote?: string;
+  }
+): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+
+    // Validate everything up front, before any write, so a bad input can never leave a partial edit.
+    const title = edit.title !== undefined ? edit.title.trim() : undefined;
+    if (title !== undefined && !title) return { ok: false, error: "A planned post needs a title.", code: "PLAN_INVALID_TITLE" };
+    if (edit.videoKind !== undefined && edit.videoKind !== null && !isVideoKind(edit.videoKind)) {
+      return { ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" };
+    }
+    if (typeof edit.date === "string" && !isValidDate(edit.date)) {
+      return { ok: false, error: "That date is not a real calendar date.", code: "PLAN_INVALID_DATE" };
+    }
+    if (typeof edit.scriptId === "string" && !(await scriptExists(edit.scriptId))) {
+      return { ok: false, error: "That script no longer exists.", code: "SCRIPT_NOT_FOUND" };
+    }
+
+    const now = nowIso();
+    db.transaction((tx) => {
+      const fields: Record<string, unknown> = { updatedAt: now };
+      if (title !== undefined) fields.title = title;
+      if (edit.note !== undefined) fields.note = edit.note.trim() || null;
+      if (edit.targetLengthSec !== undefined) fields.targetLengthSec = edit.targetLengthSec;
+      if (edit.videoKind !== undefined) fields.videoKind = edit.videoKind;
+      tx.update(tables.plannedPosts).set(fields).where(eq(tables.plannedPosts.id, id)).run();
+
+      if (edit.date !== undefined) {
+        const dateSet =
+          edit.date === null
+            ? { state: "draft", plannedDate: null, plannedTime: null, updatedAt: now }
+            : { state: "scheduled", plannedDate: edit.date, plannedTime: null, updatedAt: now };
+        tx.update(tables.plannedPosts).set(dateSet).where(eq(tables.plannedPosts.id, id)).run();
+      }
+
+      if (edit.scriptId !== undefined) {
+        const scriptSet =
+          edit.scriptId === null
+            ? { scriptId: null, scriptDetachedNote: edit.scriptDetachNote ?? null, updatedAt: now }
+            : { scriptId: edit.scriptId, scriptDetachedNote: null, updatedAt: now };
+        tx.update(tables.plannedPosts).set(scriptSet).where(eq(tables.plannedPosts.id, id)).run();
+      }
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
 /** Dates (and re-dates) a plan. The prototype's own "back in the pool, undated"
  *  behaviour lives in unschedulePlannedPostAction — rescheduling is calling this again
  *  with a new date, not a separate verb. */
