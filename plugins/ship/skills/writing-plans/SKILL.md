@@ -95,7 +95,7 @@ independently testable deliverable.
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use ship:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use ship:subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -208,10 +208,10 @@ After saving the plan, offer execution choice:
 - Fresh subagent per task + two-stage review
 
 **If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
+- **REQUIRED APPROACH:** Execute the plan directly in this session, phase by phase, checkpointing for review after each phase
 - Batch execution with checkpoints for review
 
 ## Ship workflow: next step
 
 Step 2 of the ship workflow. The plan is saved to documents/planning/implementation-plan/.
-Next: run **ship:using-git-worktrees** to get an isolated workspace, then **ship:subagent-driven-development** to execute the plan task by task (or **superpowers:executing-plans** to run it in this session).
+Next: run **ship:using-git-worktrees** to get an isolated workspace, then **ship:subagent-driven-development** to execute the plan task by task (or execute it inline in this session, phase by phase, verifying each phase before moving on).

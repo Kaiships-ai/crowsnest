@@ -174,7 +174,7 @@ You MUST complete each phase before proceeding to the next.
    - Automated test if possible
    - One-off test script if no framework
    - MUST have before fixing
-   - Use the `superpowers:test-driven-development` skill for writing proper failing tests
+   - Follow test-driven development: write the failing test first, then make it pass, then refactor
 
 2. **Implement Single Fix**
    - Address the root cause identified
