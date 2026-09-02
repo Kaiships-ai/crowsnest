@@ -48,6 +48,10 @@ const SECRET_META: Record<ManagedSecret, { label: string; group: Group }> = {
   IG_GRAPH_USER_ID: { label: "Graph user ID", group: "graph" },
 };
 
+function testIdSlug(name: ManagedSecret): string {
+  return name.toLowerCase().replace(/_/g, "-");
+}
+
 function sourceLabel(status: SecretStatus): string | null {
   if (status.source === "env") return "from .env.local";
   if (status.source === "db") return "set here";
@@ -137,12 +141,20 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium">{meta.label}</span>
-          <Badge variant={status.configured ? "secondary" : "outline"}>{status.configured ? "Configured" : "Not set"}</Badge>
+          <Badge data-testid={`secrets-${testIdSlug(status.name)}-badge`} variant={status.configured ? "secondary" : "outline"}>
+            {status.configured ? "Configured" : "Not set"}
+          </Badge>
           {status.configured && sourceLabel(status) && <span className="text-xs text-muted-foreground">{sourceLabel(status)}</span>}
         </div>
         <div className="flex items-center gap-2">
           {status.name === "ANTHROPIC_API_KEY" && (
-            <Button size="sm" variant="outline" onClick={() => void runTest()} disabled={!status.configured || testing}>
+            <Button
+              size="sm"
+              variant="outline"
+              data-testid={`secrets-${testIdSlug(status.name)}-test`}
+              onClick={() => void runTest()}
+              disabled={!status.configured || testing}
+            >
               {testing ? "Testing…" : "Test"}
             </Button>
           )}
@@ -153,7 +165,7 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
           ) : (
             <>
               {!editing && (
-                <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+                <Button size="sm" variant="outline" data-testid={`secrets-${testIdSlug(status.name)}-edit`} onClick={() => setEditing(true)}>
                   {status.configured ? "Replace" : "Set"}
                 </Button>
               )}
@@ -198,6 +210,7 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
               }}
               className="pr-8"
               aria-label={`${meta.label} value`}
+              data-testid={`secrets-${testIdSlug(status.name)}-input`}
             />
             <button
               type="button"
@@ -209,7 +222,7 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
               {revealed ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
             </button>
           </div>
-          <Button size="sm" variant="secondary" onClick={save} disabled={pending}>
+          <Button size="sm" variant="secondary" data-testid={`secrets-${testIdSlug(status.name)}-save`} onClick={save} disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
           <Button
@@ -238,9 +251,10 @@ export function SecretsSection({ initialStatus }: { initialStatus: SecretStatus[
       <div>
         <h2 className="text-lg font-semibold">API keys &amp; secrets</h2>
         <p className="text-sm text-muted-foreground">
-          Values set here are stored in the local database and take effect immediately, with no app restart. A value from{" "}
-          <code>.env.local</code> is used until something is set here. No value is ever shown once saved. The Instagram sidecar is the one
-          exception: it reads its token once at startup.
+          Values set here are stored in the local database. For the Anthropic and Groq keys this takes effect on the very next call, no app
+          restart needed. A value from <code>.env.local</code> is used until something is set here. No value is ever shown once saved. The
+          Instagram sidecar is the one exception: it reads its username, password, and service token once at startup, so a change here takes
+          effect the next time the sidecar restarts, not immediately.
         </p>
       </div>
 
