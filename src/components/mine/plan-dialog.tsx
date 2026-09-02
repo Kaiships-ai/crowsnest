@@ -177,7 +177,13 @@ export function PlanDialog({
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="plan-title">Title</Label>
-            <Input id="plan-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What this post is" />
+            <Input
+              id="plan-title"
+              data-testid="plan-dialog-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What this post is"
+            />
           </div>
 
           <div className="flex flex-col gap-1.5">
@@ -256,7 +262,7 @@ export function PlanDialog({
               Create in Studio
             </Button>
           )}
-          <Button onClick={save} disabled={!canSave || saving}>
+          <Button onClick={save} data-testid="plan-dialog-save" disabled={!canSave || saving}>
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create plan"}
           </Button>
         </DialogFooter>

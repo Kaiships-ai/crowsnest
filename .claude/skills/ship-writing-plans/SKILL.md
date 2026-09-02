@@ -15,7 +15,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Context:** If working in an isolated worktree, it should have been created via the `ship-using-git-worktrees` skill at execution time.
 
-**Save plans to:** `documents/planning/YYYY-MM-DD-<component|cross>-<slug>.md`
+**Save plans to:** `documents/planning/implementation-plan/YYYY-MM-DD-<component|cross>-<slug>.md`
 
 Placement is deterministic, not a judgment call. Follow this exactly:
 
@@ -27,7 +27,7 @@ Placement is deterministic, not a judgment call. Follow this exactly:
             src/server/llm/ -> llm; feed/remix/studio/mine areas -> their
             component). Anything outside a component maps to "shared".
 3. prefix = comps[0] if exactly one component, else "cross"
-4. path   = documents/planning/{today}-{prefix}-{slug}.md  (append -2, -3 on clash)
+4. path   = documents/planning/implementation-plan/{today}-{prefix}-{slug}.md  (append -2, -3 on clash)
 5. write the frontmatter block below
 6. NEVER rename or move this file later. If scope changes, edit the
    `components:` field only. A stale filename prefix is expected and fine.
@@ -195,7 +195,7 @@ If you find issues, fix them inline. No need to re-review — just fix and move 
 
 After saving the plan, offer execution choice:
 
-**"Plan complete and saved to `documents/planning/<filename>.md`. Two execution options:**
+**"Plan complete and saved to `documents/planning/implementation-plan/<filename>.md`. Two execution options:**
 
 **1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
 
@@ -213,5 +213,5 @@ After saving the plan, offer execution choice:
 
 ## Ship workflow: next step
 
-Step 2 of the ship workflow. The plan is saved to documents/planning/.
+Step 2 of the ship workflow. The plan is saved to documents/planning/implementation-plan/.
 Next: run **ship-using-git-worktrees** to get an isolated workspace, then **ship-subagent-driven-development** to execute the plan task by task (or **superpowers:executing-plans** to run it in this session).

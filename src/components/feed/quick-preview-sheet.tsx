@@ -125,6 +125,7 @@ export function QuickPreviewSheet({
               <div className="mt-auto flex gap-2 pt-2">
                 <Link
                   href={`/feed/${detail.item.videoId}${hrefSuffix}`}
+                  data-testid="preview-open-full-page"
                   className={cn(buttonVariants({ variant: "outline" }), "flex-1")}
                 >
                   Open full page

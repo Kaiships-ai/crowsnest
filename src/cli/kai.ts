@@ -1,8 +1,21 @@
 #!/usr/bin/env -S npx tsx
-import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  readlinkSync,
+  renameSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
 import { LicenseError, entitlementPath, login, readEntitlement } from "./license";
@@ -26,6 +39,9 @@ const die = (msg: string): never => {
 
 // ---------------------------------------------------------------- prompting
 
+export type PromptStream = NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?: (mode: boolean) => void };
+export type PromptIO = { input?: PromptStream; output?: NodeJS.WritableStream };
+
 // One interface for the whole run, read through its async iterator. readline's
 // question() drops lines when stdin is a pipe (every line arrives at once and
 // only the pending question catches one); the iterator queues them instead, so
@@ -33,39 +49,76 @@ const die = (msg: string): never => {
 let rl: ReturnType<typeof createInterface> | null = null;
 let lines: AsyncIterator<string> | null = null;
 
-function io() {
+function io(streams: PromptIO = {}) {
   if (!rl) {
-    rl = createInterface({ input: process.stdin, output: process.stdout });
+    rl = createInterface({
+      input: streams.input ?? process.stdin,
+      output: streams.output ?? process.stdout,
+    });
     lines = rl[Symbol.asyncIterator]();
   }
   return rl;
 }
 
-const closeIo = () => {
+export const closeIo = (): void => {
   rl?.close();
   rl = null;
   lines = null;
 };
 
-/** Ask one question. `secret` hides typing on a real terminal. */
-async function ask(
+/** Read one line with the terminal's echo off, by putting stdin in raw mode and
+ *  reading bytes directly. Replaces a prior hack that poked readline's undocumented
+ *  `_writeToOutput` internal to suppress echo — that hook is not part of Node's public
+ *  API and stopped reliably suppressing echo, so passwords were landing in scrollback.
+ *  Raw mode is the documented way to read a password from a real terminal. */
+function readSecretLine(input: PromptStream): Promise<string> {
+  return new Promise((resolve) => {
+    input.setRawMode?.(true);
+    input.resume();
+    let value = "";
+    // ponytail: byte-wise, ASCII-width handling of backspace/CR/Ctrl-C — fine for
+    // passwords and tokens; upgrade to a buffered UTF-8 decoder if that changes.
+    const onData = (chunk: Buffer) => {
+      for (const byte of chunk) {
+        if (byte === 0x03) {
+          // Ctrl-C: bail out like the rest of the CLI's early exits.
+          input.removeListener("data", onData);
+          input.setRawMode?.(false);
+          process.exit(1);
+        } else if (byte === 0x0d || byte === 0x0a) {
+          input.removeListener("data", onData);
+          input.setRawMode?.(false);
+          resolve(value);
+          return;
+        } else if (byte === 0x7f || byte === 0x08) {
+          value = value.slice(0, -1);
+        } else {
+          value += String.fromCharCode(byte);
+        }
+      }
+    };
+    input.on("data", onData);
+  });
+}
+
+/** Ask one question. `secret` hides typing on a real terminal. `input`/`output`
+ *  default to process.stdin/stdout and exist so tests can inject a fake terminal. */
+export async function ask(
   question: string,
-  { fallback = "", secret = false }: { fallback?: string; secret?: boolean } = {},
+  { fallback = "", secret = false, input = process.stdin, output = process.stdout }: { fallback?: string; secret?: boolean } & PromptIO = {},
 ): Promise<string> {
-  const term = io() as unknown as { _writeToOutput?: (s: string) => void };
-  process.stdout.write(fallback ? `${question} [${fallback}]: ` : `${question}: `);
+  output.write(fallback ? `${question} [${fallback}]: ` : `${question}: `);
 
-  // Suppress the echo so a password never lands in the terminal scrollback.
-  const echo = term._writeToOutput;
-  const hide = secret && process.stdin.isTTY && typeof echo === "function";
-  if (hide) term._writeToOutput = () => {};
-
-  const { value } = await lines!.next();
-
-  if (hide) {
-    term._writeToOutput = echo;
-    process.stdout.write("\n");
+  if (secret && input.isTTY && typeof input.setRawMode === "function") {
+    closeIo(); // hand stdin to the raw-mode reader below instead of readline
+    const value = await readSecretLine(input);
+    output.write("\n");
+    io({ input, output }); // recreate the shared interface for any asks that follow
+    return value.trim() || fallback;
   }
+
+  io({ input, output });
+  const { value } = await lines!.next();
   return String(value ?? "").trim() || fallback;
 }
 
@@ -76,6 +129,28 @@ function setEnv(text: string, name: string, value: string): string {
   const line = `${name}=${value}`;
   const re = new RegExp(`^${name}=.*$`, "m");
   return re.test(text) ? text.replace(re, line) : `${text.trimEnd()}\n${line}\n`;
+}
+
+/** Mirrors services/ig/crowsnest_ig/config.py's pairing rule: IG_USERNAME and
+ *  IG_PASSWORD must be set together, or both left blank. Returns an error message,
+ *  or null when the pair is fine. */
+export function checkPairedIgCreds(username: string, password: string): string | null {
+  if (Boolean(username) === Boolean(password)) return null;
+  const have = username ? "a username but no password" : "a password but no username";
+  return (
+    `IG_USERNAME and IG_PASSWORD must be set together (or both left blank): you gave ${have}. ` +
+    "The Instagram sidecar refuses to boot with only one of them set (services/ig/crowsnest_ig/config.py)."
+  );
+}
+
+/** Read one `NAME=value` line straight out of .env.local. kai.ts never sources this
+ *  file into process.env (see crowsnest_ig/config.py's own loader for why sourcing a
+ *  password-bearing file is unsafe); this is just enough to read back what kit init
+ *  wrote, for the health checks below. */
+function readEnvValue(name: string): string | undefined {
+  const envPath = join(REPO, ".env.local");
+  if (!existsSync(envPath)) return undefined;
+  return readFileSync(envPath, "utf8").match(new RegExp(`^${name}=(.*)$`, "m"))?.[1];
 }
 
 function run(cmd: string, args: string[], cwd = REPO): void {
@@ -136,8 +211,10 @@ async function cmdKitInit(): Promise<void> {
   const igUser = await ask("IG_USERNAME");
   if (igUser) {
     const igPass = await ask("IG_PASSWORD (not echoed)", { secret: true });
+    const pairErr = checkPairedIgCreds(igUser, igPass);
+    if (pairErr) die(pairErr); // refuse before ever touching .env.local
     env = setEnv(env, "IG_USERNAME", igUser);
-    if (igPass) env = setEnv(env, "IG_PASSWORD", igPass);
+    env = setEnv(env, "IG_PASSWORD", igPass);
   }
 
   // The sidecar shared secret is never typed by hand: any long random string works.
@@ -221,6 +298,22 @@ function tailLog(label: string, n = 10): void {
   console.log(lines.join("\n"));
 }
 
+const IG_SERVICE_URL = "http://127.0.0.1:8765";
+
+/** GET the sidecar's /health, authenticated the same way src/server/ig/client.ts does. */
+async function checkSidecarHealth(): Promise<boolean> {
+  try {
+    const token = readEnvValue("IG_SERVICE_TOKEN");
+    const res = await fetch(`${IG_SERVICE_URL}/health`, {
+      headers: token ? { "X-IG-Token": token } : {},
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function cmdUp(): Promise<void> {
   requireLicense();
   svc.start();
@@ -233,6 +326,12 @@ async function cmdUp(): Promise<void> {
     die("Run `kai doctor` to diagnose.");
   }
   console.log(`crowsnest is running: ${SERVER_URL}`);
+
+  if (!(await checkSidecarHealth())) {
+    console.error("The Instagram sidecar did not respond to a health check.");
+    tailLog("com.crowsnest.ig");
+  }
+
   spawnSync("open", [SERVER_URL], { stdio: "ignore" });
 }
 
@@ -245,7 +344,8 @@ function cmdStatusFull(): void {
   }
 }
 
-/** Read-only health check. Never touches the network. */
+/** Health check. Reads local files/processes; the only network call is the sidecar's
+ *  own loopback-only /health, and only when the sidecar is running. */
 async function cmdDoctor(): Promise<void> {
   const ok = (label: string, good: boolean, detail: string) =>
     console.log(`[${good ? "OK" : "!!"}] ${label.padEnd(22)} ${detail}`);
@@ -255,15 +355,20 @@ async function cmdDoctor(): Promise<void> {
   ok("mode", true, isBundle ? "bundled" : "dev repo");
 
   let natives = false;
+  let nativeErr = "";
   try {
+    // Runtime probe that the prebuilt native modules load on this machine; a
+    // path-based require is deliberate and cannot be a static import.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require(join(REPO, "node_modules", "better-sqlite3"));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require(join(REPO, "node_modules", "node-pty"));
     natives = true;
   } catch (err) {
     natives = false;
-    var nativeErr = (err as Error).message;
+    nativeErr = (err as Error).message;
   }
-  ok("native modules", natives, natives ? "better-sqlite3 + node-pty load" : `FAIL: ${nativeErr!}`);
+  ok("native modules", natives, natives ? "better-sqlite3 + node-pty load" : `FAIL: ${nativeErr}`);
 
   const venvOk = existsSync(igVenvPython);
   ok("python sidecar", venvOk, venvOk ? igVenvPython : "venv missing (rerun kai kit init)");
@@ -274,11 +379,23 @@ async function cmdDoctor(): Promise<void> {
 
   const envLocal = join(REPO, ".env.local");
   ok("config", existsSync(envLocal), existsSync(envLocal) ? envLocal : "no .env.local (rerun kai kit init)");
+
+  const pairErr = checkPairedIgCreds(readEnvValue("IG_USERNAME") ?? "", readEnvValue("IG_PASSWORD") ?? "");
+  ok("config: IG creds paired", !pairErr, pairErr ?? "IG_USERNAME/IG_PASSWORD both set or both blank");
+
   ok("license", Boolean(readEntitlement()), readEntitlement() ? "entitlement cached" : "run kai login");
 
   for (const s of svc.services()) {
     ok(s.label, svc.running(s.label), svc.running(s.label) ? "running" : "stopped");
   }
+
+  const igRunning = svc.running("com.crowsnest.ig");
+  const igHealthy = igRunning && (await checkSidecarHealth());
+  ok(
+    "sidecar health",
+    !igRunning || igHealthy,
+    !igRunning ? "not running" : igHealthy ? "responds to /health" : "not responding to /health (see kai up, or the ig log)",
+  );
   // uv + wheelhouse presence, bundle only
   if (isBundle) {
     ok("uv", existsSync(uvBin), uvBin);
@@ -292,16 +409,80 @@ function cmdPostUpdate(): void {
   if (svc.running("com.crowsnest.server")) svc.start();
 }
 
+// KIT-3: this must match packaging/install.sh.template's own KAI_INSTALL_URL default —
+// that's the gate that both first installs and updates go through.
+export const DEFAULT_INSTALL_URL = "https://crowsnest-gate.kaiships.workers.dev/install.sh";
+
 /** Re-run the installer, which downloads the latest version and flips `current` to it.
  *  The installer reuses the cached license key, so the buyer never retypes it. */
 function cmdUpdate(): void {
   requireLicense();
   if (!isBundle) die("kai update is for installed builds, not the dev repo.");
-  const installUrl = process.env.KAI_INSTALL_URL ?? "https://get.crowsnest.sh/install.sh";
+  const installUrl = process.env.KAI_INSTALL_URL ?? DEFAULT_INSTALL_URL;
   console.log("Updating crowsnest...");
   // curl the installer and run it; it reads the cached key from ~/.kai/state/entitlement.json.
   const res = spawnSync("bash", ["-c", `curl -fsSL ${installUrl} | bash`], { stdio: "inherit" });
   if (res.status !== 0) die("Update failed. Your current version is untouched.");
+}
+
+function migrationFiles(drizzleDir: string): Set<string> {
+  if (!existsSync(drizzleDir)) return new Set();
+  return new Set(readdirSync(drizzleDir).filter((f) => f.endsWith(".sql")));
+}
+
+/** Flip `~/.kai/app/current` back to the other installed version and re-run the
+ *  post-update routine (migrate, restart if running). Refuses when the two versions'
+ *  drizzle/ migrations differ: the database would be left on a schema the rolled-back
+ *  code doesn't expect. Only ever keeps one previous version around (see
+ *  install.sh.template step 9), so "the other version" is unambiguous. */
+export function cmdRollback(): void {
+  if (!isBundle) die("kai rollback is for installed builds, not the dev repo.");
+  const appsDir = join(homedir(), ".kai", "app");
+  const currentLink = join(appsDir, "current");
+  if (!existsSync(currentLink)) die(`No current install found at ${currentLink}.`);
+
+  const currentName = basename(readlinkSync(currentLink));
+  const versions = readdirSync(appsDir).filter((d) => d.startsWith("v") && statSync(join(appsDir, d)).isDirectory());
+  const other = versions.find((v) => v !== currentName);
+  if (!other) die(`No other version installed to roll back to (only ${currentName} is present).`);
+
+  const currentMigrations = migrationFiles(join(appsDir, currentName, "app", "drizzle"));
+  const otherMigrations = migrationFiles(join(appsDir, other!, "app", "drizzle"));
+  const onlyCurrent = [...currentMigrations].filter((m) => !otherMigrations.has(m)).sort();
+  const onlyOther = [...otherMigrations].filter((m) => !currentMigrations.has(m)).sort();
+  if (onlyCurrent.length || onlyOther.length) {
+    die(
+      [
+        `Refusing to roll back ${currentName} -> ${other}: their drizzle/ migrations differ.`,
+        onlyCurrent.length ? `Only in ${currentName}: ${onlyCurrent.join(", ")}` : null,
+        onlyOther.length ? `Only in ${other}: ${onlyOther.join(", ")}` : null,
+        "Rolling back would leave the database on a schema the older code doesn't expect. Fix the migrations, then retry.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    );
+  }
+
+  const target = join(appsDir, other!);
+  const tmp = join(appsDir, "current.tmp");
+  try {
+    unlinkSync(tmp);
+  } catch {
+    // no stale tmp link left over
+  }
+  symlinkSync(target, tmp);
+  renameSync(tmp, currentLink);
+  console.log(`Rolled back: ${currentName} -> ${other}`);
+
+  // Run the post-update routine (migrate + restart) in a FRESH process, not in-process:
+  // this process's appRoot (src/cli/runtime.ts) was resolved from __dirname when it
+  // started, before the symlink flip above, so it is still pinned to the OLD version.
+  // Calling cmdPostUpdate() here would migrate and restart the server against the OLD
+  // code. A freshly spawned `kai _postupdate`, launched from the NEW version's own bin,
+  // re-resolves appRoot from scratch and lands on the version we just rolled back to.
+  // Same pattern install.sh.template uses after flipping `current` on update.
+  const newBin = join(target, "bin", "kai");
+  spawn(newBin, ["_postupdate"], { detached: true, stdio: "ignore" }).unref();
 }
 
 // ---------------------------------------------------------------- entry
@@ -335,6 +516,9 @@ async function main(): Promise<void> {
     case "update":
       await cmdUpdate();
       break;
+    case "rollback":
+      cmdRollback();
+      break;
     case "_postupdate":
       cmdPostUpdate();
       break;
@@ -347,8 +531,15 @@ async function main(): Promise<void> {
       console.log("  kai status                license + service state");
       console.log("  kai doctor                health check");
       console.log("  kai update                update to the latest version");
+      console.log("  kai rollback              revert to the previously installed version");
       process.exit(cmd ? 1 : 0);
   }
 }
 
-main().catch((err: Error) => die(err.message));
+// Only run the CLI when this file is executed directly, not when a test imports it
+// for `ask`/`checkPairedIgCreds`/etc. tsx runs this file as CJS in the dev repo and in
+// a bundle (require.main is set); vitest's ESM loader never sets require.main here.
+const isMain = typeof require !== "undefined" && require.main === module;
+if (isMain) {
+  main().catch((err: Error) => die(err.message));
+}

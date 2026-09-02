@@ -16,6 +16,7 @@
     "typecheck": "tsc --noEmit",
     "db:bootstrap": "tsx src/server/db/bootstrap.ts",
     "verify:live": "bash scripts/verify-live.sh",
+    "e2e": "bash scripts/e2e/run.sh",
     "ig:import-session": "bash scripts/import-session.sh",
     "postinstall": "tsx scripts/fix-node-pty-perms.mjs"
   },

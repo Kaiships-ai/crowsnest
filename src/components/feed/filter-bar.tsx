@@ -287,7 +287,12 @@ export function FilterBar({
         </Select>
 
         <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
-          <SelectTrigger size="sm" aria-label="Minimum outlier score" className={FILTER_TRIGGER_CLASS}>
+          <SelectTrigger
+            size="sm"
+            aria-label="Minimum outlier score"
+            data-testid="feed-filter-min-score"
+            className={FILTER_TRIGGER_CLASS}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

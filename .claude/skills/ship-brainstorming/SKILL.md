@@ -97,7 +97,7 @@ your path and complete them in order.
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `documents/architect/core-components/<component>/01-concept-brief.md` and commit
+6. **Write design doc**: save to `documents/planning/spec/YYYY-MM-DD-<slug>.md` and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
@@ -203,10 +203,11 @@ is the whole process.
 
 **Documentation:**
 
-- Write the validated design (spec) to `documents/architect/core-components/<component>/01-concept-brief.md`
+- Write the validated design (spec) to `documents/planning/spec/YYYY-MM-DD-<slug>.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
+- A component's durable design still folds into its `02-architecture.md` on ship; the spec is the design record.
 
 **Spec Self-Review:**
 After writing the spec document, look at it with fresh eyes:
@@ -251,9 +252,10 @@ If they agree to the companion, read the detailed guide before proceeding:
 
 ## crowsnest doc placement
 
-When brainstorming lands on a component design, its output belongs in that component's
-`documents/architect/core-components/<name>/01-concept-brief.md` (and `02-architecture.md` for
-the how). If the idea is a new component, use the document-component skill to scaffold the block.
+When brainstorming lands on a component design, its output (the spec) belongs in
+`documents/planning/spec/YYYY-MM-DD-<slug>.md`. A component's durable design still folds into
+`documents/architect/core-components/<name>/02-architecture.md` on ship. If the idea is a new
+component, use the document-component skill to scaffold the block.
 
 ## Ship workflow: next step
 

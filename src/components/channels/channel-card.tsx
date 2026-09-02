@@ -145,6 +145,8 @@ function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleS
       <article
         ref={sortable.setNodeRef}
         style={style}
+        data-testid="channel-card"
+        data-id={channel.id}
         data-dragging={sortable.isDragging ? "" : undefined}
         className="border border-border bg-card px-4 pt-3 pb-4 select-none data-[dragging]:opacity-40"
       >

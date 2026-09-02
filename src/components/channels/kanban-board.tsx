@@ -184,7 +184,10 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
           "Channels" one line below it is the duplicate the M6 rule bans. */}
       <div className="flex items-end justify-between gap-6 border-b border-border px-6 pt-6 pb-4">
         <p className="font-mono text-2xs text-faint">
-          <span data-num className="text-muted-foreground">{board.channels.length}</span> tracked
+          <span data-testid="channels-tracked-count" data-num className="text-muted-foreground">
+            {board.channels.length}
+          </span>{" "}
+          tracked
           {neverSynced > 0 && (
             <>
               <span className="mx-1.5 text-dim">&middot;</span>

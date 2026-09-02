@@ -80,7 +80,13 @@ export function OwnChannelPicker({ candidates }: { candidates: OwnChannelCandida
                 {c.followerCount === null ? "—" : c.followerCount.toLocaleString("en-US")}
               </span>
               <div className="text-right">
-                <Button size="sm" variant="outline" disabled={pendingId === c.id} onClick={() => choose(c.id, c.handle)}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  data-testid="own-channel-picker-choose"
+                  disabled={pendingId === c.id}
+                  onClick={() => choose(c.id, c.handle)}
+                >
                   {pendingId === c.id ? "Setting…" : "This is me"}
                 </Button>
               </div>

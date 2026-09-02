@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { createVaultItemAction } from "@/server/actions/vault-actions";
+import { saveToVaultAction } from "@/server/actions/vault-actions";
 import type { StoredAnalysisFields } from "@/server/llm/schemas";
 
 type Choice = "hook" | "style" | "both";
@@ -78,19 +78,21 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
 
   async function save() {
     setPending(true);
-    const results = await Promise.all([
+    // One atomic, idempotent write for the whole choice (a "both" that half-writes,
+    // or a retry that duplicates the row that landed, is B-05).
+    const items = [
       choice !== "style"
-        ? createVaultItemAction({ type: "hook", title: hookTitle, templateText: hookText, tags: parseTags(hookTags), sourceVideoId: videoId })
+        ? { type: "hook" as const, title: hookTitle, templateText: hookText, tags: parseTags(hookTags), sourceVideoId: videoId }
         : null,
       choice !== "hook"
-        ? createVaultItemAction({ type: "style", title: styleTitle, templateText: styleText, tags: parseTags(styleTags), sourceVideoId: videoId })
+        ? { type: "style" as const, title: styleTitle, templateText: styleText, tags: parseTags(styleTags), sourceVideoId: videoId }
         : null,
-    ]);
+    ].filter((item) => item !== null);
+    const result = await saveToVaultAction({ items });
     setPending(false);
 
-    const failure = results.find((result) => result && !result.ok);
-    if (failure && !failure.ok) {
-      toast.error(failure.error);
+    if (!result.ok) {
+      toast.error(result.error);
       return;
     }
     toast.success(choice === "both" ? "Saved hook and style to Vault" : `Saved ${choice} to Vault`);
@@ -100,7 +102,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
+      <DialogTrigger render={<Button variant="outline" size="sm" data-testid="save-to-vault-trigger" />}>
         <Bookmark className="size-3.5" /> Save to Vault
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
@@ -151,7 +153,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
         )}
 
         <DialogFooter>
-          <Button onClick={save} disabled={pending}>
+          <Button onClick={save} data-testid="save-to-vault-confirm" disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
         </DialogFooter>

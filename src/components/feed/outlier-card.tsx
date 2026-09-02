@@ -74,7 +74,11 @@ export function OutlierCard({
   }
 
   return (
-    <div className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg">
+    <div
+      data-testid="outlier-card"
+      data-id={item.videoId}
+      className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg"
+    >
       {/* Thumbnail — the primary, keyboard-accessible trigger for onOpen. */}
       <div
         role={onOpen ? "button" : undefined}

@@ -107,7 +107,13 @@ export function AddChannelDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {showTrigger && <DialogTrigger render={<Button size="sm" variant="secondary" />}>Add channel</DialogTrigger>}
+      {showTrigger && (
+        <DialogTrigger
+          render={<Button size="sm" variant="secondary" data-testid="channels-add-channel-trigger" />}
+        >
+          Add channel
+        </DialogTrigger>
+      )}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a channel</DialogTitle>
@@ -122,7 +128,9 @@ export function AddChannelDialog({
           }}
         >
           <TabsList>
-            <TabsTrigger value="handle">By handle</TabsTrigger>
+            <TabsTrigger value="handle" data-testid="add-channel-tab-handle">
+              By handle
+            </TabsTrigger>
             <TabsTrigger value="url">Paste post URL</TabsTrigger>
           </TabsList>
 
@@ -142,6 +150,7 @@ export function AddChannelDialog({
                 <Label htmlFor="channel-handle">Instagram handle</Label>
                 <Input
                   id="channel-handle"
+                  data-testid="add-channel-handle-input"
                   placeholder="@handle or instagram.com/handle"
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
@@ -150,7 +159,7 @@ export function AddChannelDialog({
                   A profile URL works too — it&apos;s normalised to a handle.
                 </p>
               </div>
-              <Button type="submit" disabled={!handle || pending}>
+              <Button type="submit" data-testid="add-channel-submit-handle" disabled={!handle || pending}>
                 {pending ? "Checking handle…" : "Track channel"}
               </Button>
             </form>
