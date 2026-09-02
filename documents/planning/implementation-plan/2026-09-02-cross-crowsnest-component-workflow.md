@@ -1,9 +1,9 @@
 ---
-status: active
+status: shipped
 components: [shared, ig-sync]
 backlog: none
 owner: session-2026-09-02
-shipped: null
+shipped: 2026-09-02 94e4883
 ---
 
 # Crowsnest component workflow Implementation Plan
