@@ -10,10 +10,12 @@ const POLAR_API = process.env.KAI_POLAR_API ?? "https://api.polar.sh";
 const ORGANIZATION_ID =
   process.env.KAI_POLAR_ORG_ID ?? "ef96ed5d-6721-403c-98a8-184d43d13334";
 
-export const entitlementPath = () =>
-  process.env.KAI_HOME
-    ? join(process.env.KAI_HOME, "entitlement.json")
-    : join(homedir(), ".kai", "entitlement.json");
+const kaiHome = () => process.env.KAI_HOME ?? join(homedir(), ".kai");
+
+export const entitlementPath = () => join(kaiHome(), "state", "entitlement.json");
+
+/** Pre-migration location. Read once as a fallback so upgrades don't force a re-login. */
+const oldEntitlementPath = () => join(kaiHome(), "entitlement.json");
 
 export type Entitlement = {
   key: string;
@@ -138,7 +140,15 @@ export function readEntitlement(): Entitlement | null {
     if (!raw.key || !raw.activation_id) return null;
     return raw as Entitlement;
   } catch {
-    return null;
+    // Fall back to the pre-migration path, one time, and migrate it forward.
+    try {
+      const raw = JSON.parse(readFileSync(oldEntitlementPath(), "utf8")) as Partial<Entitlement>;
+      if (!raw.key || !raw.activation_id) return null;
+      writeEntitlement(raw as Entitlement);
+      return raw as Entitlement;
+    } catch {
+      return null;
+    }
   }
 }
 

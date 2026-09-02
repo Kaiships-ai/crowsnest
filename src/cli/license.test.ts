@@ -1,9 +1,9 @@
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { LicenseError, login, readEntitlement, writeEntitlement } from "./license";
+import { LicenseError, entitlementPath, login, readEntitlement, writeEntitlement } from "./license";
 
 const ORG = "ef96ed5d-6721-403c-98a8-184d43d13334";
 const KEY = "ksa_testkey";
@@ -75,7 +75,7 @@ describe("login", () => {
 
     await login(KEY);
 
-    const path = join(process.env.KAI_HOME!, "entitlement.json");
+    const path = join(process.env.KAI_HOME!, "state", "entitlement.json");
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(path, "utf8")).key).toBe(KEY);
   });
@@ -168,10 +168,37 @@ describe("login", () => {
   });
 });
 
+describe("entitlementPath", () => {
+  test("resolves under <KAI_HOME>/state/entitlement.json", () => {
+    expect(entitlementPath()).toBe(join(process.env.KAI_HOME!, "state", "entitlement.json"));
+  });
+});
+
 describe("readEntitlement", () => {
   test("returns null when the cache is missing or malformed", () => {
     expect(readEntitlement()).toBeNull();
-    writeFileSync(join(process.env.KAI_HOME!, "entitlement.json"), "{not json");
+    mkdirSync(join(process.env.KAI_HOME!, "state"), { recursive: true });
+    writeFileSync(join(process.env.KAI_HOME!, "state", "entitlement.json"), "{not json");
     expect(readEntitlement()).toBeNull();
+  });
+
+  test("falls back to the old pre-migration path once, then migrates it", () => {
+    const oldPath = join(process.env.KAI_HOME!, "entitlement.json");
+    writeFileSync(
+      oldPath,
+      JSON.stringify({
+        key: KEY,
+        activation_id: "act_old",
+        customer_id: null,
+        validated_at: "2026-01-01T00:00:00.000Z",
+      }),
+    );
+
+    const e = readEntitlement();
+    expect(e?.activation_id).toBe("act_old");
+
+    // Migrated: the new path now holds it too.
+    const migrated = JSON.parse(readFileSync(entitlementPath(), "utf8"));
+    expect(migrated.activation_id).toBe("act_old");
   });
 });
