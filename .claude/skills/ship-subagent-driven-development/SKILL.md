@@ -56,6 +56,44 @@ digraph when_to_use {
 - Review after each task (spec compliance + code quality), broad review at the end
 - Faster iteration (no human-in-loop between tasks)
 
+## Two modes
+
+This skill has two execution modes. The default is sequential. Read this before dispatching.
+
+**Sequential (default).** One implementer at a time, each commits its own task, a review gate
+after each. Use it whenever tasks touch shared files, depend on each other's output, or each
+deserves its own commit and review. This is the safe default and the rest of this document
+describes it.
+
+**Independent-tasks parallel (opt-in).** All implementers dispatched at once, in one message.
+Use it only when every task writes a different set of files with no overlap and no ordering
+dependency (for example: one doc or one component per task, or N isolated bug fixes in N
+different modules). It trades the per-task review gate for one batch review, so reserve it for
+lower-risk, structurally-verifiable work.
+
+The parallel mode changes the contract to remove the only things that conflict under
+concurrency:
+
+- Implementers WRITE their target files only. They do NOT run any git command, do NOT commit,
+  and do NOT edit any shared file (the nav or index, a config, a lockfile, a shared module).
+  Name the shared files in the dispatch and say the controller owns them.
+- The controller does not dispatch a per-task reviewer. It waits for all implementers, then
+  dispatches ONE review-gate agent that checks every output against the plan (structure,
+  faithfulness, hygiene, cross-file consistency) and returns findings ranked blocker /
+  should-fix / nit.
+- Blockers and cheap should-fixes go to ONE fix agent (not one per finding). Nits and larger
+  cosmetic passes are logged as deferred follow-ups.
+- Only after the gate passes does the controller consolidate, sequentially and in its own
+  session: make the shared-file edits (nav, index), run the build or test, then commit. Commits
+  happen in the controller only, never in an implementer.
+
+When NOT to use parallel: tasks share a file, a later task consumes an earlier task's output,
+or a task needs its own test cycle and commit to be reviewable. Any of those means sequential.
+
+The rest of this document is the sequential mode. In parallel mode, "dispatch the implementer"
+happens once for all tasks together, the per-task review becomes the single batch review gate,
+and the fix loop becomes one fix agent plus the deferred list.
+
 ## The Process
 
 ```dot
