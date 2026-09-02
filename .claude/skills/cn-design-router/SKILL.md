@@ -1,6 +1,6 @@
 ---
 name: cn-design-router
-description: Router for the anti-slop design skills (hallmark, emil-design-eng, apple-design, animation-vocabulary, find-animation-opportunities, improve-animations). Grills to pin intent, then names the single skill or the ordered combo to run. Routes only, does not design.
+description: Router for the anti-slop design skills (taste:hallmark, taste:emil-design-eng, taste:apple-design, taste:animation-vocabulary, taste:find-animation-opportunities, taste:improve-animations). Grills to pin intent, then names the single skill or the ordered combo to run. Routes only, does not design.
 disable-model-invocation: true
 ---
 
@@ -12,12 +12,12 @@ The six skills it routes to:
 
 | Skill | Does | Read-only? |
 |---|---|---|
-| hallmark | build a new page or app, `audit` a UI for slop, `redesign` a page's look, `study` a URL or screenshot to extract its DNA | no for build/redesign, yes for audit/study |
-| emil-design-eng | polish a component, review UI code for craft (Before/After table) | advisory |
-| apple-design | build or review fluid gesture UI: drag, sheet, swipe, spring, momentum, materials, type foundations | advisory |
-| animation-vocabulary | name a motion effect you can describe but cannot name | yes |
-| find-animation-opportunities | sweep a UI for where motion belongs, reject most candidates | yes |
-| improve-animations | audit existing motion, emit prioritized fix plans for another agent | yes on source |
+| taste:hallmark | build a new page or app, `audit` a UI for slop, `redesign` a page's look, `study` a URL or screenshot to extract its DNA | no for build/redesign, yes for audit/study |
+| taste:emil-design-eng | polish a component, review UI code for craft (Before/After table) | advisory |
+| taste:apple-design | build or review fluid gesture UI: drag, sheet, swipe, spring, momentum, materials, type foundations | advisory |
+| taste:animation-vocabulary | name a motion effect you can describe but cannot name | yes |
+| taste:find-animation-opportunities | sweep a UI for where motion belongs, reject most candidates | yes |
+| taste:improve-animations | audit existing motion, emit prioritized fix plans for another agent | yes on source |
 
 ## Step 1: Grill to pin intent
 
@@ -45,37 +45,37 @@ On the go-ahead, invoke the first skill in the route via the Skill tool. For a c
 
 | What you want | Route | Why |
 |---|---|---|
-| Build a new page, app, or landing from scratch | hallmark (default flow) | greenfield anti-slop, structural variety per brief |
-| Score an existing UI for slop, get a ranked punch list | hallmark audit <target> | anti-pattern findings, no edits |
-| Redesign an existing page's look, same routes and content | hallmark redesign <target> | new visual structure in place |
-| Copy the DNA of a design you admire | hallmark study <url or image> | extract macrostructure, type pairing, color anchor, never pixels |
-| Polish one component, review UI code for craft | emil-design-eng | design-eng lens, Before/After table |
-| Build fluid gesture UI: drag, sheet, swipe, spring, momentum | apple-design | physical, interruptible, velocity-aware motion |
-| Name a motion effect you can describe but cannot name | animation-vocabulary | reverse glossary, returns the term |
-| Find where a UI should animate, and where it should not | find-animation-opportunities | read-only, rejects most candidates |
-| Audit existing animations, get a fix roadmap | improve-animations | prioritized findings plus self-contained plans |
+| Build a new page, app, or landing from scratch | taste:hallmark (default flow) | greenfield anti-slop, structural variety per brief |
+| Score an existing UI for slop, get a ranked punch list | taste:hallmark audit <target> | anti-pattern findings, no edits |
+| Redesign an existing page's look, same routes and content | taste:hallmark redesign <target> | new visual structure in place |
+| Copy the DNA of a design you admire | taste:hallmark study <url or image> | extract macrostructure, type pairing, color anchor, never pixels |
+| Polish one component, review UI code for craft | taste:emil-design-eng | design-eng lens, Before/After table |
+| Build fluid gesture UI: drag, sheet, swipe, spring, momentum | taste:apple-design | physical, interruptible, velocity-aware motion |
+| Name a motion effect you can describe but cannot name | taste:animation-vocabulary | reverse glossary, returns the term |
+| Find where a UI should animate, and where it should not | taste:find-animation-opportunities | read-only, rejects most candidates |
+| Audit existing animations, get a fix roadmap | taste:improve-animations | prioritized findings plus self-contained plans |
 
 ## Combos
 
 Named multi-skill recipes. When the grill lands on one of these, print the whole ordered chain.
 
 Ship a new UI that also feels alive:
-1. hallmark (default) builds the visual structure.
-2. find-animation-opportunities marks the few places motion earns its keep.
-3. apple-design or improve-animations turns those recipes into real motion.
+1. taste:hallmark (default) builds the visual structure.
+2. taste:find-animation-opportunities marks the few places motion earns its keep.
+3. taste:apple-design or taste:improve-animations turns those recipes into real motion.
 
 Make an existing app feel better overall:
-1. hallmark audit returns the visual punch list.
-2. improve-animations returns the motion punch list.
+1. taste:hallmark audit returns the visual punch list.
+2. taste:improve-animations returns the motion punch list.
 3. Merge both into one prioritized list before touching code.
 
 Finalize or enhance a design system:
 This is never one skill. Grill to split it into three tracks, then route each.
-- Visual tokens and structure: hallmark study if you have a reference to pull from, or hallmark audit to score current screens against the draft system.
-- Component and polish rules: emil-design-eng.
-- Motion tokens (easing, duration, spring scales) and current motion debt: apple-design for the scale, improve-animations to audit how the app uses it today.
+- Visual tokens and structure: taste:hallmark study if you have a reference to pull from, or taste:hallmark audit to score current screens against the draft system.
+- Component and polish rules: taste:emil-design-eng.
+- Motion tokens (easing, duration, spring scales) and current motion debt: taste:apple-design for the scale, taste:improve-animations to audit how the app uses it today.
 Fold every result into the repo's one design-system doc so it stays the single source of truth. In this repo that is docs/design/DESIGN-SYSTEM.md.
 
 ## Boundaries
 
-Routes only. It does not build, audit, or write plans itself. When the route needs a plan before code, hand off to the skill that plans (improve-animations) or to superpowers:writing-plans, not this one.
+Routes only. It does not build, audit, or write plans itself. When the route needs a plan before code, hand off to the skill that plans (taste:improve-animations) or to superpowers:writing-plans, not this one.

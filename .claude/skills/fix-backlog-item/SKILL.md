@@ -21,9 +21,9 @@ the backlog row, nothing more.
 | --- | --- | --- |
 | Pick the row | this skill | `scripts/next-bug.sh` |
 | Read the seam | this skill | none |
-| Isolate the workspace | reuse | `ship-using-git-worktrees` |
-| Root cause, failing test first, fix | reuse | `ship-systematic-debugging` |
-| Verify | reuse | `ship-verification-before-completion` |
+| Isolate the workspace | reuse | `ship:using-git-worktrees` |
+| Root cause, failing test first, fix | reuse | `ship:systematic-debugging` |
+| Verify | reuse | `ship:verification-before-completion` |
 | Blast radius guardrail, PR, row status | this skill | none |
 
 ## Step 1: pick the row
@@ -50,12 +50,12 @@ Step 4 targets, and what Step 7's file list is checked against.
 
 ## Step 3: isolate the workspace
 
-Call `ship-using-git-worktrees`. Branch name: `fix/<component>-<id>`, lowercased, for example
+Call `ship:using-git-worktrees`. Branch name: `fix/<component>-<id>`, lowercased, for example
 `fix/feed-b-05`.
 
 ## Step 4: root cause, failing test first, fix
 
-Call `ship-systematic-debugging`. Complete Phase 1 (root cause investigation) and Phase 2
+Call `ship:systematic-debugging`. Complete Phase 1 (root cause investigation) and Phase 2
 (pattern analysis) before writing any fix code; the Iron Law in that skill applies here without
 exception.
 
@@ -71,12 +71,12 @@ Confirm the test fails for the reason named in the row's title, not for an unrel
 before starting the fix.
 
 Fix the root cause found in Phase 1, one change, no riding refactor. If the fix touches three
-files or fewer, skip `ship-writing-plans` and go straight from the failing test to the fix. Only
-reach for `ship-writing-plans` if the seam turns out to span more than that.
+files or fewer, skip `ship:writing-plans` and go straight from the failing test to the fix. Only
+reach for `ship:writing-plans` if the seam turns out to span more than that.
 
 ## Step 5: verify
 
-Call `ship-verification-before-completion`. Then run the project-wide gates and read their
+Call `ship:verification-before-completion`. Then run the project-wide gates and read their
 output before claiming anything:
 
 ```bash
@@ -151,10 +151,10 @@ human decision this skill does not make.
 - `scripts/next-bug.sh` prints nothing: no open bugs anywhere, report that and stop, nothing to
   fix.
 - The failing test in Step 4 does not fail, or fails for a different reason than the row's
-  title: return to `ship-systematic-debugging` Phase 1, the seam identified in Step 2 was
+  title: return to `ship:systematic-debugging` Phase 1, the seam identified in Step 2 was
   probably wrong.
 - `npm test` or `npm run typecheck` fails after the fix: stop, do not open a PR, return to
-  `ship-systematic-debugging` Phase 3 with the new failure as evidence.
+  `ship:systematic-debugging` Phase 3 with the new failure as evidence.
 - The guardrail computation in Step 6 is ambiguous, for example a changed file's path does not
   cleanly match an allowed prefix: treat it as needs-human. The guardrail's job is to keep risky
   surfaces out of autopilot, so an unclear case defaults to the safer path.
@@ -168,8 +168,8 @@ human decision this skill does not make.
 | --- | --- | --- | --- |
 | 1: pick the row | no | none, `scripts/next-bug.sh` | one backlog row selected |
 | 2: read the seam | no | none | owning file identified |
-| 3: isolate the workspace | no | `ship-using-git-worktrees` | branch `fix/<component>-<id>` |
-| 4: root cause, test, fix | no | `ship-systematic-debugging` | failing test, then a fix |
-| 5: verify | no | `ship-verification-before-completion` | fresh `npm test` and `npm run typecheck` output |
+| 3: isolate the workspace | no | `ship:using-git-worktrees` | branch `fix/<component>-<id>` |
+| 4: root cause, test, fix | no | `ship:systematic-debugging` | failing test, then a fix |
+| 5: verify | no | `ship:verification-before-completion` | fresh `npm test` and `npm run typecheck` output |
 | 6: blast radius guardrail | no | none | auto-eligible or needs-human decided |
 | 7: PR, row status | no | none | PR open (normal or draft), row `done` or `in-review`, never merged |

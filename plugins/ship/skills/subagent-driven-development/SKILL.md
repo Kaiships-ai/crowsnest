@@ -1,5 +1,5 @@
 ---
-name: ship-subagent-driven-development
+name: subagent-driven-development
 description: Use when executing implementation plans with independent tasks in the current session
 ---
 
@@ -126,7 +126,7 @@ digraph process {
     "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" [shape=box];
     "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals" [shape=box];
     "Final review clean: delete this plan's workspace" [shape=box];
-    "Use ship-finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
+    "Use ship:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
 
     "Setup: worktree, ledger check, read plan, pre-flight review" -> "Dispatch implementer subagent (./implementer-prompt.md)";
     "Dispatch implementer subagent (./implementer-prompt.md)" -> "Implementer asks questions?";
@@ -155,14 +155,14 @@ digraph process {
     "More tasks remain?" -> "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" [label="no"];
     "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" -> "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals";
     "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals" -> "Final review clean: delete this plan's workspace";
-    "Final review clean: delete this plan's workspace" -> "Use ship-finishing-a-development-branch";
+    "Final review clean: delete this plan's workspace" -> "Use ship:finishing-a-development-branch";
 }
 ```
 
 ## Setup
 
 Ensure the work happens in an isolated workspace: use
-ship-using-git-worktrees to create one or verify the existing one.
+ship:using-git-worktrees to create one or verify the existing one.
 Never start implementation on a main/master branch without your human
 partner's explicit consent.
 
@@ -522,7 +522,7 @@ delete this plan's workspace (`rm -rf <workspace>`) — the git history is
 the record now. Sibling directories belong to other plans; leave them
 alone.
 
-Use ship-finishing-a-development-branch.
+Use ship:finishing-a-development-branch.
 
 ## Common Rationalizations
 
@@ -602,7 +602,7 @@ Final reviewer: All requirements met. Deferred minors triaged: none block merge.
 
 [Delete this plan's workspace — the record now lives in git]
 
-Done! Using ship-finishing-a-development-branch.
+Done! Using ship:finishing-a-development-branch.
 ```
 
 ## crowsnest doc placement
@@ -615,4 +615,4 @@ into that component's `05-backlog-to-enhance.md`.
 ## Ship workflow: next step
 
 Step 4 of the ship workflow. When all tasks are implemented and the per-task reviews pass,
-next run **ship-verification-before-completion** before you claim it is done. If a task hits a bug you cannot explain, detour through **ship-systematic-debugging** first.
+next run **ship:verification-before-completion** before you claim it is done. If a task hits a bug you cannot explain, detour through **ship:systematic-debugging** first.

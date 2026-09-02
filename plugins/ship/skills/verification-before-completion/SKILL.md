@@ -1,5 +1,5 @@
 ---
-name: ship-verification-before-completion
+name: verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
 ---
 
@@ -128,4 +128,4 @@ it works.
 ## Ship workflow: next step
 
 Step 5 of the ship workflow. When the evidence is in and every claim is backed by real output,
-next run **ship-finishing-a-development-branch** to integrate the work.
+next run **ship:finishing-a-development-branch** to integrate the work.

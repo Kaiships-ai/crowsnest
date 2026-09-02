@@ -1,5 +1,5 @@
 ---
-name: ship-finishing-a-development-branch
+name: finishing-a-development-branch
 description: Use when implementation is complete, all tests pass, and you need to decide how to integrate the work
 ---
 
@@ -227,4 +227,4 @@ place. If your platform provides a workspace-exit tool, use it.
 ## Ship workflow: next step
 
 Final step of the ship workflow. After the branch is merged or the PR is open,
-the loop is done. Start the next piece of work at **ship-brainstorming**.
+the loop is done. Start the next piece of work at **ship:brainstorming**.
