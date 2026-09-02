@@ -123,7 +123,7 @@ digraph process {
 
     "Setup: worktree, ledger check, read plan, pre-flight review" [shape=box];
     "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" [shape=box];
+    "Dispatch final code reviewer (review the branch diff for correctness, tests, and regressions)" [shape=box];
     "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals" [shape=box];
     "Final review clean: delete this plan's workspace" [shape=box];
     "Use ship:finishing-a-development-branch" [shape=box style=filled fillcolor=lightgreen];
@@ -152,8 +152,8 @@ digraph process {
     "Park findings in ledger with rulings" -> "Append completion to ledger, mark todo complete";
     "Append completion to ledger, mark todo complete" -> "More tasks remain?";
     "More tasks remain?" -> "Dispatch implementer subagent (./implementer-prompt.md)" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" [label="no"];
-    "Dispatch final code reviewer (the superpowers plugin's requesting-code-review/code-reviewer.md)" -> "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals";
+    "More tasks remain?" -> "Dispatch final code reviewer (review the branch diff for correctness, tests, and regressions)" [label="no"];
+    "Dispatch final code reviewer (review the branch diff for correctness, tests, and regressions)" -> "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals";
     "Final findings? ONE fix dispatch, one scoped re-review, adjudicate residuals" -> "Final review clean: delete this plan's workspace";
     "Final review clean: delete this plan's workspace" -> "Use ship:finishing-a-development-branch";
 }
@@ -487,11 +487,12 @@ The final whole-branch review gets a package too: run
 branch started from, e.g. `git merge-base main HEAD`) and include the
 printed path in the final review dispatch, so the final reviewer reads
 one file instead of re-deriving the branch diff with git commands. Dispatch
-on the most capable available model (see Model Selection), using
-superpowers:requesting-code-review's
-[code-reviewer.md](the superpowers plugin's requesting-code-review/code-reviewer.md). Point it at
-the ledger's deferred-minor and parked lines so it can triage which must be
-fixed before merge.
+on the most capable available model (see Model Selection). Have the
+reviewer read the review package and the diff, then check the whole
+branch for correctness bugs, missing or weakened tests, and regressions
+against the plan's spec — same bar as the per-task reviews, but scoped to
+the entire branch. Point it at the ledger's deferred-minor and parked
+lines so it can triage which must be fixed before merge.
 
 If the final whole-branch review returns findings, dispatch ONE fix subagent
 with the complete findings list — not one fixer per finding.
