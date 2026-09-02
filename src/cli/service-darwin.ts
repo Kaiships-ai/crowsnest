@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
 import { appRoot, igDir, igVenvPython, logDir, nodeBin, tsxBin } from "./runtime";
-import { getOrCreateServiceToken, getSecret } from "../server/secrets/store";
+import type * as SecretsStore from "../server/secrets/store";
 
 // The only macOS-coded file. Windows/Linux later is one sibling (a Windows service, a
 // systemd unit) behind this same small shape: define(), load(), unload(), running().
@@ -19,10 +19,10 @@ export type Service = {
 const AGENTS = join(homedir(), "Library", "LaunchAgents");
 
 /**
- * Pins CROWSNEST_DB_PATH to an absolute path under `appRoot` before this module's first
+ * Pins CROWSNEST_DB_PATH to an absolute path under `appRoot` before this process's first
  * import of `../server/secrets/store` (which opens the sqlite db at import time).
  * `@/server/db`'s own resolution is `process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"`
- * relative to `process.cwd()` — fine for the spawned server (always `cwd: appRoot`, see
+ * relative to `process.cwd()`, fine for the spawned server (always `cwd: appRoot`, see
  * `services()` below) but not for the `kai` CLI binary itself, which a buyer can invoke
  * from any directory. Without this, `getSecret` below would silently open (or create) the
  * wrong database and this file's whole fix would look like it works while doing nothing.
@@ -40,17 +40,36 @@ function pinDbPathEnv(): void {
 pinDbPathEnv();
 
 /**
- * Env injected into the packaged sidecar's launchd job — the same shape as
+ * A static top-level `import ... from "../server/secrets/store"` would defeat
+ * `pinDbPathEnv()` above: ES module semantics fully evaluate an imported module (and
+ * its own imports, including `@/server/db`, which opens the sqlite connection at import
+ * time) before *any* of this importing module's top-level code runs, regardless of
+ * where the `import` line sits in this file's source. A dynamic `import()` has no such
+ * hoisting: calling it inside `igEnv()` below defers loading the secrets store (and
+ * opening the db) until `services()` actually runs, well after `pinDbPathEnv()` above
+ * has already set `CROWSNEST_DB_PATH`. Types only come from the `import type` above, so
+ * nothing here pulls the real module in at parse time. This is the same reasoning as
+ * `src/server/queries/feed.test.ts` and this file's own test: a `require()` was also
+ * tried and rejected because vitest's SSR `require()` cannot resolve an extensionless
+ * relative `.ts` module the way `import()` can.
+ */
+function secretsStore(): Promise<typeof SecretsStore> {
+  return import("../server/secrets/store");
+}
+
+/**
+ * Env injected into the packaged sidecar's launchd job, the same shape as
  * `src/server/sidecar/control.ts`'s `childEnv()` (the dev/`uv run` launcher), ported to
  * the path a buyer's Kit install actually runs. `IG_PROXY`/`IG_DEVICE_SEED` are not in
- * `MANAGED_SECRETS`, so `getSecret` reads them from env only, same as `childEnv()` — they
+ * `MANAGED_SECRETS`, so `getSecret` reads them from env only, same as `childEnv()`: they
  * stay dev-machine-only settings, not something the Settings UI manages. Only defined
  * values are added: a credential never saved through the dashboard is simply absent from
  * this dict, leaving `crowsnest_ig/config.py`'s own `load_env_file()` free to fill it from
  * `.env.local` exactly as it does today for a `kai kit init`-only buyer who never touched
  * the dashboard.
  */
-function igEnv(): Record<string, string> {
+async function igEnv(): Promise<Record<string, string>> {
+  const { getOrCreateServiceToken, getSecret } = await secretsStore();
   const inject: Record<string, string | undefined> = {
     IG_SERVICE_TOKEN: getOrCreateServiceToken(),
     IG_USERNAME: getSecret("IG_USERNAME"),
@@ -64,7 +83,7 @@ function igEnv(): Record<string, string> {
 }
 
 /** The two long-lived processes: the Next server and the Instagram sidecar. */
-export function services(): Service[] {
+export async function services(): Promise<Service[]> {
   return [
     {
       label: "com.crowsnest.server",
@@ -79,7 +98,7 @@ export function services(): Service[] {
       label: "com.crowsnest.ig",
       program: [igVenvPython, "-m", "crowsnest_ig"],
       cwd: igDir,
-      env: igEnv(),
+      env: await igEnv(),
     },
   ];
 }
@@ -125,11 +144,13 @@ function launchctl(args: string[]): void {
   execFileSync("launchctl", args, { stdio: "ignore" });
 }
 
-/** Write both plists (idempotent) and load them. Reloads if already loaded. */
-export function start(): void {
+/** Write both plists (idempotent) and load them. Reloads if already loaded.
+ *  Async because `services()` is: `igEnv()` inside it lazily `import()`s the secrets
+ *  store so it loads after `pinDbPathEnv()` has pinned `CROWSNEST_DB_PATH`, not before. */
+export async function start(): Promise<void> {
   mkdirSync(AGENTS, { recursive: true });
   mkdirSync(logDir, { recursive: true });
-  for (const s of services()) {
+  for (const s of await services()) {
     writeFileSync(plistPath(s.label), plist(s));
     // bootout first so a changed plist (new version dir) takes effect, ignore if not loaded.
     try {
@@ -141,8 +162,8 @@ export function start(): void {
   }
 }
 
-export function stop(): void {
-  for (const s of services()) {
+export async function stop(): Promise<void> {
+  for (const s of await services()) {
     try {
       launchctl(["bootout", `gui/${uid}/${s.label}`]);
     } catch {
