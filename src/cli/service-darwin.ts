@@ -1,9 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 import { appRoot, igDir, igVenvPython, logDir, nodeBin, tsxBin } from "./runtime";
+import { getOrCreateServiceToken, getSecret } from "../server/secrets/store";
 
 // The only macOS-coded file. Windows/Linux later is one sibling (a Windows service, a
 // systemd unit) behind this same small shape: define(), load(), unload(), running().
@@ -16,6 +17,51 @@ export type Service = {
 };
 
 const AGENTS = join(homedir(), "Library", "LaunchAgents");
+
+/**
+ * Pins CROWSNEST_DB_PATH to an absolute path under `appRoot` before this module's first
+ * import of `../server/secrets/store` (which opens the sqlite db at import time).
+ * `@/server/db`'s own resolution is `process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"`
+ * relative to `process.cwd()` — fine for the spawned server (always `cwd: appRoot`, see
+ * `services()` below) but not for the `kai` CLI binary itself, which a buyer can invoke
+ * from any directory. Without this, `getSecret` below would silently open (or create) the
+ * wrong database and this file's whole fix would look like it works while doing nothing.
+ * Skips pinning when CROWSNEST_DB_PATH is already ":memory:" or already absolute, so
+ * tests (which set ":memory:" before importing this module) are unaffected.
+ */
+function pinDbPathEnv(): void {
+  const current = process.env.CROWSNEST_DB_PATH;
+  if (current === ":memory:" || (current && isAbsolute(current))) return;
+  const envPath = join(appRoot, ".env.local");
+  const fromFile = existsSync(envPath) ? readFileSync(envPath, "utf8").match(/^CROWSNEST_DB_PATH=(.*)$/m)?.[1]?.trim() : undefined;
+  const rel = current || fromFile || "data/crowsnest.db";
+  process.env.CROWSNEST_DB_PATH = isAbsolute(rel) ? rel : join(appRoot, rel);
+}
+pinDbPathEnv();
+
+/**
+ * Env injected into the packaged sidecar's launchd job — the same shape as
+ * `src/server/sidecar/control.ts`'s `childEnv()` (the dev/`uv run` launcher), ported to
+ * the path a buyer's Kit install actually runs. `IG_PROXY`/`IG_DEVICE_SEED` are not in
+ * `MANAGED_SECRETS`, so `getSecret` reads them from env only, same as `childEnv()` — they
+ * stay dev-machine-only settings, not something the Settings UI manages. Only defined
+ * values are added: a credential never saved through the dashboard is simply absent from
+ * this dict, leaving `crowsnest_ig/config.py`'s own `load_env_file()` free to fill it from
+ * `.env.local` exactly as it does today for a `kai kit init`-only buyer who never touched
+ * the dashboard.
+ */
+function igEnv(): Record<string, string> {
+  const inject: Record<string, string | undefined> = {
+    IG_SERVICE_TOKEN: getOrCreateServiceToken(),
+    IG_USERNAME: getSecret("IG_USERNAME"),
+    IG_PASSWORD: getSecret("IG_PASSWORD"),
+    IG_PROXY: getSecret("IG_PROXY"),
+    IG_DEVICE_SEED: getSecret("IG_DEVICE_SEED"),
+  };
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(inject)) if (v) env[k] = v;
+  return env;
+}
 
 /** The two long-lived processes: the Next server and the Instagram sidecar. */
 export function services(): Service[] {
@@ -33,7 +79,7 @@ export function services(): Service[] {
       label: "com.crowsnest.ig",
       program: [igVenvPython, "-m", "crowsnest_ig"],
       cwd: igDir,
-      env: {},
+      env: igEnv(),
     },
   ];
 }
