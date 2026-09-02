@@ -1,201 +1,131 @@
 # ig-sync: feature description
 
-## Sync a tracked channel
+ig-sync is what fills the feed. The user does not fetch a post one at a time; they track a channel, a sync runs, and the channel's recent posts, reels, videos, photos, and carousels, arrive as videos with their view, like, and comment counts and an outlier score computed against that channel's own baseline. Everything downstream (the feed, analyze, remix, plan) runs on the videos a sync wrote; ig-sync is the only writer of the `videos` table.
 
-### Summary
+The work happens in a local Python sidecar (`services/ig/`) that holds one authenticated Instagram session and answers the Next.js app over localhost on port 8765, authenticated by the shared secret `IG_SERVICE_TOKEN`. The sidecar is the only thing in crowsnest that logs in to Instagram or sees an Instagram CDN URL. It runs under launchd, reading `IG_USERNAME` and `IG_PASSWORD` from `.env.local`, credentials the app itself never sees.
 
-ig-sync is what fills the feed. The user does not fetch a post one at a time; they track a
-channel, a sync runs, and the channel's recent posts — reels, videos, photos, and carousels
-— arrive as videos with their view, like, and comment counts and an outlier score computed
-against that channel's own baseline. Everything downstream (the feed, analyze, remix, plan)
-runs on the videos a sync wrote; ig-sync is the only writer of the `videos` table.
+ig-sync has no page of its own the way analyze does. Its user facing edges are the add channel dialog, the channels board, and the settings sync controls; the surfaces themselves are owned by their own components, and the shell's failure strip is where a sync's verdict surfaces app wide.
 
-The work happens in a local Python sidecar (`services/ig/`) that holds one authenticated
-Instagram session and answers the Next.js app over localhost on port 8765, authenticated by
-the shared secret `IG_SERVICE_TOKEN`. The sidecar is the only thing in crowsnest that logs
-in to Instagram or sees an Instagram CDN URL. It runs under launchd, reading `IG_USERNAME`
-and `IG_PASSWORD` from `.env.local` — credentials the app itself never sees.
+Dependency worth stating first, because it is the difference between the features below working and not existing at all: the sidecar must start, and it only starts when onboarding wrote `IG_PASSWORD` correctly. A known onboarding bug wrote an empty password, and the sidecar then refuses to start, exit 78 `EX_CONFIG`, launchd crash loops it, port 8765 never comes up. When that happens every sync fails with the local service down verdict and no new videos ever arrive. That is the standing precondition behind every feature below.
 
-A sync is a background job, not a request that returns. The user starts it (or it runs on
-its own) and can leave; its status lives in the `sync_jobs` row, so a reload or another tab
-reads the same run. The feed reflects the last sync, not the live state of Instagram: when
-the sidecar is not running, no new videos arrive and the feed goes stale rather than
-erroring, and every downstream action still works on the videos already there.
+## 1. Track a channel
 
-Technical note: ig-sync has no page of its own the way analyze does. Its user-facing edges
-are the add-channel dialog, the channels board, the settings sync controls, and the shell's
-failure strip. This document describes the sync behaviour those surfaces drive; the surfaces
-themselves are owned by their own components.
+### Who uses it
 
-Dependency worth stating first, because it is the difference between the feature working and
-not existing at all: the sidecar must start, and it only starts when onboarding wrote
-`IG_PASSWORD` correctly. A known onboarding bug (`evidence/10-onboarding-bugs.md`) wrote an
-**empty** password, and the sidecar then refuses to start — exit 78 `EX_CONFIG`, launchd
-crash-loops it, port 8765 never comes up. When that happens every sync fails with the local-
-service-down verdict and no new videos ever arrive. That is the standing precondition behind
-every state below.
+The user, from the add channel dialog on the channels board, or the first run onboarding flow.
 
-### The simple case
+### What it does
 
-The user opens the add-channel dialog, types a handle (`@creator`, or bare `creator`), and
-confirms. The handle is normalised — a pasted profile URL is rejected as a typo, not
-silently accepted — and the sidecar is asked for the profile once; a resolvable handle
-writes a channel row with its display name, avatar, and follower count, and it appears on the
-channels board. A sync then walks that channel newest-first back through the 30-day lookback
-window, downloads each post's thumbnail into the app's own storage, records the metrics, and
-computes outlier scores. When it finishes, the channel's recent posts are in the feed, ranked
-by how far each beats its channel's own median, and the settings page shows the last sync's
-counts.
+The user types a handle (`@creator`, or bare `creator`), and confirms. The handle is normalized, and the sidecar is asked for the profile once; a resolvable handle writes a channel row with its display name, avatar, and follower count, and it appears on the channels board. Tracking a channel does not sync it: nothing runs until a sync is started separately, by the user or by the automatic pass where enabled.
 
-While the run is in flight the shell's progress panel tells the story — which channel, how
-many items seen and created — and steps aside for the failure strip only once the run ends.
-On success the strip is quiet; on trouble it carries one verdict (below).
+### How to access it
 
-### The interaction, event by event
+The "Add channel" trigger on the channels board opens the add channel dialog. The same underlying write also runs, more leniently, during first run onboarding, where a thin channel row is written even before the sidecar has logged in.
 
-```
-stateDiagram-v2
-    [*] --> idle : sidecar up, nothing running
-    idle --> running : start a sync (manual, or automatic)
-    running --> success : whole window walked, at least one survivor
-    running --> partial : some channels failed, or a late cancel left work undone
-    running --> failed : every channel failed, or the run itself threw
-    running --> cancelled : user asked to stop
-    idle --> serviceDown : sidecar unreachable (port 8765 down)
-    serviceDown --> idle : sidecar started
-```
+### Business rules
 
-#### Arrive
+- The handle is normalized before the sidecar is asked; a pasted profile URL (for example `https://www.instagram.com/creator/`) is rejected as a typo, not silently accepted or reformatted.
+- The add channel dialog is strict: an unresolvable handle writes nothing and shows the reason. The first run onboarding path is deliberately lenient and writes a thin channel row even when the profile fetch fails, because onboarding collects handles before the login step runs.
+- Re adding a previously removed (soft deleted) channel revives the same row rather than failing on the unique index; `trackedSince` is preserved.
+- Only tracked, non removed Instagram channels are ever synced; a soft removed channel is skipped so it does not resurrect on its own.
+- TikTok and YouTube Shorts were once offered as add channel choices, but the backend could never sync them, so the chips were removed; the `platform` column stays in the schema for a possible future second source.
 
-A channel is tracked before any sync of it runs. The add-channel dialog resolves the profile
-through the sidecar; the first-run onboarding path is deliberately lenient and writes a thin
-channel row even when the profile fetch fails (onboarding collects handles before the login
-step), while the add-channel dialog is strict and rejects an unresolvable handle as a likely
-typo. The channels board and channel detail page read the last stored sync, not a live call,
-so they render whatever the database holds.
+### Limitations
 
-#### Leave without acting
+- Only Instagram is ingested. TikTok/YouTube Shorts tracking is roadmap, not built.
+- Adding a channel needs the sidecar reachable and, for the strict dialog path, logged in; with the sidecar down or unauthenticated, the add fails rather than writing a channel that can never sync.
 
-Tracking a channel does not sync it, and opening a page does not start anything. Nothing runs
-until a sync is started — by the user from settings or a channel, or by the automatic pass
-where enabled. Leaving records nothing.
+### User guide
 
-#### Begin acting
+To start tracking a creator, open the Channels board and click Add channel. Type their Instagram handle, with or without the `@`, and confirm. crowsnest checks that the handle is real before adding it, so a typo or a pasted profile link is rejected rather than silently creating a channel that will never load. Once added, the channel appears on the board; its posts arrive the next time a sync runs.
 
-Starting a sync wins the database lock and hands back a job id immediately; the run then
-finishes detached under the server's `after()`, so the browser never holds the request open
-for a minutes-long sync. The lock is what enforces one run per channel: a second start that
-would overlap is refused with "a sync is already running", not run alongside.
+## 2. Sync a channel's posts
 
-#### While acting
+### Who uses it
 
-The run walks channels sequentially — one Instagram account is making these requests, and
-parallel bursts are what trip rate limiting, so the pacing is the point. It flushes progress
-to the `sync_jobs` row at each page and channel boundary (and mid-page if it goes quiet too
-long), so any poller — the tab that started it, another tab, a reload — reads live counts.
-Failure is isolated and counted at each level: a dead thumbnail costs one asset, a malformed
-post costs one item, and only an upstream failure on the profile or media call fails the
-whole channel, recorded as a gap with the channel's handle and the error code.
+The user, starting a sync manually from the channels board, a channel's detail page, or settings; or the automatic pass, where enabled, starting one on its own.
 
-#### Finish
+### What it does
 
-On finish the job row is written with a status and counts. `success` means the window was
-walked and at least one channel survived; `partial` means a survivor plus at least one failed
-channel (or a cancel that left work undone); `failed` means every channel failed. The feed,
-scores, and settings summary reflect whatever landed. A run that fully enumerated a channel's
-window also soft-marks posts that were in-window but did not come back — that removal
-cascades (a saved post is deleted with it; a planned post keeps the plan but the link goes
-null) — but a run that saw zero items refuses to read an empty fetch as deletions.
+A sync walks a channel newest first back through the 30 day lookback window, downloads each post's thumbnail into the app's own storage, records the metrics, and computes outlier scores. A sync is a background job, not a request that returns: the user starts it and can leave, its status lives in the `sync_jobs` row, so a reload or another tab reads the same run, and progress is visible in the shell's progress panel while it runs. On finish the job row carries a status and counts: `success` means the window was walked and at least one channel survived, `partial` means a survivor plus at least one failed channel (or a cancel that left work undone), `failed` means every channel failed. A run that fully enumerated a channel's window also soft marks posts that were in window but did not come back; that removal cascades, a saved post is deleted with it, a planned post keeps the plan but the link goes null, but a run that saw zero items refuses to read an empty fetch as deletions.
 
-### Variants
+### How to access it
 
-| Variant | Set on arrival | Changed while acting |
-| --- | --- | --- |
-| Record state (channel tracked, own vs reference) | Only tracked, non-removed Instagram channels are synced; a soft-removed channel is skipped so it does not resurrect. The library run walks every tracked channel; a per-channel run walks one. | A channel removed mid-run is simply not revisited; a video removed by soft-delete cascades its saved post and nulls a planned post's link. |
-| Attached data present or absent (session, credentials) | `/health` reports `can_login` (both `IG_USERNAME` and `IG_PASSWORD` present) separately from `logged_in`, so Settings can tell "no credentials yet" from "credentials present but logged out". No credentials means the sidecar boots and serves `/health` but cannot sync. | A session that goes stale mid-run triggers exactly one re-login using the stored settings and one retry; a second failure is `IG_AUTH_REQUIRED` and the channel becomes a gap that says "reconnect in settings". |
-| External service availability (sidecar, Instagram) | If the sidecar is unreachable (port 8765 down — the onboarding-bug case), a sync cannot run and the strip reads local-service-down. If Instagram is rate-limiting, a cooldown deadline persists next to the session file and the strip shows a countdown only when Instagram supplied one. | A rate limit mid-run returns `IG_RATE_LIMITED` with the wait Instagram computed; the engine backs off (capped at 5 min) or fails the channel and lets the user retry. A network failure is retried while `retryable` says it is worth it, then fails that channel. |
-| Keyboard shortcut in play | None. ig-sync has no keyboard affordance; its controls are ordinary buttons on the board, settings, and the failure strip. | None. |
+A "Sync" action on the channels board (per channel or for the whole library) or on a channel's detail page; automatic scheduling, where the interval setting is non zero, starts a sync on its own. Progress shows in the shell's progress panel; the result shows in the feed, the channel's last sync summary, and the failure strip if something went wrong.
 
-### Cancel and interrupt
+### Business rules
 
-| Event | Before commit (nothing running) | While in flight (a sync running) |
-| --- | --- | --- |
-| Explicit cancel or stop | There is nothing to cancel; no run is in flight. | Stop sets `cancel_requested` on the job row. The engine is co-operative: it stops at the next page or channel boundary, keeping everything already committed, and does **not** kill the process (which would leave the lock held). A cancel deliberately skips the enrichment and analyze/idea passes so no more authenticated requests are spent on a run nobody is waiting for. `stop_reason` reads `cancelled`; status is `partial` if work was left undone, `success` if the cancel arrived too late to stop anything. |
-| Navigate away mid action | Leaving records nothing. | The run is detached, so it keeps going server-side; its verdict is read from `sync_jobs` on the next navigation. The progress panel is live view state and does not survive the leave. |
-| Reload or tab or window closed | Nothing is saved. | The run continues under the server. A reload re-reads the running job (or the most recent finished one) from the database, so a fresh tab picks up a run another tab started rather than showing nothing. |
-| A backing service fails mid action | The strip already shows the standing verdict — local-service-down when the sidecar is not running. | The sidecar going down mid-run fails the outstanding call as `IG_SERVICE_DOWN` (one quick retry, since it may be mid-restart); Instagram rate-limiting or a network failure surface as their own codes on the affected channel's gap. Nothing partial is left half-written. |
-| The target record changes underneath | A channel removed between tracking and sync is skipped. | A channel removed mid-run is not revisited. A post that vanished from Instagram this run is soft-marked deleted, only if the whole window was enumerated. |
-| A background job finishes or fails on its own | The stale-lock reaper marks a `running` row with no heartbeat as `failed`/`SYNC_ABANDONED` and raises an SLA notification, so a crashed run does not hold the lock forever. | If a reaper takes a live run's row while it is still working, the run finalizes only if it still owns the row; otherwise it records its counters but leaves the reaper's verdict, and logs that two runs were racing. |
-| A second tab or a double action on the same record | Two tabs can both try to start; the database lock lets at most one win per overlapping scope, and the loser is told "a sync is already running". | A double start is refused by the lock, not run twice. Two runs on one channel is a corruption case the `IMMEDIATE`-transaction lock exists to prevent. |
+- The lock is what enforces one run per channel: a second start that would overlap an in flight run is refused with "a sync is already running", not run alongside.
+- The run walks channels sequentially, one Instagram account is making these requests, and parallel bursts are what trip rate limiting, so the pacing is the point.
+- Failure is isolated and counted at each level: a dead thumbnail costs one asset, a malformed post costs one item, and only an upstream failure on the profile or media call fails the whole channel, recorded as a gap with the channel's handle and the error code.
+- Pinned posts do not stop the walk early: they come back first and out of chronological order, so the lookback boundary stops only after 3 consecutive out of window items, and a pinned item never counts toward that streak.
+- Carousels are one `videos` row with `video_children` rows in payload order; a child inherits the parent's date and caption rather than inventing its own.
+- View counts need a second call: the listing endpoint returns `play_count: 0` for other creators' reels, so the real number comes from a per reel `/media-stats` call in the enrichment pass, off unless a per channel budget is set, and it runs before scoring so the number reaches the score in the same sync.
+- A zero is "not disclosed", never a real zero: persisting a literal zero once turned a 2.27M view reel into 0 and would zero every outlier score, so a zero never overwrites a stored count.
+- Only thumbnails download during a sync; the video file is fetched on first play (via a fresh `/resolve-media`) unless `EAGER_VIDEO_DOWNLOAD` is set, because Instagram's CDN URLs expire within hours.
+- Stop is co operative: a Stop action sets `cancel_requested` on the job row, the engine stops at the next page or channel boundary, keeps everything already committed, and does not kill the process, which would leave the lock held. A cancel deliberately skips the enrichment and analyze/idea passes so no more authenticated requests are spent on a run nobody is waiting for.
+- A session that goes stale mid run triggers exactly one re login using the stored settings and one retry; a second failure is `IG_AUTH_REQUIRED` and the channel becomes a gap that says "reconnect in settings".
+- A rate limit mid run returns `IG_RATE_LIMITED` with the wait Instagram computed; the engine backs off (capped at 5 minutes) or fails the channel and lets the user retry.
+- A stale `running` row with no heartbeat is reaped to `failed`/`SYNC_ABANDONED`, releasing the lock and raising an SLA notification, so a crashed run does not hold the lock forever.
 
-After any interrupt the sync's row reflects exactly what the database holds. There is never a
-half-written video: a post is upserted whole or its failure is counted and skipped.
+### Limitations
 
-### Interactions with other systems
+- The sidecar must be running. If it is unreachable (port 8765 down, including the onboarding bug case) a sync cannot run at all and the strip reads local service down.
+- The feed reflects the last sync, not the live state of Instagram: with the sidecar not running, no new videos arrive and the feed goes stale rather than erroring.
+- A sync is not undoable. Soft delete is reversible only in that a post reappearing on Instagram is un deleted rather than duplicated on a later sync; there is no per run rollback.
+- No live sync has been proven to complete end to end with real credentials through a Kit install; see [architecture](02-architecture.md#open-not-verified).
 
-Persistence and autosave. There is no autosave; a sync writes durable rows as it goes
-(`videos`, `video_children`, `video_snapshots`, `channel_snapshots`, and the `sync_jobs`
-progress row). Downloaded assets are content-addressed and deduped, so a re-download of
-identical bytes reuses the same file. A metric Instagram withheld (null, or a zero read as
-"not disclosed") never erases a count already stored.
+### User guide
 
-History and undo. A sync is not undoable. Soft-delete is reversible only in that a post
-reappearing on Instagram is un-deleted rather than duplicated on a later sync. There is no
-per-run rollback; the `sync_jobs` row is the record that a run happened.
+Once a channel is tracked, its posts arrive through a sync. Start one from the channels board, a channel's own page, or the sync controls in Settings, or let the automatic schedule run it for you if you turned that on. You can leave the page once a sync starts; it keeps running and you can check its progress from the shell's progress panel or come back later. When it finishes, the channel's recent posts show up in the feed, ranked by how far each beats that channel's own typical performance. If something goes wrong, for example the local service is down or Instagram is rate limiting, the failure strip at the top of the app tells you what happened and what to do about it.
 
-Navigation and refresh. Pages render on the server and re-read on navigation, so a channel's
-last-sync figures and the feed update on the next load, not live. The failure strip is read
-once per server render and freshened by the live sync poll while the shell is mounted.
+## 3. Backfill blank view counts
 
-Background jobs and the sidecar. ig-sync **is** the sidecar sync — the writer of the feed
-and the source of the outlier scoring input. It is owned in full by
-[background jobs](../../shared/background-jobs.md); the sync window and retry behaviour are
-environment/settings defaults (30-day lookback, 200-item cap, 3 retries), not user-facing
-promises. The cook run is a separate background job and shares none of this path.
+### Who uses it
 
-External services. The one external dependency is Instagram, reached only through the local
-sidecar. Its degradation is summarised in
-[external services](../../shared/external-services.md): a down sidecar means a stale feed, an
-expired session means "reconnect in settings", a rate limit means a cooldown. None of these
-takes down the rest of the app.
+The user, from the Settings sync section.
 
-Status and failures. A sync's verdict surfaces in the shell **failure strip**
-([status and failures](../../shared/status-and-failures.md)), which classifies the latest
-sync into local-service-down, session-expired, cooling-down, no-network, partial-sync, or
-sync-failed, each with the one recovery action the user can take. ig-sync has no in-page
-failure surface of its own; a healthy run stale feed shows only as posts that stop arriving.
+### What it does
 
-Configuration and settings. Credentials (`IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`)
-and the sidecar URL/port are environment configuration read by the sidecar and the app; the
-lookback days, item cap, retry counts, and the view-count enrichment budget are settings with
-DB-over-env-over-default precedence, so a change takes effect on the next sync without a
-restart. The outlier scoring options (baseline method, window, minimum posts, views floor)
-are read once per rescore from settings.
+A backfill is the same sync job machinery pointed at every tracked channel's already stored posts that are missing a real view count, re reading them through the view count enrichment call instead of walking a new lookback window. It runs, is tracked, and can be watched the same way an ordinary sync is, through the `sync_jobs` row and the Runs screen.
 
-### Edge cases
+### How to access it
 
-- **The sidecar must start, or the whole feature is dark.** The onboarding bug that writes an
-  empty `IG_PASSWORD` (`evidence/10-onboarding-bugs.md`) makes the sidecar exit 78 and
-  launchd crash-loop it; port 8765 never comes up, and every sync reads local-service-down.
-  This is the single most consequential dependency and the known hard blocker for buyers.
-- **Only Instagram is ingested.** The add-channel dialog once offered TikTok and YouTube
-  Shorts chips, but the backend could never sync them, so choosing either produced a channel
-  row that silently never updated. The chips were removed (`OBS-3` in the backlog); the
-  `platform` column stays in the schema for a future second source. TikTok/YouTube Shorts
-  ingestion is roadmap, not built.
-- **Carousels are one post, not many.** A carousel is a single `videos` row with
-  `video_children` rows in payload order; a child inherits the parent's date and caption
-  rather than inventing its own.
-- **Pinned posts do not stop the walk.** They come back first and out of chronological order,
-  so the lookback boundary stops only after 3 consecutive out-of-window items and never
-  counts a pinned item toward that streak. This exact bug once soft-deleted 8 live posts.
-- **View counts need a second call.** The listing endpoint returns `play_count: 0` for other
-  creators' reels, so the real number comes from a per-reel `/media-stats` call in the
-  enrichment pass; it is off unless a per-channel budget is set, and it runs before scoring
-  so the number reaches the score in the same sync.
-- **A zero is "not disclosed", never a real zero.** Persisting a literal zero once turned a
-  2.27M-view reel into 0 and would zero every outlier score, so a zero never overwrites a
-  stored count.
-- **On-demand video.** Only thumbnails download during a sync; the video file is fetched on
-  first play (via a fresh `/resolve-media`) unless `EAGER_VIDEO_DOWNLOAD` is set, because
-  Instagram's CDN URLs expire within hours.
+The "Backfill blank view counts" button in Settings, under the sync section.
+
+### Business rules
+
+- A backfill is a `sync_jobs` row like any other run; it refuses to start rather than queue while an ordinary sync is already running, so the two never race on the same lock.
+- The same "zero is not disclosed" rule applies: a backfill never overwrites a stored count with a zero.
+
+### Limitations
+
+- Needs the sidecar reachable and logged in, the same as any other sync.
+- Only fills in counts that are genuinely missing; it does not re verify counts that already have a value.
+
+### User guide
+
+If some posts in your feed are missing view counts, open Settings, find the sync section, and click Backfill blank view counts. It re checks Instagram for the real number on posts that never got one and updates them in place. You can follow its progress from the Runs screen, the same way you would an ordinary sync.
+
+## Interactions with other systems
+
+Persistence and autosave. There is no autosave; a sync writes durable rows as it goes (`videos`, `video_children`, `video_snapshots`, `channel_snapshots`, and the `sync_jobs` progress row). Downloaded assets are content addressed and deduped, so a re download of identical bytes reuses the same file. A metric Instagram withheld (null, or a zero read as "not disclosed") never erases a count already stored.
+
+Navigation and refresh. Pages render on the server and re read on navigation, so a channel's last sync figures and the feed update on the next load, not live. The failure strip is read once per server render and freshened by the live sync poll while the shell is mounted.
+
+Background jobs and the sidecar. ig-sync is the sidecar sync, the writer of the feed and the source of the outlier scoring input. It is owned in full by [background jobs](../../shared/background-jobs.md); the sync window and retry behavior are environment/settings defaults (30 day lookback, 200 item cap, 3 retries), not user facing promises.
+
+External services. The one external dependency is Instagram, reached only through the local sidecar. Its degradation is summarized in [external services](../../shared/external-services.md): a down sidecar means a stale feed, an expired session means "reconnect in settings", a rate limit means a cooldown. None of these takes down the rest of the app.
+
+Status and failures. A sync's verdict surfaces in the shell failure strip ([status and failures](../../shared/status-and-failures.md)), which classifies the latest sync into local service down, session expired, cooling down, no network, partial sync, or sync failed, each with the one recovery action the user can take. ig-sync has no in page failure surface of its own; a healthy run gone stale shows only as posts that stop arriving.
+
+Configuration and settings. Credentials (`IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`) and the sidecar URL/port are environment configuration read by the sidecar and the app; the lookback days, item cap, retry counts, and the view count enrichment budget are settings with DB over env over default precedence, so a change takes effect on the next sync without a restart. The outlier scoring options (baseline method, window, minimum posts, views floor) are read once per rescore from settings.
+
+## Edge cases
+
+- **The sidecar must start, or the whole feature is dark.** The onboarding bug that writes an empty `IG_PASSWORD` makes the sidecar exit 78 and launchd crash loop it; port 8765 never comes up, and every sync reads local service down. This is the single most consequential dependency and the known hard blocker for buyers.
+- **Only Instagram is ingested.** The add channel dialog once offered TikTok and YouTube Shorts chips, but the backend could never sync them, so choosing either produced a channel row that silently never updated. The chips were removed (`OBS-3` in the backlog); the `platform` column stays in the schema for a future second source.
+- **Carousels are one post, not many.** A carousel is a single `videos` row with `video_children` rows in payload order; a child inherits the parent's date and caption rather than inventing its own.
+- **Pinned posts do not stop the walk.** They come back first and out of chronological order, so the lookback boundary stops only after 3 consecutive out of window items and never counts a pinned item toward that streak. This exact bug once soft deleted 8 live posts.
+- **A second tab or a double action on the same record.** Two tabs can both try to start a sync; the database lock lets at most one win per overlapping scope, and the loser is told a sync is already running.
+- **A backing service fails mid action.** The sidecar going down mid run fails the outstanding call as `IG_SERVICE_DOWN` (one quick retry, since it may be mid restart); Instagram rate limiting or a network failure surface as their own codes on the affected channel's gap. Nothing partial is left half written; a post is upserted whole or its failure is counted and skipped.
