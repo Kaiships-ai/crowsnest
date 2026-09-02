@@ -8,7 +8,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Set up crowsnest in the terminal | `kai kit init` writes `.env.local`, prompts for Instagram credentials and an optional Anthropic key, creates the database, and starts the app | ◐ | `src/cli/kai.ts` (`cmdKitInit`) | ONB-1, ONB-2 |
+| 2 | Set up crowsnest in the terminal | `kai kit init` writes `.env.local`, prompts for Instagram credentials and an optional Anthropic key, creates the database, and starts the app | ● | `src/cli/kai.ts` (`cmdKitInit`) | none — ONB-1/ONB-2 fixed, see 05-backlog-to-enhance.md |
 | 3 | Complete first run in the app | A five screen flow takes a fresh install to a tracked channel and a first sync underway | ● | `src/app/first-run/`, `src/components/first-run/` | none |
 | 4 | Replay first run | A Settings control clears the flag and sends the user back through the flow without deleting anything | ● | `src/components/settings/onboarding-section.tsx` | none |
 | 5 | Live-validated in-dashboard credentials | Set the Anthropic key and Instagram credentials from the dashboard instead of a blind terminal prompt, with a real check before you rely on them | ◐ | `src/components/settings/secrets-section.tsx`, `src/components/settings/instagram-section.tsx`, `src/components/first-run/connect-step.tsx` | ENH-1 |
@@ -38,8 +38,8 @@ The `kai kit init` command, run from a terminal after `kai login <license-key>`.
 
 ### Limitations
 
-- **The masked `IG_PASSWORD` prompt saves an empty value on a real terminal** (`ONB-1`, blocker). The username saves, but the masked password read comes back empty, so `.env.local` gets `IG_PASSWORD=`. The Instagram sidecar then refuses to start ("IG_USERNAME and IG_PASSWORD must be set together", exit 78), launchd crash loops it, and Instagram sync never works. Nothing at onboarding time warns the buyer; the failure only shows up later as a dead sidecar. In the app, the connect step reports this as the local Instagram service isn't running.
-- **The `ANTHROPIC_API_KEY` prompt echoes the key in plaintext** (`ONB-2`, medium). The same masked prompt code fails to suppress the echo on this terminal, so the key is visible on screen and lands in scrollback. It is entered and saved correctly; the defect is only that it is not hidden.
+- **Fixed: the masked `IG_PASSWORD` prompt used to save an empty value on a real terminal** (`ONB-1`, was a blocker, now done — see `05-backlog-to-enhance.md`). The username saved, but the masked password read came back empty, so `.env.local` got `IG_PASSWORD=`, and the Instagram sidecar refused to start. Kept here as history: this was the failure mode a re-regression in `ask`'s secret path would reproduce.
+- **Fixed: the `ANTHROPIC_API_KEY` prompt used to echo the key in plaintext** (`ONB-2`, was medium severity, now done). The same masked prompt code failed to suppress the echo on a real terminal; the key was entered and saved correctly, but was visible on screen and landed in scrollback.
 
 ### User guide
 
