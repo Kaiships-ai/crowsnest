@@ -30,12 +30,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  attachScriptToPlanAction,
   createPlannedPostAction,
-  detachScriptFromPlanAction,
-  schedulePlannedPostAction,
-  unschedulePlannedPostAction,
-  updatePlannedPostAction,
+  savePlanEditAction,
 } from "@/server/actions/planned-post-actions";
 import type { PlannedPostRow } from "@/server/queries/planned-posts";
 import { VIDEO_KINDS } from "@/server/services/video-kind";
@@ -113,42 +109,22 @@ export function PlanDialog({
       return;
     }
 
-    // Edit mode: apply whichever fields changed, in sequence. Each write is its own
-    // action (there's no bulk-patch action for date + script + text at once), so a
-    // partial failure here still leaves whatever succeeded in place rather than losing
-    // the whole edit.
+    // Edit mode: apply the whole edit as one atomic action (B-04). Only the fields that
+    // changed are sent; savePlanEditAction validates all of them, then writes them in a
+    // single transaction, so a failure never leaves a partial edit.
     const planRow = plan!;
-    if (title.trim() !== planRow.title || note.trim() !== (planRow.note ?? "")) {
-      const r = await updatePlannedPostAction(planRow.id, { title: title.trim(), note: note.trim() });
-      if (!r.ok) {
-        setSaving(false);
-        setError(r.error);
-        return;
-      }
-    }
-    if (date !== (planRow.plannedDate ?? "")) {
-      const r = date ? await schedulePlannedPostAction(planRow.id, date) : await unschedulePlannedPostAction(planRow.id);
-      if (!r.ok) {
-        setSaving(false);
-        setError(r.error);
-        return;
-      }
-    }
-    if (scriptId !== (planRow.scriptId ?? "")) {
-      const r = scriptId ? await attachScriptToPlanAction(planRow.id, scriptId) : await detachScriptFromPlanAction(planRow.id);
-      if (!r.ok) {
-        setSaving(false);
-        setError(r.error);
-        return;
-      }
-    }
-    if (videoKind !== (planRow.videoKind ?? "")) {
-      const r = await updatePlannedPostAction(planRow.id, { videoKind: videoKind || null });
-      if (!r.ok) {
-        setSaving(false);
-        setError(r.error);
-        return;
-      }
+    const edit: Parameters<typeof savePlanEditAction>[1] = {};
+    if (title.trim() !== planRow.title) edit.title = title.trim();
+    if (note.trim() !== (planRow.note ?? "")) edit.note = note.trim();
+    if (date !== (planRow.plannedDate ?? "")) edit.date = date || null;
+    if (scriptId !== (planRow.scriptId ?? "")) edit.scriptId = scriptId || null;
+    if (videoKind !== (planRow.videoKind ?? "")) edit.videoKind = videoKind || null;
+
+    const r = await savePlanEditAction(planRow.id, edit);
+    if (!r.ok) {
+      setSaving(false);
+      setError(r.error);
+      return;
     }
     setSaving(false);
     toast.success("Plan updated");
