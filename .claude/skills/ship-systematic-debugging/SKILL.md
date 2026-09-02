@@ -1,5 +1,5 @@
 ---
-name: systematic-debugging
+name: ship-systematic-debugging
 description: Use when encountering any bug, test failure, or unexpected behavior, before proposing fixes
 ---
 
@@ -186,7 +186,7 @@ You MUST complete each phase before proceeding to the next.
    - Test passes now?
    - No other tests broken?
    - Issue actually resolved?
-   - Use the `superpowers:verification-before-completion` skill before claiming success
+   - Use the `ship-verification-before-completion` skill before claiming success
 
 4. **If Fix Doesn't Work**
    - STOP
@@ -288,3 +288,8 @@ Once a bug is root-caused and fixed, record it in the owning component's
 `documents/architect/core-components/<name>/05-backlog-to-enhance.md`: add the row if it is not
 there, then set its Status to `done`. A cross-cutting bug goes in
 `documents/architect/shared/backlog-to-enhance.md`.
+
+## Ship workflow: next step
+
+Ship workflow detour, used from execute or verify. Once the bug is root-caused and fixed,
+next return to **ship-verification-before-completion** (or back to **ship-subagent-driven-development** if there are tasks left).

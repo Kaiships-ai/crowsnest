@@ -26,7 +26,7 @@ documents/architect/core-components/<name>/
 2. Create the folder and the five files. Each starts with a heading and one line of intent.
    `05-backlog-to-enhance.md` starts with the table header and "No open items."
 3. Add a row to the component table in `documents/index.md` and a nav entry in
-   `documents/mkdocs.yml` under Components.
+   `mkdocs.yml` under Components.
 4. Do not add a sixth file. Plans go in `documents/planning/`, not here.
 
 ## Update an existing component

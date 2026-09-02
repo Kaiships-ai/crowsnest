@@ -1,5 +1,5 @@
 ---
-name: writing-plans
+name: ship-writing-plans
 description: Use when you have a spec or requirements for a multi-step task, before touching code
 ---
 
@@ -13,7 +13,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** If working in an isolated worktree, it should have been created via the `superpowers:using-git-worktrees` skill at execution time.
+**Context:** If working in an isolated worktree, it should have been created via the `ship-using-git-worktrees` skill at execution time.
 
 **Save plans to:** `documents/planning/YYYY-MM-DD-<component|cross>-<slug>.md`
 
@@ -95,7 +95,7 @@ independently testable deliverable.
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use ship-subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -122,9 +122,9 @@ include this section.]
 ### Task N: [Component Name]
 
 **Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+- Create: `src/exact/path/to/file.ts`
+- Modify: `src/exact/path/to/existing.ts:123-145`
+- Test: `src/exact/path/to/file.test.ts`
 
 **Interfaces:**
 - Consumes: [what this task uses from earlier tasks — exact signatures]
@@ -134,33 +134,37 @@ include this section.]
 
 - [ ] **Step 1: Write the failing test**
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
+```ts
+import { expect, test } from "vitest";
+import { fn } from "./file";
+
+test("specific behavior", () => {
+  expect(fn(input)).toBe(expected);
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
+Run: `npx vitest run src/exact/path/to/file.test.ts`
+Expected: FAIL with "fn is not defined" (or a type error)
 
 - [ ] **Step 3: Write minimal implementation**
 
-```python
-def function(input):
-    return expected
+```ts
+export function fn(input: In): Out {
+  return expected;
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pytest tests/path/test.py::test_name -v`
+Run: `npx vitest run src/exact/path/to/file.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/path/test.py src/path/file.py
+git add src/exact/path/to/file.ts src/exact/path/to/file.test.ts
 git commit -m "feat: add specific feature"
 ```
 ````
@@ -200,9 +204,14 @@ After saving the plan, offer execution choice:
 **Which approach?"**
 
 **If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
+- **REQUIRED SUB-SKILL:** Use ship-subagent-driven-development
 - Fresh subagent per task + two-stage review
 
 **If Inline Execution chosen:**
 - **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
 - Batch execution with checkpoints for review
+
+## Ship workflow: next step
+
+Step 2 of the ship workflow. The plan is saved to documents/planning/.
+Next: run **ship-using-git-worktrees** to get an isolated workspace, then **ship-subagent-driven-development** to execute the plan task by task (or **superpowers:executing-plans** to run it in this session).

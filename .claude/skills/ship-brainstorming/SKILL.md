@@ -1,5 +1,5 @@
 ---
-name: brainstorming
+name: ship-brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
 ---
 
@@ -97,7 +97,7 @@ your path and complete them in order.
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
 5. **Present design** — in sections scaled to their complexity, get user approval after each section
-6. **Write design doc** — save to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` and commit
+6. **Write design doc** — save to `documents/architect/core-components/<component>/01-concept-brief.md` and commit
 7. **Spec self-review** — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** — ask user to review the spec file before proceeding
 9. **Transition to implementation** — invoke writing-plans skill to create implementation plan
@@ -203,7 +203,7 @@ is the whole process.
 
 **Documentation:**
 
-- Write the validated design (spec) to `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
+- Write the validated design (spec) to `documents/architect/core-components/<component>/01-concept-brief.md`
   - (User preferences for spec location override this default)
 - Use elements-of-style:writing-clearly-and-concisely skill if available
 - Commit the design document to git
@@ -247,10 +247,15 @@ A browser-based companion for showing mockups, diagrams, and visual options duri
 A question about a UI topic is not automatically a visual question. "What does personality mean in this context?" is a conceptual question — use the terminal. "Which wizard layout works better?" is a visual question — use the browser.
 
 If they agree to the companion, read the detailed guide before proceeding:
-`skills/brainstorming/visual-companion.md`
+`visual-companion.md` in this skill's directory
 
 ## crowsnest doc placement
 
 When brainstorming lands on a component design, its output belongs in that component's
 `documents/architect/core-components/<name>/01-concept-brief.md` (and `02-architecture.md` for
 the how). If the idea is a new component, use the document-component skill to scaffold the block.
+
+## Ship workflow: next step
+
+This is step 1 of the ship workflow (brainstorm -> plan -> worktree -> execute -> verify -> finish).
+When the design is settled, next run **ship-writing-plans** to turn it into an implementation plan.

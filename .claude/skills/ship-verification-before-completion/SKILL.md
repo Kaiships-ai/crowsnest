@@ -1,5 +1,5 @@
 ---
-name: verification-before-completion
+name: ship-verification-before-completion
 description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
 ---
 
@@ -124,3 +124,8 @@ Skip any step = lying, not verifying
 Verification evidence that is worth keeping goes in the component's
 `documents/architect/core-components/<name>/04-test-cases.md`, so the block records what proves
 it works.
+
+## Ship workflow: next step
+
+Step 5 of the ship workflow. When the evidence is in and every claim is backed by real output,
+next run **ship-finishing-a-development-branch** to integrate the work.
