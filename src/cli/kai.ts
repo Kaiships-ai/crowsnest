@@ -14,7 +14,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { constants as osConstants, homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
@@ -55,7 +55,14 @@ if (isMain && process.cwd() !== REPO) {
     cwd: REPO,
     stdio: "inherit",
   });
-  process.exit(res.status ?? 1);
+  if (res.error) {
+    console.error(`Failed to respawn kai with cwd=${REPO}: ${res.error.message}`);
+    process.exit(1);
+  }
+  // res.status is null when the child died by signal (e.g. Ctrl-C); use the
+  // conventional 128+signum in that case instead of collapsing it to a flat 1.
+  const signalNum = res.signal ? osConstants.signals[res.signal] : undefined;
+  process.exit(signalNum !== undefined ? 128 + signalNum : (res.status ?? 1));
 }
 
 const die = (msg: string): never => {
