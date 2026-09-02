@@ -33,17 +33,15 @@ export async function generateMetadata({
 
 // Topbar already renders this route's h1 ("Video Detail") — no duplicate heading (M6).
 //
-// KNOWN GAP: unlike /channels/[channelId] (identical notFound() pattern, no
-// generateMetadata), a missing video here renders correct not-found *content* but
-// the HTTP status stays 200, in both `next dev` and a production `next build && next
-// start`. Confirmed the only difference between the two routes is this route's
-// generateMetadata export — calling notFound() from generateMetadata too (above)
-// fixes the metadata fallback but does NOT fix the status code, so the cause is some
-// deeper interaction between generateMetadata and notFound()'s status-committing in
-// this Next version, not a missing notFound() call. Didn't chase it further: fixing
-// it would mean either dropping generateMetadata (which Task 7 explicitly requires)
-// or restructuring how the shell streams, well beyond this task's file zone. Content
-// correctness (users see a real not-found page) is intact; only the header is wrong.
+// FIXED (B-14, 2026-09-02): a missing video used to render correct not-found content
+// but stay on HTTP 200. Root cause was `../loading.tsx` (formerly a sibling at the
+// `/feed` segment): its implicit ancestor Suspense boundary covered this nested
+// `/feed/[videoId]` route too, and since this page's DB read is genuinely async, it
+// always suspended into that boundary, which flushed (and committed 200) before this
+// notFound() throw could run. Fix: the feed list route + its loading.tsx moved into
+// `/feed/(list)/` (route group, no URL change), so the loading boundary no longer wraps
+// this sibling segment. `notFound()` here now produces a real 404, same as
+// `/channels/[channelId]`.
 export default async function VideoDetailPage({
   params,
   searchParams,
