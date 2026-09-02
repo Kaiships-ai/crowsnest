@@ -196,7 +196,7 @@ export async function igLoginBySessionAction(sessionid: string): Promise<LoginRe
  */
 export async function igLoginWithCredentialsAction(username: string, password: string): Promise<LoginResult> {
   const user = username.trim();
-  if (!user || !password) return invalidInput("Enter both a username and a password.");
+  if (!user || !password.trim()) return invalidInput("Enter both a username and a password.");
   try {
     log.info("ig.login_with_credentials.requested", {});
     const { status } = await igClient.login({ username: user, password });

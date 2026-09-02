@@ -335,6 +335,15 @@ describe("igLoginWithCredentialsAction", () => {
 
     expect(result).toMatchObject({ ok: false, code: "IG_INVALID_INPUT" });
     expect(sidecar.login).not.toHaveBeenCalled();
+    expect(secretsStore.setSecret).not.toHaveBeenCalled();
+  });
+
+  test("rejects a whitespace-only password locally, without calling the sidecar", async () => {
+    const result = await igLoginWithCredentialsAction("burner.acct", "   ");
+
+    expect(result).toMatchObject({ ok: false, code: "IG_INVALID_INPUT" });
+    expect(sidecar.login).not.toHaveBeenCalled();
+    expect(secretsStore.setSecret).not.toHaveBeenCalled();
   });
 
   test("a rate limit from the sidecar's own cooldown is reported as retryable, not swallowed", async () => {
@@ -343,6 +352,7 @@ describe("igLoginWithCredentialsAction", () => {
     const result = await igLoginWithCredentialsAction("burner.acct", "correct-password");
 
     expect(result).toMatchObject({ ok: false, code: "IG_RATE_LIMITED", retryable: true });
+    expect(secretsStore.setSecret).not.toHaveBeenCalled();
   });
 });
 
