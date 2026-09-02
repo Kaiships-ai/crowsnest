@@ -36,6 +36,7 @@ This is the quality bar every one of the five component docs under `documents/ar
   - Business rules.
   - Limitations.
 - **User-guide subsection per feature, added after implementation.** Text only, no images. This doc feeds the mkdocs site directly, so the user-guide text must read as end-user documentation, not engineering notes.
+- **Closing sections.** The doc closes with two numbered sections after the last feature: "Interactions with other systems" and "Edge cases", matching the ig-sync exemplar.
 
 ## 04-test-cases.md
 

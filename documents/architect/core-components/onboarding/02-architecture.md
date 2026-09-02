@@ -1,136 +1,125 @@
 # onboarding: architecture
 
-Onboarding is two halves that never share code: a terminal half in the CLI (`kai kit
-init`) and an in-app half at the `/first-run` route, joined only by the `.env.local` the
-first writes and the `app_settings.first_run_completed` flag the second sets. A route
-guard stands between a fresh install and the rest of the app.
+`documents/architect/core-components/onboarding/`
 
-## Key files
+Status: shipped and in daily use, but two secret prompt defects in `kai kit init` (an empty `IG_PASSWORD`, a plaintext `ANTHROPIC_API_KEY` echo) block a clean buyer install.
 
-- `src/cli/kai.ts`: the CLI. `cmdKitInit` (the `kai kit init` command) writes `.env.local`
-  and prompts for the Instagram account and the optional Anthropic key; `ask` is the one
-  shared prompt helper, and its `secret: true` path is where both known onboarding bugs
-  live.
-- `src/app/first-run/page.tsx`: the `/first-run` route, a top-level route deliberately
-  outside `(shell)` (no sidebar, no topbar). `force-dynamic`; reads live settings and
-  Instagram status on every visit; redirects a finished install back to `/`.
-- `src/components/first-run/onboarding-flow.tsx`: the five-screen client flow. Holds the
-  current step in memory (`useState`), renders each step, and owns the persistent "Skip
-  setup for now" control.
-- `src/components/first-run/onboarding-view.ts`: pure step-ordering logic (the step list,
-  `stepNavState`, `canVerifyHandles`), kept out of the JSX so node-only vitest can cover
-  it. `onboarding-view.test.ts` is its test.
-- `src/components/first-run/welcome-step.tsx`, `focus-step.tsx`, `connect-step.tsx`,
-  `sources-step.tsx`, `first-sync-step.tsx`: the five screens (welcome plus four numbered
-  steps `01 FOCUS`, `02 INSTAGRAM`, `03 CHANNELS`, `04 FIRST SYNC`).
-- `src/server/queries/first-run-gate.ts`: the route guard. `shouldRedirectToFirstRun` is
-  the pure rule; `getFirstRunGate` is the async reader that runs it against the database.
-- `src/app/(shell)/layout.tsx`: the caller of the gate. Redirects a fresh install to
-  `/first-run` before any other shell query runs.
-- `src/components/settings/onboarding-section.tsx`: the "Replay first run" Settings
-  control, which clears `first_run_completed` so the flow can be seen again.
+## 1. Module structure
 
-## Data flow
+### The terminal half (`src/cli/kai.ts`)
 
-**Terminal half — `kai kit init`.** `cmdKitInit` (`src/cli/kai.ts`) requires a cached
-entitlement first (`readEntitlement`, from the earlier `kai login`). It copies `.env.local`
-from `.env.example` (or edits it in place if present), prompts for `IG_USERNAME` then
-`IG_PASSWORD` (the latter through `ask(..., { secret: true })`), generates
-`IG_SERVICE_TOKEN` if it is still the `change-me` placeholder, prompts for an optional
-`ANTHROPIC_API_KEY` (also `secret: true`), and asks for `VAULT_PATH` (default
-`~/.crowsnest/vault`), creating that directory. It writes `.env.local` at mode `0600` and
-`chmod`s it again (the file holds the Instagram password), then runs the database
-migrations and bootstrap through `node`/`tsx` directly and finally hands off to `kai up`.
-This half is shared with the [Kit](../kit/01-concept-brief.md); see
-[kit/02-architecture.md](../kit/02-architecture.md) for the install and `up` steps around
-it.
+| File | Export | Role |
+| --- | --- | --- |
+| `src/cli/kai.ts` | `cmdKitInit` | The `kai kit init` command. Requires a cached entitlement, writes `.env.local`, prompts for the Instagram account and the optional Anthropic key, creates the database, and hands off to `kai up`. |
+| `src/cli/kai.ts` | `ask` | The one shared prompt helper. Its `secret: true` path hides typing on a real TTY by overriding `readline`'s `_writeToOutput`; both known onboarding defects live in this one function. |
+| `src/cli/kai.ts` | `setEnv` | Replaces `NAME=...` in `.env.local`'s text in place, keeping surrounding comments and ordering, so a re run edits rather than overwrites. |
 
-**The gate.** `src/app/(shell)/layout.tsx` calls `getFirstRunGate` before any other read.
-The rule (`shouldRedirectToFirstRun`) is compound on purpose:
-`!firstRunCompleted && !hasChannels`. A database that already has a `channels` row — a
-seeded dev database, or one that predates the flag — is treated as done even with the flag
-unset, so a real production database is never routed back into the wizard. Once
-`first_run_completed` is true it decides alone and stays true even if every channel is
-later removed. On a match the layout `redirect`s to `/first-run` and the shell never
-renders.
+### The in-app half (`src/app/first-run/`, `src/components/first-run/`)
 
-**In-app half — `/first-run`.** `page.tsx` is the other half of that gate: it reads
-`getSettings()`, and if `firstRunCompleted` is already true it `redirect`s straight to `/`
-rather than re-running answered steps. Otherwise it reads the niche settings and the live
-Instagram status (`getIgStatusAction`) in parallel and renders `OnboardingFlow`. The five
-screens each write through an existing server action, not a new one:
+| File | Export | Role |
+| --- | --- | --- |
+| `src/app/first-run/page.tsx` | (default export, the route) | The `/first-run` route, a top level route deliberately outside `(shell)`, no sidebar, no topbar. `force-dynamic`; reads live settings and Instagram status on every visit; redirects a finished install back to `/`. |
+| `src/components/first-run/onboarding-flow.tsx` | `OnboardingFlow` | The five screen client flow. Holds the current step in memory (`useState`), renders each step, and owns the persistent "Skip setup for now" control. |
+| `src/components/first-run/onboarding-view.ts` | `canVerifyHandles`, `ONBOARDING_STEPS`, `ONBOARDING_STEP_COUNT`, `stepIndex`, `stepNavState` | Pure step ordering logic, kept out of the JSX so node only vitest can cover it. `onboarding-view.test.ts` is its test. |
+| `src/components/first-run/welcome-step.tsx` | `WelcomeStep` | The unnumbered welcome screen. |
+| `src/components/first-run/focus-step.tsx` | `FocusStep` | `01 FOCUS`. Saves the niche through `saveNicheSettingsAction`. |
+| `src/components/first-run/connect-step.tsx` | `ConnectStep` | `02 INSTAGRAM`. The one real credential screen; wired to `getIgStatusAction`, `igLoginAction`, and its two factor and challenge branches. |
+| `src/components/first-run/sources-step.tsx` | `SourcesStep` | `03 CHANNELS`. A handle in, handle out list; commits through `addChannelAction` on Continue. |
+| `src/components/first-run/first-sync-step.tsx` | `FirstSyncStep` | `04 FIRST SYNC`. A thin wrapper around the shared `useSyncProgress` / `<SyncProgressPanel>`. |
+| `src/server/queries/first-run-gate.ts` | `shouldRedirectToFirstRun`, `getFirstRunGate` | The route guard. `shouldRedirectToFirstRun` is the pure rule; `getFirstRunGate` is the async reader that runs it against the database. |
+| `src/app/(shell)/layout.tsx` | (default export, the layout) | The caller of the gate. Redirects a fresh install to `/first-run` before any other shell query runs. |
+| `src/components/settings/onboarding-section.tsx` | `OnboardingSection` | The "Replay first run" Settings control, which clears `first_run_completed` so the flow can be seen again. |
 
-- **focus** → `saveNicheSettingsAction` (the same `niche_profile` key Settings' Niche
-  Profile section writes).
-- **connect** → `igLoginAction` and its `igChallengeChooseAction` /
-  `igChallengeCodeAction` / `igTwoFactorAction` branches, read back through
-  `getIgStatusAction` — the exact actions Settings' Instagram section uses.
-- **sources** → `addChannelAction` (idempotent per handle), the same action the Channels
-  page's add-channel dialog uses; nothing becomes a `channels` row until Continue.
-- **sync** → `useSyncProgress` / `<SyncProgressPanel>`, the same sync surface the Channels
-  page and Settings show, then `updateAppSettingsAction({ firstRunCompleted: true })`.
+## 2. ER diagram
 
-**Finishing.** Both the sync step's "Open Crowsnest" and the aside's "Skip setup for now"
-write `first_run_completed` through the generic `updateAppSettingsAction` and then
-`router.push("/")`. A plain link would bounce straight back through the gate on the
-zero-channel install this screen exists for, so the flag write is what actually ends first
-run. "Skip" is deliberately available throughout, because the sources step's Continue only
-lights up once a real handle is added, and someone without one otherwise has nowhere to go.
+Onboarding owns no table of its own. It reads and writes `app_settings`, a plain key and value table shared by the whole app, and writes `channels` rows through the same `addChannelAction` the Channels page uses. `channels` is owned and diagrammed by [ig-sync](../ig-sync/02-architecture.md#2-er-diagram); it is not repeated here.
 
-## Decisions
+```mermaid
+erDiagram
+    APP_SETTINGS {
+        string key PK
+        string value
+    }
+```
 
-- **Two independent halves, joined only by `.env.local` and one flag.** The CLI never
-  imports the app and the app never shells the CLI. The terminal half exists because the
-  Instagram sidecar needs credentials on disk before the server can even reach it; the
-  in-app half exists to get an empty install to a tracked channel and a first sync.
-- **`/first-run` is its own top-level route, not a `(shell)` child.** The shell's sidebar,
-  topbar, and failure strip have nothing to orient here, and the shell's own gate would
-  otherwise have to special-case its way around itself. The flow is a full-bleed two-column
-  screen instead.
-- **The gate is compound (`!firstRunCompleted && !hasChannels`), not just the flag.** This
-  is the whole reason the gate exists: a real database with channels must never be routed
-  back into a wizard. See `first-run-gate.ts`'s module doc.
-- **Step state lives in memory, not the URL.** Nothing about "what step am I on" needs to
-  survive a reload independently of what each step already persisted server-side; a reload
-  mid-flow re-lands on welcome and re-asks a question or two whose answers are already
-  saved.
-- **Every step reuses an existing server action.** No step introduces its own action; the
-  connect step in particular shares Settings' Instagram surface rather than a copy, so
-  re-establishing a session later goes through the same code.
-- **The connect step shows only the one real fact it has, the connected handle.** Follower
-  and post counts are not shown because `getIgStatusAction` carries no such fields; per the
-  no-fabricated-data rule a capability the app lacks does not appear in the UI.
+The keys onboarding cares about are `first_run_completed` (the flag the gate reads), and `niche_profile` and `niche_keywords` (written by the focus step, read back by Settings' Niche Profile section and by `services/remix.ts`). None of these keys are foreign keys; `app_settings` has no relation to any other table.
 
-## Known defects
+## 3. Indexes
 
-Both filed against a real onboarding pass ([evidence/10-onboarding-bugs.md](../../../../evidence/10-onboarding-bugs.md),
-tracked as ONB-1 / ONB-2 in [05-backlog-to-enhance.md](05-backlog-to-enhance.md)); both are
-in the CLI prompt code, not the app:
+`app_settings` carries no index beyond its `key` primary key (`src/server/db/schema.ts`). Every read onboarding does against it, the gate's flag check, the focus step's niche read, is a primary key lookup or a small `IN` list on that same key.
 
-- **ONB-1 (blocker): `kai kit init` saves `IG_PASSWORD` empty on a real TTY.** The masked
-  `IG_PASSWORD` read (`ask(..., { secret: true })`, `src/cli/kai.ts`) returns an empty
-  value, so `.env.local` gets `IG_PASSWORD=` (length 0). `IG_USERNAME`, read just before by
-  the non-secret path, saves fine. With a username but no password the Instagram sidecar
-  refuses to start ("IG_USERNAME and IG_PASSWORD must be set together", exit 78
-  `EX_CONFIG`), launchd's keepalive crash-loops it, and Instagram sync is dead for the
-  buyer with no onboarding-time warning. Root cause is `ask`'s `secret` path, which hides
-  the terminal echo by overriding `readline`'s `_writeToOutput`; on a real TTY the value
-  read back is empty.
-- **ONB-2 (medium): `kai kit init` echoes `ANTHROPIC_API_KEY` in plaintext.** The same
-  `ask({ secret: true })` path fails to suppress the echo for the key prompt on this TTY,
-  so the key lands in terminal scrollback. Not a functional blocker, but a security/UX
-  defect.
+## 4. Data flow
 
-## Open, not verified end to end
+**Terminal half, `kai kit init`.** `cmdKitInit` requires a cached entitlement first (`readEntitlement`, from the earlier `kai login`). It copies `.env.local` from `.env.example` (or edits it in place if present), prompts for `IG_USERNAME` then `IG_PASSWORD` (the latter through `ask(..., { secret: true })`, asked only when a username was given), generates `IG_SERVICE_TOKEN` if it is still the `change-me` placeholder, prompts for an optional `ANTHROPIC_API_KEY` (also `secret: true`), and asks for `VAULT_PATH` (default `~/.crowsnest/vault`), creating that directory. It writes `.env.local` at mode `0600` and `chmod`s it again (the file holds the Instagram password), then runs the database migrations and bootstrap through `node`/`tsx` directly, and finally hands off to `kai up`.
 
-- No Graph API path exists in the app today. Per the coldstart design work the panel for
-  the user's own channel's Graph token was proposed but never built; the burner Instagram
-  identity read by the sidecar and any future Graph token must never share code or an
-  environment-variable prefix. See [01-concept-brief.md](01-concept-brief.md).
-- A live Instagram connect through the `/first-run` connect step against real credentials
-  has not been proven end to end while ONB-1 leaves the sidecar down on a real buyer
-  install; the connect step's `IG_SERVICE_DOWN` branch is what a buyer hitting ONB-1
-  actually sees.
-- The dashboard redesign (moving Instagram login and key entry into the dashboard with live
-  validation) is tracked as ENH-1 in [05-backlog-to-enhance.md](05-backlog-to-enhance.md)
-  and is not built.
+**The gate.** `src/app/(shell)/layout.tsx` calls `getFirstRunGate` before any other read. The rule (`shouldRedirectToFirstRun`) is compound on purpose: not `firstRunCompleted` and no channels tracked. A database that already has a `channels` row, a seeded dev database, or one that predates the flag, is treated as done even with the flag unset, so a real production database is never routed back into the wizard. Once `first_run_completed` is true it decides alone and stays true even if every channel is later removed. On a match the layout redirects to `/first-run` and the shell never renders.
+
+**In-app half, `/first-run`.** `page.tsx` is the other half of that gate: it reads `getSettings()`, and if `firstRunCompleted` is already true it redirects straight to `/` rather than re running answered steps. Otherwise it reads the niche settings and the live Instagram status (`getIgStatusAction`) in parallel and renders `OnboardingFlow`. The five screens each write through an existing server action, not a new one: focus saves through `saveNicheSettingsAction`; connect signs in through `igLoginAction` and its `igChallengeChooseAction`, `igChallengeCodeAction`, `igTwoFactorAction` branches, read back through `getIgStatusAction`; sources commits through `addChannelAction` (idempotent per handle) only on Continue; sync runs the shared sync progress panel, then `updateAppSettingsAction({ firstRunCompleted: true })`.
+
+**Finishing.** Both the sync step's "Open Crowsnest" and the aside's "Skip setup for now" write `first_run_completed` through the generic `updateAppSettingsAction` and then navigate to `/`. A plain link would bounce straight back through the gate on the zero channel install this screen exists for, so the flag write is what actually ends first run. "Skip" is deliberately available throughout, because the sources step's Continue only lights up once a real handle is added, and someone without one otherwise has nowhere to go.
+
+## 5. Sequence: the first run gate check
+
+```mermaid
+sequenceDiagram
+    actor UI as Visitor loading any shell route
+    participant Layout as ShellLayout
+    participant Gate as getFirstRunGate
+    participant DB
+
+    UI->>Layout: request a shell page
+    activate Layout
+    Layout->>Gate: getFirstRunGate()
+    activate Gate
+    Gate->>DB: **Read whether first run is marked complete** (appSettings)<br/>params:{ key: "first_run_completed" }
+    DB-->>Gate: Return {AppSettingsRow} or null<br/>params:{ key, value }
+    Gate->>DB: **Check whether any channel is tracked** (channels)<br/>params:{ limit: 1 }
+    DB-->>Gate: Return {Channel}[] or []<br/>params:{ count }
+    Gate-->>Layout: Return {redirectToFirstRun, firstRunCompleted}
+    deactivate Gate
+    alt not firstRunCompleted and no channels
+        Layout-->>UI: Return success response that the visitor is sent to first run<br/>params:{ path: "/first-run" }
+    end
+    Layout-->>UI: Return success response that the shell renders<br/>params:{}
+    deactivate Layout
+```
+
+## 6. Sequence: finishing first run
+
+```mermaid
+sequenceDiagram
+    actor UI as Sync step "Open Crowsnest" or aside "Skip setup for now"
+    participant Action as updateAppSettingsAction
+    participant DB
+
+    UI->>Action: updateAppSettingsAction({ firstRunCompleted: true })
+    activate Action
+    Action->>DB: **Check for an existing app_settings row, inside a transaction** (appSettings)<br/>params:{ key: "first_run_completed" }
+    DB-->>Action: Return {AppSettingsRow} or null<br/>params:{ key, value }
+    alt row already exists
+        Action->>DB: **Update the flag value** (appSettings)<br/>params:{ key: "first_run_completed", value: "true" }
+        DB-->>Action: Return {AppSettingsRow}<br/>params:{ key }
+    else no row yet
+        Action->>DB: **Insert the flag row** (appSettings)<br/>params:{ key: "first_run_completed", value: "true" }
+        DB-->>Action: Return {AppSettingsRow}<br/>params:{ key }
+    end
+    deactivate Action
+    Action-->>UI: Return success response that first run is marked complete<br/>params:{ ok: true }
+```
+
+## 7. Key decisions
+
+- **Two independent halves, joined only by `.env.local` and one flag.** The CLI never imports the app and the app never shells the CLI. The terminal half exists because the Instagram sidecar needs credentials on disk before the server can even reach it; the in-app half exists to get an empty install to a tracked channel and a first sync.
+- **`/first-run` is its own top level route, not a `(shell)` child.** The shell's sidebar, topbar, and failure strip have nothing to orient here, and the shell's own gate would otherwise have to special case its way around itself. The flow is a full bleed two column screen instead.
+- **The gate is compound, not just the flag.** This is the whole reason the gate exists: a real database with channels must never be routed back into a wizard. See `first-run-gate.ts`'s module doc.
+- **Step state lives in memory, not the URL.** Nothing about which step the user is on needs to survive a reload independently of what each step already persisted server side; a reload mid flow re lands on welcome and re asks a question or two whose answers are already saved.
+- **Every step reuses an existing server action.** No step introduces its own action; the connect step in particular shares Settings' Instagram surface rather than a copy, so re establishing a session later goes through the same code.
+- **The connect step shows only the one real fact it has, the connected handle.** Follower and post counts are not shown because `getIgStatusAction` carries no such fields; per the no fabricated data rule, a capability the app lacks does not appear in the UI.
+
+## 8. Open, not verified
+
+- **The sidecar won't start onboarding bug** (`evidence/10-onboarding-bugs.md`, tracked as `ONB-1` in [05-backlog-to-enhance.md](05-backlog-to-enhance.md)): `kai kit init`'s masked `IG_PASSWORD` prompt returned empty on a real TTY, so `.env.local` was written with `IG_PASSWORD=` (length 0) while `IG_USERNAME` saved fine. The Instagram sidecar then refuses to start, "IG_USERNAME and IG_PASSWORD must be set together", exit 78 `EX_CONFIG`, and launchd's keepalive crash loops it, so port 8765 never comes up and Instagram sync is dead for the buyer with no onboarding time warning. Root cause is `ask`'s `secret` path in `src/cli/kai.ts`, which hides the terminal echo by overriding `readline`'s `_writeToOutput`; on a real TTY the value read back is empty. This is a hard blocker for a clean buyer install.
+- **The plaintext key echo** (`evidence/10-onboarding-bugs.md`, tracked as `ONB-2`): the same `ask({ secret: true })` path fails to suppress the echo for the `ANTHROPIC_API_KEY` prompt on this TTY, so the key is visible on screen and lands in terminal scrollback. The key is still entered and saved correctly; the defect is only that it is not hidden. Not a functional blocker, a security and UX defect.
+- **No Graph API path exists in the app today.** The panel for the user's own channel's Graph token was proposed but never built; the burner Instagram identity the sidecar reads and any future Graph token must never share code or an environment variable prefix. See [01-concept-brief.md](01-concept-brief.md).
+- **A live Instagram connect through the `/first-run` connect step against real credentials has not been proven end to end** while `ONB-1` leaves the sidecar down on a real buyer install; the connect step's service down branch is what a buyer hitting `ONB-1` actually sees.
+- **The dashboard redesign** (moving Instagram login and key entry into the dashboard with live validation) is tracked as `ENH-1` in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) and is not built.

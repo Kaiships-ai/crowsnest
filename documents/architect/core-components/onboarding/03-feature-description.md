@@ -1,218 +1,124 @@
 # onboarding: feature description
 
-User-facing behavior of onboarding. Feeds the website, user guide, and MCP knowledge base.
+Onboarding is what happens between a fresh install and a working feed. It has two halves that never share code: a terminal setup step, `kai kit init`, that writes config, creates the database, and starts the app, and a five screen in-app flow at `/first-run` that a route guard forces a fresh install through before any other page renders. This document describes the flow as shipped today; the dashboard redesign (moving Instagram login and key entry into the dashboard with live validation) is tracked as `ENH-1` in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) and is not built.
 
-Onboarding is what happens between a fresh install and a working feed. It has two halves:
-a terminal setup step (`kai kit init`) that writes config and starts the app, and a
-five-screen in-app flow at `/first-run` that a route guard forces a fresh install through
-before any other page renders. This document describes the flow as shipped today; the
-dashboard redesign (moving Instagram login and key entry into the dashboard with live
-validation) is tracked as ENH-1 in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) and
-is not built.
+## 1. Feature summary
 
-## Set up crowsnest in the terminal (`kai kit init`)
+Legend: ● Built, ◐ Partial, ○ Roadmap.
 
-### Summary
+| # | Feature | What it does | Status | Grounded in | Open item |
+| --- | --- | --- | --- | --- | --- |
+| 2 | Set up crowsnest in the terminal | `kai kit init` writes `.env.local`, prompts for Instagram credentials and an optional Anthropic key, creates the database, and starts the app | ◐ | `src/cli/kai.ts` (`cmdKitInit`) | ONB-1, ONB-2 |
+| 3 | Complete first run in the app | A five screen flow takes a fresh install to a tracked channel and a first sync underway | ● | `src/app/first-run/`, `src/components/first-run/` | none |
+| 4 | Replay first run | A Settings control clears the flag and sends the user back through the flow without deleting anything | ● | `src/components/settings/onboarding-section.tsx` | none |
+|  | Dashboard redesign | Move Instagram login and key entry into the dashboard with live validation, instead of a terminal prompt | ○ | no code yet | ENH-1 |
 
-`kai kit init` is the one command a buyer runs after `kai login`. It writes `.env.local`,
-asks for the Instagram account the sidecar will drive, generates the sidecar's shared
-secret, optionally takes an Anthropic API key, asks where the vault lives, creates the
-database, and starts the app — ending with the dashboard open in the browser. It refuses to
-run without a cached license.
+## 2. Set up crowsnest in the terminal
 
-### The simple case
+### Who uses it
 
-The buyer runs `kai kit init`. It prints that it created `.env.local`, then prompts in
-order:
+The buyer, once, from a terminal, right after `kai login`.
 
-1. `IG_USERNAME` — the throwaway Instagram account the sidecar signs in as.
-2. `IG_PASSWORD (not echoed)` — asked only if a username was given, typed without echo.
-3. It generates `IG_SERVICE_TOKEN` automatically if the file still holds the placeholder.
-4. `ANTHROPIC_API_KEY (blank to skip, not echoed)` — optional; the Create-Prompt export
-   works without it, but AI analysis and the Vault pipeline need it.
-5. `VAULT_PATH` — defaulting to `~/.crowsnest/vault`, whose directory is created.
+### What it does
 
-It writes `.env.local` at mode `0600` (the file holds the Instagram password), runs the
-database migrations and bootstrap, prints "Starting crowsnest…", and hands off to `kai up`,
-which brings the dashboard up at `http://localhost:3000`.
+`kai kit init` requires a cached license, then writes `.env.local`: it prompts for the Instagram account the sidecar will drive (`IG_USERNAME`, then a masked `IG_PASSWORD` asked only if a username was given), generates `IG_SERVICE_TOKEN` automatically if the file still holds the placeholder, prompts for an optional masked `ANTHROPIC_API_KEY`, and asks where the vault lives (defaulting to `~/.crowsnest/vault`, creating the directory). It writes `.env.local` at mode `0600`, runs the database migrations and bootstrap, and hands off to `kai up`, which brings the dashboard up at `http://localhost:3000`.
 
-### Known defects
+### How to access it
 
-Two defects in the secret prompts, both found in a real buyer-credential test
-([evidence/10-onboarding-bugs.md](../../../../evidence/10-onboarding-bugs.md)) and both in
-`ask(..., { secret: true })` in `src/cli/kai.ts`:
+The `kai kit init` command, run from a terminal after `kai login <license-key>`.
 
-- **The `IG_PASSWORD` prompt saves an empty value on a real terminal (ONB-1, blocker).**
-  The username saves, but the masked password read comes back empty, so `.env.local` gets
-  `IG_PASSWORD=`. The Instagram sidecar then refuses to start ("IG_USERNAME and IG_PASSWORD
-  must be set together", exit 78), launchd crash-loops it, and Instagram sync never works.
-  Nothing at onboarding time warns the buyer; the failure only shows up later as a dead
-  sidecar. In the app the connect step reports this as "The local Instagram service isn't
-  running."
-- **The `ANTHROPIC_API_KEY` prompt echoes the key in plaintext (ONB-2, medium).** The same
-  masked-prompt code fails to suppress the echo on this terminal, so the key is visible on
-  screen and lands in scrollback. It is entered and saved correctly; the defect is only that
-  it is not hidden.
+### Business rules
 
-## Complete first run in the app (`/first-run`)
+- Refuses to run without a cached entitlement, dying with a pointer to run `kai login` first.
+- `IG_PASSWORD` is asked only when `IG_USERNAME` was given.
+- `IG_SERVICE_TOKEN` is generated automatically only if the file still holds the `change-me` placeholder.
+- Re running edits an existing `.env.local` in place rather than overwriting it, keeping surrounding keys and comments.
+- `.env.local` is written mode `0600` and `chmod`'d again after, because it holds the Instagram password.
 
-### Summary
+### Limitations
 
-The first-run flow is five screens served at `/first-run`, outside the normal app shell
-(no sidebar, no topbar). A route guard sends any fresh install — setup not completed and no
-channels tracked — here before it can see the shell, and keeps it here until first run is
-finished. The screens are an unnumbered welcome plus four numbered steps: `01 FOCUS`,
-`02 INSTAGRAM`, `03 CHANNELS`, `04 FIRST SYNC`. A persistent "Skip setup for now" in the
-left aside jumps to the app at any point. The flow's whole job is to take an empty install
-to at least one tracked channel with a first sync underway.
+- **The masked `IG_PASSWORD` prompt saves an empty value on a real terminal** (`ONB-1`, blocker). The username saves, but the masked password read comes back empty, so `.env.local` gets `IG_PASSWORD=`. The Instagram sidecar then refuses to start ("IG_USERNAME and IG_PASSWORD must be set together", exit 78), launchd crash loops it, and Instagram sync never works. Nothing at onboarding time warns the buyer; the failure only shows up later as a dead sidecar. In the app, the connect step reports this as the local Instagram service isn't running.
+- **The `ANTHROPIC_API_KEY` prompt echoes the key in plaintext** (`ONB-2`, medium). The same masked prompt code fails to suppress the echo on this terminal, so the key is visible on screen and lands in scrollback. It is entered and saved correctly; the defect is only that it is not hidden.
 
-### The simple case
+### User guide
 
-A fresh install opens the browser and lands on `/first-run` welcome. The user clicks Get
-started, picks a focus on `01 FOCUS` and continues, connects their Instagram account on
-`02 INSTAGRAM`, adds one or more channel handles on `03 CHANNELS`, and runs the first sync
-on `04 FIRST SYNC`. When the sync reaches a terminal state they click "Open Crowsnest",
-which marks first run done and drops them into the dashboard.
+Run `kai kit init` in a terminal once you have a license. It creates a config file, asks for the Instagram account crowsnest will sign in as (use a throwaway account, never one you care about), optionally takes an Anthropic API key for AI analysis and the Vault pipeline, and asks where to keep your vault of saved scripts. It then sets up the database and opens crowsnest in your browser.
 
-Each step saves through its own server action as it is passed, so the answers are already
-persisted before the next screen appears. Reloading mid-flow re-lands on welcome but loses
-nothing that was saved.
+## 3. Complete first run in the app
 
-### The interaction, step by step
+### Who uses it
 
-```
-stateDiagram-v2
-    [*] --> welcome : gate redirect (fresh install)
-    [*] --> dashboard : gate pass (already set up, or firstRunCompleted)
-    welcome --> focus : Get started
-    focus --> connect : save niche, Continue
-    connect --> sources : logged in (or Skip for now)
-    sources --> sync : channels committed, Continue
-    sync --> dashboard : terminal status, Open Crowsnest (sets first_run_completed)
-    welcome --> dashboard : Skip setup for now (sets first_run_completed)
-    focus --> dashboard : Skip setup for now
-    connect --> dashboard : Skip setup for now
-    sources --> dashboard : Skip setup for now
-```
+Any user whose database has no channel tracked and the first run flag unset. Redirected here automatically by the app shell before any other page renders.
 
-#### Arrive
+### What it does
 
-The shell's route guard reads two facts — whether first run is completed and whether any
-channel exists — and redirects a fresh install (`!firstRunCompleted && !hasChannels`) to
-`/first-run`. A database that already has a channel, or that has the flag set, is treated as
-done and never redirected, even if every channel is later removed. Navigating directly to
-`/first-run` after finishing sends the user straight back to the dashboard rather than
-re-running answered steps; the only supported way back is Settings' "Replay first run".
+A five screen flow, an unnumbered welcome plus `01 FOCUS`, `02 INSTAGRAM`, `03 CHANNELS`, `04 FIRST SYNC`, that takes an empty install to at least one tracked channel and a first sync underway. Each step saves through an existing server action as it is passed, so the answers are already persisted before the next screen appears; reloading mid flow re lands on welcome but loses nothing already saved. A persistent "Skip setup for now" control in the left aside is available throughout.
 
-The left rail shows the four numbered steps. A step already passed is clickable to go back;
-the current step is marked; anything ahead is locked until the step in front of it is done.
+### How to access it
 
-#### 01 FOCUS
+Automatically, redirected in by the `(shell)` layout on a fresh install. Once first run is finished, the only supported way back is Settings' "Replay first run" (see [4. Replay first run](#4-replay-first-run)); navigating directly to `/first-run` otherwise sends the user straight back to the dashboard.
 
-The user picks a niche/focus. Continue saves it through `saveNicheSettingsAction` — the same
-`niche_profile` setting the Settings page's Niche Profile section reads and writes — and
-advances to connect.
+### Business rules
 
-#### 02 INSTAGRAM
+- The gate is compound on purpose: not `firstRunCompleted` and no channels tracked. A database that already has a channel, or that has the flag set, is treated as done and never redirected, even if every channel is later removed.
+- The left rail shows the four numbered steps. A step already passed is clickable to go back; the current step is marked; anything ahead is locked until the step in front of it is done.
+- **01 FOCUS** saves the picked niche through `saveNicheSettingsAction`, the same `niche_profile` setting Settings' Niche Profile section reads and writes.
+- **02 INSTAGRAM** signs in through the same `getIgStatusAction` / `igLoginAction` surface Settings uses. A wrong two factor or challenge code stays on the same field, focused, with an inline error, rather than falling through to a generic error view. When connected, the screen shows only the connected handle, `@username`, and nothing else, no follower or post count, because the status action carries no such fields. "Skip for now" always advances regardless of connection state.
+- **03 CHANNELS** is a handle in, handle out list: the user types or pastes one or several handles, and Continue commits the whole list through `addChannelAction` (idempotent per handle, so re pressing Continue after a partial failure is safe). Nothing is a tracked channel until Continue is pressed. Only a malformed handle is bounced; a well formed handle that cannot currently be verified (sidecar down or logged out) is still added, to be checked on the first sync.
+- **04 FIRST SYNC** runs the shared sync progress panel, `useSyncProgress` / `<SyncProgressPanel>`, scoped to exactly the channels just added, the same panel the Channels page and Settings use. "Open Crowsnest" becomes available the moment the run reaches any terminal status, success, partial, or failed, not only a clean success. Pressing it sets `first_run_completed` and hands off to the shell, which reads the same sync record and shows the failure strip itself if the run did not fully succeed.
+- "Skip setup for now" writes `first_run_completed` the same way and is available from every step; it loses nothing already answered, since each step persists independently.
 
-The one real credential screen. It signs in through the local Instagram sidecar using the
-credentials `kai kit init` wrote, and reads status through the same `getIgStatusAction` /
-`igLoginAction` surface Settings uses. Clicking Connect Instagram authorises; Instagram may
-respond with a two-factor prompt or a security challenge, and the screen handles both:
+### Limitations
 
-- **Two-factor:** a 6-digit code field. A wrong code stays on the same field, focused, with
-  an inline error, rather than falling through to a generic error view.
-- **Challenge:** the user picks email or SMS, then enters the verification code Instagram
-  sends; a wrong code behaves the same way.
+- A buyer who hits `ONB-1` (the empty `IG_PASSWORD` defect in the terminal setup feature above) reaches this flow fine, but the connect step, and every later sync, reports the local Instagram service isn't running, because the sidecar never came up. The flow itself gives no earlier sign that the password was lost; the failure only surfaces here.
+- No Graph API connect path exists for the user's own channel; that panel was proposed but never built. See [01-concept-brief.md](01-concept-brief.md).
+- Skipping is available on every step, so a user can reach the dashboard with no channel and no sync at all; the flow only guarantees the opportunity, not the outcome.
 
-When connected, the screen shows the connected handle (`@username`) and nothing else — no
-follower or post count, because the status the app has carries no such fields. If the
-sidecar is unreachable it shows "The local Instagram service isn't running" with a re-check
-control; if the service is up but has no credentials configured it asks for `IG_USERNAME`
-and `IG_PASSWORD` to be set. "Skip for now" always advances regardless of connection state,
-because the app stays usable disconnected and every sync control elsewhere renders its own
-disconnected state.
+### User guide
 
-#### 03 CHANNELS
+When you open crowsnest for the first time, you land on a short setup flow before you see the dashboard. Click Get started, tell crowsnest what kind of content you make, then connect your Instagram account, the account crowsnest signs in as to read other creators' posts, never used to post on your behalf. Add the Instagram handles of the accounts you want to track, one at a time or pasted as a list, then run your first sync. You can leave at any point with Skip setup for now, and anything you already answered is kept; Settings can bring this flow back later if you want to see it again.
 
-A handle-in, handle-out list: the user types or pastes one or several Instagram handles,
-adds them to a pending list, removes any they did not mean to, and Continue commits the whole
-list through `addChannelAction` (idempotent per handle — re-pressing Continue after a partial
-failure is safe). Nothing is a tracked channel until Continue is pressed. Whether the sidecar
-can actually verify a typed handle against Instagram right now (it can only when logged in)
-changes the helper copy under the input, not what Continue does; a handle that cannot be
-verified is still added, to be checked on the first sync. Only a malformed handle is bounced.
+## 4. Replay first run
 
-#### 04 FIRST SYNC
+### Who uses it
 
-The user runs the first sync over exactly the channels just added, through the same sync
-progress panel the Channels page and Settings use — the seven-phase progress, the gap list,
-and the retry affordances are identical, not a second copy. Instagram rate-limits a cold
-session, so this first run is the one most likely to hit a snag, and the screen says so; the
-failure surface is deliberately the real one. "Open Crowsnest" becomes available the moment
-the run reaches any terminal status — success, partial, or failed — not only a clean success.
-Pressing it sets `first_run_completed` and hands off to the shell, which reads the same sync
-record and shows the failure strip itself if the run did not fully succeed.
+Any user, from Settings, once first run is behind them.
 
-#### Skip and finish
+### What it does
 
-Both "Open Crowsnest" and "Skip setup for now" write `first_run_completed` through the
-generic `updateAppSettingsAction` and then navigate to `/`. The flag write, not the link, is
-what ends first run: on the zero-channel install this screen exists for, a plain link would
-bounce straight back through the gate. Skipping loses nothing already answered — the niche,
-the Instagram session, and any channels are each saved by their own step.
+A button in Settings' Onboarding section clears `first_run_completed` (through the same `updateAppSettingsAction` every other Settings row uses) and navigates straight to `/first-run`, bypassing the `(shell)` gate's own decision so it works even on a database that already has channels tracked.
 
-### Variants
+### How to access it
 
-| Variant | Set on arrival | Notes |
-| --- | --- | --- |
-| Fresh vs. seeded install | A fresh install (no flag, no channels) is redirected in; a database with any channel, or the flag set, is treated as done and never redirected. | The gate is compound on purpose so a real production database is never routed back into the wizard. |
-| Instagram connected or not | The connect step reflects live sidecar status; the sources step's handle-verification copy follows whether a login exists. | "Skip for now" advances from connect either way; a handle added while disconnected is still tracked and checked on sync. |
-| Sidecar reachable or down | Connect shows either the login surface or "The local Instagram service isn't running" with a re-check. | A buyer hitting ONB-1 (empty `IG_PASSWORD`) sees the service-down state here, because the sidecar crash-loops. |
-| Anthropic key present or not | Set in the terminal by `kai kit init`; the flow does not ask for it. | Without the key, AI analysis and the Vault pipeline are unavailable later; the Create-Prompt export still works. |
-| Return visit after finishing | `/first-run` redirects to the dashboard. | The only supported way to replay is Settings' "Replay first run", which clears the flag. |
+Settings, Onboarding section, "Replay first run" button, confirmed through a dialog.
 
-### Cancel and interrupt
+### Business rules
 
-| Event | In the terminal half | In the in-app flow |
-| --- | --- | --- |
-| Abort partway | Ctrl-C stops `kai kit init`; whatever it had written to `.env.local` stays, and re-running edits the file in place. | Closing the tab records nothing beyond what each step already saved; a reload re-lands on welcome. |
-| A backing service fails | A failed migration or bootstrap dies with a "rerun kai kit init" pointer; the app is not started. | A down sidecar shows the service-down state on connect; a failed first sync still reaches a terminal status and lets the user open the app. |
-| The step's action fails | — | The failing step surfaces its own error (a wrong code inline on connect, a toast on skip) and does not advance; earlier saved answers are untouched. |
-| Skip mid-flow | — | "Skip setup for now" writes `first_run_completed` and goes to the dashboard; the niche, session, and any channels already saved are kept. |
+- Clearing the flag does not delete any data: channels already added, the niche profile, and the Instagram session all stay as they are.
+- Navigates directly to the flow's own route rather than through the shell's gate, so replaying works regardless of how many channels are already tracked.
 
-### Interactions with other systems
+### Limitations
 
-Persistence. Each step persists independently — the niche in `app_settings`, the Instagram
-session in the sidecar, the channels as `channels` rows, the sync as a `sync_jobs` row — so
-step order in the UI carries no state of its own beyond `first_run_completed`.
+- None beyond the flow itself; once replayed, the same first run behavior and limitations described above apply again.
 
-The gate and the shell. The `(shell)` layout's route guard is the only thing that forces a
-fresh install here, and the failure strip it renders after first run reads the same sync
-record the first-sync step produced. See
-[shared/navigation-and-shell.md](../../shared/navigation-and-shell.md) and
-[shared/status-and-failures.md](../../shared/status-and-failures.md).
+### User guide
 
-Settings. Two panels carry related surfaces once onboarding is behind the user: the
-Instagram connection panel (the same login/disconnect surface the connect step uses, for
-re-establishing a session later) and a read-only local-binaries check (yt-dlp, whisper-cli
-and its model). Settings' "Replay first run" clears `first_run_completed` to bring the flow
-back.
+If you want to see the first run setup again, for example to add more channels the same way or double check your niche, open Settings and click Replay first run under Onboarding. It only resets the setup flag; nothing you already set up is deleted.
 
-External services. The Instagram sidecar is the one service the flow drives directly, for
-login and the first sync. The Anthropic key is not entered here; it is set by `kai kit init`
-and consumed by analysis and the Vault pipeline later.
+## 5. Interactions with other systems
 
-### Edge cases
+Persistence. Each step persists independently, the niche in `app_settings`, the Instagram session in the sidecar, the channels as `channels` rows, the sync as a `sync_jobs` row, so step order in the UI carries no state of its own beyond `first_run_completed`.
 
-- A buyer who hits ONB-1 finishes `kai kit init` successfully and reaches the dashboard, but
-  the sidecar is dead — so the connect step (and every later sync) reports the service down.
-  The onboarding flow itself gives no earlier sign that the password was lost.
-- The connect step shows only the connected handle, never a follower or post count, because
-  the app's Instagram status carries no such fields.
-- Adding a handle while the sidecar cannot verify it does not reject the handle; it is
-  tracked and checked on the first sync. Only a malformed handle is bounced.
-- "Open Crowsnest" appears on any terminal sync status, including a failed one, because a
-  cold first sync failing is expected and the app is usable regardless.
-- Skipping is available on every step, so a user can reach the dashboard with no channel and
-  no sync at all; the flow only guarantees the opportunity, not the outcome.
+The gate and the shell. The `(shell)` layout's route guard is the only thing that forces a fresh install into `/first-run`, and the failure strip it renders after first run reads the same sync record the first sync step produced. See [shared/navigation-and-shell.md](../../shared/navigation-and-shell.md).
+
+Settings. Two panels carry related surfaces once onboarding is behind the user: the Instagram connection panel (the same login and disconnect surface the connect step uses, for re establishing a session later) and a read only local binaries check (yt-dlp, whisper-cli and its model). Settings' "Replay first run" clears `first_run_completed` to bring the flow back.
+
+External services. The Instagram sidecar, owned by [ig-sync](../ig-sync/01-concept-brief.md), is the one service the flow drives directly, for login and the first sync. The Anthropic key is not entered in the app; it is set by `kai kit init` and consumed by analysis and the Vault pipeline later.
+
+## 6. Edge cases
+
+- A buyer who hits `ONB-1` finishes `kai kit init` successfully and reaches the dashboard, but the sidecar is dead, so the connect step (and every later sync) reports the service down. The onboarding flow itself gives no earlier sign that the password was lost.
+- The connect step shows only the connected handle, never a follower or post count, because the app's Instagram status carries no such fields.
+- Adding a handle while the sidecar cannot verify it does not reject the handle; it is tracked and checked on the first sync. Only a malformed handle is bounced.
+- "Open Crowsnest" appears on any terminal sync status, including a failed one, because a cold first sync failing is expected and the app is usable regardless.
+- Skipping is available on every step, so a user can reach the dashboard with no channel and no sync at all; the flow only guarantees the opportunity, not the outcome.
