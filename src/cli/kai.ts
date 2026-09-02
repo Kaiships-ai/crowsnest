@@ -355,15 +355,20 @@ async function cmdDoctor(): Promise<void> {
   ok("mode", true, isBundle ? "bundled" : "dev repo");
 
   let natives = false;
+  let nativeErr = "";
   try {
+    // Runtime probe that the prebuilt native modules load on this machine; a
+    // path-based require is deliberate and cannot be a static import.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require(join(REPO, "node_modules", "better-sqlite3"));
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require(join(REPO, "node_modules", "node-pty"));
     natives = true;
   } catch (err) {
     natives = false;
-    var nativeErr = (err as Error).message;
+    nativeErr = (err as Error).message;
   }
-  ok("native modules", natives, natives ? "better-sqlite3 + node-pty load" : `FAIL: ${nativeErr!}`);
+  ok("native modules", natives, natives ? "better-sqlite3 + node-pty load" : `FAIL: ${nativeErr}`);
 
   const venvOk = existsSync(igVenvPython);
   ok("python sidecar", venvOk, venvOk ? igVenvPython : "venv missing (rerun kai kit init)");
