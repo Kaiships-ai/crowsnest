@@ -9,13 +9,14 @@ let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let setSecret: typeof import("@/server/secrets/store")["setSecret"];
 let services: typeof import("./service-darwin")["services"];
+let plist: typeof import("./service-darwin")["plist"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ setSecret } = await import("@/server/secrets/store"));
-  ({ services } = await import("./service-darwin"));
+  ({ services, plist } = await import("./service-darwin"));
 });
 
 beforeEach(async () => {
@@ -46,6 +47,31 @@ describe("services", () => {
     const server = (await services()).find((s) => s.label === "com.crowsnest.server");
 
     expect(server?.env).toEqual({ NODE_ENV: "production", HOST: "127.0.0.1", PORT: "3000" });
+  });
+});
+
+describe("plist XML-escapes injected values", () => {
+  test("an IG_PASSWORD containing & < > renders as well-formed, escaped XML", async () => {
+    setSecret("IG_USERNAME", "burner.acct");
+    setSecret("IG_PASSWORD", "p@ss&<w>ord");
+
+    const ig = (await services()).find((s) => s.label === "com.crowsnest.ig")!;
+    const xml = plist(ig);
+
+    // The raw secret must never appear unescaped in the rendered plist.
+    expect(xml).not.toContain("p@ss&<w>ord");
+    // Escaped entities for each special character in the password must be present.
+    expect(xml).toContain("p@ss&amp;&lt;w&gt;ord");
+
+    // Well-formedness: every "&" outside a known entity would break plist parsing.
+    // Strip the entities this file emits and confirm no bare &, <, or > slipped
+    // into a place that isn't a tag delimiter.
+    const withoutEntities = xml.replace(/&(amp|lt|gt|quot|apos);/g, "");
+    expect(withoutEntities).not.toContain("&");
+    // Every "<" must open a real tag/doctype/decl (letter, /, !, or ?), never stray text.
+    for (const m of withoutEntities.matchAll(/<(.)/g)) {
+      expect(/[a-zA-Z/!?]/.test(m[1])).toBe(true);
+    }
   });
 });
 
