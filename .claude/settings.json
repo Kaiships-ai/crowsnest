@@ -1,28 +1,8 @@
 {
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/humanizer-context.sh\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/humanizer-doc-check.sh\"",
-            "timeout": 10,
-            "statusMessage": "Checking prose for AI tells"
-          }
-        ]
-      }
-    ]
-  }
+  "extraKnownMarketplaces": {
+    "crowsnest-local": {
+      "source": { "source": "directory", "path": "." }
+    }
+  },
+  "enabledPlugins": { "taste@crowsnest-local": true, "ship@crowsnest-local": true }
 }

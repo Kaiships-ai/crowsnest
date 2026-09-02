@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     "claude-animation/**",
     // Skill helper scripts (their own CommonJS runtime), not the Next.js app:
     ".claude/**",
+    // Local plugin skills (taste/ship) and their helper scripts, not app source:
+    "plugins/**",
   ]),
 ]);
 

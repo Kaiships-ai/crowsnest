@@ -20,9 +20,9 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 | --- | --- | --- |
 | P1 research, P2 design, P5 doc-sync | new, this skill's own agents | none |
 | Scaffold and wire the 5-doc block | reuse | `document-component` |
-| P3 plan | reuse | `ship-writing-plans` |
-| P4 build | reuse | `ship-subagent-driven-development` |
-| P5 verify | reuse | `ship-verification-before-completion` |
+| P3 plan | reuse | `ship:writing-plans` |
+| P4 build | reuse | `ship:subagent-driven-development` |
+| P5 verify | reuse | `ship:verification-before-completion` |
 | Open-item counts in P1 | reuse | `where-are-we` |
 
 ## Phase 1: research and concept. Human gate.
@@ -55,7 +55,7 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 
 ## Phase 3: implementation plan. Human gate.
 
-- Call `ship-writing-plans`. The plan is written to
+- Call `ship:writing-plans`. The plan is written to
   `documents/planning/implementation-plan/`, following that skill's naming and frontmatter. It
   is never a sixth component doc.
 - Before the gate, run two sweeps and show their outcome:
@@ -73,7 +73,7 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 
 ## Phase 4: implement. No gate.
 
-- Call `ship-subagent-driven-development`. Use its independent-tasks parallel mode where the
+- Call `ship:subagent-driven-development`. Use its independent-tasks parallel mode where the
   plan's tasks are independent; it is the parallel engine for this phase.
 - Three test layers, crowsnest-native:
   - unit: `vitest`.
@@ -86,7 +86,7 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 
 ## Phase 5: verify and doc-sync. Human gate.
 
-- Call `ship-verification-before-completion`.
+- Call `ship:verification-before-completion`.
 - Two parallel doc-sync agents: one updates `02-architecture.md` to match the real implemented
   code; one extends each feature's entry in `03-feature-description.md` with user-guide detail,
   text only, no images, since `03-feature-description.md` feeds the mkdocs site directly. Both
@@ -112,6 +112,6 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 | --- | --- | --- | --- |
 | 1: research and concept | yes | none (this skill, plus `where-are-we`) | name, slug, scope, dependencies, agreed |
 | 2: design, features-first | yes | none (this skill's own agents) | `01`, `02`, `03`, `04` drafted, per `house-style.md` |
-| 3: implementation plan | yes | `ship-writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
-| 4: implement | no | `ship-subagent-driven-development` | code, tests across three layers, committed |
-| 5: verify and doc-sync | yes | `ship-verification-before-completion` | docs synced to reality, backlog updated, done confirmed |
+| 3: implementation plan | yes | `ship:writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
+| 4: implement | no | `ship:subagent-driven-development` | code, tests across three layers, committed |
+| 5: verify and doc-sync | yes | `ship:verification-before-completion` | docs synced to reality, backlog updated, done confirmed |

@@ -1,5 +1,5 @@
 ---
-name: ship-brainstorming
+name: brainstorming
 description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
 ---
 
@@ -260,4 +260,4 @@ component, use the document-component skill to scaffold the block.
 ## Ship workflow: next step
 
 This is step 1 of the ship workflow (brainstorm -> plan -> worktree -> execute -> verify -> finish).
-When the design is settled, next run **ship-writing-plans** to turn it into an implementation plan.
+When the design is settled, next run **ship:writing-plans** to turn it into an implementation plan.
