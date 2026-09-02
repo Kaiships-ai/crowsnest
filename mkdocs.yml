@@ -1,0 +1,21 @@
+# Builds the crowsnest documentation site from documents/.
+#   uv pip install mkdocs-material && mkdocs serve   (http://127.0.0.1:8000)
+site_name: crowsnest
+docs_dir: documents
+site_dir: site
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+exclude_docs: |
+  planning/
+  archive/
+  archive-do-not-read/
+  .mkdocs-venv/
+

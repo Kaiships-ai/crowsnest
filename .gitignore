@@ -68,3 +68,7 @@ crowsnest.db-shm
 
 # SDD scratch (ledger + review packages)
 /.superpowers/
+
+# mkdocs build
+/site/
+/.mkdocs-venv/
