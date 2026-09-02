@@ -69,13 +69,18 @@ describe("computeChannelBaseline", () => {
 
   test("window: days excludes posts older than the cutoff", () => {
     const now = new Date("2026-07-31T00:00:00.000Z");
+    // Date the posts relative to `now`, not Date.now(), so the window cutoff and the
+    // posts share one clock (otherwise this test is time dependent and drifts).
+    const vidAt = (id: string, views: number, daysAgo: number): VideoForCalc => ({
+      id, viewCount: views, postedAt: new Date(now.getTime() - daysAgo * 864e5).toISOString(),
+    });
     const vids = [
-      vid("recent1", 100, 1),
-      vid("recent2", 200, 5),
-      vid("recent3", 300, 10),
-      vid("recent4", 400, 15),
-      vid("recent5", 500, 20),
-      vid("old1", 999_999, 45), // outside a 30-day window
+      vidAt("recent1", 100, 1),
+      vidAt("recent2", 200, 5),
+      vidAt("recent3", 300, 10),
+      vidAt("recent4", 400, 15),
+      vidAt("recent5", 500, 20),
+      vidAt("old1", 999_999, 45), // outside a 30-day window
     ];
     const baseline = computeChannelBaseline(vids, { window: { kind: "days", count: 30 }, now });
     expect(baseline).toBe(300); // median of the 5 posts inside the window; the old spike never counts
