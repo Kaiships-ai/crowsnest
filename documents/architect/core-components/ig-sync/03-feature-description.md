@@ -8,18 +8,18 @@ ig-sync has no page of its own the way analyze does. Its user facing edges are t
 
 Dependency worth stating first, because it is the difference between the features below working and not existing at all: the sidecar must start, and it only starts when onboarding wrote `IG_PASSWORD` correctly. A known onboarding bug wrote an empty password, and the sidecar then refuses to start, exit 78 `EX_CONFIG`, launchd crash loops it, port 8765 never comes up. When that happens every sync fails with the local service down verdict and no new videos ever arrive. That is the standing precondition behind every feature below.
 
-## Feature summary
+## 1. Feature summary
 
 Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Track a channel | Add an Instagram handle; the sidecar resolves the profile | ● | `services/sync-engine.ts` (addChannel) | none |
-| 2 | Sync a channel's posts | Page recent media, upsert videos, snapshot metrics, rescore | ● | `services/sync-engine.ts` (runSync) | onboarding empty IG_PASSWORD blocks buyer installs |
-| 3 | Backfill blank view counts | Re-read the real play count via `/media-stats` where the listing returned zero | ● | `services/sync-engine.ts` (startViewCountBackfillAction) | none |
+| 2 | Track a channel | Add an Instagram handle; the sidecar resolves the profile | ● | `services/sync-engine.ts` (addChannel) | none |
+| 3 | Sync a channel's posts | Page recent media, upsert videos, snapshot metrics, rescore | ● | `services/sync-engine.ts` (runSync) | onboarding empty IG_PASSWORD blocks buyer installs |
+| 4 | Backfill blank view counts | Re-read the real play count via `/media-stats` where the listing returned zero | ● | `services/sync-engine.ts` (startViewCountBackfillAction) | none |
 |  | TikTok / YouTube Shorts ingestion | Multi-platform tracking; the `platform` column is reserved | ○ | no backend yet | roadmap |
 
-## 1. Track a channel
+## 2. Track a channel
 
 ### Who uses it
 
@@ -50,7 +50,7 @@ The "Add channel" trigger on the channels board opens the add channel dialog. Th
 
 To start tracking a creator, open the Channels board and click Add channel. Type their Instagram handle, with or without the `@`, and confirm. crowsnest checks that the handle is real before adding it, so a typo or a pasted profile link is rejected rather than silently creating a channel that will never load. Once added, the channel appears on the board; its posts arrive the next time a sync runs.
 
-## 2. Sync a channel's posts
+## 3. Sync a channel's posts
 
 ### Who uses it
 
@@ -90,7 +90,7 @@ A "Sync" action on the channels board (per channel or for the whole library) or 
 
 Once a channel is tracked, its posts arrive through a sync. Start one from the channels board, a channel's own page, or the sync controls in Settings, or let the automatic schedule run it for you if you turned that on. You can leave the page once a sync starts; it keeps running and you can check its progress from the shell's progress panel or come back later. When it finishes, the channel's recent posts show up in the feed, ranked by how far each beats that channel's own typical performance. If something goes wrong, for example the local service is down or Instagram is rate limiting, the failure strip at the top of the app tells you what happened and what to do about it.
 
-## 3. Backfill blank view counts
+## 4. Backfill blank view counts
 
 ### Who uses it
 
@@ -118,7 +118,7 @@ The "Backfill blank view counts" button in Settings, under the sync section.
 
 If some posts in your feed are missing view counts, open Settings, find the sync section, and click Backfill blank view counts. It re checks Instagram for the real number on posts that never got one and updates them in place. You can follow its progress from the Runs screen, the same way you would an ordinary sync.
 
-## Interactions with other systems
+## 5. Interactions with other systems
 
 Persistence and autosave. There is no autosave; a sync writes durable rows as it goes (`videos`, `video_children`, `video_snapshots`, `channel_snapshots`, and the `sync_jobs` progress row). Downloaded assets are content addressed and deduped, so a re download of identical bytes reuses the same file. A metric Instagram withheld (null, or a zero read as "not disclosed") never erases a count already stored.
 
@@ -132,7 +132,7 @@ Status and failures. A sync's verdict surfaces in the shell failure strip ([stat
 
 Configuration and settings. Credentials (`IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`) and the sidecar URL/port are environment configuration read by the sidecar and the app; the lookback days, item cap, retry counts, and the view count enrichment budget are settings with DB over env over default precedence, so a change takes effect on the next sync without a restart. The outlier scoring options (baseline method, window, minimum posts, views floor) are read once per rescore from settings.
 
-## Edge cases
+## 6. Edge cases
 
 - **The sidecar must start, or the whole feature is dark.** The onboarding bug that writes an empty `IG_PASSWORD` makes the sidecar exit 78 and launchd crash loop it; port 8765 never comes up, and every sync reads local service down. This is the single most consequential dependency and the known hard blocker for buyers.
 - **Only Instagram is ingested.** The add channel dialog once offered TikTok and YouTube Shorts chips, but the backend could never sync them, so choosing either produced a channel row that silently never updated. The chips were removed (`OBS-3` in the backlog); the `platform` column stays in the schema for a future second source.

@@ -2,7 +2,7 @@
 
 How to run these: the sidecar must be up. From the repo root, `npm run ig:service` starts it (the wrapper loads `.env.local` and execs the module); it binds `127.0.0.1:8765` only. `.env.local` needs `IG_SERVICE_TOKEN` (at least 16 chars, shared with Node) and, for anything past `/health`, a real `IG_USERNAME`/`IG_PASSWORD` for a burner account, never one you care about; the account can be challenged or banned. Do the first login with the `curl` sequence in `services/ig/README.md` (`/login`, then `/two-factor` or `/challenge/resolve` as asked). For the app side, start the dev server and open `http://localhost:3001` for the behavior and browse-e2e cases. Offline unit and integration tests run with `uv run pytest` in `services/ig/` (150+, no network) and `vitest` for the Node suite, covering `sync-engine`, `ig/client`, and `sync-actions` against a temporary SQLite database. Cases marked `live` in the Needs column need a real Instagram account and cannot be exercised offline; they are the burner-holder's steps. Browse-e2e cases are driven with the `browse` skill against the running dev server, per `references/browse-e2e-qa.md`; none of the `data-testid` values the one journey below needs exist in the current markup yet, so that case is blocked on adding them first.
 
-## behavior
+## 1. behavior
 
 | ID | P | Needs | Claim | Setup | Steps | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ Not checkable by hand:
 
 - Whether the shell's progress panel numbers stay accurate second by second during a very long multi-channel run, as opposed to eventually catching up (open question, needs a long-running live observation).
 
-## route and action
+## 2. route and action
 
 | ID | P | Layer | Claim | Setup | Call | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -50,7 +50,7 @@ Not checkable by hand:
 - The SMS-preference challenge branch in the sidecar has never run against Instagram.
 - Whether a reaper and a finishing live run reliably race in production, as opposed to the seeded/simulated form in ACTION-15.
 
-## browse-e2e
+## 3. browse-e2e
 
 | ID | P | Journey | Claim | Setup | Steps | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -62,7 +62,7 @@ Not checkable by hand:
 
 - Any journey through the sync-in-progress UI (the progress panel, the failure strip) is not scripted here; those surfaces belong to their own components and are exercised through their own browse-e2e cases.
 
-## security-lite
+## 4. security-lite
 
 | ID | P | Threat | Claim | Setup | Steps | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- | --- |

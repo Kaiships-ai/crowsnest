@@ -16,7 +16,6 @@ This is the quality bar every one of the five component docs under `documents/ar
 
 ## 02-architecture.md
 
-- **Numbered sections.** Every top-level section heading in this doc is numbered (1, 2, 3, ...), in the order below.
 - **Status header**, same rule as `01-concept-brief.md`: `Status:` only, no `Date:` field.
 - **Module-structure table.** Columns: File, Export, Role. One row per file that carries meaningful logic.
 - **Drizzle ER diagram.** A mermaid `erDiagram` block reflecting the real tables in `src/server/db/schema.ts` and their relations. Follow the mermaid rendering conventions in `references/drizzle-er-and-sequence.md` (no unquoted semicolons in message text, no HTML entities or literal comparison operators in condition labels, every message has an explicit arrow, single-line messages).
@@ -28,7 +27,7 @@ This is the quality bar every one of the five component docs under `documents/ar
 
 ## 03-feature-description.md
 
-- **Feature summary table.** Directly below the intro and above the numbered detail, a table with columns: `#`, Feature, What it does, Status, Grounded in, Open item. Status uses the legend `● Built, ◐ Partial, ○ Roadmap`. The `#` ties each row to its numbered feature section below; a `○` roadmap feature with no detail section leaves `#` blank. Open item names the `05-backlog` id or the precondition when a feature is not fully built, otherwise `none`.
+- **Feature summary table.** The first numbered section of the doc (section 1), directly below the intro and above the feature detail, a table with columns: `#`, Feature, What it does, Status, Grounded in, Open item. Status uses the legend `● Built, ◐ Partial, ○ Roadmap`. The `#` is the number of that feature's detail section below; because the summary table is section 1, the feature sections begin at 2, so the `#` values start at 2. A `○` roadmap feature with no detail section leaves `#` blank. Open item names the `05-backlog` id or the precondition when a feature is not fully built, otherwise `none`.
 - **Numbered feature list.** Every user-facing feature the component ships, numbered.
 - **Per feature**, five parts:
   - Who uses it.
@@ -51,5 +50,7 @@ This is the quality bar every one of the five component docs under `documents/ar
 ## Writing rule
 
 Every deliverable follows the same rule: no em or en dashes, no curly quotes, sentence-case headings, grounded to real code, no invented facts.
+
+Numbered sections: in every one of the five docs, each top-level `##` section heading is numbered sequentially from 1, per doc. In `03-feature-description.md` the feature summary table is section 1, so the feature detail sections begin at 2.
 
 Evergreen rule: these docs state the current system as fact. No dated "verified on" evidence framing, no `Date:` header field, no ticket IDs as inline citations. Verify live, then write the result as plain fact.
