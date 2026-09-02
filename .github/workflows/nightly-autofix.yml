@@ -1,0 +1,94 @@
+name: nightly-autofix
+
+# Nightly auto-fix routine.
+#
+# Picks the top open, vitest-verifiable bug row off the backlog boards
+# (scripts/next-bug.sh --verify vitest) and runs it through the
+# fix-backlog-item skill (.claude/skills/fix-backlog-item/SKILL.md), which
+# isolates a worktree, writes a failing test, fixes the root cause, verifies
+# with npm test + npm run typecheck, then opens a PR. The skill's own
+# blast-radius guardrail decides normal PR vs. draft "needs-human" PR; either
+# way it stops at an open PR and never merges.
+#
+# Restricted to --verify vitest rows: this is a headless Linux runner and
+# cannot drive the `browse` CLI that verify=browse rows need (that CLI drives
+# a real browser on a Mac).
+#
+# DISABLED BY DEFAULT. The `schedule` trigger below is commented out, so
+# merging this file does not turn on a live nightly run.
+#
+# To enable: uncomment the `schedule:` block below, set the
+# ANTHROPIC_API_KEY repo secret (Settings -> Secrets and variables ->
+# Actions), and push to main.
+#
+# Until enabled, this workflow only runs via manual dispatch (Actions tab ->
+# "nightly-autofix" -> Run workflow), which is useful for a one-off test run.
+
+on:
+  workflow_dispatch: {}
+  # schedule:
+  #   - cron: "0 9 * * *"   # 09:00 UTC nightly
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure git identity
+        run: |
+          git config user.name "nightly-autofix[bot]"
+          git config user.email "nightly-autofix[bot]@users.noreply.github.com"
+
+      - name: Pick the top vitest-verifiable bug
+        id: pick
+        run: |
+          set -euo pipefail
+          ROW="$(scripts/next-bug.sh --verify vitest | head -1)"
+          echo "row=$ROW" >> "$GITHUB_OUTPUT"
+          if [ -z "$ROW" ]; then
+            echo "No open vitest-verifiable bug rows -- nothing to do."
+          else
+            echo "Picked: $ROW"
+          fi
+
+      - name: Install Claude Code CLI
+        if: steps.pick.outputs.row != ''
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run fix-backlog-item on the picked row
+        if: steps.pick.outputs.row != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass the picked row through the environment, never interpolated
+          # into the shell string, so backlog text cannot inject a command.
+          ROW: ${{ steps.pick.outputs.row }}
+        run: |
+          set -euo pipefail
+          # fix-backlog-item has disable-model-invocation: true, so it is
+          # never triggered by keyword matching, only by this explicit
+          # slash-command invocation, on the exact row picked above.
+          #
+          # The permission flag below grants the CLI full autonomy (file
+          # edits, git, gh) with no human present to click through prompts,
+          # which is what a nightly run needs. Re-check `claude --help` for
+          # the current flag name/value before the first real run; if the
+          # skill needs a different permission mode to reach `gh pr create`
+          # non-interactively, adjust here.
+          claude -p "/fix-backlog-item ${ROW}" \
+            --permission-mode bypassPermissions
