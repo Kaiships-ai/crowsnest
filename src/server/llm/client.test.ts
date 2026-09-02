@@ -17,6 +17,10 @@ let resetLlmClient: typeof import("./client")["resetLlmClient"];
 let _createLlm: typeof import("./client")["_createLlm"];
 let _createCompatLlm: typeof import("./client")["_createCompatLlm"];
 let routerControl: { routerReachable: ReturnType<typeof vi.fn> };
+// Spies on `new Anthropic(...)` (client.ts's own constructor call inside getLlm()) so
+// tests can tell the direct-Anthropic branch from the compat/proxy branch by whether
+// `baseURL` was passed, without exporting the two client classes just for this.
+let AnthropicCtor: ReturnType<typeof vi.fn>;
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
@@ -31,6 +35,13 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   routerControl = { routerReachable: vi.fn().mockResolvedValue(true) };
   vi.doMock("./router-control", () => routerControl);
+  // A plain arrow-function implementation can't be invoked with `new` (no
+  // [[Construct]]) -- `getLlm()` does `new Anthropic(...)`, so this needs a real
+  // constructor function.
+  AnthropicCtor = vi.fn().mockImplementation(function FakeAnthropic() {
+    return { messages: { create: vi.fn(), parse: vi.fn(), stream: vi.fn(), countTokens: vi.fn() } };
+  });
+  vi.doMock("@anthropic-ai/sdk", () => ({ default: AnthropicCtor }));
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ setSecret } = await import("@/server/secrets/store"));
@@ -122,7 +133,12 @@ describe("hasLlmKey / getLlm", () => {
 
 describe("getLlm reachability fallback", () => {
   beforeEach(() => {
-    routerControl.routerReachable.mockReset();
+    // mockClear (not mockReset) -- clears call history for the toHaveBeenCalled
+    // assertions below without wiping the beforeAll default `mockResolvedValue(true)`,
+    // which later describe blocks in this file (that never set an explicit value of
+    // their own) still rely on.
+    routerControl.routerReachable.mockClear();
+    AnthropicCtor.mockClear();
   });
 
   test("LLM_BASE_URL set and reachable: still returns a compat client (unchanged behavior)", async () => {
@@ -133,6 +149,9 @@ describe("getLlm reachability fallback", () => {
     await getLlm();
 
     expect(routerControl.routerReachable).toHaveBeenCalled();
+    // Proxy branch: `new Anthropic()` gets a baseURL, pointing it at the router.
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBe("http://localhost:20128");
   });
 
   test("LLM_BASE_URL set but unreachable: falls back to a direct client instead of throwing or hanging", async () => {
@@ -143,9 +162,26 @@ describe("getLlm reachability fallback", () => {
     const client = await getLlm();
 
     expect(client).toBeDefined();
-    // isCompatMode() itself stays presence-only, unchanged (ACTION-12) — this asserts
-    // only that getLlm() no longer hands back a client pointed at a dead proxy.
+    expect(routerControl.routerReachable).toHaveBeenCalled();
+    // isCompatMode() itself stays presence-only, unchanged (ACTION-12) — it says a
+    // proxy is *configured*, not which branch was actually used, so the real proof
+    // of the fallback is the constructor call below: no baseURL means the direct
+    // Anthropic path was taken, not one pointed at the dead proxy.
     expect(isCompatMode()).toBe(true);
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBeUndefined();
+  });
+
+  test("routerReachable rejecting is treated as unreachable, not a getLlm() failure", async () => {
+    setSecret("ANTHROPIC_API_KEY", "sk-ant-test");
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockRejectedValue(new Error("boom"));
+
+    const client = await getLlm();
+
+    expect(client).toBeDefined();
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBeUndefined();
   });
 
   test("LLM_BASE_URL unset: never calls routerReachable at all", async () => {

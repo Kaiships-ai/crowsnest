@@ -249,7 +249,9 @@ export async function getLlm(): Promise<LlmClient> {
   if (!cachedClient) {
     const apiKey = getSecret("ANTHROPIC_API_KEY");
     const baseURL = process.env.LLM_BASE_URL;
-    const useCompat = isCompatMode() ? await routerReachable() : false;
+    // routerReachable() already swallows its own errors and resolves false, but a
+    // rejection here must never take getLlm() down with it -- treat one as unreachable.
+    const useCompat = isCompatMode() ? await routerReachable().catch(() => false) : false;
     const anthropic = new Anthropic(useCompat && baseURL ? { apiKey, baseURL } : { apiKey });
     cachedClient = useCompat ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
   }
