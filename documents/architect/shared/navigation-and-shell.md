@@ -14,7 +14,7 @@ The sidebar carries the navigation items and a get started checklist. The checkl
 
 ## The first run gate
 
-Before the shell renders anything, it checks a gate: a fresh install with setup not completed and no channels tracked is redirected to `/first-run` and never sees the shell. The gate is checked before any other read, so a redirect does not pay for queries it would throw away. First run onboarding itself is out of scope for this repo; the gate is described here only because it stands between an install and the core loop.
+Before the shell renders anything, it checks a gate: a fresh install with setup not completed and no channels tracked is redirected to `/first-run` and never sees the shell. The gate is checked before any other read, so a redirect does not pay for queries it would throw away. First run onboarding itself is out of scope for this document; the gate is described here only because it stands between an install and the core loop.
 
 ## How pages stay current
 
@@ -22,7 +22,7 @@ The core loop does not poll. Pages render on the server with a snapshot of the d
 
 A full navigation re runs the page and the shell. Moving between feed, mine, and studio re reads everything, so counts and strips are current after any navigation.
 
-An explicit refresh re reads the current page without a navigation. After a write, a client component calls a refresh so the server data it depends on reappears with the change: the [keep this post button](../feed/keep-this-post.md) flips to "Kept", the [calendar](../mine/calendar.md) shows a new plan, the failure strip freshens when a run finishes while the shell is already mounted. The refresh is how a server rendered value reflects a client action without a manual reload.
+An explicit refresh re reads the current page without a navigation. After a write, a client component calls a refresh so the server data it depends on reappears with the change: the keep this post button flips to "Kept", the calendar shows a new plan, the failure strip freshens when a run finishes while the shell is already mounted. The refresh is how a server rendered value reflects a client action without a manual reload.
 
 > Technical note: the refresh is `router.refresh()`. Between a write landing and the refresh completing there is a brief window where the client and the database disagree; each feature document notes where that window is visible.
 
@@ -32,7 +32,7 @@ The shell provides a navigation blocker so a page with unsaved work can stop a n
 
 ## Deep links
 
-Pages can be opened with an action or a seed in the URL. The [remix page](../remix/remix-overview.md) opens with a stage or a quick remix seed in its query string; the [feed](../feed/feed.md) carries its filters in the URL so a saved view is a link. A deep link is how one page starts another in a particular state, and how the browser back and forward buttons move between those states.
+Pages can be opened with an action or a seed in the URL. The remix page opens with a stage or a quick remix seed in its query string; the feed carries its filters in the URL so a saved view is a link. A deep link is how one page starts another in a particular state, and how the browser back and forward buttons move between those states.
 
 ## The command menu
 
@@ -40,7 +40,7 @@ The shell includes a keyboard driven command menu for jumping between pages and 
 
 ## Interactions with other systems
 
-**Persistence and autosave.** The shell holds no per action state; it reads counts and strips fresh each time. See [persistence](../cross-cutting/persistence.md) for what individual pages save.
+**Persistence and autosave.** The shell holds no per action state; it reads counts and strips fresh each time. See [persistence](persistence.md) for what individual pages save.
 
 **History and undo.** Browser back and forward move between URL states (filters, stages). There is no shell level undo.
 
@@ -48,9 +48,9 @@ The shell includes a keyboard driven command menu for jumping between pages and 
 
 **Background jobs and the sidecar.** A run finishing while the shell is mounted freshens the failure strip through a refresh, not a poll. See [background jobs](background-jobs.md).
 
-**External services.** The shell itself needs none; its reads are local. Individual pages degrade when a service is down, described in [external services](../cross-cutting/external-services.md).
+**External services.** The shell itself needs none; its reads are local. Individual pages degrade when a service is down, described in [external services](external-services.md).
 
-**Status and failures.** The failure strip in the topbar is the shell's own status surface. See [status and failures](../cross-cutting/status-and-failures.md).
+**Status and failures.** The failure strip in the topbar is the shell's own status surface. See [status and failures](status-and-failures.md).
 
 **Configuration and settings.** The get started checklist and the gate read setup state; otherwise the shell has no configuration of its own.
 
@@ -59,10 +59,3 @@ The shell includes a keyboard driven command menu for jumping between pages and 
 - A fresh install never sees the shell; it is redirected to first run until setup is done.
 - The failure strip and counts are current as of the last navigation or refresh, so a change made by a background job appears only after the next navigation or an explicit refresh.
 - Because the layout is dynamic, every navigation into the shell re runs its four count queries; at single user local scale this is cheap and intended.
-
-## Open questions and verification
-
-- Exactly which pages register with the navigation blocker, and what the confirmation looks like, was read from the provider's presence but not confirmed per page; each feature document states its own leave behavior.
-- Whether the command menu exposes core loop actions (start a remix, cook a post) or only navigation was not fully traced and needs a live check.
-
-Verified against this repo commit `4f26fb9`.

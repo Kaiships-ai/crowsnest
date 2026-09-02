@@ -11,3 +11,6 @@ Bugs and enhancements for feed. One row per item.
 | B-16 | Quick preview shows a soft-removed video with no removed marker | low | bug | bug-triage | open |
 | OBS-1 | Feed caption overlay unreadable (white text on a scrim that fades under it) | medium | bug | observed-bugs | open |
 | OBS-2 | '1 results' hardcoded plural on the feed count | low | bug | observed-bugs | open |
+| FEED-Q1 | Default-view logic for a bare `/feed` visit is conflicting: one helper resolves to the full library, another names High Conviction as the default, and a stale comment still mentions a "Balanced" default | medium | bug | product-description open question | open |
+| FEED-Q2 | Two tabs can save a view under the same name with no deduplication | low | enhancement | product-description open question | open |
+| FEED-Q3 | The quick preview sheet has no error branch on a failed server read, so a rejected fetch leaves it stuck on its placeholder bars instead of showing an error or the not-found state | medium | bug | product-description open question | open |

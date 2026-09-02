@@ -15,7 +15,7 @@ documents describe the actions; this one names the surfaces those actions light 
 keeps their meanings in one place so no two documents describe the same pill or the same
 tone differently. Where a surface belongs to a feature, that feature's document owns the
 interaction and links here for the surface. The run status meanings themselves are owned
-by [background jobs](../foundations/background-jobs.md); this document covers how they are
+by [background jobs](background-jobs.md); this document covers how they are
 shown, not what they mean.
 
 ## The simple case
@@ -37,7 +37,7 @@ all.
 ### The failure strip
 
 The strip is a banner in the topbar, below the header, on every route under the
-[shell](../foundations/navigation-and-shell.md). It is the app's standing status surface:
+[shell](navigation-and-shell.md). It is the app's standing status surface:
 persistent, app wide, and read fresh on each navigation rather than tied to any one action.
 
 In practice the strip reports the most recent sidecar sync. It reads the single latest sync
@@ -90,18 +90,18 @@ Destructive actions carry their undo inside the toast. Removing a kept post show
 from the vault" with an Undo action that re creates the row; the same pattern covers the
 other destructive actions in the loop. The undo lives only as long as the toast: once it
 fades, the action is the only way back. This is the app's undo model for these actions,
-described in full for the keep button in [save to vault](../feed/keep-this-post.md); there is
-no global undo stack behind it.
+described in full for the keep button in the feed component's keep-this-post document; there
+is no global undo stack behind it.
 
 A toast reports the result; it does not change the page. Where the display depends on server
-data, the action also calls a [refresh](../foundations/navigation-and-shell.md) so the
+data, the action also calls a refresh so the
 server rendered value catches up, and the toast is only the notification that the write
 landed.
 
 ### The remix run log
 
-The run log is the [remix session](../glossary.md)'s own history, shown below the stage in
-the [remix studio](../remix/remix-overview.md). It is per session, not app wide, and it is
+The run log is the remix session's own history, shown below the stage in
+the remix studio. It is per session, not app wide, and it is
 append only: every generation attempt writes a row, on success and on failure, newest first,
 each with its elapsed time. Sub second attempts read in milliseconds and longer ones in
 seconds, so a fast hook generation does not round away to nothing.
@@ -117,12 +117,11 @@ Each row carries one of three tones, and the tone is the point:
 
 The run log is also where the studio reads whether the model proxy is down: a connection
 error in the last few rows flips the generation stages to blocked, and the next successful
-attempt clears it. That inference belongs to the [remix studio](../remix/remix-overview.md);
-the run log is the evidence it reads.
+attempt clears it. That inference belongs to the remix studio; the run log is the evidence it reads.
 
 ### The create-run run pills
 
-The [run pill](../glossary.md) is the live status of one cook run, on the studio panel.
+The run pill is the live status of one cook run, on the studio panel.
 It is per run and live: it repaints as the run reports a new status and it is not persisted,
 so it is view state that resets on a reload. It shows the five create run statuses with user
 facing labels, not the raw status words:
@@ -138,27 +137,27 @@ and destructive tones the runs list already uses. A status the panel does not re
 falls back to the "canceled" pill rather than showing nothing, so an unknown status still
 reads as a neutral, ended looking pill. A clock beside the pill counts up while the status is
 running or waiting and freezes on any ending. The full drive from the user's side, including
-the clock's zero point and the Stop button, is owned by [the cook run](../studio/cook-run.md).
+the clock's zero point and the Stop button, is owned by the studio's cook run document.
 
 ### Empty and error states
 
 When a page has nothing to render, or cannot render, it says so in place rather than showing
 a failure. These are not failures; they are the honest resting state of a read.
 
-The [feed](../feed/feed.md) has four distinct empty states, each matched to the reason the
+The feed has four distinct empty states, each matched to the reason the
 slice came back empty: no channels tracked at all, channels tracked but none synced yet, a
 search that matched nothing, and a filter slice that cleared everything out. The recovery
 link differs per case, so the user is pointed at the actual fix rather than a generic "no
 results".
 
-The [calendar](../mine/calendar.md) is careful about the difference between "nothing happened"
+The calendar is careful about the difference between "nothing happened"
 and "nothing was checked". A month with no plans simply shows empty day cells. The published
 and dead air markers depend on a Graph measurement having run at all: a channel that has never
 been measured has no own posts to reconcile against, so those markers stay off entirely rather
 than reading an empty month as a failure. The scheduled, missed, and open states still render,
 because they come from planned posts and need no Graph connection.
 
-The [studio](../studio/cook-run.md) panel's Output pane reads "Run Cook to start the session"
+The studio panel's Output pane reads "Run Cook to start the session"
 before a cook, and "Cooking. The render appears here when it finishes." once a cook is started
 but before a render lands. A failed cook keeps that placeholder rather than inventing an error
 panel; the terminal is where the reason was printed. The header also notes "Frame pass not run"
@@ -208,20 +207,20 @@ data is a server rendered snapshot re read on each navigation. See
 **History and undo.** Undo lives inside the toast for destructive actions and nowhere else;
 once the toast fades, the action is the only way back. The run log is append only history,
 not an undo stack: it records that an attempt happened but does not restore what an attempt
-replaced. See [save to vault](../feed/keep-this-post.md) for the undo pattern in full.
+replaced. See the feed component's keep-this-post document for the undo pattern in full.
 
 **Navigation and refresh.** The strip is read once per server render and freshened by the
 live sync poll while the shell is mounted; a `router.refresh()` after a write is what flips
 any server rendered status a toast reported. Run pills do not use refresh; they repaint from
-the live session. See [navigation and shell](../foundations/navigation-and-shell.md).
+the live session. See [navigation and shell](navigation-and-shell.md).
 
-**Background jobs and the sidecar.** The failure strip is the [sidecar sync](../foundations/background-jobs.md)'s
-status surface; the run pill is the [cook run](../studio/cook-run.md)'s. Both read their
+**Background jobs and the sidecar.** The failure strip is the sidecar sync's
+status surface; the run pill is the cook run's. Both read their
 state from the database, which is why a run's verdict outlives the page that started it. See
-[background jobs](../foundations/background-jobs.md).
+[background jobs](background-jobs.md).
 
 **External services.** The strip classifies the sidecar, session, cooldown, and network
-codes a sync reports. The [LLM proxy](external-services.md) being down does not touch the
+codes a sync reports. The LLM proxy being down does not touch the
 strip; it surfaces as connection errors in the remix run log, which the studio reads to block
 generation. See [external services](external-services.md).
 
@@ -235,8 +234,8 @@ code, not tunable.
 
 - The strip's framing is app wide but its content is the last sync only. A failed cook run
   surfaces on its own pill and, per the feature documents, is meant to reach the strip too,
-  but the strip's classifier reads sync jobs; whether a cook failure actually lands there is
-  called out in open questions.
+  but the strip's classifier reads sync jobs; whether a cook failure actually lands there was
+  not confirmed.
 - A run in flight hides the strip entirely rather than showing a stale verdict underneath the
   progress panel, so the shell never shows two contradictory sync states at once.
 - A partial notice is the only strip kind the user can dismiss, because it is the only one
@@ -251,23 +250,3 @@ code, not tunable.
   meant to click but did not is unrecoverable after a reload.
 - The calendar's published and dead air markers stay off for an unmeasured channel, so an
   empty month reads as "nothing checked" rather than "nothing happened".
-
-## Open questions and verification
-
-- Whether a failed cook run actually appears in the shell failure strip was not confirmed.
-  The other documents describe the strip as surfacing failures across the app, but
-  `getFailureStrip` reads only the latest sync job and classifies Instagram error codes, so
-  a create run failure may reach the strip through a path not traced here, or may only show on
-  its own pill. This needs a live check with a deliberately failed cook.
-- The exact placement, duration, and stacking of toasts (which corner, how long before they
-  fade, how many stack) were read as the sonner defaults and not confirmed by hand.
-- Whether a toast's Undo reliably survives a fast navigation to a different route, or is torn
-  down with the page that raised it, was read from sonner being mounted at the app level but
-  not confirmed by hand.
-- Whether the "waiting on you" pill's meaning (input, phase boundary, or a stalled heartbeat)
-  matches the label was deferred to [background jobs](../foundations/background-jobs.md) and
-  needs confirming against a real cook.
-
-Verified against this repo commit `4f26fb9`.
-</content>
-</invoke>

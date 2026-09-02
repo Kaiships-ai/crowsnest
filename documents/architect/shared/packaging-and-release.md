@@ -43,6 +43,6 @@ All in `packaging/platforms.json`, one key per platform: node 22.23.1, python-bu
 ## Open, not done
 
 - IG sync and AI analysis are untested with real credentials. The buyer test left both blank.
-- The keyless LLM path (no 9router proxy) is unverified. The app defaults `CLAUDE_MODEL` to `claude-sonnet-5`, which reaches the real Anthropic API, but a live analysis run has not confirmed it end to end.
+- The no-proxy LLM path (no 9router proxy) is unverified. The app defaults `CLAUDE_MODEL` to `claude-sonnet-5`, which reaches the real Anthropic API, but a live analysis run has not confirmed it end to end.
 - Intel Macs and Windows or Linux are future. install.sh refuses non-arm64 with a refund pointer.
 - The install URL is the raw `workers.dev` subdomain. A custom domain (for example `get.crowsnest.sh`) is cosmetic and not set up.
