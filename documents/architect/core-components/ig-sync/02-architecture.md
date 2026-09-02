@@ -4,7 +4,7 @@
 
 Status: shipped and in daily use, blocked for buyer installs by an onboarding bug that writes an empty `IG_PASSWORD`.
 
-## Module structure
+## 1. Module structure
 
 ### The Python sidecar (`services/ig/`)
 
@@ -35,7 +35,7 @@ Status: shipped and in daily use, blocked for buyer installs by an onboarding bu
 
 `importReelByUrl` (also in `sync-engine.ts`) and its `importReelAction` wrapper fetch a single reel through the yt-dlp provider (`src/server/providers/ytdlp.ts`), not through this sidecar. It writes into the same `videos` table with the same upsert shape, but it is a feed owned import path, not an ig-sync feature; see [feed](../feed/01-concept-brief.md).
 
-## ER diagram
+## 2. ER diagram
 
 ```mermaid
 erDiagram
@@ -105,7 +105,7 @@ erDiagram
     }
 ```
 
-## Indexes
+## 3. Indexes
 
 | Table | Index | Notes |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ erDiagram
 
 `channel_snapshots` and `video_snapshots` carry no indexes beyond their primary key; both are written once per sync and read by channel id or video id through the existing `videos_channel_posted`/foreign key path.
 
-## Data flow
+## 4. Data flow
 
 **One session, over localhost.** The sidecar holds exactly one authenticated `instagrapi` `Client`. It is the only process in crowsnest that logs in to Instagram or ever sees an Instagram CDN URL. The Next.js app reaches it at `IG_SERVICE_URL` (default `http://127.0.0.1:8765`), sending the shared secret `IG_SERVICE_TOKEN` as an `X-IG-Token` header on every request; the sidecar binds loopback only and refuses any other host at boot. Credentials (`IG_USERNAME`, `IG_PASSWORD`) are read by the sidecar process alone from `.env.local` and are never sent to or rendered by the app.
 
@@ -142,7 +142,7 @@ erDiagram
 
 **Detached start.** `startSyncAction` returns the moment the lock is won (job id in hand, via `onJobStarted`) and lets the run finish under Next's `after()`, so the browser never holds a POST open for a minutes long sync. Progress and cancel both go through the `sync_jobs` row: `getSyncProgressAction` polls it, `cancelSyncAction` sets `cancel_requested`, and the engine notices co operatively at the next page or channel boundary, keeping everything already committed.
 
-## Sequence: one sync pass
+## 5. Sequence: one sync pass
 
 ```mermaid
 sequenceDiagram
@@ -205,7 +205,7 @@ sequenceDiagram
     deactivate Worker
 ```
 
-## Key decisions
+## 6. Key decisions
 
 - **Python sidecar, not in process.** instagrapi is Python, and its `Client` holds the session, the pinned device profile, and the cookie jar. A process per call design would re authenticate constantly, and a storm of logins is exactly what gets an account challenged. A long lived sidecar is the only shape where one warm session, request pacing, and session recovery are real code paths. (Concept brief; `services/ig/README.md`.)
 - **instagrapi despite the ToS risk.** Instagram's Basic Display API shut down 2024-12-04 and the Graph API cannot enumerate an arbitrary creator's media. instagrapi drives the private mobile API, which is against Instagram's Terms and can get the account rate limited, challenged, or banned, a disclosed trade off, which is why it is meant for a burner account. This also replaced a paid vendor (Apify) so the product depends on no third party.
@@ -215,7 +215,7 @@ sequenceDiagram
 - **Config refuses to boot half configured.** The sidecar exits 78 (`EX_CONFIG`) on any bad or missing required value rather than answering requests it cannot honor. `IG_USERNAME` and `IG_PASSWORD` must be set together, the failure mode the onboarding bug below trips.
 - **Loopback only, shared secret authenticated.** The sidecar refuses a non loopback `IG_SERVICE_HOST`, and `IG_SERVICE_TOKEN` (min 16 chars) is the only thing between a local process and the Instagram session. The session blob is written mode 0600.
 
-## Open, not verified
+## 7. Open, not verified
 
 - **The sidecar won't start onboarding bug** (`evidence/10-onboarding-bugs.md`, BUG 1): `kai kit init`'s masked `IG_PASSWORD` prompt returned empty on a real TTY, so `.env.local` was written with `IG_PASSWORD=` (length 0). The sidecar then refuses to start, `IG_USERNAME and IG_PASSWORD must be set together`, exit 78 `EX_CONFIG`, and launchd crash loops it, so port 8765 never comes up and IG sync is dead for every buyer. The root cause is in the CLI prompt (`src/cli/kai.ts`), not the sidecar; `config.py` is proven correct. This is a hard blocker for the IG half of the product.
 - **No live sync has been proven end to end.** Per `documents/architect/shared/packaging-and-release.md`, a Kit install has not been shown to complete a live Instagram sync with real credentials; the buyer test that exercised the installer left the Instagram fields blank.

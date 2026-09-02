@@ -8,6 +8,17 @@ ig-sync has no page of its own the way analyze does. Its user facing edges are t
 
 Dependency worth stating first, because it is the difference between the features below working and not existing at all: the sidecar must start, and it only starts when onboarding wrote `IG_PASSWORD` correctly. A known onboarding bug wrote an empty password, and the sidecar then refuses to start, exit 78 `EX_CONFIG`, launchd crash loops it, port 8765 never comes up. When that happens every sync fails with the local service down verdict and no new videos ever arrive. That is the standing precondition behind every feature below.
 
+## Feature summary
+
+Legend: ● Built, ◐ Partial, ○ Roadmap.
+
+| # | Feature | What it does | Status | Grounded in | Open item |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Track a channel | Add an Instagram handle; the sidecar resolves the profile | ● | `services/sync-engine.ts` (addChannel) | none |
+| 2 | Sync a channel's posts | Page recent media, upsert videos, snapshot metrics, rescore | ● | `services/sync-engine.ts` (runSync) | onboarding empty IG_PASSWORD blocks buyer installs |
+| 3 | Backfill blank view counts | Re-read the real play count via `/media-stats` where the listing returned zero | ● | `services/sync-engine.ts` (startViewCountBackfillAction) | none |
+|  | TikTok / YouTube Shorts ingestion | Multi-platform tracking; the `platform` column is reserved | ○ | no backend yet | roadmap |
+
 ## 1. Track a channel
 
 ### Who uses it
