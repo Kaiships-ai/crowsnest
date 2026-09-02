@@ -319,7 +319,7 @@ export async function generateHooks(id: string, opts?: { vaultItemId?: string; l
       ? (await getVaultItemTemplateText(opts.vaultItemId)) ?? describeSourceHookPattern(analysis)
       : describeSourceHookPattern(analysis);
 
-    const client = opts?.llm ?? getLlm();
+    const client = opts?.llm ?? (await getLlm());
     const niche = await getNicheProfile();
     const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
@@ -371,7 +371,7 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient; stee
       ? (await getVaultItemTemplateText(session.styleVaultItemId)) ?? describeSourceStructure(analysis)
       : describeSourceStructure(analysis);
 
-    const client = opts?.llm ?? getLlm();
+    const client = opts?.llm ?? (await getLlm());
     const niche = await getNicheProfile();
     const persona = await getPersona();
     const topic = session.topic ?? video?.caption ?? "this topic";
@@ -427,7 +427,7 @@ export async function generateVariants(
   const video = await getVideoRow(session.sourceVideoId);
   const analysis = await getAnalysis(session.sourceVideoId);
   const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
-  const client = opts?.llm ?? getLlm();
+  const client = opts?.llm ?? (await getLlm());
   const niche = await getNicheProfile();
   const persona = await getPersona();
   const facts = session.researchNotes?.facts || undefined;

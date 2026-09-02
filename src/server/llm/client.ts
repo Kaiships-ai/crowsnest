@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { getSecret } from "@/server/secrets/store";
+import { routerReachable } from "./router-control";
 
 /**
  * Thin wrapper around `@anthropic-ai/sdk` (Task 1, phase-3 plan) — every AI feature
@@ -213,8 +214,10 @@ function parseLooseJson<T>(raw: string, schema: z.ZodType<T>): { success: true; 
 }
 
 /**
- * A base-URL override (`LLM_BASE_URL`) means requests go through a local
- * OpenAI-compat router rather than the real Anthropic API — see `CompatLlmClient`.
+ * A base-URL override (`LLM_BASE_URL`) means a local OpenAI-compat router is
+ * *configured* — see `CompatLlmClient`. Presence-only, deliberately: `getLlm()` also
+ * checks `routerReachable()` before deciding which client to actually hand back, so this
+ * function alone no longer says whether a given call is routed through the proxy.
  */
 export function isCompatMode(): boolean {
   return Boolean(process.env.LLM_BASE_URL);
@@ -227,15 +230,28 @@ let cachedClient: LlmClient | null = null;
  * surface the keyless-mode Alert instead of crashing. `new Anthropic()` (zero-arg) would
  * read `ANTHROPIC_API_KEY` from `process.env` itself, which never sees a db-only key —
  * the key resolved via `getSecret` (db-first, env fallback) is passed explicitly instead.
- * `LLM_BASE_URL` is not a managed secret, so it still reads straight from the env.
+ *
+ * A valid key should work even when `LLM_BASE_URL` points at a 9router that isn't
+ * actually running (03-feature-description.md §6): `isCompatMode()` is presence-only, so
+ * it isn't enough on its own to decide the client. `routerReachable()` (already used by
+ * Settings' 9router status panel) settles it — reachable: honor the proxy, same as
+ * before; unreachable: fall through to the real Anthropic API directly instead of
+ * handing back a client pointed at a dead address.
+ *
+ * ponytail: reachability is checked once per cache lifetime, not per call — if 9router
+ * comes back up mid-session after a fallback, calls keep going direct until the next
+ * `resetLlmClient()` (a secret save) or process restart. Upgrade path: re-check
+ * `routerReachable()` on every call, or invalidate the cache on a timer, if that gap
+ * ever matters in practice.
  */
-export function getLlm(): LlmClient {
+export async function getLlm(): Promise<LlmClient> {
   if (!hasLlmKey()) throw new NoApiKeyError();
   if (!cachedClient) {
     const apiKey = getSecret("ANTHROPIC_API_KEY");
     const baseURL = process.env.LLM_BASE_URL;
-    const anthropic = new Anthropic(baseURL ? { apiKey, baseURL } : { apiKey });
-    cachedClient = isCompatMode() ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
+    const useCompat = isCompatMode() ? await routerReachable() : false;
+    const anthropic = new Anthropic(useCompat && baseURL ? { apiKey, baseURL } : { apiKey });
+    cachedClient = useCompat ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
   }
   return cachedClient;
 }
