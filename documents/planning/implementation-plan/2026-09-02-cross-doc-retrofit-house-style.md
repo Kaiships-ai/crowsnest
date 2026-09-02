@@ -1,9 +1,9 @@
 ---
-status: active
+status: shipped
 components: [kit, onboarding, feed, analyze, remix, studio, mine, llm]
 backlog: none
 owner: session-2026-09-02
-shipped: null
+shipped: 2026-09-02 513dac1
 ---
 
 # Retrofit 8 components to the doc house-style Implementation Plan
