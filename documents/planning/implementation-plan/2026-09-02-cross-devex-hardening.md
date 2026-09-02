@@ -1,9 +1,9 @@
 ---
-status: active
+status: shipped
 components: [kit, onboarding, ig-sync, feed, mine, studio, shared]
 backlog: none
 owner: session-2026-09-02
-shipped: null
+shipped: 2026-09-02 7655093
 ---
 
 # Devex hardening: auto-fix, fast release, test infra to 8 Implementation Plan
