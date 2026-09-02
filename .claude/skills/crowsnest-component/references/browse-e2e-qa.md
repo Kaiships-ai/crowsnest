@@ -14,10 +14,22 @@ its e2e layer. `browse` already covers what a Playwright spec would: navigate a 
 click and type against the rendered DOM, and assert on what actually appears, without a
 second toolchain, a second dependency set, or a second CI job to maintain.
 
-Treat `browse` as a QA tool you run interactively or from a script during a work session,
-not as a persisted spec file checked into the repo. The lasting artifact of a browse-e2e
-run is the case table in `04-test-cases.md` plus whatever the running skill reports back,
-not a `.spec.ts` file.
+Treat `browse` as a QA tool, not a second test framework: there is no spec file format,
+no page object layer, and no assertion DSL to learn beyond a case's own Arrive/Act/Assert
+steps. But a journey is still worth keeping runnable, not just narrated once and
+forgotten, so once a case's `data-testid`s exist, its journey is written down as a small
+shell script under `scripts/e2e/<component>-<id>.sh` (for example
+`scripts/e2e/feed-e2e-01.sh` for feed's E2E-01) -- plain bash calling the `browse` CLI
+directly, one script per case, no shared spec runner, no fixtures beyond a seeded
+database. `npm run e2e` (`scripts/e2e/run.sh`) seeds a fixture database, starts the dev
+server on port 3001 against it, runs every `scripts/e2e/*-e2e-*.sh` script in turn, and
+exits non-zero on the first journey that fails; `scripts/release-prep.sh` calls it before
+a release, same as `npm test`. The lasting artifact of a browse-e2e case is therefore two
+things together: the case table in `04-test-cases.md`, which is the source a journey
+script is written from, and the checked-in `scripts/e2e/<component>-<id>.sh` script
+itself, which is what actually runs it. Neither one is a `.spec.ts` file, and this is
+still not Playwright: no page object layer, no `test.describe` blocks, no second
+dependency set to keep current.
 
 ## data-testid discipline
 
@@ -82,6 +94,17 @@ Source route: `src/app/(shell)/channels/page.tsx`, rendering `ChannelsKanban`
     not to pick out the new one by position, since new cards are not guaranteed to land in a
     predictable order).
 
-None of these `data-testid` values exist in the current markup. Adding them to
-`kanban-board.tsx` and `add-channel-dialog.tsx` is a prerequisite for scripting this journey,
-not an optional nice-to-have, per the data-testid discipline above.
+These `data-testid` values now exist on `kanban-board.tsx` and `add-channel-dialog.tsx` --
+adding them was a prerequisite for scripting this journey at all, not an optional nice to
+have, per the data-testid discipline above.
+
+The checked-in script closest to this worked example is `scripts/e2e/ig-sync-e2e-01.sh`,
+with one deliberate difference: it runs with the Instagram sidecar down and asserts the
+inline error path (`add-channel-dialog.tsx`'s `error` Alert, "The Instagram service isn't
+running.") instead of the live "{handle} tracked" success path this worked example
+describes. A harness that runs `npm run e2e` cannot assume a machine has the sidecar
+logged into a real burner Instagram account, so the checked-in journey exercises the part
+of this flow that is honestly runnable everywhere: the same add-channel form, the same
+submit action, a different, still-real outcome. The live success path stays exactly what
+this worked example above says -- run it by hand, or against a machine that does have the
+sidecar up, when that path itself needs checking.
