@@ -56,10 +56,15 @@ export function PublishDialog({
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // A publish can only be scheduled forward, so never pre-fill or allow a past date: an
+  // old plan carrying a stale plannedDate would otherwise nudge the user straight into a
+  // schedule the action rejects.
+  const today = new Date().toISOString().slice(0, 10);
+
   const [hasVideo, setHasVideo] = useState(plan.videoAssetId !== null);
   const [videoName, setVideoName] = useState<string | null>(null);
   const [caption, setCaption] = useState(plan.caption ?? "");
-  const [date, setDate] = useState(plan.plannedDate ?? "");
+  const [date, setDate] = useState(plan.plannedDate && plan.plannedDate >= today ? plan.plannedDate : "");
   const [time, setTime] = useState(plan.plannedTime ?? "");
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -229,6 +234,7 @@ export function PublishDialog({
               <Input
                 id="publish-date"
                 type="date"
+                min={today}
                 data-testid="publish-dialog-date"
                 className="font-mono tabular-nums"
                 value={date}

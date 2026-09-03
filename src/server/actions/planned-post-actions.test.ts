@@ -543,6 +543,13 @@ describe("schedulePublishAction preconditions", () => {
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_INVALID_SCHEDULE" });
   });
 
+  test("rejects a schedule time in the past (would publish immediately)", async () => {
+    configurePublish();
+    const id = await seedPublishablePlan();
+    const result = await schedulePublishAction(id, "2020-01-01T00:00");
+    expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_SCHEDULE_IN_PAST" });
+  });
+
   test("schedules when every precondition is met, setting scheduledAt and the idempotency key", async () => {
     configurePublish();
     const id = await seedPublishablePlan();

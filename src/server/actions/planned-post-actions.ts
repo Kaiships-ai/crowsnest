@@ -415,6 +415,12 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
     // datetime-local is a local wall-clock value; Date() reads it as local and toISOString
     // gives the real instant the scheduler (which compares against now.toISOString()) reads.
     const iso = new Date(scheduledAtIso).toISOString();
+    // A past instant would be due the moment it lands, so the scheduler would publish it on
+    // the next tick. That is a surprise when someone picks an old date, so refuse it and
+    // point them at Publish now for an immediate post.
+    if (new Date(iso).getTime() <= Date.now()) {
+      return { ok: false, error: "Pick a time in the future to schedule. To post right away, use Publish now.", code: "PLAN_SCHEDULE_IN_PAST" };
+    }
     await db
       .update(tables.plannedPosts)
       .set({
