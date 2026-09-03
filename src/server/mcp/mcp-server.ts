@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getOutlierFeed, type FeedFilters, type FeedSort } from "@/server/queries/feed";
 import { getVideoDetail } from "@/server/queries/video";
-import { getStudioBrief } from "@/server/queries/studio";
+import { getPostBrief } from "@/server/queries/post-brief";
 import { getScripts } from "@/server/queries/vault";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
 import {
@@ -35,7 +35,7 @@ function text(value: unknown) {
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a studio brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
+    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a post brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
   );
 
   server.registerTool(
@@ -89,12 +89,12 @@ export function buildMcpServer(): McpServer {
   server.registerTool(
     "crowsnest_brief",
     {
-      title: "Studio brief",
-      description: "The studio brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
+      title: "Post brief",
+      description: "The brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
       inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_plans.") },
     },
     async (args) => {
-      const brief = await getStudioBrief(args.postId);
+      const brief = await getPostBrief(args.postId);
       if (!brief) return text({ error: "not found", postId: args.postId });
       return text(brief);
     }
@@ -158,7 +158,7 @@ export function buildMcpServer(): McpServer {
   );
 
   // Remix, exposed one tool per stage so a caller can steer each step. Every tool calls
-  // the same service functions the studio uses. The generate tools (hooks, outline,
+  // the same service functions the dashboard uses. The generate tools (hooks, outline,
   // variants) need the LLM proxy; the others do not. Stage progression on the session is
   // left to the service functions (finish sets the stage); these tools do not manage the
   // stepper, since that only affects how the dashboard renders the session.

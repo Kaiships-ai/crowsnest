@@ -8,7 +8,7 @@ let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let getPlannedPostById: typeof import("./planned-posts")["getPlannedPostById"];
-let getStudioBrief: typeof import("./studio")["getStudioBrief"];
+let getPostBrief: typeof import("./post-brief")["getPostBrief"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -18,7 +18,7 @@ beforeAll(async () => {
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ getPlannedPostById } = await import("./planned-posts"));
-  ({ getStudioBrief } = await import("./studio"));
+  ({ getPostBrief } = await import("./post-brief"));
 });
 
 beforeEach(async () => {
@@ -107,7 +107,7 @@ describe("getPlannedPostById", () => {
   });
 });
 
-describe("getStudioBrief", () => {
+describe("getPostBrief", () => {
   test("returns the plan plus a video when a sourceVideoId is set", async () => {
     const channelId = await seedChannel();
     const videoId = await seedVideo(channelId);
@@ -116,7 +116,7 @@ describe("getStudioBrief", () => {
       id, state: "draft", title: "Has a source", videoKind: "explainer", sourceVideoId: videoId, createdAt: nowIso(), updatedAt: nowIso(),
     });
 
-    const brief = await getStudioBrief(id);
+    const brief = await getPostBrief(id);
     expect(brief?.plan.title).toBe("Has a source");
     expect(brief?.plan.videoKind).toBe("explainer");
     expect(brief?.video?.item.videoId).toBe(videoId);
@@ -128,13 +128,13 @@ describe("getStudioBrief", () => {
       id, state: "draft", title: "No source", createdAt: nowIso(), updatedAt: nowIso(),
     });
 
-    const brief = await getStudioBrief(id);
+    const brief = await getPostBrief(id);
     expect(brief?.plan.title).toBe("No source");
     expect(brief?.video).toBeNull();
   });
 
   test("returns null for an unknown id", async () => {
-    expect(await getStudioBrief("does-not-exist")).toBeNull();
+    expect(await getPostBrief("does-not-exist")).toBeNull();
   });
 
   test("follows remixSessionId to the session and the analysis of the video that session remixed", async () => {
@@ -147,7 +147,7 @@ describe("getStudioBrief", () => {
       createdAt: nowIso(), updatedAt: nowIso(),
     });
 
-    const brief = await getStudioBrief(id);
+    const brief = await getPostBrief(id);
     expect(brief?.remix?.session.chosenHook).toBe("Everyone is sleeping on this.");
     expect(brief?.remix?.session.chosenVariantIndex).toBe(1);
     expect(brief?.remix?.sourceAnalysis?.structureSegments[0].transcript).toBe("stop scrolling for a second");
@@ -158,6 +158,6 @@ describe("getStudioBrief", () => {
     await db.insert(tables.plannedPosts).values({
       id, state: "draft", title: "Hand made", createdAt: nowIso(), updatedAt: nowIso(),
     });
-    expect((await getStudioBrief(id))?.remix).toBeNull();
+    expect((await getPostBrief(id))?.remix).toBeNull();
   });
 });
