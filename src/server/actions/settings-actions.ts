@@ -95,7 +95,7 @@ export async function saveNicheSettingsAction(niche: string, keywords: string[])
  */
 export async function testAnthropicKeyAction(llm?: LlmClient): Promise<SimpleResult> {
   try {
-    const client = llm ?? getLlm();
+    const client = llm ?? (await getLlm());
     await client.ping();
     return { ok: true };
   } catch (err) {

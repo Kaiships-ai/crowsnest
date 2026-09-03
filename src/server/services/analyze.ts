@@ -98,7 +98,7 @@ export async function getOrCreateAnalysis(
   const [video] = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
   if (!video) return null; // no video row to analyze against (shouldn't happen given the FK, but stay defensive)
 
-  const client = opts?.llm ?? getLlm();
+  const client = opts?.llm ?? (await getLlm());
   const analysis = await client.generateParsed({
     system: ANALYZE_SYSTEM,
     user: buildAnalyzeUser(

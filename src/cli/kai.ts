@@ -14,7 +14,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { constants as osConstants, homedir } from "node:os";
 import { basename, join } from "node:path";
 import { createInterface } from "node:readline/promises";
 
@@ -31,6 +31,39 @@ import {
   wheelhouse,
 } from "./runtime";
 import * as svc from "./service-darwin";
+
+// Only run the CLI (or respawn it below) when this file is executed directly, not when
+// a test imports it for `ask`/`checkPairedIgCreds`/etc. tsx runs this file as CJS in the
+// dev repo and in a bundle (require.main is set); vitest's ESM loader never sets
+// require.main here.
+const isMain = typeof require !== "undefined" && require.main === module;
+
+// `kai` can be invoked from any cwd (packaging/build-bundle.sh's launcher execs tsx
+// without a `cd` first). tsx resolves `@/`-aliased imports (service-darwin.ts's
+// services() reaches `@/server/secrets/store` -> `@/server/db`, loaded lazily inside
+// igEnv()) against a project root it locates once, before this file's own top-level
+// code runs at all -- confirmed by direct experiment: even `process.chdir(REPO)` as the
+// very first statement of a throwaway entry script, before any import, does not change
+// which root a later `import("@/server/db")` resolves against in that same process. A
+// plain `process.chdir()` here would compile, look right, and silently do nothing.
+// The only fix that actually works is a real OS-level respawn: hand off to a fresh `kai`
+// process whose cwd is appRoot from the moment the OS creates it, before tsx's own
+// loader ever initializes. Only for the actual CLI invocation (isMain); importing this
+// module from a test must never spawn a child process.
+if (isMain && process.cwd() !== REPO) {
+  const res = spawnSync(nodeBin, [tsxBin, join(REPO, "src", "cli", "kai.ts"), ...process.argv.slice(2)], {
+    cwd: REPO,
+    stdio: "inherit",
+  });
+  if (res.error) {
+    console.error(`Failed to respawn kai with cwd=${REPO}: ${res.error.message}`);
+    process.exit(1);
+  }
+  // res.status is null when the child died by signal (e.g. Ctrl-C); use the
+  // conventional 128+signum in that case instead of collapsing it to a flat 1.
+  const signalNum = res.signal ? osConstants.signals[res.signal] : undefined;
+  process.exit(signalNum !== undefined ? 128 + signalNum : (res.status ?? 1));
+}
 
 const die = (msg: string): never => {
   console.error(msg);
@@ -265,14 +298,14 @@ function requireLicense(): void {
   if (!readEntitlement()) die("No license found. Run `kai login <license-key>` first.");
 }
 
-function cmdStart(): void {
+async function cmdStart(): Promise<void> {
   requireLicense();
-  svc.start();
+  await svc.start();
   console.log("crowsnest services started (server on 3000, Instagram helper on 8765).");
 }
 
-function cmdStop(): void {
-  svc.stop();
+async function cmdStop(): Promise<void> {
+  await svc.stop();
   console.log("crowsnest services stopped.");
 }
 
@@ -316,7 +349,7 @@ async function checkSidecarHealth(): Promise<boolean> {
 
 async function cmdUp(): Promise<void> {
   requireLicense();
-  svc.start();
+  await svc.start();
   process.stdout.write("Starting crowsnest (waiting for the dashboard)...");
   const ok = await poll(SERVER_URL, 25_000);
   process.stdout.write("\n");
@@ -335,10 +368,10 @@ async function cmdUp(): Promise<void> {
   spawnSync("open", [SERVER_URL], { stdio: "ignore" });
 }
 
-function cmdStatusFull(): void {
+async function cmdStatusFull(): Promise<void> {
   const e = readEntitlement();
   console.log(`License:  ${e ? `active (activation ${e.activation_id})` : "not logged in"}`);
-  for (const s of svc.services()) {
+  for (const s of await svc.services()) {
     const state = svc.running(s.label) ? "running" : svc.installed(s.label) ? "stopped" : "not installed";
     console.log(`${s.label}: ${state}`);
   }
@@ -385,7 +418,7 @@ async function cmdDoctor(): Promise<void> {
 
   ok("license", Boolean(readEntitlement()), readEntitlement() ? "entitlement cached" : "run kai login");
 
-  for (const s of svc.services()) {
+  for (const s of await svc.services()) {
     ok(s.label, svc.running(s.label), svc.running(s.label) ? "running" : "stopped");
   }
 
@@ -404,9 +437,9 @@ async function cmdDoctor(): Promise<void> {
 }
 
 /** After an update flips to a new version dir: migrate, and restart if it was running. */
-function cmdPostUpdate(): void {
+async function cmdPostUpdate(): Promise<void> {
   runScript("src/server/db/migrate.ts");
-  if (svc.running("com.crowsnest.server")) svc.start();
+  if (svc.running("com.crowsnest.server")) await svc.start();
 }
 
 // KIT-3: this must match packaging/install.sh.template's own KAI_INSTALL_URL default —
@@ -495,7 +528,7 @@ async function main(): Promise<void> {
       await cmdLogin(rest[0]);
       break;
     case "status":
-      cmdStatusFull();
+      await cmdStatusFull();
       break;
     case "kit":
       if (rest[0] !== "init") die("Usage: kai kit init");
@@ -505,10 +538,10 @@ async function main(): Promise<void> {
       await cmdUp();
       break;
     case "start":
-      cmdStart();
+      await cmdStart();
       break;
     case "stop":
-      cmdStop();
+      await cmdStop();
       break;
     case "doctor":
       await cmdDoctor();
@@ -520,7 +553,7 @@ async function main(): Promise<void> {
       cmdRollback();
       break;
     case "_postupdate":
-      cmdPostUpdate();
+      await cmdPostUpdate();
       break;
     default:
       console.log("crowsnest Kit\n");
@@ -536,10 +569,6 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run the CLI when this file is executed directly, not when a test imports it
-// for `ask`/`checkPairedIgCreds`/etc. tsx runs this file as CJS in the dev repo and in
-// a bundle (require.main is set); vitest's ESM loader never sets require.main here.
-const isMain = typeof require !== "undefined" && require.main === module;
 if (isMain) {
   main().catch((err: Error) => die(err.message));
 }

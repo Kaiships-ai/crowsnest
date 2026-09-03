@@ -35,8 +35,10 @@ import {
   igChallengeChooseAction,
   igChallengeCodeAction,
   igLoginAction,
+  igLoginWithCredentialsAction,
   igTwoFactorAction,
 } from "@/server/actions/ig-actions";
+import { setSecretAction } from "@/server/actions/secrets-actions";
 
 type StatusResult = Awaited<ReturnType<typeof getIgStatusAction>>;
 type LoginResult = Awaited<ReturnType<typeof igLoginAction>>;
@@ -127,6 +129,14 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const [credUsername, setCredUsername] = useState("");
+  const [credPassword, setCredPassword] = useState("");
+  // Set only while a credentials-path login is mid-flow (2FA/challenge not yet resolved)
+  // - tells submitCode/chooseChallengeChannel below whether a final "ok" should also
+  // persist IG_USERNAME/IG_PASSWORD, since igLoginWithCredentialsAction only persists on
+  // an *immediate* ok (see that action's own doc).
+  const [credentialsPending, setCredentialsPending] = useState<{ username: string; password: string } | null>(null);
+  const [credError, setCredError] = useState<string | null>(null);
 
   const status = statusResult.ok ? statusResult.status : null;
 
@@ -139,6 +149,12 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   async function recheck() {
     setBusy(true);
     setLoginFailure(null);
+    // Cancelling a mid-flow 2FA/challenge abandons any credentials-path attempt too, so
+    // nothing stale is left for a later, unrelated login to silently persist.
+    setCredentialsPending(null);
+    setCredUsername("");
+    setCredPassword("");
+    setCredError(null);
     setPhase("idle");
     await refreshStatus();
     setBusy(false);
@@ -166,12 +182,39 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
     if (result.ok && result.status === "ok") await refreshStatus();
   }
 
+  async function connectWithCredentials() {
+    const user = credUsername.trim();
+    if (!user || !credPassword) return;
+    setCredError(null);
+    setLoginFailure(null);
+    setPhase("connecting");
+    const result = await igLoginWithCredentialsAction(user, credPassword);
+    if (!result.ok) {
+      // Surfaced through ig-credentials-error only - afterLogin's failure branch would
+      // also set the generic loginFailure banner, rendering the same error twice.
+      setCredError(result.error);
+      setPhase("idle");
+      return;
+    }
+    if (result.status === "ok") {
+      await Promise.all([setSecretAction("IG_USERNAME", user), setSecretAction("IG_PASSWORD", credPassword)]);
+      setCredUsername("");
+      setCredPassword("");
+      afterLogin(result);
+      await refreshStatus();
+      return;
+    }
+    setCredentialsPending({ username: user, password: credPassword });
+    afterLogin(result);
+  }
+
   async function chooseChallengeChannel(choice: "email" | "sms") {
     setBusy(true);
     const result = await igChallengeChooseAction(choice);
     setBusy(false);
     if (!result.ok) {
       setLoginFailure(result);
+      setCredentialsPending(null);
       setPhase("idle");
       return;
     }
@@ -181,7 +224,16 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       setPhase("challenge_code");
     } else {
       afterLogin(result);
-      if (result.status === "ok") await refreshStatus();
+      if (result.status === "ok") {
+        if (credentialsPending) {
+          await Promise.all([
+            setSecretAction("IG_USERNAME", credentialsPending.username),
+            setSecretAction("IG_PASSWORD", credentialsPending.password),
+          ]);
+          setCredentialsPending(null);
+        }
+        await refreshStatus();
+      }
     }
   }
 
@@ -199,7 +251,16 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       return;
     }
     afterLogin(result);
-    if (result.status === "ok") await refreshStatus();
+    if (result.status === "ok") {
+      if (credentialsPending) {
+        await Promise.all([
+          setSecretAction("IG_USERNAME", credentialsPending.username),
+          setSecretAction("IG_PASSWORD", credentialsPending.password),
+        ]);
+        setCredentialsPending(null);
+      }
+      await refreshStatus();
+    }
   }
 
   const serviceDown = !statusResult.ok && statusResult.code === "IG_SERVICE_DOWN";
@@ -287,6 +348,49 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
               </div>
             ))}
           </div>
+
+          {!serviceDown && (
+            <div className="mt-8 max-w-[460px] border border-border p-4">
+              <p className="text-sm font-medium">Or sign in with a username and password</p>
+              <p className="mt-1.5 text-xs text-muted-foreground">Checked against a real login before anything is saved.</p>
+              <div className="mt-4 flex flex-col gap-2.5">
+                <Label htmlFor="ig-credentials-username">Username</Label>
+                <Input
+                  id="ig-credentials-username"
+                  data-testid="ig-credentials-username-input"
+                  value={credUsername}
+                  onChange={(e) => setCredUsername(e.target.value)}
+                  autoComplete="off"
+                />
+                <Label htmlFor="ig-credentials-password">Password</Label>
+                <Input
+                  id="ig-credentials-password"
+                  data-testid="ig-credentials-password-input"
+                  type="password"
+                  value={credPassword}
+                  onChange={(e) => setCredPassword(e.target.value)}
+                  autoComplete="off"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && credUsername.trim() && credPassword) void connectWithCredentials();
+                  }}
+                />
+              </div>
+              <Button
+                size="sm"
+                className="mt-4"
+                data-testid="ig-credentials-submit-button"
+                onClick={() => void connectWithCredentials()}
+                disabled={busy || !credUsername.trim() || !credPassword}
+              >
+                Connect
+              </Button>
+              {credError && (
+                <p data-testid="ig-credentials-error" className="mt-2 text-sm text-destructive">
+                  {credError}
+                </p>
+              )}
+            </div>
+          )}
 
           {serviceDown && (
             <div className="mt-8 max-w-[460px] border border-border p-4">

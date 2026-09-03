@@ -76,7 +76,7 @@ async function tryGenerate(client: LlmClient, timeoutMs: number): Promise<{ ok: 
 export async function probeLlmGeneration(llm?: LlmClient, timeoutMs: number = LLM_PING_TIMEOUT_MS): Promise<GenerationProbeResult> {
   let client: LlmClient;
   try {
-    client = llm ?? getLlm();
+    client = llm ?? (await getLlm());
   } catch (e) {
     return { state: "down", detail: errorMessage(e) };
   }

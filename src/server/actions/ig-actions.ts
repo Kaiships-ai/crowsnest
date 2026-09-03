@@ -15,12 +15,14 @@ import { setSecret } from "../secrets/store";
  *     "An error occurred in the Server Components render", which is exactly the kind of
  *     unusable state this section is supposed to eliminate.
  *
- *  2. **No action ever accepts a password.** Server actions are real, publicly-reachable
- *     HTTP endpoints — an exported action that took `(username, password)` would be a
- *     credential-submission endpoint whether or not the UI ever calls it that way.
- *     `igLoginAction()` therefore takes *no arguments at all*; the sidecar logs in with
- *     `IG_USERNAME`/`IG_PASSWORD` from its own environment, and those values never enter
- *     this process, this response, or a log line.
+ *  2. **No action accepts a password blind.** `igLoginAction()` takes *no arguments at
+ *     all* - the sidecar logs in with `IG_USERNAME`/`IG_PASSWORD` from its own
+ *     environment, and those values never enter this process, this response, or a log
+ *     line. `igLoginWithCredentialsAction` below is the one deliberate exception: it
+ *     exists specifically to validate a typed password against a real sidecar login
+ *     before ever persisting it - the opposite of a blind write - see its own doc for
+ *     why that's a different risk than an action that just accepted and stored
+ *     `(username, password)`.
  *
  *  3. **"I don't know" is never reported as "logged out".** A sidecar that isn't running
  *     produces `IG_SERVICE_DOWN`, a distinct state the UI renders differently from a
@@ -154,6 +156,12 @@ export async function igLoginAction(): Promise<LoginResult> {
  * authentication, so it cannot add to the failed-login count that gets an account
  * checkpointed. The sessionid is persisted via the secrets store so it survives a
  * sidecar restart, mirroring `IG_USERNAME`/`IG_PASSWORD` for the fallback flow.
+ *
+ * Note the write order here: `IG_SESSIONID` is persisted *before* the sidecar call
+ * resolves, so a rejected sessionid is still saved as if it worked. That's a deliberate,
+ * narrower risk for a value that expires and gets replaced routinely, not a pattern to
+ * copy - `igLoginWithCredentialsAction` below validates first and saves only on success,
+ * for exactly that reason.
  */
 export async function igLoginBySessionAction(sessionid: string): Promise<LoginResult> {
   try {
@@ -161,6 +169,42 @@ export async function igLoginBySessionAction(sessionid: string): Promise<LoginRe
     log.info("ig.login_by_session.requested", {});
     const { status } = await igClient.loginBySession(sessionid);
     log.info("ig.login_by_session.result", { status });
+    return { ok: true, status };
+  } catch (err) {
+    return toFailure(err);
+  }
+}
+
+/**
+ * Signs in with a typed username and password, validating against the sidecar BEFORE
+ * persisting anything (03-feature-description.md section 5, ENH-1) - the opposite order
+ * from `igLoginBySessionAction` above. `IG_USERNAME`/`IG_PASSWORD` are only written to
+ * the secrets store when the sidecar's own `/login` reports `"ok"` for THIS call; a
+ * rejected login changes nothing. A `two_factor_required`/`challenge_required` status is
+ * returned as-is, unsaved - the login isn't finished, so there's nothing yet to persist.
+ * The caller (Settings' Instagram section, `/first-run`'s connect step) finishes that
+ * case through the existing, unmodified
+ * `igChallengeChooseAction`/`igChallengeCodeAction`/`igTwoFactorAction` - the sidecar
+ * already remembers the pending username/password from this call's own `/login` request
+ * (`session.py`'s `_pending_credentials`) - and persists the credentials it already holds
+ * once one of those reports `"ok"`.
+ *
+ * Reuses the sidecar's own rate-limit/cooldown (`IG_RATE_LIMITED`) rather than opening a
+ * second, faster retry loop: this calls the exact same `/login` endpoint every other
+ * login path in this file calls, so a fixed username submitted repeatedly hits the same
+ * server-side cooldown `igLoginAction` already would.
+ */
+export async function igLoginWithCredentialsAction(username: string, password: string): Promise<LoginResult> {
+  const user = username.trim();
+  if (!user || !password.trim()) return invalidInput("Enter both a username and a password.");
+  try {
+    log.info("ig.login_with_credentials.requested", {});
+    const { status } = await igClient.login({ username: user, password });
+    log.info("ig.login_with_credentials.result", { status });
+    if (status === "ok") {
+      setSecret("IG_USERNAME", user);
+      setSecret("IG_PASSWORD", password);
+    }
     return { ok: true, status };
   } catch (err) {
     return toFailure(err);

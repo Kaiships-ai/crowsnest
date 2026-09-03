@@ -76,7 +76,7 @@ export async function generateIdea(videoId: string, opts?: { llm?: LlmClient }):
     const [video] = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
     const [analysis] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
     const persona = await getPersona();
-    const client = opts?.llm ?? getLlm();
+    const client = opts?.llm ?? (await getLlm());
 
     const user = buildIdeaUser({
       hookType: analysis?.hookType ?? null,

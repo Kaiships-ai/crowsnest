@@ -1,7 +1,10 @@
-import { homedir } from "node:os";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { appRoot } from "./runtime";
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
@@ -172,4 +175,46 @@ describe("cmdRollback", () => {
     expect(exitSpy).toHaveBeenCalledWith(1);
     expect(spawn).not.toHaveBeenCalled();
   });
+});
+
+// This suite runs `kai` as a real subprocess, invoked directly (not imported), from a
+// foreign cwd -- vi.mock and vitest's own module graph can't fake the OS-level cwd a
+// real tsx process boots with, which is what the bug and its fix are both about.
+//
+// The bug: tsx resolves `@/`-aliased imports (like "@/server/db") against a project
+// root it locates once, before any of the entry script's own code runs -- confirmed by
+// hand, before this fix existed, with a throwaway script whose *first statement* was
+// `process.chdir(appRoot)`, before any import at all: `import("@/server/db")` still
+// failed with "Cannot find module '@/server/db'" later in that same script. A plain
+// `process.chdir()` inside kai.ts cannot fix this; only a real process respawn can,
+// which is what kai.ts now does (see the `isMain && process.cwd() !== REPO` block near
+// its top) when it detects it wasn't started from appRoot.
+describe("kai.ts respawns from appRoot when invoked from elsewhere, so @/-aliased imports resolve", () => {
+  test("`kai status` from a foreign cwd resolves @/server/db instead of crashing on module resolution", () => {
+    const tsxBinPath = join(appRoot, "node_modules", ".bin", "tsx");
+    const scratch = mkdtempSync(join(tmpdir(), "kai-cwd-"));
+    const scratchDb = join(scratch, "scratch.db");
+
+    try {
+      // A throwaway, migrated db (isolated from the real dev db) so the command
+      // reaches all the way through services() -> igEnv() -> getOrCreateServiceToken()
+      // without an unrelated "no such table" error masking what this test checks.
+      execFileSync(tsxBinPath, [join(appRoot, "src", "server", "db", "migrate.ts")], {
+        cwd: appRoot,
+        env: { ...process.env, CROWSNEST_DB_PATH: scratchDb },
+      });
+
+      const out = execFileSync(tsxBinPath, [join(appRoot, "src", "cli", "kai.ts"), "status"], {
+        cwd: scratch, // a directory with no ancestor relationship to appRoot
+        env: { ...process.env, CROWSNEST_DB_PATH: scratchDb },
+        encoding: "utf8",
+      });
+
+      expect(out).not.toContain("Cannot find module");
+      expect(out).toMatch(/com\.crowsnest\.server: (running|stopped|not installed)/);
+      expect(out).toMatch(/com\.crowsnest\.ig: (running|stopped|not installed)/);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
+  }, 20_000);
 });

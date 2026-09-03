@@ -16,6 +16,11 @@ let resolveModel: typeof import("./client")["resolveModel"];
 let resetLlmClient: typeof import("./client")["resetLlmClient"];
 let _createLlm: typeof import("./client")["_createLlm"];
 let _createCompatLlm: typeof import("./client")["_createCompatLlm"];
+let routerControl: { routerReachable: ReturnType<typeof vi.fn> };
+// Spies on `new Anthropic(...)` (client.ts's own constructor call inside getLlm()) so
+// tests can tell the direct-Anthropic branch from the compat/proxy branch by whether
+// `baseURL` was passed, without exporting the two client classes just for this.
+let AnthropicCtor: ReturnType<typeof vi.fn>;
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
@@ -28,6 +33,15 @@ const ORIGINAL_ENV = { ...process.env };
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
+  routerControl = { routerReachable: vi.fn().mockResolvedValue(true) };
+  vi.doMock("./router-control", () => routerControl);
+  // A plain arrow-function implementation can't be invoked with `new` (no
+  // [[Construct]]) -- `getLlm()` does `new Anthropic(...)`, so this needs a real
+  // constructor function.
+  AnthropicCtor = vi.fn().mockImplementation(function FakeAnthropic() {
+    return { messages: { create: vi.fn(), parse: vi.fn(), stream: vi.fn(), countTokens: vi.fn() } };
+  });
+  vi.doMock("@anthropic-ai/sdk", () => ({ default: AnthropicCtor }));
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ setSecret } = await import("@/server/secrets/store"));
@@ -82,14 +96,14 @@ describe("hasLlmKey / getLlm", () => {
     expect(hasLlmKey()).toBe(true);
   });
 
-  test("getLlm throws NoApiKeyError when ANTHROPIC_API_KEY is absent", () => {
+  test("getLlm throws NoApiKeyError when ANTHROPIC_API_KEY is absent", async () => {
     delete process.env.ANTHROPIC_API_KEY;
-    expect(() => getLlm()).toThrow(NoApiKeyError);
+    await expect(getLlm()).rejects.toThrow(NoApiKeyError);
   });
 
-  test("getLlm returns a client without throwing once a key is present (no network call made)", () => {
+  test("getLlm returns a client without throwing once a key is present (no network call made)", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-fake";
-    expect(() => getLlm()).not.toThrow();
+    await expect(getLlm()).resolves.toBeDefined();
   });
 
   test("hasLlmKey is true from a db-set key even with no ANTHROPIC_API_KEY in the env", () => {
@@ -99,21 +113,92 @@ describe("hasLlmKey / getLlm", () => {
     expect(hasLlmKey()).toBe(true);
   });
 
-  test("resetLlmClient nulls the cache so a key change via the store takes effect", () => {
+  test("resetLlmClient nulls the cache so a key change via the store takes effect", async () => {
     delete process.env.ANTHROPIC_API_KEY;
-    expect(() => getLlm()).toThrow(NoApiKeyError);
+    await expect(getLlm()).rejects.toThrow(NoApiKeyError);
 
     setSecret("ANTHROPIC_API_KEY", "sk-test-db-value");
     // Without resetLlmClient this would still throw: getLlm's `!cachedClient` guard
     // only re-checks the key when there's no cached client yet, but the failed call
     // above never populated the cache, so this passes even before the reset — the
     // real assertion is the next block, where a *populated* cache must be dropped.
-    expect(() => getLlm()).not.toThrow();
+    await expect(getLlm()).resolves.toBeDefined();
 
     resetLlmClient();
     process.env.LLM_BASE_URL = "http://localhost:20128";
-    expect(() => getLlm()).not.toThrow();
+    await expect(getLlm()).resolves.toBeDefined();
     expect(isCompatMode()).toBe(true);
+  });
+});
+
+describe("getLlm reachability fallback", () => {
+  beforeEach(() => {
+    // mockClear (not mockReset) -- clears call history for the toHaveBeenCalled
+    // assertions below without wiping the beforeAll default `mockResolvedValue(true)`,
+    // which later describe blocks in this file (that never set an explicit value of
+    // their own) still rely on.
+    routerControl.routerReachable.mockClear();
+    AnthropicCtor.mockClear();
+  });
+
+  test("LLM_BASE_URL set and reachable: still returns a compat client (unchanged behavior)", async () => {
+    setSecret("ANTHROPIC_API_KEY", "sk-ant-test");
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockResolvedValue(true);
+
+    await getLlm();
+
+    expect(routerControl.routerReachable).toHaveBeenCalled();
+    // Proxy branch: `new Anthropic()` gets a baseURL, pointing it at the router.
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBe("http://localhost:20128");
+  });
+
+  test("LLM_BASE_URL set but unreachable: falls back to a direct client instead of throwing or hanging", async () => {
+    setSecret("ANTHROPIC_API_KEY", "sk-ant-test");
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockResolvedValue(false);
+
+    const client = await getLlm();
+
+    expect(client).toBeDefined();
+    expect(routerControl.routerReachable).toHaveBeenCalled();
+    // isCompatMode() itself stays presence-only, unchanged (ACTION-12) — it says a
+    // proxy is *configured*, not which branch was actually used, so the real proof
+    // of the fallback is the constructor call below: no baseURL means the direct
+    // Anthropic path was taken, not one pointed at the dead proxy.
+    expect(isCompatMode()).toBe(true);
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBeUndefined();
+  });
+
+  test("routerReachable rejecting is treated as unreachable, not a getLlm() failure", async () => {
+    setSecret("ANTHROPIC_API_KEY", "sk-ant-test");
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockRejectedValue(new Error("boom"));
+
+    const client = await getLlm();
+
+    expect(client).toBeDefined();
+    const ctorArgs = AnthropicCtor.mock.calls[0][0] as { baseURL?: string };
+    expect(ctorArgs.baseURL).toBeUndefined();
+  });
+
+  test("LLM_BASE_URL unset: never calls routerReachable at all", async () => {
+    setSecret("ANTHROPIC_API_KEY", "sk-ant-test");
+    delete process.env.LLM_BASE_URL;
+
+    await getLlm();
+
+    expect(routerControl.routerReachable).not.toHaveBeenCalled();
+  });
+
+  test("no key configured: still throws NoApiKeyError before any reachability check", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+
+    await expect(getLlm()).rejects.toThrow(NoApiKeyError);
+    expect(routerControl.routerReachable).not.toHaveBeenCalled();
   });
 });
 
@@ -309,10 +394,10 @@ describe("CompatLlmClient (OpenAI-compat router mode)", () => {
     expect(stream).toHaveBeenCalledTimes(2);
   });
 
-  test("getLlm returns the compat client when LLM_BASE_URL is set (no crash, no network)", () => {
+  test("getLlm returns the compat client when LLM_BASE_URL is set (no crash, no network)", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-fake";
     process.env.LLM_BASE_URL = "http://localhost:20128";
-    expect(() => getLlm()).not.toThrow();
+    await expect(getLlm()).resolves.toBeDefined();
   });
 });
 
