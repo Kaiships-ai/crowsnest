@@ -291,52 +291,54 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
           {displayEvents.length === 0 ? (
             <p className="py-16 text-center text-sm text-muted-foreground">No trace events yet for this run.</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="border-line-strong hover:bg-transparent">
-                  <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Time</TableHead>
-                  <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Level</TableHead>
-                  <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Source</TableHead>
-                  <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Event</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayEvents.map((e) => {
-                  const open = openId === e.id;
-                  return (
-                    <TableRow
-                      key={e.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-expanded={open}
-                      aria-label={`${open ? "Collapse" : "Expand"} fields for ${e.event}`}
-                      onClick={() => setOpenId(open ? null : e.id)}
-                      onKeyDown={(ev) => {
-                        if (ev.key === "Enter" || ev.key === " ") {
-                          ev.preventDefault();
-                          setOpenId(open ? null : e.id);
-                        }
-                      }}
-                      className="cursor-pointer border-border align-top"
-                    >
-                      <TableCell className="py-2 font-mono text-2xs whitespace-nowrap text-muted-foreground">
-                        {formatTs(e.ts)}
-                      </TableCell>
-                      <TableCell className={cn("py-2 text-sm font-medium", LEVEL_LABEL_CLASS[e.level])}>{e.level}</TableCell>
-                      <TableCell className="py-2 text-sm text-muted-foreground">{e.source}</TableCell>
-                      <TableCell className="py-2 font-mono text-xs">
-                        {e.event}
-                        {open && (
-                          <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-background p-2 font-mono text-2xs text-muted-foreground">
-                            {JSON.stringify(e.fields, null, 2)}
-                          </pre>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="border-line-strong hover:bg-transparent">
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Time</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Level</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Source</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Event</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayEvents.map((e) => {
+                    const open = openId === e.id;
+                    return (
+                      <TableRow
+                        key={e.id}
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={open}
+                        aria-label={`${open ? "Collapse" : "Expand"} fields for ${e.event}`}
+                        onClick={() => setOpenId(open ? null : e.id)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === "Enter" || ev.key === " ") {
+                            ev.preventDefault();
+                            setOpenId(open ? null : e.id);
+                          }
+                        }}
+                        className="cursor-pointer border-border align-top"
+                      >
+                        <TableCell className="py-2 font-mono text-2xs whitespace-nowrap text-muted-foreground">
+                          {formatTs(e.ts)}
+                        </TableCell>
+                        <TableCell className={cn("py-2 text-sm font-medium", LEVEL_LABEL_CLASS[e.level])}>{e.level}</TableCell>
+                        <TableCell className="py-2 text-sm text-muted-foreground">{e.source}</TableCell>
+                        <TableCell className="py-2 font-mono text-xs">
+                          {e.event}
+                          {open && (
+                            <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-background p-2 font-mono text-2xs text-muted-foreground">
+                              {JSON.stringify(e.fields, null, 2)}
+                            </pre>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </div>
       </div>
