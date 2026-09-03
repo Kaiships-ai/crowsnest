@@ -1,7 +1,13 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, ne } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { queryLogEvents, type LogEventRow } from "@/server/logs/store";
+import {
+  BACKFILL_LOCK_KEY,
+  isSyncStalled,
+  type SyncGap,
+  type SyncJobStatus,
+} from "@/server/services/sync-types";
 
 /**
  * The Runs query layer (Runs and observability, spec 2026-08-02). A "Run" is not its
@@ -155,4 +161,72 @@ export function getRun(runId: string): RunDetail | null {
   // run reports null. That is the honest outcome for a derived figure.
   const events = queryLogEvents({ runId, levels: ["info", "warn", "error"], limit: DEFAULT_EVENT_LIMIT });
   return { ...summary, events, itemsEnriched: enrichedFromEvents(events) };
+}
+
+/**
+ * The health of the most recent sync run, for the dashboard and the future MCP
+ * `crowsnest_metrics` tool. Sync only — remix and create runs are not "the last sync".
+ *
+ * Honest surfaces (PRODUCT.md): a database that has never synced returns `lastStatus`
+ * null and null timings, not a fabricated zero-duration success. "Never measured" and
+ * "measured zero" are different facts and this app keeps them apart.
+ */
+export interface LastRunHealth {
+  lastStatus: SyncJobStatus | null; // null = never synced
+  startedAt: string | null;
+  finishedAt: string | null;
+  durationMs: number | null;
+  channelsDone: number | null;
+  channelsTotal: number | null;
+  itemsCreated: number;
+  itemsUpdated: number;
+  itemsFailed: number;
+  retries: number;
+  gaps: SyncGap[];
+  stalled: boolean;
+}
+
+const NEVER_SYNCED: LastRunHealth = {
+  lastStatus: null,
+  startedAt: null,
+  finishedAt: null,
+  durationMs: null,
+  channelsDone: null,
+  channelsTotal: null,
+  itemsCreated: 0,
+  itemsUpdated: 0,
+  itemsFailed: 0,
+  retries: 0,
+  gaps: [],
+  stalled: false,
+};
+
+/** Newest sync_jobs row, excluding view-count backfill rows (BACKFILL_LOCK_KEY) which
+ *  live in sync_jobs but are not syncs. Returns NEVER_SYNCED when there is no such row. */
+export function getLastRunHealth(): LastRunHealth {
+  const now = Date.now();
+  const row = db
+    .select()
+    .from(tables.syncJobs)
+    .where(ne(tables.syncJobs.lockKey, BACKFILL_LOCK_KEY))
+    .orderBy(desc(tables.syncJobs.startedAt))
+    .limit(1)
+    .get();
+
+  if (!row) return NEVER_SYNCED;
+
+  return {
+    lastStatus: row.status as SyncJobStatus,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    durationMs: durationOf(row.startedAt, row.finishedAt, now),
+    channelsDone: row.channelsDone,
+    channelsTotal: row.channelsTotal,
+    itemsCreated: row.itemsCreated,
+    itemsUpdated: row.itemsUpdated,
+    itemsFailed: row.itemsFailed,
+    retries: row.retries,
+    gaps: row.gaps ?? [],
+    stalled: isSyncStalled({ status: row.status as SyncJobStatus, heartbeatAt: row.heartbeatAt }, now),
+  };
 }
