@@ -116,7 +116,7 @@ export function RouterSection({
       <div>
         <h2 className="text-lg font-semibold">9router</h2>
         <p className="text-sm text-muted-foreground">
-          The local proxy that powers AI features like analysis and remix generation. You need it running for these features to work. Leave it on auto-manage unless you prefer to control it manually.
+          The local proxy that powers AI features like video analysis, find-similar, and remix generation. You need it running for these features to work. Leave it on auto-manage unless you prefer to control it manually.
         </p>
       </div>
 
