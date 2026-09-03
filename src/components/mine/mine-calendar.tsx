@@ -32,9 +32,17 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { createPlannedPostAction, deletePlannedPostAction, markPlanPublishedAction } from "@/server/actions/planned-post-actions";
+import {
+  cancelScheduledPublishAction,
+  createPlannedPostAction,
+  deletePlannedPostAction,
+  markPlanPublishedAction,
+  retryFailedPublishAction,
+} from "@/server/actions/planned-post-actions";
 import type { CalendarMonth, PlannedPostRow } from "@/server/queries/planned-posts";
+import { ConfirmDialog } from "./confirm-dialog";
 import { PlanDialog, type ScriptOption } from "./plan-dialog";
+import { PublishDialog } from "./publish-dialog";
 
 const WEEKDAY_LABELS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"] as const;
 const MONTH_LABELS = [
@@ -69,7 +77,13 @@ function useNarrowViewport(): boolean {
   return narrow;
 }
 
-type CellKind = "published" | "scheduled" | "missed" | "deadAir" | "open";
+type CellKind = "published" | "publishing" | "failed" | "scheduled" | "missed" | "deadAir" | "open";
+
+/** Mirrors DEFAULT_MAX_ATTEMPTS in publish-scheduler.ts — kept as a plain literal here
+ *  rather than imported, so this client component never pulls the server-only scheduler
+ *  (db, publish-post) into the browser bundle. The scheduler still owns the real guard:
+ *  retryFailedPublishAction refuses an over-cap retry regardless of what the UI shows. */
+const MAX_PUBLISH_ATTEMPTS = 3;
 
 interface DayCell {
   key: string; // YYYY-MM-DD
@@ -120,6 +134,8 @@ function buildGrid(month: string, calendar: CalendarMonth): DayCell[][] {
       let kind: CellKind = "open";
       if (published) kind = "published";
       else if (plan?.state === "published") kind = "published"; // hand-marked published, no measured own post yet
+      else if (plan?.state === "publishing") kind = "publishing";
+      else if (plan?.state === "failed") kind = "failed";
       else if (plan?.state === "missed") kind = "missed";
       else if (plan?.state === "scheduled") kind = "scheduled";
       else if (hasMeasurement && inDeadAir(key)) kind = "deadAir";
@@ -141,6 +157,8 @@ function buildGrid(month: string, calendar: CalendarMonth): DayCell[][] {
 
 const CELL_STYLE: Record<CellKind, string> = {
   published: "border-line-strong bg-card",
+  publishing: "border-line-strong bg-card",
+  failed: "border-destructive/40 bg-destructive/10",
   scheduled: "border-border bg-transparent",
   missed: "border-destructive/40 bg-destructive/10",
   deadAir: "border-border bg-destructive/5",
@@ -155,15 +173,27 @@ export function MineCalendar({
   month,
   calendar,
   scripts,
+  graphConfigured,
+  bucketConfigured,
+  dryRun,
 }: {
   month: string;
   calendar: CalendarMonth;
   scripts: ScriptOption[];
+  /** Whether IG_GRAPH_TOKEN/USER_ID are set — the publish dialog needs it to offer a
+   *  real publish rather than a fabricated one. */
+  graphConfigured: boolean;
+  /** Whether the S3_* storage bucket is configured. Same honesty rule as the token. */
+  bucketConfigured: boolean;
+  /** Whether the publish path skips its final POST (PUBLISH_DRY_RUN / non-prod default). */
+  dryRun: boolean;
 }) {
   const router = useRouter();
   const grid = useMemo(() => buildGrid(month, calendar), [month, calendar]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ mode: "create" | "edit"; date?: string; plan?: PlannedPostRow } | null>(null);
+  const [publishPlan, setPublishPlan] = useState<PlannedPostRow | null>(null);
+  const [confirm, setConfirm] = useState<{ kind: "cancel" | "delete"; plan: PlannedPostRow } | null>(null);
 
   const today = todayKey();
   const undatedDrafts = calendar.plans.filter((p) => p.plannedDate === null);
@@ -188,6 +218,26 @@ export function MineCalendar({
       return;
     }
     toast.success("Marked published, no post linked");
+    router.refresh();
+  }
+
+  async function cancelScheduled(plan: PlannedPostRow) {
+    const result = await cancelScheduledPublishAction(plan.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Publish cancelled");
+    router.refresh();
+  }
+
+  async function retry(plan: PlannedPostRow) {
+    const result = await retryFailedPublishAction(plan.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Re-armed for another attempt");
     router.refresh();
   }
 
@@ -289,7 +339,26 @@ export function MineCalendar({
                     </span>
                   )}
                   {cell.kind === "missed" && <span className="font-mono text-2xs text-destructive">missed</span>}
-                  {cell.kind === "scheduled" && <span className="font-mono text-2xs text-muted-foreground">scheduled</span>}
+                  {cell.kind === "scheduled" && (
+                    <span className="font-mono text-2xs text-muted-foreground" data-testid="mine-calendar-scheduled">
+                      scheduled
+                    </span>
+                  )}
+                  {cell.kind === "publishing" && (
+                    <span className="animate-pulse font-mono text-2xs text-muted-foreground" data-testid="mine-calendar-publishing">
+                      PUBLISHING
+                    </span>
+                  )}
+                  {cell.kind === "failed" && (
+                    <span className="font-mono text-2xs text-destructive" data-testid="mine-calendar-failed">
+                      failed{cell.plan?.errorClass ? ` · ${cell.plan.errorClass}` : ""}
+                    </span>
+                  )}
+                  {cell.plan?.state === "published" && (
+                    <span aria-hidden className="font-mono text-2xs text-pos" data-testid="mine-calendar-published">
+                      ✓ published
+                    </span>
+                  )}
                   {cell.title && cell.kind !== "published" && (
                     <span className="line-clamp-2 text-2xs text-muted-foreground">{cell.title}</span>
                   )}
@@ -315,7 +384,10 @@ export function MineCalendar({
           <i aria-hidden className="size-3 border border-border" /> scheduled
         </span>
         <span className="flex items-center gap-2">
-          <i aria-hidden className="size-3 border border-destructive/40 bg-destructive/10" /> missed
+          <i aria-hidden className="size-3 border border-destructive/40 bg-destructive/10" /> missed / failed
+        </span>
+        <span className="flex items-center gap-2">
+          <i aria-hidden className="size-3 border border-line-strong bg-card" /> publishing / published
         </span>
         <span className="flex items-center gap-2">
           <i aria-hidden className="size-3 border border-border" /> open
@@ -390,6 +462,83 @@ export function MineCalendar({
                   </div>
                 )}
 
+                {/* Publish lifecycle — none of this uses amber (The Amber Law): the
+                    in-progress mark is neutral, the verdict is green, failure is a red
+                    wash. The one amber action lives inside the publish dialog. */}
+                <div className="flex flex-col gap-2 border-t border-border pt-3">
+                  {selectedCell.plan.scheduledAt && selectedCell.plan.state !== "published" && (
+                    <p className="font-mono text-2xs tabular-nums text-muted-foreground" data-testid="mine-plan-scheduled-at">
+                      publishes {new Date(selectedCell.plan.scheduledAt).toLocaleString("en-US")}
+                    </p>
+                  )}
+
+                  {selectedCell.plan.state === "publishing" && (
+                    <p className="animate-pulse font-mono text-2xs tracking-wide text-muted-foreground" data-testid="mine-plan-publishing">
+                      PUBLISHING…
+                    </p>
+                  )}
+
+                  {selectedCell.plan.state === "failed" && (
+                    <div className="border-l-2 border-destructive/40 bg-destructive/10 px-3 py-2" data-testid="mine-plan-failed">
+                      <p className="font-mono text-2xs tracking-wide text-destructive">
+                        publish failed{selectedCell.plan.errorClass ? ` · ${selectedCell.plan.errorClass}` : ""}
+                      </p>
+                      {selectedCell.plan.lastError && <p className="mt-1 text-xs text-muted-foreground">{selectedCell.plan.lastError}</p>}
+                      {selectedCell.plan.attemptCount < MAX_PUBLISH_ATTEMPTS && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-2"
+                          data-testid="mine-plan-retry"
+                          onClick={() => retry(selectedCell.plan!)}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedCell.plan.state === "published" && (
+                    <p className="font-mono text-2xs text-pos" data-testid="mine-plan-published">
+                      ✓ published{selectedCell.plan.dryRun ? " (dry run)" : ""}
+                      {selectedCell.plan.publishedOwnPostId && !selectedCell.plan.dryRun && (
+                        <>
+                          {" · "}
+                          <Link href={`/mine/${selectedCell.plan.publishedOwnPostId}`} className="underline hover:text-foreground">
+                            view post
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                  )}
+
+                  {(selectedCell.plan.state === "draft" ||
+                    selectedCell.plan.state === "scheduled" ||
+                    selectedCell.plan.state === "missed" ||
+                    selectedCell.plan.state === "failed") && (
+                    <div className="flex flex-wrap items-center gap-4">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        data-testid="mine-plan-open-publish"
+                        onClick={() => setPublishPlan(selectedCell.plan!)}
+                      >
+                        {selectedCell.plan.videoAssetId ? "Edit publish" : "Upload & schedule"}
+                      </Button>
+                      {selectedCell.plan.scheduledAt && (
+                        <button
+                          type="button"
+                          data-testid="mine-plan-cancel-publish"
+                          className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline active:translate-y-px"
+                          onClick={() => setConfirm({ kind: "cancel", plan: selectedCell.plan! })}
+                        >
+                          cancel scheduled publish
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div className="mt-1 flex flex-wrap gap-4">
                   <button
                     type="button"
@@ -410,8 +559,13 @@ export function MineCalendar({
                   )}
                   <button
                     type="button"
+                    data-testid="mine-plan-delete"
                     className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline active:translate-y-px"
-                    onClick={() => remove(selectedCell.plan!)}
+                    onClick={() =>
+                      selectedCell.plan!.videoAssetId
+                        ? setConfirm({ kind: "delete", plan: selectedCell.plan! })
+                        : remove(selectedCell.plan!)
+                    }
                   >
                     delete
                   </button>
@@ -472,6 +626,34 @@ export function MineCalendar({
           presetDate={dialogState.date}
           scripts={scripts}
           onSaved={() => setDialogState(null)}
+        />
+      )}
+
+      {publishPlan && (
+        <PublishDialog
+          open
+          onOpenChange={(next) => !next && setPublishPlan(null)}
+          plan={publishPlan}
+          graphConfigured={graphConfigured}
+          bucketConfigured={bucketConfigured}
+          dryRun={dryRun}
+          onDone={() => setPublishPlan(null)}
+        />
+      )}
+
+      {confirm && (
+        <ConfirmDialog
+          open
+          onOpenChange={(next) => !next && setConfirm(null)}
+          testid={confirm.kind === "cancel" ? "mine-confirm-cancel-publish" : "mine-confirm-delete-plan"}
+          title={confirm.kind === "cancel" ? "Cancel this scheduled publish?" : "Delete this plan?"}
+          body={
+            confirm.kind === "cancel"
+              ? "The plan goes back to an undated draft. Its video and caption stay attached."
+              : "This plan carries an uploaded video. Deleting it removes the plan for good."
+          }
+          confirmLabel={confirm.kind === "cancel" ? "Cancel publish" : "Delete plan"}
+          onConfirm={() => (confirm.kind === "cancel" ? cancelScheduled(confirm.plan) : remove(confirm.plan))}
         />
       )}
     </div>

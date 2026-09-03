@@ -33,16 +33,27 @@ const PLAN = {
   targetLengthSec: null,
   publishedOwnPostId: null,
   reconciledOwnPostId: null,
+  videoAssetId: null,
+  caption: null,
+  scheduledAt: null,
+  attemptCount: 0,
+  lastError: null,
+  errorClass: null,
+  publishedAt: null,
+  dryRun: false,
   createdAt: "2026-08-01T00:00:00.000Z",
   updatedAt: "2026-08-01T00:00:00.000Z",
 };
 
-function renderCalendar() {
+function renderCalendar(plans: unknown[] = [PLAN]) {
   return render(
     <MineCalendar
       month="2026-08"
-      calendar={{ month: "2026-08", published: [], plans: [PLAN], deadAir: [], measuredAt: null } as never}
+      calendar={{ month: "2026-08", published: [], plans, deadAir: [], measuredAt: null } as never}
       scripts={[]}
+      graphConfigured={false}
+      bucketConfigured={false}
+      dryRun={true}
     />
   );
 }
@@ -95,5 +106,40 @@ describe("MineCalendar day detail", () => {
 
     fireEvent.keyDown(detail, { key: "Escape" });
     await waitFor(() => expect(screen.queryByText("only visible in the day detail")).toBeNull());
+  });
+});
+
+describe("publish state cells (Goal 4)", () => {
+  const base = { ...PLAN, note: null as string | null };
+
+  test("a scheduled plan reads 'scheduled', neutral, with no amber", () => {
+    renderCalendar([{ ...base, id: "p", state: "scheduled", scheduledAt: "2026-08-03T14:00:00.000Z" }]);
+    const label = screen.getByTestId("mine-calendar-scheduled");
+    expect(label.textContent).toBe("scheduled");
+    expect(label.className).not.toMatch(/primary|amber/);
+  });
+
+  test("a publishing plan shows a neutral PUBLISHING mark, never amber", () => {
+    renderCalendar([{ ...base, id: "p", state: "publishing" }]);
+    const mark = screen.getByTestId("mine-calendar-publishing");
+    expect(mark.textContent).toBe("PUBLISHING");
+    expect(mark.className).not.toMatch(/primary|amber/);
+    expect(mark.className).toContain("text-muted-foreground");
+  });
+
+  test("a failed plan shows its error class in a red (destructive), non-amber mark", () => {
+    renderCalendar([{ ...base, id: "p", state: "failed", errorClass: "rate_limit", attemptCount: 1 }]);
+    const mark = screen.getByTestId("mine-calendar-failed");
+    expect(mark.textContent).toContain("rate_limit");
+    expect(mark.className).toContain("text-destructive");
+    expect(mark.className).not.toMatch(/primary|amber/);
+  });
+
+  test("a published plan shows a green (Verdict) check, never amber", () => {
+    renderCalendar([{ ...base, id: "p", state: "published", publishedOwnPostId: "own-1" }]);
+    const mark = screen.getByTestId("mine-calendar-published");
+    expect(mark.textContent).toContain("published");
+    expect(mark.className).toContain("text-pos");
+    expect(mark.className).not.toMatch(/primary|amber/);
   });
 });
