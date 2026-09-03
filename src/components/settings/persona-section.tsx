@@ -14,12 +14,13 @@
  * row shape instead (a bordered box, label on top, control below).
  */
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { personaIsDirty } from "@/components/settings/persona-dirty";
 import { savePersonaAction } from "@/server/actions/persona-actions";
 import type { Persona } from "@/server/services/persona";
 
@@ -56,7 +57,22 @@ const FIELDS: { key: keyof Persona; label: string; placeholder: string; why: str
 
 export function PersonaSection({ initial }: { initial: Persona }) {
   const [values, setValues] = useState<Persona>(initial);
+  const [saved, setSaved] = useState<Persona>(initial);
   const [pending, startTransition] = useTransition();
+  const dirty = personaIsDirty(saved, values);
+
+  // Reload / tab-close / hard-nav guard only. Soft (Next Link) navigation is not
+  // intercepted — see the plan's deferral note. Registered only while dirty so a
+  // clean form never triggers the native prompt.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
 
   function save() {
     startTransition(async () => {
@@ -66,6 +82,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
         return;
       }
       setValues(result.persona);
+      setSaved(result.persona);
       toast.success("Persona saved.");
     });
   }
@@ -119,9 +136,16 @@ export function PersonaSection({ initial }: { initial: Persona }) {
 
       {/* The one amber primary on this screen (WAVE2-BRIEF's one-per-screen rule) —
        *  nothing else here competes for it. */}
-      <Button onClick={save} disabled={pending} className="w-fit">
-        {pending ? "Saving…" : "Save persona"}
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button onClick={save} disabled={pending} className="w-fit">
+          {pending ? "Saving…" : "Save persona"}
+        </Button>
+        {dirty && !pending && (
+          <span data-testid="persona-dirty" className="font-mono text-2xs tracking-wide text-faint uppercase">
+            Unsaved changes
+          </span>
+        )}
+      </div>
     </section>
   );
 }
