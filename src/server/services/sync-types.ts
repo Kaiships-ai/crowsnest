@@ -34,7 +34,7 @@ export const SYNC_PHASES = [
 
 export type SyncPhase = (typeof SYNC_PHASES)[number];
 
-export type StopReason = "lookback" | "cap" | "exhausted" | "error" | "cancelled";
+export type StopReason = "lookback" | "cap" | "exhausted" | "error" | "cancelled" | "upToDate";
 
 export type SyncJobStatus = "running" | "success" | "partial" | "failed";
 

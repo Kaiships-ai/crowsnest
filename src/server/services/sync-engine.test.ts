@@ -392,8 +392,10 @@ describe("runSync — soft delete", () => {
     const first: Page[] = [{ items: [makeMedia("keep", 2), makeMedia("gone", 3)], nextCursor: null, stopReason: "lookback" }];
     await runSync({ channelIds: [channelId], client: stubClient({ pages: first }).client, sleep: noopSleep });
 
+    // metricsFreshnessHours: 0 forces the second sync to walk the whole window (no
+    // incremental early-stop), which is when a full enumeration can notice a vanished post.
     const second: Page[] = [{ items: [makeMedia("keep", 2)], nextCursor: null, stopReason: "lookback" }];
-    const result = await runSync({ channelIds: [channelId], client: stubClient({ pages: second }).client, sleep: noopSleep });
+    const result = await runSync({ channelIds: [channelId], client: stubClient({ pages: second }).client, sleep: noopSleep, metricsFreshnessHours: 0 });
 
     expect(result.itemsDeleted).toBe(1);
 
@@ -513,7 +515,8 @@ describe("runSync — soft delete", () => {
     const absent = (): Page[] => [{ items: [makeMedia("stable", 3)], nextCursor: null, stopReason: "lookback" }];
 
     await runSync({ channelIds: [channelId], client: stubClient({ pages: present() }).client, sleep: noopSleep });
-    await runSync({ channelIds: [channelId], client: stubClient({ pages: absent() }).client, sleep: noopSleep });
+    // metricsFreshnessHours: 0 forces the full walk that lets this run notice "flaky" is gone.
+    await runSync({ channelIds: [channelId], client: stubClient({ pages: absent() }).client, sleep: noopSleep, metricsFreshnessHours: 0 });
 
     const afterDelete = (await db.select().from(tables.videos).where(eq(tables.videos.externalId, "flaky")))[0];
     expect(afterDelete.deletedAt).not.toBeNull();
@@ -884,6 +887,8 @@ describe("runSync — job bookkeeping", () => {
       channelIds: [channelId],
       client: stubClient({ pages: [{ items: items.slice(1), nextCursor: null, stopReason: "lookback" }] }).client,
       sleep: noopSleep,
+      // Full walk (no incremental early-stop) so this run enumerates the window and sees s0 gone.
+      metricsFreshnessHours: 0,
     });
 
     const deleted = (await db.select().from(tables.videos).where(eq(tables.videos.externalId, "s0")))[0];
@@ -894,6 +899,139 @@ describe("runSync — job bookkeeping", () => {
       .from(tables.videos)
       .where(and(eq(tables.videos.channelId, channelId), isNull(tables.videos.deletedAt)));
     expect(live).toHaveLength(4);
+  });
+});
+
+describe("runSync — incremental walk (Goal 3 Round 1)", () => {
+  // A client that records every medias() call so a test can prove pages were or were not
+  // fetched, and returns a fixed script of pages by call order.
+  function countingClient(pages: Page[]): { client: IgClient; mediasCalls: (string | undefined)[] } {
+    const mediasCalls: (string | undefined)[] = [];
+    const { client: base } = stubClient({});
+    let i = 0;
+    const client = {
+      ...base,
+      async medias(input: { cursor?: string }) {
+        mediasCalls.push(input.cursor);
+        const page = pages[i] ?? { items: [], nextCursor: null, stopReason: "exhausted" as const };
+        i += 1;
+        return page;
+      },
+    } as unknown as IgClient;
+    return { client, mediasCalls };
+  }
+
+  async function snapshotCount(externalId: string): Promise<number> {
+    const { db, tables } = await import("../db");
+    const [video] = await db.select().from(tables.videos).where(eq(tables.videos.externalId, externalId));
+    const rows = await db.select().from(tables.videoSnapshots).where(eq(tables.videoSnapshots.videoId, video.id));
+    return rows.length;
+  }
+
+  test("a repeat sync within the freshness window stops at the first all-known page", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@inc-stop");
+
+    // First sync: two pages with new posts, so it walks the whole window and records the
+    // full-walk timestamp.
+    const first: Page[] = [
+      { items: [makeMedia("a", 1), makeMedia("b", 2)], nextCursor: "c2", stopReason: null },
+      { items: [makeMedia("c", 3), makeMedia("d", 4)], nextCursor: null, stopReason: "lookback" },
+    ];
+    await runSync({ channelIds: [channelId], client: stubClient({ pages: first }).client, sleep: noopSleep });
+
+    // Second sync moments later: page 1 is all already-known, so the walk stops there and
+    // never fetches page 2.
+    const second = countingClient([
+      { items: [makeMedia("a", 1), makeMedia("b", 2)], nextCursor: "c2", stopReason: null },
+      { items: [makeMedia("c", 3), makeMedia("d", 4)], nextCursor: null, stopReason: "lookback" },
+    ]);
+    const result = await runSync({ channelIds: [channelId], client: second.client, sleep: noopSleep });
+
+    expect(result.stopReason).toBe("upToDate");
+    expect(second.mediasCalls).toHaveLength(1); // page 2 was never requested
+    expect(result.itemsCreated).toBe(0);
+  });
+
+  test("known-post snapshots still refresh once the freshness window has passed", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@inc-fresh");
+
+    // "old" lives on page 2, so it is only reached by a full walk. Page 1 holds the newest
+    // posts, which an incremental stop always re-snapshots before it stops.
+    const pages = (): Page[] => [
+      { items: [makeMedia("p1", 1), makeMedia("p2", 2)], nextCursor: "pg2", stopReason: null },
+      { items: [makeMedia("old", 8)], nextCursor: null, stopReason: "lookback" },
+    ];
+
+    const t0 = new Date("2026-09-01T00:00:00.000Z");
+    await runSync({ channelIds: [channelId], client: stubClient({ pages: pages() }).client, sleep: noopSleep, now: () => t0 });
+    expect(await snapshotCount("old")).toBe(1);
+
+    // 6 hours later, inside the default 12h window: page 1 is all known, so the run stops
+    // early and never fetches page 2, so the older post is NOT re-snapshotted.
+    const within = new Date("2026-09-01T06:00:00.000Z");
+    const r1 = await runSync({ channelIds: [channelId], client: stubClient({ pages: pages() }).client, sleep: noopSleep, now: () => within });
+    expect(r1.stopReason).toBe("upToDate");
+    expect(await snapshotCount("old")).toBe(1);
+
+    // 13 hours after the last full walk, past the window: the run walks the whole window
+    // again and refreshes every in-window post's snapshot, so metrics never freeze.
+    const after = new Date("2026-09-01T13:00:00.000Z");
+    const r2 = await runSync({ channelIds: [channelId], client: stubClient({ pages: pages() }).client, sleep: noopSleep, now: () => after });
+    expect(r2.stopReason).toBe("lookback");
+    expect(await snapshotCount("old")).toBe(2);
+  });
+
+  test("a new post on page 1 keeps the walk going instead of stopping early", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@inc-newpost");
+
+    await runSync({
+      channelIds: [channelId],
+      client: stubClient({ pages: [{ items: [makeMedia("k1", 2), makeMedia("k2", 3)], nextCursor: null, stopReason: "lookback" }] }).client,
+      sleep: noopSleep,
+    });
+
+    // A brand new post leads page 1, so itemsCreated > 0 and the incremental stop must not
+    // fire; the walk runs to the window boundary.
+    const second = countingClient([{ items: [makeMedia("fresh", 1), makeMedia("k1", 2), makeMedia("k2", 3)], nextCursor: null, stopReason: "lookback" }]);
+    const result = await runSync({ channelIds: [channelId], client: second.client, sleep: noopSleep });
+
+    expect(result.stopReason).toBe("lookback");
+    expect(result.itemsCreated).toBe(1);
+  });
+
+  test("a resumed run ignores the incremental stop and walks its remainder", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@inc-resume");
+
+    // Seed a fresh full-walk timestamp AND a saved resume cursor: the run is fresh enough to
+    // early-stop, but because it is resuming it must walk through known posts to reach the
+    // un-fetched older ones below the cursor.
+    await db
+      .update(tables.channels)
+      .set({ lastFullSyncAt: isoDaysAgo(0), syncCursor: "resume-cur", syncBoundary: isoDaysAgo(30), syncCursorAt: isoDaysAgo(0), syncCursorRunId: "prev" })
+      .where(eq(tables.channels.id, channelId));
+
+    const client = countingClient([
+      { items: [makeMedia("known-1", 10)], nextCursor: "resume-2", stopReason: null }, // all known, but resumed -> keep going
+      { items: [makeMedia("older-new", 20)], nextCursor: null, stopReason: "lookback" },
+    ]);
+    const result = await runSync({ channelIds: [channelId], client: client.client, sleep: noopSleep });
+
+    expect(result.stopReason).not.toBe("upToDate");
+    expect(client.mediasCalls).toHaveLength(2); // did not stop at the all-known first page
+    expect(client.mediasCalls[0]).toBe("resume-cur");
   });
 });
 
@@ -1390,7 +1528,9 @@ describe("runSync — co-operative cancel", () => {
       },
     } as unknown as IgClient;
 
-    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    // metricsFreshnessHours: 0 keeps the incremental early-stop out of the way so the run
+    // reaches the cancel-after-full-enumeration path this test is about.
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep, metricsFreshnessHours: 0 });
 
     expect(result.stopReason).toBe("cancelled");
     expect(result.itemsDeleted).toBe(1);

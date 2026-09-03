@@ -166,6 +166,58 @@ async function main() {
     return { ms, requests: state.requests };
   }
 
+  // --- Incremental walk (the headline): a repeat sync of an unchanged channel. ---------
+  // A client serving several pages of the same posts every call, counting IG requests, so
+  // a first (full) sync and a second (incremental) sync can be compared.
+  const INC_PAGES = 5;
+  const INC_ITEMS = 6;
+  function incClient(mode: "serialized") {
+    const lock = makeSidecarLock();
+    const state = { requests: 0, medias: 0 };
+    const igCall = <T>(value: T): Promise<T> =>
+      lock(async () => {
+        state.requests += 1;
+        await delay(IG_LATENCY_MS);
+        return value;
+      });
+    const client = {
+      async profile(handle: string) {
+        return igCall(makeProfile(handle));
+      },
+      async medias(input: { cursor?: string }) {
+        state.medias += 1;
+        const idx = input.cursor ? Number(input.cursor) : 0;
+        const items = Array.from({ length: INC_ITEMS }, (_, i) => makeMedia(`inc-r${idx}-${i}`));
+        const last = idx >= INC_PAGES - 1;
+        return igCall({ items, nextCursor: last ? null : String(idx + 1), stopReason: last ? ("lookback" as const) : null });
+      },
+      async download(input: { url: string }) {
+        const sha = Buffer.from(input.url).toString("hex").padEnd(64, "0").slice(0, 64);
+        return igCall({ path: `${sha.slice(0, 2)}/${sha}.jpg`, bytes: 2048, contentType: "image/jpeg", sha256: sha, width: 1080, height: 1920, durationSec: null });
+      },
+      async health() {
+        return { status: "ok", loggedIn: true, username: "stub", instagrapiVersion: "0", sessionLoaded: true };
+      },
+    };
+    return { client: client as unknown as import("../src/server/ig/client").IgClient, state };
+  }
+
+  async function incRun(channelIds: string[]) {
+    const { client, state } = incClient("serialized");
+    const started = performance.now();
+    const result = await runSync({ channelIds, client, concurrency: 1, sleep: () => Promise.resolve() });
+    return { ms: performance.now() - started, requests: state.requests, medias: state.medias, stopReason: result.stopReason };
+  }
+
+  const incChannel = (await seedChannels()).slice(0, 1);
+  const full = await incRun(incChannel); // first sync: full walk
+  const incr = await incRun(incChannel); // second sync moments later: incremental
+  console.log(`\nIncremental walk (repeat sync of an unchanged channel, ${INC_PAGES} pages x ${INC_ITEMS} posts, ${IG_LATENCY_MS}ms/call):`);
+  console.log(`  first sync (full walk):    ${full.medias} page fetches, ${full.requests} IG requests, ${full.ms.toFixed(0)}ms`);
+  console.log(`  second sync (incremental): ${incr.medias} page fetches, ${incr.requests} IG requests, ${incr.ms.toFixed(0)}ms  (stopReason=${incr.stopReason})`);
+  const reqCut = full.requests > 0 ? (100 * (1 - incr.requests / full.requests)).toFixed(0) : "0";
+  console.log(`  request reduction on the repeat: ${reqCut}%  (${full.requests} -> ${incr.requests})`);
+
   const rows: { model: string; c1: number; c2: number; reqs: number }[] = [];
   for (const mode of ["independent", "serialized"] as const) {
     const a = await one(mode, 1);

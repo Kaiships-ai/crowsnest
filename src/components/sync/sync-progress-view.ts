@@ -56,6 +56,7 @@ const STOP_REASON_LABEL: Record<StopReason, string> = {
   exhausted: "ran out of posts",
   error: "stopped on an error",
   cancelled: "cancelled",
+  upToDate: "already up to date",
 };
 
 /** Exported for its own exhaustive test; the only production caller is `statusDetail`

@@ -67,6 +67,11 @@ export const channels = sqliteTable("channels", {
   syncBoundary: text("sync_boundary"),
   syncCursorAt: text("sync_cursor_at"),
   syncCursorRunId: text("sync_cursor_run_id"),
+  /** ISO time this channel's last FULL walk (reached the lookback boundary or exhausted the
+   *  feed, refreshing every in-window post's snapshot) finished. An incremental sync may
+   *  stop early at already-known posts only while this is within `syncMetricsFreshnessHours`;
+   *  past it the next sync walks the whole window so no post's metrics freeze (Round 1). */
+  lastFullSyncAt: text("last_full_sync_at"),
   /**
    * Marks the one tracked channel that is Kai's own account, so the app has a single
    * place to answer "which channel is mine" instead of nothing at all. This channel row
