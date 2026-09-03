@@ -294,16 +294,37 @@ function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
   }
 }
 
-async function graphGet<T>(path: string, params: Record<string, string | number | undefined>, token: string): Promise<GraphGetResult<T>> {
+/** Shared transport for both GET (reads) and POST (Reel container create/publish, B2).
+ *  GET puts params in the query string; POST puts them in a form body — same Graph API
+ *  convention the container/publish edges use. Every other rule (timeout, token
+ *  redaction, error classification, logging) is identical for both, so this is the one
+ *  place that plumbing lives. */
+async function graphRequest<T>(
+  method: "GET" | "POST",
+  path: string,
+  params: Record<string, string | number | undefined>,
+  token: string
+): Promise<GraphGetResult<T>> {
   const url = new URL(`${HOST}/${config.IG_GRAPH_API_VERSION}/${path}`);
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined) url.searchParams.set(k, String(v));
+  const init: RequestInit = { method, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) };
+
+  if (method === "GET") {
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) url.searchParams.set(k, String(v));
+    }
+    url.searchParams.set("access_token", token);
+  } else {
+    const body = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) body.set(k, String(v));
+    }
+    body.set("access_token", token);
+    init.body = body;
   }
-  url.searchParams.set("access_token", token);
 
   let res: Response;
   try {
-    res = await fetch(url.toString(), { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
+    res = await fetch(url.toString(), init);
   } catch (err) {
     const raw = err instanceof Error ? err.message : String(err);
     log.warn("graph.request.network_error", { path });
@@ -326,6 +347,14 @@ async function graphGet<T>(path: string, params: Record<string, string | number 
 
   log.debug("graph.request.ok", { path });
   return { ok: true, data: body as T };
+}
+
+function graphGet<T>(path: string, params: Record<string, string | number | undefined>, token: string): Promise<GraphGetResult<T>> {
+  return graphRequest<T>("GET", path, params, token);
+}
+
+function graphPost<T>(path: string, params: Record<string, string | number | undefined>, token: string): Promise<GraphGetResult<T>> {
+  return graphRequest<T>("POST", path, params, token);
 }
 
 // ---------------------------------------------------------------- configuration gate
@@ -446,3 +475,81 @@ export const graphClient: GraphClient = {
     return { configured: true, username: null, state, message: result.message, checkedAt };
   },
 };
+
+// ---------------------------------------------------------------- Reels publish (B2)
+// Three-step own-channel publish flow (`documents/planning/implementation-plan/
+// 2026-09-04-comp-publish.md` Phase B, task B2): create a media container against a
+// public `video_url`, poll `status_code` until it leaves IN_PROGRESS, then publish the
+// finished container. Reuses `graphPost`/`graphGet`/`requireConfigured`/`GraphApiError`
+// above rather than a parallel client — same auth, same token redaction, same error
+// classification as every other call in this file.
+
+/** Poll cadence for `pollReelContainer`. `delayMs` is injectable so tests resolve the
+ *  poll loop instantly instead of waiting on real timers. */
+export interface PollReelContainerOptions {
+  /** Number of status checks before giving up with GRAPH_TIMEOUT. Default 30. */
+  maxAttempts?: number;
+  /** Wait between checks. Default 2000ms. */
+  delayMs?: number;
+  /** Injected sleep, defaults to a real `setTimeout`. Tests pass a no-op so the poll
+   *  loop runs to completion without actually waiting. */
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const DEFAULT_POLL_MAX_ATTEMPTS = 30;
+const DEFAULT_POLL_DELAY_MS = 2_000;
+
+function realSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Step 1: POST /{ig-user-id}/media with media_type=REELS. Returns the container id the
+ *  next two steps operate on. */
+export async function createReelContainer({ videoUrl, caption }: { videoUrl: string; caption?: string }): Promise<{ containerId: string }> {
+  const { token, userId } = requireConfigured();
+  const result = await graphPost<unknown>(`${userId}/media`, { media_type: "REELS", video_url: videoUrl, caption }, token);
+  if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
+  const containerId = str(rec(result.data).id);
+  if (!containerId) {
+    throw new GraphApiError("GRAPH_CONTAINER_FAILED", "Instagram did not return a container id for the new Reel.", { cause: result.data });
+  }
+  return { containerId };
+}
+
+/** Step 2: GET /{container-id}?fields=status_code, bounded by `maxAttempts`. Resolves
+ *  once status_code is FINISHED; throws GRAPH_CONTAINER_FAILED on ERROR/EXPIRED and
+ *  GRAPH_TIMEOUT if it never leaves IN_PROGRESS within the cap — this never loops
+ *  unbounded. */
+export async function pollReelContainer(containerId: string, opts: PollReelContainerOptions = {}): Promise<{ status: "FINISHED" }> {
+  const { token } = requireConfigured();
+  const maxAttempts = opts.maxAttempts ?? DEFAULT_POLL_MAX_ATTEMPTS;
+  const delayMs = opts.delayMs ?? DEFAULT_POLL_DELAY_MS;
+  const sleep = opts.sleep ?? realSleep;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const result = await graphGet<unknown>(containerId, { fields: "status_code" }, token);
+    if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
+
+    const statusCode = str(rec(result.data).status_code);
+    if (statusCode === "FINISHED") return { status: "FINISHED" };
+    if (statusCode === "ERROR" || statusCode === "EXPIRED") {
+      throw new GraphApiError("GRAPH_CONTAINER_FAILED", `Instagram Reel container ${containerId} entered status ${statusCode}.`, { cause: result.data });
+    }
+    // IN_PROGRESS (or an unrecognized status) — keep polling until the attempt cap.
+    if (attempt < maxAttempts) await sleep(delayMs);
+  }
+  throw new GraphApiError("GRAPH_TIMEOUT", `Instagram Reel container ${containerId} did not finish processing after ${maxAttempts} attempts.`);
+}
+
+/** Step 3: POST /{ig-user-id}/media_publish with creation_id=<container-id>. Returns
+ *  the published media's id. */
+export async function publishReel(containerId: string): Promise<{ mediaId: string }> {
+  const { token, userId } = requireConfigured();
+  const result = await graphPost<unknown>(`${userId}/media_publish`, { creation_id: containerId }, token);
+  if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
+  const mediaId = str(rec(result.data).id);
+  if (!mediaId) {
+    throw new GraphApiError("GRAPH_CONTAINER_FAILED", "Instagram did not return a media id after publishing the Reel.", { cause: result.data });
+  }
+  return { mediaId };
+}
