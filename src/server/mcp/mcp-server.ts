@@ -121,9 +121,21 @@ export function buildMcpServer(): McpServer {
     {
       title: "Saved scripts",
       description: "Every saved script, newest first. A script is the text a remix produced.",
-      inputSchema: {},
+      inputSchema: {
+        limit: z.number().optional().describe("Max items, default 50."),
+        offset: z.number().optional().describe("Skip this many, for paging."),
+      },
     },
-    async () => result(await getScripts())
+    async (args) => {
+      // ponytail: naive in-memory slice over the full read; getScripts() takes no
+      // pagination args. Fine for a local single-user SQLite vault — swap for a SQL
+      // LIMIT/OFFSET in getScripts if it ever holds thousands of scripts.
+      const all = await getScripts();
+      const offset = args.offset ?? 0;
+      const limit = args.limit ?? 50;
+      const items = all.slice(offset, offset + limit);
+      return result({ total: all.length, count: items.length, items });
+    }
   );
 
   server.registerTool(
@@ -131,9 +143,21 @@ export function buildMcpServer(): McpServer {
     {
       title: "Ideas",
       description: "The ideas inbox or shortlist: short concepts generated from videos, for the weekly plan. Defaults to the inbox.",
-      inputSchema: { tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox.") },
+      inputSchema: {
+        tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox."),
+        limit: z.number().optional().describe("Max items, default 50."),
+        offset: z.number().optional().describe("Skip this many, for paging."),
+      },
     },
-    async (args) => result(await listIdeas({ tab: args.tab ?? "inbox" }))
+    async (args) => {
+      // ponytail: same in-memory slice as crowsnest_scripts — listIdeas() takes no
+      // pagination args either.
+      const all = await listIdeas({ tab: args.tab ?? "inbox" });
+      const offset = args.offset ?? 0;
+      const limit = args.limit ?? 50;
+      const items = all.slice(offset, offset + limit);
+      return result({ total: all.length, count: items.length, items });
+    }
   );
 
   server.registerTool(
