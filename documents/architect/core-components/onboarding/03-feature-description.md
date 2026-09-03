@@ -38,7 +38,7 @@ The `kai kit init` command, run from a terminal after `kai login <license-key>`.
 
 ### Limitations
 
-- **Fixed: the masked `IG_PASSWORD` prompt used to save an empty value on a real terminal** (`ONB-1`, was a blocker, now done — see `05-backlog-to-enhance.md`). The username saved, but the masked password read came back empty, so `.env.local` got `IG_PASSWORD=`, and the Instagram sidecar refused to start. Kept here as history: this was the failure mode a re-regression in `ask`'s secret path would reproduce.
+- **Fixed: the masked `IG_PASSWORD` prompt used to save an empty value on a real terminal** (`ONB-1`, was a blocker, now done, see `05-backlog-to-enhance.md`). The username saved, but the masked password read came back empty, so `.env.local` got `IG_PASSWORD=`, and the Instagram sidecar refused to start. Kept here as history: this was the failure mode a re-regression in `ask`'s secret path would reproduce.
 - **Fixed: the `ANTHROPIC_API_KEY` prompt used to echo the key in plaintext** (`ONB-2`, was medium severity, now done). The same masked prompt code failed to suppress the echo on a real terminal; the key was entered and saved correctly, but was visible on screen and landed in scrollback.
 
 ### User guide
