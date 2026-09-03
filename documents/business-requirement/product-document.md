@@ -113,6 +113,18 @@ instagrapi session, feeding the feed and outlier scoring. Details:
 | Sidecar service (launchd) | Loopback, shared-secret; **won't start on empty `IG_PASSWORD`** | ◐ |
 | TikTok / YouTube Shorts ingestion | Multi-platform; `platform` column reserved, no backend | ○ |
 
+### Discover
+
+A curated, niche-grouped directory of real Instagram creators at `/channels/discover`, an
+alternative to typing a handle from memory when picking who to track. Details:
+[discover](../architect/core-components/discover/01-concept-brief.md).
+
+| Sub-feature | Description | Status |
+| --- | --- | --- |
+| Curated creator directory | 118 curated handles across fitness, finance, tech, business, loaded by `npm run db:bootstrap`; each card carries a one-line, metric-free reason | ● |
+| One-click follow | Follow reuses the same add-channel and start-sync path a manual add uses; idempotent on an already-tracked handle | ● |
+| Seed picker (first-run drop-in) | A capped multi-select variant built for a future first-run step; not mounted anywhere yet | ◐ |
+
 ### Feed
 
 The outlier feed: a URL-driven, read-only view over the synced videos. Details:
@@ -237,6 +249,7 @@ is set. Detail lives in each component's `05-backlog-to-enhance.md`; the standin
 | Bug board — work the open `05-backlog` items across every component | v0.3 | all components |
 | TikTok / YouTube Shorts ingestion | Later | ig-sync |
 | Intel Macs, Windows, Linux | Later | kit / packaging |
+| Wire the seed picker into a first-run "sources" step | Later | discover |
 
 ---
 

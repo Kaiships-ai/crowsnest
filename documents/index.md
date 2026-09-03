@@ -16,6 +16,7 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 | kit | [01](architect/core-components/kit/01-concept-brief.md) |
 | onboarding | [01](architect/core-components/onboarding/01-concept-brief.md) |
 | feed | [01](architect/core-components/feed/01-concept-brief.md) |
+| discover | [01](architect/core-components/discover/01-concept-brief.md) |
 | analyze | [01](architect/core-components/analyze/01-concept-brief.md) |
 | remix | [01](architect/core-components/remix/01-concept-brief.md) |
 | mine | [01](architect/core-components/mine/01-concept-brief.md) |
