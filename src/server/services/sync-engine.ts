@@ -12,6 +12,7 @@ import { generateIdeasForNewOutliers } from "./ideas";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
 import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
+import { insertVideoSnapshots, type VideoSnapshotInsert } from "./sync-batch";
 
 /**
  * Channel sync against the instagrapi sidecar.
@@ -1308,6 +1309,12 @@ async function syncOneChannel(
       );
       pageNextCursor = page.nextCursor;
 
+      // Collected across the page and flushed in one multi-row insert below, instead of
+      // one `videoSnapshots` insert per item (Goal 3 T4). upsertVideo stays per item: it
+      // returns the id and created/updated distinction the counters need, and it isolates
+      // a bad row on its own.
+      const pageSnapshots: VideoSnapshotInsert[] = [];
+
       for (const item of page.items) {
         if (counters.itemsSeen >= opts.maxItems) {
           stopReason = "cap";
@@ -1340,7 +1347,7 @@ async function syncOneChannel(
             counters.assetsFailed += childAssets.assetsFailed;
           }
 
-          await db.insert(tables.videoSnapshots).values({
+          pageSnapshots.push({
             id: newId(),
             videoId: up.id,
             capturedAt: nowIso(),
@@ -1360,6 +1367,37 @@ async function syncOneChannel(
             code: errorCode(err),
             message: errorMessage(err),
           }, runId);
+        }
+      }
+
+      // One multi-row insert for the whole page. If the batch throws (one poison row in
+      // the mix), fall back to inserting the collected rows one at a time so that single
+      // bad row costs one item, not the rest of the page's snapshots. The video row for
+      // that item was already upserted above and stays counted as seen; only the snapshot
+      // itself is lost, and it is counted (not silently dropped).
+      if (pageSnapshots.length > 0) {
+        try {
+          await insertVideoSnapshots(pageSnapshots);
+        } catch (batchErr) {
+          log.warn("sync.snapshots.batchFailed", {
+            channelId: channel.id,
+            count: pageSnapshots.length,
+            code: errorCode(batchErr),
+            message: errorMessage(batchErr),
+          }, runId);
+          for (const row of pageSnapshots) {
+            try {
+              await insertVideoSnapshots([row]);
+            } catch (rowErr) {
+              counters.itemsFailed += 1;
+              log.error("sync.snapshot.failed", {
+                channelId: channel.id,
+                videoId: row.videoId,
+                code: errorCode(rowErr),
+                message: errorMessage(rowErr),
+              }, runId);
+            }
+          }
         }
       }
 

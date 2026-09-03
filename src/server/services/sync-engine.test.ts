@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { IgClient, IgMedia, IgProfile } from "../ig/client";
 import type { EnsureAssetDeps } from "../ig/assets";
@@ -2922,5 +2922,77 @@ describe("runSync — bounded concurrency (Goal 3 T3)", () => {
     const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
     expect(job.status).toBe("partial");
     expect(job.channelsDone).toBe(2);
+  });
+});
+
+describe("runSync — snapshot batching (Goal 3 T4)", () => {
+  test("a page of N items issues one videoSnapshots insert, not N", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@batch");
+
+    const items = Array.from({ length: 5 }, (_, i) => makeMedia(`batch-${i}`, i));
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+
+    const insertSpy = vi.spyOn(db, "insert");
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    const snapshotInsertCalls = insertSpy.mock.calls.filter((call) => call[0] === tables.videoSnapshots);
+    insertSpy.mockRestore();
+
+    expect(result.itemsSeen).toBe(5);
+    expect(snapshotInsertCalls).toHaveLength(1);
+
+    const videos = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
+    const videoIds = new Set(videos.map((v) => v.id));
+    const snaps = await db.select().from(tables.videoSnapshots);
+    expect(snaps.filter((s) => videoIds.has(s.videoId))).toHaveLength(5);
+  });
+
+  test("a poison snapshot row falls back to per-row inserts and isolates the failure to that item", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@poison");
+
+    // A sentinel view count identifies the poison item's snapshot row without needing to
+    // know its generated video id up front.
+    const POISON_VIEW_COUNT = -1;
+    const items = [makeMedia("t4-ok-1", 1), makeMedia("t4-poison", 2, { viewCount: POISON_VIEW_COUNT }), makeMedia("t4-ok-2", 3)];
+    const { client } = stubClient({ pages: [{ items, nextCursor: null, stopReason: "exhausted" }] });
+
+    const originalInsert = db.insert.bind(db);
+    const insertSpy = vi.spyOn(db, "insert").mockImplementation((table: unknown) => {
+      if (table !== tables.videoSnapshots) return originalInsert(table as never);
+      return {
+        values: (rows: { viewCount: number | null }[]) => {
+          // The whole-page batch call always has more than one row here; fail it so the
+          // engine falls back to inserting one row at a time.
+          if (rows.length > 1) throw new Error("batch insert failed (simulated poison row)");
+          if (rows[0].viewCount === POISON_VIEW_COUNT) throw new Error("poison snapshot row");
+          return originalInsert(table as never).values(rows as never);
+        },
+      } as never;
+    });
+
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+    insertSpy.mockRestore();
+
+    // The poison row only breaks its own snapshot write; upsertVideo already committed
+    // the video row for all three posts, so they all still count as seen/created.
+    expect(result.itemsSeen).toBe(3);
+    expect(result.itemsCreated).toBe(3);
+    // The one snapshot that failed is counted as a failure, not silently dropped.
+    expect(result.itemsFailed).toBe(1);
+
+    const videos = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
+    expect(videos).toHaveLength(3);
+
+    const videoIds = new Set(videos.map((v) => v.id));
+    const snaps = (await db.select().from(tables.videoSnapshots)).filter((s) => videoIds.has(s.videoId));
+    // Only the two non-poison posts got a snapshot row.
+    expect(snaps).toHaveLength(2);
   });
 });
