@@ -440,6 +440,20 @@ git commit -m "feat(db): drop create_runs table with a logged migration"
   node-pty load" to "better-sqlite3 loads"). Update the matching assertion in
   `src/cli/kai.test.ts`.
 
+- [ ] **Step 4b: Remove the dead VAULT_PATH prompt (Task 7 spillover).** `src/server/config.ts`
+  no longer reads `VAULT_PATH` (it was the create studio's Obsidian vault, removed in Task 7),
+  so the kit-init flow still prompting for it and writing it to `.env.local` is dead. In
+  `src/cli/kai.ts` delete the four-line block (around 264-267):
+  `const defaultVault = join(homedir(), ".crowsnest", "vault");`, the
+  `const vault = await ask("\nVAULT_PATH", { fallback: defaultVault });`, the
+  `mkdirSync(vault, { recursive: true });`, and `env = setEnv(env, "VAULT_PATH", vault);`.
+  If `homedir`/`mkdirSync` become unused after this, remove them from the imports (check they
+  are not used elsewhere in the file first). In `src/cli/kai.test.ts:93`, the "falls back when
+  the line is blank" test uses `"VAULT_PATH"` only as an arbitrary prompt label for the generic
+  `ask()` fallback behavior — rename that label to a neutral string (e.g. `"PROMPT"`) so the
+  test still verifies `ask` fallback without naming a removed var. Confirm `grep -rn "VAULT_PATH" src`
+  returns nothing after.
+
 - [ ] **Step 5: Grep clean.** Run
   `grep -rn "node-pty\|xterm\|fix-node-pty" src packaging/build-bundle.sh package.json | grep -v node_modules`.
   Expected: no hits. Run `npx vitest run src/cli`. Expected: PASS.
