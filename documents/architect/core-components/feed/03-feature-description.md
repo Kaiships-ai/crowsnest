@@ -16,8 +16,8 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 3 | The filter bar and saved views | URL-driven filter controls, saved views, Add post URL import | ● | `src/components/feed/filter-bar.tsx`, `saved-view-actions.ts` | FEED-Q2 |
 | 4 | The quick preview sheet | Read-only panel over the feed showing one video's details | ● | `src/components/feed/quick-preview-sheet.tsx`, `preview-action.ts` | FEED-Q3 |
 | 5 | The keep this post button | One-row-per-video toggle that saves a post to a shortlist | ● | `src/components/video/save-post-button.tsx`, `saved-post-actions.ts` | none |
-| 6 | The save to vault dialog | Lifts a hook or style template out of an analysis into a reusable vault item | ● | `vault-actions.ts` | B-05 |
-| 7 | The video detail page | Two-column study surface for one video, with arrow-key navigation to neighbours | ● | `src/app/(shell)/feed/[videoId]/page.tsx`, `src/components/video/video-detail.tsx` | B-14 |
+| 6 | The save to vault dialog | Lifts a hook or style template out of an analysis into a reusable vault item | ● | `vault-actions.ts` | none |
+| 7 | The video detail page | Two-column study surface for one video, with arrow-key navigation to neighbours | ● | `src/app/(shell)/feed/[videoId]/page.tsx`, `src/components/video/video-detail.tsx` | B-10 |
 
 ## 2. The outlier feed page
 
@@ -171,7 +171,7 @@ The action row of the video detail page, next to keep this post. The button is d
 ### Business rules
 
 - Every field is computed client-side from the analysis already on the page, with no further fetch; Save is enabled from the first paint.
-- Choosing Hook, Style, or Both decides what is written, captured at the moment Save is clicked; Both fires two inserts in parallel.
+- Choosing Hook, Style, or Both decides what is written, captured at the moment Save is clicked; Both writes both items in the same atomic call, so a failure on either one saves neither.
 - There is no validation: an empty title or template saves an empty vault item, and a blank tag field saves no tags.
 - The fields never reset, on close, cancel, or a successful save; only a page reload recomputes the prefill from the analysis.
 - Saving the same video, or the same choice, twice always creates new rows; there is no per-video or per-template cap and no dedupe.
@@ -179,7 +179,6 @@ The action row of the video detail page, next to keep this post. The button is d
 
 ### Limitations
 
-- Choosing "Both" fires its two inserts with `Promise.all` and reports only the first failure it finds; one insert can land while the other fails, and clicking Save again then re-inserts both, duplicating the one that already landed. Tracked as `B-05` in the [backlog](05-backlog-to-enhance.md).
 - There is no undo, unlike keep-this-post's Undo toast; a vault item is removed later on the vault page.
 
 ### User guide
@@ -214,7 +213,6 @@ A two-column reading surface at `/feed/{videoId}`. The left column holds the med
 
 ### Limitations
 
-- The route's `notFound()` returns HTTP 200 rather than 404, though the rendered body is the correct not-found content. Tracked as `B-14` in the [backlog](05-backlog-to-enhance.md).
 - The analysis summary field is rendered on the page but never written by the analysis pass, so it always shows empty. Tracked as `B-10` in the [backlog](05-backlog-to-enhance.md).
 - Copy as prompt builds and copies a prompt regardless of analysis state, degrading section by section; Save to Vault stays gated on an analysis existing.
 
@@ -241,6 +239,4 @@ Configuration and settings. The two built-in saved views, and their default crit
 - **The default-view logic disagrees with itself in the codebase.** `feed/page.tsx` applies the seeded High Conviction view on a bare visit, but doc comments elsewhere in `feed-filters.ts` and `resolve-feed-nav.ts` describe a bare visit as the full unfiltered library. The page code is what actually runs; the comments are stale. Tracked as `FEED-Q1` in the [backlog](05-backlog-to-enhance.md).
 - **A soft-removed video reads differently depending on where it is shown.** The card and the detail page mark it "No longer on Instagram" or a removed banner; the quick preview sheet shows no such flag for the same video, tracked as `B-16` in the [backlog](05-backlog-to-enhance.md).
 - **Two tabs racing the same write.** A second keep on an already-saved video, or a second delete or rename of a saved view another tab already changed, is refused rather than silently duplicated or lost (`SAVED_POST_ALREADY_SAVED`, `SAVED_VIEW_NOT_FOUND`).
-- **Save to vault's "Both" choice can half-land.** Its two inserts run with `Promise.all` and only the first failure is reported; one row can commit while the other fails, and a retry then duplicates the one that already landed. Tracked as `B-05` in the [backlog](05-backlog-to-enhance.md).
 - **Re-importing a post by URL updates it in place.** `importReelByUrl` upserts on the same `(platform, external_id)` key a sidecar sync uses, so importing a post already in the feed refreshes its row rather than creating a duplicate.
-- **The video detail route's not-found state returns HTTP 200.** The rendered body is the correct not-found content, but the status code is wrong, tracked as `B-14` in the [backlog](05-backlog-to-enhance.md).
