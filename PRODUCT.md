@@ -19,7 +19,8 @@ crowsnest watches a handful of Instagram channels a creator competes with and sc
 post against that channel's own median, so the creator sees what genuinely over-performed
 rather than what is merely popular. It then carries that signal all the way through: spot an
 over-performer in the feed, analyze it, save it to a vault, remix it into the creator's own
-version, plan it on a calendar, and run the cook-and-publish step. Success is the creator
+version, plan it on a calendar, and schedule or publish it straight to their own Instagram
+channel through the Graph API. Success is the creator
 consistently shipping posts informed by what actually beats the median in their niche.
 
 ## Positioning
@@ -53,7 +54,10 @@ whole.
 
 - Core loop is built and runs: sync, feed and filters, video detail + analysis, save to
   vault + generate idea, the six-stage remix studio, calendar and plan dialog, and the
-  studio cook run + publish gate.
+  studio cook run. Scheduled and immediate publish to the creator's own channel is built
+  on the Graph API, dry-run by default outside production; a live publish needs a
+  configured S3-compatible bucket, a Graph API token, and a Business or Creator Instagram
+  account (Reels publish requires one).
 - Constraints future work must respect: Apple Silicon only; single-user local install; local
   sqlite (`data/crowsnest.db`, plaintext secrets, never returned to the browser); Instagram
   access is read-only and depends on a running local sidecar logged into a throwaway account
