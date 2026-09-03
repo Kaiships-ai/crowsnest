@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { NumberField, SettingRow } from "./setting-field";
+import { numberFieldError } from "./number-validation";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import type { AppSettingsView } from "@/server/settings";
 
@@ -58,6 +59,10 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
     syncSla !== String(initial.syncSlaMinutes.value) ||
     remixSla !== String(initial.remixSlaMinutes.value) ||
     notifyOnSuccess !== initial.notifyOnSuccess.value;
+
+  const syncSlaError = numberFieldError(syncSla, { min: 1, max: 240, integer: true });
+  const remixSlaError = numberFieldError(remixSla, { min: 1, max: 240, integer: true });
+  const hasError = syncSlaError !== null || remixSlaError !== null;
 
   async function save() {
     setSaving(true);
@@ -105,10 +110,26 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
           label="Sync SLA budget"
           hint="A sync slower than this flags as over budget on the run screens and raises a notification when it finishes. It is never auto cancelled."
         >
-          <NumberField value={syncSla} onChange={setSyncSla} min={1} max={240} suffix="min" ariaLabel="Sync SLA budget minutes" />
+          <NumberField
+            value={syncSla}
+            onChange={setSyncSla}
+            min={1}
+            max={240}
+            suffix="min"
+            ariaLabel="Sync SLA budget minutes"
+            error={syncSlaError}
+          />
         </SettingRow>
         <SettingRow label="Remix SLA budget" hint="Same for a remix stage run." warnNote={NOT_WIRED_NOTE}>
-          <NumberField value={remixSla} onChange={setRemixSla} min={1} max={240} suffix="min" ariaLabel="Remix SLA budget minutes" />
+          <NumberField
+            value={remixSla}
+            onChange={setRemixSla}
+            min={1}
+            max={240}
+            suffix="min"
+            ariaLabel="Remix SLA budget minutes"
+            error={remixSlaError}
+          />
         </SettingRow>
         <SettingRow
           label="Heartbeat staleness"
@@ -133,7 +154,7 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
         </SettingRow>
       </div>
 
-      <Button onClick={save} disabled={!dirty || saving} className="w-fit" size="sm" variant="outline">
+      <Button onClick={save} disabled={!dirty || hasError || saving} className="w-fit" size="sm" variant="outline">
         {saving ? "Saving…" : "Save"}
       </Button>
     </section>

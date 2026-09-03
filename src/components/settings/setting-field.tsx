@@ -88,6 +88,7 @@ export function NumberField({
   suffix,
   disabled,
   ariaLabel,
+  error,
 }: {
   /** Kept as a string in local state, same reasoning `add-channel-dialog.tsx` and
    *  friends use for text inputs: an intermediate typed value ("" mid-edit, a leading
@@ -100,21 +101,28 @@ export function NumberField({
   suffix?: string;
   disabled?: boolean;
   ariaLabel?: string;
+  /** From `numberFieldError` (number-validation.ts), computed by the caller against the
+   *  same min/max passed above. Null/undefined renders no message. */
+  error?: string | null;
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <Input
-        type="number"
-        inputMode="numeric"
-        className="w-24"
-        value={value}
-        min={min}
-        max={max}
-        disabled={disabled}
-        aria-label={ariaLabel}
-        onChange={(e) => onChange(e.target.value)}
-      />
-      {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          inputMode="numeric"
+          className="w-24"
+          value={value}
+          min={min}
+          max={max}
+          disabled={disabled}
+          aria-label={ariaLabel}
+          aria-invalid={error ? true : undefined}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

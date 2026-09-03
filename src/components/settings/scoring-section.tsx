@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EnumField, NumberField, SettingRow } from "./setting-field";
+import { numberFieldError } from "./number-validation";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import type { AppSettingsView } from "@/server/settings";
 
@@ -54,6 +55,10 @@ export function ScoringSection({ initial }: { initial: ScoringSettings }) {
     windowSpec !== initial.scoreBaselineWindow.value ||
     minUsable !== String(initial.scoreMinUsablePosts.value) ||
     minViews !== String(initial.scoreMinViewsFloor.value);
+
+  const minUsableError = numberFieldError(minUsable, { min: 1, max: 1000, integer: true });
+  const minViewsError = numberFieldError(minViews, { min: 0, max: 1_000_000_000, integer: true });
+  const hasError = minUsableError !== null || minViewsError !== null;
 
   async function commit() {
     setSaving(true);
@@ -94,14 +99,30 @@ export function ScoringSection({ initial }: { initial: ScoringSettings }) {
           <EnumField value={windowSpec} onChange={setWindowSpec} options={WINDOW_OPTIONS} ariaLabel="Baseline window" />
         </SettingRow>
         <SettingRow label="Minimum usable posts" hint="Fewer usable posts than this and a channel gets no score at all.">
-          <NumberField value={minUsable} onChange={setMinUsable} min={1} max={1000} suffix="posts" ariaLabel="Minimum usable posts" />
+          <NumberField
+            value={minUsable}
+            onChange={setMinUsable}
+            min={1}
+            max={1000}
+            suffix="posts"
+            ariaLabel="Minimum usable posts"
+            error={minUsableError}
+          />
         </SettingRow>
         <SettingRow label="Views floor" hint="Posts below this many views are excluded from the baseline. 0 means no floor.">
-          <NumberField value={minViews} onChange={setMinViews} min={0} max={1_000_000_000} suffix="views" ariaLabel="Views floor" />
+          <NumberField
+            value={minViews}
+            onChange={setMinViews}
+            min={0}
+            max={1_000_000_000}
+            suffix="views"
+            ariaLabel="Views floor"
+            error={minViewsError}
+          />
         </SettingRow>
       </div>
 
-      <Button onClick={() => setConfirmOpen(true)} disabled={!dirty || saving} className="w-fit" size="sm">
+      <Button onClick={() => setConfirmOpen(true)} disabled={!dirty || hasError || saving} className="w-fit" size="sm">
         Save (rescores every post)
       </Button>
 
