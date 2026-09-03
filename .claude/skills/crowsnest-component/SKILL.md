@@ -25,6 +25,13 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 | P5 verify | reuse | `ship:verification-before-completion` |
 | Open-item counts in P1 | reuse | `where-are-we` |
 
+Load only the references a phase needs, not all of them. Every phase that reads
+or writes a doc reads `house-style.md` and grounds with
+`references/gitnexus-grounding.md`. Beyond those: Phase 2's architecture track
+also needs `references/drizzle-er-and-sequence.md`, and its test-case track
+needs `references/test-cases-format.md` and `references/browse-e2e-qa.md`.
+Phase 1, 3, and 5 do not need the test-case or diagram references.
+
 ## Phase 1: research and concept. Human gate.
 
 - Ground with GitNexus first (see `references/gitnexus-grounding.md`): bind `repo: "crowsnest"`,
