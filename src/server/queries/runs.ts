@@ -49,6 +49,9 @@ export interface RunDetail extends RunSummary {
    *  measure" and "measured nothing" are different facts and this app does not print a
    *  fabricated zero for the first. */
   itemsEnriched: number | null;
+  /** Channels this run could not cover. Empty for a clean run and always empty for a
+   *  remix Run — `remix_runs` has no such column, and this must not fabricate one. */
+  gaps: SyncGap[];
 }
 
 const DEFAULT_LIST_LIMIT = 100;
@@ -160,7 +163,7 @@ export function getRun(runId: string): RunDetail | null {
   // info, so a deployment running at LOG_LEVEL=warn or above stores no such row and every
   // run reports null. That is the honest outcome for a derived figure.
   const events = queryLogEvents({ runId, levels: ["info", "warn", "error"], limit: DEFAULT_EVENT_LIMIT });
-  return { ...summary, events, itemsEnriched: enrichedFromEvents(events) };
+  return { ...summary, events, itemsEnriched: enrichedFromEvents(events), gaps: syncRow?.gaps ?? [] };
 }
 
 /**
