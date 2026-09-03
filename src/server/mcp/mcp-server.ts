@@ -251,7 +251,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Remix session state",
       description: "The current state of a remix session: topic, chosen hook, outline, variants, chosen variant. Returns null when unknown.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await getRemixSession(args.sessionId))
   );
@@ -262,10 +262,10 @@ export function buildMcpServer(): McpServer {
       title: "Set the remix prompt",
       description: "Set the topic, niche, and target length on a session. All optional; only the given fields change.",
       inputSchema: {
-        sessionId: z.string(),
-        topic: z.string().optional(),
-        niche: z.string().optional(),
-        targetLengthSec: z.number().optional(),
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        topic: z.string().optional().describe("The remix topic to set."),
+        niche: z.string().optional().describe("The content niche to set."),
+        targetLengthSec: z.number().optional().describe("Target script length in seconds."),
       },
     },
     async (args) => {
@@ -283,7 +283,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Build research",
       description: "Assemble the research notes for a session from the source analysis, transcript, and similar outliers. No model call, so this works with the proxy down.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await buildResearch(args.sessionId))
   );
@@ -294,7 +294,7 @@ export function buildMcpServer(): McpServer {
       title: "Generate hooks",
       description: "Generate hook options for a session. Needs the LLM proxy. Optionally seed from a vault hook, or steer with a note.",
       inputSchema: {
-        sessionId: z.string(),
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
         vaultItemId: z.string().optional().describe("A vault hook item id to seed from."),
         steer: z.string().optional().describe("A note to steer the generation, e.g. punchier."),
       },
@@ -307,7 +307,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Choose a hook",
       description: "Set the chosen hook on a session, by its text (one of the generated hooks, or your own).",
-      inputSchema: { sessionId: z.string(), hook: z.string() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        hook: z.string().describe("The hook text to set as chosen, from crowsnest_remix_hooks or your own."),
+      },
     },
     async (args) => {
       await updateStage(args.sessionId, { chosenHook: args.hook });
@@ -320,7 +323,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Choose a style",
       description: "Set the style vault item on a session, or clear it (pass no styleVaultItemId) to use the source video's own structure.",
-      inputSchema: { sessionId: z.string(), styleVaultItemId: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        styleVaultItemId: z.string().optional().describe("A style vault item id to set; omit to clear and use the source video's own structure."),
+      },
     },
     async (args) => {
       await updateStage(args.sessionId, { styleVaultItemId: args.styleVaultItemId ?? null });
@@ -333,7 +339,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Generate outline",
       description: "Generate the beat outline for a session from its chosen hook and style. Needs the LLM proxy. Steer with a note.",
-      inputSchema: { sessionId: z.string(), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result(await generateOutline(args.sessionId, { steer: args.steer }))
   );
@@ -343,7 +352,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Generate variants",
       description: "Generate script variants (three by default) for a session. Needs the LLM proxy. A failed variant is returned as an error at its slot. Steer with a note.",
-      inputSchema: { sessionId: z.string(), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result({ variants: await generateVariants(args.sessionId, { steer: args.steer }) })
   );
@@ -353,7 +365,11 @@ export function buildMcpServer(): McpServer {
     {
       title: "Regenerate one variant",
       description: "Regenerate a single variant slot by index, keeping the others. Needs the LLM proxy. Steer with a note.",
-      inputSchema: { sessionId: z.string(), index: z.number().describe("Zero-based variant index."), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        index: z.number().describe("Zero-based variant index."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result({ variants: await generateVariants(args.sessionId, { index: args.index, steer: args.steer }) })
   );
@@ -363,7 +379,11 @@ export function buildMcpServer(): McpServer {
     {
       title: "Save a script",
       description: "Save one variant as a script and record it as the chosen variant. Give the variant index and a title.",
-      inputSchema: { sessionId: z.string(), variantIndex: z.number(), title: z.string() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        variantIndex: z.number().describe("Zero-based index of the variant to save."),
+        title: z.string().describe("Title to give the saved script."),
+      },
     },
     async (args) => {
       const session = await getRemixSession(args.sessionId);
@@ -380,7 +400,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Finish the remix",
       description: "Finish a session: create (or reuse) an undated draft planned post carrying the chosen script, and return its postId. Idempotent.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await finishRemix(args.sessionId))
   );
