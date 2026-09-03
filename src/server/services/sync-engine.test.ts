@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { IgClient, IgMedia, IgProfile } from "../ig/client";
 import type { EnsureAssetDeps } from "../ig/assets";
 
@@ -971,7 +971,11 @@ describe("runSync — live progress", () => {
       },
     } as unknown as IgClient;
 
-    const result = await runSync({ channelIds: [first.channelId, second.channelId], client, sleep: noopSleep });
+    // concurrency: 1 — this test's assertion is inherently about SERIAL ordering (the
+    // second channel starting only once the first is fully banked), which is no longer
+    // the default now that Goal 3 T3 pipelines channels. See the "runSync — bounded
+    // concurrency" describe block below for the pooled-execution equivalents.
+    const result = await runSync({ channelIds: [first.channelId, second.channelId], client, sleep: noopSleep, concurrency: 1 });
 
     expect(result.itemsSeen).toBe(2);
     // Second channel started with the first channel's item already banked.
@@ -1344,7 +1348,11 @@ describe("runSync — co-operative cancel", () => {
       },
     } as unknown as IgClient;
 
-    const result = await runSync({ channelIds: [first.channelId, second.channelId], client, sleep: noopSleep });
+    // concurrency: 1 — with the pool's default width > 1 both channels dispatch before
+    // either can observe the cancel; the pooled cancel-mid-flight guarantee ("stops
+    // DISPATCHING further channels, lets in-flight finish") is covered separately in the
+    // "runSync — bounded concurrency" describe block below.
+    const result = await runSync({ channelIds: [first.channelId, second.channelId], client, sleep: noopSleep, concurrency: 1 });
 
     // Channel order comes from the id index, not from insertion order — what matters is
     // that exactly ONE channel was touched and the other was never contacted.
@@ -2767,5 +2775,152 @@ describe("runSync — resume from persisted cursor", () => {
     // Fresh walk: the first fetch is page 1 (no cursor) with a fresh, in-lookback boundary.
     expect(mediasCalls[0].cursor).toBeUndefined();
     expect(new Date(mediasCalls[0].sinceIso).getTime()).toBeGreaterThan(Date.now() - 31 * DAY_MS);
+  });
+});
+
+describe("runSync — bounded concurrency (Goal 3 T3)", () => {
+  test("concurrency 1 visits channels in the same order as today's serial walk, with identical counters", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const a = await setupChannel("@order-a");
+    const b = await setupChannel("@order-b");
+    const c = await setupChannel("@order-c");
+    const channelIds = [a.channelId, b.channelId, c.channelId];
+
+    // The exact order runSync's own query returns these rows in (no ORDER BY, so this is
+    // whatever the DB naturally gives back) — the invariant under test is that a
+    // concurrency-1 pool visits them in THIS order, one at a time, same as the old
+    // for-of loop.
+    const expectedOrder = (
+      await db
+        .select({ handle: tables.channels.handle })
+        .from(tables.channels)
+        .where(and(inArray(tables.channels.id, channelIds), isNull(tables.channels.deletedAt)))
+    ).map((r) => r.handle);
+
+    const visited: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        visited.push(handle);
+        return makeProfile(handle);
+      },
+      async medias() {
+        return { items: [makeMedia(`order-${visited.length}`, 1)], nextCursor: null, stopReason: "lookback" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds, client, sleep: noopSleep, concurrency: 1 });
+
+    expect(visited).toEqual(expectedOrder);
+    expect(result.channelsSynced).toBe(3);
+    expect(result.itemsSeen).toBe(3);
+    expect(result.itemsCreated).toBe(3);
+    expect(result.gaps).toEqual([]);
+  });
+
+  test("N=4 channels at concurrency 2 all complete, counters sum correctly, and all gaps are collected", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { IgError } = await import("../ig/errors");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const okA = await setupChannel("@pool-ok-1");
+    const badA = await setupChannel("@pool-bad-1");
+    const okB = await setupChannel("@pool-ok-2");
+    const badB = await setupChannel("@pool-bad-2");
+    const channelIds = [okA.channelId, badA.channelId, okB.channelId, badB.channelId];
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let itemSeq = 0;
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        // A real tick, so a second worker's profile() call can genuinely start before
+        // this one returns — the only way to prove two channels are truly in flight at
+        // once rather than the pool accidentally staying serial.
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        inFlight -= 1;
+        if (handle.includes("bad")) throw new IgError("IG_NOT_FOUND", `profile failed for ${handle}`);
+        return makeProfile(handle);
+      },
+      async medias() {
+        itemSeq += 1;
+        return { items: [makeMedia(`pool-${itemSeq}`, 1)], nextCursor: null, stopReason: "lookback" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds, client, sleep: noopSleep, concurrency: 2 });
+
+    // Proves the pool actually overlapped work, not just that it happened not to break.
+    expect(maxInFlight).toBeGreaterThan(1);
+
+    expect(result.channelsSynced).toBe(2);
+    expect(result.gaps).toHaveLength(2);
+    expect(result.gaps.map((g) => g.handle).sort()).toEqual(["@pool-bad-1", "@pool-bad-2"]);
+    // One item per surviving channel; the two failed channels never reach medias().
+    expect(result.itemsSeen).toBe(2);
+    expect(result.itemsCreated).toBe(2);
+
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+    expect(job.channelsDone).toBe(4);
+  });
+
+  test("cancel observed mid-pool stops dispatching further channels but lets in-flight ones finish", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const chans = [
+      await setupChannel("@pool-cancel-1"),
+      await setupChannel("@pool-cancel-2"),
+      await setupChannel("@pool-cancel-3"),
+      await setupChannel("@pool-cancel-4"),
+    ];
+    const channelIds = chans.map((c) => c.channelId);
+
+    const touched: string[] = [];
+    let cancelRequested = false;
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        touched.push(handle);
+        if (!cancelRequested) {
+          cancelRequested = true;
+          const running = await runningJob(null);
+          await requestCancel(running!.id);
+        }
+        return makeProfile(handle);
+      },
+      async medias() {
+        return { items: [makeMedia(`pc-${touched.length}`, 1)], nextCursor: null, stopReason: "lookback" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds, client, sleep: noopSleep, concurrency: 2 });
+
+    // Both channels already dispatched when the cancel landed finish normally — the pool
+    // never starts a third or fourth.
+    expect(touched).toHaveLength(2);
+    expect(new Set(touched).size).toBe(2);
+    expect(result.channelsSynced).toBe(2);
+    expect(result.gaps).toEqual([]);
+    expect(result.stopReason).toBe("cancelled");
+
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+    expect(job.channelsDone).toBe(2);
   });
 });

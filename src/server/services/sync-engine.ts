@@ -74,6 +74,9 @@ export interface RunSyncOpts {
   assetDeps?: EnsureAssetDeps;
   /** Overrides "now" so lookback maths is testable without freezing the clock. */
   now?: () => Date;
+  /** Test seam — overrides the `syncConcurrency` setting for a single run. Clamped to
+   *  >= 1 the same way the resolved setting is. */
+  concurrency?: number;
   /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
@@ -1582,6 +1585,9 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   // Resolved once for the whole run, not per channel, so every channel in one sync gets
   // the same budget even if the setting is edited while the run is in flight.
   const enrichPerChannel = opts.enrichPerChannel ?? (await getSetting("viewCountEnrichPerChannel"));
+  // Clamped defensively even though the settings schema already bounds it >= 1: a test
+  // seam value should get the same floor as the setting it stands in for.
+  const concurrency = Math.max(1, opts.concurrency ?? (await getSetting("syncConcurrency")));
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
   // half the outbound calls — which is both a testing lie and, in production, two
@@ -1628,30 +1634,84 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
 
-    // Sequential on purpose: one Instagram account is making these requests, and
-    // parallel bursts from a single session is what trips rate limiting. The pacing is
-    // the point, not a limitation.
-    for (const channel of channelRows) {
-      if (await tracker.isCancelRequested()) {
-        cancelObserved = true;
-        cancelLeftWorkUndone = true;
-        log.info("sync.cancelled", { jobId, before: channel.handle, channelsDone: tracker.channelsDone });
-        break;
-      }
-      await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
+    // Bounded worker pool, `concurrency` wide: the sidecar still serializes every actual
+    // Instagram call behind its own process-global lock (see the goal brief), so this
+    // never produces concurrent IG traffic — it only overlaps one channel's local work
+    // (thumbnail download, DB writes, scoring) with the next channel's fetch. At
+    // concurrency 1 there is exactly one worker draining `channelRows` in order, which
+    // makes this byte-for-byte the old serial `for` loop.
+    //
+    // Workers share `nextIndex`, `totals`, `gaps`, `channelsSynced`, `lastStopReason`,
+    // `cancelObserved`, and `cancelLeftWorkUndone` with no locks: JS runs one worker's
+    // synchronous code at a time, and every read-then-write of that shared state below
+    // happens with no `await` in between, so it can never interleave across workers.
+    let nextIndex = 0;
+    let cancelLogged = false;
 
-      const result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel });
-      for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
-      if (result.gap) gaps.push(result.gap);
-      else channelsSynced += 1;
-      lastStopReason = result.stopReason ?? lastStopReason;
-      if (result.stopReason === "cancelled") {
-        cancelObserved = true;
-        cancelLeftWorkUndone = true;
+    async function worker(): Promise<void> {
+      for (;;) {
+        // Same order as the old for-of loop: nothing left to dispatch ends the worker
+        // before it ever asks about cancellation, same as an empty/exhausted array never
+        // entering the loop body.
+        if (nextIndex >= channelRows.length) return;
+        if (await tracker.isCancelRequested()) {
+          // Do not start any channel not already dispatched; channels already in flight
+          // on other workers are left to finish below.
+          if (!cancelLogged) {
+            cancelLogged = true;
+            cancelObserved = true;
+            cancelLeftWorkUndone = true;
+            log.info("sync.cancelled", { jobId, before: channelRows[nextIndex]?.handle, channelsDone: tracker.channelsDone });
+          }
+          return;
+        }
+        // Re-check: another worker may have claimed the last remaining channel while this
+        // one was awaiting the cancel check above. From here to `nextIndex += 1` there is
+        // no `await`, so the claim itself is atomic.
+        if (nextIndex >= channelRows.length) return;
+        const channel = channelRows[nextIndex];
+        nextIndex += 1;
+
+        // Last-started wins: with N workers in flight there is no one truthful "current"
+        // channel, so this names whichever channel most recently started.
+        await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
+
+        // syncOneChannel catches its own per-channel failures and returns a gap, but a
+        // throw from the resume-cursor read (which runs before its try) or any other
+        // unexpected error must NOT reject this worker: with siblings in flight, a
+        // rejected Promise.all would finalize the job row while they are still writing to
+        // it, and this channel would vanish from both `gaps` and `channelsSynced`. Fold an
+        // escaped throw into a channel gap so the run finalizes as partial with the channel
+        // counted, exactly as a returned gap would. (In-process this is defensive: the DB
+        // is synchronous better-sqlite3, so workers never truly write concurrently.)
+        let result: { gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null };
+        try {
+          result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel });
+        } catch (err) {
+          const code = errorCode(err);
+          log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message: errorMessage(err) }, jobId);
+          result = {
+            counters: zeroCounters(),
+            stopReason: null,
+            gap: { channelId: channel.id, handle: channel.handle, provider: channel.platform, error: errorMessage(err), code },
+          };
+        }
+        for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
+        if (result.gap) gaps.push(result.gap);
+        else channelsSynced += 1;
+        lastStopReason = result.stopReason ?? lastStopReason;
+        if (result.stopReason === "cancelled") {
+          cancelObserved = true;
+          cancelLeftWorkUndone = true;
+        }
+        tracker.channelsDone += 1;
+        await tracker.flush();
       }
-      tracker.channelsDone += 1;
-      await tracker.flush();
     }
+
+    // Extra workers beyond `channelRows.length` just see `nextIndex >= length` on their
+    // first turn and return immediately — no special-casing needed for a short list.
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
     // A cancel can also land after the last page: it changed nothing, but the user still
     // asked for it, so the run says so rather than silently reporting a clean finish.
