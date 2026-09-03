@@ -381,17 +381,21 @@ export const savedPosts = sqliteTable("saved_posts", {
 
 /**
  * A planned post (V1 data contracts, contract 6): a dated intention to publish,
- * optionally carrying a Script. Lives only in Crowsnest — nothing here schedules,
- * publishes, or reminds. Kai marks one published by hand via `publishedOwnPostId`, or
- * it stays a plan and eventually reads as "missed" once its date passes.
+ * optionally carrying a Script. Kai marks one published by hand via
+ * `publishedOwnPostId`, or it stays a plan and eventually reads as "missed" once its
+ * date passes.
  *
- * `state` only ever stores "draft" or "scheduled" — "missed" is derived on read
- * (see queries/planned-posts.ts) rather than stored, because a stored "missed" needs
- * something running to flip it and nothing here runs.
+ * The publish component (Goal 4) added a real lifecycle on top of that: a plan can
+ * carry an uploaded video, a caption, and a `scheduledAt` instant, and an in-process
+ * scheduler publishes it at that time. `state` now also stores "publishing" and
+ * "failed" while that is in flight. "missed" is still derived on read (see
+ * queries/planned-posts.ts), never stored, because a stored "missed" needs something
+ * running to flip it and nothing here runs — but a stored "publishing"/"failed" is
+ * never re-derived to "missed".
  */
 export const plannedPosts = sqliteTable("planned_posts", {
   id: text("id").primaryKey(),
-  state: text("state").notNull().default("draft"), // "draft" | "scheduled" | "published"; "missed" is derived on read, never stored
+  state: text("state").notNull().default("draft"), // "draft" | "scheduled" | "publishing" | "published" | "failed"; "missed" is derived on read, never stored
   title: text("title").notNull(),
   note: text("note"),
   /** Null for an undated draft. Date only, no time zone handling: one Mac, one place. */
@@ -420,9 +424,29 @@ export const plannedPosts = sqliteTable("planned_posts", {
    *  never having had one. The calendar cell says the script is gone and when, instead
    *  of rendering identically to a plan that was always just a title. */
   scriptDetachedNote: text("script_detached_note"),
+  /** The uploaded mp4 this plan publishes, null until one is attached. */
+  videoAssetId: text("video_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+  caption: text("caption"),
+  /** The combined date+time instant the scheduler reads, null until a plan is
+   *  scheduled. Distinct from plannedDate/plannedTime, which stay the calendar's own
+   *  date-only fields and are never used for the publish clock. */
+  scheduledAt: text("scheduled_at"),
+  /** `postId + scheduledAt`, set when a plan is scheduled. Unique so a stale scheduler
+   *  tick and a re-schedule can never both claim the same publish attempt. */
+  idempotencyKey: text("idempotency_key"),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  lastError: text("last_error"),
+  errorClass: text("error_class"),
+  publishedAt: text("published_at"),
+  /** sqlite boolean as int. Set when a publish ran the whole path but skipped the
+   *  final publish POST (PUBLISH_DRY_RUN). */
+  dryRun: integer("dry_run").notNull().default(0),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
-}, (t) => [index("planned_posts_date").on(t.plannedDate)]);
+}, (t) => [
+  index("planned_posts_date").on(t.plannedDate),
+  uniqueIndex("planned_posts_idempotency_key").on(t.idempotencyKey),
+]);
 
 /**
  * One row per sync run per channel (`channelId` null = a whole-library run).

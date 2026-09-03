@@ -10,7 +10,7 @@ import { getPostsWithLatestInsights } from "./own-channel";
  * driven way `publishedOwnPostId` is ever set.
  */
 
-export type PlannedPostState = "draft" | "scheduled" | "missed" | "published";
+export type PlannedPostState = "draft" | "scheduled" | "publishing" | "missed" | "published" | "failed";
 
 export interface PlannedPostRow {
   id: string;
@@ -52,6 +52,18 @@ export interface PlannedPostRow {
    * this stays a suggestion the calendar renders, never a silent auto-confirm.
    */
   reconciledOwnPostId: string | null;
+  /** The uploaded mp4 this plan publishes, null until one is attached. */
+  videoAssetId: string | null;
+  caption: string | null;
+  /** The combined date+time instant the scheduler reads, null until scheduled. */
+  scheduledAt: string | null;
+  attemptCount: number;
+  lastError: string | null;
+  errorClass: string | null;
+  publishedAt: string | null;
+  /** True when the last publish attempt ran the whole path but skipped the final
+   *  publish POST (PUBLISH_DRY_RUN). */
+  dryRun: boolean;
 }
 
 type PlannedPostSelect = typeof tables.plannedPosts.$inferSelect;
@@ -70,9 +82,12 @@ function toRow(
   scriptContent: string | null
 ): PlannedPostRow {
   const today = todayDateOnly();
+  // "published", "publishing" and "failed" are stored as-is and never re-derived to
+  // "missed" — only a plain "scheduled" row whose plannedDate has passed reads as
+  // missed.
   const state: PlannedPostState =
-    row.state === "published"
-      ? "published"
+    row.state === "published" || row.state === "publishing" || row.state === "failed"
+      ? row.state
       : row.state === "scheduled" && row.plannedDate !== null && row.plannedDate < today
         ? "missed"
         : (row.state as "draft" | "scheduled");
@@ -95,6 +110,14 @@ function toRow(
     sourceVideoId: row.sourceVideoId,
     publishedOwnPostId: row.publishedOwnPostId,
     reconciledOwnPostId: row.publishedOwnPostId ? null : reconciledOwnPostId,
+    videoAssetId: row.videoAssetId,
+    caption: row.caption,
+    scheduledAt: row.scheduledAt,
+    attemptCount: row.attemptCount,
+    lastError: row.lastError,
+    errorClass: row.errorClass,
+    publishedAt: row.publishedAt,
+    dryRun: row.dryRun !== 0,
   };
 }
 

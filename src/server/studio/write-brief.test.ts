@@ -30,6 +30,14 @@ function fakePlan(overrides: Partial<PlannedPostRow> = {}): PlannedPostRow {
     sourceVideoId: "video-1",
     publishedOwnPostId: null,
     reconciledOwnPostId: null,
+    videoAssetId: null,
+    caption: null,
+    scheduledAt: null,
+    attemptCount: 0,
+    lastError: null,
+    errorClass: null,
+    publishedAt: null,
+    dryRun: false,
     ...overrides,
   };
 }
