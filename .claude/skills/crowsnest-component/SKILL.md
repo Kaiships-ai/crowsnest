@@ -86,16 +86,70 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 
 ## Phase 5: verify and doc-sync. Human gate.
 
+Phase 5 is mandatory and has two halves: verification, then a doc-sync-to-reality pass. Neither
+is optional, and the second is the one that gets skipped, so guard it.
+
+Read this first: Phase 4 delegates the build to `ship:subagent-driven-development`, which runs
+its own per-task reviews, a final whole-branch review, and `ship:finishing-a-development-branch`.
+None of that is Phase 5. `ship:verification-before-completion` is not the doc-sync. When the build
+returns, you always come back here and run the doc-sync-to-reality pass before this component is
+done, even if the branch already merged. If it merged before the docs were synced, the doc-sync is
+a mandatory immediate follow-up, not a nicety. Prefer to run doc-sync on the same branch as the
+code so the synced docs ride the same PR.
+
+### 5a. Verify
+
 - Call `ship:verification-before-completion`.
-- Two parallel doc-sync agents: one updates `02-architecture.md` to match the real implemented
-  code; one extends each feature's entry in `03-feature-description.md` with user-guide detail,
-  text only, no images, since `03-feature-description.md` feeds the mkdocs site directly. Both
-  follow `house-style.md`.
-- Update `05-backlog-to-enhance.md`: remove items just implemented, add new tech debt found.
-- Confirm the mkdocs nav via `document-component`.
-- Gate: present files changed, test results per layer, an e2e coverage reconciliation, meaning
-  which `04-test-cases.md` browse-e2e journeys are covered at full depth and which are simplified
-  and why, and any deviation from the plan. Wait for the human to confirm done.
+- Reconcile the three test layers against `04-test-cases.md`: which browse-e2e journeys ran at full
+  depth, which were simplified or could not run (no sidecar, no real credentials, no LLM), and why.
+  A layer that could not run in the sandbox is named for the release gate, never silently dropped.
+
+### 5b. Doc-sync to reality (mandatory, not a word-swap)
+
+The build almost never matches the plan verbatim: rulings, review fixes, and deviations change what
+shipped. The docs describe the design as of Phase 2; this pass rewrites them to describe the system
+that now exists. Drive it like this, not as a vague "update the docs":
+
+1. Get the ground truth. Read the actual shipped diff for this component's work
+   (`git diff <plan-base>..<head>`, or the merged PR's diff). List every deviation from the plan:
+   new or renamed exports, changed signatures (for example a function that became async), new files,
+   a mechanism swapped for another (the plan said X, the code did Y), and every deferred or parked
+   review finding. This list is the input to the rewrite.
+2. Dispatch the doc-sync agents in parallel, each with the shipped-code file paths, the deviation
+   list, `house-style.md`, and `references/drizzle-er-and-sequence.md`:
+   - Architecture agent updates `02-architecture.md` to the built system. Update the
+     module-structure table for every new or changed export. Update the ER diagram, data-flow, and
+     DB-operation sequence diagrams to the real flow. Delete or rewrite as fact every "open, not
+     verified" / "not built" / "planned" statement for anything that shipped: a shipped feature
+     must not be described as unbuilt anywhere in the doc. Keep only the items that are genuinely
+     still open.
+   - Feature agent updates `03-feature-description.md`: flip each feature's status marker to its
+     true built state (`○`/`◐` becomes `●` where it shipped), fix the file references and the open-
+     item column, and extend the user-guide prose to the shipped behavior. Text only, no images,
+     since `03` feeds the mkdocs site directly.
+3. Update `05-backlog-to-enhance.md` yourself: mark implemented rows done and link the plan; file
+   every deviation and every deferred or parked review finding as a new row so nothing is lost.
+4. Confirm the mkdocs nav and the five-doc invariant via `document-component`, then confirm the
+   site builds (`mkdocs build`, or the project's nav check) so a broken link or missing nav entry
+   is caught here, not by a reader.
+
+### 5c. Verify the docs actually match the code
+
+Do not trust "the agent said it synced." Check it, and write down what you checked:
+
+- For each new or changed symbol, export, or file the shipped diff introduced, grep `02` and `03`
+  and confirm it is described (or deliberately out of scope). A shipped export absent from `02` is
+  an unsynced doc.
+- Grep the component's docs for stale-status language ("not built", "not yet", "open, not
+  verified", "planned", "roadmap", a `◐`/`○` marker) and confirm none of it still applies to a
+  feature that shipped.
+- Confirm every file path cited in `02`/`03` exists, and the mkdocs build is clean.
+
+### Gate
+
+Present: files changed, test results per layer, the e2e coverage reconciliation from 5a, the
+deviation list and how each is now reflected in the docs, the 5c check results, and any deviation
+from the plan. Wait for the human to confirm done.
 
 ## Error handling
 
@@ -105,6 +159,11 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
   never skip a test layer silently.
 - One quality bar governs every doc this skill touches: `house-style.md`. One invariant owner
   for the five-doc block and the index or nav wiring: `document-component`.
+- Phase 4 was delegated to `ship:subagent-driven-development`: its reviews and its
+  `ship:finishing-a-development-branch` do not satisfy Phase 5. Returning to Phase 5's doc-sync is
+  the step that gets dropped when the build "feels done". It is not done until 5b and 5c have run
+  and the gate is confirmed. If the branch merged before doc-sync, run the sync as an immediate
+  follow-up branch, do not defer it.
 
 ## Quick reference
 
@@ -114,4 +173,4 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 | 2: design, features-first | yes | none (this skill's own agents) | `01`, `02`, `03`, `04` drafted, per `house-style.md` |
 | 3: implementation plan | yes | `ship:writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
 | 4: implement | no | `ship:subagent-driven-development` | code, tests across three layers, committed |
-| 5: verify and doc-sync | yes | `ship:verification-before-completion` | docs synced to reality, backlog updated, done confirmed |
+| 5: verify and doc-sync | yes | `ship:verification-before-completion` | verify (5a), then the mandatory doc-sync-to-reality pass (5b) driven by the shipped diff, then the docs-match-code check (5c); backlog updated, done confirmed. SDD finishing does not satisfy this. |
