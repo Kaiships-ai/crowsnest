@@ -25,11 +25,22 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
 | P5 verify | reuse | `ship:verification-before-completion` |
 | Open-item counts in P1 | reuse | `where-are-we` |
 
+Load only the references a phase needs, not all of them. Every phase that reads
+or writes a doc reads `house-style.md` and grounds with
+`references/gitnexus-grounding.md`. Beyond those: Phase 2's architecture track
+also needs `references/drizzle-er-and-sequence.md`, and its test-case track
+needs `references/test-cases-format.md` and `references/browse-e2e-qa.md`.
+Phase 1, 3, and 5 do not need the test-case or diagram references.
+
 ## Phase 1: research and concept. Human gate.
 
+- Ground with GitNexus first (see `references/gitnexus-grounding.md`): bind `repo: "crowsnest"`,
+  check index freshness, and map the affected flow with `gitnexus-exploring` (`query`, `clusters`,
+  `context`) instead of a wide Grep sweep. Then read only the specific files the graph points at.
+  Any scout or research sub-agent you dispatch gets this instruction and the reference path.
 - If the component exists (enhancement): read its five docs, the real `src/` for that
-  component, and run `where-are-we` (`scripts/plan-status.sh`) for open backlog items and active
-  plans. Summarize what exists, what changes, what is affected.
+  component (narrowed by the graph), and run `where-are-we` (`scripts/plan-status.sh`) for open
+  backlog items and active plans. Summarize what exists, what changes, what is affected.
 - If new: research the concept, scan `src/` for a real seam, not a feature of an existing block,
   per the rule `document-component` owns. Propose the five-doc block using `document-component`
   to scaffold it.
@@ -46,6 +57,11 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
     a drizzle ER diagram, data flow, key decisions, and DB-operation sequence diagrams, all in
     the notation defined in `references/drizzle-er-and-sequence.md`. Also the dependency map
     (upstream, downstream, external) and the "open, not verified" section, per `house-style.md`.
+    Build the module-structure table and dependency map from GitNexus (see
+    `references/gitnexus-grounding.md`): `context {name, repo: "crowsnest"}` gives a symbol's
+    callers, callees, and refs, and `clusters`/`cypher` give the functional grouping, so the table
+    comes from the graph rather than from reading every file. Verify each row against source before
+    asserting it.
   - Test-case agents write `04-test-cases.md` across the four lenses defined in
     `references/test-cases-format.md`: behavior, route and action, browse-e2e, security-lite.
 - Merge the test-case agents' output into one `04-test-cases.md`; refine `01-concept-brief.md`.
@@ -63,7 +79,10 @@ enhancement to an existing one; Phase 1 tells which case it is and adapts.
     `01-concept-brief.md`, `02-architecture.md`, and `03-feature-description.md`. For every file
     or component they name, including ones outside the new component that are only reused,
     confirm a plan task exists. If a named gap is deliberately out of scope, say so in the plan's
-    Risks.
+    Risks. Run this sweep as a GitNexus impact query, not a manual grep (see
+    `references/gitnexus-grounding.md` and `gitnexus-impact-analysis`): `impact {name, repo:
+    "crowsnest"}` on each symbol the change touches returns the callers and blast radius that must
+    each map to a plan task or an explicit Risks skip.
   - Sidecar, env, migration, and launchd surface sweep, crowsnest-specific. Does the change touch
     `.env.local` keys, the drizzle schema or a migration, the launchd services, or the sidecar
     contract? State the answer per surface, add a plan task where the answer is yes, note
@@ -111,10 +130,16 @@ shipped. The docs describe the design as of Phase 2; this pass rewrites them to 
 that now exists. Drive it like this, not as a vague "update the docs":
 
 1. Get the ground truth. Read the actual shipped diff for this component's work
-   (`git diff <plan-base>..<head>`, or the merged PR's diff). List every deviation from the plan:
-   new or renamed exports, changed signatures (for example a function that became async), new files,
-   a mechanism swapped for another (the plan said X, the code did Y), and every deferred or parked
-   review finding. This list is the input to the rewrite.
+   (`git diff <plan-base>..<head>`, or the merged PR's diff), and ground it with GitNexus (see
+   `references/gitnexus-grounding.md`): `detect_changes {repo: "crowsnest"}` returns the changed
+   symbols and their blast radius, so you learn what the diff touched without reading all of `src/`,
+   and `context {name, repo: "crowsnest"}` on each changed symbol gives its callers and refs.
+   Worktree caveat: if the branch lives under `.claude/worktrees/...`, pass
+   `worktree: "<abs path>"` to `detect_changes` or it reports zero changes (false clean); when in
+   doubt, drive from the real `git diff` and use the graph to expand each hunk. List every deviation
+   from the plan: new or renamed exports, changed signatures (for example a function that became
+   async), new files, a mechanism swapped for another (the plan said X, the code did Y), and every
+   deferred or parked review finding. This list is the input to the rewrite.
 2. Dispatch the doc-sync agents in parallel, each with the shipped-code file paths, the deviation
    list, `house-style.md`, and `references/drizzle-er-and-sequence.md`:
    - Architecture agent updates `02-architecture.md` to the built system. Update the

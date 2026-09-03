@@ -63,6 +63,7 @@ If the spec covers multiple independent subsystems, it should have been broken i
 
 Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
 
+- If a code-knowledge-graph tool is available in this environment (for example GitNexus `impact` / `context` over an index of this repo), use it to find the callers and blast radius of each symbol the change touches, rather than discovering the affected files by reading broadly. Bind it to this repository, and treat its output as navigation: verify each affected file against current source before locking a task around it. If no such tool is available, fall back to targeted search. (A repo may add a scoped grounding reference for this; follow it when present.)
 - Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
 - You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
 - Files that change together should live together. Split by responsibility, not by technical layer.
