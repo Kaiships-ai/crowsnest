@@ -97,7 +97,10 @@ export function PersonaSection({ initial }: { initial: Persona }) {
     <section className="flex flex-col gap-6">
       <div>
         <h2 className="text-lg font-semibold">Persona</h2>
-        <p className="text-sm text-muted-foreground">Every Remix generation stage reads this alongside the niche profile.</p>
+        <p className="text-sm text-muted-foreground">
+          Optional, but it sharpens every remix. Each generation stage reads this alongside your niche profile; leave a
+          field blank and it falls back to the niche.
+        </p>
       </div>
 
       <div className="flex flex-col gap-2">
