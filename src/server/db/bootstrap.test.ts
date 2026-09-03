@@ -1,4 +1,5 @@
 import { beforeAll, expect, test } from "vitest";
+import { bootstrapCreatorSeeds } from "./bootstrap";
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -64,4 +65,16 @@ test("a user's own filter sharing a preset's name does not block the preset", as
     .from(tables.savedFilters)
     .where(and(eq(tables.savedFilters.name, "Balanced"), eq(tables.savedFilters.isSystem, false)));
   expect(own.criteria).toEqual({ minScore: 99 });
+});
+
+test("creator seeds load idempotently", async () => {
+  const first = await bootstrapCreatorSeeds();
+  expect(first.created).toBeGreaterThanOrEqual(100);
+  const second = await bootstrapCreatorSeeds();
+  expect(second.created).toBe(0);
+  // Not `first.created` alone: two handles (grantcardone, codiesanchez) are curated
+  // in both finance.json and business.json, so first.existing already counts those
+  // in-run collisions. The invariant is that every entry processed on the first run
+  // (created + existing) is found existing on every subsequent run.
+  expect(second.existing).toBe(first.created + first.existing);
 });
