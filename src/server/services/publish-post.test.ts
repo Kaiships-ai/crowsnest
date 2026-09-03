@@ -21,7 +21,7 @@ type Row = Parameters<PublishPostDeps["writeRow"]>[1] & {
 function baseRow(overrides: Partial<Row> = {}): Row {
   return {
     id: "plan_1",
-    state: "publishing",
+    state: "scheduled",
     videoAssetId: "asset_1",
     caption: "hello",
     dryRun: 0,
@@ -123,6 +123,28 @@ describe("publishPlannedPost", () => {
 
     expect(result).toEqual({ ok: true, state: "noop" });
     expect(upload).not.toHaveBeenCalled();
+  });
+
+  test("a row stuck in 'publishing' is NOT re-published without a fresh claim (no double publish)", async () => {
+    const { deps, upload } = makeDeps(baseRow({ state: "publishing" }));
+
+    const result = await publishPlannedPost("plan_1", deps);
+
+    expect(result).toEqual({ ok: true, state: "noop" });
+    expect(upload).not.toHaveBeenCalled();
+    expect(deps.createReelContainer).not.toHaveBeenCalled();
+    expect(deps.publishReel).not.toHaveBeenCalled();
+  });
+
+  test("a freshly-claimed 'publishing' row publishes when claimed:true (the scheduler path)", async () => {
+    process.env.PUBLISH_DRY_RUN = "0";
+    const { deps, upload } = makeDeps(baseRow({ state: "publishing" }));
+
+    const result = await publishPlannedPost("plan_1", { ...deps, claimed: true });
+
+    expect(result).toMatchObject({ ok: true, state: "published", mediaId: "media_1" });
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(deps.publishReel).toHaveBeenCalledTimes(1);
   });
 
   test("no row at all -> typed not_found failure", async () => {

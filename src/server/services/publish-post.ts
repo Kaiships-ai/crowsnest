@@ -105,12 +105,23 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-export async function publishPlannedPost(postId: string, overrides: Partial<PublishPostDeps> = {}): Promise<PublishPostResult> {
+export async function publishPlannedPost(
+  postId: string,
+  options: Partial<PublishPostDeps> & { claimed?: boolean } = {}
+): Promise<PublishPostResult> {
+  const { claimed = false, ...overrides } = options;
   const deps: PublishPostDeps = { ...DEFAULT_DEPS, ...overrides };
 
   const row = await deps.loadRow(postId);
   if (!row) return { ok: false, state: "not_found" };
   if (row.state === "published" || row.state === "failed") return { ok: true, state: "noop" };
+  // A row can sit in "publishing" for two very different reasons. Either the caller just
+  // won the atomic scheduled->publishing claim and handed us the row to publish (the
+  // scheduler and publish-now path, which pass claimed:true), or a previous attempt died
+  // between publishReel succeeding and the terminal write landing, leaving the row stuck.
+  // Re-publishing that stuck row would post to Instagram twice, so only a caller that
+  // proves a fresh claim may act on a "publishing" row; everyone else no-ops.
+  if (row.state === "publishing" && !claimed) return { ok: true, state: "noop" };
 
   const dryRun = resolveDryRun(row);
 

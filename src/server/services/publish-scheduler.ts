@@ -108,7 +108,7 @@ async function defaultRearmForRetry(id: string, scheduledAt: string, nowIso: str
 }
 
 const DEFAULT_DEPS: PublishSchedulerDeps = {
-  publish: (postId) => publishPlannedPost(postId),
+  publish: (postId) => publishPlannedPost(postId, { claimed: true }),
   selectDueScheduled: defaultSelectDueScheduled,
   claim: defaultClaim,
   selectRetryableFailed: defaultSelectRetryableFailed,
