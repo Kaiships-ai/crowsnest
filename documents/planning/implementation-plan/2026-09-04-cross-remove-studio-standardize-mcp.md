@@ -395,8 +395,16 @@ DROP TABLE `create_runs`;
   section of `packaging/CHANGELOG.md`: "Removed the in-app create studio (cook/serve) and
   its create_runs table; remixing now hands off to Reel Factory through the MCP server."
 
-- [ ] **Step 7: Run the schema tests.** `npx vitest run src/server/db`. Expected: PASS.
-  Commit.
+- [ ] **Step 7: Run the schema tests.** `npx vitest run src/server/db` and
+  `npx vitest run` on any `migrations.test.ts`. Expected: PASS. Commit.
+
+- [ ] **Step 8: Migration-collision rule (program notice).** Goals 2/3/4/5 each add a
+  migration from the same base, so numbers and `drizzle/meta/_journal.json` WILL collide. Do
+  NOT hand-edit migration numbers. This task generates yours normally. The regeneration
+  happens later (Task 20 and after any rebase): if `main` gained a migration since you
+  generated yours, delete your generated `.sql` + its `drizzle/meta` journal/snapshot
+  entries, re-run `npm run db:generate` on top of the new `main` so yours is last, and re-run
+  `migrations.test.ts`. Expected merge order: G2, G3, G5, G4.
 
 ```bash
 git add src/server/db/schema.ts drizzle packaging/CHANGELOG.md src/server/db
@@ -822,12 +830,19 @@ git commit -m "docs: retire cook/serve from README, product, and requirements"
 - [ ] **Step 1: Final gate + verification.** Run `ship:verification-before-completion`, then
   the full gate: `npm run typecheck && npm run lint && npm run test && npm run build &&
   bash scripts/testid-audit.sh`. Working tree clean.
-- [ ] **Step 2: `detect-changes` regression review:**
-  `node .gitnexus/run.cjs detect-changes --scope compare --base-ref "main" --repo .`.
+- [ ] **Step 2: `detect-changes` regression review** (controller runs the GitNexus MCP
+  `detect_changes` with `scope: "compare"`, `base_ref: "main"`; the CLI runner is absent in
+  this worktree).
+- [ ] **Step 2b: Regenerate the migration on latest main (program notice).** If `main` gained
+  a migration since Task 8 generated yours (check `git log origin/main -- drizzle`), delete
+  your generated `.sql` and its `drizzle/meta` journal/snapshot entries, re-run
+  `npm run db:generate` on top of the current `main` so yours is numbered last, and re-run
+  `migrations.test.ts` (green). Record the main SHA you regenerated on.
 - [ ] **Step 3: Open the PR** with `gh pr create --base main`. NEVER self-merge (Kai merges).
-  The body MUST include (orchestrator requirement): a list of **every deleted file**
-  (generate with `git diff --diff-filter=D --name-only main...HEAD`), and the **migration
-  row-count line** printed by `db:migrate` when it dropped `create_runs`. End the body with:
+  The body MUST include (orchestrator requirements): a list of **every deleted file**
+  (generate with `git diff --diff-filter=D --name-only main...HEAD`), the **migration
+  row-count line** printed by `db:migrate` when it dropped `create_runs`, and the line
+  **`migration regenerated on <main sha>`**. End the body with:
 
 ```
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
