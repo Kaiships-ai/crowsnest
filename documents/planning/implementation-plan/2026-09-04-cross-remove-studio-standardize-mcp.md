@@ -814,6 +814,13 @@ claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
 - [ ] **Step 3: Business requirements.** Grep
   `grep -rniE "cook|serve|studio" documents/business-requirement` and rewrite the hits so
   no delivered-capability claim references the removed studio. House-style throughout.
+  Specifically (carried from Task 17): `documents/business-requirement/product-document.md`
+  still has a full `### Studio` section (around line 174) describing the removed cook/publish
+  studio, and its `4. Feature map` lists Studio as a delivered feature. Remove the `### Studio`
+  section and drop Studio from the feature map; if there is a natural place to state the MCP
+  handoff instead, describe it as the handoff to Reel Factory (do not fabricate a Reel Factory
+  capability the app ships). After: `grep -rniE "studio" documents/business-requirement`
+  returns no hit that claims the studio as a live crowsnest feature.
 - [ ] **Step 4: Commit.**
 
 ```bash
