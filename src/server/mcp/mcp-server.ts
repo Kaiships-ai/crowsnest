@@ -19,6 +19,7 @@ import {
 } from "@/server/services/remix";
 import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
+import { getAsset, resolveAssetPath } from "@/server/media/store";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -46,6 +47,29 @@ export function errorResult(payload: Record<string, unknown>) {
     structuredContent: payload,
     isError: true as const,
   };
+}
+
+export interface MediaInfo {
+  path: string | null;
+  byteSize: number;
+  durationSec: number | null;
+}
+
+// On-disk location and stored size/duration for a media asset id, for the Reel Factory
+// handoff. Null when the id is null or the asset row is gone. Every field comes from the
+// media_assets row: this NEVER stats or reads the file, and never throws across the MCP
+// boundary. path is null (not an error) if the stored storagePath is somehow invalid.
+export async function mediaInfoFor(assetId: string | null | undefined): Promise<MediaInfo | null> {
+  if (!assetId) return null;
+  const asset = await getAsset(assetId);
+  if (!asset) return null;
+  let path: string | null;
+  try {
+    path = resolveAssetPath(asset.storagePath);
+  } catch {
+    path = null;
+  }
+  return { path, byteSize: asset.byteSize, durationSec: asset.durationSec ?? null };
 }
 
 export function buildMcpServer(): McpServer {
@@ -98,7 +122,9 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const detail = await getVideoDetail(args.videoId);
       if (!detail) return errorResult({ error: "not found", videoId: args.videoId });
-      return result(detail);
+      const media = await mediaInfoFor(detail.item.videoAssetId);
+      const thumbnail = await mediaInfoFor(detail.item.thumbnailAssetId);
+      return result({ ...detail, media, thumbnail });
     }
   );
 
@@ -112,7 +138,14 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const brief = await getPostBrief(args.postId);
       if (!brief) return errorResult({ error: "not found", postId: args.postId });
-      return result(brief);
+      const video = brief.video
+        ? {
+            ...brief.video,
+            media: await mediaInfoFor(brief.video.item.videoAssetId),
+            thumbnail: await mediaInfoFor(brief.video.item.thumbnailAssetId),
+          }
+        : null;
+      return result({ ...brief, video });
     }
   );
 

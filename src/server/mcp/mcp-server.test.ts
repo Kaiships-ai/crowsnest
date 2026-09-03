@@ -16,6 +16,36 @@ test("errorResult() sets isError and carries the payload", async () => {
   expect(r.structuredContent).toMatchObject({ error: "not found", id: "x" });
 });
 
+describe("mediaInfoFor", () => {
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let recordAsset: typeof import("@/server/media/store")["recordAsset"];
+  let mediaInfoFor: typeof import("./mcp-server")["mediaInfoFor"];
+
+  beforeAll(async () => {
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ recordAsset } = await import("@/server/media/store"));
+    ({ mediaInfoFor } = await import("./mcp-server"));
+    migrate();
+  });
+
+  test("resolves path/byteSize/durationSec from the stored asset row only, never touching the file", async () => {
+    const sha = "e".repeat(64);
+    const asset = await recordAsset({ sha256: sha, kind: "video", contentType: "video/mp4", byteSize: 555, durationSec: 8.5 });
+
+    const info = await mediaInfoFor(asset.id);
+
+    expect(info).not.toBeNull();
+    expect(info?.path).toMatch(/\.mp4$/);
+    expect(info?.path?.startsWith("/") || /^[A-Za-z]:[\\/]/.test(info?.path ?? "")).toBe(true);
+    expect(info?.byteSize).toBe(555);
+    expect(info?.durationSec).toBe(8.5);
+  });
+
+  test("returns null for a null assetId", async () => {
+    expect(await mediaInfoFor(null)).toBeNull();
+  });
+});
+
 describe("pagination on crowsnest_scripts and crowsnest_ideas", () => {
   let db: typeof import("@/server/db")["db"];
   let tables: typeof import("@/server/db")["tables"];
