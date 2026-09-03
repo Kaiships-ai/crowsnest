@@ -1,5 +1,3 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { z } from "zod";
 
 /**
@@ -58,14 +56,6 @@ const schema = z.object({
 
   // --- media storage ---
   MEDIA_ROOT: z.string().min(1).default("data/media"),
-  /** Root for the studio's per-post sandbox and render dirs (`src/server/studio/paths.ts`).
-   *  Lives under the app's own data dir, not the vault: the create studio's Claude Code
-   *  cwd and its rendered output no longer need the vault to exist. */
-  WORKSPACE_ROOT: z.string().min(1).default("data/workspace"),
-  /** Absolute path to the Kai-Official-OS Obsidian vault. The create studio runs Claude
-   *  Code with a per-post subdir of this as its cwd (see `src/server/studio/paths.ts`),
-   *  and reads the craft playbooks here read-only. */
-  VAULT_PATH: z.string().min(1).default(join(homedir(), ".crowsnest", "vault")),
   EAGER_VIDEO_DOWNLOAD: boolish(false),
   MEDIA_RETENTION_DAYS: intWithDefault(90, 1, 3650),
   /** How many of a channel's newest reels each sync asks Instagram about individually,
@@ -87,16 +77,6 @@ const schema = z.object({
    *  (5) no outlier score appears at all, and under 12 the baseline quietly narrows, so a
    *  lower value fixes the number the feed prints without producing a score to go with it. */
   VIEW_COUNT_ENRICH_PER_CHANNEL: intWithDefault(0, 0, 200),
-
-  // --- cook harness ---
-  COOK_MODEL: z.string().optional(),
-  COOK_CONCURRENCY: intWithDefault(2, 1, 16),
-  COOK_WATCHDOG_MS: intWithDefault(21_600_000, 60_000, 86_400_000),
-  /** How long a cook's pty can produce no output before ws.ts treats it as sitting at a
-   *  human gate (an AskUserQuestion prompt) rather than hung. Flips the run's status to
-   *  `waiting` and clears the watchdog -- see src/server/terminal/ws.ts -- so a person
-   *  reading a gate never trips the 6h watchdog. Any new output flips it back. */
-  WAITING_IDLE_MS: intWithDefault(20_000, 2_000, 600_000),
 
   // --- existing ---
   CROWSNEST_DB_PATH: z.string().min(1).default("data/crowsnest.db"),

@@ -9,13 +9,12 @@ import { finishRemixAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 /**
- * The last stage: confirm what the run produced, then open the studio that cooks it.
+ * The last stage: confirm what the run produced, then add it to the plan.
  *
  * Before this stage existed a remix ended at "script saved", and the only route onward
- * was noticing the optional date field on the Script stage. The bridge to the cook is a
- * planned post (the studio spawns for a postId, and `planned_posts.remixSessionId` is
- * what carries the remix's hook and beats into brief.md), so finishing means making sure
- * one exists.
+ * was noticing the optional date field on the Script stage. Finishing creates an undated
+ * draft planned post, with `planned_posts.remixSessionId` carrying the remix's hook and
+ * beats onto that post.
  *
  * Nothing here is invented. A hook or a variant the user never picked renders as a
  * placeholder saying so, not as a plausible-looking default.
@@ -39,7 +38,7 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
       return;
     }
     setPostId(result.postId);
-    toast.success(result.created ? "Added to your plan. Open the studio to cook it." : "Opening the studio for this remix.");
+    toast.success(result.created ? "Added to your plan." : "Opening your plan.");
   }
 
   return (
@@ -76,22 +75,22 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
       <div className="flex flex-col gap-3 border-t border-border pt-4">
         {postId ? (
           <>
-            <p className="text-sm text-muted-foreground">This remix is on your plan and ready to cook.</p>
+            <p className="text-sm text-muted-foreground">This remix is on your plan.</p>
             <Link
-              href={`/mine/${postId}/studio`}
+              href={`/mine/${postId}`}
               className="w-fit border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted active:scale-[0.98]"
             >
-              Open the studio →
+              View in your plan
             </Link>
           </>
         ) : (
           <>
             <Button onClick={finish} disabled={pending}>
-              {pending ? "Finishing…" : "Finish and open studio"}
+              {pending ? "Finishing…" : "Finish"}
             </Button>
             <p className="max-w-[56ch] text-xs text-muted-foreground">
-              Adds this remix to your plan as an undated draft and opens its studio. No date
-              is set, because finishing a script is not a decision about when to post it.
+              Adds this remix to your plan as an undated draft. No date is set, because
+              finishing a script is not a decision about when to post it.
             </p>
           </>
         )}
