@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { getOutlierFeed, type FeedFilters, type FeedSort } from "@/server/queries/feed";
 import { getVideoDetail } from "@/server/queries/video";
-import { getStudioBrief } from "@/server/queries/studio";
+import { getPostBrief } from "@/server/queries/post-brief";
 import { getScripts } from "@/server/queries/vault";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
 import {
@@ -28,14 +28,30 @@ import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel
  * never becomes a second writer.
  */
 
-function text(value: unknown) {
-  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+// A tool result the SDK will surface both ways: JSON text for a text-only client, and
+// structuredContent for a client that reads structured output. The two always agree
+// because they come from the same value.
+export function result(value: unknown) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
+    structuredContent: value as Record<string, unknown>,
+  };
+}
+
+// A typed, non-throwing error: isError true so the caller sees a failure, with a machine
+// -readable payload rather than a thrown exception crossing the MCP boundary.
+export function errorResult(payload: Record<string, unknown>) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+    structuredContent: payload,
+    isError: true as const,
+  };
 }
 
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a studio brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
+    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a post brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
   );
 
   server.registerTool(
@@ -68,7 +84,7 @@ export function buildMcpServer(): McpServer {
         offset: args.offset ?? 0,
       };
       const { items, total } = await getOutlierFeed(filters);
-      return text({ total, count: items.length, items });
+      return result({ total, count: items.length, items });
     }
   );
 
@@ -81,22 +97,22 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       const detail = await getVideoDetail(args.videoId);
-      if (!detail) return text({ error: "not found", videoId: args.videoId });
-      return text(detail);
+      if (!detail) return errorResult({ error: "not found", videoId: args.videoId });
+      return result(detail);
     }
   );
 
   server.registerTool(
     "crowsnest_brief",
     {
-      title: "Studio brief",
-      description: "The studio brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
+      title: "Post brief",
+      description: "The brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
       inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_plans.") },
     },
     async (args) => {
-      const brief = await getStudioBrief(args.postId);
-      if (!brief) return text({ error: "not found", postId: args.postId });
-      return text(brief);
+      const brief = await getPostBrief(args.postId);
+      if (!brief) return errorResult({ error: "not found", postId: args.postId });
+      return result(brief);
     }
   );
 
@@ -105,9 +121,21 @@ export function buildMcpServer(): McpServer {
     {
       title: "Saved scripts",
       description: "Every saved script, newest first. A script is the text a remix produced.",
-      inputSchema: {},
+      inputSchema: {
+        limit: z.number().optional().describe("Max items, default 50."),
+        offset: z.number().optional().describe("Skip this many, for paging."),
+      },
     },
-    async () => text(await getScripts())
+    async (args) => {
+      // ponytail: naive in-memory slice over the full read; getScripts() takes no
+      // pagination args. Fine for a local single-user SQLite vault — swap for a SQL
+      // LIMIT/OFFSET in getScripts if it ever holds thousands of scripts.
+      const all = await getScripts();
+      const offset = args.offset ?? 0;
+      const limit = args.limit ?? 50;
+      const items = all.slice(offset, offset + limit);
+      return result({ total: all.length, count: items.length, items });
+    }
   );
 
   server.registerTool(
@@ -115,9 +143,21 @@ export function buildMcpServer(): McpServer {
     {
       title: "Ideas",
       description: "The ideas inbox or shortlist: short concepts generated from videos, for the weekly plan. Defaults to the inbox.",
-      inputSchema: { tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox.") },
+      inputSchema: {
+        tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox."),
+        limit: z.number().optional().describe("Max items, default 50."),
+        offset: z.number().optional().describe("Skip this many, for paging."),
+      },
     },
-    async (args) => text(await listIdeas({ tab: args.tab ?? "inbox" }))
+    async (args) => {
+      // ponytail: same in-memory slice as crowsnest_scripts — listIdeas() takes no
+      // pagination args either.
+      const all = await listIdeas({ tab: args.tab ?? "inbox" });
+      const offset = args.offset ?? 0;
+      const limit = args.limit ?? 50;
+      const items = all.slice(offset, offset + limit);
+      return result({ total: all.length, count: items.length, items });
+    }
   );
 
   server.registerTool(
@@ -134,9 +174,9 @@ export function buildMcpServer(): McpServer {
       try {
         const overview = await getOwnChannelOverview(args.windowDays);
         const posts = await getOwnPosts({ limit: args.limit ?? 20 });
-        return text({ overview, posts });
+        return result({ overview, posts });
       } catch (err) {
-        return text({ error: err instanceof Error ? err.message : "metrics unavailable", hint: "set an own channel and a valid Graph token" });
+        return errorResult({ error: err instanceof Error ? err.message : "metrics unavailable", hint: "set an own channel and a valid Graph token" });
       }
     }
   );
@@ -153,12 +193,12 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       const range = args.from && args.to ? { from: args.from, to: args.to } : undefined;
-      return text(await getPlannedPosts(range));
+      return result(await getPlannedPosts(range));
     }
   );
 
   // Remix, exposed one tool per stage so a caller can steer each step. Every tool calls
-  // the same service functions the studio uses. The generate tools (hooks, outline,
+  // the same service functions the dashboard uses. The generate tools (hooks, outline,
   // variants) need the LLM proxy; the others do not. Stage progression on the session is
   // left to the service functions (finish sets the stage); these tools do not manage the
   // stepper, since that only affects how the dashboard renders the session.
@@ -170,7 +210,7 @@ export function buildMcpServer(): McpServer {
       description: "Get the remix session for a source video, or create one. There is one session per video. Returns the session state.",
       inputSchema: { videoId: z.string().describe("The source video id, from crowsnest_feed.") },
     },
-    async (args) => text(await getOrCreateSession(args.videoId))
+    async (args) => result(await getOrCreateSession(args.videoId))
   );
 
   server.registerTool(
@@ -180,7 +220,7 @@ export function buildMcpServer(): McpServer {
       description: "The current state of a remix session: topic, chosen hook, outline, variants, chosen variant. Returns null when unknown.",
       inputSchema: { sessionId: z.string() },
     },
-    async (args) => text(await getRemixSession(args.sessionId))
+    async (args) => result(await getRemixSession(args.sessionId))
   );
 
   server.registerTool(
@@ -201,7 +241,7 @@ export function buildMcpServer(): McpServer {
       if (args.niche !== undefined) patch.niche = args.niche;
       if (args.targetLengthSec !== undefined) patch.targetLengthSec = args.targetLengthSec;
       await updateStage(args.sessionId, patch);
-      return text(await getRemixSession(args.sessionId));
+      return result(await getRemixSession(args.sessionId));
     }
   );
 
@@ -212,7 +252,7 @@ export function buildMcpServer(): McpServer {
       description: "Assemble the research notes for a session from the source analysis, transcript, and similar outliers. No model call, so this works with the proxy down.",
       inputSchema: { sessionId: z.string() },
     },
-    async (args) => text(await buildResearch(args.sessionId))
+    async (args) => result(await buildResearch(args.sessionId))
   );
 
   server.registerTool(
@@ -226,7 +266,7 @@ export function buildMcpServer(): McpServer {
         steer: z.string().optional().describe("A note to steer the generation, e.g. punchier."),
       },
     },
-    async (args) => text({ hooks: await generateHooks(args.sessionId, { vaultItemId: args.vaultItemId, steer: args.steer }) })
+    async (args) => result({ hooks: await generateHooks(args.sessionId, { vaultItemId: args.vaultItemId, steer: args.steer }) })
   );
 
   server.registerTool(
@@ -238,7 +278,7 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       await updateStage(args.sessionId, { chosenHook: args.hook });
-      return text({ ok: true, chosenHook: args.hook });
+      return result({ ok: true, chosenHook: args.hook });
     }
   );
 
@@ -251,7 +291,7 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       await updateStage(args.sessionId, { styleVaultItemId: args.styleVaultItemId ?? null });
-      return text({ ok: true, styleVaultItemId: args.styleVaultItemId ?? null });
+      return result({ ok: true, styleVaultItemId: args.styleVaultItemId ?? null });
     }
   );
 
@@ -262,7 +302,7 @@ export function buildMcpServer(): McpServer {
       description: "Generate the beat outline for a session from its chosen hook and style. Needs the LLM proxy. Steer with a note.",
       inputSchema: { sessionId: z.string(), steer: z.string().optional() },
     },
-    async (args) => text(await generateOutline(args.sessionId, { steer: args.steer }))
+    async (args) => result(await generateOutline(args.sessionId, { steer: args.steer }))
   );
 
   server.registerTool(
@@ -272,7 +312,7 @@ export function buildMcpServer(): McpServer {
       description: "Generate script variants (three by default) for a session. Needs the LLM proxy. A failed variant is returned as an error at its slot. Steer with a note.",
       inputSchema: { sessionId: z.string(), steer: z.string().optional() },
     },
-    async (args) => text({ variants: await generateVariants(args.sessionId, { steer: args.steer }) })
+    async (args) => result({ variants: await generateVariants(args.sessionId, { steer: args.steer }) })
   );
 
   server.registerTool(
@@ -282,7 +322,7 @@ export function buildMcpServer(): McpServer {
       description: "Regenerate a single variant slot by index, keeping the others. Needs the LLM proxy. Steer with a note.",
       inputSchema: { sessionId: z.string(), index: z.number().describe("Zero-based variant index."), steer: z.string().optional() },
     },
-    async (args) => text({ variants: await generateVariants(args.sessionId, { index: args.index, steer: args.steer }) })
+    async (args) => result({ variants: await generateVariants(args.sessionId, { index: args.index, steer: args.steer }) })
   );
 
   server.registerTool(
@@ -294,11 +334,11 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       const session = await getRemixSession(args.sessionId);
-      if (!session) return text({ error: "session not found", sessionId: args.sessionId });
+      if (!session) return errorResult({ error: "session not found", sessionId: args.sessionId });
       const content = session.variants?.[args.variantIndex];
-      if (typeof content !== "string") return text({ error: "no variant text at that index", variantIndex: args.variantIndex });
+      if (typeof content !== "string") return errorResult({ error: "no variant text at that index", variantIndex: args.variantIndex });
       const { scriptId } = await saveScript(args.sessionId, content, args.title, args.variantIndex);
-      return text({ ok: true, scriptId });
+      return result({ ok: true, scriptId });
     }
   );
 
@@ -309,7 +349,7 @@ export function buildMcpServer(): McpServer {
       description: "Finish a session: create (or reuse) an undated draft planned post carrying the chosen script, and return its postId. Idempotent.",
       inputSchema: { sessionId: z.string() },
     },
-    async (args) => text(await finishRemix(args.sessionId))
+    async (args) => result(await finishRemix(args.sessionId))
   );
 
   return server;

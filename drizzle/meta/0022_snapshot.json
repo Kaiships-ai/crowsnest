@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b9890d83-7538-4846-8b33-916894437d62",
+  "id": "60357afd-4006-4217-a597-c171e5339ff9",
   "prevId": "4268e6b2-c301-4240-9557-05bbd0114840",
   "tables": {
     "app_settings": {
@@ -253,101 +253,6 @@
           "onUpdate": "no action"
         }
       },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "create_runs": {
-      "name": "create_runs",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "post_id": {
-          "name": "post_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "slug": {
-          "name": "slug",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "started_at": {
-          "name": "started_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "finished_at": {
-          "name": "finished_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "heartbeat_at": {
-          "name": "heartbeat_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "render_asset_id": {
-          "name": "render_asset_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_message": {
-          "name": "error_message",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "pid": {
-          "name": "pid",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "create_runs_post": {
-          "name": "create_runs_post",
-          "columns": [
-            "post_id"
-          ],
-          "isUnique": false
-        },
-        "create_runs_started": {
-          "name": "create_runs_started",
-          "columns": [
-            "started_at"
-          ],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -1508,71 +1413,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "video_asset_id": {
-          "name": "video_asset_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "caption": {
-          "name": "caption",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "scheduled_at": {
-          "name": "scheduled_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "idempotency_key": {
-          "name": "idempotency_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "attempt_count": {
-          "name": "attempt_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
-        "last_error": {
-          "name": "last_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "error_class": {
-          "name": "error_class",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "published_at": {
-          "name": "published_at",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "dry_run": {
-          "name": "dry_run",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": 0
-        },
         "created_at": {
           "name": "created_at",
           "type": "text",
@@ -1595,13 +1435,6 @@
             "planned_date"
           ],
           "isUnique": false
-        },
-        "planned_posts_idempotency_key": {
-          "name": "planned_posts_idempotency_key",
-          "columns": [
-            "idempotency_key"
-          ],
-          "isUnique": true
         }
       },
       "foreignKeys": {
@@ -1637,19 +1470,6 @@
           "tableTo": "videos",
           "columnsFrom": [
             "source_video_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "planned_posts_video_asset_id_media_assets_id_fk": {
-          "name": "planned_posts_video_asset_id_media_assets_id_fk",
-          "tableFrom": "planned_posts",
-          "tableTo": "media_assets",
-          "columnsFrom": [
-            "video_asset_id"
           ],
           "columnsTo": [
             "id"
