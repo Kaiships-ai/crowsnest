@@ -70,6 +70,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
   const [igStatus, setIgStatus] = useState<IgStatusResult>(initialIgStatus);
   const [channelIds, setChannelIds] = useState<string[]>([]);
   const [skipping, setSkipping] = useState(false);
+  const currentStepMeta = ONBOARDING_STEPS.find((s) => s.key === step);
 
   function goTo(target: OnboardingStep) {
     if (stepNavState(step, target) === "locked") return;
@@ -92,10 +93,23 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[minmax(300px,400px)_minmax(0,1fr)]">
-      <aside className="flex flex-col justify-between gap-14 bg-card px-11 py-12">
-        <span className="text-lg font-semibold tracking-tight">Crowsnest</span>
+      <aside className="relative flex flex-col overflow-hidden bg-card px-11 py-12">
+        {/* The current step as an oversized, near-invisible readout — it fills the rail's
+            negative space with instrument character instead of dead air, and it is the one
+            place the step number gets to be large. Neutral, never amber (the score and one
+            action own amber). */}
+        {currentStepMeta && (
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-3 bottom-28 font-mono text-[11rem] leading-none font-semibold tracking-tighter tabular-nums text-foreground/[0.04] select-none"
+          >
+            {currentStepMeta.n}
+          </span>
+        )}
 
-        <div>
+        <span className="relative z-10 text-lg font-semibold tracking-tight">Crowsnest</span>
+
+        <div className="relative z-10 mt-16">
           <p className="max-w-[15ch] text-xl leading-tight font-bold tracking-tight text-balance">
             Watch the channels you compete with.
           </p>
@@ -105,13 +119,16 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
           </p>
         </div>
 
-        {/* Steps and the way out share one block so the aside stays a three-part
-            justify-between column rather than spreading into four. */}
-        <div className="flex flex-col items-start gap-9">
+        {/* Progress spine + the way out, pinned to the base of the rail by mt-auto so the
+            middle breathes instead of the old justify-between chasm. */}
+        <div className="relative z-10 mt-auto flex flex-col items-start gap-10 pt-16">
           {step === "welcome" ? (
             <div className="font-mono text-2xs tracking-wide text-faint">{ONBOARDING_STEP_COUNT} steps · about a minute</div>
           ) : (
-            <nav className="flex flex-col gap-4" aria-label="First-run steps">
+            <nav className="relative flex flex-col" aria-label="First-run steps">
+              {/* The rail: one hairline threading every tick, so the four steps read as a
+                  single measured progression rather than four loose rows. */}
+              <span aria-hidden className="absolute top-4 bottom-4 left-[7px] w-px bg-border" />
               {ONBOARDING_STEPS.map((s) => {
                 const state = stepNavState(step, s.key);
                 return (
@@ -121,19 +138,29 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
                     disabled={state === "locked"}
                     aria-current={state === "current" ? "step" : undefined}
                     onClick={() => goTo(s.key)}
-                    className="flex items-center gap-3 text-left disabled:cursor-not-allowed"
+                    className="group relative flex items-center gap-3.5 py-2.5 text-left disabled:cursor-not-allowed"
                   >
-                    <span
-                      aria-hidden
-                      className={`size-2 shrink-0 rounded-full ${state === "locked" ? "bg-muted" : "bg-foreground"}`}
-                    />
+                    {/* Square ticks, not dots: filled foreground for the current step, a
+                        dimmer fill for a completed one, a hollow outline for what's ahead. */}
+                    <span className="relative z-10 flex size-4 flex-none items-center justify-center bg-card">
+                      <span
+                        aria-hidden
+                        className={
+                          state === "current"
+                            ? "size-2.5 bg-foreground"
+                            : state === "done"
+                              ? "size-2 bg-foreground/55"
+                              : "size-2 border border-line-strong"
+                        }
+                      />
+                    </span>
                     <span
                       className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-faint"}`}
                     >
                       {s.n}
                     </span>
                     <span
-                      className={`text-sm whitespace-nowrap ${state === "current" ? "text-foreground" : state === "locked" ? "text-faint" : "text-muted-foreground"}`}
+                      className={`text-sm whitespace-nowrap transition-colors ${state === "current" ? "font-medium text-foreground" : state === "locked" ? "text-faint" : "text-muted-foreground group-hover:text-foreground"}`}
                     >
                       {s.label}
                     </span>
@@ -156,8 +183,14 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
         </div>
       </aside>
 
-      <div className="flex min-w-0 items-center px-8 py-16 sm:px-12">
-        <div className="w-full max-w-[620px]">
+      <div className="flex min-w-0 items-start px-8 pt-20 pb-16 sm:px-12 md:pt-28">
+        {/* Keyed on the step so the panel replays one authored entrance — a short rise and
+            fade from a visible resting state — each time the step changes. Reduced motion
+            gets the content instantly, no movement. */}
+        <div
+          key={step}
+          className="w-full max-w-[620px] duration-500 ease-out animate-in fade-in slide-in-from-bottom-3 motion-reduce:animate-none"
+        >
           {step === "welcome" && <WelcomeStep onGetStarted={() => setStep("focus")} />}
 
           {step === "focus" && (

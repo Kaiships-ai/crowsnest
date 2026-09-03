@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-03T00:00:00Z",
+  "title": "Design System: Crowsnest",
+  "extensions": {
+    "colorMeta": {
+      "ground": { "role": "neutral", "displayName": "Console Ground", "canonical": "#0b0b0c", "lightValue": "#f4f2ef", "tonalRamp": ["#0b0b0c", "#141416", "#1c1c1f", "#2a2a2e", "#3e3e46", "#55554f", "#868682", "#f2f2f0"] },
+      "card": { "role": "neutral", "displayName": "Raised Card", "canonical": "#141416", "lightValue": "#eae7e1" },
+      "ink": { "role": "neutral", "displayName": "Readout Ink", "canonical": "#f2f2f0", "lightValue": "#17150f" },
+      "muted-ink": { "role": "neutral", "displayName": "Muted Ink", "canonical": "#9a9a96", "lightValue": "#57554f" },
+      "faint": { "role": "neutral", "displayName": "Faint Ink", "canonical": "#868682", "lightValue": "#64625b" },
+      "amber": { "role": "primary", "displayName": "Signal Amber", "canonical": "#e8a33d", "lightValue": "#a85f00", "tonalRamp": ["#463212", "#66481a", "#8f6524", "#c0842f", "#e8a33d", "#efbc6f", "#f5d5a4", "#faead1"] },
+      "pos": { "role": "tertiary", "displayName": "Verdict Green", "canonical": "#6fad86", "lightValue": "#2f6b4a" },
+      "destructive": { "role": "tertiary", "displayName": "Failure Red", "canonical": "#d9503f", "lightValue": "#ae2818" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page titles and the score at display size (34px, Archivo 700)." },
+      "meta": { "displayName": "Meta", "purpose": "Mono values and meta (15px, IBM Plex Mono, tabular)." },
+      "label": { "displayName": "Label", "purpose": "Column heads, units, status tags, group labels (13px mono, 0.06em, often uppercase)." }
+    },
+    "shadows": [
+      { "name": "elev-light-only", "value": "0 2px 14px rgba(23, 21, 15, 0.16)", "purpose": "The single permitted elevation, light theme only, where a panel must lift off paper. Never on dark." }
+    ],
+    "motion": [
+      { "name": "press", "value": "translateY(1px) + brightness(0.9)", "purpose": "Global active-press feedback on every enabled button." },
+      { "name": "focus-ring", "value": "3px ring, --ring amber, shown instantly", "purpose": "Focus-visible ring on buttons and inputs; never animate its appearance." },
+      { "name": "transition-standard", "value": "transition-all (base-ui default)", "purpose": "Button state transitions." }
+    ],
+    "breakpoints": [
+      { "name": "md", "value": "768px", "purpose": "First-run two-column collapses to one column below this." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one amber action per screen.",
+      "html": "<button class=\"ds-btn-primary\">Get the read key</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; background: #e8a33d; color: #0b0b0c; border: none; border-radius: 9999px; font-family: Archivo, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .2s, transform .1s, filter .1s; } .ds-btn-primary:hover { background: #eab258; } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(232,163,61,0.5); } .ds-btn-primary:active { transform: translateY(1px); filter: brightness(0.9); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "A non-primary action; carries most of the interface so amber stays rare.",
+      "html": "<button class=\"ds-btn-ghost\">Skip — watch without syncing</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; background: transparent; color: #f2f2f0; border: none; border-radius: 9999px; font-family: Archivo, system-ui, sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: background .2s; } .ds-btn-ghost:hover { background: #1c1c1f; } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(232,163,61,0.5); }"
+    },
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "A raised panel, square, separated by tone and a hairline — no shadow on dark.",
+      "html": "<div class=\"ds-card\"><span class=\"ds-card-label\">02 · INSTAGRAM ACCESS</span><p class=\"ds-card-title\">Give Crowsnest a read key</p></div>",
+      "css": ".ds-card { background: #141416; border: 1px solid #1f1f23; border-radius: 0; padding: 16px; } .ds-card-label { font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: #868682; } .ds-card-title { margin: 12px 0 0; font-family: Archivo, system-ui, sans-serif; font-size: 24px; font-weight: 600; letter-spacing: -0.01em; color: #f2f2f0; }"
+    },
+    {
+      "name": "Input Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Square field on ground, amber focus language shared with buttons.",
+      "html": "<input class=\"ds-input\" placeholder=\"sessionid=IGSC%3A…\" />",
+      "css": ".ds-input { width: 100%; background: #0b0b0c; color: #f2f2f0; border: 1px solid #3e3e46; border-radius: 0; padding: 8px 10px; font-family: 'IBM Plex Mono', monospace; font-size: 15px; } .ds-input::placeholder { color: #55554f; } .ds-input:focus-visible { outline: none; border-color: #e8a33d; box-shadow: 0 0 0 3px rgba(232,163,61,0.5); }"
+    },
+    {
+      "name": "Status Tag",
+      "kind": "chip",
+      "refersTo": "label",
+      "description": "A mono status label — verdict green for a passing state, faint for a locked one.",
+      "html": "<span class=\"ds-tag\">READ KEY LIVE</span>",
+      "css": ".ds-tag { display: inline-flex; align-items: center; gap: 6px; font-family: 'IBM Plex Mono', monospace; font-size: 13px; letter-spacing: 0.06em; color: #6fad86; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "Crowsnest looks like a precise measuring tool, not a marketing surface. The screen is a panel of readouts: neutral by default, dense with real numbers, and lit by a single amber signal that means one thing only — this post beat its channel's own median. Everything that is not that signal recedes to a graded neutral scale. The system runs dark by default and swaps to a warm-paper light theme; both keep the same discipline. Display and body are Archivo; every number, unit, label, and status tag is IBM Plex Mono with tabular figures. Corners are square on every surface, and the only rounded thing in the product is the button, a pill that reads as the one place you act. Depth is nearly absent: dark is flat and separates planes by tone, and only light is allowed a single soft elevation.",
+    "keyCharacteristics": [
+      "Amber is a signal, not a brand color — reserved for the score and one action per screen.",
+      "Every number is monospaced and tabular; uppercase appears only on column heads and group labels.",
+      "Square corners on all surfaces; pill only on buttons.",
+      "Flat by default; depth is tonal, not shadowed (light theme excepted).",
+      "Dark-first, with a warm-paper light theme carrying the same rules."
+    ],
+    "rules": [
+      { "name": "The Amber Law", "body": "Amber means exactly one thing: this beat its channel's median. It is allowed on the score and on one primary action per screen. It is banned on nav-active state, toggles, secondary buttons, the logo, progress bars, and count badges, which use a raised neutral surface instead.", "section": "colors" },
+      { "name": "The Two-Hue Rule", "body": "The only chromatic colors are amber (signal) and red (failure), with green as the muted positive verdict. Series are told apart with neutral inks, never invented hues.", "section": "colors" },
+      { "name": "The Tabular Number Rule", "body": "Every number is monospace and tabular-nums slashed-zero. Aligned digits are what make the product read as a tool.", "section": "typography" },
+      { "name": "The Uppercase Budget", "body": "Uppercase appears only on column heads and group labels, at 0.06em. Never uppercase a heading, a button, or body copy.", "section": "typography" },
+      { "name": "The Flat Console Rule", "body": "Depth is tonal, not cast. Reach for a lighter surface and a hairline before a shadow; on dark, never reach for a shadow at all.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep amber for the score and one primary action per screen; carry everything else on neutral surfaces.",
+      "Do set every number in IBM Plex Mono with tabular, slashed-zero figures.",
+      "Do keep surfaces square (0px) and let the pill button be the only rounded form.",
+      "Do separate planes with tone and a hairline; on dark, use no shadow.",
+      "Do reserve uppercase for column heads and group labels, at 0.06em."
+    ],
+    "donts": [
+      "Don't put amber on nav-active state, toggles, secondary buttons, the logo, progress bars, or count badges.",
+      "Don't introduce a third chromatic hue, or a green loud enough to rival amber.",
+      "Don't round card, input, or panel corners, and don't wrap surfaces in shadows on the dark theme.",
+      "Don't set numbers in a proportional font or drop tabular figures.",
+      "Don't invent metrics, counts, or states the app cannot actually produce."
+    ]
+  }
+}

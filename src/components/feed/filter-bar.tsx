@@ -272,7 +272,10 @@ export function FilterBar({
         />
       </div>
 
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {/* Filters cluster: scope (fleet), the four thresholds, and the analyzed
+            toggle read as one group, kept tight, and wrap together as a unit. */}
+        <div className="flex flex-wrap items-center gap-1">
         <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
           <SelectTrigger size="sm" aria-label="Fleet" className={FILTER_TRIGGER_CLASS}>
             <SelectValue />
@@ -367,7 +370,12 @@ export function FilterBar({
             );
           })}
         </div>
+        </div>
 
+        {/* Actions cluster: saving a view, clearing, and importing a URL are actions,
+            not filters — separated from the filter group above so the row reads as
+            "what I'm filtering by" then "what I can do". */}
+        <div className="flex flex-wrap items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={<Button variant="ghost" size="sm" className={cn(FILTER_TRIGGER_CLASS, "rounded-full")} />}
@@ -426,6 +434,7 @@ export function FilterBar({
         >
           <Plus /> Add post URL
         </Button>
+        </div>
 
         <div className="ml-auto flex items-center gap-1.5">
           <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>

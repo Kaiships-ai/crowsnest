@@ -9,7 +9,7 @@ import { ONBOARDING_STEP_COUNT } from "./onboarding-view";
 // three.
 const POINTS = [
   "Pick what you make, so the scoring starts from your niche.",
-  "Connect the Instagram account the sidecar signs in with. Read only, nothing is posted.",
+  "Give Crowsnest a read key — sign it into a throwaway Instagram. Read only, nothing is posted.",
   "Type in the channels to watch — there's no suggestion list, so bring their handles.",
   "Run the first sync, and see what beat its own median.",
 ];
