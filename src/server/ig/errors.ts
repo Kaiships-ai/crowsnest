@@ -55,6 +55,31 @@ const NEEDS_USER_ACTION: ReadonlySet<IgErrorCode> = new Set<IgErrorCode>([
   "IG_PROXY_BLOCKED",
 ]);
 
+/** Coarse handling bucket for the sync engine (Goal 3): transient => retry with backoff;
+ *  auth/challenge => stop and prompt re-login rather than silently retrying; fatal => give
+ *  up on this item or channel. */
+export type IgErrorClass = "transient" | "auth" | "challenge" | "fatal";
+
+/** An interactive block a person must clear in the Instagram app itself. */
+const CHALLENGE: ReadonlySet<IgErrorCode> = new Set<IgErrorCode>(["IG_CHALLENGE", "IG_TWO_FACTOR"]);
+
+/** A credential or session problem, distinct from a challenge: the app has to re-auth,
+ *  not the person clear a checkpoint. Includes the sidecar's own token rejection. */
+const AUTH: ReadonlySet<IgErrorCode> = new Set<IgErrorCode>([
+  "IG_AUTH_REQUIRED",
+  "IG_BAD_CREDENTIALS",
+  "IG_SERVICE_UNAUTHORIZED",
+]);
+
+/** Maps a code to the sync engine's handling bucket. Add-only: reads the existing
+ *  RETRYABLE set for the transient class and leaves it and NEEDS_USER_ACTION unchanged. */
+export function classifyIgError(code: IgErrorCode): IgErrorClass {
+  if (CHALLENGE.has(code)) return "challenge";
+  if (AUTH.has(code)) return "auth";
+  if (RETRYABLE.has(code)) return "transient";
+  return "fatal";
+}
+
 export class IgError extends Error {
   readonly code: IgErrorCode;
   readonly retryable: boolean;
