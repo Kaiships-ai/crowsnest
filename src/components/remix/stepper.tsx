@@ -2,7 +2,6 @@
 
 import { Check } from "lucide-react";
 
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { RemixStage } from "@/server/services/remix";
 
@@ -69,7 +68,18 @@ export function Stepper({
               </span>
               {stage.label}
             </button>
-            {i < STAGES.length - 1 && <Separator className="mx-1 flex-1" />}
+            {i < STAGES.length - 1 && (
+              <div
+                aria-hidden
+                className={cn(
+                  // Neutral only — a connector is progress, banned from amber and
+                  // from the pos green (DESIGN.md Amber Law + Two-Hue Rule). A reached
+                  // segment steps up to the strong rule weight; the rest stay hairline.
+                  "mx-1 h-px flex-1 transition-colors duration-200 motion-reduce:transition-none",
+                  i < furthestIndex ? "bg-[var(--line-strong)]" : "bg-border"
+                )}
+              />
+            )}
           </div>
         );
       })}
