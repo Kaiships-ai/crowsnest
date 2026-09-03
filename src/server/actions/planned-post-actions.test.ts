@@ -457,13 +457,27 @@ describe("uploadPlanVideoAction", () => {
   test("accepts an mp4 and attaches a media asset", async () => {
     const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
     const fd = new FormData();
-    fd.append("file", new File([Buffer.from("fake mp4 bytes")], "clip.mp4", { type: "video/mp4" }));
+    // A minimal ISO base media header: 4 size bytes then the "ftyp" box + a brand.
+    const mp4 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
+    fd.append("file", new File([mp4], "clip.mp4", { type: "video/mp4" }));
 
     const result = await uploadPlanVideoAction(created.id, fd);
     expect(result).toEqual({ ok: true });
 
     const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
     expect(row.videoAssetId).not.toBeNull();
+  });
+
+  test("rejects a non-mp4 file renamed to .mp4 (no ftyp signature)", async () => {
+    const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
+    const fd = new FormData();
+    fd.append("file", new File([Buffer.from("not really a video at all")], "clip.mp4", { type: "video/mp4" }));
+
+    const result = await uploadPlanVideoAction(created.id, fd);
+    expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NOT_MP4" });
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.videoAssetId).toBeNull();
   });
 });
 

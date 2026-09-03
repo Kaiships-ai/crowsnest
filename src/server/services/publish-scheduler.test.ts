@@ -248,8 +248,8 @@ describe("the atomic claim (real db)", () => {
   });
 
   test("real selectRetryableFailed excludes a row already at MAX_ATTEMPTS", async () => {
-    const retryable = await seedPlan({ state: "failed", attemptCount: DEFAULT_MAX_ATTEMPTS - 1 });
-    const maxedOut = await seedPlan({ state: "failed", attemptCount: DEFAULT_MAX_ATTEMPTS });
+    const retryable = await seedPlan({ state: "failed", attemptCount: DEFAULT_MAX_ATTEMPTS - 1, errorClass: "rate_limit" });
+    const maxedOut = await seedPlan({ state: "failed", attemptCount: DEFAULT_MAX_ATTEMPTS, errorClass: "rate_limit" });
 
     const rearmForRetry = vi.fn(async (_id: string) => {});
     await runDuePublishes(new Date(iso(0)), {
@@ -265,7 +265,7 @@ describe("the atomic claim (real db)", () => {
   });
 
   test("real rearmForRetry flips the row back to scheduled with the backed-off scheduledAt", async () => {
-    const id = await seedPlan({ state: "failed", attemptCount: 1 });
+    const id = await seedPlan({ state: "failed", attemptCount: 1, errorClass: "rate_limit" });
     const now = new Date(iso(0));
 
     await runDuePublishes(now, {
@@ -278,5 +278,22 @@ describe("the atomic claim (real db)", () => {
     expect(reloaded.id).toBe(id);
     expect(reloaded.state).toBe("scheduled");
     expect(new Date(reloaded.scheduledAt!).getTime() - now.getTime()).toBe(defaultBackoffMs(1));
+  });
+
+  test("real selectRetryableFailed excludes a permanent failure (non-retryable errorClass)", async () => {
+    const permanent = await seedPlan({ state: "failed", attemptCount: 1, errorClass: "no_video" });
+
+    const rearmForRetry = vi.fn(async (_id: string) => {});
+    await runDuePublishes(new Date(iso(0)), {
+      selectDueScheduled: async () => [],
+      claim: async () => false,
+      publish: vi.fn(),
+      rearmForRetry,
+    });
+
+    expect(rearmForRetry).not.toHaveBeenCalled();
+    const [row] = await db.select().from(tables.plannedPosts);
+    expect(row.id).toBe(permanent);
+    expect(row.state).toBe("failed"); // stays terminal, no backoff budget burned
   });
 });

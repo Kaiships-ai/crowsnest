@@ -317,6 +317,9 @@ const CAPTION_MAX = 2200;
 /** A `datetime-local` value ("YYYY-MM-DDTHH:MM"), the only schedule input the UI sends. */
 const SCHEDULE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
+/** Upper bound on an uploaded video, kept in step with serverActions.bodySizeLimit. */
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
 /**
  * Attaches an uploaded mp4 to a plan. The bytes arrive as a `File` in `FormData` (the
  * native Server-Action file convention — see node_modules/next/dist/docs mutating-data),
@@ -331,11 +334,23 @@ export async function uploadPlanVideoAction(id: string, formData: FormData): Pro
 
     const file = formData.get("file");
     if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
-    const isMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
-    if (!isMp4) return { ok: false, error: "Only an .mp4 video can be published.", code: "PLAN_NOT_MP4" };
     if (file.size === 0) return { ok: false, error: "That video file is empty.", code: "PLAN_EMPTY_FILE" };
+    // Keep this ceiling in step with serverActions.bodySizeLimit in next.config.ts.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return { ok: false, error: "That video is too large. The limit is 200 MB.", code: "PLAN_FILE_TOO_LARGE" };
+    }
+    // The filename and Content-Type are both client-set, so a fast reject on them only
+    // catches honest mistakes; the real check is the ISO base media file signature below.
+    const looksMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
+    if (!looksMp4) return { ok: false, error: "Only an .mp4 video can be published.", code: "PLAN_NOT_MP4" };
 
     const bytes = Buffer.from(await file.arrayBuffer());
+    // ISO base media format (mp4) carries an "ftyp" box at offset 4. Sniff it so bytes
+    // renamed to .mp4 are rejected here rather than surfacing as an opaque Graph
+    // container failure once Instagram tries to fetch the video.
+    if (bytes.length < 12 || bytes.toString("ascii", 4, 8) !== "ftyp") {
+      return { ok: false, error: "That file is not a valid mp4 video.", code: "PLAN_NOT_MP4" };
+    }
     // ponytail: buffer the whole file then copy it into the store. Round-0 mp4s are small
     // enough; if large uploads ever land, stream File.stream() straight to the temp path.
     const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);

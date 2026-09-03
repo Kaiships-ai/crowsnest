@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, lt, lte } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, lte } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { publishPlannedPost, type PublishPostResult } from "./publish-post";
@@ -25,6 +25,14 @@ import { publishPlannedPost, type PublishPostResult } from "./publish-post";
  */
 
 export const DEFAULT_MAX_ATTEMPTS = 3;
+
+/**
+ * Only a transient failure is worth an automatic retry. A permanent one (no_video with
+ * the asset gone, no_bucket or auth misconfiguration, a container the Graph API rejected)
+ * would burn the same 1m/5m/15m budget and still fail, so it stays `failed` immediately
+ * and surfaces for the user to fix. Mirrors how sync consults IgError.retryable.
+ */
+export const RETRYABLE_ERROR_CLASSES = ["rate_limit", "timeout", "storage", "unknown"] as const;
 
 /** 1m / 5m / 15m, then holds at 15m — attemptCount is 1-based (publish-post.ts writes
  *  `row.attemptCount + 1` on the failure this backoff is scheduling the retry for). */
@@ -92,7 +100,13 @@ async function defaultSelectRetryableFailed(maxAttempts: number, limit: number):
   return db
     .select({ id: tables.plannedPosts.id, attemptCount: tables.plannedPosts.attemptCount })
     .from(tables.plannedPosts)
-    .where(and(eq(tables.plannedPosts.state, "failed"), lt(tables.plannedPosts.attemptCount, maxAttempts)))
+    .where(
+      and(
+        eq(tables.plannedPosts.state, "failed"),
+        lt(tables.plannedPosts.attemptCount, maxAttempts),
+        inArray(tables.plannedPosts.errorClass, RETRYABLE_ERROR_CLASSES as unknown as string[])
+      )
+    )
     .limit(limit);
 }
 

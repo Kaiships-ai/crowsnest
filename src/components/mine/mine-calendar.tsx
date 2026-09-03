@@ -606,8 +606,9 @@ export function MineCalendar({
                   </button>
                   <button
                     type="button"
+                    data-testid="mine-undated-delete"
                     className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline"
-                    onClick={() => remove(d)}
+                    onClick={() => (d.videoAssetId ? setConfirm({ kind: "delete", plan: d }) : remove(d))}
                   >
                     delete
                   </button>
