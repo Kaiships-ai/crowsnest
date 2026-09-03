@@ -8,8 +8,8 @@ Status: shipped and in daily use.
 
 | File | Export | Role |
 | --- | --- | --- |
-| `src/app/(shell)/feed/page.tsx` | `FeedPage` (default) | The feed page itself, an async server component. Resolves the slice from `searchParams`, decides whether to apply the default view, runs the page of videos and the band counts in parallel, and renders one of four empty states or the grid plus Load more. |
-| `src/app/(shell)/feed/loading.tsx` | (default) | The route's loading skeleton, shown while the server component renders. |
+| `src/app/(shell)/feed/(list)/page.tsx` | `FeedPage` (default) | The feed page itself, an async server component. Resolves the slice from `searchParams`, decides whether to apply the default view, runs the page of videos and the band counts in parallel, and renders one of four empty states or the grid plus Load more. |
+| `src/app/(shell)/feed/(list)/loading.tsx` | (default) | The route's loading skeleton, shown while the server component renders. Lives in a `(list)` route group (no URL change) with the page above, so its Suspense boundary does not also wrap the sibling `[videoId]` route: that route's own `notFound()` used to always suspend into this boundary first and commit HTTP 200 before the throw could run. |
 | `src/lib/feed-filters.ts` | `FILTER_PARAM_KEYS`, `ORDER_PARAM_KEYS`, `FOLLOWER_BANDS`, `first`, `num`, `bandOrAny`, `numOrAny`, `minEngOrAny`, `analyzedOrAny`, `isFeedEmpty`, `shouldApplyDefaultView`, `resolveFeedCriteria`, `filterQuerySuffix`, `searchParamsFromEntries`, `resolveChipValue`, `currentViewCriteria` | The pure `searchParams` to criteria layer, imported by both the server page and the client filter bar so "a filter param is present" has one definition. `filterQuerySuffix` is the query suffix a card forwards into detail or remix. |
 | `src/server/queries/feed.ts` | `getOutlierFeed`, `getFeedBandCounts`, `getSavedFilters`, `feedItemColumns`, `toFeedItem`, types `FeedFilters`/`FeedItem`/`FeedBandCounts`/`SavedFilterRow` | The DB layer. `getOutlierFeed` returns the page of items plus the true slice total; `getFeedBandCounts` computes each follower band under every other active filter; `feedItemColumns`/`toFeedItem` derive `engagementRate` and the `deleted` flag once, so the card and the detail page never compute two different numbers. |
 | `src/server/queries/preview-action.ts` | `getVideoPreviewAction` | The lazy, id-keyed server action the quick preview sheet calls when a card is clicked; a thin wrapper over `getVideoDetail`, so the feed never loads transcripts for every card up front. |
@@ -20,7 +20,7 @@ Status: shipped and in daily use.
 | `src/components/video/` | `video-detail.tsx`, `save-post-button.tsx`, `median-baseline.tsx`, `metric-chips.tsx`, `video-player.tsx`, `carousel-viewer.tsx`, `layout-section.tsx` | The video detail page's own components: the keep-this-post button, the median baseline block, the metric chips, and the media viewers. |
 | `src/server/actions/saved-view-actions.ts` | `createSavedViewAction`, `renameSavedViewAction`, `deleteSavedViewAction` | Create, rename, and delete a saved view; every mutating action refuses to touch a row marked `isSystem`. |
 | `src/server/actions/saved-post-actions.ts` | `createSavedPostAction`, `updateSavedPostNoteAction`, `deleteSavedPostAction` | Keep-this-post: one `saved_posts` row per video, refused if the video is already saved. |
-| `src/server/actions/vault-actions.ts` | `createVaultItemAction`, `deleteVaultItemAction` | Save to vault: writes a `vault_items` row of type hook or style. |
+| `src/server/actions/vault-actions.ts` | `createVaultItemAction`, `saveToVaultAction`, `deleteVaultItemAction` | Save to vault. `saveToVaultAction` is the save-to-vault dialog's own entry point: it writes hook, style, or both `vault_items` rows in one `db.transaction`, so a failure on one insert rolls back the rest, and each insert is idempotent (reuses a row with identical type, source video, title, and template text instead of duplicating it on retry). `createVaultItemAction` is the single-item path other components (the remix hook stage, the vault template dialog) call. |
 | `src/server/actions/sync-actions.ts` | `importReelAction` | The thin `"use server"` wrapper around `importReelByUrl` that the "Add post URL" dialog calls. |
 | `src/server/services/sync-engine.ts` | `importReelByUrl` | Fetches a single reel through the yt-dlp provider (`src/server/providers/ytdlp.ts`) and upserts it into `videos` with the same shape a sidecar sync writes. Not a feed-owned pipeline; the feed only calls it. |
 | `src/server/db/bootstrap.ts` | (seed data) | Seeds the two built-in saved views, Balanced (`minScore: 5, sinceDays: 30`) and High Conviction (`minScore: 10, sinceDays: 14, minViews: 500000`), once at install, both marked `isSystem`. |
@@ -170,18 +170,25 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     actor UI as Save to vault dialog
-    participant Action as createVaultItemAction
+    participant Action as saveToVaultAction
     participant DB
 
-    UI->>Action: createVaultItemAction(type, title, templateText, tags, sourceVideoId)
+    UI->>Action: saveToVaultAction(items)
     activate Action
-    Action->>DB: **Insert the vault item** (vaultItems)<br/>params:{ id, type, title, templateText, tags, sourceVideoId }
-    DB-->>Action: Return {VaultItem}<br/>params:{ id }
+    loop for each item in items, inside one transaction
+        Action->>DB: **Look for a matching item** (vaultItems)<br/>params:{ type, sourceVideoId, title, templateText }
+        DB-->>Action: Return {VaultItem} or null<br/>params:{ id }
+        alt a matching item exists
+            Action->>Action: **Reuse the existing row**<br/>no insert, same id
+        else no match
+            Action->>DB: **Insert the vault item** (vaultItems)<br/>params:{ id, type, title, templateText, tags, sourceVideoId }
+        end
+    end
     deactivate Action
-    Action-->>UI: Return success response that the item was saved<br/>params:{ id }
+    Action-->>UI: Return success response that the items were saved<br/>params:{}
 ```
 
-Choosing "Both" in the dialog fires two of these inserts with `Promise.all` rather than one call carrying two types, and the dialog reports only the first failure it sees. If one insert lands and the other fails, the succeeded row is already committed but the toast shows only the error; clicking Save again re-runs both, duplicating the one that already landed. There is no dedupe and no cap on vault items either way; see [backlog](05-backlog-to-enhance.md) (B-05).
+Choosing "Both" writes hook and style in the same call, inside one transaction: a failure on either insert rolls back both, so nothing is ever left half-saved. Each insert is idempotent, keyed on the exact combination of type, source video, title, and template text, so retrying an unchanged submission reuses the row that already landed instead of duplicating it. There is still no cap on vault items, and a resubmission with edited content always creates a new row.
 
 ## 7. Sequence: importing a post by URL
 
@@ -218,10 +225,10 @@ This is a foreground request the dialog holds open while it runs, not a backgrou
 - **The quick preview fetch is lazy and id-keyed.** The sheet loads one video's detail only on open, keyed to the opened card, so scrolling the feed with the sheet closed costs nothing.
 - **`?key=any` is an explicit token, not an absent key.** It lets "explicitly no condition" stay distinct from "never set", which is what keeps a cleared control from re-triggering the default view on the next read.
 - **The manual import reuses the sidecar's own upsert path.** `importReelByUrl` writes into the same `videos` table with the same upsert shape a sidecar sync uses, rather than a second, parallel write path that could drift from it.
+- **The feed list route is its own route group.** `(list)/page.tsx` and `(list)/loading.tsx` sit apart from the sibling `[videoId]` route so the list's Suspense boundary cannot swallow that route's `notFound()` throw, without changing either route's URL.
+- **The vault write is one transaction, not a client-side fan-out.** `saveToVaultAction` writes every chosen item inside a single `db.transaction`, with each insert idempotent on its own content, so a partial failure never half-saves and a retry never duplicates.
 
 ## 9. Open, not verified
 
 - **The default-view logic is internally inconsistent across the codebase.** `feed/page.tsx` applies the seeded High Conviction saved filter on a bare visit (`shouldApplyDefaultView`), and this is what the running page actually does. But the doc comments on `isFeedEmpty` and `resolveFeedCriteria` in `src/lib/feed-filters.ts`, and on `resolve-feed-nav.ts`, both state that a bare `/feed` visit resolves to the full unfiltered library with no auto-applied default, the opposite of what the page code does. Tracked as `FEED-Q1` in the [backlog](05-backlog-to-enhance.md); the code as shipped applies High Conviction on a bare visit, but the stale comments have not been reconciled or removed.
 - **Whether a database read error on the feed page renders a server error boundary or something gentler.** There is no action boundary on this page to force the case from the UI.
-- **Whether the "Both" vault save's partial-failure behavior (one insert lands, the other fails, a retry duplicates the landed row) has been reproduced against a real forced failure**, as opposed to reasoned from the code (`Promise.all` with no rollback). See `B-05` in the [backlog](05-backlog-to-enhance.md).
-- **Whether `notFound()` on the video detail route reliably returns HTTP 200 instead of 404 across Next.js versions**, or is specific to the version currently pinned. See `B-14` in the [backlog](05-backlog-to-enhance.md).
