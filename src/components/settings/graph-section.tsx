@@ -63,7 +63,7 @@ export function GraphSection({ initialStatus }: { initialStatus: GraphTokenStatu
       <div>
         <h2 className="text-lg font-semibold">Instagram Graph API</h2>
         <p className="text-sm text-muted-foreground">
-          Powers My channel&apos;s own-account Insights only, a separate connection from the sync session above, which reads other channels.
+          An optional Instagram Graph API token that powers My channel&apos;s stats and insights. You only need it if you want detailed engagement metrics for your own channel; without it, crowsnest still works for content curation.
         </p>
       </div>
 
