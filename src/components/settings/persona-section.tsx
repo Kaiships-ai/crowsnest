@@ -68,7 +68,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
     if (!dirty) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "";
+      e.returnValue = "You have unsaved persona edits.";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);

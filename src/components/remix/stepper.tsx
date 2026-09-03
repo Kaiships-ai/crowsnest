@@ -76,7 +76,7 @@ export function Stepper({
                   // from the pos green (DESIGN.md Amber Law + Two-Hue Rule). A reached
                   // segment steps up to the strong rule weight; the rest stay hairline.
                   "mx-1 h-px flex-1 transition-colors duration-200 motion-reduce:transition-none",
-                  i < furthestIndex ? "bg-[var(--line-strong)]" : "bg-border"
+                  i < furthestIndex ? "bg-line-strong" : "bg-border"
                 )}
               />
             )}

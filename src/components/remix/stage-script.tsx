@@ -310,7 +310,7 @@ export function StageScript({
     return (
       <div className="flex flex-col gap-3">
         <GroundedIn>{groundedInText}</GroundedIn>
-        <GeneratingSkeleton label="Writing script…" count={3} rowClassName="h-40" />
+        <GeneratingSkeleton label="Writing script…" count={DEFAULT_COUNT} rowClassName="h-40" />
       </div>
     );
   }

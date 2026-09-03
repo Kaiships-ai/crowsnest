@@ -2,7 +2,7 @@
 status: active
 components: [remix, persona]
 backlog: none
-owner: Goal 1 lead (opus) — session_01XbUniwFzh3eahwW2AMyvYH
+owner: Goal 1 lead (opus) - session_01XbUniwFzh3eahwW2AMyvYH
 shipped: null
 ---
 
@@ -20,8 +20,8 @@ shipped: null
 
 ## Global Constraints
 
-- **Amber Law:** `--primary` (amber) only on the score readout and one primary action per screen. Banned on nav/progress/toggles/badges/connectors/skeletons. Stepper connector and generating skeletons stay neutral (`--line-strong`/`--border`/muted). Persona's one amber action is the existing Save button — nothing new may take amber. Verify per file: `grep -nE "bg-primary|text-primary|border-primary" <file>` and justify each hit.
-- **Square corners:** skeletons keep `rounded-none`; radius tokens are 0 so `rounded-*` class names are not bugs — do not touch them.
+- **Amber Law:** `--primary` (amber) only on the score readout and one primary action per screen. Banned on nav/progress/toggles/badges/connectors/skeletons. Stepper connector and generating skeletons stay neutral (`--line-strong`/`--border`/muted). Persona's one amber action is the existing Save button - nothing new may take amber. Verify per file: `grep -nE "bg-primary|text-primary|border-primary" <file>` and justify each hit.
+- **Square corners:** skeletons keep `rounded-none`; radius tokens are 0 so `rounded-*` class names are not bugs - do not touch them.
 - **Motion:** CSS only, no new dep; every animated element carries `motion-reduce:animate-none`; durations <=200ms.
 - **No fabricated data:** copy/examples in Persona are static guidance, never presented as the user's real values; example text only fills an empty field on explicit click.
 - **Next.js here is not stock:** read `node_modules/next/dist/docs/` before app-code changes; app opens at `http://localhost:3000`, never 127.0.0.1.
@@ -29,9 +29,9 @@ shipped: null
 
 ---
 
-### Task 1: Shared `GeneratingSkeleton` — one calm loading rhythm
+### Task 1: Shared `GeneratingSkeleton` - one calm loading rhythm
 
-Board (remix polish): "Unify the abrupt generating states (5-card skeleton, GroundedIn line, SteerBox) into one calm loading rhythm." Today the Hook stage renders a 5-card grid of `h-28` skeletons, Style renders 4x `h-16` stacked, Script renders a `Writing script…` label + 3x `h-40` stacked and — unlike the other two — drops the `GroundedIn` line while generating. This task extracts one component so all three share a rhythm and always keep `GroundedIn` visible above the skeletons.
+Board (remix polish): "Unify the abrupt generating states (5-card skeleton, GroundedIn line, SteerBox) into one calm loading rhythm." Today the Hook stage renders a 5-card grid of `h-28` skeletons, Style renders 4x `h-16` stacked, Script renders a `Writing script…` label + 3x `h-40` stacked and, unlike the other two, drops the `GroundedIn` line while generating. This task extracts one component so all three share a rhythm and always keep `GroundedIn` visible above the skeletons.
 
 **Files:**
 - Create: `src/components/remix/generating-skeleton.tsx`
@@ -128,7 +128,7 @@ Remove the now-unused `Skeleton` import from stage-script.tsx.
 - [ ] **Step 6: Verify build + typecheck**
 
 Run: `npm run typecheck && npm run build`
-Expected: PASS, no unused-import lint error. (Presentational change — no vitest; verify visually in Round 1's browse walk.)
+Expected: PASS, no unused-import lint error. (Presentational change - no vitest; verify visually in Round 1's browse walk.)
 
 - [ ] **Step 7: Commit**
 
@@ -141,7 +141,7 @@ git commit -m "polish(remix): unify hook/style/script generating states into one
 
 ### Task 2: Stepper connector shows progression
 
-Board (remix animate): "the stepper's connector is inert." The connectors between stages are uniform `<Separator>` regardless of how far the run has reached. Make a reached connector a stronger neutral line and an unreached one the faint hairline, with a <=200ms colour transition when `furthestStage` advances. Neutral only — a connector is progress, so amber and green are both banned here (green would read as a coloured progress bar competing with the score).
+Board (remix animate): "the stepper's connector is inert." The connectors between stages are uniform `<Separator>` regardless of how far the run has reached. Make a reached connector a stronger neutral line and an unreached one the faint hairline, with a <=200ms colour transition when `furthestStage` advances. Neutral only - a connector is progress, so amber and green are both banned here (green would read as a coloured progress bar competing with the score).
 
 **Files:**
 - Modify: `src/components/remix/stepper.tsx` (the `{i < STAGES.length - 1 && <Separator ... />}` line and the `Separator` import)
@@ -249,7 +249,7 @@ git commit -m "feat(remix): fade+rise transition between studio stages"
 
 ---
 
-### Task 4: Persona — example fills + why-each-field + enriched placeholders
+### Task 4: Persona - example fills + why-each-field + enriched placeholders
 
 Board (persona onboard): "four blank textareas quietly weaken every remix. Give example fills + a 'why this matters' line per field." Board (persona clarify): "Enrich the terse placeholders to name which generation behavior each field steers." Extend the `FIELDS` array with a `why` line and an `example`, render the `why` under each label, enrich the `placeholder`, and add an "Insert example" ghost button that fills only an empty field (never clobbers real text -> no-fabricated-data).
 
@@ -361,7 +361,7 @@ git commit -m "feat(persona): per-field why line, enriched placeholders, insert-
 
 ---
 
-### Task 5: Persona — dirty-edit guard
+### Task 5: Persona - dirty-edit guard
 
 Board (persona clarify): "add a dirty-edit guard (navigating away loses text)." Track unsaved edits with a pure helper, warn on browser unload while dirty, and show an inline "Unsaved changes" marker by the Save button. Known ceiling (ponytail): `beforeunload` covers reload / tab-close / hard navigation; it does NOT intercept Next.js soft (client Link) navigation. That's the smallest correct guard for the reported loss; full router interception is deferred (backlog entry below).
 
@@ -497,16 +497,16 @@ git commit -m "feat(persona): dirty-edit guard warns before losing unsaved edits
 Doc placement is per orchestrator ruling (2026-09-04): remix behavior stays in the remix docs; persona is part of the **analyze** component (persona.ts feeds analysis prompts), so persona notes go to the analyze docs, not remix.
 
 **Files:**
-- Modify: `documents/architect/core-components/remix/02-architecture.md` (note the shared `GeneratingSkeleton` rhythm, the stepper connector progression, and the keyed stage transition — grounded to code, evergreen, no dates, no em/en dashes, straight quotes, sentence-case headings)
-- Modify: `documents/architect/core-components/analyze/03-feature-description.md` (persona onboarding: the four fields now carry a why-line, enriched placeholders naming which generation behavior each steers, and an insert-example fill — describe the behavior, grounded to `persona-section.tsx`, evergreen)
+- Modify: `documents/architect/core-components/remix/02-architecture.md` (note the shared `GeneratingSkeleton` rhythm, the stepper connector progression, and the keyed stage transition - grounded to code, evergreen, no dates, no em/en dashes, straight quotes, sentence-case headings)
+- Modify: `documents/architect/core-components/analyze/03-feature-description.md` (persona onboarding: the four fields now carry a why-line, enriched placeholders naming which generation behavior each steers, and an insert-example fill - describe the behavior, grounded to `persona-section.tsx`, evergreen)
 - Modify: `documents/architect/core-components/analyze/05-backlog-to-enhance.md` (add a row: "Persona dirty-guard covers reload / tab-close / hard-nav only; soft Next Link navigation is not intercepted. Add a router-level guard if in-app nav loss is reported. Round 1 candidate if it fits one small hook around the sidebar links.")
 - Modify: `documents/planning/implementation-plan/2026-09-03-cross-ui-foundation-error-loading-states.md` (Wave 1 housekeeping: frontmatter `status: active` -> `shipped`, fill `shipped:` with the merge sha of PR #44/#45 if known, else leave the date)
 
 Note: this wave adds no remix testids; the persona testids (`persona-dirty`, `persona-example-*`) are not referenced by any `04-test-cases.md`, so `testid-audit.sh` (docs -> src direction only) does not require them documented.
 
-- [ ] **Step 1: Update remix 02-architecture.md** — one short subsection on the loading-rhythm/stepper/transition behavior, grounded to the three files.
-- [ ] **Step 2: Update analyze 03-feature-description.md** — the persona onboarding examples/why/placeholder behavior.
-- [ ] **Step 3: Update analyze 05-backlog-to-enhance.md** — the soft-nav deferral row.
+- [ ] **Step 1: Update remix 02-architecture.md** - one short subsection on the loading-rhythm/stepper/transition behavior, grounded to the three files.
+- [ ] **Step 2: Update analyze 03-feature-description.md** - the persona onboarding examples/why/placeholder behavior.
+- [ ] **Step 3: Update analyze 05-backlog-to-enhance.md** - the soft-nav deferral row.
 - [ ] **Step 4: Flip Wave 1 plan frontmatter to shipped.**
 - [ ] **Step 5: Run the full gate**
 
