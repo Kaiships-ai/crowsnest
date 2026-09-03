@@ -1,6 +1,7 @@
 import {
   Activity,
   Archive,
+  Compass,
   Drama,
   Flame,
   LayoutDashboard,
@@ -54,6 +55,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/ideas", label: "Ideas", icon: Lightbulb, group: "Research" },
   { href: "/vault", label: "Vault", icon: Archive, group: "Create" },
   { href: "/channels", label: "Channels", icon: Users, group: "Sources" },
+  { href: "/channels/discover", label: "Discover", icon: Compass, group: "Sources" },
   { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
   { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "System" },
   { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
