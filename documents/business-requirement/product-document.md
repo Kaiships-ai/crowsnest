@@ -174,7 +174,7 @@ dated plan. Details: [remix](../architect/core-components/remix/01-concept-brief
 ### Studio
 
 Takes a dated plan and cooks it into a rendered video, then gates publish. Details:
-[studio](../architect/core-components/studio/01-concept-brief.md).
+documents/archive/studio/01-concept-brief.md (archived; studio was removed).
 
 | Sub-feature | Description | Status |
 | --- | --- | --- |
