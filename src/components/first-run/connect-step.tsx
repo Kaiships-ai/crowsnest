@@ -1,31 +1,39 @@
 "use client";
 
 /**
- * "Connect your own account" — docs/product/v1-scope.md §2 AC 5–8, and the reason this
- * whole flow exists per §4 decision 1: nothing before this pass told Kai the sidecar has
- * to be running and logged in before anything else works.
+ * "Give Crowsnest a read key" — the first-run Instagram step (docs/product/v1-scope.md §2
+ * AC 5–8, §4 decision 1). Reframed from the older "Connect your own account": the sign-in
+ * is not a personal-benchmark signup, it is the *read key* the sidecar needs before it can
+ * read any Instagram data at all. Nothing before this step told Kai the sidecar has to be
+ * logged in, and every downstream step (choosing channels, the first sync) reads Instagram
+ * through this one session — so the step now shows that dependency (03/04 render locked
+ * until the key is live) instead of leaving the user to discover it at a failed sync.
  *
- * Wired directly to the same server actions Settings' Instagram section already uses
- * (`getIgStatusAction`, `igLoginAction`, `igChallengeChooseAction`, `igChallengeCodeAction`,
- * `igTwoFactorAction`) — no new action. This component is not a copy of that section's
- * UI, though: a wrong code here (AC 6) has to stay on the same code field with an inline
- * error and keep focus on it, rather than fall through to a generic "error" view the way
- * Settings' section does, which would lose the very field the user needs to retry.
+ * Primary path is a pasted session ID (`igLoginBySessionAction`): with instagrapi's
+ * `login_by_sessionid` there is no 2FA or challenge to clear, so it connects straight
+ * through. Username + password stays as a collapsible fallback (`igLoginWithCredentialsAction`
+ * plus the unchanged `igChallengeChooseAction`/`igChallengeCodeAction`/`igTwoFactorAction`
+ * machinery — that path *can* still hit a challenge). If the sidecar already has credentials
+ * from `kai kit init`, a one-click connect with them (`igLoginAction`) is offered too.
+ *
+ * Wired directly to the same server actions Settings' Instagram section already uses — no
+ * new action. A wrong challenge code (AC 6) stays on the same code field with an inline
+ * error and keeps focus, rather than falling through to a generic error view.
  *
  * "Skip for now" (AC 8) always advances regardless of connection state — the app has to
- * stay usable disconnected, and every sync control elsewhere already renders its own
- * disconnected state off `getIgStatusAction`, so nothing here needs to remember the skip.
+ * stay usable disconnected, and every sync control elsewhere renders its own disconnected
+ * state off `getIgStatusAction`, so nothing here needs to remember the skip. Skipping is
+ * framed as "watch without syncing" because that is the true consequence: no read key means
+ * no sync.
  *
- * Follower count / post count for the connected account are NOT shown: `getIgStatusAction`
- * (and the sidecar's `/login`, `/health` responses behind it) carry no such fields — only
- * `igClient.profile(handle)` does, which is called for channels being watched, not for the
- * logged-in account itself. Showing them here would need a new server action, which this
- * pass is not allowed to add (WAVE2-BRIEF.md). Per the no-fabricated-data rule, a
- * capability the app does not have does not appear in the interface — so this screen
- * shows the one real fact it has, the connected handle, and stops there.
+ * Follower/post counts for the connected account are NOT shown: `getIgStatusAction` carries
+ * no such fields (only `igClient.profile(handle)` does, called for watched channels, not the
+ * logged-in account). Per the no-fabricated-data rule, this screen shows the one real fact
+ * it has — the connected handle — and stops there.
  */
 
 import { useRef, useState, type RefObject } from "react";
+import { Check, ChevronRight, Eye, KeyRound, Lock, LockOpen, Monitor, Shield } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +43,7 @@ import {
   igChallengeChooseAction,
   igChallengeCodeAction,
   igLoginAction,
+  igLoginBySessionAction,
   igLoginWithCredentialsAction,
   igTwoFactorAction,
 } from "@/server/actions/ig-actions";
@@ -45,12 +54,6 @@ type LoginResult = Awaited<ReturnType<typeof igLoginAction>>;
 type Failure = Extract<LoginResult, { ok: false }>;
 
 type Phase = "idle" | "connecting" | "two_factor" | "challenge_choice" | "challenge_code";
-
-const REQUIREMENTS = [
-  "Reads your posts through the sidecar's session. Nothing here ever sees or stores a password.",
-  "Read-only. Nothing this app does writes to Instagram or posts on your behalf.",
-  "Every channel you watch next is measured against this account's own numbers.",
-];
 
 // A module-level component, not one declared inside ConnectStep: a component created
 // during render remounts (and loses focus) on every parent re-render, which is exactly
@@ -110,6 +113,42 @@ function CodeForm({
   );
 }
 
+/** The two downstream steps both read Instagram through this session, so they can't run
+ *  until the read key is live. Showing that here turns a silent dependency (a sync that
+ *  cancels with no data) into a visible cause-and-effect. */
+function DependencyStrip({ live }: { live: boolean }) {
+  const rows = [
+    { n: "03", label: "Choose channels" },
+    { n: "04", label: "First sync" },
+  ];
+  const Icon = live ? LockOpen : Lock;
+  return (
+    <div className="mt-8 max-w-[460px] overflow-hidden border border-border bg-card">
+      {rows.map((r) => (
+        <div key={r.n} className="flex items-center gap-3.5 border-b border-border px-4 py-3">
+          <Icon aria-hidden className={`size-4 flex-none ${live ? "text-pos" : "text-faint"}`} />
+          <span className="w-5 flex-none font-mono text-2xs tracking-wide text-faint">{r.n}</span>
+          <span className={`flex-1 text-sm ${live ? "text-foreground" : "text-muted-foreground"}`}>{r.label}</span>
+          <span className={`font-mono text-2xs tracking-wide ${live ? "text-pos" : "text-faint"}`}>
+            {live ? "READY" : "NEEDS KEY"}
+          </span>
+        </div>
+      ))}
+      <p className={`px-4 py-2.5 text-xs ${live ? "text-pos" : "text-faint"}`}>
+        {live
+          ? "The read key is live — both steps can read Instagram now."
+          : "Both steps read Instagram through the read key, so they stay locked until it’s connected."}
+      </p>
+    </div>
+  );
+}
+
+const REASSURANCES = [
+  { Icon: Eye, text: "Read-only, never posts" },
+  { Icon: Monitor, text: "Runs on your machine" },
+  { Icon: Shield, text: "Use a throwaway, not your main" },
+];
+
 export interface ConnectStepProps {
   initialStatus: StatusResult;
   serviceUrl: string;
@@ -129,6 +168,9 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const codeInputRef = useRef<HTMLInputElement>(null);
+  const [sessionId, setSessionId] = useState("");
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const [credUsername, setCredUsername] = useState("");
   const [credPassword, setCredPassword] = useState("");
   // Set only while a credentials-path login is mid-flow (2FA/challenge not yet resolved)
@@ -149,6 +191,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   async function recheck() {
     setBusy(true);
     setLoginFailure(null);
+    setSessionError(null);
     // Cancelling a mid-flow 2FA/challenge abandons any credentials-path attempt too, so
     // nothing stale is left for a later, unrelated login to silently persist.
     setCredentialsPending(null);
@@ -174,6 +217,26 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
     else setPhase("idle");
   }
 
+  // Primary path: paste a session ID. instagrapi's login_by_sessionid connects straight
+  // through (no 2FA/challenge), so this either lands "ok" or fails — there is no code branch.
+  async function connectBySession() {
+    const sid = sessionId.trim();
+    if (!sid) return;
+    setSessionError(null);
+    setLoginFailure(null);
+    setPhase("connecting");
+    const result = await igLoginBySessionAction(sid);
+    if (!result.ok) {
+      setSessionError(result.error);
+      setPhase("idle");
+      return;
+    }
+    setSessionId("");
+    afterLogin(result);
+    if (result.status === "ok") await refreshStatus();
+  }
+
+  // Convenience path: sidecar already has IG_USERNAME/IG_PASSWORD from `kai kit init`.
   async function connect() {
     setLoginFailure(null);
     setPhase("connecting");
@@ -264,14 +327,15 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
   }
 
   const serviceDown = !statusResult.ok && statusResult.code === "IG_SERVICE_DOWN";
+  const credentialsConfigured = statusResult.ok && statusResult.status.credentialsConfigured;
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">02 · INSTAGRAM</span>
-      <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">Connect your own account</h1>
-      <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
-        Crowsnest signs in through a local Instagram sidecar. Yours is connected first so every channel you watch can
-        be measured against it.
+      <span className="font-mono text-2xs tracking-wide text-faint">02 · INSTAGRAM ACCESS</span>
+      <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">Give Crowsnest a read key</h1>
+      <p className="mt-5 max-w-[50ch] text-sm leading-relaxed text-muted-foreground text-balance">
+        Crowsnest can&apos;t read Instagram on its own. Sign it in to a <span className="text-foreground">throwaway account</span>{" "}
+        once — that sign-in becomes the read key every channel you watch and every sync uses.
       </p>
 
       {phase === "two_factor" && (
@@ -323,73 +387,161 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
 
       {phase === "connecting" && (
         <div className="mt-14 flex max-w-[460px] items-center gap-6">
-          <span className="font-mono text-xs whitespace-nowrap">Authorising</span>
+          <span className="font-mono text-xs whitespace-nowrap">Reading the session</span>
           <div className="h-px flex-1 animate-pulse bg-line-strong" />
         </div>
       )}
 
       {phase === "idle" && status?.loggedIn && (
-        <div className="mt-14">
-          <span className="font-mono text-2xs text-pos">CONNECTED</span>
-          <p className="mt-4 text-lg">{status.username ? `@${status.username}` : "—"}</p>
-          <Button className="mt-12" onClick={() => onContinue(statusResult)}>
-            Choose channels
+        <div className="mt-12">
+          <span className="inline-flex items-center gap-2 font-mono text-2xs tracking-wide text-pos">
+            <Check aria-hidden className="size-3.5" /> READ KEY LIVE
+          </span>
+          <p className="mt-4 text-lg leading-tight">{status.username ? `@${status.username}` : "—"}</p>
+          <p className="mt-1 font-mono text-2xs text-faint">read-only session · revoke anytime in Settings</p>
+          <DependencyStrip live />
+          <Button className="mt-10" onClick={() => onContinue(statusResult)}>
+            Choose channels <ChevronRight aria-hidden className="size-4" />
           </Button>
         </div>
       )}
 
       {phase === "idle" && !status?.loggedIn && (
         <>
-          <div className="mt-11 flex flex-col gap-5">
-            {REQUIREMENTS.map((text, i) => (
-              <div key={text} className="flex items-baseline gap-4">
-                <span className="w-6 flex-none font-mono text-2xs tracking-wide text-faint">{`0${i + 1}`}</span>
-                <span className="max-w-[52ch] text-sm leading-relaxed text-muted-foreground">{text}</span>
-              </div>
-            ))}
-          </div>
-
           {!serviceDown && (
-            <div className="mt-8 max-w-[460px] border border-border p-4">
-              <p className="text-sm font-medium">Or sign in with a username and password</p>
-              <p className="mt-1.5 text-xs text-muted-foreground">Checked against a real login before anything is saved.</p>
-              <div className="mt-4 flex flex-col gap-2.5">
-                <Label htmlFor="ig-credentials-username">Username</Label>
-                <Input
-                  id="ig-credentials-username"
-                  data-testid="ig-credentials-username-input"
-                  value={credUsername}
-                  onChange={(e) => setCredUsername(e.target.value)}
-                  autoComplete="off"
-                />
-                <Label htmlFor="ig-credentials-password">Password</Label>
-                <Input
-                  id="ig-credentials-password"
-                  data-testid="ig-credentials-password-input"
-                  type="password"
-                  value={credPassword}
-                  onChange={(e) => setCredPassword(e.target.value)}
-                  autoComplete="off"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && credUsername.trim() && credPassword) void connectWithCredentials();
-                  }}
-                />
+            <>
+              {/* Reassurance up front — the three things a buyer worries about when handing
+                  over any Instagram sign-in, answered before the input. */}
+              <div className="mt-7 flex flex-wrap gap-2">
+                {REASSURANCES.map(({ Icon, text }) => (
+                  <span
+                    key={text}
+                    className="inline-flex items-center gap-2 border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground"
+                  >
+                    <Icon aria-hidden className="size-3.5 text-faint" />
+                    {text}
+                  </span>
+                ))}
               </div>
-              <Button
-                size="sm"
-                className="mt-4"
-                data-testid="ig-credentials-submit-button"
-                onClick={() => void connectWithCredentials()}
-                disabled={busy || !credUsername.trim() || !credPassword}
-              >
-                Connect
-              </Button>
-              {credError && (
-                <p data-testid="ig-credentials-error" className="mt-2 text-sm text-destructive">
-                  {credError}
-                </p>
+
+              {/* Primary path: paste a session ID. */}
+              <div className="mt-6 max-w-[460px] overflow-hidden border border-border">
+                <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3.5">
+                  <span className="grid size-8 flex-none place-items-center border border-line-strong bg-muted text-muted-foreground">
+                    <KeyRound aria-hidden className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold leading-tight">Paste a session ID</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Recommended — connects straight away, no 2FA or login challenges.
+                    </p>
+                  </div>
+                </div>
+                <div className="p-4">
+                <div className="flex flex-col gap-2.5">
+                  <Label htmlFor="ig-session-id">Session ID</Label>
+                  <Input
+                    id="ig-session-id"
+                    data-testid="ig-session-id-input"
+                    value={sessionId}
+                    onChange={(e) => setSessionId(e.target.value)}
+                    placeholder="sessionid=IGSC%3A…"
+                    autoComplete="off"
+                    className="font-mono"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && sessionId.trim()) void connectBySession();
+                    }}
+                  />
+                </div>
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-xs text-foreground underline underline-offset-2">
+                    Where do I get a session ID?
+                  </summary>
+                  <div className="mt-2 border border-border bg-card p-3 text-xs leading-relaxed text-muted-foreground">
+                    Sign in to your throwaway account in a browser, then open developer tools → Application → Cookies,
+                    and copy the value of the <code>sessionid</code> cookie for instagram.com. Crowsnest stores it
+                    locally and uses it read-only.
+                  </div>
+                </details>
+                <Button
+                  className="mt-4"
+                  data-testid="ig-session-id-submit-button"
+                  onClick={() => void connectBySession()}
+                  disabled={busy || !sessionId.trim()}
+                >
+                  <KeyRound aria-hidden className="size-4" /> Get the read key
+                </Button>
+                {sessionError && (
+                  <p data-testid="ig-session-id-error" className="mt-2 text-sm text-destructive">
+                    {sessionError}
+                  </p>
+                )}
+                </div>
+              </div>
+
+              {/* Convenience: sidecar already has credentials from `kai kit init`. */}
+              {credentialsConfigured && (
+                <div className="mt-4 max-w-[460px]">
+                  <Button variant="outline" size="sm" onClick={() => void connect()} disabled={busy}>
+                    Use the Instagram credentials from setup
+                  </Button>
+                </div>
               )}
-            </div>
+
+              {/* Fallback: username + password (this path can still hit a challenge). */}
+              <div className="mt-4 max-w-[460px]">
+                <button
+                  type="button"
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword((v) => !v)}
+                >
+                  {showPassword ? "Hide password sign-in" : "Or sign in with a username and password"}
+                </button>
+                {showPassword && (
+                  <div className="mt-3 border border-border p-4">
+                    <p className="text-xs text-muted-foreground">Checked against a real login before anything is saved.</p>
+                    <div className="mt-4 flex flex-col gap-2.5">
+                      <Label htmlFor="ig-credentials-username">Username</Label>
+                      <Input
+                        id="ig-credentials-username"
+                        data-testid="ig-credentials-username-input"
+                        value={credUsername}
+                        onChange={(e) => setCredUsername(e.target.value)}
+                        autoComplete="off"
+                      />
+                      <Label htmlFor="ig-credentials-password">Password</Label>
+                      <Input
+                        id="ig-credentials-password"
+                        data-testid="ig-credentials-password-input"
+                        type="password"
+                        value={credPassword}
+                        onChange={(e) => setCredPassword(e.target.value)}
+                        autoComplete="off"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && credUsername.trim() && credPassword) void connectWithCredentials();
+                        }}
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      className="mt-4"
+                      data-testid="ig-credentials-submit-button"
+                      onClick={() => void connectWithCredentials()}
+                      disabled={busy || !credUsername.trim() || !credPassword}
+                    >
+                      Connect
+                    </Button>
+                    {credError && (
+                      <p data-testid="ig-credentials-error" className="mt-2 text-sm text-destructive">
+                        {credError}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <DependencyStrip live={false} />
+            </>
           )}
 
           {serviceDown && (
@@ -402,13 +554,6 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
             </div>
           )}
 
-          {!serviceDown && statusResult.ok && !statusResult.status.credentialsConfigured && (
-            <p className="mt-8 max-w-[460px] text-sm text-destructive">
-              The service is running but has no Instagram credentials configured. Set <code>IG_USERNAME</code> and{" "}
-              <code>IG_PASSWORD</code> in the sidecar&apos;s environment and Re-check.
-            </p>
-          )}
-
           {!serviceDown && loginFailure && (
             <p className="mt-8 max-w-[460px] text-sm text-destructive">{loginFailure.error}</p>
           )}
@@ -417,18 +562,13 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
             <Button variant="outline" onClick={onBack}>
               ← Back
             </Button>
-            {!serviceDown && (
-              <Button onClick={() => void connect()} disabled={busy || (statusResult.ok && !statusResult.status.credentialsConfigured)}>
-                Connect Instagram
-              </Button>
-            )}
             {serviceDown && (
               <Button variant="outline" onClick={() => void recheck()} disabled={busy}>
                 Re-check
               </Button>
             )}
             <Button variant="ghost" onClick={() => onContinue(statusResult)}>
-              Skip for now
+              Skip — watch without syncing
             </Button>
           </div>
         </>
