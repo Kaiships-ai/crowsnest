@@ -2607,3 +2607,165 @@ describe("runSync — run_id on log events", () => {
     expect(failures.map((r) => r.event)).toContain("sync.channel.failed");
   });
 });
+
+/**
+ * Reads the four resume-cursor columns straight from the row `syncOneChannel` writes.
+ */
+async function channelRow(channelId: string) {
+  const { db, tables } = await import("../db");
+  const [row] = await db.select().from(tables.channels).where(eq(tables.channels.id, channelId));
+  return row;
+}
+
+/**
+ * A cursor-aware stub: `medias` serves the page keyed by the cursor it was CALLED with
+ * ("__start__" for the first, cursor-less page) and records every call, so a test can
+ * prove a resumed run skipped page 1 and used the stored boundary. The rest of the client
+ * (profile, download, stats) is reused from `stubClient`.
+ */
+function resumeStub(pagesByCursor: Record<string, Page>): {
+  client: IgClient;
+  mediasCalls: { cursor?: string; sinceIso: string }[];
+} {
+  const mediasCalls: { cursor?: string; sinceIso: string }[] = [];
+  const base = stubClient({}).client as unknown as Record<string, unknown>;
+  const client = {
+    ...base,
+    async medias(input: { handle: string; sinceIso: string; maxItems: number; cursor?: string }) {
+      mediasCalls.push({ cursor: input.cursor, sinceIso: input.sinceIso });
+      return pagesByCursor[input.cursor ?? "__start__"] ?? { items: [], nextCursor: null, stopReason: "exhausted" as const };
+    },
+  } as unknown as IgClient;
+  return { client, mediasCalls };
+}
+
+describe("runSync — resume from persisted cursor", () => {
+  test("a run stopped at the item cap persists cursor, boundary, timestamp and run id", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-cap");
+
+    // A multi-page cap: page 1 (a, b) fills 2 of the budget, page 2 caps MID-page after c,
+    // leaving d and e unprocessed below cursor-2. The cap page must persist its OWN request
+    // cursor (cursor-2), not its nextCursor (cursor-3), so a resume re-fetches page 2 and
+    // picks up the tail rather than skipping it until a later full walk.
+    const { client, mediasCalls } = resumeStub({
+      __start__: { items: [makeMedia("a", 1), makeMedia("b", 2)], nextCursor: "cursor-2", stopReason: null },
+      "cursor-2": { items: [makeMedia("c", 3), makeMedia("d", 4), makeMedia("e", 5)], nextCursor: "cursor-3", stopReason: null },
+    });
+
+    let jobId: string | undefined;
+    const result = await runSync({
+      channelIds: [channelId],
+      client,
+      sleep: noopSleep,
+      lookbackDays: 30,
+      maxItems: 3,
+      onJobStarted: (id) => {
+        jobId = id;
+      },
+    });
+
+    expect(result.stopReason).toBe("cap");
+    const row = await channelRow(channelId);
+    // The cap page's own request cursor, not its nextCursor (cursor-3): resume re-fetches
+    // page 2 so the unprocessed tail (d, e) is not lost.
+    expect(row.syncCursor).toBe("cursor-2");
+    expect(row.syncCursorAt).toBeTruthy();
+    expect(row.syncCursorRunId).toBe(jobId);
+    // The boundary persisted is exactly the window this walk used.
+    expect(row.syncBoundary).toBe(mediasCalls[0].sinceIso);
+  });
+
+  test("a second run resumes from the saved cursor, reuses its boundary, and does not soft-delete", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-continue");
+
+    // A reel at the top of the window the resumed walk never re-fetches. A fresh full walk
+    // that finished the window without returning it would soft-delete it; a resumed run
+    // must not, because it never saw the top.
+    await seedReel(channelId, "top-of-window", { daysAgo: 1 });
+
+    const storedBoundary = isoDaysAgo(30);
+    await db
+      .update(tables.channels)
+      .set({ syncCursor: "cursor-2", syncBoundary: storedBoundary, syncCursorAt: isoDaysAgo(0), syncCursorRunId: "prev-run" })
+      .where(eq(tables.channels.id, channelId));
+
+    const { client, mediasCalls } = resumeStub({
+      __start__: { items: [makeMedia("SHOULD_NOT_FETCH", 1)], nextCursor: "cursor-2", stopReason: null },
+      "cursor-2": { items: [makeMedia("older-1", 20)], nextCursor: null, stopReason: "lookback" },
+    });
+
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep, lookbackDays: 30 });
+
+    // Started from the saved cursor: page 1 was never fetched.
+    expect(mediasCalls[0].cursor).toBe("cursor-2");
+    expect(mediasCalls.every((c) => c.cursor !== undefined)).toBe(true);
+    // Reused the STORED boundary, not a fresh one computed this run.
+    expect(mediasCalls[0].sinceIso).toBe(storedBoundary);
+
+    // The in-window reel it never saw was NOT buried.
+    const [top] = await db
+      .select()
+      .from(tables.videos)
+      .where(and(eq(tables.videos.channelId, channelId), eq(tables.videos.externalId, "top-of-window")));
+    expect(top.deletedAt).toBeNull();
+    expect(result.itemsDeleted).toBe(0);
+  });
+
+  test("completing the window clears all four cursor columns", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-finish");
+
+    await db
+      .update(tables.channels)
+      .set({ syncCursor: "cursor-2", syncBoundary: isoDaysAgo(30), syncCursorAt: isoDaysAgo(0), syncCursorRunId: "prev-run" })
+      .where(eq(tables.channels.id, channelId));
+
+    const { client } = resumeStub({
+      "cursor-2": { items: [makeMedia("last-1", 20)], nextCursor: null, stopReason: "lookback" },
+    });
+
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep, lookbackDays: 30 });
+    expect(result.stopReason).toBe("lookback");
+
+    const row = await channelRow(channelId);
+    expect(row.syncCursor).toBeNull();
+    expect(row.syncBoundary).toBeNull();
+    expect(row.syncCursorAt).toBeNull();
+    expect(row.syncCursorRunId).toBeNull();
+  });
+
+  test("a cursor older than the lookback window is abandoned for a fresh walk", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-stale");
+
+    // Saved 40 days ago against a 30-day lookback: past the TTL, so it must not resume.
+    await db
+      .update(tables.channels)
+      .set({ syncCursor: "cursor-2", syncBoundary: isoDaysAgo(40), syncCursorAt: isoDaysAgo(40), syncCursorRunId: "old-run" })
+      .where(eq(tables.channels.id, channelId));
+
+    const { client, mediasCalls } = resumeStub({
+      __start__: { items: [makeMedia("fresh-1", 1)], nextCursor: null, stopReason: "lookback" },
+      "cursor-2": { items: [makeMedia("STALE", 20)], nextCursor: null, stopReason: "lookback" },
+    });
+
+    await runSync({ channelIds: [channelId], client, sleep: noopSleep, lookbackDays: 30 });
+
+    // Fresh walk: the first fetch is page 1 (no cursor) with a fresh, in-lookback boundary.
+    expect(mediasCalls[0].cursor).toBeUndefined();
+    expect(new Date(mediasCalls[0].sinceIso).getTime()).toBeGreaterThan(Date.now() - 31 * DAY_MS);
+  });
+});

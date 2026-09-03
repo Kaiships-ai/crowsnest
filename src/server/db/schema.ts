@@ -50,6 +50,24 @@ export const channels = sqliteTable("channels", {
   trackedSince: text("tracked_since").notNull(),
   lastSyncedAt: text("last_synced_at"),
   /**
+   * Resume cursor for an interrupted deep crawl. The page walk in `syncOneChannel` goes
+   * newest to older until the lookback boundary; when it stops early (item cap, cancel, or
+   * a channel error) there are still in-window posts below the last cursor. These four
+   * columns persist where to continue so the next run resumes the crawl instead of
+   * restarting newest first. All null once the window is fully enumerated.
+   *
+   *  - `syncCursor`      the pagination cursor to fetch the next page from.
+   *  - `syncBoundary`    the ISO lookback boundary the interrupted walk was using, so the
+   *                      resumed walk enumerates the same window rather than a shifted one.
+   *  - `syncCursorAt`    ISO time the cursor was persisted; a TTL guard forces a fresh walk
+   *                      once it is older than the lookback window.
+   *  - `syncCursorRunId` which run left the cursor, for logs.
+   */
+  syncCursor: text("sync_cursor"),
+  syncBoundary: text("sync_boundary"),
+  syncCursorAt: text("sync_cursor_at"),
+  syncCursorRunId: text("sync_cursor_run_id"),
+  /**
    * Marks the one tracked channel that is Kai's own account, so the app has a single
    * place to answer "which channel is mine" instead of nothing at all. This channel row
    * is still populated by the instagrapi sidecar sync same as any other; the Graph API

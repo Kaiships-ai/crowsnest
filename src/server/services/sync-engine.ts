@@ -1142,6 +1142,26 @@ async function softDeleteMissing(channelId: string, boundaryIso: string, seenExt
   return missing.length;
 }
 
+/** Saves where an interrupted deep crawl should resume: the cursor to fetch next, the
+ *  boundary it was walking (so the resumed walk keeps the same window), when it was saved
+ *  (a TTL guard), and which run left it (for logs). Cleared by `clearCursor` once the
+ *  window is fully enumerated. */
+async function persistCursor(channelId: string, cursor: string | null, boundary: string, runId: string, at: string): Promise<void> {
+  await db
+    .update(tables.channels)
+    .set({ syncCursor: cursor, syncBoundary: boundary, syncCursorAt: at, syncCursorRunId: runId })
+    .where(eq(tables.channels.id, channelId));
+}
+
+/** Clears the resume cursor once a run has fully enumerated the window, so the next run
+ *  starts a fresh newest-first walk rather than resuming a finished crawl. */
+async function clearCursor(channelId: string): Promise<void> {
+  await db
+    .update(tables.channels)
+    .set({ syncCursor: null, syncBoundary: null, syncCursorAt: null, syncCursorRunId: null })
+    .where(eq(tables.channels.id, channelId));
+}
+
 // ---------------------------------------------------------------- per-channel
 
 async function syncOneChannel(
@@ -1165,8 +1185,27 @@ async function syncOneChannel(
    *  fields — the run-level ones — and a channel that failed left no line in its own run. */
   const runId = tracker.jobId;
 
-  const boundary = new Date(opts.now().getTime() - opts.lookbackDays * 86_400_000).toISOString();
-  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays }, runId);
+  const lookbackMs = opts.lookbackDays * 86_400_000;
+  const freshBoundary = new Date(opts.now().getTime() - lookbackMs).toISOString();
+
+  // Resume an interrupted deep crawl. Re-read the row (not the ChannelRow captured at run
+  // start, which can be stale) for a cursor a prior run left below its stopping point.
+  // Resume ONLY when a cursor exists AND it is younger than the lookback window: a TTL
+  // guard so a long-abandoned crawl does a fresh full walk rather than resuming a boundary
+  // that no longer covers today's window. On resume the STORED boundary is reused so the
+  // walk enumerates the same window it started, not a shifted one.
+  const [saved] = await db
+    .select({ syncCursor: tables.channels.syncCursor, syncBoundary: tables.channels.syncBoundary, syncCursorAt: tables.channels.syncCursorAt })
+    .from(tables.channels)
+    .where(eq(tables.channels.id, channel.id));
+  const cursorAgeMs = saved?.syncCursorAt ? opts.now().getTime() - new Date(saved.syncCursorAt).getTime() : Infinity;
+  const resumed = Boolean(saved?.syncCursor) && cursorAgeMs < lookbackMs;
+  const boundary = resumed ? saved?.syncBoundary ?? freshBoundary : freshBoundary;
+
+  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays, resumed }, runId);
+  if (resumed) {
+    log.info("sync.resume", { channelId: channel.id, cursor: saved?.syncCursor }, runId);
+  }
 
   const downloadThumb = async (url: string | null) =>
     tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, opts.assetDeps);
@@ -1217,6 +1256,15 @@ async function syncOneChannel(
       })
     );
 
+  // Declared before the try so the catch (channel error path) can persist the cursor this
+  // run reached. On resume the loop starts from the saved cursor, not page 1.
+  let cursor: string | undefined = resumed ? saved?.syncCursor ?? undefined : undefined;
+  // The `nextCursor` of the last page fetched, i.e. where a stopped run would continue.
+  let pageNextCursor: string | null = null;
+  // Declared before the try so the catch can tell a mid-walk failure (still null) from one
+  // thrown by the post-loop scoring work after a clean stop already persisted a cursor.
+  let stopReason: StopReason | null = null;
+
   try {
     const profile = await upstream("profile", "profile", () => opts.client.profile(channel.handle));
 
@@ -1243,8 +1291,6 @@ async function syncOneChannel(
       .where(eq(tables.channels.id, channel.id));
 
     const seenExternalIds: string[] = [];
-    let cursor: string | undefined;
-    let stopReason: StopReason | null = null;
 
     for (;;) {
       await tracker.flush({ phase: "fetching", counters });
@@ -1257,6 +1303,7 @@ async function syncOneChannel(
           cursor: pageCursor,
         })
       );
+      pageNextCursor = page.nextCursor;
 
       for (const item of page.items) {
         if (counters.itemsSeen >= opts.maxItems) {
@@ -1336,14 +1383,44 @@ async function syncOneChannel(
       await opts.sleep(jitterMs());
     }
 
+    // Persist or clear the resume cursor. A run stopped by the cap or a cancel left
+    // in-window posts below the last cursor unfetched, so save where to continue; a run
+    // that fully enumerated the window (lookback/exhausted) has nothing left below, so
+    // clear all four columns. Resuming and then finishing the window clears it here.
+    if (stopReason === "cap") {
+      // The cap breaks MID-page, before this page's tail items are processed, so resume
+      // must RE-FETCH this page from the cursor it was requested with (`cursor`), NOT skip
+      // ahead to page.nextCursor, or the tail is lost until a later full walk. Re-processing
+      // the head is harmless: upserts are idempotent. A cap on page 1 has no request cursor,
+      // so clear it and let the next run do a fresh top walk (which re-fetches page 1).
+      if (cursor === undefined) await clearCursor(channel.id);
+      else await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
+    } else if (stopReason === "cancelled") {
+      // Unlike the cap, the current page was fully processed and the cancel checked after
+      // it, so resume from the NEXT page's cursor rather than re-fetching this one.
+      await persistCursor(channel.id, pageNextCursor, boundary, runId, opts.now().toISOString());
+    } else if (stopReason === "lookback" || stopReason === "exhausted") {
+      await clearCursor(channel.id);
+    }
+
     // Soft-delete is only sound when this run actually enumerated the WHOLE window.
     // If we stopped at MAX_ITEMS_PER_SYNC, were cancelled, or bailed out, there are
     // in-window posts we simply never asked about — marking those "deleted from
     // Instagram" would be a fabrication, and on a prolific channel it would silently bury
     // real posts. A cancelled run is the newest member of that family: it stops mid-walk
     // by design, so it must land in the "not fully enumerated" branch below.
-    if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0) {
+    //
+    // A RESUMED run is also excluded even when it finishes the window: it enumerated only
+    // the REMAINDER below its resume cursor, never the posts above it, so it cannot tell
+    // which of those are gone. Soft-delete stays gated to a fresh walk from the top.
+    if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0 && !resumed) {
       counters.itemsDeleted = await softDeleteMissing(channel.id, boundary, seenExternalIds, runId);
+    } else if (resumed && (stopReason === "lookback" || stopReason === "exhausted")) {
+      log.info("sync.soft_delete.skipped", {
+        channelId: channel.id,
+        stopReason,
+        reason: "resumed run enumerated only the remainder below its cursor; a full walk from the top is required before soft-deleting",
+      }, runId);
     } else if (counters.itemsSeen === 0) {
       // A run that saw NOTHING cannot distinguish "the creator deleted everything"
       // from "the fetch came back empty". Treating it as deletion is how a single
@@ -1440,6 +1517,11 @@ async function syncOneChannel(
       // Not a gap and not a channel error: nothing here is broken, the user stopped us
       // mid-request. Recording it as a failure would put a red mark against a channel
       // that was working, and would set `sync_error` the next run has to clear.
+      //
+      // The cancel landed inside an in-flight page fetch, so `cursor` is the page we were
+      // reading: persist it (not the previous page's nextCursor) so the next run retries
+      // that page and resumes the crawl. A cancel on page 1 leaves cursor undefined.
+      if (stopReason === null && cursor !== undefined) await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
       log.info("sync.channel.cancelled", { channelId: channel.id, handle: channel.handle, ...counters }, runId);
       return { counters, stopReason: "cancelled" };
     }
@@ -1450,6 +1532,10 @@ async function syncOneChannel(
       .update(tables.channels)
       .set({ syncError: message, syncErrorCode: code })
       .where(eq(tables.channels.id, channel.id));
+    // A channel gap below page 1 leaves in-window posts unfetched, so persist the cursor
+    // the run reached (the page that failed, to retry it) and let the next run resume the
+    // crawl. A failure on the profile or page 1 leaves cursor undefined and nothing to save.
+    if (stopReason === null && cursor !== undefined) await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
     // Instagram's own retry-after hint (used above to size the backoff and then
     // discarded) is copied onto the gap only when this is the code it actually applies
     // to — see the doc comment on SyncGap.retryAfterSec. Omitted (not `undefined`-valued
