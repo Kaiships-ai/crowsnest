@@ -28,6 +28,11 @@ export interface SettingsNavItem {
   label: string;
 }
 
+export interface SettingsNavGroup {
+  label: string;
+  items: SettingsNavItem[];
+}
+
 /**
  * The one active section, given every section currently overlapping the observer's
  * band. Pure so the rule is testable without a scroll container (settings-nav.test.ts),
@@ -46,7 +51,9 @@ export function activeSectionId(order: string[], visible: ReadonlySet<string>, p
   return previous;
 }
 
-export function SettingsNav({ items }: { items: SettingsNavItem[] }) {
+export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
+  const items = groups.flatMap((group) => group.items);
+
   // Seeded from the URL's own hash (if the page was opened as a deep link) rather than
   // always defaulting to the first item, so a reload of e.g. /settings#scoring shows
   // Scoring highlighted before the observer below has fired even once.
@@ -92,29 +99,34 @@ export function SettingsNav({ items }: { items: SettingsNavItem[] }) {
   }, [items]);
 
   return (
-    <nav aria-label="Settings sections" className="sticky top-6 flex w-44 shrink-0 flex-col gap-0.5 self-start">
-      {items.map((item) => {
-        const isActive = item.id === activeId;
-        return (
-          <a
-            key={item.id}
-            href={`#${item.id}`}
-            aria-current={isActive ? "true" : undefined}
-            className={cn(
-              "truncate rounded-sm px-3 py-2 text-sm transition-colors",
-              isActive
-                // Raised surface, never the amber `primary` token — same rule
-                // sidebar.tsx's own nav active state follows, and amber on this screen
-                // is reserved for exactly one control: the scoring save button, because
-                // it rescores every post.
-                ? "bg-popover font-semibold text-foreground"
-                : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
-            )}
-          >
-            {item.label}
-          </a>
-        );
-      })}
+    <nav aria-label="Settings sections" className="sticky top-6 flex w-44 shrink-0 flex-col gap-4 self-start">
+      {groups.map((group) => (
+        <div key={group.label} className="flex flex-col gap-0.5">
+          <p className="px-3 pb-1 font-mono text-2xs tracking-wide text-faint uppercase">{group.label}</p>
+          {group.items.map((item) => {
+            const isActive = item.id === activeId;
+            return (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                aria-current={isActive ? "true" : undefined}
+                className={cn(
+                  "truncate rounded-sm px-3 py-2 text-sm transition-colors",
+                  isActive
+                    // Raised surface, never the amber `primary` token — same rule
+                    // sidebar.tsx's own nav active state follows, and amber on this screen
+                    // is reserved for exactly one control: the scoring save button, because
+                    // it rescores every post.
+                    ? "bg-popover font-semibold text-foreground"
+                    : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
+                )}
+              >
+                {item.label}
+              </a>
+            );
+          })}
+        </div>
+      ))}
     </nav>
   );
 }
