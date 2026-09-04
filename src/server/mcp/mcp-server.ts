@@ -30,12 +30,18 @@ import { getAsset, resolveAssetPath } from "@/server/media/store";
  */
 
 // A tool result the SDK will surface both ways: JSON text for a text-only client, and
-// structuredContent for a client that reads structured output. The two always agree
-// because they come from the same value.
+// structuredContent for a client that reads structured output. The MCP spec requires
+// structuredContent to be a record; the SDK hard-rejects a bare array or primitive, so
+// those get wrapped under a `data` key. content[0].text is always the JSON of the
+// original value, unwrapped.
 export function result(value: unknown) {
+  const structuredContent =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : { data: value };
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-    structuredContent: value as Record<string, unknown>,
+    structuredContent,
   };
 }
 

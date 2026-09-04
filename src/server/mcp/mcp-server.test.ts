@@ -9,6 +9,16 @@ test("result() returns JSON text and structuredContent that agree", async () => 
   expect(r.structuredContent).toEqual({ ok: true, n: 2 });
 });
 
+test("result() wraps a non-record value (array) so structuredContent stays a record, text unchanged", async () => {
+  const { result } = await import("./mcp-server");
+  const value = [{ a: 1 }, { b: 2 }];
+  const r = result(value);
+  expect(r.content[0]).toMatchObject({ type: "text" });
+  expect(JSON.parse((r.content[0] as { text: string }).text)).toEqual(value);
+  expect(Array.isArray(r.structuredContent)).toBe(false);
+  expect(r.structuredContent).toEqual({ data: value });
+});
+
 test("errorResult() sets isError and carries the payload", async () => {
   const { errorResult } = await import("./mcp-server");
   const r = errorResult({ error: "not found", id: "x" });
