@@ -57,7 +57,10 @@ export function StatTile({
             {caption}
           </p>
         )}
-        <div className="flex items-center gap-2">
+        {/* min-h-4 reserves the same vertical space whether or not a tile has a real
+            delta — three of the four dashboard tiles pass none, and letting this row
+            collapse to 0 when empty is what made the stat row read uneven. */}
+        <div className="flex min-h-4 items-center gap-2">
           {delta && (
             <span
               data-num
