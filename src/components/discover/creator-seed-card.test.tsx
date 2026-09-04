@@ -67,6 +67,37 @@ test("Follow transitions to a queued state then Tracked, and disables", async ()
   expect(mocks.followCreatorAction).toHaveBeenCalledWith("lift.laura");
 });
 
+test("calls onFollowed with the handle after a successful follow", async () => {
+  mocks.followCreatorAction.mockResolvedValue({
+    ok: true,
+    syncQueued: true,
+    alreadyTracked: false,
+    channelId: "c1",
+  });
+  const onFollowed = vi.fn();
+
+  render(<CreatorSeedCard seed={seed()} onFollowed={onFollowed} />);
+
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("creator-seed-follow"));
+  });
+
+  expect(onFollowed).toHaveBeenCalledWith("lift.laura");
+});
+
+test("does not call onFollowed when the follow fails", async () => {
+  mocks.followCreatorAction.mockResolvedValue({ ok: false, error: "nope" });
+  const onFollowed = vi.fn();
+
+  render(<CreatorSeedCard seed={seed()} onFollowed={onFollowed} />);
+
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("creator-seed-follow"));
+  });
+
+  expect(onFollowed).not.toHaveBeenCalled();
+});
+
 test("a tracked seed renders disabled Tracked from the start", () => {
   render(<CreatorSeedCard seed={seed({ tracked: true })} />);
 

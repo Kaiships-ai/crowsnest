@@ -68,6 +68,39 @@ test("selecting two seeds and following calls onDone with the resulting channel 
   expect(onDone).toHaveBeenCalledWith(["channel-lift.laura", "channel-biz.ben"]);
 });
 
+test("a followed row shows Tracked and stays disabled after the batch completes", async () => {
+  mocks.followCreatorAction.mockImplementation((handle: string) =>
+    Promise.resolve({ ok: true, channelId: `channel-${handle}`, syncQueued: true, alreadyTracked: false })
+  );
+
+  const seeds = [seed({ handle: "lift.laura" }), seed({ handle: "biz.ben", niche: "business" })];
+
+  render(<SeedPicker seeds={seeds} />);
+
+  const laura = screen.getByTestId("seed-picker-checkbox-lift.laura");
+  fireEvent.click(laura);
+
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("seed-picker-follow-selected"));
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  // Cleared from selection (unchecked) but now disabled/tracked, not back to a
+  // plain enabled/unchecked row.
+  expect(laura.getAttribute("aria-checked")).toBe("false");
+  expect(laura.getAttribute("aria-disabled")).toBe("true");
+
+  const rows = screen.getAllByTestId("seed-picker-row");
+  const lauraRow = rows.find((row) => row.textContent?.includes("@lift.laura"));
+  expect(lauraRow?.textContent).toContain("Tracked");
+
+  // The untouched row is unaffected.
+  const ben = screen.getByTestId("seed-picker-checkbox-biz.ben");
+  expect(ben.getAttribute("aria-disabled")).not.toBe("true");
+});
+
 describe("maxSelect enforcement", () => {
   test("with maxSelect=10 and more than 10 seeds, an 11th selection is blocked", () => {
     const seeds = manySeeds(11);

@@ -10,7 +10,16 @@ import type { CreatorSeedRow } from "@/server/queries/discover";
 
 type FollowState = "idle" | "pending" | "tracked";
 
-export function CreatorSeedCard({ seed }: { seed: CreatorSeedRow }) {
+export function CreatorSeedCard({
+  seed,
+  onFollowed,
+}: {
+  seed: CreatorSeedRow;
+  /** Called after a successful follow so a parent that stays mounted across
+   *  filter changes (DiscoverBoard) can remember it — this card's own local
+   *  state is destroyed if a niche filter unmounts it. */
+  onFollowed?: (handle: string) => void;
+}) {
   const [state, setState] = useState<FollowState>(seed.tracked ? "tracked" : "idle");
 
   async function onFollow() {
@@ -18,6 +27,7 @@ export function CreatorSeedCard({ seed }: { seed: CreatorSeedRow }) {
     const result = await followCreatorAction(seed.handle);
     if (result.ok) {
       setState("tracked");
+      onFollowed?.(seed.handle);
     } else {
       setState("idle");
       toast.error(result.error);

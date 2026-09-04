@@ -31,6 +31,10 @@ export function SeedPicker({
   const [niche, setNiche] = useState<Niche>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pending, setPending] = useState(false);
+  // Handles that succeeded in a batch follow this mount. `selected` is cleared
+  // right after the batch, so without this a followed row would just go back
+  // to enabled/unchecked with no feedback that it worked.
+  const [justFollowed, setJustFollowed] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(
     () => (niche === "all" ? seeds : seeds.filter((s) => s.niche === niche)),
@@ -59,12 +63,21 @@ export function SeedPicker({
     const handles = Array.from(selected).slice(0, maxSelect);
     setPending(true);
     const channelIds: string[] = [];
+    const followedNow: string[] = [];
     for (const handle of handles) {
       const result = await followCreatorAction(handle);
-      if (result.ok) channelIds.push(result.channelId);
+      if (result.ok) {
+        channelIds.push(result.channelId);
+        followedNow.push(handle);
+      }
     }
     setPending(false);
     setSelected(new Set());
+    setJustFollowed((prev) => {
+      const next = new Set(prev);
+      for (const handle of followedNow) next.add(handle);
+      return next;
+    });
     onDone?.(channelIds);
   }
 
@@ -93,8 +106,9 @@ export function SeedPicker({
       ) : (
         <ul className="flex flex-col gap-2">
           {filtered.map((seed) => {
+            const isTracked = seed.tracked || justFollowed.has(seed.handle);
             const isSelected = selected.has(seed.handle);
-            const disabled = seed.tracked || (!isSelected && atCap);
+            const disabled = isTracked || (!isSelected && atCap);
             return (
               <li
                 key={seed.handle}
@@ -113,7 +127,7 @@ export function SeedPicker({
                   {seed.niche}
                 </Badge>
                 <span className="truncate text-xs text-muted-foreground">{seed.why}</span>
-                {seed.tracked && (
+                {isTracked && (
                   <Badge variant="outline" className="ml-auto shrink-0 text-2xs uppercase tracking-wide">
                     Tracked
                   </Badge>
