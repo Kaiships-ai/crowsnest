@@ -9,10 +9,13 @@ import { formatDuration } from "@/lib/format";
 import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { cn } from "@/lib/utils";
 import { cancelSyncAction } from "@/server/actions/sync-actions";
+import { classifyIgError, isIgErrorCode, type IgErrorClass } from "@/server/ig/errors";
 import type { LogEventRow, StoredLogLevel } from "@/server/logs/store";
 import type { RunDetail as RunDetailData, RunStatus, RunSummary } from "@/server/queries/runs";
 import { evaluateSla } from "@/server/runs/sla";
-import { SYNC_STALL_SECONDS } from "@/server/services/sync-types";
+import { SYNC_STALL_SECONDS, type SyncGap } from "@/server/services/sync-types";
+import { gapDisplayName, gapMessage, stopReasonLabel } from "@/components/sync/sync-progress-view";
+import type { StopReason } from "@/server/services/sync-types";
 import { useRunStream } from "./use-run-stream";
 
 /**
@@ -32,6 +35,23 @@ export function firstErrorEvent(events: LogEventRow[]): LogEventRow | null {
   }
   return earliest;
 }
+
+/** A gap's error class (transient/auth/challenge/fatal), from the classifier T1 shipped
+ *  in `server/ig/errors.ts`. Null when the gap carries no code, or a code the classifier
+ *  doesn't recognize — never guessed, per the no-fabrication rule. */
+export function gapErrorClass(code: string | null): IgErrorClass | null {
+  return code !== null && isIgErrorCode(code) ? classifyIgError(code) : null;
+}
+
+// Amber stays reserved for the score: transient is a normal retry, so it reads neutral;
+// auth/challenge/fatal all mean "this will not fix itself," so they share the
+// destructive token the rest of this screen already uses for stalled/over-budget.
+const GAP_CLASS_LABEL_CLASS: Record<IgErrorClass, string> = {
+  transient: "text-muted-foreground",
+  auth: "text-destructive",
+  challenge: "text-destructive",
+  fatal: "text-destructive",
+};
 
 // Same dot map as runs-list.tsx / sidebar.tsx's STATUS_DOT, not reinvented per screen.
 // Amber stays reserved for the score: "running" gets noticed by brightness plus motion,
@@ -238,6 +258,11 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
           <span>
             Budget <span className="font-mono">{formatDuration(Math.floor(budgetMs / 1000))}</span>
           </span>
+          {stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null) && (
+            <span>
+              Ended <span className="font-mono">{stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null)}</span>
+            </span>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">
@@ -276,6 +301,21 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
           <span className="mt-0.5 font-mono text-2xs text-destructive uppercase">First error</span>
           <span className="font-mono text-xs text-destructive">{firstError.event}</span>
         </button>
+      )}
+
+      {run.gaps.length > 0 && (
+        <div>
+          <span className="font-mono text-2xs tracking-wide text-faint uppercase">
+            Gaps &middot; {run.gaps.length} channel{run.gaps.length === 1 ? "" : "s"} didn&apos;t finish
+          </span>
+          <div className="mt-3 border border-border bg-card">
+            <ul className="flex flex-col">
+              {run.gaps.map((gap, i) => (
+                <GapRow key={`${gap.channelId}-${i}`} gap={gap} />
+              ))}
+            </ul>
+          </div>
+        </div>
       )}
 
       <div>
@@ -343,5 +383,24 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
         </div>
       </div>
     </div>
+  );
+}
+
+/** One gap row: channel, why it didn't come back, and the code's error class (when the
+ *  code is one this app recognizes — see `gapErrorClass`). Mirrors `failure-strip.tsx`'s
+ *  gap row (same `gapDisplayName`/`gapMessage` helpers), plus the class label that
+ *  screen has no room for. */
+function GapRow({ gap }: { gap: SyncGap }) {
+  const errorClass = gapErrorClass(gap.code);
+  return (
+    <li className="flex items-baseline justify-between gap-4 border-b border-border px-4 py-2.5 last:border-b-0">
+      <span className="min-w-0 truncate text-sm text-foreground">{gapDisplayName(gap)}</span>
+      <span className="flex shrink-0 items-baseline gap-3 text-right">
+        <span className="font-mono text-2xs text-muted-foreground">{gapMessage(gap)}</span>
+        {errorClass && (
+          <span className={cn("font-mono text-2xs uppercase", GAP_CLASS_LABEL_CLASS[errorClass])}>{errorClass}</span>
+        )}
+      </span>
+    </li>
   );
 }

@@ -63,6 +63,16 @@ export interface AppSettings {
    *  `config.MAX_ITEMS_PER_SYNC`) and by the progress reporters in
    *  `src/server/actions/sync-actions.ts`. */
   maxItemsPerSync: number;
+  /** How many channels a sync run pipelines at once. The sidecar serializes every
+   *  Instagram call through one process-global lock, so this only overlaps a channel's
+   *  local work (thumbnail download, DB writes, scoring) with the next channel's fetch,
+   *  never concurrent IG traffic. NOT YET CONSUMED - `runSync` reads it in Goal 3 T3;
+   *  stored and DB-overridable now like its `maxItemsPerSync` sibling. */
+  syncConcurrency: number;
+  /** Hours since a channel's last full walk within which an incremental sync may stop early
+   *  at already-known posts. Past it, the next sync walks the whole window so no in-window
+   *  post's metrics go stale. */
+  syncMetricsFreshnessHours: number;
   /** How many of a channel's newest reels each sync asks Instagram about individually, to
    *  recover the play count the listing endpoint withholds. 0 turns the pass off.
    *  Consumed by `runSync` (falls back to this exactly where it used to read
@@ -113,6 +123,8 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   feedDefaultFollowerBand: "feed_default_follower_band",
   syncLookbackDays: "sync_lookback_days",
   maxItemsPerSync: "max_items_per_sync",
+  syncConcurrency: "sync_concurrency",
+  syncMetricsFreshnessHours: "sync_metrics_freshness_hours",
   viewCountEnrichPerChannel: "view_count_enrich_per_channel",
   syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
@@ -151,6 +163,8 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   feedDefaultFollowerBand: z.enum(["nano", "micro", "mid", "macro", "all"]),
   syncLookbackDays: posInt(1, 3650),
   maxItemsPerSync: posInt(1, 10_000), // same bounds as config.ts's MAX_ITEMS_PER_SYNC schema
+  syncConcurrency: posInt(1, 16), // same bounds as config.ts's SYNC_CONCURRENCY schema
+  syncMetricsFreshnessHours: posInt(1, 168), // same bounds as config.ts's SYNC_METRICS_FRESHNESS_HOURS
   // 0 is a real value here (it turns the pass off), and 200 is the same ban-risk ceiling
   // config.ts's VIEW_COUNT_ENRICH_PER_CHANNEL schema enforces.
   viewCountEnrichPerChannel: posInt(0, 200),
@@ -180,6 +194,8 @@ const DEFAULT: AppSettings = {
   feedDefaultFollowerBand: "all", // no filter — same reasoning
   syncLookbackDays: 30,
   maxItemsPerSync: 200, // matches config.ts's MAX_ITEMS_PER_SYNC default exactly, no change
+  syncConcurrency: 2, // matches config.ts's SYNC_CONCURRENCY default exactly
+  syncMetricsFreshnessHours: 12, // matches config.ts's SYNC_METRICS_FRESHNESS_HOURS default
   viewCountEnrichPerChannel: 0, // opt-in: off until set, so no sync scrapes without being asked. UI recommends 12 once on.
   syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
@@ -196,6 +212,8 @@ const DEFAULT: AppSettings = {
 const ENV_FALLBACK: Partial<{ [K in keyof AppSettings]: () => AppSettings[K] }> = {
   syncLookbackDays: () => config.LOOKBACK_DAYS,
   maxItemsPerSync: () => config.MAX_ITEMS_PER_SYNC,
+  syncConcurrency: () => config.SYNC_CONCURRENCY,
+  syncMetricsFreshnessHours: () => config.SYNC_METRICS_FRESHNESS_HOURS,
   viewCountEnrichPerChannel: () => config.VIEW_COUNT_ENRICH_PER_CHANNEL,
   syncCadenceMinutes: () => config.SYNC_INTERVAL_MINUTES,
   mediaRetentionDays: () => config.MEDIA_RETENTION_DAYS,
@@ -213,6 +231,8 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   feedDefaultFollowerBand: false,
   syncLookbackDays: true,
   maxItemsPerSync: true,
+  syncConcurrency: false, // stored and DB-overridable now; runSync reads it in Goal 3 T3
+  syncMetricsFreshnessHours: false, // stored and DB-overridable; syncOneChannel reads it (Round 1)
   viewCountEnrichPerChannel: true, // runSync reads it per channel, and the backfill reads it too
   syncCadenceMinutes: false,
   mediaRetentionDays: false,

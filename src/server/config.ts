@@ -44,6 +44,16 @@ const schema = z.object({
   LOOKBACK_DAYS: intWithDefault(30, 1, 3650),
   MAX_ITEMS_PER_SYNC: intWithDefault(200, 1, 10_000),
   SYNC_INTERVAL_MINUTES: intWithDefault(0, 0, 10_080),
+  /** How many channels a sync run pipelines at once. The env layer under the
+   *  `syncConcurrency` setting, not the last word: a stored `app_settings` row beats it.
+   *  Read the setting, never this, from application code. Default 2 (the sidecar's
+   *  process-global lock is the real ceiling on IG traffic, so this only overlaps local
+   *  work); ceiling 16 matches the other concurrency knobs here. */
+  SYNC_CONCURRENCY: intWithDefault(2, 1, 16),
+  // Hours since a channel's last FULL walk within which an incremental sync may stop early
+  // once it reaches already-known posts. Past this the next sync walks the whole window and
+  // refreshes every in-window post's snapshot, so metrics never freeze (Goal 3 Round 1).
+  SYNC_METRICS_FRESHNESS_HOURS: intWithDefault(12, 1, 168),
 
   // --- sync retry ---
   /** Extra attempts per retryable upstream call. `IgError.retryable` existed from the

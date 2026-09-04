@@ -12,6 +12,7 @@ import { generateIdeasForNewOutliers } from "./ideas";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
 import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
+import { insertVideoSnapshots, type VideoSnapshotInsert } from "./sync-batch";
 
 /**
  * Channel sync against the instagrapi sidecar.
@@ -68,12 +69,18 @@ export interface RunSyncOpts {
   /** How many of each channel's newest reels the view-count pass may ask Instagram about.
    *  Defaults to the `viewCountEnrichPerChannel` setting. 0 turns the pass off. */
   enrichPerChannel?: number;
+  /** Hours since a channel's last full walk within which an incremental sync may stop early
+   *  at already-known posts. Defaults to the `syncMetricsFreshnessHours` setting. */
+  metricsFreshnessHours?: number;
   /** Test seam — overrides the inter-page jitter sleep. */
   sleep?: (ms: number) => Promise<void>;
   /** Test seam for `ensureAsset`'s downloader. */
   assetDeps?: EnsureAssetDeps;
   /** Overrides "now" so lookback maths is testable without freezing the clock. */
   now?: () => Date;
+  /** Test seam — overrides the `syncConcurrency` setting for a single run. Clamped to
+   *  >= 1 the same way the resolved setting is. */
+  concurrency?: number;
   /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
@@ -1142,6 +1149,26 @@ async function softDeleteMissing(channelId: string, boundaryIso: string, seenExt
   return missing.length;
 }
 
+/** Saves where an interrupted deep crawl should resume: the cursor to fetch next, the
+ *  boundary it was walking (so the resumed walk keeps the same window), when it was saved
+ *  (a TTL guard), and which run left it (for logs). Cleared by `clearCursor` once the
+ *  window is fully enumerated. */
+async function persistCursor(channelId: string, cursor: string | null, boundary: string, runId: string, at: string): Promise<void> {
+  await db
+    .update(tables.channels)
+    .set({ syncCursor: cursor, syncBoundary: boundary, syncCursorAt: at, syncCursorRunId: runId })
+    .where(eq(tables.channels.id, channelId));
+}
+
+/** Clears the resume cursor once a run has fully enumerated the window, so the next run
+ *  starts a fresh newest-first walk rather than resuming a finished crawl. */
+async function clearCursor(channelId: string): Promise<void> {
+  await db
+    .update(tables.channels)
+    .set({ syncCursor: null, syncBoundary: null, syncCursorAt: null, syncCursorRunId: null })
+    .where(eq(tables.channels.id, channelId));
+}
+
 // ---------------------------------------------------------------- per-channel
 
 async function syncOneChannel(
@@ -1156,6 +1183,8 @@ async function syncOneChannel(
      *  once per run from the `viewCountEnrichPerChannel` setting, not read from `config`
      *  here, so a stored row takes effect on the next sync with no restart. */
     enrichPerChannel: number;
+    /** Hours since the last full walk within which this run may stop early at known posts. */
+    metricsFreshnessHours: number;
   }
 ): Promise<{ gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null }> {
   const counters = zeroCounters();
@@ -1165,8 +1194,37 @@ async function syncOneChannel(
    *  fields — the run-level ones — and a channel that failed left no line in its own run. */
   const runId = tracker.jobId;
 
-  const boundary = new Date(opts.now().getTime() - opts.lookbackDays * 86_400_000).toISOString();
-  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays }, runId);
+  const lookbackMs = opts.lookbackDays * 86_400_000;
+  const freshBoundary = new Date(opts.now().getTime() - lookbackMs).toISOString();
+
+  // Resume an interrupted deep crawl. Re-read the row (not the ChannelRow captured at run
+  // start, which can be stale) for a cursor a prior run left below its stopping point.
+  // Resume ONLY when a cursor exists AND it is younger than the lookback window: a TTL
+  // guard so a long-abandoned crawl does a fresh full walk rather than resuming a boundary
+  // that no longer covers today's window. On resume the STORED boundary is reused so the
+  // walk enumerates the same window it started, not a shifted one.
+  const [saved] = await db
+    .select({ syncCursor: tables.channels.syncCursor, syncBoundary: tables.channels.syncBoundary, syncCursorAt: tables.channels.syncCursorAt })
+    .from(tables.channels)
+    .where(eq(tables.channels.id, channel.id));
+  const cursorAgeMs = saved?.syncCursorAt ? opts.now().getTime() - new Date(saved.syncCursorAt).getTime() : Infinity;
+  const resumed = Boolean(saved?.syncCursor) && cursorAgeMs < lookbackMs;
+  const boundary = resumed ? saved?.syncBoundary ?? freshBoundary : freshBoundary;
+
+  log.info("sync.channel.started", { channelId: channel.id, handle: channel.handle, boundary, lookbackDays: opts.lookbackDays, resumed }, runId);
+  if (resumed) {
+    log.info("sync.resume", { channelId: channel.id, cursor: saved?.syncCursor }, runId);
+  }
+
+  // Incremental walk: this run may stop paging once it reaches already-known posts, but only
+  // while the last FULL walk is recent enough that no in-window post's snapshot has gone
+  // stale. Past `metricsFreshnessHours` this is false, so the run walks the whole window and
+  // refreshes every post's view/like snapshot, which is what keeps outlier scores honest.
+  // Never during a resume: that walk is deliberately re-fetching known top posts to reach
+  // the un-fetched older ones below its cursor.
+  const freshnessMs = opts.metricsFreshnessHours * 3_600_000;
+  const fullSyncFresh =
+    channel.lastFullSyncAt != null && opts.now().getTime() - new Date(channel.lastFullSyncAt).getTime() < freshnessMs;
 
   const downloadThumb = async (url: string | null) =>
     tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, opts.assetDeps);
@@ -1217,6 +1275,15 @@ async function syncOneChannel(
       })
     );
 
+  // Declared before the try so the catch (channel error path) can persist the cursor this
+  // run reached. On resume the loop starts from the saved cursor, not page 1.
+  let cursor: string | undefined = resumed ? saved?.syncCursor ?? undefined : undefined;
+  // The `nextCursor` of the last page fetched, i.e. where a stopped run would continue.
+  let pageNextCursor: string | null = null;
+  // Declared before the try so the catch can tell a mid-walk failure (still null) from one
+  // thrown by the post-loop scoring work after a clean stop already persisted a cursor.
+  let stopReason: StopReason | null = null;
+
   try {
     const profile = await upstream("profile", "profile", () => opts.client.profile(channel.handle));
 
@@ -1243,8 +1310,6 @@ async function syncOneChannel(
       .where(eq(tables.channels.id, channel.id));
 
     const seenExternalIds: string[] = [];
-    let cursor: string | undefined;
-    let stopReason: StopReason | null = null;
 
     for (;;) {
       await tracker.flush({ phase: "fetching", counters });
@@ -1257,6 +1322,17 @@ async function syncOneChannel(
           cursor: pageCursor,
         })
       );
+      pageNextCursor = page.nextCursor;
+
+      // Collected across the page and flushed in one multi-row insert below, instead of
+      // one `videoSnapshots` insert per item (Goal 3 T4). upsertVideo stays per item: it
+      // returns the id and created/updated distinction the counters need, and it isolates
+      // a bad row on its own.
+      const pageSnapshots: VideoSnapshotInsert[] = [];
+
+      // New posts created on this page: 0 means every post on it was already in the DB, the
+      // signal that the incremental walk has caught up (Round 1).
+      const createdBeforePage = counters.itemsCreated;
 
       for (const item of page.items) {
         if (counters.itemsSeen >= opts.maxItems) {
@@ -1290,7 +1366,7 @@ async function syncOneChannel(
             counters.assetsFailed += childAssets.assetsFailed;
           }
 
-          await db.insert(tables.videoSnapshots).values({
+          pageSnapshots.push({
             id: newId(),
             videoId: up.id,
             capturedAt: nowIso(),
@@ -1313,9 +1389,52 @@ async function syncOneChannel(
         }
       }
 
+      // One multi-row insert for the whole page. If the batch throws (one poison row in
+      // the mix), fall back to inserting the collected rows one at a time so that single
+      // bad row costs one item, not the rest of the page's snapshots. The video row for
+      // that item was already upserted above and stays counted as seen; only the snapshot
+      // itself is lost, and it is counted (not silently dropped).
+      if (pageSnapshots.length > 0) {
+        try {
+          await insertVideoSnapshots(pageSnapshots);
+        } catch (batchErr) {
+          log.warn("sync.snapshots.batchFailed", {
+            channelId: channel.id,
+            count: pageSnapshots.length,
+            code: errorCode(batchErr),
+            message: errorMessage(batchErr),
+          }, runId);
+          for (const row of pageSnapshots) {
+            try {
+              await insertVideoSnapshots([row]);
+            } catch (rowErr) {
+              counters.itemsFailed += 1;
+              log.error("sync.snapshot.failed", {
+                channelId: channel.id,
+                videoId: row.videoId,
+                code: errorCode(rowErr),
+                message: errorMessage(rowErr),
+              }, runId);
+            }
+          }
+        }
+      }
+
       await tracker.flush({ phase: "saving", counters });
 
       if (stopReason === "cap") break;
+      // Incremental stop: a page with items but zero new ones means we have paged into
+      // territory the DB already has (Instagram is newest first, and at most a handful of
+      // pinned known posts can lead, fewer than one page). Everything below is older and
+      // known, so stop and save the requests. Gated on `fullSyncFresh` so this only fires
+      // while the last full walk is recent enough that no in-window snapshot is stale, and
+      // never during a resume (which is deliberately re-walking known posts to reach older
+      // un-fetched ones).
+      if (!resumed && fullSyncFresh && page.items.length > 0 && counters.itemsCreated === createdBeforePage) {
+        stopReason = "upToDate";
+        log.info("sync.incremental.up_to_date", { channelId: channel.id, handle: channel.handle, itemsSeen: counters.itemsSeen }, runId);
+        break;
+      }
       if (page.stopReason) {
         stopReason = page.stopReason;
         break;
@@ -1336,14 +1455,55 @@ async function syncOneChannel(
       await opts.sleep(jitterMs());
     }
 
+    // Persist or clear the resume cursor. A run stopped by the cap or a cancel left
+    // in-window posts below the last cursor unfetched, so save where to continue; a run
+    // that fully enumerated the window (lookback/exhausted) has nothing left below, so
+    // clear all four columns. Resuming and then finishing the window clears it here.
+    if (stopReason === "cap") {
+      // The cap breaks MID-page, before this page's tail items are processed, so resume
+      // must RE-FETCH this page from the cursor it was requested with (`cursor`), NOT skip
+      // ahead to page.nextCursor, or the tail is lost until a later full walk. Re-processing
+      // the head is harmless: upserts are idempotent. A cap on page 1 has no request cursor,
+      // so clear it and let the next run do a fresh top walk (which re-fetches page 1).
+      if (cursor === undefined) await clearCursor(channel.id);
+      else await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
+    } else if (stopReason === "cancelled") {
+      // Unlike the cap, the current page was fully processed and the cancel checked after
+      // it, so resume from the NEXT page's cursor rather than re-fetching this one.
+      await persistCursor(channel.id, pageNextCursor, boundary, runId, opts.now().toISOString());
+    } else if (stopReason === "lookback" || stopReason === "exhausted" || stopReason === "upToDate") {
+      // Nothing left to resume: a fully enumerated window has no un-fetched tail, and an
+      // "upToDate" stop is a clean catch-up, not an interrupted crawl.
+      await clearCursor(channel.id);
+    }
+
+    // Stamp the last FULL walk. Only a fresh walk from the top that reached the window's end
+    // (lookback or exhausted, not resumed and not an incremental up-to-date stop) refreshed
+    // every in-window post's snapshot. That timestamp is what later runs check before they
+    // are allowed to stop early, so an incremental sync can never let a post's metrics age
+    // past `syncMetricsFreshnessHours`.
+    if ((stopReason === "lookback" || stopReason === "exhausted") && !resumed) {
+      await db.update(tables.channels).set({ lastFullSyncAt: opts.now().toISOString() }).where(eq(tables.channels.id, channel.id));
+    }
+
     // Soft-delete is only sound when this run actually enumerated the WHOLE window.
     // If we stopped at MAX_ITEMS_PER_SYNC, were cancelled, or bailed out, there are
     // in-window posts we simply never asked about — marking those "deleted from
     // Instagram" would be a fabrication, and on a prolific channel it would silently bury
     // real posts. A cancelled run is the newest member of that family: it stops mid-walk
     // by design, so it must land in the "not fully enumerated" branch below.
-    if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0) {
+    //
+    // A RESUMED run is also excluded even when it finishes the window: it enumerated only
+    // the REMAINDER below its resume cursor, never the posts above it, so it cannot tell
+    // which of those are gone. Soft-delete stays gated to a fresh walk from the top.
+    if ((stopReason === "lookback" || stopReason === "exhausted") && counters.itemsSeen > 0 && !resumed) {
       counters.itemsDeleted = await softDeleteMissing(channel.id, boundary, seenExternalIds, runId);
+    } else if (resumed && (stopReason === "lookback" || stopReason === "exhausted")) {
+      log.info("sync.soft_delete.skipped", {
+        channelId: channel.id,
+        stopReason,
+        reason: "resumed run enumerated only the remainder below its cursor; a full walk from the top is required before soft-deleting",
+      }, runId);
     } else if (counters.itemsSeen === 0) {
       // A run that saw NOTHING cannot distinguish "the creator deleted everything"
       // from "the fetch came back empty". Treating it as deletion is how a single
@@ -1440,6 +1600,11 @@ async function syncOneChannel(
       // Not a gap and not a channel error: nothing here is broken, the user stopped us
       // mid-request. Recording it as a failure would put a red mark against a channel
       // that was working, and would set `sync_error` the next run has to clear.
+      //
+      // The cancel landed inside an in-flight page fetch, so `cursor` is the page we were
+      // reading: persist it (not the previous page's nextCursor) so the next run retries
+      // that page and resumes the crawl. A cancel on page 1 leaves cursor undefined.
+      if (stopReason === null && cursor !== undefined) await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
       log.info("sync.channel.cancelled", { channelId: channel.id, handle: channel.handle, ...counters }, runId);
       return { counters, stopReason: "cancelled" };
     }
@@ -1450,6 +1615,10 @@ async function syncOneChannel(
       .update(tables.channels)
       .set({ syncError: message, syncErrorCode: code })
       .where(eq(tables.channels.id, channel.id));
+    // A channel gap below page 1 leaves in-window posts unfetched, so persist the cursor
+    // the run reached (the page that failed, to retry it) and let the next run resume the
+    // crawl. A failure on the profile or page 1 leaves cursor undefined and nothing to save.
+    if (stopReason === null && cursor !== undefined) await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
     // Instagram's own retry-after hint (used above to size the backoff and then
     // discarded) is copied onto the gap only when this is the code it actually applies
     // to — see the doc comment on SyncGap.retryAfterSec. Omitted (not `undefined`-valued
@@ -1496,6 +1665,10 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   // Resolved once for the whole run, not per channel, so every channel in one sync gets
   // the same budget even if the setting is edited while the run is in flight.
   const enrichPerChannel = opts.enrichPerChannel ?? (await getSetting("viewCountEnrichPerChannel"));
+  const metricsFreshnessHours = opts.metricsFreshnessHours ?? (await getSetting("syncMetricsFreshnessHours"));
+  // Clamped defensively even though the settings schema already bounds it >= 1: a test
+  // seam value should get the same floor as the setting it stands in for.
+  const concurrency = Math.max(1, opts.concurrency ?? (await getSetting("syncConcurrency")));
   // Asset downloads go through the SAME client as the rest of the run. Defaulting them
   // to the module-level singleton instead would mean an injected client only covered
   // half the outbound calls — which is both a testing lie and, in production, two
@@ -1542,30 +1715,84 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
 
-    // Sequential on purpose: one Instagram account is making these requests, and
-    // parallel bursts from a single session is what trips rate limiting. The pacing is
-    // the point, not a limitation.
-    for (const channel of channelRows) {
-      if (await tracker.isCancelRequested()) {
-        cancelObserved = true;
-        cancelLeftWorkUndone = true;
-        log.info("sync.cancelled", { jobId, before: channel.handle, channelsDone: tracker.channelsDone });
-        break;
-      }
-      await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
+    // Bounded worker pool, `concurrency` wide: the sidecar still serializes every actual
+    // Instagram call behind its own process-global lock (see the goal brief), so this
+    // never produces concurrent IG traffic — it only overlaps one channel's local work
+    // (thumbnail download, DB writes, scoring) with the next channel's fetch. At
+    // concurrency 1 there is exactly one worker draining `channelRows` in order, which
+    // makes this byte-for-byte the old serial `for` loop.
+    //
+    // Workers share `nextIndex`, `totals`, `gaps`, `channelsSynced`, `lastStopReason`,
+    // `cancelObserved`, and `cancelLeftWorkUndone` with no locks: JS runs one worker's
+    // synchronous code at a time, and every read-then-write of that shared state below
+    // happens with no `await` in between, so it can never interleave across workers.
+    let nextIndex = 0;
+    let cancelLogged = false;
 
-      const result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel });
-      for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
-      if (result.gap) gaps.push(result.gap);
-      else channelsSynced += 1;
-      lastStopReason = result.stopReason ?? lastStopReason;
-      if (result.stopReason === "cancelled") {
-        cancelObserved = true;
-        cancelLeftWorkUndone = true;
+    async function worker(): Promise<void> {
+      for (;;) {
+        // Same order as the old for-of loop: nothing left to dispatch ends the worker
+        // before it ever asks about cancellation, same as an empty/exhausted array never
+        // entering the loop body.
+        if (nextIndex >= channelRows.length) return;
+        if (await tracker.isCancelRequested()) {
+          // Do not start any channel not already dispatched; channels already in flight
+          // on other workers are left to finish below.
+          if (!cancelLogged) {
+            cancelLogged = true;
+            cancelObserved = true;
+            cancelLeftWorkUndone = true;
+            log.info("sync.cancelled", { jobId, before: channelRows[nextIndex]?.handle, channelsDone: tracker.channelsDone });
+          }
+          return;
+        }
+        // Re-check: another worker may have claimed the last remaining channel while this
+        // one was awaiting the cancel check above. From here to `nextIndex += 1` there is
+        // no `await`, so the claim itself is atomic.
+        if (nextIndex >= channelRows.length) return;
+        const channel = channelRows[nextIndex];
+        nextIndex += 1;
+
+        // Last-started wins: with N workers in flight there is no one truthful "current"
+        // channel, so this names whichever channel most recently started.
+        await tracker.flush({ phase: "profile", currentChannelHandle: channel.handle });
+
+        // syncOneChannel catches its own per-channel failures and returns a gap, but a
+        // throw from the resume-cursor read (which runs before its try) or any other
+        // unexpected error must NOT reject this worker: with siblings in flight, a
+        // rejected Promise.all would finalize the job row while they are still writing to
+        // it, and this channel would vanish from both `gaps` and `channelsSynced`. Fold an
+        // escaped throw into a channel gap so the run finalizes as partial with the channel
+        // counted, exactly as a returned gap would. (In-process this is defensive: the DB
+        // is synchronous better-sqlite3, so workers never truly write concurrently.)
+        let result: { gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null };
+        try {
+          result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel, metricsFreshnessHours });
+        } catch (err) {
+          const code = errorCode(err);
+          log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message: errorMessage(err) }, jobId);
+          result = {
+            counters: zeroCounters(),
+            stopReason: null,
+            gap: { channelId: channel.id, handle: channel.handle, provider: channel.platform, error: errorMessage(err), code },
+          };
+        }
+        for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
+        if (result.gap) gaps.push(result.gap);
+        else channelsSynced += 1;
+        lastStopReason = result.stopReason ?? lastStopReason;
+        if (result.stopReason === "cancelled") {
+          cancelObserved = true;
+          cancelLeftWorkUndone = true;
+        }
+        tracker.channelsDone += 1;
+        await tracker.flush();
       }
-      tracker.channelsDone += 1;
-      await tracker.flush();
     }
+
+    // Extra workers beyond `channelRows.length` just see `nextIndex >= length` on their
+    // first turn and return immediately — no special-casing needed for a short list.
+    await Promise.all(Array.from({ length: concurrency }, () => worker()));
 
     // A cancel can also land after the last page: it changed nothing, but the user still
     // asked for it, so the run says so rather than silently reporting a clean finish.

@@ -8,6 +8,7 @@ let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let insertLogEvent: typeof import("@/server/logs/store")["insertLogEvent"];
 let listRuns: typeof import("./runs")["listRuns"];
 let getRun: typeof import("./runs")["getRun"];
+let getLastRunHealth: typeof import("./runs")["getLastRunHealth"];
 
 beforeAll(async () => {
   // Must be set before @/server/db (and anything importing it) is ever loaded — that
@@ -19,7 +20,7 @@ beforeAll(async () => {
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ insertLogEvent } = await import("@/server/logs/store"));
-  ({ listRuns, getRun } = await import("./runs"));
+  ({ listRuns, getRun, getLastRunHealth } = await import("./runs"));
 });
 
 beforeEach(() => {
@@ -264,5 +265,58 @@ describe("getRun — itemsEnriched (M5-U1)", () => {
   test("a remix run never reports an enriched count", () => {
     const id = seedRemixRun();
     expect(getRun(id)!.itemsEnriched).toBeNull();
+  });
+});
+
+describe("getLastRunHealth", () => {
+  test("never-synced db returns nulls, not a fabricated zero-duration success", () => {
+    const health = getLastRunHealth();
+    expect(health.lastStatus).toBeNull();
+    expect(health.startedAt).toBeNull();
+    expect(health.finishedAt).toBeNull();
+    expect(health.durationMs).toBeNull();
+    expect(health.channelsDone).toBeNull();
+    expect(health.channelsTotal).toBeNull();
+    expect(health.gaps).toEqual([]);
+    expect(health.stalled).toBe(false);
+  });
+
+  test("reports the newest sync_jobs row's health", () => {
+    seedSyncJob({ startedAt: "2026-08-01T08:00:00.000Z", finishedAt: "2026-08-01T08:05:00.000Z" });
+    seedSyncJob({
+      startedAt: "2026-08-01T12:00:00.000Z",
+      finishedAt: "2026-08-01T12:04:00.000Z",
+      status: "partial",
+      channelsDone: 4,
+      channelsTotal: 5,
+      itemsCreated: 7,
+      itemsUpdated: 1,
+      itemsFailed: 2,
+      retries: 3,
+    });
+
+    const health = getLastRunHealth();
+    expect(health.lastStatus).toBe("partial");
+    expect(health.startedAt).toBe("2026-08-01T12:00:00.000Z");
+    expect(health.durationMs).toBe(4 * 60_000);
+    expect(health.channelsDone).toBe(4);
+    expect(health.channelsTotal).toBe(5);
+    expect(health.itemsCreated).toBe(7);
+    expect(health.itemsFailed).toBe(2);
+    expect(health.retries).toBe(3);
+  });
+
+  test("excludes backfill rows: a backfill-only db still reads as never-synced", () => {
+    seedSyncJob({ lockKey: "__backfill__", status: "success" });
+    expect(getLastRunHealth().lastStatus).toBeNull();
+  });
+
+  test("a running row computes durationMs from now", () => {
+    const startedAt = new Date(Date.now() - 60_000).toISOString();
+    seedSyncJob({ status: "running", finishedAt: null, startedAt });
+    const health = getLastRunHealth();
+    expect(health.lastStatus).toBe("running");
+    expect(health.finishedAt).toBeNull();
+    expect(health.durationMs).toBeGreaterThanOrEqual(60_000);
   });
 });

@@ -158,5 +158,8 @@ describe("log store", () => {
     expect(rows.some((r) => r.event === "e0")).toBe(false);
     expect(rows.some((r) => r.event === `e${PRUNE_INTERVAL - 1}`)).toBe(false);
     expect(rows.some((r) => r.event === `e${PRUNE_INTERVAL}`)).toBe(true);
-  });
+    // Seeds RETENTION_MAX + PRUNE_INTERVAL + 5 rows one insert at a time, so the row count
+    // (not the prune) is the cost. That is fast alone but can exceed vitest's 5s default
+    // under full-suite CPU contention, which is the flake this timeout covers.
+  }, 20000);
 });

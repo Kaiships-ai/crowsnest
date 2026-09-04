@@ -345,6 +345,13 @@ describe("statusHeadline / statusDetail", () => {
     );
   });
 
+  test("an incremental success reads as up to date, not a bare 0 new", () => {
+    const upToDate = fakeProgress({ status: "success", stopReason: "upToDate", itemsCreated: 0, itemsUpdated: 12 });
+    expect(statusHeadline("success", upToDate)).toBe("Already up to date — 12 updated");
+    // and its detail is grammatical in the "The run ..." template, not "The run already up to date."
+    expect(statusDetail("success", upToDate)).toBe("The run stopped early once it reached posts it already had.");
+  });
+
   test("partial says how many channels are unfinished, singular and plural", () => {
     const one = fakeProgress({ status: "partial", gaps: [fakeGap()] });
     expect(statusHeadline("partial", one)).toBe("Sync finished with 1 channel unfinished");

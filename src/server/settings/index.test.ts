@@ -14,6 +14,7 @@ beforeAll(async () => {
   // before any import.
   process.env.LOOKBACK_DAYS = "45";
   process.env.MAX_ITEMS_PER_SYNC = "350";
+  process.env.SYNC_CONCURRENCY = "4";
   process.env.SYNC_INTERVAL_MINUTES = "120";
   process.env.MEDIA_RETENTION_DAYS = "14";
 
@@ -48,6 +49,7 @@ describe("getSettings — precedence: env beats default", () => {
     const s = await settings.getSettings();
     expect(s.syncLookbackDays).toBe(45); // process.env.LOOKBACK_DAYS
     expect(s.maxItemsPerSync).toBe(350); // process.env.MAX_ITEMS_PER_SYNC
+    expect(s.syncConcurrency).toBe(4); // process.env.SYNC_CONCURRENCY
     expect(s.syncCadenceMinutes).toBe(120); // process.env.SYNC_INTERVAL_MINUTES
     expect(s.mediaRetentionDays).toBe(14); // process.env.MEDIA_RETENTION_DAYS
   });
@@ -90,6 +92,38 @@ describe("viewCountEnrichPerChannel (M5-U1)", () => {
     const view = await settings.getSettingsWithSource();
     expect(view.viewCountEnrichPerChannel.wired).toBe(true);
     expect(view.viewCountEnrichPerChannel.value).toBe(0);
+  });
+});
+
+describe("syncConcurrency (Goal 3 T1)", () => {
+  // The built-in default of 2 lives in config.ts and is asserted in config.test.ts
+  // ("applies documented defaults"); here the env layer is set to 4 in beforeAll, exactly
+  // like maxItemsPerSync, so these prove env -> DB precedence and the clamp instead.
+  test("falls back to its env var (SYNC_CONCURRENCY) when no DB row exists", async () => {
+    const s = await settings.getSettings();
+    expect(s.syncConcurrency).toBe(4);
+  });
+
+  test("a stored row wins over the env var", async () => {
+    await writeRow("sync_concurrency", "8");
+    expect((await settings.getSettings()).syncConcurrency).toBe(8);
+  });
+
+  test("an out-of-range stored value is treated as absent, falling back to env", async () => {
+    await writeRow("sync_concurrency", "17");
+    expect((await settings.getSettings()).syncConcurrency).toBe(4);
+  });
+
+  test("validateSetting clamps to 1..16", () => {
+    expect(settings.validateSetting("syncConcurrency", 1).ok).toBe(true);
+    expect(settings.validateSetting("syncConcurrency", 16).ok).toBe(true);
+    expect(settings.validateSetting("syncConcurrency", 17).ok).toBe(false);
+    expect(settings.validateSetting("syncConcurrency", 0).ok).toBe(false);
+  });
+
+  test("is reported as not-yet-wired (runSync reads it in T3)", async () => {
+    const view = await settings.getSettingsWithSource();
+    expect(view.syncConcurrency.wired).toBe(false);
   });
 });
 

@@ -46,6 +46,7 @@ describe("config", () => {
     expect(c.IG_SERVICE_URL).toBe("http://127.0.0.1:8765");
     expect(c.MEDIA_RETENTION_DAYS).toBe(90);
     expect(c.SYNC_INTERVAL_MINUTES).toBe(0);
+    expect(c.SYNC_CONCURRENCY).toBe(2);
     expect(c.SYNC_MAX_RETRIES).toBe(3);
     expect(c.SYNC_RETRY_BASE_MS).toBe(1_000);
   });
@@ -61,6 +62,12 @@ describe("config", () => {
     const c = loadConfig({ ...MINIMAL, LOOKBACK_DAYS: "7", MAX_ITEMS_PER_SYNC: "50" });
     expect(c.LOOKBACK_DAYS).toBe(7);
     expect(c.MAX_ITEMS_PER_SYNC).toBe(50);
+  });
+
+  test("parses and clamps SYNC_CONCURRENCY", () => {
+    expect(loadConfig({ ...MINIMAL, SYNC_CONCURRENCY: "4" }).SYNC_CONCURRENCY).toBe(4);
+    expect(() => loadConfig({ ...MINIMAL, SYNC_CONCURRENCY: "0" })).toThrow(/SYNC_CONCURRENCY/);
+    expect(() => loadConfig({ ...MINIMAL, SYNC_CONCURRENCY: "17" })).toThrow(/SYNC_CONCURRENCY/);
   });
 
   test("rejects a non-numeric LOOKBACK_DAYS rather than silently using NaN", () => {
