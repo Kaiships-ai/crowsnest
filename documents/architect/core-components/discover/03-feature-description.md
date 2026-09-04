@@ -3,7 +3,8 @@
 `documents/architect/core-components/discover/`
 
 Status: the discover page is shipped and reachable from the nav. The seed picker drop-in is
-built but not mounted anywhere yet.
+mounted in the first-run sources step, so a fresh install can follow curated creators before
+its first sync.
 
 Discover is a curated directory of Instagram creators to follow. A fixed list of real
 handles, one file per niche, is loaded into a `creator_seeds` table at install time. The
@@ -94,7 +95,7 @@ It is built to be mounted directly by a future first-run "sources" step.
 
 ### Limitations
 
-- Not mounted anywhere; there is no way to reach it by clicking through the shipped app today. Wiring it into a first-run step is deferred. See `DISC-03` in the [backlog](05-backlog-to-enhance.md).
+- Mounted only in the first-run sources step; there is no standalone route that renders the seed picker outside first run. A returning user reaches curated creators through the discover page's cards instead.
 - A partial batch failure (some handles follow, others don't) has no visible per-row error state in the component itself; the caller only learns which ids landed, through `onDone`.
 
 ### User guide

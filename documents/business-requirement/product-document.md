@@ -249,7 +249,6 @@ is set. Detail lives in each component's `05-backlog-to-enhance.md`; the standin
 | Bug board — work the open `05-backlog` items across every component | v0.3 | all components |
 | TikTok / YouTube Shorts ingestion | Later | ig-sync |
 | Intel Macs, Windows, Linux | Later | kit / packaging |
-| Wire the seed picker into a first-run "sources" step | Later | discover |
 
 ---
 

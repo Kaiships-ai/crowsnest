@@ -3,7 +3,8 @@
 `documents/architect/core-components/discover/`
 
 Status: the discover page is shipped and reachable from the nav. The seed picker drop-in is
-built but not mounted anywhere yet.
+mounted in the first-run sources step, so a fresh install can follow curated creators before
+its first sync.
 
 ## 1. What it is
 
