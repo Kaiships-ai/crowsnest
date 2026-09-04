@@ -3,6 +3,11 @@
 Versions are the tag passed to `packaging/release.sh` and stamped into each bundle's VERSION
 file (`kai doctor` prints it). Newest first.
 
+## Unreleased
+
+- Removed the in-app create studio (cook/serve) and its create_runs table; remixing now
+  hands off to Reel Factory through the MCP server.
+
 ## 0.2.0
 
 First packaged release. Apple Silicon only.

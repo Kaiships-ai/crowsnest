@@ -4,7 +4,6 @@ import {
   chmodSync,
   copyFileSync,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   readlinkSync,
@@ -261,11 +260,6 @@ async function cmdKitInit(): Promise<void> {
   const apiKey = await ask("ANTHROPIC_API_KEY (blank to skip, not echoed)", { secret: true });
   if (apiKey) env = setEnv(env, "ANTHROPIC_API_KEY", apiKey);
 
-  const defaultVault = join(homedir(), ".crowsnest", "vault");
-  const vault = await ask("\nVAULT_PATH", { fallback: defaultVault });
-  mkdirSync(vault, { recursive: true });
-  env = setEnv(env, "VAULT_PATH", vault);
-
   closeIo();
   writeFileSync(envPath, env, { mode: 0o600 });
   // writeFileSync's mode only applies when it creates the file, and copyFileSync
@@ -394,14 +388,12 @@ async function cmdDoctor(): Promise<void> {
     // path-based require is deliberate and cannot be a static import.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     require(join(REPO, "node_modules", "better-sqlite3"));
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require(join(REPO, "node_modules", "node-pty"));
     natives = true;
   } catch (err) {
     natives = false;
     nativeErr = (err as Error).message;
   }
-  ok("native modules", natives, natives ? "better-sqlite3 + node-pty load" : `FAIL: ${nativeErr}`);
+  ok("native modules", natives, natives ? "better-sqlite3 loads" : `FAIL: ${nativeErr}`);
 
   const venvOk = existsSync(igVenvPython);
   ok("python sidecar", venvOk, venvOk ? igVenvPython : "venv missing (rerun kai kit init)");

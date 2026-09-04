@@ -93,7 +93,7 @@ External services. The Claude API does both the analysis and the idea generation
 
 Status and failures. Success and failure both surface as toasts for both features; there is no inline error region on the video detail page. The two dead-end states, no provider and no key, render as alerts in the analyze gate rather than as toasts, since a click there could do nothing.
 
-Configuration and settings. The Claude key and the Groq key are set in Settings, and whisper.cpp availability depends on a local install; together these decide which gate face is shown. The resolved Claude model name is recorded on the analysis row. The creator's persona (audience, voice, do, and don't guidance) grounds Generate idea; the outlier score threshold and per-sync caps that gate the automatic passes are read from settings and do not apply to either manual button.
+Configuration and settings. The Claude key and the Groq key are set in Settings, and whisper.cpp availability depends on a local install; together these decide which gate face is shown. The resolved Claude model name is recorded on the analysis row. The creator's persona (audience, voice, do, and don't guidance) grounds Generate idea; the outlier score threshold and per-sync caps that gate the automatic passes are read from settings and do not apply to either manual button. On the Persona screen itself, each of the four fields carries a why-line naming which part of generation it steers, an enriched placeholder describing the same, and an "Insert example" action that fills the field with a sample value, but only while the field is still empty; it never overwrites text the user has already entered.
 
 ## 5. Edge cases
 

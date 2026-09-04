@@ -110,7 +110,7 @@ done
 cp "$REPO/.env.example" "$STAGE/app/.env.example"
 
 # node_modules: reinstall production-only against the BUNDLED node's ABI, so native
-# modules (better-sqlite3, node-pty) match what ships. tsx is a prod runtime need here.
+# modules (better-sqlite3) match what ships. tsx is a prod runtime need here.
 say "installing production node_modules against bundled node ABI"
 export PATH="$STAGE/bin:$PATH"
 NPM_CLI="$(command -v npm)"
@@ -120,9 +120,7 @@ run_npm install --omit=dev --ignore-scripts --no-audit --no-fund
 # tsx is a devDependency but a runtime need for us (server.ts + the CLI run through it).
 run_npm install --no-save --ignore-scripts tsx
 # Now build the native modules against the bundled node ABI (127 for node 22).
-run_npm rebuild better-sqlite3 node-pty
-# Finally the repo's own postinstall (node-pty perms fix), via bundled node + tsx.
-( cd "$STAGE/app" && "$STAGE/bin/node" "$STAGE/app/node_modules/.bin/tsx" scripts/fix-node-pty-perms.mjs ) || true
+run_npm rebuild better-sqlite3
 
 # strip weight that never runs
 find "$STAGE/app/node_modules" -type d \( -name test -o -name tests -o -name __tests__ -o -name docs -o -name example -o -name examples \) -prune -exec rm -rf {} + 2>/dev/null || true
@@ -193,7 +191,7 @@ SHEBANG_HITS="$(grep -rIl "^#!$HOME" "$STAGE" 2>/dev/null || true)"
 [ -z "$SHEBANG_HITS" ] || die "relocatability: build-host shebang leaked into: $SHEBANG_HITS"
 
 say "smoke test: native modules load under bundled node"
-"$STAGE/bin/node" -e "require('$STAGE/app/node_modules/better-sqlite3'); require('$STAGE/app/node_modules/node-pty'); console.log('natives OK')"
+"$STAGE/bin/node" -e "require('$STAGE/app/node_modules/better-sqlite3'); console.log('natives OK')"
 
 say "smoke test: python venv builds offline and imports the sidecar"
 SMOKE_VENV="$(dirname "$STAGE")/smoke-venv"

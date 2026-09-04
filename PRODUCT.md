@@ -19,15 +19,17 @@ crowsnest watches a handful of Instagram channels a creator competes with and sc
 post against that channel's own median, so the creator sees what genuinely over-performed
 rather than what is merely popular. It then carries that signal all the way through: spot an
 over-performer in the feed, analyze it, save it to a vault, remix it into the creator's own
-version, plan it on a calendar, and run the cook-and-publish step. Success is the creator
-consistently shipping posts informed by what actually beats the median in their niche.
+version, plan it on a calendar, and hand it off through the MCP server to Reel Factory to
+produce. Success is the creator consistently shipping posts informed by what actually beats
+the median in their niche.
 
 ## Positioning
 
-The durable differentiator to protect is the **full feed → remix → publish loop in one
-tool** — not analytics alone. A neighboring product can show competitor metrics; crowsnest
-takes the creator from spotting an over-performing post to shipping their own version
-without leaving the app. The median-relative scoring (a nano account beating its own median
+The durable differentiator to protect is the **full feed → remix loop in one tool**, with a
+clean handoff to production, not analytics alone. A neighboring product can show competitor
+metrics; crowsnest takes the creator from spotting an over-performing post to a finished
+remix, then hands off through its MCP server to Reel Factory, which produces the video. The
+median-relative scoring (a nano account beating its own median
 reads as loud as a viral hit) and the local-and-private posture (runs alone on the buyer's
 Mac, Instagram read through a local sidecar, data never leaves the machine) are core
 supporting mechanisms, but the end-to-end loop is the thing every future decision must keep
@@ -52,8 +54,8 @@ whole.
 ## Capabilities and Constraints
 
 - Core loop is built and runs: sync, feed and filters, video detail + analysis, save to
-  vault + generate idea, the six-stage remix studio, calendar and plan dialog, and the
-  studio cook run + publish gate.
+  vault + generate idea, the six-stage remix studio, and calendar and plan dialog. The
+  finished remix hands off through the MCP server to Reel Factory, which produces the video.
 - Constraints future work must respect: Apple Silicon only; single-user local install; local
   sqlite (`data/crowsnest.db`, plaintext secrets, never returned to the browser); Instagram
   access is read-only and depends on a running local sidecar logged into a throwaway account
@@ -61,7 +63,7 @@ whole.
 - This is not the stock Next.js — APIs, conventions, and file structure diverge; a custom
   `tsx server.ts` fronts the app, with a Python sidecar under `services/ig/`.
 - Terminology to keep consistent: **read key** (the throwaway-account Instagram session),
-  **channel** (a watched competitor account), **sync**, **vault**, **remix**, **cook**.
+  **channel** (a watched competitor account), **sync**, **vault**, **remix**.
 - Undecided / open product facts (do not fabricate): end-to-end verification on a real
   buyer's machine with real credentials is still open; TikTok / YouTube Shorts ingestion and
   the onboarding dashboard redesign (v0.3) are roadmap, not built.
