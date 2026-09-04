@@ -36,7 +36,7 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
 
   const dirty = minScore !== String(initial.feedDefaultMinScore.value) || band !== initial.feedDefaultFollowerBand.value;
 
-  const minScoreError = numberFieldError(minScore, { min: 0, max: 1000, integer: true });
+  const minScoreError = numberFieldError(minScore, { min: 0, max: 1000 });
 
   async function save() {
     setSaving(true);

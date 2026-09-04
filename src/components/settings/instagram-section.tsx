@@ -498,6 +498,141 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
         )}
       </div>
 
+      {view !== "connected" && (
+        <>
+          <div className="flex flex-col gap-3 border border-border p-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold">Sign in with a session token</h3>
+              <Badge variant="secondary">Recommended</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Open <code>instagram.com</code> in a browser you&apos;re already signed into that account with, open DevTools, go to
+              Application → Cookies, and copy the value of the <code>sessionid</code> cookie. This skips password login entirely, so
+              it can&apos;t trip the failed-login count Instagram uses to checkpoint an account.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="ig-sessionid">Session ID</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="ig-sessionid"
+                  data-testid="ig-session-input"
+                  type="password"
+                  value={sessionid}
+                  onChange={(e) => setSessionid(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !busy && phase !== "connecting") void connectWithSession();
+                  }}
+                  autoComplete="off"
+                  placeholder="paste the sessionid cookie value"
+                  className="max-w-sm font-mono"
+                />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="ig-session-connect-button"
+                  onClick={() => void connectWithSession()}
+                  disabled={busy || phase === "connecting" || sessionid.trim().length === 0}
+                >
+                  {phase === "connecting" ? "Connecting…" : "Connect"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border border-border p-4">
+            <h3 className="text-sm font-semibold">Sign in with a username and password</h3>
+            <p className="text-xs text-muted-foreground">
+              Validated against a real sidecar login before anything is saved - a wrong password is never stored as configured.
+            </p>
+            {credPhase === "idle" && (
+              <>
+                <div className="flex max-w-sm flex-col gap-2">
+                  <Label htmlFor="ig-credentials-username">Username</Label>
+                  <Input
+                    id="ig-credentials-username"
+                    data-testid="ig-credentials-username-input"
+                    value={credUsername}
+                    onChange={(e) => setCredUsername(e.target.value)}
+                    autoComplete="off"
+                  />
+                  <Label htmlFor="ig-credentials-password">Password</Label>
+                  <Input
+                    id="ig-credentials-password"
+                    data-testid="ig-credentials-password-input"
+                    type="password"
+                    value={credPassword}
+                    onChange={(e) => setCredPassword(e.target.value)}
+                    autoComplete="off"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && credUsername.trim() && credPassword) void submitCredLogin();
+                    }}
+                  />
+                </div>
+                <div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    data-testid="ig-credentials-submit-button"
+                    onClick={() => void submitCredLogin()}
+                    disabled={!credUsername.trim() || !credPassword}
+                  >
+                    Connect
+                  </Button>
+                </div>
+                {credError && (
+                  <p data-testid="ig-credentials-error" className="text-sm text-destructive">
+                    {credError}
+                  </p>
+                )}
+              </>
+            )}
+            {credPhase === "submitting" && <StatusRow tone="busy" label="Signing in…" />}
+            {credPhase === "two_factor" && (
+              <CodeForm
+                id="ig-credentials-2fa-code"
+                label="6-digit code"
+                hint="From your authenticator app or SMS."
+                value={credCode}
+                busy={busy}
+                onChange={setCredCode}
+                onSubmit={() => void submitCredCode("two_factor")}
+                onCancel={() => setCredPhase("idle")}
+              />
+            )}
+            {credPhase === "challenge_choice" && (
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="secondary" onClick={() => void chooseCredChallengeChannel("email")} disabled={busy}>
+                  Email
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => void chooseCredChallengeChannel("sms")} disabled={busy}>
+                  SMS
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setCredPhase("idle")} disabled={busy}>
+                  Cancel
+                </Button>
+              </div>
+            )}
+            {credPhase === "challenge_code" && (
+              <CodeForm
+                id="ig-credentials-challenge-code"
+                label="Verification code"
+                hint="The code Instagram just sent to the channel you picked."
+                value={credCode}
+                busy={busy}
+                onChange={setCredCode}
+                onSubmit={() => void submitCredCode("challenge")}
+                onCancel={() => setCredPhase("idle")}
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      <p className="flex items-center gap-1.5 text-xs text-destructive">
+        <ShieldAlert className="size-3.5 shrink-0" aria-hidden />
+        Use a throwaway Instagram account - connecting one risks it being restricted or banned.
+      </p>
+
       <details className="border border-border">
         <summary className="cursor-pointer p-3 text-sm font-medium">Why a throwaway account, and what&apos;s safe</summary>
         <div className="flex flex-col gap-3 border-t border-border p-4">
@@ -513,136 +648,6 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
               </p>
             </div>
           </div>
-
-          {view !== "connected" && (
-            <>
-              <div className="flex flex-col gap-3 border border-border p-4">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">Sign in with a session token</h3>
-                  <Badge variant="secondary">Recommended</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Open <code>instagram.com</code> in a browser you&apos;re already signed into that account with, open DevTools, go to
-                  Application → Cookies, and copy the value of the <code>sessionid</code> cookie. This skips password login entirely, so
-                  it can&apos;t trip the failed-login count Instagram uses to checkpoint an account.
-                </p>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="ig-sessionid">Session ID</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      id="ig-sessionid"
-                      data-testid="ig-session-input"
-                      type="password"
-                      value={sessionid}
-                      onChange={(e) => setSessionid(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !busy && phase !== "connecting") void connectWithSession();
-                      }}
-                      autoComplete="off"
-                      placeholder="paste the sessionid cookie value"
-                      className="max-w-sm font-mono"
-                    />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      data-testid="ig-session-connect-button"
-                      onClick={() => void connectWithSession()}
-                      disabled={busy || phase === "connecting" || sessionid.trim().length === 0}
-                    >
-                      {phase === "connecting" ? "Connecting…" : "Connect"}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3 border border-border p-4">
-                <h3 className="text-sm font-semibold">Sign in with a username and password</h3>
-                <p className="text-xs text-muted-foreground">
-                  Validated against a real sidecar login before anything is saved - a wrong password is never stored as configured.
-                </p>
-                {credPhase === "idle" && (
-                  <>
-                    <div className="flex max-w-sm flex-col gap-2">
-                      <Label htmlFor="ig-credentials-username">Username</Label>
-                      <Input
-                        id="ig-credentials-username"
-                        data-testid="ig-credentials-username-input"
-                        value={credUsername}
-                        onChange={(e) => setCredUsername(e.target.value)}
-                        autoComplete="off"
-                      />
-                      <Label htmlFor="ig-credentials-password">Password</Label>
-                      <Input
-                        id="ig-credentials-password"
-                        data-testid="ig-credentials-password-input"
-                        type="password"
-                        value={credPassword}
-                        onChange={(e) => setCredPassword(e.target.value)}
-                        autoComplete="off"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && credUsername.trim() && credPassword) void submitCredLogin();
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        data-testid="ig-credentials-submit-button"
-                        onClick={() => void submitCredLogin()}
-                        disabled={!credUsername.trim() || !credPassword}
-                      >
-                        Connect
-                      </Button>
-                    </div>
-                    {credError && (
-                      <p data-testid="ig-credentials-error" className="text-sm text-destructive">
-                        {credError}
-                      </p>
-                    )}
-                  </>
-                )}
-                {credPhase === "submitting" && <StatusRow tone="busy" label="Signing in…" />}
-                {credPhase === "two_factor" && (
-                  <CodeForm
-                    id="ig-credentials-2fa-code"
-                    label="6-digit code"
-                    hint="From your authenticator app or SMS."
-                    value={credCode}
-                    busy={busy}
-                    onChange={setCredCode}
-                    onSubmit={() => void submitCredCode("two_factor")}
-                    onCancel={() => setCredPhase("idle")}
-                  />
-                )}
-                {credPhase === "challenge_choice" && (
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => void chooseCredChallengeChannel("email")} disabled={busy}>
-                      Email
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => void chooseCredChallengeChannel("sms")} disabled={busy}>
-                      SMS
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => setCredPhase("idle")} disabled={busy}>
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-                {credPhase === "challenge_code" && (
-                  <CodeForm
-                    id="ig-credentials-challenge-code"
-                    label="Verification code"
-                    hint="The code Instagram just sent to the channel you picked."
-                    value={credCode}
-                    busy={busy}
-                    onChange={setCredCode}
-                    onSubmit={() => void submitCredCode("challenge")}
-                    onCancel={() => setCredPhase("idle")}
-                  />
-                )}
-              </div>
-            </>
-          )}
         </div>
       </details>
     </section>

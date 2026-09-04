@@ -19,7 +19,7 @@
  * "no item highlighted," never to "the link stopped working."
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ export function activeSectionId(order: string[], visible: ReadonlySet<string>, p
 }
 
 export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
-  const items = groups.flatMap((group) => group.items);
+  const items = useMemo(() => groups.flatMap((group) => group.items), [groups]);
 
   // Seeded from the URL's own hash (if the page was opened as a deep link) rather than
   // always defaulting to the first item, so a reload of e.g. /settings#scoring shows
