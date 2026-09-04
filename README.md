@@ -66,6 +66,8 @@ Remix into your next script
 
 ## 4. Features
 
+- **Discover creators** — browse a curated, niche-grouped list of Instagram creators and
+  follow one with a click; it queues a sync the same way adding a channel by hand does.
 - **Outlier Feed** — find videos performing unusually well relative to their creator's
   baseline; filter and sort by viral multiplier, timeframe, and engagement.
 - **Video Analysis** — AI breakdown of a video's hook, structure, and why it likely worked.
@@ -85,9 +87,9 @@ Remix into your next script
 ```text
 Settings → Instagram
         ↓
-Add a channel
+Add a channel  ←──── or: pick a niche → follow creators (Discover)
         ↓
-Sync
+Sync  ←──────────────── follow queues the first sync itself
         ↓
 Open Outlier Feed
         ↓
@@ -105,6 +107,10 @@ Plan it on the My channel calendar
         ↓
 Attach a video + caption, schedule or publish now
 ```
+
+Instead of typing a handle by hand, open **Discover** (`/channels/discover`), pick a niche
+tab, and click Follow on a curated creator; it adds the channel and queues the first sync in
+one click, landing back on the same path at Sync.
 
 The app starts empty — there is no demo data. It fills up with real posts from the real
 channels you choose to track.

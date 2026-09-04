@@ -1,5 +1,7 @@
 import { and, eq } from "drizzle-orm";
-import { db, newId, tables } from "./index";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { db, newId, nowIso, tables } from "./index";
 
 /**
  * Inserts the application's built-in filter presets.
@@ -47,11 +49,53 @@ export async function bootstrapSystemFilters(): Promise<{ created: number; exist
   return { created, existing };
 }
 
+/**
+ * Loads the curated creator seed lists (data/seeds/*.json) into creator_seeds.
+ *
+ * Idempotent: keyed on (platform, handle), matching the table's unique index.
+ * Filenames are fixed, not globbed, so load order stays deterministic.
+ */
+const SEED_NICHES = ["fitness", "finance", "tech", "business"] as const;
+
+export async function bootstrapCreatorSeeds(): Promise<{ created: number; existing: number }> {
+  let created = 0;
+  let existing = 0;
+
+  for (const niche of SEED_NICHES) {
+    const file = JSON.parse(readFileSync(join(process.cwd(), "data/seeds", `${niche}.json`), "utf8"));
+    for (const c of file.creators as { handle: string; why: string; source?: string }[]) {
+      const handle = c.handle.trim().replace(/^@/, "");
+      const found = await db
+        .select({ id: tables.creatorSeeds.id })
+        .from(tables.creatorSeeds)
+        .where(and(eq(tables.creatorSeeds.platform, "instagram"), eq(tables.creatorSeeds.handle, handle)))
+        .limit(1);
+      if (found[0]) {
+        existing += 1;
+        continue;
+      }
+      await db.insert(tables.creatorSeeds).values({
+        id: newId(),
+        platform: "instagram",
+        handle,
+        niche: file.niche,
+        why: c.why,
+        source: c.source ?? null,
+        createdAt: nowIso(),
+      });
+      created += 1;
+    }
+  }
+
+  return { created, existing };
+}
+
 // CLI entry point: `npm run db:bootstrap`
 if (process.argv[1] && process.argv[1].endsWith("bootstrap.ts")) {
-  bootstrapSystemFilters()
-    .then((r) => {
-      console.log(`System filters: ${r.created} created, ${r.existing} already present.`);
+  Promise.all([bootstrapSystemFilters(), bootstrapCreatorSeeds()])
+    .then(([filters, seeds]) => {
+      console.log(`System filters: ${filters.created} created, ${filters.existing} already present.`);
+      console.log(`Creator seeds: ${seeds.created} created, ${seeds.existing} already present.`);
     })
     .catch((err: unknown) => {
       console.error(err);

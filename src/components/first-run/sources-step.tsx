@@ -38,12 +38,17 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SeedPicker } from "@/components/discover/seed-picker";
 import { addChannelAction } from "@/server/actions/sync-actions";
+import type { CreatorSeedRow } from "@/server/queries/discover";
 
 export interface SourcesStepProps {
   /** What the focus step's answer was — see the module doc above for why this screen
    *  echoes it rather than acting on it. */
   niche: string;
+  /** Curated creator seeds for the drop-in picker. The "list to suggest" the module doc
+   *  above says this app used to lack — following one adds and syncs it immediately. */
+  seeds: CreatorSeedRow[];
   /** Whether the sidecar can currently look a handle up on Instagram. Copy-only; see
    *  module doc. */
   canVerifyHandles: boolean;
@@ -55,11 +60,19 @@ function normalizeForDedupe(handle: string): string {
   return handle.trim().replace(/^@/, "").toLowerCase();
 }
 
-export function SourcesStep({ niche, canVerifyHandles, onBack, onContinue }: SourcesStepProps) {
+export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue }: SourcesStepProps) {
   const [handles, setHandles] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [failed, setFailed] = useState<{ handle: string; error: string }[]>([]);
   const [pending, setPending] = useState(false);
+  // Channels the SeedPicker already followed (added + synced) this mount. Unlike the
+  // manual list, these are live `channels` rows the moment Follow is pressed, so they are
+  // carried through Continue rather than re-added.
+  const [seedChannelIds, setSeedChannelIds] = useState<string[]>([]);
+
+  function onSeedsFollowed(ids: string[]) {
+    setSeedChannelIds((prev) => Array.from(new Set([...prev, ...ids])));
+  }
 
   /**
    * One handle typed and Enter-pressed is the common case, but the box also accepts a
@@ -112,10 +125,15 @@ export function SourcesStep({ niche, canVerifyHandles, onBack, onContinue }: Sou
       setFailed(failures);
       return;
     }
-    onContinue(ids);
+    // Seed-followed channels are already live rows; carry them through with the manual
+    // adds, deduped in case a handle was both followed here and typed by hand.
+    onContinue(Array.from(new Set([...seedChannelIds, ...ids])));
   }
 
-  const canContinue = handles.length > 0 && !pending;
+  const totalSelected = handles.length + seedChannelIds.length;
+  // Following curated creators alone is enough to continue — a manual handle is no longer
+  // required now that the picker supplies real, already-tracked channels.
+  const canContinue = totalSelected > 0 && !pending;
 
   return (
     <div>
@@ -128,7 +146,21 @@ export function SourcesStep({ niche, canVerifyHandles, onBack, onContinue }: Sou
         Based on what you told us you make: <span className="text-foreground">{niche}</span>
       </p>
 
-      <div className="mt-11 flex max-w-[460px] items-center gap-2">
+      {seeds.length > 0 && (
+        <section className="mt-10 max-w-[560px]" data-testid="first-run-seed-picker">
+          <span className="font-mono text-2xs tracking-wide text-faint">SUGGESTED CREATORS</span>
+          <p className="mt-3 mb-4 text-sm text-muted-foreground">
+            Curated accounts worth watching. Follow up to 10 to start tracking them now, or add
+            your own handles below.
+          </p>
+          <SeedPicker seeds={seeds} maxSelect={10} onDone={onSeedsFollowed} />
+        </section>
+      )}
+
+      <span className="mt-11 block font-mono text-2xs tracking-wide text-faint">
+        {seeds.length > 0 ? "OR ADD YOUR OWN" : ""}
+      </span>
+      <div className="mt-3 flex max-w-[460px] items-center gap-2">
         <Input
           placeholder="@handle, or paste several separated by commas"
           value={draft}
@@ -175,7 +207,7 @@ export function SourcesStep({ niche, canVerifyHandles, onBack, onContinue }: Sou
           {pending ? "Adding…" : "Continue"}
         </Button>
         <span className="font-mono text-xs text-faint">
-          {handles.length === 0 ? "Add at least one channel to continue" : `${handles.length} selected`}
+          {totalSelected === 0 ? "Follow or add at least one channel to continue" : `${totalSelected} selected`}
         </span>
       </div>
       <p className="mt-10 font-mono text-2xs tracking-wide text-faint">More can be added later from Channels.</p>

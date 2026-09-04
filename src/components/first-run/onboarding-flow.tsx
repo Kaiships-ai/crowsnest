@@ -42,6 +42,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
+import type { CreatorSeedRow } from "@/server/queries/discover";
 import {
   canVerifyHandles,
   ONBOARDING_STEP_COUNT,
@@ -61,9 +62,10 @@ export interface OnboardingFlowProps {
   initialKeywords: string[];
   initialIgStatus: IgStatusResult;
   serviceUrl: string;
+  seeds: CreatorSeedRow[];
 }
 
-export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus, serviceUrl }: OnboardingFlowProps) {
+export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus, serviceUrl, seeds }: OnboardingFlowProps) {
   const router = useRouter();
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [niche, setNiche] = useState(initialNiche);
@@ -238,6 +240,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
           {step === "sources" && (
             <SourcesStep
               niche={niche}
+              seeds={seeds}
               canVerifyHandles={canVerifyHandles(igStatus)}
               onBack={() => setStep("connect")}
               onContinue={(ids) => {

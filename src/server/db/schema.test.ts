@@ -13,3 +13,31 @@ test("schema: insert + read a channel and video", async () => {
   expect(rows).toHaveLength(1);
   expect(rows[0].viewCount).toBe(1000);
 });
+
+test("creator_seeds table is defined with platform+handle unique key", async () => {
+  const { db, newId, nowIso, tables } = await import("./index");
+  const { migrate } = await import("./test-migrate");
+  migrate();
+  await db.insert(tables.creatorSeeds).values({
+    id: newId(),
+    platform: "instagram",
+    handle: "@fitcreator",
+    niche: "fitness",
+    why: "consistent hook quality across last 20 reels",
+    source: "https://instagram.com/fitcreator",
+    createdAt: nowIso(),
+  });
+  const rows = await db.select().from(tables.creatorSeeds);
+  expect(rows).toHaveLength(1);
+  expect(rows[0].platform).toBe("instagram");
+  await expect(
+    db.insert(tables.creatorSeeds).values({
+      id: newId(),
+      platform: "instagram",
+      handle: "@fitcreator",
+      niche: "fitness",
+      why: "duplicate handle should violate the unique index",
+      createdAt: nowIso(),
+    }),
+  ).rejects.toThrow();
+});

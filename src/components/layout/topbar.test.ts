@@ -58,6 +58,13 @@ describe("ROUTE_TITLES covers every route", () => {
     expect(getPageTitle("/not-a-route")).toBe("Crowsnest");
   });
 
+  test("/channels/discover gets its own title, not the [channelId] detail fallback", () => {
+    // /channels/discover previously matched the generic /channels/[^/]+ pattern and
+    // read "Channel detail" instead of naming the discover page. The more specific
+    // pattern must be listed before the generic one for this to hold.
+    expect(getPageTitle("/channels/discover")).toBe("Discover");
+  });
+
   test("no route falls through to the app name", () => {
     const untitled = shellRoutes().filter((route) => getPageTitle(route) === "Crowsnest");
 
