@@ -17,14 +17,15 @@ import { getScripts, getVaultItems, type VaultItemRow } from "@/server/queries/v
 import { matchesQuery } from "./vault-filter";
 import { vaultHeaderCopy } from "./vault-header-copy";
 
-// v1-scope.md P1 Vault schedules Hooks/Styles to move to the Remix stage 3/4 pickers,
-// with a "save as template" action from the detail screen as their new save path. That
-// destination isn't built yet anywhere in the app, and vault_items already holds real
-// rows (hooks and layouts saved from real analyses). Retiring these two tabs before the
-// pickers exist would make that real content unreachable from any screen, which is the
-// same failure as a control that does nothing, just facing the other way: content that
-// exists and cannot be got at. So these tabs stay until whoever builds the pickers
-// retires them in the same change that gives the items their new home.
+// v1-scope.md P1 (archived) once planned to retire these two tabs and move Hooks/Styles
+// into the Remix stage 3/4 pickers, with their own "save as template" action embedded in
+// that flow. That in-flow picker action still isn't built. But a save path already
+// exists today, just not in that planned location: a video's detail page renders a
+// "Save to Vault" dialog once the video is analyzed (SaveToVaultDialog, saveToVaultAction
+// in server/actions/vault-actions.ts), and vault_items holds real rows written through
+// it. So these tabs are not a dead end - they read from a real, reachable save flow -
+// and they stay until whoever builds the pickers gives the items a new home in the same
+// change that retires this one.
 const VALID_TABS = ["posts", "scripts", "hooks", "styles"] as const;
 const VALID_SORTS: SavedPostSort[] = ["recent", "score", "analyzed"];
 
@@ -50,7 +51,9 @@ function EmptyTemplates({ kind, templatesEmpty }: { kind: "hook" | "style"; temp
       <div className="mx-auto flex max-w-[52ch] flex-col items-center gap-3 py-16 text-center">
         <p className="text-lg font-medium">Nothing saved yet.</p>
         <p className="text-sm text-muted-foreground">
-          Saving a hook or style keeps it with its source video, so a remix run can start from it later.
+          Hooks and styles are saved from a video&rsquo;s detail page, not from here: open
+          an analyzed video and use its &ldquo;Save to Vault&rdquo; button to keep a hook
+          or a style.
         </p>
         <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-2")}>
           Open the feed
@@ -128,7 +131,16 @@ export default async function VaultPage({
   const topOutlierVideoId = topOutlier[0]?.outlierScore != null ? topOutlier[0].videoId : null;
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-10 p-6">
+    // min-h-screen (not tab-specific) so the page's total height never drops below the
+    // shell's `main` viewport: without it, switching from the posts table (often taller
+    // than the viewport, so `main`'s own scrollbar - overflow-y-auto in (shell)/layout.tsx
+    // - is showing) to a short/empty card tab could drop the content below that
+    // threshold and hide the scrollbar, which shifts this mx-auto column sideways by the
+    // scrollbar's width. Forcing the wrapper past `main`'s visible height keeps that
+    // scrollbar always present, so the column - and the tab bar inside it - never moves
+    // horizontally on tab switch. Width/padding here are already tab-invariant: this div
+    // wraps the header and the Tabs root, so no tab swap ever touches them.
+    <div className="mx-auto flex min-h-screen max-w-[1120px] flex-col gap-10 p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           {/* No heading here: Topbar already renders this route's h1 ("Vault") — see
@@ -188,6 +200,11 @@ export default async function VaultPage({
             <VaultEmptyState topOutlierVideoId={topOutlierVideoId} />
           ) : (
             <div className="flex flex-col">
+              {/* VAULT_ROW_GRID is `40px_minmax(0,1fr)_76px_112px_104px` - every column but
+                  the caption is a fixed pixel track, and SavedPostRow already falls back to
+                  "-" for a missing score/note rather than rendering an empty cell, so no
+                  column ever shrinks or grows with a row's content. Header and rows share
+                  this one grid, so they can't drift out of alignment either. */}
               <div
                 className={cn(
                   VAULT_ROW_GRID,

@@ -37,12 +37,17 @@ const SEARCH_DEBOUNCE_MS = 350;
 // indistinguishable is the same defect as one that does nothing.
 // The `platform` URL param and the schema column both stay, so a second platform
 // later is additive rather than a migration.
+// Label copy only — the units now read the same way across all three thresholds
+// (value + noun, e.g. "500K+ views"), where score and engagement used to drop the
+// noun ("10x+", "5%+") while views kept it. Values and URL param encoding are
+// untouched; this is a display-string change only (task-2 brief, board finding
+// "mixed label syntax").
 const SCORE_OPTIONS = [
   { value: "any", label: "Any score" },
-  { value: "2", label: "2×+" },
-  { value: "5", label: "5×+" },
-  { value: "10", label: "10×+" },
-  { value: "20", label: "20×+" },
+  { value: "2", label: "2×+ score" },
+  { value: "5", label: "5×+ score" },
+  { value: "10", label: "10×+ score" },
+  { value: "20", label: "20×+ score" },
 ];
 const VIEWS_OPTIONS = [
   { value: "any", label: "Any views" },
@@ -53,9 +58,9 @@ const VIEWS_OPTIONS = [
 ];
 const ENGAGEMENT_OPTIONS = [
   { value: "any", label: "Any engagement" },
-  { value: "2", label: "2%+" },
-  { value: "5", label: "5%+" },
-  { value: "8", label: "8%+" },
+  { value: "2", label: "2%+ engagement" },
+  { value: "5", label: "5%+ engagement" },
+  { value: "8", label: "8%+ engagement" },
 ];
 // Not a Select — Analyzed/Unanalyzed is its own persistent two-state row (task-4 brief),
 // same "first-class control, not a menu" treatment the follower band row already gets
@@ -110,6 +115,19 @@ const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band", "minE
 // var(--t1)) — dark: overrides neutralize the shadcn Select's own default input chrome.
 const FILTER_TRIGGER_CLASS =
   "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
+
+// Same read-as-state treatment as FILTER_TRIGGER_CLASS, sized down (task-2 brief: score,
+// timeframe, and follower-band lead; fleet/min-views/min-engagement/analyzed recede by
+// weight only — smaller and more muted, never hidden behind a popover or menu).
+const SECONDARY_FILTER_TRIGGER_CLASS =
+  "h-6 gap-1 rounded-none border-transparent bg-transparent px-1.5 text-xs text-faint hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
+
+/** Chip text for the active-filter summary: reuses the option's own (already-normalized)
+ *  label rather than inventing separate copy, so the chip always matches what the
+ *  control itself displays. */
+function chipLabel(options: { value: string; label: string }[], value: string): string | undefined {
+  return options.find((o) => o.value === value)?.label;
+}
 
 export function FilterBar({
   fleets,
@@ -254,6 +272,26 @@ export function FilterBar({
   // `resolveChipValue` above — aliased on import since this local name shadows it.
   const viewCriteria = buildViewCriteria(minScore, minViews, since);
 
+  // The persistent active-filter summary (task-2 brief, step 3): one chip per applied
+  // threshold, built from the same resolved state the controls above already render —
+  // never a second source of truth for "what's active". `hasActiveFilters` (the
+  // existing FILTER_PARAM_KEYS check) already gates whether this shows at all.
+  const activeChips: { key: string; label: string }[] = [];
+  if (hasActiveFilters) {
+    const push = (key: string, label: string | undefined) => {
+      if (label) activeChips.push({ key, label });
+    };
+    if (fleet !== "all") push("fleet", fleetItems.find((f) => f.value === fleet)?.label);
+    if (minScore !== "any") push("minScore", chipLabel(SCORE_OPTIONS, minScore));
+    if (minViews !== "any") push("minViews", chipLabel(VIEWS_OPTIONS, minViews));
+    if (minEng !== "any") push("minEng", chipLabel(ENGAGEMENT_OPTIONS, minEng));
+    if (since !== "any") push("since", chipLabel(SINCE_OPTIONS, since));
+    if (band !== "any") push("band", chipLabel(BAND_OPTIONS, band));
+    if (analyzed !== "all") push("analyzed", chipLabel(ANALYZED_OPTIONS, analyzed));
+    const trimmedQuery = urlQuery.trim();
+    if (trimmedQuery) push("q", `“${trimmedQuery}”`);
+  }
+
   return (
     <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
       {/* Free-text search (v1-scope.md P0: "a conspicuous hole in a research tool").
@@ -273,22 +311,13 @@ export function FilterBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        {/* Filters cluster: scope (fleet), the four thresholds, and the analyzed
-            toggle read as one group, kept tight, and wrap together as a unit. */}
+        {/* Filters cluster: score and timeframe lead at full weight (task-2 brief) — they
+            drive the core "what over-performed, when" question, alongside the
+            follower-band row below. Fleet, min-views, min-engagement, and the analyzed
+            toggle recede to a smaller, more muted second row: still fully visible and
+            functional, never hidden behind a popover/dropdown/drawer/`<details>`. */}
+        <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-1">
-        <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
-          <SelectTrigger size="sm" aria-label="Fleet" className={FILTER_TRIGGER_CLASS}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {fleetItems.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
           <SelectTrigger
             size="sm"
@@ -300,32 +329,6 @@ export function FilterBar({
           </SelectTrigger>
           <SelectContent>
             {SCORE_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
-          <SelectTrigger size="sm" aria-label="Minimum views" className={FILTER_TRIGGER_CLASS}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {VIEWS_OPTIONS.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select items={ENGAGEMENT_OPTIONS} value={minEng} onValueChange={(v) => set("minEng", v as string)}>
-          <SelectTrigger size="sm" aria-label="Minimum engagement" className={FILTER_TRIGGER_CLASS}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {ENGAGEMENT_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>
@@ -345,12 +348,54 @@ export function FilterBar({
             ))}
           </SelectContent>
         </Select>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1">
+        <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
+          <SelectTrigger size="sm" aria-label="Fleet" className={SECONDARY_FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {fleetItems.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={VIEWS_OPTIONS} value={minViews} onValueChange={(v) => set("minViews", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum views" className={SECONDARY_FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIEWS_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select items={ENGAGEMENT_OPTIONS} value={minEng} onValueChange={(v) => set("minEng", v as string)}>
+          <SelectTrigger size="sm" aria-label="Minimum engagement" className={SECONDARY_FILTER_TRIGGER_CLASS}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ENGAGEMENT_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
 
         {/* Two-state segmented control, not a Select — mirrors the layout/density toggles
-            below rather than the four dropdown chips above it, since there's no "any"
-            third state to pick from a menu: the clear action is re-clicking the active
-            one. Selected state is `bg-card text-foreground` (amber law: amber names the
-            multiplier, never a plain filter's on-state). */}
+            below rather than the dropdown chips above it, since there's no "any" third
+            state to pick from a menu: the clear action is re-clicking the active one.
+            Selected state is `bg-card text-foreground` (amber law: amber names the
+            multiplier, never a plain filter's on-state). Sized down with its secondary
+            siblings on this row — receded by weight only, still a first-class control. */}
         <div className="flex items-center gap-0.5 rounded-lg p-0.5" role="group" aria-label="Analyzed status">
           {ANALYZED_OPTIONS.map((o) => {
             const active = analyzed === o.value;
@@ -361,14 +406,15 @@ export function FilterBar({
                 aria-pressed={active}
                 onClick={() => set("analyzed", active ? "all" : o.value)}
                 className={cn(
-                  "h-7 rounded-[min(var(--radius-md),10px)] px-2 text-sm transition-colors",
-                  active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card hover:text-foreground",
+                  "h-6 rounded-[min(var(--radius-md),10px)] px-1.5 text-xs transition-colors",
+                  active ? "bg-card text-foreground" : "text-faint hover:bg-card hover:text-muted-foreground",
                 )}
               >
                 {o.label}
               </button>
             );
           })}
+        </div>
         </div>
         </div>
 
@@ -410,17 +456,6 @@ export function FilterBar({
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        {hasActiveFilters && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearFilters}
-            className="rounded-full text-muted-foreground hover:text-foreground"
-          >
-            <X /> Clear filters
-          </Button>
-        )}
 
         {/* Opens the same single-reel import as the Channels board's "Add channel" ->
             "Paste reel URL" tab (add-channel-dialog.tsx) — that dialog is now controllable
@@ -518,6 +553,35 @@ export function FilterBar({
           ))}
         </ToggleGroup>
       </div>
+
+      {/* Persistent active-filter summary (task-2 brief, step 3): names every applied
+          threshold as a small neutral chip — never amber (amber law: amber names the
+          multiplier only) — plus the single Reset that replaces the old actions-cluster
+          "Clear filters" button. Shows whenever `hasActiveFilters`, not only in an empty
+          result state, and reuses the same FILTER_PARAM_KEYS check those empty states
+          already read. Per-chip remove is intentionally omitted — the brief calls it
+          optional and the one-move Reset the required control. */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-1.5" data-testid="feed-active-filter-summary">
+          <span className="text-2xs text-faint">Active filters</span>
+          {activeChips.map((chip) => (
+            <span
+              key={chip.key}
+              className="rounded-none border border-border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
+            >
+              {chip.label}
+            </span>
+          ))}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearFilters}
+            className="h-6 rounded-full px-2 text-2xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3" /> Reset
+          </Button>
+        </div>
+      )}
 
       <ManageSavedViewsDialog
         open={manageViewsOpen}

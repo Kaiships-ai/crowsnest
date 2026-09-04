@@ -140,7 +140,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-24 p-6">
+    <div className="mx-auto flex max-w-[1120px] flex-col gap-16 p-6">
       <StackHealthPanel
         sidecar={sidecarStatus}
         llm={llmStatus}
@@ -230,7 +230,7 @@ export default async function DashboardPage() {
           "nothing has synced" case is handled at this level. */}
       {allItems.length > 0 ? (
         <>
-          <section className="grid grid-cols-1 items-start gap-16 lg:grid-cols-2">
+          <section className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
             <ProducerDonut items={allItems} />
             <ReachScoreScatter items={allItems} />
           </section>

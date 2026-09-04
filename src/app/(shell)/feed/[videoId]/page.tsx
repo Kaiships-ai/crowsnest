@@ -1,14 +1,14 @@
-import { cache } from "react";
+import { cache, Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { SimilarSection, SimilarSkeleton } from "@/components/video/similar-section";
 import { VideoDetail } from "@/components/video/video-detail";
 import type { SearchParams } from "@/lib/feed-filters";
 import { hasLlmKey } from "@/server/llm/client";
 import { getChannelMedianBasis } from "@/server/queries/channels";
 import { getSavedPostByVideoId } from "@/server/queries/saved-posts";
 import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
-import { getSimilarOutliers } from "@/server/services/similar";
 import { availableTranscriptProviders } from "@/server/transcribe";
 import { resolveFeedNav } from "./resolve-feed-nav";
 
@@ -50,6 +50,21 @@ export async function generateMetadata({
 // `/feed/[videoId]`, so `notFound()` here produces a real 404, verified in a production
 // build. Do not add a `loading.tsx` at `(shell)` root or under `/feed` above this route,
 // and do not move `/feed` into `(loaded)` — either re-introduces the 200.
+//
+// B-14 STAYS SACRED (Task 4, Wave 3): `getCachedVideoDetail` + `notFound()` below are
+// still the very first awaited work in this component, unchanged, and there is still no
+// route `loading.tsx` here. The `<Suspense>` further down is an IN-PAGE boundary added
+// only after that notFound() check has already had the chance to throw — it can never
+// race ahead of it, so a bad videoId still 404s exactly as before.
+//
+// Task 4: getSimilarOutliers was the slowest of the five original Promise.all queries
+// and, being a plain top-level await, blocked the whole page (and, unhandled, could
+// blank it via the shell error boundary) on that one query. It now streams in behind
+// its own Suspense boundary (SimilarSection, similar-section.tsx), which also
+// try/catches it so a failure there degrades only that section. getChannelMedianBasis
+// stays here, pre-awaited: unlike similar-outliers (a sibling section at the bottom of
+// the page), it feeds MedianBaseline in the primary left column — required-visible,
+// same synchronous tier as transcriptProviders/feedNav/savedPost.
 export default async function VideoDetailPage({
   params,
   searchParams,
@@ -63,8 +78,7 @@ export default async function VideoDetailPage({
   if (!detail) notFound();
   // A bare `/feed/[videoId]` visit (no forwarded filter) scopes prev/next against the
   // full raw library, the same default feed/page.tsx now shows on a bare `/feed` visit.
-  const [similar, transcriptProviders, medianBasis, feedNav, savedPost] = await Promise.all([
-    getSimilarOutliers(videoId),
+  const [transcriptProviders, medianBasis, feedNav, savedPost] = await Promise.all([
     availableTranscriptProviders(),
     getChannelMedianBasis(detail.item.channel.id, videoId),
     resolveFeedNav(videoId, sp),
@@ -82,11 +96,14 @@ export default async function VideoDetailPage({
         detail={detail}
         hasLlmKey={hasLlmKey()}
         canTranscribe={canTranscribe}
-        similar={similar}
         medianBasis={medianBasis}
         feedNav={feedNav}
         savedPost={savedPost}
-      />
+      >
+        <Suspense fallback={<SimilarSkeleton />}>
+          <SimilarSection videoId={videoId} />
+        </Suspense>
+      </VideoDetail>
     </div>
   );
 }

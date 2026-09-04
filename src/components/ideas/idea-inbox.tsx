@@ -387,6 +387,22 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
                 >
                   Discard
                 </Button>
+                {/* The only on-screen advertisement that the K command menu (Export for
+                    LLM, Open in new tab, plus the three buttons above) exists at all —
+                    neutral ink/border, same <kbd> treatment IdeaCommandMenu's own rows
+                    use, so this never competes with the score badge for amber. Clicking
+                    it opens the identical menu K does; it doesn't add a second path. */}
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen((prev) => !prev)}
+                  aria-expanded={menuOpen}
+                  className="ml-auto flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground"
+                >
+                  <kbd className="border border-border bg-transparent px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">
+                    K
+                  </kbd>
+                  Commands
+                </button>
               </div>
             </>
           )}
