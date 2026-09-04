@@ -230,14 +230,6 @@ export function PlanDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          {/* Edit mode only — the post must already exist to have an id to route to.
-              Secondary, not primary: Save stays the one primary action per the dialog's
-              existing rule (DESIGN-SYSTEM.md §3, one primary per screen). */}
-          {isEdit && (
-            <Button type="button" variant="secondary" onClick={() => router.push(`/mine/${plan!.id}`)}>
-              View post
-            </Button>
-          )}
           <Button onClick={save} data-testid="plan-dialog-save" disabled={!canSave || saving}>
             {saving ? "Saving…" : isEdit ? "Save changes" : "Create plan"}
           </Button>

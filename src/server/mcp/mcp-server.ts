@@ -81,7 +81,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a post brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
+    { instructions: "Read Crowsnest data and drive a remix end to end. Browse over-performers with crowsnest_feed, read one with crowsnest_video (its analysis, plus the source media path, size, and duration for handoff), then run the crowsnest_remix_* chain (session, set_prompt, research, hooks, choose_hook, style, outline, variants, save_script, finish) to turn it into a script and a draft planned post. crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, crowsnest_metrics, and crowsnest_plans are read-only." }
   );
 
   server.registerTool(
