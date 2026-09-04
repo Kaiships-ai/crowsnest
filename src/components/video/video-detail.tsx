@@ -270,6 +270,20 @@ function HookStructureTab({
 }
 
 /**
+ * Shared header/wrapper for the "Similar outliers" section, one per render state
+ * (error, skeleton, loaded — see similar-section.tsx) so the heading and spacing
+ * can't drift between them. Exported for similar-section.tsx to reuse.
+ */
+export function SimilarSectionShell({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-2 border-t border-border px-6 py-4">
+      <h2 className="text-base font-semibold">Similar outliers</h2>
+      {children}
+    </div>
+  );
+}
+
+/**
  * Task 3's "Similar outliers" section — a compact OutlierCard row scored by tag
  * overlap (services/similar.ts), rendered as its own full-width section below the
  * tabs rather than the DESIGN.md v0.1 overflow-menu jump (superseded per the plan).
@@ -281,8 +295,7 @@ export function SimilarOutliers({ items }: { items: FeedItem[] }) {
   const router = useRouter();
 
   return (
-    <div className="flex flex-col gap-2 border-t border-border px-6 py-4">
-      <h2 className="text-base font-semibold">Similar outliers</h2>
+    <SimilarSectionShell>
       {items.length > 0 ? (
         <div className="flex gap-3 overflow-x-auto pb-1">
           {items.map((item) => (
@@ -294,7 +307,7 @@ export function SimilarOutliers({ items }: { items: FeedItem[] }) {
       ) : (
         <p className="text-sm text-muted-foreground">Analyze more videos to see patterns</p>
       )}
-    </div>
+    </SimilarSectionShell>
   );
 }
 

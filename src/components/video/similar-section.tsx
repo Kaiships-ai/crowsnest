@@ -1,6 +1,8 @@
+import { isNextRouterError } from "next/dist/client/components/is-next-router-error";
+
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSimilarOutliers } from "@/server/services/similar";
-import { SimilarOutliers } from "./video-detail";
+import { SimilarOutliers, SimilarSectionShell } from "./video-detail";
 
 /**
  * Task 4 (Wave 3): the video detail page's slowest query, isolated behind its own
@@ -19,20 +21,39 @@ export async function SimilarSection({ videoId }: { videoId: string }) {
   let similar: Awaited<ReturnType<typeof getSimilarOutliers>> | null = null;
   try {
     similar = await getSimilarOutliers(videoId);
-  } catch {
+  } catch (error) {
+    // notFound()/redirect() throw a special error that Next's own machinery is meant
+    // to catch further up the tree — swallowing it here as "just an error" would
+    // convert real navigation into a dead-end error card. Let it keep propagating.
+    if (isNextRouterError(error)) throw error;
+    console.error("similar outliers failed:", error);
     similar = null;
   }
 
   if (similar === null) {
     return (
-      <div className="flex flex-col gap-2 border-t border-border px-6 py-4">
-        <h2 className="text-base font-semibold">Similar outliers</h2>
+      <SimilarSectionShell>
         <p className="text-sm text-destructive">Couldn&rsquo;t load similar outliers.</p>
-      </div>
+      </SimilarSectionShell>
     );
   }
 
   return <SimilarOutliers items={similar} />;
+}
+
+/** One skeleton card, matching OutlierCard's compact-variant DOM exactly (outer
+ *  `border border-border bg-card`, aspect-[9/16] thumbnail, `p-2` footer with two
+ *  text lines) so swapping in the real row doesn't reflow the page. */
+function SimilarCardSkeleton() {
+  return (
+    <div className="flex flex-col border border-border bg-card">
+      <Skeleton className="aspect-[9/16] w-full" />
+      <div className="flex flex-1 flex-col gap-1.5 p-2">
+        <Skeleton className="h-3 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
+      </div>
+    </div>
+  );
 }
 
 /** Matches SimilarOutliers' real shape (heading + a row of compact OutlierCards,
@@ -40,17 +61,14 @@ export async function SimilarSection({ videoId }: { videoId: string }) {
  *  when the real section streams in. Neutral (bg-muted via Skeleton), no amber. */
 export function SimilarSkeleton() {
   return (
-    <div className="flex flex-col gap-2 border-t border-border px-6 py-4">
-      <h2 className="text-base font-semibold">Similar outliers</h2>
+    <SimilarSectionShell>
       <div className="flex gap-3 overflow-x-auto pb-1">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex w-40 shrink-0 flex-col gap-2 border border-border bg-card p-2">
-            <Skeleton className="aspect-[9/16] w-full" />
-            <Skeleton className="h-3 w-3/4" />
-            <Skeleton className="h-3 w-1/2" />
+          <div key={i} className="w-40 shrink-0">
+            <SimilarCardSkeleton />
           </div>
         ))}
       </div>
-    </div>
+    </SimilarSectionShell>
   );
 }
