@@ -103,6 +103,7 @@ export function SeedPicker({
               >
                 <Checkbox
                   data-testid={`seed-picker-checkbox-${seed.handle}`}
+                  aria-label={`Select @${seed.handle}`}
                   checked={isSelected}
                   disabled={disabled}
                   onCheckedChange={(v) => toggle(seed.handle, v === true)}

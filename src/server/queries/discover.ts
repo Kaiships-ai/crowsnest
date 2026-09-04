@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 
 export type CreatorSeedRow = {
@@ -23,7 +23,10 @@ export async function listCreatorSeeds(opts?: { niche?: string }): Promise<Creat
       tables.channels,
       and(
         eq(tables.channels.platform, "instagram"),
-        eq(tables.channels.handle, tables.creatorSeeds.handle),
+        // creator_seeds.handle is stored WITHOUT "@" (bootstrap strips it), but
+        // channels.handle is stored WITH it (sync-engine.ts normalizeHandle) — prefix
+        // the seed handle here so the join actually matches the tracked channel.
+        eq(tables.channels.handle, sql`'@' || ${tables.creatorSeeds.handle}`),
         isNull(tables.channels.deletedAt)
       )
     )

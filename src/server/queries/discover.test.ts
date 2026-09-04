@@ -16,8 +16,11 @@ test("lists seeds with tracked flag and niche filter", async () => {
     { id: newId(), platform: "instagram", handle: "alpha", niche: "tech", why: "w", source: null, createdAt: nowIso() },
     { id: newId(), platform: "instagram", handle: "beta", niche: "fitness", why: "w", source: null, createdAt: nowIso() },
   ]);
+  // channels.handle is stored WITH the "@" prefix (sync-engine.ts normalizeHandle),
+  // while creator_seeds.handle is stored WITHOUT it (bootstrap strips it) — this is
+  // the real production shape, not the bare handle a naive insert would use.
   await db.insert(tables.channels).values({
-    id: newId(), platform: "instagram", handle: "alpha", trackedSince: nowIso(),
+    id: newId(), platform: "instagram", handle: "@alpha", trackedSince: nowIso(),
   });
   const tech = await listCreatorSeeds({ niche: "tech" });
   expect(tech).toHaveLength(1);
@@ -35,7 +38,7 @@ test("soft-deleted channel: seed still returned, tracked false", async () => {
     id: newId(), platform: "instagram", handle: "gamma", niche: "tech", why: "w", source: null, createdAt: nowIso(),
   });
   await db.insert(tables.channels).values({
-    id: newId(), platform: "instagram", handle: "gamma", trackedSince: nowIso(), deletedAt: nowIso(),
+    id: newId(), platform: "instagram", handle: "@gamma", trackedSince: nowIso(), deletedAt: nowIso(),
   });
   const all = await listCreatorSeeds();
   const gamma = all.find((r) => r.handle === "gamma");
