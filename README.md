@@ -470,6 +470,17 @@ draft/needs-human PR and set the row `in-review`. Nightly unattended variant:
 1. `/cn-weekly` builds the weekly funnel plan (2 gates)
 2. `/cn-remix` analyzes a video into a saved script + planned post (5 gates)
 
+**Connect the MCP.** The running app exposes an MCP server over HTTP, the surface where a
+finished remix leaves crowsnest and reaches the tool that produces the reel. Register it with
+Claude Code once:
+
+```bash
+claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
+```
+
+`/cn-weekly` and `/cn-remix` (case G) consume this MCP to read the feed and drive the remix
+handoff.
+
 **H. Author a new skill.**
 
 1. `ship:writing-skills`

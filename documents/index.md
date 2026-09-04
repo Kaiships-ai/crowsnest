@@ -18,10 +18,10 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 | feed | [01](architect/core-components/feed/01-concept-brief.md) |
 | analyze | [01](architect/core-components/analyze/01-concept-brief.md) |
 | remix | [01](architect/core-components/remix/01-concept-brief.md) |
-| studio | [01](architect/core-components/studio/01-concept-brief.md) |
 | mine | [01](architect/core-components/mine/01-concept-brief.md) |
 | ig-sync | [01](architect/core-components/ig-sync/01-concept-brief.md) |
 | llm | [01](architect/core-components/llm/01-concept-brief.md) |
+| mcp | [01](architect/core-components/mcp/01-concept-brief.md) |
 
 ## Where things live
 

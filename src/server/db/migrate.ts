@@ -30,6 +30,19 @@ export async function main(): Promise<void> {
   const { migrate } = await import("drizzle-orm/better-sqlite3/migrator");
   const { db } = await import("./index");
 
+  // Goal 2: create_runs is dropped by a migration below (0022). drizzle-orm's
+  // migrate() gives no per-statement hook to log from, so this is a one-off,
+  // guarded pre-migration read: if the table is still there, log its row count
+  // before the DROP TABLE removes it. No-op once the table is gone.
+  const client = (db as { $client?: import("better-sqlite3").Database }).$client;
+  const stillExists = client?.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name='create_runs'",
+  ).get();
+  if (stillExists) {
+    const { n } = client!.prepare("SELECT count(*) AS n FROM create_runs").get() as { n: number };
+    console.log(`dropped ${n} create_runs rows`);
+  }
+
   migrate(db, { migrationsFolder: "./drizzle" });
   console.log(`Migrations applied to ${dbPath}`);
 }

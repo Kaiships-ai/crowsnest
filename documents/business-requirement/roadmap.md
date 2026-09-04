@@ -8,12 +8,13 @@ per release; this page is the standing overview across releases.
 
 ## Shipped: v0.2, the Kit and the core loop
 
-The whole core loop, feed to remix to a planned post to a cook run to publish, is running
-product, packaged for a buyer to install and run alone on their own Mac.
+The whole core loop, feed to remix to a planned post, then a handoff through the MCP server to
+Reel Factory, is running product, packaged for a buyer to install and run alone on their own Mac.
 
 - **The core loop.** Feed and filters, the video detail page and analysis, save to vault and
-  generate idea, the six-stage remix studio, the calendar and plan dialog, and the studio's
-  cook run and publish gate. See `brd/crowsnest/02-use-case.md` for the full flows.
+  generate idea, the six-stage remix studio, and the calendar and plan dialog. The finished remix
+  hands off through the MCP server to Reel Factory, which produces the video. See
+  `brd/crowsnest/02-use-case.md` for the full flows.
 - **The Kit.** One-command install, a Polar license gate checked before the tarball is served
   and again by size and checksum after download, and the `kai` CLI (`login`, `kit init`, `up`,
   `start`, `stop`, `status`, `doctor`, `update`). Background services run under launchd and
@@ -33,7 +34,7 @@ docs carry the depth.
   `architect/core-components/onboarding/05-backlog-to-enhance.md`.
 - **The bug board.** Every component's `05-backlog-to-enhance.md` holds its own open items;
   as of this writing that is one blocker (onboarding), and a further set of medium and low
-  severity bugs spread across feed, remix, mine, studio, analyze, and ig-sync. Working through
+  severity bugs spread across feed, remix, mine, analyze, and ig-sync. Working through
   that board, starting with the blocker, is v0.3's other thread. Run
   `scripts/plan-status.sh` (or the where-are-we skill) for the current count; this document
   does not carry a snapshot, because a committed count is the one thing every session would
@@ -57,6 +58,6 @@ date is set for any of them.
 
 Nothing in the product description suggests the core loop itself behaves differently on a
 future platform or a second tracked source; the open work for both items above is entirely in
-packaging, the install script, and the sidecar, not in the feed, remix, or studio.
+packaging, the install script, and the sidecar, not in the feed or remix.
 
 Verified against this repo commit `4f26fb9`.

@@ -9,7 +9,7 @@
 | 2 | The problem | Tracking Instagram outliers by hand, and why the app exists to replace that |
 | 3 | Who it serves | The persona: a solo creator running crowsnest alone, on one Mac |
 | 4 | Actor model | The buyer, the app, the IG sidecar, the LLM |
-| 5 | The core loop | Feed, sync, analyze, remix, cook, publish, and where the app's own boundary sits |
+| 5 | The core loop | Feed, sync, analyze, remix, the MCP handoff, and where the app's own boundary sits |
 | 6 | Market context | The buyer's market, the Kit distribution model, and what is still open |
 | 7 | Sources | Every product-description file and archive brief used above |
 
@@ -31,13 +31,13 @@
 
 ## 1. Executive summary
 
-Crowsnest is, from the buyer's side, a single tool that closes the loop from "something on Instagram beat its own channel" to "I have a script in my own voice, dated on my calendar, and a rendered video ready to publish." It is sold once, for $99, as a Mac Kit: a buyer gets a Polar license key, runs one install command, and the app runs entirely on their own machine against their own local database. There is no server crowsnest owns, no subscription, and no account beyond the license check.
+Crowsnest is, from the buyer's side, a single tool that closes the loop from "something on Instagram beat its own channel" to "I have a script in my own voice, dated on my calendar, and a brief ready to hand off for production." It is sold once, for $99, as a Mac Kit: a buyer gets a Polar license key, runs one install command, and the app runs entirely on their own machine against their own local database. There is no server crowsnest owns, no subscription, and no account beyond the license check.
 
-The product description in `docs/product-description/` frames this precisely as a state chart: a single local user moves through five surfaces (the outlier feed, a video's detail page, the remix studio, the calendar and channel dashboard called "mine", and the studio page that renders and publishes a post) with clicks, generations, and one background sync. That path, feed to remix to script to planned post to a rendered video to publish, is what the product itself calls the core loop, and it is the entire subject of this document.
+The product description in `docs/product-description/` frames this precisely as a state chart: a single local user moves through the outlier feed, a video's detail page, the remix studio, and the calendar and channel dashboard called "mine", with clicks, generations, and one background sync, then hands the finished remix off through crowsnest's MCP server for production. That path, feed to remix to script to planned post to the MCP handoff, is what the product itself calls the core loop, and it is the entire subject of this document.
 
 As of v0.2, the core loop and the Kit that installs it are both shipped and in daily use by the founder. The product description that grounds this research (`docs/product-description/README.md`) states its own purpose plainly: there is no single place that says, in plain language, what happens when the user does X, and what happens if they stop halfway. This concept research, and the use case document that follows it, are that plain-language account, reshaped for a business audience rather than a product one.
 
-**What is solid.** The core loop, all six remix stages, the sidecar sync, the cook run and publish gate, and the Kit's install and licensing are described end to end in the source material and are running product, not a plan. **What is thin by design.** Onboarding (first run setup) and the settings and logs surfaces are explicitly out of scope for the product description and are documented only as a gate the shell redirects to; see the roadmap for what is planned there.
+**What is solid.** The core loop, all six remix stages, the sidecar sync, the MCP handoff, and the Kit's install and licensing are described end to end in the source material and are running product, not a plan. **What is thin by design.** Onboarding (first run setup) and the settings and logs surfaces are explicitly out of scope for the product description and are documented only as a gate the shell redirects to; see the roadmap for what is planned there.
 
 ---
 
@@ -80,28 +80,28 @@ Crowsnest's actors are simpler than a multi-role enterprise product, because the
 
 ```mermaid
 flowchart TB
-    B["Buyer (solo creator)"] -->|browses, saves, remixes, plans, cooks, publishes| APP
-    APP["Crowsnest app<br/>feed, remix, studio, mine"] -->|fetches tracked channel posts| IG["IG sidecar<br/>local scraping service"]
+    B["Buyer (solo creator)"] -->|browses, saves, remixes, plans, hands off| APP
+    APP["Crowsnest app<br/>feed, remix, mine, MCP"] -->|fetches tracked channel posts| IG["IG sidecar<br/>local scraping service"]
     APP -->|generation: hooks, outline, variants, analysis| LLM["The LLM<br/>local proxy + Anthropic API key"]
     APP -->|own-channel metrics only| GRAPH["Instagram Graph API<br/>official, own channel"]
     IG -->|writes videos| APP
 ```
 
-**The buyer.** The single human user described in section 3. Every action in the core loop is theirs: opening the feed, clicking Remix, generating a hook, cooking a render, clicking Publish. There is no second role, no approval step, and no permission grid, because the product description's own scope decision states there are "no roles or plans" (`README.md`).
+**The buyer.** The single human user described in section 3. Every action in the core loop is theirs: opening the feed, clicking Remix, generating a hook, finishing a remix, and handing it off through the MCP server. There is no second role, no approval step, and no permission grid, because the product description's own scope decision states there are "no roles or plans" (`README.md`).
 
-**The app.** Crowsnest itself: the Next.js surface under `src/app/(shell)`, its server actions and queries, and its local database. Internally it runs three kinds of engine the buyer never addresses directly: the read side that renders the feed, detail, and calendar pages as direct server reads; the write side that saves, plans, and finishes a remix through server actions that always return a result rather than throwing; and the cook pipeline that renders a planned post into a video (`foundations/interaction-model.md`, `foundations/background-jobs.md`).
+**The app.** Crowsnest itself: the Next.js surface under `src/app/(shell)`, its server actions and queries, and its local database. Internally it runs two kinds of engine the buyer never addresses directly: the read side that renders the feed, detail, and calendar pages as direct server reads; and the write side that saves, plans, and finishes a remix through server actions that always return a result rather than throwing (`foundations/interaction-model.md`, `foundations/background-jobs.md`). At its outer edge it exposes an MCP server that hands a finished remix off to a producing tool.
 
 **The IG sidecar.** A local service the app talks to over localhost, which fetches posts from the buyer's tracked channels and writes them as videos. It is the only writer of the feed's contents; the buyer never triggers a sync per video, and when the sidecar is not running, the feed goes stale rather than erroring (`foundations/background-jobs.md`). It is a local process the buyer's own Kit installs and runs, not a service crowsnest hosts.
 
-**The LLM.** Every generation in the core loop, research assembly aside, calls a language model through a local proxy, gated separately by an Anthropic API key. The two are distinct dependencies with distinct failure faces: no key blocks generation outright as a configuration state, while a key with an unreachable proxy fails on the connection and is inferred from recent failures in the run log (`cross-cutting/external-services.md`). Analysis of a video and every remix generation stage depend on this actor; browsing, saving, planning, and cooking do not.
+**The LLM.** Every generation in the core loop, research assembly aside, calls a language model through a local proxy, gated separately by an Anthropic API key. The two are distinct dependencies with distinct failure faces: no key blocks generation outright as a configuration state, while a key with an unreachable proxy fails on the connection and is inferred from recent failures in the run log (`cross-cutting/external-services.md`). Analysis of a video and every remix generation stage depend on this actor; browsing, saving, and planning do not.
 
-**Secondary externals.** Two more systems sit at the edge of the loop and are named for completeness, not because they carry the same weight as the four above. The **Instagram Graph API** is the official, token-gated path the buyer's own channel is measured through, entirely separate from the sidecar's tracked-channel scraping; when its token is invalid, only the buyer's own metrics are unavailable, and planning and the studio still work (`cross-cutting/external-services.md`). **Polar**, the license vendor, sits outside the app entirely and is checked once at install and again at each `kai kit init`, not on every run (`documents/architect/shared/packaging-and-release.md`).
+**Secondary externals.** Two more systems sit at the edge of the loop and are named for completeness, not because they carry the same weight as the four above. The **Instagram Graph API** is the official, token-gated path the buyer's own channel is measured through, entirely separate from the sidecar's tracked-channel scraping; when its token is invalid, only the buyer's own metrics are unavailable, and planning and the MCP handoff still work (`cross-cutting/external-services.md`). **Polar**, the license vendor, sits outside the app entirely and is checked once at install and again at each `kai kit init`, not on every run (`documents/architect/shared/packaging-and-release.md`).
 
 ---
 
 ## 5. The core loop
 
-**Objective.** This section describes the loop the buyer runs, end to end, from the feed to a published post. It is the same loop the product description calls "the core loop": "the path from an outlier in the feed, through a remix into a script, into a planned post, into a cook run in the studio, to publish" (`glossary.md`). The detailed step-by-step flows, main, alternate, and error, are authored in the companion use case document (`02-use-case.md`); this section gives the shape.
+**Objective.** This section describes the loop the buyer runs, end to end, from the feed to the handoff for production. It is the same loop the product description calls "the core loop": the path from an outlier in the feed, through a remix into a script, into a planned post, and out through crowsnest's MCP server to the tool that produces the reel (`glossary.md`). The detailed step-by-step flows, main, alternate, and error, are authored in the companion use case document (`02-use-case.md`); this section gives the shape.
 
 ### 5.1 Find (the feed)
 
@@ -127,15 +127,15 @@ The remix studio takes the analyzed video through six stages in order: prompt (t
 
 **Output.** A planned post on the buyer's own calendar, with a script attached.
 
-### 5.5 Cook and publish (turn the plan into a video, and mark it done)
+### 5.5 Hand off for production (leave crowsnest for the producer)
 
-From the calendar or the remix's own finish link, the buyer opens the plan's studio page and clicks Cook. A cook run is a long-lived local process the buyer watches rather than a request that returns; its five statuses (running, waiting, success, failed, canceled) drive a status pill until a render appears (`studio/cook-run.md`, `foundations/background-jobs.md`). A successful render unlocks Publish, which hands a serve command to the running agent session, and Save to calendar, which marks the plan done in crowsnest's own database; neither is a network call the app itself makes (`studio/publish.md`).
+A finished remix is a planned post carrying a script. From there it leaves crowsnest through the MCP server the running app exposes at `/api/mcp`: an MCP client (the Reel Factory, or any other) calls the read tools to pull the post, its script, and the source video's local media path, and produces the reel outside crowsnest (`documents/architect/core-components/mcp/01-concept-brief.md`). crowsnest is upstream of production: it decides what to make and writes the script and the brief, it does not render video. The buyer can mark the plan published by hand in the calendar, which is crowsnest's own database and makes no network call.
 
-**Output.** A rendered video and a plan the buyer has marked handled, on their own terms.
+**Output.** A brief handed off to the producer, and a plan the buyer can mark handled in the calendar, on their own terms.
 
 ### 5.6 Where crowsnest's boundary sits
 
-Crowsnest's own job stops at handing off a serve command; what actually reaches Instagram, and whether it succeeds, is inside the agent session `/ksa:serve` runs, not a code path this app's own database ever touches (`studio/publish.md`). First run onboarding (license, Instagram login, keys) is a gate the shell redirects to until it is done, not part of the loop described here; see the roadmap for its planned redesign.
+Crowsnest's own job stops at the MCP handoff; what the producing tool makes from the brief, and whether it reaches Instagram, is outside this app's own database (`documents/architect/core-components/mcp/01-concept-brief.md`). First run onboarding (license, Instagram login, keys) is a gate the shell redirects to until it is done, not part of the loop described here; see the roadmap for its planned redesign.
 
 ---
 
@@ -156,10 +156,10 @@ Crowsnest sells into the same market its persona comes from: solo creators and s
 **Product description (the precise source of truth, `docs/product-description/`)**
 
 - `goal.md`, `README.md`, `glossary.md`: purpose, method, template, and the shared vocabulary.
-- `foundations/{data-model,interaction-model,navigation-and-shell,background-jobs}.md`: the four nouns and their states, the five phases, the shell, and the sidecar and cook run lifecycle.
+- `foundations/{data-model,interaction-model,navigation-and-shell,background-jobs}.md`: the four nouns and their states, the five phases, the shell, and the sidecar lifecycle.
 - `feed/{feed,analysis,video-detail,quick-preview,filters-and-saved-views,keep-this-post,save-to-vault,generate-idea}.md`: the outlier feed and everything reached from a video's detail page.
 - `remix/{remix-overview,stage-prompt,stage-research,stage-hook,stage-style,stage-script,stage-finish}.md`: the six-stage remix studio.
-- `studio/{studio-overview,cook-run,publish}.md`: the cook run and the publish gate.
+- `studio/{studio-overview,cook-run,publish}.md`: the since-removed in-app cook run and publish gate (kept only as historical source material; the loop now hands off through the MCP server).
 - `mine/{mine-overview,calendar,plan-dialog,posts-and-metrics}.md`: the calendar and the buyer's own channel dashboard.
 - `cross-cutting/{external-services,status-and-failures,persistence}.md`: how the app degrades when a service is down, and what is saved when.
 
