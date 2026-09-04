@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,11 +65,20 @@ export function SeedPicker({
     setPending(true);
     const channelIds: string[] = [];
     const followedNow: string[] = [];
+    let failed = 0;
     for (const handle of handles) {
-      const result = await followCreatorAction(handle);
-      if (result.ok) {
-        channelIds.push(result.channelId);
-        followedNow.push(handle);
+      try {
+        const result = await followCreatorAction(handle);
+        if (result.ok) {
+          channelIds.push(result.channelId);
+          followedNow.push(handle);
+        } else {
+          failed += 1;
+        }
+      } catch {
+        // A rejected server action (transport/serialization) must not abort the
+        // loop, or setPending(false) never runs and the button sticks on "Following…".
+        failed += 1;
       }
     }
     setPending(false);
@@ -78,7 +88,12 @@ export function SeedPicker({
       for (const handle of followedNow) next.add(handle);
       return next;
     });
-    onDone?.(channelIds);
+    if (failed > 0) {
+      toast.error(`${failed} of ${handles.length} could not be followed.`);
+    }
+    // Only advance the caller (e.g. first-run "sources" step) when at least one
+    // follow actually landed — never on an all-failed batch with an empty list.
+    if (channelIds.length > 0) onDone?.(channelIds);
   }
 
   if (seeds.length === 0) {

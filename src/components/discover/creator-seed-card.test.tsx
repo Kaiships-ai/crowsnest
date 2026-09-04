@@ -98,6 +98,23 @@ test("does not call onFollowed when the follow fails", async () => {
   expect(onFollowed).not.toHaveBeenCalled();
 });
 
+test("a rejected server action resets the button to Follow instead of freezing on Queuing…", async () => {
+  mocks.followCreatorAction.mockRejectedValue(new Error("transport blew up"));
+  const onFollowed = vi.fn();
+
+  render(<CreatorSeedCard seed={seed()} onFollowed={onFollowed} />);
+
+  const button = screen.getByTestId("creator-seed-follow") as HTMLButtonElement;
+  await act(async () => {
+    fireEvent.click(button);
+  });
+
+  // Without the try/catch the button would stay disabled on "Queuing…" forever.
+  expect(button.textContent).toBe("Follow");
+  expect(button.disabled).toBe(false);
+  expect(onFollowed).not.toHaveBeenCalled();
+});
+
 test("a tracked seed renders disabled Tracked from the start", () => {
   render(<CreatorSeedCard seed={seed({ tracked: true })} />);
 

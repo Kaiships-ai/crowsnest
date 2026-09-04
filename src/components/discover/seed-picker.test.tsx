@@ -101,6 +101,55 @@ test("a followed row shows Tracked and stays disabled after the batch completes"
   expect(ben.getAttribute("aria-disabled")).not.toBe("true");
 });
 
+test("an all-failed batch does not advance onDone and clears selection", async () => {
+  mocks.followCreatorAction.mockImplementation((handle: string) =>
+    Promise.resolve({ ok: false, error: `no such creator @${handle}` })
+  );
+
+  const seeds = [seed({ handle: "lift.laura" }), seed({ handle: "biz.ben", niche: "business" })];
+  const onDone = vi.fn();
+
+  render(<SeedPicker seeds={seeds} onDone={onDone} />);
+
+  fireEvent.click(screen.getByTestId("seed-picker-checkbox-lift.laura"));
+
+  const followButton = screen.getByTestId("seed-picker-follow-selected") as HTMLButtonElement;
+  await act(async () => {
+    fireEvent.click(followButton);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  // Every follow failed: onDone must NOT fire (no first-run step advances on zero sources),
+  // no row is marked Tracked, and the button is back to enabled — not stuck on "Following…".
+  expect(onDone).not.toHaveBeenCalled();
+  expect(screen.queryByText("Tracked")).toBeNull();
+  expect(followButton.textContent).not.toContain("Following");
+});
+
+test("a rejected server action in the batch is contained and does not freeze the button", async () => {
+  mocks.followCreatorAction.mockRejectedValue(new Error("transport blew up"));
+
+  const seeds = [seed({ handle: "lift.laura" })];
+  const onDone = vi.fn();
+
+  render(<SeedPicker seeds={seeds} onDone={onDone} />);
+  fireEvent.click(screen.getByTestId("seed-picker-checkbox-lift.laura"));
+
+  const followButton = screen.getByTestId("seed-picker-follow-selected") as HTMLButtonElement;
+  await act(async () => {
+    fireEvent.click(followButton);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(onDone).not.toHaveBeenCalled();
+  expect(followButton.disabled).toBe(true); // selection cleared → nothing to follow → disabled
+  expect(followButton.textContent).not.toContain("Following");
+});
+
 describe("maxSelect enforcement", () => {
   test("with maxSelect=10 and more than 10 seeds, an 11th selection is blocked", () => {
     const seeds = manySeeds(11);

@@ -23,9 +23,10 @@ async function run() {
     console.error("A sync is running — refusing to verify seeds against a busy sidecar. Check /runs.");
     process.exit(1);
   }
-  // A single network error after retry is dropped (an odd handle, or a one-off blip), but
-  // a RUN of consecutive network errors is an outage, not a batch of bad handles — stop
-  // before it silently drops a whole niche. Any success/not-found/private resets the run.
+  // A network error is never a verdict about the handle, so a single one KEEPS the handle
+  // (unverified, retried on a later run) rather than erasing a curated creator on a blip.
+  // A RUN of consecutive network errors is an outage — stop and preserve the rest for a
+  // resumed run. Any success/not-found/private resets the run.
   const MAX_CONSECUTIVE_NETWORK = 3;
   let consecutiveNetwork = 0;
   for (const niche of NICHES) {
@@ -71,8 +72,10 @@ async function run() {
             console.error(`STOP at ${niche}/${String(c.handle)}: ${consecutiveNetwork} consecutive IG_NETWORK errors — likely an outage, not bad handles. Fix connectivity and re-run to resume.`);
             process.exit(2);
           }
-          dropped += 1;
-          console.warn(`DROP ${niche}/${String(c.handle)}: network error after retry (${consecutiveNetwork}/${MAX_CONSECUTIVE_NETWORK} consecutive)`);
+          // A transient network error is not a verdict about this handle — keep it
+          // UNVERIFIED so a later run retries it, never erase a curated handle on a blip.
+          kept.push({ ...c });
+          console.warn(`KEEP (network, retry later) ${niche}/${String(c.handle)} (${consecutiveNetwork}/${MAX_CONSECUTIVE_NETWORK} consecutive)`);
         } else {
           // Systemic failure (auth/challenge/service/unknown) — NOT a per-handle
           // verdict. Persist progress and stop so a stale token or challenge can never

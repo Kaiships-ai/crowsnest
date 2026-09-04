@@ -24,13 +24,20 @@ export function CreatorSeedCard({
 
   async function onFollow() {
     setState("pending");
-    const result = await followCreatorAction(seed.handle);
-    if (result.ok) {
-      setState("tracked");
-      onFollowed?.(seed.handle);
-    } else {
+    try {
+      const result = await followCreatorAction(seed.handle);
+      if (result.ok) {
+        setState("tracked");
+        onFollowed?.(seed.handle);
+      } else {
+        setState("idle");
+        toast.error(result.error);
+      }
+    } catch {
+      // A rejected server action (transport/serialization) would otherwise leave
+      // the button stuck disabled on "Queuing…" forever with no way to retry.
       setState("idle");
-      toast.error(result.error);
+      toast.error("Could not follow. Try again.");
     }
   }
 
