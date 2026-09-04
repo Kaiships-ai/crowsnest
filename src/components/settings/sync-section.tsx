@@ -24,6 +24,7 @@ import { syncViewState } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Button } from "@/components/ui/button";
 import { NumberField, SettingRow } from "./setting-field";
+import { numberFieldError } from "./number-validation";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import { startViewCountBackfillAction } from "@/server/actions/sync-actions";
 import type { AppSettingsView } from "@/server/settings";
@@ -202,6 +203,18 @@ export function SyncSection({
     cadence !== String(settings.syncCadenceMinutes.value) ||
     retention !== String(settings.mediaRetentionDays.value);
 
+  const lookbackError = numberFieldError(lookback, { min: 1, max: 3650, integer: true });
+  const maxItemsError = numberFieldError(maxItems, { min: 1, max: 10_000, integer: true });
+  const enrichPerChannelError = numberFieldError(enrichPerChannel, { min: 0, max: 200, integer: true });
+  const cadenceError = numberFieldError(cadence, { min: 0, max: 10_080, integer: true });
+  const retentionError = numberFieldError(retention, { min: 1, max: 3650, integer: true });
+  const settingsHasError =
+    lookbackError !== null ||
+    maxItemsError !== null ||
+    enrichPerChannelError !== null ||
+    cadenceError !== null ||
+    retentionError !== null;
+
   async function saveSyncSettings() {
     setSavingSettings(true);
     const result = await updateAppSettingsAction({
@@ -310,14 +323,30 @@ export function SyncSection({
 
       <div className="flex flex-col gap-2">
         <SettingRow label="Lookback window" hint="How far back a sync looks by default." infoNote={envNote("syncLookbackDays")}>
-          <NumberField value={lookback} onChange={setLookback} min={1} max={3650} suffix="days" ariaLabel="Sync lookback window" />
+          <NumberField
+            value={lookback}
+            onChange={setLookback}
+            min={1}
+            max={3650}
+            suffix="days"
+            ariaLabel="Sync lookback window"
+            error={lookbackError}
+          />
         </SettingRow>
         <SettingRow
           label="Per-sync cap"
           hint="Hard safety cap on items fetched across one sync run."
           infoNote={envNote("maxItemsPerSync")}
         >
-          <NumberField value={maxItems} onChange={setMaxItems} min={1} max={10_000} suffix="posts" ariaLabel="Per-sync cap" />
+          <NumberField
+            value={maxItems}
+            onChange={setMaxItems}
+            min={1}
+            max={10_000}
+            suffix="posts"
+            ariaLabel="Per-sync cap"
+            error={maxItemsError}
+          />
         </SettingRow>
         <SettingRow
           label="View counts per channel"
@@ -331,6 +360,7 @@ export function SyncSection({
             max={200}
             suffix="posts"
             ariaLabel="View counts per channel"
+            error={enrichPerChannelError}
           />
         </SettingRow>
         <SettingRow
@@ -339,7 +369,15 @@ export function SyncSection({
           warnNote="No scheduler exists. A sync only ever starts from a click, so this number has no effect yet; it is stored for the day one does."
           infoNote={envNote("syncCadenceMinutes")}
         >
-          <NumberField value={cadence} onChange={setCadence} min={0} max={10_080} suffix="min" ariaLabel="Sync cadence" />
+          <NumberField
+            value={cadence}
+            onChange={setCadence}
+            min={0}
+            max={10_080}
+            suffix="min"
+            ariaLabel="Sync cadence"
+            error={cadenceError}
+          />
         </SettingRow>
         <SettingRow
           label="Asset retention"
@@ -347,9 +385,23 @@ export function SyncSection({
           warnNote="No reaper reads this. Disk use is unbounded regardless of this number."
           infoNote={envNote("mediaRetentionDays")}
         >
-          <NumberField value={retention} onChange={setRetention} min={1} max={3650} suffix="days" ariaLabel="Media retention" />
+          <NumberField
+            value={retention}
+            onChange={setRetention}
+            min={1}
+            max={3650}
+            suffix="days"
+            ariaLabel="Media retention"
+            error={retentionError}
+          />
         </SettingRow>
-        <Button onClick={saveSyncSettings} disabled={!settingsDirty || savingSettings} className="w-fit" size="sm" variant="outline">
+        <Button
+          onClick={saveSyncSettings}
+          disabled={!settingsDirty || settingsHasError || savingSettings}
+          className="w-fit"
+          size="sm"
+          variant="outline"
+        >
           {savingSettings ? "Saving…" : "Save"}
         </Button>
       </div>

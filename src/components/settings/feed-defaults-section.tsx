@@ -15,6 +15,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { EnumField, NumberField, SettingRow } from "./setting-field";
+import { numberFieldError } from "./number-validation";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import type { AppSettingsView } from "@/server/settings";
 
@@ -34,6 +35,8 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
   const [saving, setSaving] = useState(false);
 
   const dirty = minScore !== String(initial.feedDefaultMinScore.value) || band !== initial.feedDefaultFollowerBand.value;
+
+  const minScoreError = numberFieldError(minScore, { min: 0, max: 1000 });
 
   async function save() {
     setSaving(true);
@@ -56,7 +59,15 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
           hint="The score filter the feed would open with."
           warnNote="Not read yet. A bare visit to the feed opens on the Balanced preset, a minimum score of 5 over 30 days, not on this number."
         >
-          <NumberField value={minScore} onChange={setMinScore} min={0} max={1000} suffix="x" ariaLabel="Default minimum score" />
+          <NumberField
+            value={minScore}
+            onChange={setMinScore}
+            min={0}
+            max={1000}
+            suffix="x"
+            ariaLabel="Default minimum score"
+            error={minScoreError}
+          />
         </SettingRow>
         <SettingRow
           label="Default follower band"
@@ -67,7 +78,7 @@ export function FeedDefaultsSection({ initial }: { initial: FeedDefaultSettings 
         </SettingRow>
       </div>
 
-      <Button onClick={save} disabled={!dirty || saving} className="w-fit" size="sm" variant="outline">
+      <Button onClick={save} disabled={!dirty || minScoreError !== null || saving} className="w-fit" size="sm" variant="outline">
         {saving ? "Saving…" : "Save"}
       </Button>
     </section>

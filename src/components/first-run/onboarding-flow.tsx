@@ -93,15 +93,16 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
 
   return (
     <div className="grid min-h-screen grid-cols-1 md:grid-cols-[minmax(300px,400px)_minmax(0,1fr)]">
-      <aside className="relative flex flex-col overflow-hidden bg-card px-11 py-12">
+      <aside className="relative flex flex-col overflow-hidden bg-card px-11 py-4 md:py-12">
         {/* The current step as an oversized, near-invisible readout — it fills the rail's
             negative space with instrument character instead of dead air, and it is the one
             place the step number gets to be large. Neutral, never amber (the score and one
-            action own amber). */}
+            action own amber). Tuned for the fixed rail, so it has no place in the compact
+            header below md. */}
         {currentStepMeta && (
           <span
             aria-hidden
-            className="pointer-events-none absolute right-3 bottom-28 font-mono text-[11rem] leading-none font-semibold tracking-tighter tabular-nums text-foreground/[0.04] select-none"
+            className="pointer-events-none absolute right-3 bottom-28 hidden font-mono text-[11rem] leading-none font-semibold tracking-tighter tabular-nums text-foreground/[0.04] select-none md:block"
           >
             {currentStepMeta.n}
           </span>
@@ -109,7 +110,18 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
 
         <span className="relative z-10 text-lg font-semibold tracking-tight">Crowsnest</span>
 
-        <div className="relative z-10 mt-16">
+        {/* Narrow-only compact step indicator: below md the aside is a short header, not
+            the fixed rail, so the full tagline and progress spine (below) give way to one
+            line naming where the visitor is. Only for the numbered steps - the welcome
+            screen's own body already carries the "N steps, about a minute" line, so
+            repeating it in the header here would double it up on narrow. */}
+        {step !== "welcome" && (
+          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-faint md:hidden">
+            {currentStepMeta?.label} · {currentStepMeta?.n} / {ONBOARDING_STEP_COUNT}
+          </div>
+        )}
+
+        <div className="relative z-10 mt-16 hidden md:block">
           <p className="max-w-[15ch] text-xl leading-tight font-bold tracking-tight text-balance">
             Watch the channels you compete with.
           </p>
@@ -123,9 +135,11 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
             middle breathes instead of the old justify-between chasm. */}
         <div className="relative z-10 mt-auto flex flex-col items-start gap-10 pt-16">
           {step === "welcome" ? (
-            <div className="font-mono text-2xs tracking-wide text-faint">{ONBOARDING_STEP_COUNT} steps · about a minute</div>
+            <div className="hidden font-mono text-2xs tracking-wide text-faint md:block">
+              {ONBOARDING_STEP_COUNT} steps · about a minute
+            </div>
           ) : (
-            <nav className="relative flex flex-col" aria-label="First-run steps">
+            <nav className="relative hidden flex-col md:flex" aria-label="First-run steps">
               {/* The rail: one hairline threading every tick, so the four steps read as a
                   single measured progression rather than four loose rows. */}
               <span aria-hidden className="absolute top-4 bottom-4 left-[7px] w-px bg-border" />

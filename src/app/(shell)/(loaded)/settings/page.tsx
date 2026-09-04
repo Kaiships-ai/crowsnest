@@ -9,7 +9,7 @@ import { RouterSection } from "@/components/settings/router-section";
 import { RunsAlertsSection } from "@/components/settings/runs-alerts-section";
 import { ScoringSection } from "@/components/settings/scoring-section";
 import { SecretsSection } from "@/components/settings/secrets-section";
-import { SettingsNav, type SettingsNavItem } from "@/components/settings/settings-nav";
+import { SettingsNav, type SettingsNavGroup } from "@/components/settings/settings-nav";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
@@ -21,22 +21,51 @@ import { detectBinary } from "@/server/lib/exec";
 import { secretStatus } from "@/server/secrets/store";
 import { whisperAvailability } from "@/server/transcribe/whispercpp";
 
-// Anchors for SettingsNav — one per section id below. Order here is the order the
-// sidebar renders in, which is also the order the sections appear on the page, so the
-// two never drift out of sync with each other.
-const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
-  { id: "niche-profile", label: "Niche profile" },
-  { id: "instagram", label: "Instagram" },
-  { id: "graph-api", label: "Graph API" },
-  { id: "api-keys", label: "API keys" },
-  { id: "router", label: "9router" },
-  { id: "local-binaries", label: "Local binaries" },
-  { id: "scoring", label: "Scoring" },
-  { id: "feed-defaults", label: "Feed defaults" },
-  { id: "sync", label: "Sync" },
-  { id: "runs-alerts", label: "Runs and alerts" },
-  { id: "onboarding", label: "Onboarding" },
-  { id: "appearance", label: "Appearance" },
+// Anchors for SettingsNav, grouped to match the main sidebar's own grouped model.
+// Group order here is the order the sections appear on the page below, so the two
+// never drift out of sync with each other.
+const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
+  {
+    label: "Connections",
+    items: [
+      { id: "instagram", label: "Instagram" },
+      { id: "graph-api", label: "Graph API" },
+    ],
+  },
+  {
+    label: "Intelligence",
+    items: [
+      { id: "niche-profile", label: "Niche profile" },
+      { id: "scoring", label: "Scoring" },
+      { id: "feed-defaults", label: "Feed defaults" },
+    ],
+  },
+  {
+    label: "Generation",
+    items: [
+      { id: "api-keys", label: "API keys" },
+      { id: "router", label: "9router" },
+      { id: "local-binaries", label: "Local binaries" },
+    ],
+  },
+  {
+    label: "Sync",
+    items: [
+      { id: "sync", label: "Sync" },
+      { id: "runs-alerts", label: "Runs and alerts" },
+    ],
+  },
+  {
+    label: "Publish",
+    items: [{ id: "publish", label: "Publish" }],
+  },
+  {
+    label: "System",
+    items: [
+      { id: "onboarding", label: "Onboarding" },
+      { id: "appearance", label: "Appearance" },
+    ],
+  },
 ];
 
 // Reads live process.env / filesystem / DB state on every load — no dynamic segment
@@ -86,16 +115,13 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto flex max-w-[1120px] gap-10 p-6">
-      <SettingsNav items={SETTINGS_NAV_ITEMS} />
+      <SettingsNav groups={SETTINGS_NAV_GROUPS} />
 
       {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
           instead of pushing the nav out of the sticky column it needs to stay in. */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div id="niche-profile" className="scroll-mt-6 border-b border-border pb-8">
-          <NicheProfileSection initialNiche={nicheSettings.niche} />
-        </div>
-
-        <div id="instagram" className="scroll-mt-6 border-b border-border py-8">
+        <p className="pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[0].label}</p>
+        <div id="instagram" className="scroll-mt-6 border-b border-border pb-8">
           <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
         </div>
 
@@ -103,16 +129,9 @@ export default async function SettingsPage() {
           <GraphSection initialStatus={graphStatus} />
         </div>
 
-        <div id="api-keys" className="scroll-mt-6 border-b border-border py-8">
-          <SecretsSection initialStatus={secretStatuses} />
-        </div>
-
-        <div id="router" className="scroll-mt-6 border-b border-border py-8">
-          <RouterSection initialStatus={routerStatus} initialAutoManage={appSettings.routerAutoManage} />
-        </div>
-
-        <div id="local-binaries" className="scroll-mt-6 border-b border-border py-8">
-          <LocalBinariesSection binaries={binaries} />
+        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[1].label}</p>
+        <div id="niche-profile" className="scroll-mt-6 border-b border-border pb-8">
+          <NicheProfileSection initialNiche={nicheSettings.niche} />
         </div>
 
         <div id="scoring" className="scroll-mt-6 border-b border-border py-8">
@@ -135,7 +154,21 @@ export default async function SettingsPage() {
           />
         </div>
 
-        <div id="sync" className="scroll-mt-6 border-b border-border py-8">
+        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[2].label}</p>
+        <div id="api-keys" className="scroll-mt-6 border-b border-border pb-8">
+          <SecretsSection initialStatus={secretStatuses} />
+        </div>
+
+        <div id="router" className="scroll-mt-6 border-b border-border py-8">
+          <RouterSection initialStatus={routerStatus} initialAutoManage={appSettings.routerAutoManage} />
+        </div>
+
+        <div id="local-binaries" className="scroll-mt-6 border-b border-border py-8">
+          <LocalBinariesSection binaries={binaries} />
+        </div>
+
+        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[3].label}</p>
+        <div id="sync" className="scroll-mt-6 border-b border-border pb-8">
           <SyncSection
             config={{
               eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
@@ -163,7 +196,18 @@ export default async function SettingsPage() {
           />
         </div>
 
-        <div id="onboarding" className="scroll-mt-6 border-b border-border py-8">
+        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[4].label}</p>
+        <div id="publish" className="scroll-mt-6 border-b border-border py-8">
+          <section className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold">Publish</h2>
+            <p className="text-sm text-muted-foreground">
+              Scheduling and publishing settings appear here once that feature lands. Nothing to configure yet.
+            </p>
+          </section>
+        </div>
+
+        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[5].label}</p>
+        <div id="onboarding" className="scroll-mt-6 border-b border-border pb-8">
           <OnboardingSection />
         </div>
 

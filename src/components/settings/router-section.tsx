@@ -116,8 +116,9 @@ export function RouterSection({
       <div>
         <h2 className="text-lg font-semibold">9router</h2>
         <p className="text-sm text-muted-foreground">
-          The local LLM proxy every AI feature (analyze, similar, remix) routes through. Down or dead-model-route, and those features stop
-          working.
+          The local proxy that routes generation calls to your Claude API key. You need it running for the AI steps -
+          video analysis, remix generation, and idea generation - to work. Leave it on auto-manage unless you run your
+          own proxy.
         </p>
       </div>
 

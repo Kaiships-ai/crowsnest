@@ -16,7 +16,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
       <div>
         <h2 className="text-lg font-semibold">Local binaries</h2>
         <p className="text-sm text-muted-foreground">
-          Optional. Enables keyless local transcription and manual reel import.
+          Optional command-line tools (yt-dlp for downloads, whisper-cpp for transcription) that unlock keyless transcription and manual reel import. Install them only if you want those features to work.
         </p>
       </div>
 
