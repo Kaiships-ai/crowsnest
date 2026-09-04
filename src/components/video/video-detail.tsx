@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -272,8 +273,11 @@ function HookStructureTab({
  * Task 3's "Similar outliers" section — a compact OutlierCard row scored by tag
  * overlap (services/similar.ts), rendered as its own full-width section below the
  * tabs rather than the DESIGN.md v0.1 overflow-menu jump (superseded per the plan).
+ *
+ * Exported so similar-section.tsx (the async Suspense child that fetches `items`,
+ * server-side) can render this same client presentation on success.
  */
-function SimilarOutliers({ items }: { items: FeedItem[] }) {
+export function SimilarOutliers({ items }: { items: FeedItem[] }) {
   const router = useRouter();
 
   return (
@@ -298,10 +302,10 @@ export function VideoDetail({
   detail,
   hasLlmKey,
   canTranscribe,
-  similar,
   medianBasis,
   feedNav,
   savedPost,
+  children,
 }: {
   detail: VideoDetailData;
   hasLlmKey: boolean;
@@ -309,7 +313,6 @@ export function VideoDetail({
    * GROQ_API_KEY) is actually usable right now — threaded down to AnalysisGate so it
    * can offer a live "Transcribe & Analyze" button instead of a dead end. */
   canTranscribe: boolean;
-  similar: FeedItem[];
   /** The sample the hero score was computed from — `getChannelMedianBasis`, keyed to
    *  this video so its own bar can be picked out of the histogram. Null only if the
    *  channel row vanished between the feed query and this render. */
@@ -319,6 +322,10 @@ export function VideoDetail({
    *  the server so the button shows its real state on first paint rather than flipping
    *  after a fetch. */
   savedPost: { id: string; note: string | null } | null;
+  /** The similar-outliers section, streamed in by the page behind its own Suspense
+   *  boundary (similar-section.tsx) — a slow query in `getSimilarOutliers` no longer
+   *  blocks this component's own render. See page.tsx's header comment. */
+  children: ReactNode;
 }) {
   const { item } = detail;
   const hasTranscript = detail.transcript !== null;
@@ -685,7 +692,7 @@ export function VideoDetail({
         </div>
       </div>
 
-      <SimilarOutliers items={similar} />
+      {children}
     </div>
   );
 }
