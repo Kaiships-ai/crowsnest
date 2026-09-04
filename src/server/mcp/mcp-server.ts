@@ -122,7 +122,7 @@ export function buildMcpServer(): McpServer {
     "crowsnest_video",
     {
       title: "Video detail",
-      description: "One video with its analysis, transcript, and metrics, by video id. Returns null when the id is unknown.",
+      description: "One video with its analysis, transcript, and metrics, by video id. Also returns media and thumbnail objects, each with the source file path, byteSize, and durationSec, for the Reel Factory handoff. Returns null when the id is unknown.",
       inputSchema: { videoId: z.string().describe("The video id, from crowsnest_feed items.") },
     },
     async (args) => {
@@ -138,8 +138,8 @@ export function buildMcpServer(): McpServer {
     "crowsnest_brief",
     {
       title: "Post brief",
-      description: "The brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
-      inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_plans.") },
+      description: "The brief for a planned post: its title, the source video (with its media and thumbnail file paths, byteSize, and durationSec for the Reel Factory handoff), the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
+      inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_remix_finish (the handoff path) or crowsnest_plans.") },
     },
     async (args) => {
       const brief = await getPostBrief(args.postId);
