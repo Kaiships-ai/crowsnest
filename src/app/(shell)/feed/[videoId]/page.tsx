@@ -40,8 +40,16 @@ export async function generateMetadata({
 // always suspended into that boundary, which flushed (and committed 200) before this
 // notFound() throw could run. Fix: the feed list route + its loading.tsx moved into
 // `/feed/(list)/` (route group, no URL change), so the loading boundary no longer wraps
-// this sibling segment. `notFound()` here now produces a real 404, same as
-// `/channels/[channelId]`.
+// this sibling segment.
+//
+// FIXED AGAIN (B-17, 2026-09-04): the B-14 fix missed a HIGHER ancestor. The generic
+// shell skeleton lived at `(shell)/loading.tsx`, an ancestor Suspense boundary that
+// still wrapped this route, so a missing video kept returning 200. Fix: the generic
+// loading and every non-feed route moved into a `(shell)/(loaded)/` route group (no URL
+// change), leaving `/feed` outside it. There is now NO loading boundary above
+// `/feed/[videoId]`, so `notFound()` here produces a real 404, verified in a production
+// build. Do not add a `loading.tsx` at `(shell)` root or under `/feed` above this route,
+// and do not move `/feed` into `(loaded)` — either re-introduces the 200.
 export default async function VideoDetailPage({
   params,
   searchParams,
