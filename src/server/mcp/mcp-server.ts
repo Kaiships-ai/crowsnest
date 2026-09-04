@@ -19,6 +19,7 @@ import {
 } from "@/server/services/remix";
 import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
+import { getAsset, resolveAssetPath } from "@/server/media/store";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -29,12 +30,18 @@ import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel
  */
 
 // A tool result the SDK will surface both ways: JSON text for a text-only client, and
-// structuredContent for a client that reads structured output. The two always agree
-// because they come from the same value.
+// structuredContent for a client that reads structured output. The MCP spec requires
+// structuredContent to be a record; the SDK hard-rejects a bare array or primitive, so
+// those get wrapped under a `data` key. content[0].text is always the JSON of the
+// original value, unwrapped.
 export function result(value: unknown) {
+  const structuredContent =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : { data: value };
   return {
     content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-    structuredContent: value as Record<string, unknown>,
+    structuredContent,
   };
 }
 
@@ -48,10 +55,33 @@ export function errorResult(payload: Record<string, unknown>) {
   };
 }
 
+export interface MediaInfo {
+  path: string | null;
+  byteSize: number;
+  durationSec: number | null;
+}
+
+// On-disk location and stored size/duration for a media asset id, for the Reel Factory
+// handoff. Null when the id is null or the asset row is gone. Every field comes from the
+// media_assets row: this NEVER stats or reads the file, and never throws across the MCP
+// boundary. path is null (not an error) if the stored storagePath is somehow invalid.
+export async function mediaInfoFor(assetId: string | null | undefined): Promise<MediaInfo | null> {
+  if (!assetId) return null;
+  const asset = await getAsset(assetId);
+  if (!asset) return null;
+  let path: string | null;
+  try {
+    path = resolveAssetPath(asset.storagePath);
+  } catch {
+    path = null;
+  }
+  return { path, byteSize: asset.byteSize, durationSec: asset.durationSec ?? null };
+}
+
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data: the outlier feed, a video with its analysis, a post brief, saved scripts, and planned posts. Use crowsnest_feed to browse outliers, then crowsnest_video for one video's detail." }
+    { instructions: "Read Crowsnest data and drive a remix end to end. Browse over-performers with crowsnest_feed, read one with crowsnest_video (its analysis, plus the source media path, size, and duration for handoff), then run the crowsnest_remix_* chain (session, set_prompt, research, hooks, choose_hook, style, outline, variants, save_script, finish) to turn it into a script and a draft planned post. crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, crowsnest_metrics, and crowsnest_plans are read-only." }
   );
 
   server.registerTool(
@@ -92,13 +122,15 @@ export function buildMcpServer(): McpServer {
     "crowsnest_video",
     {
       title: "Video detail",
-      description: "One video with its analysis, transcript, and metrics, by video id. Returns null when the id is unknown.",
+      description: "One video with its analysis, transcript, and metrics, by video id. Also returns media and thumbnail objects, each with the source file path, byteSize, and durationSec, for the Reel Factory handoff. Returns null when the id is unknown.",
       inputSchema: { videoId: z.string().describe("The video id, from crowsnest_feed items.") },
     },
     async (args) => {
       const detail = await getVideoDetail(args.videoId);
       if (!detail) return errorResult({ error: "not found", videoId: args.videoId });
-      return result(detail);
+      const media = await mediaInfoFor(detail.item.videoAssetId);
+      const thumbnail = await mediaInfoFor(detail.item.thumbnailAssetId);
+      return result({ ...detail, media, thumbnail });
     }
   );
 
@@ -106,13 +138,20 @@ export function buildMcpServer(): McpServer {
     "crowsnest_brief",
     {
       title: "Post brief",
-      description: "The brief for a planned post: its title, the source video, the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
-      inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_plans.") },
+      description: "The brief for a planned post: its title, the source video (with its media and thumbnail file paths, byteSize, and durationSec for the Reel Factory handoff), the remix hook and beats, the layout, and the score. By planned post id. Returns null when unknown.",
+      inputSchema: { postId: z.string().describe("The planned post id, from crowsnest_remix_finish (the handoff path) or crowsnest_plans.") },
     },
     async (args) => {
       const brief = await getPostBrief(args.postId);
       if (!brief) return errorResult({ error: "not found", postId: args.postId });
-      return result(brief);
+      const video = brief.video
+        ? {
+            ...brief.video,
+            media: await mediaInfoFor(brief.video.item.videoAssetId),
+            thumbnail: await mediaInfoFor(brief.video.item.thumbnailAssetId),
+          }
+        : null;
+      return result({ ...brief, video });
     }
   );
 
@@ -218,7 +257,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Remix session state",
       description: "The current state of a remix session: topic, chosen hook, outline, variants, chosen variant. Returns null when unknown.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await getRemixSession(args.sessionId))
   );
@@ -229,10 +268,10 @@ export function buildMcpServer(): McpServer {
       title: "Set the remix prompt",
       description: "Set the topic, niche, and target length on a session. All optional; only the given fields change.",
       inputSchema: {
-        sessionId: z.string(),
-        topic: z.string().optional(),
-        niche: z.string().optional(),
-        targetLengthSec: z.number().optional(),
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        topic: z.string().optional().describe("The remix topic to set."),
+        niche: z.string().optional().describe("The content niche to set."),
+        targetLengthSec: z.number().optional().describe("Target script length in seconds."),
       },
     },
     async (args) => {
@@ -250,7 +289,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Build research",
       description: "Assemble the research notes for a session from the source analysis, transcript, and similar outliers. No model call, so this works with the proxy down.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await buildResearch(args.sessionId))
   );
@@ -261,7 +300,7 @@ export function buildMcpServer(): McpServer {
       title: "Generate hooks",
       description: "Generate hook options for a session. Needs the LLM proxy. Optionally seed from a vault hook, or steer with a note.",
       inputSchema: {
-        sessionId: z.string(),
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
         vaultItemId: z.string().optional().describe("A vault hook item id to seed from."),
         steer: z.string().optional().describe("A note to steer the generation, e.g. punchier."),
       },
@@ -274,7 +313,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Choose a hook",
       description: "Set the chosen hook on a session, by its text (one of the generated hooks, or your own).",
-      inputSchema: { sessionId: z.string(), hook: z.string() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        hook: z.string().describe("The hook text to set as chosen, from crowsnest_remix_hooks or your own."),
+      },
     },
     async (args) => {
       await updateStage(args.sessionId, { chosenHook: args.hook });
@@ -287,7 +329,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Choose a style",
       description: "Set the style vault item on a session, or clear it (pass no styleVaultItemId) to use the source video's own structure.",
-      inputSchema: { sessionId: z.string(), styleVaultItemId: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        styleVaultItemId: z.string().optional().describe("A style vault item id to set; omit to clear and use the source video's own structure."),
+      },
     },
     async (args) => {
       await updateStage(args.sessionId, { styleVaultItemId: args.styleVaultItemId ?? null });
@@ -300,7 +345,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Generate outline",
       description: "Generate the beat outline for a session from its chosen hook and style. Needs the LLM proxy. Steer with a note.",
-      inputSchema: { sessionId: z.string(), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result(await generateOutline(args.sessionId, { steer: args.steer }))
   );
@@ -310,7 +358,10 @@ export function buildMcpServer(): McpServer {
     {
       title: "Generate variants",
       description: "Generate script variants (three by default) for a session. Needs the LLM proxy. A failed variant is returned as an error at its slot. Steer with a note.",
-      inputSchema: { sessionId: z.string(), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result({ variants: await generateVariants(args.sessionId, { steer: args.steer }) })
   );
@@ -320,7 +371,11 @@ export function buildMcpServer(): McpServer {
     {
       title: "Regenerate one variant",
       description: "Regenerate a single variant slot by index, keeping the others. Needs the LLM proxy. Steer with a note.",
-      inputSchema: { sessionId: z.string(), index: z.number().describe("Zero-based variant index."), steer: z.string().optional() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        index: z.number().describe("Zero-based variant index."),
+        steer: z.string().optional().describe("A note to steer the generation."),
+      },
     },
     async (args) => result({ variants: await generateVariants(args.sessionId, { index: args.index, steer: args.steer }) })
   );
@@ -330,7 +385,11 @@ export function buildMcpServer(): McpServer {
     {
       title: "Save a script",
       description: "Save one variant as a script and record it as the chosen variant. Give the variant index and a title.",
-      inputSchema: { sessionId: z.string(), variantIndex: z.number(), title: z.string() },
+      inputSchema: {
+        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
+        variantIndex: z.number().describe("Zero-based index of the variant to save."),
+        title: z.string().describe("Title to give the saved script."),
+      },
     },
     async (args) => {
       const session = await getRemixSession(args.sessionId);
@@ -347,7 +406,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Finish the remix",
       description: "Finish a session: create (or reuse) an undated draft planned post carrying the chosen script, and return its postId. Idempotent.",
-      inputSchema: { sessionId: z.string() },
+      inputSchema: { sessionId: z.string().describe("The remix session id, from crowsnest_remix_session.") },
     },
     async (args) => result(await finishRemix(args.sessionId))
   );

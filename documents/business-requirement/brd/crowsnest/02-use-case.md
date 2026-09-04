@@ -33,9 +33,9 @@
 | UC-CN-02 | Sync tracked channels | IG sidecar | Fetch a window of recent posts per tracked channel and write new videos, without the buyer asking per post. | v0.2, shipped |
 | UC-CN-03 | Analyze an outlier | Buyer | Turn a raw video into an analyzed one: hook type, structure beats, format and style tags, and why it worked. | v0.2, shipped |
 | UC-CN-04 | Remix into a script | Buyer | Take an analyzed video through six stages, prompt, research, hook, style, script, finish, to a script on a planned post. | v0.2, shipped |
-| UC-CN-05 | Cook and publish | Buyer | Render a planned post into a video in the studio, then publish it or mark it handled. | v0.2, shipped |
+| UC-CN-05 | Hand off to production and publish | Buyer | Hand a finished remix off through the MCP server to Reel Factory, which produces the reel, then publish it or mark it handled. | v0.2, shipped |
 
-Use cases use the project-local `UC-CN-NN` scheme. All five are authored as full flows below; none is deferred to a later phase, because the whole core loop, feed to publish, is what shipped in v0.2.
+Use cases use the project-local `UC-CN-NN` scheme. All five are authored as full flows below; none is deferred to a later phase, because the whole core loop, feed to the MCP handoff, is what shipped in v0.2.
 
 ---
 
@@ -50,7 +50,7 @@ The core loop and the Kit that installs it are both running product, not a plan.
 - **Save to vault and generate idea.** Lifting a hook or a layout into a reusable template, and an exit from the core loop into an ideas inbox (`feed/save-to-vault.md`, `feed/generate-idea.md`).
 - **The six-stage remix studio.** Prompt, research, hook, style, script, finish, with autosave, a run log, and Quick Remix (`remix/remix-overview.md` and the six stage documents).
 - **The calendar and plan dialog.** Draft, scheduled, and missed planned posts, optionally carrying a script (`mine/calendar.md`, `mine/plan-dialog.md`).
-- **The studio cook run and publish.** A watched background render, a status pill, and a publish gate tied to a stored render asset (`studio/cook-run.md`, `studio/publish.md`).
+- **The MCP handoff.** A finished remix leaves crowsnest through its MCP server at `/api/mcp`; Reel Factory, or any MCP client, consumes it to produce the reel outside crowsnest (`documents/architect/core-components/mcp/01-concept-brief.md`).
 - **The Kit itself.** One-command install, a Polar license gate, and the `kai` CLI commands, packaged for Apple Silicon (`documents/architect/shared/packaging-and-release.md`).
 
 Two use cases in this document, UC-CN-01 (track a channel) and UC-CN-02 (sync), sit partly outside the product description's own documented surface. Channel management lives on the `/channels` route, which the product description's scope decisions explicitly exclude ("routes outside it are out of scope", `README.md`). UC-CN-01 below is authored thin, at the level the source material actually supports, rather than invented in detail.
@@ -75,7 +75,7 @@ The actor model is authored in full in `01-concept-research.md` section 4. It is
 
 | Actor | What they do in this product |
 | --- | --- |
-| **Buyer** | The single local user. Browses the feed, saves and analyzes videos, runs the remix, plans and cooks a post, and publishes or marks it handled. There is no second role. |
+| **Buyer** | The single local user. Browses the feed, saves and analyzes videos, runs the remix, plans a post, and hands it off through the MCP server for production, then publishes or marks it handled. There is no second role. |
 
 ### System engines, crowsnest's own automation
 
@@ -83,14 +83,14 @@ The actor model is authored in full in `01-concept-research.md` section 4. It is
 | --- | --- |
 | **Feed and detail engine** | Direct server reads that render the feed, the video detail page, and the calendar from the local database. Nothing here is a write. |
 | **Remix engine** | Runs the six remix stages, autosaves the session, and writes a script and a planned post on finish. |
-| **Cook and publish engine** | Spawns and watches the local cook process, stores its status and render asset, and gates Publish and Save to calendar on that stored render. |
+| **MCP server** | crowsnest's outer edge: a typed read-and-remix tool surface at `/api/mcp` that an MCP client (Reel Factory) calls to pull a post and its local media, and to advance the remix. It owns no tables; it projects what the other components store. |
 
 ### External systems, outside the app
 
 | Actor | What it is |
 | --- | --- |
 | **IG sidecar** | A local service crowsnest talks to over localhost. Fetches posts from tracked channels and writes videos; the only writer of the feed's contents. |
-| **The LLM** | A local proxy plus an Anthropic API key. Every generation stage and analysis call it; browsing, saving, planning, and cooking do not need it. |
+| **The LLM** | A local proxy plus an Anthropic API key. Every generation stage and analysis call it; browsing, saving, and planning do not need it. |
 | **Instagram Graph API** | The official, token-gated path the buyer's own channel is measured through. Used only by the buyer's own channel dashboard, never by the tracked-channel feed. |
 | **Polar** | The license vendor. Checked at install and at `kai kit init`, not on every run. |
 
@@ -137,7 +137,6 @@ Cross-cutting defaults that recur across the feed, the remix, and the sync. Ever
 | --- | --- |
 | Video | Analyzed or not, saved or not, present or removed |
 | Planned post | Draft (no date), scheduled (a future date), missed (derived on read, a past date not marked published), published (marked by hand) |
-| Create run (a cook) | Running, waiting, success, failed, canceled |
 | Remix session | Its `stage` column: prompt, research, hook, style, script, finish (the furthest reached) |
 
 > Every value above is a number or an explicit reference to the file it came from, never an adjective, matching the honesty rule the product itself carries: a value the app does not have renders as a dash, never a fabricated figure (`documents/archive-do-not-read/product/V1-BRIEF.md`, used for framing only).
@@ -157,7 +156,7 @@ Buyer.
 **Trigger**
 
 - The buyer wants to start watching a new competitor or reference account.
-- The buyer is setting their own channel for the first time, which the studio and the my-channel page measure against.
+- The buyer is setting their own channel for the first time, which the my-channel page measures against.
 
 **Preconditions**
 
@@ -181,7 +180,7 @@ Buyer.
 **Postcondition**
 
 - The channel is tracked and available to the next sync.
-- If marked own, the my-channel page and the studio measure against it.
+- If marked own, the my-channel page measures against it.
 
 **Features covered**
 
@@ -229,7 +228,7 @@ IG sidecar.
 | Step | Actor | Action |
 | --- | --- | --- |
 | 1a | IG sidecar | Is not running, or an upstream call to Instagram fails after 3 retries with a jittered backoff. |
-| 1b | Crowsnest app | No new videos arrive. The feed still reads from the local database and goes stale rather than erroring; every downstream action on the videos already there, save, remix, plan, cook, still works. |
+| 1b | Crowsnest app | No new videos arrive. The feed still reads from the local database and goes stale rather than erroring; every downstream action on the videos already there, save, remix, and plan, still works. |
 | 1c | Crowsnest app | A failed sync surfaces in the shell's failure strip, read on the next navigation, not pushed live. |
 
 **Postcondition**
@@ -328,13 +327,13 @@ Buyer.
 
 | Step | Actor | Action |
 | --- | --- | --- |
-| 1 | Buyer | Opens the remix; the studio opens the existing session or creates one, at the prompt stage with the topic prefilled. |
+| 1 | Buyer | Opens the remix; it opens the existing session or creates one, at the prompt stage with the topic prefilled. |
 | 2 | Buyer | Sets a topic and target length (default 45 seconds) and clicks Continue. |
 | 3 | Crowsnest app | Research stage assembles locally, no model call: source inputs, hook pattern, structure beats, an editable facts box, reference lists from the vault and similar outliers. |
 | 4 | The LLM (via the app) | Hook stage generates hook options; the buyer chooses one, which unlocks Continue. |
 | 5 | The LLM (via the app) | Style stage generates an outline from a chosen structure; the buyer edits its beats. |
 | 6 | The LLM (via the app) | Script stage generates three variants against three fixed angles; the buyer picks one (existing is enough to continue; the pick is confirmed at finish). |
-| 7 | Buyer | Finish stage shows the chosen hook and script summary; clicking "Finish and open studio" creates a planned post (undated draft) carrying the script, and offers a link into its studio. |
+| 7 | Buyer | Finish stage shows the chosen hook and script summary; clicking Finish creates a planned post (undated draft) carrying the script, ready to hand off through the MCP server. |
 
 **Alternate flow: Quick Remix**
 
@@ -342,7 +341,7 @@ Buyer.
 | --- | --- | --- |
 | 1a | Buyer | On the prompt stage, clicks Quick Remix instead of stepping through each stage. |
 | 1b | The LLM (via the app) | Runs research, hooks (auto-picking the first), outline, and variants in one call. |
-| 1c | Crowsnest app | Lands the studio on the script stage with every earlier stage reachable and editable, so the buyer can go back and change the auto-picked hook. |
+| 1c | Crowsnest app | Lands the remix on the script stage with every earlier stage reachable and editable, so the buyer can go back and change the auto-picked hook. |
 
 **Alternate flow: leaving mid-remix and resuming**
 
@@ -376,69 +375,45 @@ Buyer.
 
 ---
 
-### UC-CN-05: Cook and publish
+### UC-CN-05: Hand off to production and publish
 
 **Goal**
-The buyer turns a planned post into a rendered video with a watched local cook run, then either publishes it through the running agent session or marks it handled without touching Instagram.
+The buyer hands a finished remix (a planned post carrying a script) off through crowsnest's MCP server to Reel Factory, which produces the reel outside crowsnest; the buyer then publishes it or marks it handled without crowsnest touching Instagram. crowsnest is upstream of production: it decides what to make and writes the script and the brief, it does not render video (`documents/architect/core-components/mcp/01-concept-brief.md`).
 
 **Primary actor**
-Buyer.
+Buyer, with Reel Factory as the MCP client that produces the reel.
 
 **Trigger**
 
-- The buyer opens a planned post's studio page, reached from the remix's finish link or the plan dialog's "Create in Studio" button, and clicks Cook.
+- The buyer has a finished remix and wants a reel produced from it.
 
 **Preconditions**
 
 - A planned post exists (UC-CN-04 postcondition, or created directly from the calendar).
-- The local terminal session and its rendering pipeline are available; this does not depend on the LLM proxy, the Graph token, or the sidecar.
+- crowsnest is running, so its MCP server at `/api/mcp` is reachable, and an MCP client (Reel Factory) is registered against it.
 
 **Main flow**
 
 | Step | Actor | Action |
 | --- | --- | --- |
-| 1 | Buyer | On the studio page, reads the brief (title, score badge, script line, visual direction) and clicks Cook. |
-| 2 | Crowsnest app (cook engine) | Spawns the cook process, claims a create run row in the running state, and reports its status back. |
-| 3 | Crowsnest app | The panel shows a status pill ("cooking"), a running clock, and the terminal streaming the session's output. |
-| 4 | Crowsnest app (cook engine) | On success, the pill reads "done", the clock stops, and the rendered video appears in the Output panel with its render asset stored on the run. |
-| 5 | Buyer | Clicks Publish; a confirm asks to publish the render to Instagram; on accept, a serve command is handed to the running agent session. What that command does inside the session is outside crowsnest's own database. |
-| 6 | Buyer | Alternately (or additionally) clicks Save to calendar to mark the plan handled in crowsnest's own database, with no confirm and no network call. |
-
-**Alternate flow: leave while the cook is running**
-
-| Step | Actor | Action |
-| --- | --- | --- |
-| 1a | Buyer | Navigates away, or reloads, while the cook is still running. |
-| 1b | Crowsnest app | The run keeps going server side, because its status is stored, not held in the page. On return (or after a reload), the panel shows no live pill and the button reads Cook again, but the run itself is unaffected and its render still gates Publish once it finishes. |
-
-**Alternate flow: stop a running cook**
-
-| Step | Actor | Action |
-| --- | --- | --- |
-| 1a | Buyer | Clicks Stop while the cook is live. |
-| 1b | Crowsnest app (cook engine) | Signals the whole process group and marks the run canceled, whether or not a live process was found to kill. The pill reads "canceled" and the clock stops. A canceled run does not produce a publishable render. |
-
-**Error flow: the cook fails**
-
-| Step | Actor | Action |
-| --- | --- | --- |
-| 1a | Crowsnest app (cook engine) | The run ends without a render; the pill reads "failed" and the clock stops. |
-| 1b | Buyer | Reads the terminal output for whatever reason was printed, and clicks "Retry cook" to start a fresh run in the same session. |
+| 1 | Buyer | Registers crowsnest's MCP server with an MCP client once (`claude mcp add crowsnest --transport http http://localhost:3000/api/mcp`), then asks Reel Factory to produce the chosen post. |
+| 2 | Reel Factory (MCP client) | Calls crowsnest's read tools to pull the planned post, its script, and the source video's local media path, then produces the reel from that brief, outside crowsnest. |
+| 3 | Buyer | Publishes the produced reel, then marks the plan published in the calendar, which sets the plan published in crowsnest's own database with no network call. |
 
 **Postcondition**
 
-- Publish is gated on the post's latest run carrying a stored render asset, read once on mount, so it survives a reload.
-- Save to calendar is gated on a render captured live in the current session, so it does not survive a reload even while Publish stays enabled.
+- crowsnest's boundary ends at the MCP handoff; it does not render video and holds no cook run. What Reel Factory produces, and whether it reaches Instagram, is outside crowsnest's own database.
+- The plan can be marked published by hand in the calendar, in crowsnest's own database.
 
 **Features covered**
 
-- Cook, Stop, Retry cook, the run pill and clock, Publish, Save to calendar.
+- The MCP handoff surface, marking a plan published in the calendar.
 
 **Business rules**
 
-- Publish never disables itself; a fast double click can hand the serve command to the session twice.
-- Neither Publish nor Save to calendar makes a network call from crowsnest's own code; the planned posts table has no code path to any network call. What "publish" means in practice is the agent session's own `/ksa:serve` work, outside this app's boundary.
-- A run whose process already exited on its own still reads canceled once Stop is clicked, rather than staying stuck at "cooking".
+- The MCP server exposes read tools plus the remix tool chain; the handoff is a tool call, not a manual export (`documents/architect/core-components/mcp/01-concept-brief.md`).
+- Marking a plan published makes no network call from crowsnest's own code; the planned posts table has no code path to any network call. What "publish" means in practice happens outside this app's boundary.
+- The MCP server owns no tables of its own; it projects what the feed, remix, and planner already store.
 
 ---
 

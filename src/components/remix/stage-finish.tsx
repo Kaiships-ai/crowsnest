@@ -77,7 +77,7 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
           <>
             <p className="text-sm text-muted-foreground">This remix is on your plan.</p>
             <Link
-              href={`/mine/${postId}`}
+              href="/mine"
               className="w-fit border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted active:scale-[0.98]"
             >
               View in your plan

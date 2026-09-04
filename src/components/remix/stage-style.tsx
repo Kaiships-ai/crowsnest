@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
 import { GroundedIn } from "@/components/remix/grounded-in";
 import { SteerBox } from "@/components/remix/steer-box";
 import { generateOutlineAction, updateStageAction } from "@/server/actions/remix-actions";
@@ -153,11 +153,7 @@ export function StageStyle({
       <GroundedIn>{groundedInText}</GroundedIn>
 
       {generating ? (
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-none" />
-          ))}
-        </div>
+        <GeneratingSkeleton label="Generating outline…" count={4} rowClassName="h-16" />
       ) : beats.length > 0 ? (
         <>
         <ol className="flex flex-col gap-3">

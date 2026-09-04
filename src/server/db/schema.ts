@@ -315,7 +315,7 @@ export const remixSessions = sqliteTable("remix_sessions", {
   variants: text("variants", { mode: "json" }).$type<string[]>(),
   /**
    * Which entry of `variants` the user actually picked. Null means no pick yet, which
-   * is a real state and not a stand-in for zero: the remix prompt and the cook brief
+   * is a real state and not a stand-in for zero: the remix prompt and the post brief
    * both read the chosen variant, and defaulting a missing pick to variant 0 would put
    * words in front of the user that they never chose.
    */

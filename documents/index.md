@@ -22,6 +22,7 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 | publish | [01](architect/core-components/publish/01-concept-brief.md) |
 | ig-sync | [01](architect/core-components/ig-sync/01-concept-brief.md) |
 | llm | [01](architect/core-components/llm/01-concept-brief.md) |
+| mcp | [01](architect/core-components/mcp/01-concept-brief.md) |
 
 ## Where things live
 

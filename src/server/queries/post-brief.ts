@@ -35,7 +35,7 @@ export interface PostBrief {
  * exist before it has a source video attached.
  *
  * `remix` follows `plan.remixSessionId` back to the session the plan came from, which is
- * how the remix's chosen hook and enriched beats reach the cook. The link column was
+ * how the remix's chosen hook and enriched beats reach the post brief. The link column was
  * already there and already populated (stage-script's add-to-plan, and now finishRemix);
  * nothing read it until this.
  */

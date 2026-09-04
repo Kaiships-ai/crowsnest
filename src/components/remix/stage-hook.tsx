@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
 import { GroundedIn } from "@/components/remix/grounded-in";
 import { SteerBox } from "@/components/remix/steer-box";
 import { cn } from "@/lib/utils";
@@ -166,11 +166,7 @@ export function StageHook({
       <GroundedIn>{groundedInText}</GroundedIn>
 
       {generating ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-28 w-full rounded-none" />
-          ))}
-        </div>
+        <GeneratingSkeleton label="Generating hooks…" count={5} rowClassName="h-28" layout="grid" />
       ) : drafts.length > 0 ? (
         <>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

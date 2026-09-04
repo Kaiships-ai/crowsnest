@@ -1,5 +1,7 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 
 test("result() returns JSON text and structuredContent that agree", async () => {
   const { result } = await import("./mcp-server");
@@ -9,11 +11,62 @@ test("result() returns JSON text and structuredContent that agree", async () => 
   expect(r.structuredContent).toEqual({ ok: true, n: 2 });
 });
 
+test("result() wraps a non-record value (array) so structuredContent stays a record, text unchanged", async () => {
+  const { result } = await import("./mcp-server");
+  const value = [{ a: 1 }, { b: 2 }];
+  const r = result(value);
+  expect(r.content[0]).toMatchObject({ type: "text" });
+  expect(JSON.parse((r.content[0] as { text: string }).text)).toEqual(value);
+  expect(Array.isArray(r.structuredContent)).toBe(false);
+  expect(r.structuredContent).toEqual({ data: value });
+});
+
 test("errorResult() sets isError and carries the payload", async () => {
   const { errorResult } = await import("./mcp-server");
   const r = errorResult({ error: "not found", id: "x" });
   expect(r.isError).toBe(true);
   expect(r.structuredContent).toMatchObject({ error: "not found", id: "x" });
+});
+
+describe("mediaInfoFor", () => {
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let recordAsset: typeof import("@/server/media/store")["recordAsset"];
+  let mediaInfoFor: typeof import("./mcp-server")["mediaInfoFor"];
+
+  beforeAll(async () => {
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ recordAsset } = await import("@/server/media/store"));
+    ({ mediaInfoFor } = await import("./mcp-server"));
+    migrate();
+  });
+
+  test("resolves path/byteSize/durationSec from the stored asset row only, never touching the file", async () => {
+    const sha = "e".repeat(64);
+    const asset = await recordAsset({ sha256: sha, kind: "video", contentType: "video/mp4", byteSize: 555, durationSec: 8.5 });
+
+    const statSyncSpy = vi.spyOn(fs, "statSync");
+    const readFileSyncSpy = vi.spyOn(fs, "readFileSync");
+    const statSpy = vi.spyOn(fsPromises, "stat");
+
+    const info = await mediaInfoFor(asset.id);
+
+    expect(statSyncSpy).not.toHaveBeenCalled();
+    expect(readFileSyncSpy).not.toHaveBeenCalled();
+    expect(statSpy).not.toHaveBeenCalled();
+    statSyncSpy.mockRestore();
+    readFileSyncSpy.mockRestore();
+    statSpy.mockRestore();
+
+    expect(info).not.toBeNull();
+    expect(info?.path).toMatch(/\.mp4$/);
+    expect(info?.path?.startsWith("/") || /^[A-Za-z]:[\\/]/.test(info?.path ?? "")).toBe(true);
+    expect(info?.byteSize).toBe(555);
+    expect(info?.durationSec).toBe(8.5);
+  });
+
+  test("returns null for a null assetId", async () => {
+    expect(await mediaInfoFor(null)).toBeNull();
+  });
 });
 
 describe("pagination on crowsnest_scripts and crowsnest_ideas", () => {

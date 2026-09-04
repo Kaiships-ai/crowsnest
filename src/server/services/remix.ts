@@ -229,7 +229,7 @@ export async function getOrCreateSession(videoId: string): Promise<RemixSessionR
 }
 
 /** Persists whichever StagePatch fields are given — topic/niche/targetLengthSec/
- * chosenHook/styleVaultItemId/stage — on every stage move through the studio. */
+ * chosenHook/styleVaultItemId/stage — on every stage move through the remix studio. */
 export async function updateStage(id: string, patch: Partial<StagePatch>): Promise<void> {
   const { researchNotes, outline, ...rest } = patch;
   await db
@@ -540,7 +540,7 @@ export async function saveScript(
   });
 
   // Saving IS the pick. Recorded here, alongside the script row, so the remix prompt
-  // (buildRemixPrompt) and the cook brief read the variant the user actually chose
+  // (buildRemixPrompt) and the post brief read the variant the user actually chose
   // rather than falling back to variants[0], which would put words in front of them
   // that they never selected.
   if (variantIndex !== undefined) {
@@ -567,7 +567,7 @@ export interface RemixFinishResult {
  * can diverge two ways: the user saves, then regenerates or re-picks without saving
  * again (the latest script row is now stale text), or the plan already exists and was
  * never told a later save happened at all. Both leave `planned_posts.script_id` pointing
- * at words the user never chose, even though the cook brief (which reads the session
+ * at words the user never chose, even though the post brief (which reads the session
  * directly, not this column) already shows the right ones.
  *
  * Anti-fabrication: with no chosen variant yet, this returns the latest saved script
@@ -614,13 +614,13 @@ async function reconcileAttachedScript(session: RemixSessionRow): Promise<{ id: 
 }
 
 /**
- * The Finish stage's action: make sure the session has a planned post to cook, and
+ * The Finish stage's action: make sure the session has a draft planned post, and
  * report which one.
  *
- * The remix-to-cook bridge is the planned post, not the session: the studio spawns for
- * a postId, and `planned_posts.remixSessionId` is the column that carries the remix back
- * into the brief. Without this step a finished remix stopped at "script saved, maybe
- * added to a plan if the user filled in a date", and the cook had no way in.
+ * The remix-to-brief bridge is the planned post, not the session: `planned_posts.remixSessionId`
+ * is the column that carries the remix back into the brief. Without this step a finished
+ * remix stopped at "script saved, maybe added to a plan if the user filled in a date",
+ * and the post brief had no way in.
  *
  * Idempotent. Calling it twice reuses the plan it already linked rather than filling the
  * calendar with duplicates, which matters because the finish view's button is a plain
@@ -701,7 +701,7 @@ export async function seedSessionFromIdea(ideaId: string): Promise<string> {
 /**
  * The <60s "Quick Remix" path (DESIGN.md §2.5): research -> hooks (auto-picking the
  * first option) -> outline -> variants, sequentially, ending at stage "script" with
- * every field populated so the studio can land directly on the Script stage while
+ * every field populated so the remix studio can land directly on the Script stage while
  * every earlier stage stays reachable and editable via the stepper.
  */
 export async function quickRemix(id: string, llm?: LlmClient): Promise<void> {

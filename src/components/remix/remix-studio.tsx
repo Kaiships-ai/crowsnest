@@ -200,61 +200,66 @@ export function RemixStudio({
             so the stepper's six labels read as a sequence rather than six unrelated
             screens. */}
         <div className="border-b border-border bg-muted/30 px-6 py-2 text-sm text-muted-foreground">
-          Turning this post into your script, then into a cook.
+          Turning this post into your script.
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          {activeStage === "prompt" && (
-            <StagePrompt
-              session={session}
-              sourceTopic={detail.item.caption ?? "this topic"}
-              niche={niche}
-              hasLlmKey={hasLlmKey}
-              quickRemixPending={quickRemixPending}
-              onUpdate={patchSession}
-              onQuickRemix={handleQuickRemix}
-            />
-          )}
-          {activeStage === "research" && (
-            <StageResearch session={session} vaultSavedPosts={vaultSavedPosts} onNotesChange={(researchNotes) => patchSession({ researchNotes })} />
-          )}
-          {activeStage === "hook" && (
-            <StageHook
-              session={session}
-              vaultHooks={vaultHooks}
-              hasLlmKey={hasLlmKey}
-              proxyDown={proxyDown}
-              llmProxyUrl={llmProxyUrl}
-              initialVaultItemId={deepLinkSeed.hookVaultItemId}
-              onHooksChange={(hookOptions) => patchSession({ hookOptions })}
-              onChosenHookChange={(chosenHook) => patchSession({ chosenHook })}
-              onRunRecorded={refreshRunLog}
-            />
-          )}
-          {activeStage === "style" && (
-            <StageStyle
-              session={session}
-              vaultStyles={vaultStyles}
-              hasLlmKey={hasLlmKey}
-              proxyDown={proxyDown}
-              llmProxyUrl={llmProxyUrl}
-              onOutlineChange={(outline) => patchSession({ outline })}
-              onStyleVaultItemChange={(styleVaultItemId) => patchSession({ styleVaultItemId })}
-              onRunRecorded={refreshRunLog}
-            />
-          )}
-          {activeStage === "script" && (
-            <StageScript
-              session={session}
-              hasLlmKey={hasLlmKey}
-              proxyDown={proxyDown}
-              llmProxyUrl={llmProxyUrl}
-              onVariantsChange={(variants) => patchSession({ variants })}
-              onChosenVariantChange={(chosenVariantIndex) => patchSession({ chosenVariantIndex })}
-              onRunRecorded={refreshRunLog}
-            />
-          )}
-          {activeStage === "finish" && <StageFinish session={session} />}
+          <div
+            key={activeStage}
+            className="animate-in fade-in slide-in-from-bottom-1 duration-150 motion-reduce:animate-none"
+          >
+            {activeStage === "prompt" && (
+              <StagePrompt
+                session={session}
+                sourceTopic={detail.item.caption ?? "this topic"}
+                niche={niche}
+                hasLlmKey={hasLlmKey}
+                quickRemixPending={quickRemixPending}
+                onUpdate={patchSession}
+                onQuickRemix={handleQuickRemix}
+              />
+            )}
+            {activeStage === "research" && (
+              <StageResearch session={session} vaultSavedPosts={vaultSavedPosts} onNotesChange={(researchNotes) => patchSession({ researchNotes })} />
+            )}
+            {activeStage === "hook" && (
+              <StageHook
+                session={session}
+                vaultHooks={vaultHooks}
+                hasLlmKey={hasLlmKey}
+                proxyDown={proxyDown}
+                llmProxyUrl={llmProxyUrl}
+                initialVaultItemId={deepLinkSeed.hookVaultItemId}
+                onHooksChange={(hookOptions) => patchSession({ hookOptions })}
+                onChosenHookChange={(chosenHook) => patchSession({ chosenHook })}
+                onRunRecorded={refreshRunLog}
+              />
+            )}
+            {activeStage === "style" && (
+              <StageStyle
+                session={session}
+                vaultStyles={vaultStyles}
+                hasLlmKey={hasLlmKey}
+                proxyDown={proxyDown}
+                llmProxyUrl={llmProxyUrl}
+                onOutlineChange={(outline) => patchSession({ outline })}
+                onStyleVaultItemChange={(styleVaultItemId) => patchSession({ styleVaultItemId })}
+                onRunRecorded={refreshRunLog}
+              />
+            )}
+            {activeStage === "script" && (
+              <StageScript
+                session={session}
+                hasLlmKey={hasLlmKey}
+                proxyDown={proxyDown}
+                llmProxyUrl={llmProxyUrl}
+                onVariantsChange={(variants) => patchSession({ variants })}
+                onChosenVariantChange={(chosenVariantIndex) => patchSession({ chosenVariantIndex })}
+                onRunRecorded={refreshRunLog}
+              />
+            )}
+            {activeStage === "finish" && <StageFinish session={session} />}
+          </div>
 
           {activeStage !== "prompt" && <RunLog runs={runs} />}
         </div>
