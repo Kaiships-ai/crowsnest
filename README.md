@@ -71,6 +71,10 @@ Remix into your next script
 - **Video Analysis** — AI breakdown of a video's hook, structure, and why it likely worked.
 - **Vault** — save reusable hook and style templates for rapid remixing.
 - **Remix Studio** — transform proven patterns into scripts adapted to your niche.
+- **Schedule and publish** — attach a video and caption to a planned post, then schedule it
+  or publish it immediately to your own Instagram channel through the official Graph API;
+  an in-process scheduler claims and publishes due posts automatically, survives a dev
+  server restart, and retries a failed attempt with backoff.
 - **Fleets** — organize tracked creators into named watchlists.
 - **Dashboard** — key metrics, top outliers, and recently viewed videos.
 - **Local-first media** — downloaded assets are stored locally rather than depending on
@@ -96,6 +100,10 @@ Open Remix Studio
 Generate your script
         ↓
 Create Prompt / Export
+        ↓
+Plan it on the My channel calendar
+        ↓
+Attach a video + caption, schedule or publish now
 ```
 
 The app starts empty — there is no demo data. It fills up with real posts from the real

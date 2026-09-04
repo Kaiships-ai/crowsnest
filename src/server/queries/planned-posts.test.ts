@@ -64,6 +64,44 @@ describe("getPlannedPosts", () => {
     expect(stored.state).toBe("scheduled");
   });
 
+  test("a publishing plan surfaces as publishing, never re-derived to missed, even with a past plannedDate", async () => {
+    await db.insert(tables.plannedPosts).values({
+      id: newId(), state: "publishing", title: "Mid-publish", plannedDate: dateOffset(-5), createdAt: nowIso(), updatedAt: nowIso(),
+    });
+    const [row] = await getPlannedPosts();
+    expect(row.state).toBe("publishing");
+  });
+
+  test("a failed plan surfaces as failed, never re-derived to missed, even with a past plannedDate", async () => {
+    await db.insert(tables.plannedPosts).values({
+      id: newId(), state: "failed", title: "Blew up", plannedDate: dateOffset(-5), lastError: "container timeout", errorClass: "timeout", attemptCount: 3, createdAt: nowIso(), updatedAt: nowIso(),
+    });
+    const [row] = await getPlannedPosts();
+    expect(row.state).toBe("failed");
+    expect(row.lastError).toBe("container timeout");
+    expect(row.errorClass).toBe("timeout");
+    expect(row.attemptCount).toBe(3);
+  });
+
+  test("the new publish-lifecycle columns map through toRow", async () => {
+    const assetId = newId();
+    await db.insert(tables.mediaAssets).values({
+      id: assetId, sha256: "a".repeat(64), kind: "video", contentType: "video/mp4", byteSize: 1024, storagePath: "videos/a.mp4", downloadedAt: nowIso(),
+    });
+    await db.insert(tables.plannedPosts).values({
+      id: newId(), state: "scheduled", title: "Ready to go", videoAssetId: assetId, caption: "a caption", scheduledAt: "2026-03-15T09:00:00.000Z", publishedAt: null, dryRun: 1, createdAt: nowIso(), updatedAt: nowIso(),
+    });
+    const [row] = await getPlannedPosts();
+    expect(row.videoAssetId).toBe(assetId);
+    expect(row.caption).toBe("a caption");
+    expect(row.scheduledAt).toBe("2026-03-15T09:00:00.000Z");
+    expect(row.dryRun).toBe(true);
+    expect(row.publishedAt).toBeNull();
+    expect(row.attemptCount).toBe(0);
+    expect(row.lastError).toBeNull();
+    expect(row.errorClass).toBeNull();
+  });
+
   test("a scheduled plan whose date is in the future stays scheduled", async () => {
     await db.insert(tables.plannedPosts).values({
       id: newId(), state: "scheduled", title: "Upcoming", plannedDate: dateOffset(5), createdAt: nowIso(), updatedAt: nowIso(),

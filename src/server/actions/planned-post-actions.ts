@@ -1,9 +1,18 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { and, eq, inArray } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
+import { isGraphConfigured } from "../graph/client";
+import { getAssetStore } from "../media/asset-store";
+import { getStorageProvider } from "../publish/storage-provider";
 import { scriptExists } from "../queries/planned-posts";
+import { publishPlannedPost } from "../services/publish-post";
+import { DEFAULT_MAX_ATTEMPTS } from "../services/publish-scheduler";
 import { isVideoKind } from "../services/video-kind";
 
 /**
@@ -286,6 +295,227 @@ export async function markPlanPublishedAction(id: string, ownPostId: string | nu
     // (B-01), and a past plan still derived as "missed" on the calendar (B-08). Storing the
     // state fixes both; the own-post id is still recorded when one is given.
     await db.update(tables.plannedPosts).set({ state: "published", publishedOwnPostId: ownPostId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/* ------------------------------------------------------------------ publish (Goal 4)
+ *
+ * The publish lifecycle actions (implementation plan Phase D, task D1). Everything below
+ * follows the same rules as the actions above: nothing throws across the boundary, every
+ * failure carries a `code`, and every input is validated at this layer. These are the
+ * only writers of `videoAssetId` / `caption` / `scheduledAt` from the UI; the scheduler
+ * (publish-scheduler.ts) and the publish service (publish-post.ts) own the rest of the
+ * state machine and are NOT touched here.
+ */
+
+/** Instagram's own caption ceiling. Validated here so a caption that Graph would reject
+ *  never gets stored, let alone scheduled. */
+const CAPTION_MAX = 2200;
+/** A `datetime-local` value ("YYYY-MM-DDTHH:MM"), the only schedule input the UI sends. */
+const SCHEDULE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+/** Upper bound on an uploaded video, kept in step with serverActions.bodySizeLimit. */
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Attaches an uploaded mp4 to a plan. The bytes arrive as a `File` in `FormData` (the
+ * native Server-Action file convention — see node_modules/next/dist/docs mutating-data),
+ * are written to a temp file, then handed to the content-addressed media store
+ * (`getAssetStore().put`) so the same seam that ingests rendered media owns this too. No
+ * new media infra. Rejects anything that is not an mp4.
+ */
+export async function uploadPlanVideoAction(id: string, formData: FormData): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+
+    const file = formData.get("file");
+    if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
+    if (file.size === 0) return { ok: false, error: "That video file is empty.", code: "PLAN_EMPTY_FILE" };
+    // Keep this ceiling in step with serverActions.bodySizeLimit in next.config.ts.
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return { ok: false, error: "That video is too large. The limit is 200 MB.", code: "PLAN_FILE_TOO_LARGE" };
+    }
+    // The filename and Content-Type are both client-set, so a fast reject on them only
+    // catches honest mistakes; the real check is the ISO base media file signature below.
+    const looksMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
+    if (!looksMp4) return { ok: false, error: "Only an .mp4 video can be published.", code: "PLAN_NOT_MP4" };
+
+    const bytes = Buffer.from(await file.arrayBuffer());
+    // ISO base media format (mp4) carries an "ftyp" box at offset 4. Sniff it so bytes
+    // renamed to .mp4 are rejected here rather than surfacing as an opaque Graph
+    // container failure once Instagram tries to fetch the video.
+    if (bytes.length < 12 || bytes.toString("ascii", 4, 8) !== "ftyp") {
+      return { ok: false, error: "That file is not a valid mp4 video.", code: "PLAN_NOT_MP4" };
+    }
+    // ponytail: buffer the whole file then copy it into the store. Round-0 mp4s are small
+    // enough; if large uploads ever land, stream File.stream() straight to the temp path.
+    const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);
+    await writeFile(tmpPath, bytes);
+    let assetId: string;
+    try {
+      assetId = await getAssetStore().put({ path: tmpPath }, "video", "video/mp4");
+    } finally {
+      await rm(tmpPath, { force: true });
+    }
+
+    await db.update(tables.plannedPosts).set({ videoAssetId: assetId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    revalidatePath("/mine");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/** Sets (or clears, when blank) the caption a plan publishes with. */
+export async function setPlanCaptionAction(id: string, caption: string): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (typeof caption !== "string") return { ok: false, error: "A caption must be text.", code: "PLAN_INVALID_CAPTION" };
+
+    const trimmed = caption.trim();
+    if (trimmed.length > CAPTION_MAX) return { ok: false, error: `A caption can be at most ${CAPTION_MAX} characters.`, code: "PLAN_CAPTION_TOO_LONG" };
+
+    await db.update(tables.plannedPosts).set({ caption: trimmed || null, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    revalidatePath("/mine");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/**
+ * Arms a plan for the scheduler. Every precondition is named in the error rather than
+ * silently succeeding (plan locked decision 6): a video, a caption, a configured bucket,
+ * and a configured Graph token must all be present, or this refuses and says which one is
+ * missing. `idempotencyKey = id:scheduledAt` (unique index) is what stops a stale tick and
+ * a reschedule both claiming the same publish.
+ */
+export async function schedulePublishAction(id: string, scheduledAtIso: string): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+
+    if (typeof scheduledAtIso !== "string" || !SCHEDULE_RE.test(scheduledAtIso) || Number.isNaN(Date.parse(scheduledAtIso))) {
+      return { ok: false, error: "That schedule time isn't a valid date and time.", code: "PLAN_INVALID_SCHEDULE" };
+    }
+    if (!plan.videoAssetId) return { ok: false, error: "Attach an .mp4 video before scheduling.", code: "PLAN_NO_VIDEO" };
+    if (!plan.caption || !plan.caption.trim()) return { ok: false, error: "Write a caption before scheduling.", code: "PLAN_NO_CAPTION" };
+    if (!getStorageProvider()) {
+      return { ok: false, error: "No storage bucket configured. Set S3_ENDPOINT, S3_BUCKET, S3_KEY, S3_SECRET, S3_PUBLIC_BASE to publish.", code: "PLAN_NO_BUCKET" };
+    }
+    if (!isGraphConfigured()) {
+      return { ok: false, error: "Instagram isn't connected. Set IG_GRAPH_TOKEN and IG_GRAPH_USER_ID to publish.", code: "PLAN_NO_GRAPH" };
+    }
+
+    // datetime-local is a local wall-clock value; Date() reads it as local and toISOString
+    // gives the real instant the scheduler (which compares against now.toISOString()) reads.
+    const iso = new Date(scheduledAtIso).toISOString();
+    // A past instant would be due the moment it lands, so the scheduler would publish it on
+    // the next tick. That is a surprise when someone picks an old date, so refuse it and
+    // point them at Publish now for an immediate post.
+    if (new Date(iso).getTime() <= Date.now()) {
+      return { ok: false, error: "Pick a time in the future to schedule. To post right away, use Publish now.", code: "PLAN_SCHEDULE_IN_PAST" };
+    }
+    await db
+      .update(tables.plannedPosts)
+      .set({
+        state: "scheduled",
+        scheduledAt: iso,
+        idempotencyKey: `${id}:${iso}`,
+        // Keep the calendar's own date/time fields in sync so a scheduled publish still
+        // renders in the month grid, which keys off plannedDate.
+        plannedDate: iso.slice(0, 10),
+        plannedTime: scheduledAtIso.slice(11, 16),
+        lastError: null,
+        errorClass: null,
+        updatedAt: nowIso(),
+      })
+      .where(eq(tables.plannedPosts.id, id));
+    revalidatePath("/mine");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/** Cancels a scheduled publish, back to an undated draft. Only a `scheduled` row can be
+ *  cancelled — a `publishing`/`published`/`failed` one is past the point of a clean pull. */
+export async function cancelScheduledPublishAction(id: string): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (plan.state !== "scheduled") return { ok: false, error: "Only a scheduled publish can be cancelled.", code: "PLAN_NOT_SCHEDULED" };
+
+    await db
+      .update(tables.plannedPosts)
+      .set({ state: "draft", scheduledAt: null, idempotencyKey: null, plannedDate: null, plannedTime: null, updatedAt: nowIso() })
+      .where(eq(tables.plannedPosts.id, id));
+    revalidatePath("/mine");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/**
+ * Publishes a plan immediately. Preconditions are checked first so a missing one refuses
+ * without touching the row (never marks it failed). Then a single atomic claim to
+ * `publishing` — the same no-double-publish guard the scheduler uses — gates the actual
+ * `publishPlannedPost` call: a claim that changes 0 rows means the row is already in
+ * flight or terminal, so nothing publishes twice.
+ */
+export async function publishNowAction(id: string): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (!plan.videoAssetId) return { ok: false, error: "Attach an .mp4 video before publishing.", code: "PLAN_NO_VIDEO" };
+    if (!plan.caption || !plan.caption.trim()) return { ok: false, error: "Write a caption before publishing.", code: "PLAN_NO_CAPTION" };
+    if (!getStorageProvider()) {
+      return { ok: false, error: "No storage bucket configured. Set S3_ENDPOINT, S3_BUCKET, S3_KEY, S3_SECRET, S3_PUBLIC_BASE to publish.", code: "PLAN_NO_BUCKET" };
+    }
+    if (!isGraphConfigured()) {
+      return { ok: false, error: "Instagram isn't connected. Set IG_GRAPH_TOKEN and IG_GRAPH_USER_ID to publish.", code: "PLAN_NO_GRAPH" };
+    }
+
+    const claim = await db
+      .update(tables.plannedPosts)
+      .set({ state: "publishing", scheduledAt: null, idempotencyKey: null, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, id), inArray(tables.plannedPosts.state, ["draft", "scheduled", "failed"])));
+    if ((claim as { changes?: number }).changes !== 1) {
+      return { ok: false, error: "This post is already publishing or published.", code: "PLAN_ALREADY_IN_FLIGHT" };
+    }
+
+    // claimed: this action just won the atomic claim above (state -> publishing), so
+    // publish-post must act on the now-"publishing" row rather than treat it as a stale
+    // in-flight row and no-op. See the claim-token guard in publish-post.ts.
+    const result = await publishPlannedPost(id, { claimed: true });
+    revalidatePath("/mine");
+    if (!result.ok) return { ok: false, error: result.lastError ?? "The publish failed.", code: "PLAN_PUBLISH_FAILED" };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/** Re-arms a failed publish for another scheduler attempt. Only a `failed` row under the
+ *  attempt cap qualifies; the scheduler's own backoff takes over from there. */
+export async function retryFailedPublishAction(id: string): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (plan.state !== "failed") return { ok: false, error: "Only a failed publish can be retried.", code: "PLAN_NOT_FAILED" };
+    if (plan.attemptCount >= DEFAULT_MAX_ATTEMPTS) return { ok: false, error: "This publish has already hit its retry limit.", code: "PLAN_RETRY_EXHAUSTED" };
+
+    await db
+      .update(tables.plannedPosts)
+      .set({ state: "scheduled", scheduledAt: nowIso(), lastError: null, errorClass: null, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "failed")));
+    revalidatePath("/mine");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };

@@ -7,6 +7,8 @@ import { OwnStatTiles } from "@/components/mine/own-stat-tiles";
 import { OwnWeekdayRhythm } from "@/components/mine/own-weekday-rhythm";
 import { relativeTime } from "@/lib/format";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
+import { isGraphConfigured } from "@/server/graph/client";
+import { getStorageProvider } from "@/server/publish/storage-provider";
 import { getChannelsList, getOwnChannel } from "@/server/queries/channels";
 import { getCalendarMonth } from "@/server/queries/planned-posts";
 import { getOwnChannelOverview, getOwnPosts } from "@/server/queries/own-channel";
@@ -72,6 +74,16 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
   const totalPosts = ownPosts.total;
   const progressPct = Math.min(100, (totalPosts / Math.max(1, minUsablePosts)) * 100);
 
+  // Publish honesty: the calendar's publish dialog only offers a real publish when both
+  // seams are configured, and never fabricates success (plan locked decision 6).
+  const bucketConfigured = getStorageProvider() !== null;
+  const graphConfigured = isGraphConfigured();
+  // Mirrors envDefaultsDryRun() in publish-post.ts (which owns the per-row decision): dry
+  // run is the safe default off production, so the dialog can warn the final POST is
+  // skipped. ponytail: one small duplicated predicate rather than widening publish-post's
+  // API just to read a boolean.
+  const publishDryRun = process.env.PUBLISH_DRY_RUN === "1" || (process.env.PUBLISH_DRY_RUN === undefined && process.env.NODE_ENV !== "production");
+
   return (
     <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-6">
@@ -133,7 +145,14 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
           </TabsList>
 
           <TabsContent value="month" className="mt-6">
-            <MineCalendar month={month} calendar={calendar} scripts={scriptOptions} />
+            <MineCalendar
+              month={month}
+              calendar={calendar}
+              scripts={scriptOptions}
+              graphConfigured={graphConfigured}
+              bucketConfigured={bucketConfigured}
+              dryRun={publishDryRun}
+            />
           </TabsContent>
 
           <TabsContent value="posts" className="mt-6">
