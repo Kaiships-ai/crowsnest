@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/server/actions/discover-actions", () => mocks);
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
+import { toast } from "sonner";
+
 import { CreatorSeedCard } from "./creator-seed-card";
 
 function seed(overrides: Partial<CreatorSeedRow> = {}): CreatorSeedRow {
@@ -83,6 +85,36 @@ test("calls onFollowed with the handle after a successful follow", async () => {
   });
 
   expect(onFollowed).toHaveBeenCalledWith("lift.laura");
+});
+
+test("a new follow toasts where the posts go; an already-tracked one stays silent", async () => {
+  mocks.followCreatorAction.mockResolvedValue({
+    ok: true,
+    syncQueued: true,
+    alreadyTracked: false,
+    channelId: "c1",
+  });
+
+  render(<CreatorSeedCard seed={seed()} />);
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("creator-seed-follow"));
+  });
+
+  expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("watch Runs"));
+
+  vi.mocked(toast.success).mockClear();
+  mocks.followCreatorAction.mockResolvedValue({
+    ok: true,
+    syncQueued: false,
+    alreadyTracked: true,
+    channelId: "c1",
+  });
+  render(<CreatorSeedCard seed={seed({ handle: "already.there" })} />);
+  await act(async () => {
+    fireEvent.click(screen.getAllByTestId("creator-seed-follow")[1]);
+  });
+  // An idempotent re-follow queues nothing, so it must not claim posts are syncing.
+  expect(toast.success).not.toHaveBeenCalled();
 });
 
 test("does not call onFollowed when the follow fails", async () => {

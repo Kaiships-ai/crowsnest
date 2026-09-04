@@ -36,6 +36,13 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
 
   return (
     <div className="flex flex-col gap-4">
+      {/* First-run orientation: without this the page is a filter and a wall of cards
+          with no statement of what following does. One muted line, no amber. */}
+      <p className="text-sm text-muted-foreground" data-testid="discover-lede">
+        Curated creators worth tracking. Follow one to add it as a channel and pull its top
+        posts into your feed.
+      </p>
+
       <Tabs value={niche} onValueChange={(v) => setNiche(v as Niche)}>
         <TabsList data-testid="discover-niche-filter">
           {NICHES.map((n) => (
@@ -45,6 +52,12 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
           ))}
         </TabsList>
       </Tabs>
+
+      <p className="font-mono text-xs text-muted-foreground" data-testid="discover-count">
+        {niche === "all"
+          ? `${seeds.length} creators`
+          : `${filtered.length} of ${seeds.length} creators`}
+      </p>
 
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">No creators in this niche.</p>

@@ -29,6 +29,15 @@ export function CreatorSeedCard({
       if (result.ok) {
         setState("tracked");
         onFollowed?.(seed.handle);
+        // Close the loop: a bare "Tracked" leaves a first-timer unsure anything
+        // happened. Say where the posts go, and whether a sync started now or waits.
+        if (!result.alreadyTracked) {
+          toast.success(
+            result.syncQueued
+              ? `Following @${seed.handle}. Pulling top posts now — watch Runs.`
+              : `Following @${seed.handle}. Posts sync on the next run.`
+          );
+        }
       } else {
         setState("idle");
         toast.error(result.error);
