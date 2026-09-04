@@ -56,7 +56,7 @@ const STOP_REASON_LABEL: Record<StopReason, string> = {
   exhausted: "ran out of posts",
   error: "stopped on an error",
   cancelled: "cancelled",
-  upToDate: "already up to date",
+  upToDate: "stopped early once it reached posts it already had",
 };
 
 /** Exported for its own exhaustive test; the only production caller is `statusDetail`
@@ -236,7 +236,12 @@ export function statusHeadline(state: SyncViewState, progress: SyncProgress | nu
     case "cancelled":
       return "Sync cancelled";
     case "success":
-      return `Sync finished — ${progress.itemsCreated} new, ${progress.itemsUpdated} updated`;
+      // An incremental run that stopped once it reached known posts says so plainly, so a
+      // fast "0 new" reads as "nothing new to fetch" rather than as a sync that failed to
+      // find anything.
+      return progress.stopReason === "upToDate"
+        ? `Already up to date — ${progress.itemsUpdated} updated`
+        : `Sync finished — ${progress.itemsCreated} new, ${progress.itemsUpdated} updated`;
     case "partial":
       return `Sync finished with ${progress.gaps.length} channel${progress.gaps.length === 1 ? "" : "s"} unfinished`;
     case "failed":

@@ -39,6 +39,10 @@ export interface RunSummary {
   itemsFailed: number;
   channelsDone: number | null;
   channelsTotal: number | null;
+  /** Why a sync run ended (sync_jobs.stop_reason), so the runs log can say whether a run
+   *  walked the whole window or stopped early because nothing was new. Null for a remix
+   *  run, which has no such notion. */
+  stopReason: string | null;
 }
 
 export interface RunDetail extends RunSummary {
@@ -95,6 +99,7 @@ function fromSyncJob(row: SyncJobSelect, now: number): RunSummary {
     itemsFailed: row.itemsFailed,
     channelsDone: row.channelsDone,
     channelsTotal: row.channelsTotal,
+    stopReason: row.stopReason,
   };
 }
 
@@ -117,6 +122,7 @@ function fromRemixRun(row: RemixRunSelect): RunSummary {
     itemsFailed: 0,
     channelsDone: null,
     channelsTotal: null,
+    stopReason: null,
   };
 }
 

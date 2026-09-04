@@ -14,7 +14,8 @@ import type { LogEventRow, StoredLogLevel } from "@/server/logs/store";
 import type { RunDetail as RunDetailData, RunStatus, RunSummary } from "@/server/queries/runs";
 import { evaluateSla } from "@/server/runs/sla";
 import { SYNC_STALL_SECONDS, type SyncGap } from "@/server/services/sync-types";
-import { gapDisplayName, gapMessage } from "@/components/sync/sync-progress-view";
+import { gapDisplayName, gapMessage, stopReasonLabel } from "@/components/sync/sync-progress-view";
+import type { StopReason } from "@/server/services/sync-types";
 import { useRunStream } from "./use-run-stream";
 
 /**
@@ -257,6 +258,11 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
           <span>
             Budget <span className="font-mono">{formatDuration(Math.floor(budgetMs / 1000))}</span>
           </span>
+          {stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null) && (
+            <span>
+              Ended <span className="font-mono">{stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null)}</span>
+            </span>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">
