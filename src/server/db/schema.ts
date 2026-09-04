@@ -323,6 +323,18 @@ export const savedFilters = sqliteTable("saved_filters", {
   isSystem: integer("is_system", { mode: "boolean" }).notNull().default(false),
 });
 
+export const creatorSeeds = sqliteTable("creator_seeds", {
+  id: text("id").primaryKey(),
+  platform: text("platform").notNull().default("instagram"),
+  handle: text("handle").notNull(),
+  niche: text("niche").notNull(), // "fitness" | "finance" | "tech" | "business"
+  why: text("why").notNull(),     // curation rationale, never a metric
+  source: text("source"),          // URL the handle was verified from
+  createdAt: text("created_at").notNull(),
+}, (t) => [
+  uniqueIndex("creator_seeds_platform_handle").on(t.platform, t.handle),
+]);
+
 export const remixSessions = sqliteTable("remix_sessions", {
   id: text("id").primaryKey(),
   sourceVideoId: text("source_video_id").notNull().references(() => videos.id, { onDelete: "cascade" }),

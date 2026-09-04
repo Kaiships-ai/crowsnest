@@ -4,6 +4,7 @@ import { OnboardingFlow } from "@/components/first-run/onboarding-flow";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { getNicheSettings } from "@/server/actions/settings-actions";
 import { config } from "@/server/config";
+import { listCreatorSeeds } from "@/server/queries/discover";
 import { getSettings } from "@/server/settings";
 
 // Reads live app_settings / sidecar state on every visit — no dynamic segment or
@@ -24,7 +25,11 @@ export default async function FirstRunPage() {
   const settings = await getSettings();
   if (settings.firstRunCompleted) redirect("/");
 
-  const [nicheSettings, igStatus] = await Promise.all([getNicheSettings(), getIgStatusAction()]);
+  const [nicheSettings, igStatus, seeds] = await Promise.all([
+    getNicheSettings(),
+    getIgStatusAction(),
+    listCreatorSeeds(),
+  ]);
 
   return (
     <OnboardingFlow
@@ -32,6 +37,7 @@ export default async function FirstRunPage() {
       initialKeywords={nicheSettings.keywords}
       initialIgStatus={igStatus}
       serviceUrl={config.IG_SERVICE_URL}
+      seeds={seeds}
     />
   );
 }

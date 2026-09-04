@@ -43,7 +43,10 @@ yarn-error.log*
 next-env.d.ts
 
 # local data + secrets
-data/
+data/*
+!data/seeds/
+!data/seeds/*.json
+!data/seeds/README.md
 .env.local
 
 # sdd scratch

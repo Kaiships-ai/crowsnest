@@ -61,6 +61,11 @@ whole.
   dry-run by default outside production; a live publish needs a configured S3-compatible
   bucket, a Graph API token, and a Business or Creator Instagram account (Reels publish
   requires one).
+- Discover (`/channels/discover`) is built and runs: a curated, niche-grouped list of real
+  Instagram creators (fitness, finance, tech, business) with a one-line, metric-free reason
+  for each. Follow is one click, reusing the same add-channel and start-sync path a manual
+  add uses; no follower or view count is shown for a creator that has not been followed and
+  synced.
 - Constraints future work must respect: Apple Silicon only; single-user local install; local
   sqlite (`data/crowsnest.db`, plaintext secrets, never returned to the browser); Instagram
   access is read-only and depends on a running local sidecar logged into a throwaway account
