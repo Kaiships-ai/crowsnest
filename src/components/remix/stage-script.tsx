@@ -111,7 +111,7 @@ export function StageScript({
       onChosenVariantChange(null);
       autosave(updateStageAction(session.id, { chosenVariantIndex: null }));
       // A prior "Save script" now points at text that no longer exists in variants[] —
-      // same staleness the remix-to-cook bridge guards against in finishRemix. Clearing
+      // same staleness the remix-to-brief bridge guards against in finishRemix. Clearing
       // it hides "Add to plan" until the user saves again, rather than letting it attach
       // stale content under a plan built from a variant they can no longer even see.
       setSavedScriptId(null);
@@ -154,7 +154,7 @@ export function StageScript({
   }
 
   /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
-   *  cook brief read the variant in front of the user rather than variants[0]. Saving
+   *  post brief read the variant in front of the user rather than variants[0]. Saving
    *  re-records the same index server-side (see saveScript), which keeps a save without
    *  a tab change honest too. */
   function selectVariant(value: string) {
