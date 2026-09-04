@@ -23,6 +23,11 @@ async function run() {
     console.error("A sync is running — refusing to verify seeds against a busy sidecar. Check /runs.");
     process.exit(1);
   }
+  // A single network error after retry is dropped (an odd handle, or a one-off blip), but
+  // a RUN of consecutive network errors is an outage, not a batch of bad handles — stop
+  // before it silently drops a whole niche. Any success/not-found/private resets the run.
+  const MAX_CONSECUTIVE_NETWORK = 3;
+  let consecutiveNetwork = 0;
   for (const niche of NICHES) {
     const path = join(DIR, `${niche}.json`);
     const file = JSON.parse(readFileSync(path, "utf8"));
@@ -45,16 +50,31 @@ async function run() {
           }
         }
         kept.push({ ...c, verified: true });
+        consecutiveNetwork = 0;
       } catch (err) {
         const code = err instanceof IgError ? err.code : null;
-        if (code === NOT_FOUND || code === "IG_NETWORK") {
+        if (code === NOT_FOUND) {
           dropped += 1;
-          console.warn(`DROP ${niche}/${String(c.handle)}: ${code === NOT_FOUND ? "profile not found" : "network error after retry"}`);
+          consecutiveNetwork = 0; // a clean "does not exist" verdict — connectivity is fine
+          console.warn(`DROP ${niche}/${String(c.handle)}: profile not found`);
         } else if (code === PRIVATE_BUT_REAL) {
           kept.push({ ...c, verified: true }); // exists but private — a real account, keep it
+          consecutiveNetwork = 0;
           console.log(`KEEP (private) ${niche}/${String(c.handle)}`);
+        } else if (code === "IG_NETWORK") {
+          consecutiveNetwork += 1;
+          if (consecutiveNetwork >= MAX_CONSECUTIVE_NETWORK) {
+            // A run of network errors is an outage, not bad handles — stop and preserve the
+            // rest (including this one) for a resumed run rather than dropping a whole niche.
+            file.creators = [...kept, ...file.creators.slice(file.creators.indexOf(c))];
+            writeFileSync(path, JSON.stringify(file, null, 2) + "\n");
+            console.error(`STOP at ${niche}/${String(c.handle)}: ${consecutiveNetwork} consecutive IG_NETWORK errors — likely an outage, not bad handles. Fix connectivity and re-run to resume.`);
+            process.exit(2);
+          }
+          dropped += 1;
+          console.warn(`DROP ${niche}/${String(c.handle)}: network error after retry (${consecutiveNetwork}/${MAX_CONSECUTIVE_NETWORK} consecutive)`);
         } else {
-          // Systemic failure (auth/challenge/service/network/unknown) — NOT a per-handle
+          // Systemic failure (auth/challenge/service/unknown) — NOT a per-handle
           // verdict. Persist progress and stop so a stale token or challenge can never
           // silently drop good handles.
           file.creators = [...kept, ...file.creators.slice(file.creators.indexOf(c))];
