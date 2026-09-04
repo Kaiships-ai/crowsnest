@@ -1,5 +1,7 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { beforeAll, describe, expect, test, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import fs from "node:fs";
+import fsPromises from "node:fs/promises";
 
 test("result() returns JSON text and structuredContent that agree", async () => {
   const { result } = await import("./mcp-server");
@@ -42,7 +44,18 @@ describe("mediaInfoFor", () => {
     const sha = "e".repeat(64);
     const asset = await recordAsset({ sha256: sha, kind: "video", contentType: "video/mp4", byteSize: 555, durationSec: 8.5 });
 
+    const statSyncSpy = vi.spyOn(fs, "statSync");
+    const readFileSyncSpy = vi.spyOn(fs, "readFileSync");
+    const statSpy = vi.spyOn(fsPromises, "stat");
+
     const info = await mediaInfoFor(asset.id);
+
+    expect(statSyncSpy).not.toHaveBeenCalled();
+    expect(readFileSyncSpy).not.toHaveBeenCalled();
+    expect(statSpy).not.toHaveBeenCalled();
+    statSyncSpy.mockRestore();
+    readFileSyncSpy.mockRestore();
+    statSpy.mockRestore();
 
     expect(info).not.toBeNull();
     expect(info?.path).toMatch(/\.mp4$/);

@@ -111,9 +111,9 @@ export async function saveScriptAction(
 }
 
 /**
- * The Finish stage's action: ensure the session has a planned post to cook and hand
- * back its id so the view can link to `/mine/<postId>/studio`. Idempotent, so the
- * button can be clicked twice without dropping a duplicate on the calendar.
+ * The Finish stage's action: create (or reuse) a draft planned post for the session and
+ * hand back its id so the view can link to the post detail at `/mine/<postId>`. Idempotent,
+ * so the button can be clicked twice without dropping a duplicate on the calendar.
  */
 export async function finishRemixAction(id: string): Promise<ActionResult<RemixFinishResult>> {
   try {
