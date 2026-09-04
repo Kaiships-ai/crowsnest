@@ -23,18 +23,17 @@ Across the full feature map (Section 4), by status:
 
 | Status | Count | Share |
 | --- | --- | --- |
-| ● Built | 46 | 82% |
-| ◐ Partial / broken | 6 | 11% |
-| ○ Roadmap | 4 | 7% |
+| ● Built | 41 | 82% |
+| ◐ Partial / broken | 6 | 12% |
+| ○ Roadmap | 3 | 6% |
 
-The whole core loop — sync, feed, analyze, save, remix, studio — is built (● everywhere). The 6
+The whole core loop, sync, feed, analyze, save, and remix, is built (● everywhere). The 6
 ◐ rows are concentrated in **onboarding / kit**: the two `kai kit init` secret-prompt defects
 (empty `IG_PASSWORD`, echoed `ANTHROPIC_API_KEY`) and their downstream (the sidecar won't start),
 plus two partial `kai update` gaps. The two secret defects appear under both **Kit** and
 **Onboarding** because they surface in both surfaces; they are one root cause in
-`src/cli/kai.ts` (`ask({ secret: true })`). The 4 ○ rows are the onboarding dashboard redesign
-(v0.3), TikTok/YouTube Shorts ingestion, studio visual-direction, and the unverified no-proxy LLM
-path.
+`src/cli/kai.ts` (`ask({ secret: true })`). The 3 ○ rows are the onboarding dashboard redesign
+(v0.3), TikTok/YouTube Shorts ingestion, and the unverified no-proxy LLM path.
 
 > **The one blocker.** The empty-`IG_PASSWORD` defect is a hard blocker for the Instagram half of
 > the product: the sidecar exits 78 and launchd crash-loops it, so port 8765 never comes up and
@@ -61,8 +60,8 @@ with one command. The whole architecture is in
 - Local and one-time — no subscription, no cloud, the buyer's data never leaves their Mac.
 - Outliers scored against each channel's *own* baseline, not a global threshold — a small account
   beating itself surfaces next to a big one.
-- Not just discovery — the loop runs all the way to a script in the buyer's voice on a dated plan,
-  then a cooked video.
+- Not just discovery: the loop runs all the way to a script in the buyer's voice on a dated plan,
+  then hands off through the MCP server to Reel Factory to produce the video.
 
 ---
 
@@ -85,8 +84,9 @@ One paragraph, as a pipeline. Each stage is a component with its own docs under
 
 **IG sync** pulls tracked channels → **Feed** ranks the outliers → **Analyze** breaks down why one
 worked → **Mine** saves it and generates an idea → **Remix** turns it into a script in the buyer's
-voice → **Studio** cooks that script into a video and gates publish. The **LLM** layer powers
-analyze and remix; the **Kit** installs and supervises it all; **Onboarding** is first-run setup.
+voice → the finished remix hands off through the **MCP** server to Reel Factory, which produces the
+video. The **LLM** layer powers analyze and remix; the **Kit** installs and supervises it all;
+**Onboarding** is first-run setup.
 
 A service being down removes only the step that needs it and leaves the rest working — the
 degradation contract is in [`architect/shared/external-services.md`](../architect/shared/external-services.md).
@@ -158,8 +158,8 @@ surfaces. Details: [mine](../architect/core-components/mine/01-concept-brief.md)
 
 ### Remix
 
-The six-stage studio that turns one analyzed source video into a script in the buyer's voice, on a
-dated plan. Details: [remix](../architect/core-components/remix/01-concept-brief.md).
+The six-stage remix pipeline that turns one analyzed source video into a script in the buyer's
+voice, on a dated plan. Details: [remix](../architect/core-components/remix/01-concept-brief.md).
 
 | Sub-feature | Description | Status |
 | --- | --- | --- |
@@ -171,19 +171,13 @@ dated plan. Details: [remix](../architect/core-components/remix/01-concept-brief
 | Generation-blocked posture | Blocks hook / style / script on missing key or inferred proxy-down | ● |
 | Finish to plan | Idempotent: reconciles script, creates undated draft planned post | ● |
 
-### Studio
+### Handoff (MCP)
 
-Takes a dated plan and cooks it into a rendered video, then gates publish. Details:
-documents/archive/studio/01-concept-brief.md (archived; studio was removed).
-
-| Sub-feature | Description | Status |
-| --- | --- | --- |
-| Brief pane | Read-only plan summary shown before cooking | ● |
-| Cook run | Spawns a cook session, renders the plan into a video | ● |
-| Run tracking | Status pill, elapsed clock, streamed terminal output | ● |
-| Publish gate | `/ksa:serve` unlocked once a render exists | ● |
-| Save to calendar | Marks a plan done by hand in-app | ● |
-| Visual direction | Per-beat shot layout from a frame pass (not wired) | ○ |
+Where the loop leaves crowsnest. A finished remix (a script on a planned post) is handed off
+through crowsnest's MCP server; Reel Factory consumes that surface to produce the finished reel,
+outside crowsnest. crowsnest's value is upstream of production: it decides what to make and writes
+the script and the brief, it does not render video. The in-app cook-and-publish studio was removed.
+Details: [mcp](../architect/core-components/mcp/01-concept-brief.md).
 
 ### Kit
 
@@ -243,7 +237,6 @@ is set. Detail lives in each component's `05-backlog-to-enhance.md`; the standin
 | Bug board — work the open `05-backlog` items across every component | v0.3 | all components |
 | TikTok / YouTube Shorts ingestion | Later | ig-sync |
 | Intel Macs, Windows, Linux | Later | kit / packaging |
-| Studio visual direction (frame pass wired to real plans) | Later | studio |
 
 ---
 
