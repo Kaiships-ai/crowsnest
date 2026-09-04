@@ -315,7 +315,7 @@ export const remixSessions = sqliteTable("remix_sessions", {
   variants: text("variants", { mode: "json" }).$type<string[]>(),
   /**
    * Which entry of `variants` the user actually picked. Null means no pick yet, which
-   * is a real state and not a stand-in for zero: the remix prompt and the cook brief
+   * is a real state and not a stand-in for zero: the remix prompt and the post brief
    * both read the chosen variant, and defaulting a missing pick to variant 0 would put
    * words in front of the user that they never chose.
    */
@@ -684,24 +684,3 @@ export const notifications = sqliteTable(
     byUnread: index("notifications_read_created").on(t.readAt, t.id),
   }),
 );
-
-/**
- * One row per Create pipeline attempt (D1 create-run-tracking, task 1). Mirrors the
- * syncJobs / framePassJobs shape: a Create run takes long enough that the UI starts it
- * and polls this row rather than holding a server action open.
- */
-export const createRuns = sqliteTable("create_runs", {
-  id: text("id").primaryKey(),
-  postId: text("post_id").notNull(),
-  slug: text("slug").notNull(),
-  status: text("status").notNull(), // "running" | "waiting" | "success" | "failed" | "canceled"
-  startedAt: text("started_at").notNull(),
-  finishedAt: text("finished_at"),
-  heartbeatAt: text("heartbeat_at"),
-  renderAssetId: text("render_asset_id"),
-  errorMessage: text("error_message"),
-  pid: integer("pid"),
-}, (t) => [
-  index("create_runs_post").on(t.postId),
-  index("create_runs_started").on(t.startedAt),
-]);

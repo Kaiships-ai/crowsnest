@@ -1,9 +1,9 @@
 ---
-status: active
+status: shipped
 components: [shared]
 backlog: none
 owner: session_01PB62kSQfaU3UsFWiu7Jw83
-shipped: null
+shipped: "2026-09-03 851249d"
 ---
 
 # UI Foundation: Error Boundaries, Loading Skeletons, Table Overflow — Implementation Plan

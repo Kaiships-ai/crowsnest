@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
+import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
 import { GroundedIn } from "@/components/remix/grounded-in";
 import { SteerBox } from "@/components/remix/steer-box";
 import { deriveScriptTitle } from "@/lib/script-title";
@@ -111,7 +111,7 @@ export function StageScript({
       onChosenVariantChange(null);
       autosave(updateStageAction(session.id, { chosenVariantIndex: null }));
       // A prior "Save script" now points at text that no longer exists in variants[] —
-      // same staleness the remix-to-cook bridge guards against in finishRemix. Clearing
+      // same staleness the remix-to-brief bridge guards against in finishRemix. Clearing
       // it hides "Add to plan" until the user saves again, rather than letting it attach
       // stale content under a plan built from a variant they can no longer even see.
       setSavedScriptId(null);
@@ -154,7 +154,7 @@ export function StageScript({
   }
 
   /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
-   *  cook brief read the variant in front of the user rather than variants[0]. Saving
+   *  post brief read the variant in front of the user rather than variants[0]. Saving
    *  re-records the same index server-side (see saveScript), which keeps a save without
    *  a tab change honest too. */
   function selectVariant(value: string) {
@@ -306,15 +306,11 @@ export function StageScript({
 
   if (pending) {
     // generateVariantsAction is one atomic call with no incremental signal to
-    // observe (truth pass, v1-gap-inventory.md) — the old version cycled fake
-    // status lines like "Writing variant 2" on a timer, which is not knowable.
-    // An honest indeterminate state doesn't claim to know what it doesn't.
+    // observe (truth pass, v1-gap-inventory.md) — an honest indeterminate state.
     return (
       <div className="flex flex-col gap-3">
-        <p className="font-mono text-xs tracking-wide text-faint uppercase">Writing script…</p>
-        {Array.from({ length: DEFAULT_COUNT }, (_, i) => (
-          <Skeleton key={i} className="h-40 w-full rounded-none" />
-        ))}
+        <GroundedIn>{groundedInText}</GroundedIn>
+        <GeneratingSkeleton label="Writing script…" count={DEFAULT_COUNT} rowClassName="h-40" />
       </div>
     );
   }

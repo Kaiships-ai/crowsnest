@@ -183,7 +183,15 @@ sequenceDiagram
 - **Proxy down is inferred from the run log, not a live ping.** A connection style error in the last three attempts marks the generation stages blocked; the next success clears it.
 - **All logic lives in `remix.ts`; actions are thin wrappers.** The service is fully unit tested (`remix.test.ts`); the `"use server"` layer only maps errors and shapes results.
 
-## 7. Open, not verified
+## 7. UI rendering behavior
+
+The Hook, Style, and Script stages each render `generating-skeleton.tsx`'s `GeneratingSkeleton` while their generation call is in flight: one shared calm loading rhythm (a labelled row of skeleton blocks, stacked or gridded per stage) instead of each stage inventing its own busy state. The `GroundedIn` line stays visible above the skeleton the whole time a run is in flight, so what fed the run is never hidden.
+
+The stepper's inter-stage connector (`stepper.tsx`) steps from the hairline `--border` rule to the strong `--line-strong` neutral rule once the run has reached past that segment (`i < furthestIndex`). The connector never turns amber or the pos green, per the Amber Law; the color change runs on a 200ms transition guarded by `motion-reduce`.
+
+`remix-studio.tsx` wraps the active stage in a `div` keyed on `activeStage` with an `animate-in fade-in slide-in-from-bottom-1` transition (150ms, `motion-reduce:animate-none`), so switching stages replays a fade-and-rise. `RunLog` renders outside that keyed wrapper, so the run log does not re-animate on every stage change.
+
+## 8. Open, not verified
 
 - **Whether a truly concurrent double finish on a session with no plan can both insert.** `finishRemix` reads the most recent linked plan before deciding to insert, and there is no unique constraint on `planned_posts.remix_session_id` backing that read; two finishes racing at the database level, rather than the disabled-button case one browser tab already prevents, have not been proven safe.
 - **Whether the known bugs in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduce exactly as described against a live LLM proxy.** The stuck research skeleton, the stale-variants-after-outline-regenerate gap, and Quick Remix skipping the proxy-down block are read from the code paths involved, not from a reproduced run against a real proxy outage.

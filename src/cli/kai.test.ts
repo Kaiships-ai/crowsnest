@@ -90,7 +90,7 @@ describe("ask", () => {
     const input = new PassThrough();
     const output = new PassThrough();
 
-    const promise = ask("VAULT_PATH", { fallback: "/default", input, output });
+    const promise = ask("PROMPT", { fallback: "/default", input, output });
     input.write("\n");
 
     await expect(promise).resolves.toBe("/default");

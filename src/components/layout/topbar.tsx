@@ -26,7 +26,6 @@ import type { FailureStrip as FailureStripData } from "@/server/queries/failure-
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Dashboard" },
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix studio" },
-  { pattern: /^\/mine\/[^/]+\/studio$/, title: "Studio" },
   { pattern: /^\/feed\/[^/]+$/, title: "Post detail" },
   { pattern: /^\/feed$/, title: "Feed" },
   { pattern: /^\/ideas$/, title: "Ideas" },
