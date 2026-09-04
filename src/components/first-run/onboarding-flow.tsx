@@ -112,12 +112,14 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
 
         {/* Narrow-only compact step indicator: below md the aside is a short header, not
             the fixed rail, so the full tagline and progress spine (below) give way to one
-            line naming where the visitor is. */}
-        <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-faint md:hidden">
-          {step === "welcome"
-            ? `${ONBOARDING_STEP_COUNT} steps · about a minute`
-            : `${currentStepMeta?.label} · ${currentStepMeta?.n} / ${ONBOARDING_STEP_COUNT}`}
-        </div>
+            line naming where the visitor is. Only for the numbered steps - the welcome
+            screen's own body already carries the "N steps, about a minute" line, so
+            repeating it in the header here would double it up on narrow. */}
+        {step !== "welcome" && (
+          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-faint md:hidden">
+            {currentStepMeta?.label} · {currentStepMeta?.n} / {ONBOARDING_STEP_COUNT}
+          </div>
+        )}
 
         <div className="relative z-10 mt-16 hidden md:block">
           <p className="max-w-[15ch] text-xl leading-tight font-bold tracking-tight text-balance">
