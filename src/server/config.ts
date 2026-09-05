@@ -46,10 +46,11 @@ const schema = z.object({
   SYNC_INTERVAL_MINUTES: intWithDefault(0, 0, 10_080),
   /** How many channels a sync run pipelines at once. The env layer under the
    *  `syncConcurrency` setting, not the last word: a stored `app_settings` row beats it.
-   *  Read the setting, never this, from application code. Default 2 (the sidecar's
-   *  process-global lock is the real ceiling on IG traffic, so this only overlaps local
-   *  work); ceiling 16 matches the other concurrency knobs here. */
-  SYNC_CONCURRENCY: intWithDefault(2, 1, 16),
+   *  Read the setting, never this, from application code. Default 1: the sidecar's one
+   *  Instagram session sits behind a process-global lock with a 1-3s delay between calls,
+   *  so overlapping channels barely helps (measured 1.02x) while doubling native
+   *  transcription memory. Ceiling 16 matches the other concurrency knobs here. */
+  SYNC_CONCURRENCY: intWithDefault(1, 1, 16),
   // Hours since a channel's last FULL walk within which an incremental sync may stop early
   // once it reaches already-known posts. Past this the next sync walks the whole window and
   // refreshes every in-window post's snapshot, so metrics never freeze (Goal 3 Round 1).

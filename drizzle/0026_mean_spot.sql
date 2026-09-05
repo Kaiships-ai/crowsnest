@@ -1,0 +1,1 @@
+ALTER TABLE `channels` ADD `last_successful_sync_at` text;

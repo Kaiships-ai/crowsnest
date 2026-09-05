@@ -183,6 +183,13 @@
       "when": 1788536305675,
       "tag": "0025_black_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1788567880194,
+      "tag": "0026_mean_spot",
+      "breakpoints": true
     }
   ]
 }

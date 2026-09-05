@@ -3136,3 +3136,162 @@ describe("runSync — snapshot batching (Goal 3 T4)", () => {
     expect(snaps).toHaveLength(2);
   });
 });
+
+describe("runSync — lastSuccessfulSyncAt", () => {
+  test("stamps lastSuccessfulSyncAt on a clean sync, leaving it null before", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@cleanstamp");
+
+    const before = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(before[0].ts).toBeNull();
+
+    const now = () => new Date(Date.UTC(2026, 5, 1, 12, 0, 0));
+    const pages: Page[] = [{ items: [], nextCursor: null, stopReason: "exhausted" }];
+    await runSync({ channelIds: [channelId], client: stubClient({ pages }).client, sleep: noopSleep, now });
+
+    const after = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(after[0].ts).toBe("2026-06-01T12:00:00.000Z");
+  });
+
+  test("does not stamp lastSuccessfulSyncAt when the channel sync is cancelled", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@cancelstamp");
+
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async medias() {
+        // Cancel observed mid-walk, same mechanism the "co-operative cancel" tests above
+        // use: read the running job row and request cancel on it from inside the sidecar
+        // call, so the engine's cooperative check trips before the channel completes.
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return { items: [makeMedia("cancel-1", 1)], nextCursor: "cursor-2", stopReason: null };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(result.stopReason).toBe("cancelled");
+
+    const after = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(after[0].ts).toBeNull();
+  });
+});
+
+describe("runSync — skipFreshWithinMinutes", () => {
+  test("library sweep skips a channel synced within skipFreshWithinMinutes", async () => {
+    const { db, newId, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const now = new Date(Date.UTC(2026, 5, 1, 12, 0, 0));
+
+    const freshId = newId();
+    const staleId = newId();
+    await db.insert(tables.channels).values([
+      {
+        id: freshId,
+        platform: "instagram",
+        handle: "freshchan",
+        trackedSince: now.toISOString(),
+        // synced 10 minutes ago -> inside a 30-minute skip window
+        lastSuccessfulSyncAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
+      },
+      {
+        id: staleId,
+        platform: "instagram",
+        handle: "stalechan",
+        trackedSince: now.toISOString(),
+        // synced 90 minutes ago -> outside the window, must be swept
+        lastSuccessfulSyncAt: new Date(now.getTime() - 90 * 60_000).toISOString(),
+      },
+    ]);
+
+    const pages: Page[] = [{ items: [], nextCursor: null, stopReason: "exhausted" }];
+    await runSync({
+      client: stubClient({ pages }).client,
+      sleep: noopSleep,
+      now: () => now,
+      skipFreshWithinMinutes: 30,
+    });
+
+    // Only the stale channel was walked; the fresh one was skipped entirely.
+    const fresh = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, freshId));
+    const stale = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, staleId));
+    expect(fresh[0].ts).toBe(new Date(now.getTime() - 10 * 60_000).toISOString()); // untouched
+    expect(stale[0].ts).toBe(now.toISOString()); // freshly stamped by this sweep
+  });
+
+  test("library sweep never skips a channel that has never synced cleanly", async () => {
+    const { db, newId, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const now = new Date(Date.UTC(2026, 5, 1, 12, 0, 0));
+    const neverId = newId();
+    await db.insert(tables.channels).values({
+      id: neverId,
+      platform: "instagram",
+      handle: "neverchan",
+      trackedSince: now.toISOString(),
+      // lastSuccessfulSyncAt left null
+    });
+
+    const pages: Page[] = [{ items: [], nextCursor: null, stopReason: "exhausted" }];
+    await runSync({
+      client: stubClient({ pages }).client,
+      sleep: noopSleep,
+      now: () => now,
+      skipFreshWithinMinutes: 30,
+    });
+
+    const row = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, neverId));
+    expect(row[0].ts).toBe(now.toISOString()); // swept despite the skip window
+  });
+
+  test("an explicit channelIds run ignores skipFreshWithinMinutes", async () => {
+    const { db, newId, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const now = new Date(Date.UTC(2026, 5, 1, 12, 0, 0));
+    const freshId = newId();
+    await db.insert(tables.channels).values({
+      id: freshId,
+      platform: "instagram",
+      handle: "explicitfresh",
+      trackedSince: now.toISOString(),
+      // synced 10 minutes ago -> would be skipped by a sweep, but this run names it explicitly
+      lastSuccessfulSyncAt: new Date(now.getTime() - 10 * 60_000).toISOString(),
+    });
+
+    const pages: Page[] = [{ items: [], nextCursor: null, stopReason: "exhausted" }];
+    const result = await runSync({
+      channelIds: [freshId],
+      client: stubClient({ pages }).client,
+      sleep: noopSleep,
+      now: () => now,
+      skipFreshWithinMinutes: 30,
+    });
+
+    expect(result.channelsSynced).toBe(1);
+    const row = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, freshId));
+    expect(row[0].ts).toBe(now.toISOString()); // explicit ask is honoured, skip window ignored
+  });
+});

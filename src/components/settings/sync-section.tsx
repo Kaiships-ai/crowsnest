@@ -35,9 +35,10 @@ export interface SyncConfigSummary {
 }
 
 /** The four `app_settings` keys this section now edits, matching Wave 1's contract
- *  (`src/server/settings/index.ts`) exactly: `syncLookbackDays` and `maxItemsPerSync`
- *  are both read by `runSync`, `syncCadenceMinutes` and `mediaRetentionDays` are stored
- *  and DB-overridable but have no scheduler and no reaper behind them yet.
+ *  (`src/server/settings/index.ts`) exactly: `syncLookbackDays`, `maxItemsPerSync`, and
+ *  `syncCadenceMinutes` are all read (by `runSync`, and by `sync-scheduler.ts`
+ *  respectively); `mediaRetentionDays` is stored and DB-overridable but has no reaper
+ *  behind it yet.
  *
  *  These four used to render as static config-derived text ("30 days", "200 posts",
  *  "manual only", "nothing is deleted") with no write path: hand-editing `.env.local`
@@ -46,7 +47,7 @@ export interface SyncConfigSummary {
  *  surface for that row. `maxItemsPerSync` was the last of the four still stuck in the
  *  read-only config table below (a leftover from before it had a database row); it
  *  belongs here, next to lookback, because both bound the same sync run and both are
- *  now equally editable. The two genuinely unwired keys keep their honest warning (a
+ *  now equally editable. The one genuinely unwired key keeps its honest warning (a
  *  user who reads "90 days" next to "asset retention" must not conclude disk use is
  *  bounded), it just now sits next to an input instead of standing in for one. */
 type SyncSettings = Pick<
@@ -366,7 +367,7 @@ export function SyncSection({
         <SettingRow
           label="Sync cadence"
           hint="Minutes between automatic syncs."
-          warnNote="No scheduler exists. A sync only ever starts from a click, so this number has no effect yet; it is stored for the day one does."
+          warnNote={cadence.trim() !== "" && Number(cadence.trim()) === 0 ? "0 disables automatic sync; every sync then only starts from a click." : undefined}
           infoNote={envNote("syncCadenceMinutes")}
         >
           <NumberField
