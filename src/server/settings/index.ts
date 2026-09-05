@@ -78,10 +78,10 @@ export interface AppSettings {
    *  Consumed by `runSync` (falls back to this exactly where it used to read
    *  `config.VIEW_COUNT_ENRICH_PER_CHANNEL` directly) and by the view-count backfill. */
   viewCountEnrichPerChannel: number;
-  /** Minutes between automatic syncs. NOT CONSUMED — there is no scheduler in this app;
-   *  every sync starts from a click. Kept here, DB-overridable, for the day a scheduler
-   *  exists, same honesty the Settings page's Sync section already applies to
-   *  `SYNC_INTERVAL_MINUTES`: the value is real and stored, but nothing acts on it. */
+  /** Minutes between automatic syncs. Consumed by the sync-scheduler.ts interval, which
+   *  checks this cadence against the newest sync_jobs row each tick and starts a library
+   *  sweep once it has elapsed. 0 disables automatic sync entirely (every sync then only
+   *  starts from a click). */
   syncCadenceMinutes: number;
   /** Days of media to retain. NOT CONSUMED — there is no reaper; `MEDIA_RETENTION_DAYS`
    *  is validated at boot today and nothing reads it afterwards. Same treatment. */
@@ -234,7 +234,7 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   syncConcurrency: false, // stored and DB-overridable now; runSync reads it in Goal 3 T3
   syncMetricsFreshnessHours: false, // stored and DB-overridable; syncOneChannel reads it (Round 1)
   viewCountEnrichPerChannel: true, // runSync reads it per channel, and the backfill reads it too
-  syncCadenceMinutes: false,
+  syncCadenceMinutes: true, // sync-scheduler.ts reads it each tick and starts a library sweep on cadence
   mediaRetentionDays: false,
   syncSlaMinutes: true, // sync-engine raises an sla_breach on an over-budget finish, and the run screens flag it live
   remixSlaMinutes: false, // stored now, wired once remix runs raise their own notifications

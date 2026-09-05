@@ -181,10 +181,11 @@ describe("getSettingsWithSource", () => {
     expect(view.maxItemsPerSync).toEqual({ value: 350, source: "env", wired: true });
     expect(view.scoreMinViewsFloor).toEqual({ value: 0, source: "default", wired: true });
 
-    // These three are stored and readable, but nothing in the app consumes them yet —
-    // the flag exists so a future Settings UI doesn't imply otherwise.
+    // These two are stored and readable, but nothing in the app consumes them yet — the
+    // flag exists so a future Settings UI doesn't imply otherwise. syncCadenceMinutes is
+    // now consumed by sync-scheduler.ts, so it is wired.
     expect(view.feedDefaultMinScore.wired).toBe(false);
-    expect(view.syncCadenceMinutes.wired).toBe(false);
+    expect(view.syncCadenceMinutes.wired).toBe(true);
     expect(view.mediaRetentionDays.wired).toBe(false);
   });
 });

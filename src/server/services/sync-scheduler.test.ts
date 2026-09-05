@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { log } from "@/server/lib/logger";
-import { runDueSync } from "./sync-scheduler";
+import { runDueSync, startSyncScheduler } from "./sync-scheduler";
 
 const iso = (ms: number, base = Date.UTC(2026, 0, 1)) => new Date(base + ms).toISOString();
 
@@ -81,5 +81,34 @@ describe("runDueSync (fake deps)", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(errorSpy).toHaveBeenCalledWith("sync_scheduler.start_sweep_failed", { error: "boom" });
     errorSpy.mockRestore();
+  });
+});
+
+describe("startSyncScheduler", () => {
+  test("skips a tick that would overlap one still running", async () => {
+    vi.useFakeTimers();
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const cadenceMinutes = async () => 30;
+    // latestJob resolves slowly so a second interval fires while the first tick is awaiting.
+    const latestJob = () =>
+      new Promise<{ status: string; startedAt: string } | null>((resolve) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        setTimeout(() => {
+          inFlight -= 1;
+          resolve(null);
+        }, 50);
+      });
+    const startSweep = vi.fn(async () => {});
+
+    const stop = startSyncScheduler({ intervalMs: 10, cadenceMinutes, latestJob, startSweep });
+    await vi.advanceTimersByTimeAsync(35);
+    stop();
+    vi.useRealTimers();
+
+    // Interval fired several times in 35ms, but the guard means only one tick was ever in
+    // flight at once.
+    expect(maxInFlight).toBe(1);
   });
 });

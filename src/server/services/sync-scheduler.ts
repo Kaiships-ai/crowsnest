@@ -84,3 +84,34 @@ export async function runDueSync(now: Date = new Date(), deps: Partial<SyncSched
   d.startSweep(cadence).catch((err) => log.error("sync_scheduler.start_sweep_failed", { error: errorMessage(err) }));
   return { started: true, reason: "started" };
 }
+
+const DEFAULT_TICK_INTERVAL_MS = 60_000;
+function resolveTickIntervalMs(): number {
+  const raw = process.env.SYNC_SCHEDULER_INTERVAL_MS;
+  const parsed = raw ? Number(raw) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TICK_INTERVAL_MS;
+}
+
+/**
+ * Starts the interval and returns a stop function. A `let running` reentrancy guard skips
+ * a tick that would overlap one still in flight (a slow sweep-start check, or a sweep the
+ * previous tick launched). Identical shape to startPublishScheduler. The 60s default tick
+ * only checks whether the cadence has elapsed; it does not itself set the cadence.
+ */
+export function startSyncScheduler(deps: Partial<SyncSchedulerDeps> & { intervalMs?: number } = {}): () => void {
+  const { intervalMs, ...schedulerDeps } = deps;
+  const period = intervalMs ?? resolveTickIntervalMs();
+
+  let running = false;
+  const timer = setInterval(() => {
+    if (running) return;
+    running = true;
+    runDueSync(new Date(), schedulerDeps)
+      .catch((err) => log.error("sync_scheduler.tick_rejected", { error: errorMessage(err) }))
+      .finally(() => {
+        running = false;
+      });
+  }, period);
+
+  return () => clearInterval(timer);
+}

@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import next from "next";
 import { handleMcpRequest } from "./src/server/mcp/http";
 import { startPublishScheduler } from "./src/server/services/publish-scheduler";
+import { startSyncScheduler } from "./src/server/services/sync-scheduler";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT ?? 3000);
@@ -29,6 +30,16 @@ app.prepare().then(() => {
     startPublishScheduler();
   } catch (err) {
     console.error("startPublishScheduler failed on boot:", err);
+  }
+
+  // Start the in-process sync scheduler beside the publish scheduler. It reads the
+  // syncCadenceMinutes setting each tick and starts a library sweep when the cadence has
+  // elapsed since the last sync (see sync-scheduler.ts). Same guard: a scheduler that fails
+  // to start must never stop the server from listening.
+  try {
+    startSyncScheduler();
+  } catch (err) {
+    console.error("startSyncScheduler failed on boot:", err);
   }
 
   // HOST is unset in dev (binds all interfaces, unchanged). The packaged LaunchAgent sets
