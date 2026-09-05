@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
@@ -79,6 +79,14 @@ export interface RunSyncOpts {
   /** Test seam — overrides the `syncConcurrency` setting for a single run. Clamped to
    *  >= 1 the same way the resolved setting is. */
   concurrency?: number;
+  /**
+   * Only meaningful for a library sweep (no `channelIds`). When > 0, a channel whose
+   * `lastSuccessfulSyncAt` is within this many minutes of now is left out of the run: it
+   * was synced recently enough that re-walking it now would only spend Instagram requests
+   * for nothing. A run scoped to explicit `channelIds` ignores this — naming a channel is
+   * an explicit "sync it now". Defaults to 0 (no skip); the scheduler passes the cadence.
+   */
+  skipFreshWithinMinutes?: number;
   /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
@@ -1685,6 +1693,11 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // A removed channel is never synced again, whether it was named explicitly or
     // picked up by the platform sweep. Removal is soft, so without this filter the
     // flag would set and the next run would go straight back to fetching it.
+    const skipBeforeIso =
+      opts.channelIds || !opts.skipFreshWithinMinutes || opts.skipFreshWithinMinutes <= 0
+        ? null
+        : new Date(now().getTime() - opts.skipFreshWithinMinutes * 60_000).toISOString();
+
     const channelRows = opts.channelIds
       ? await db
           .select()
@@ -1693,7 +1706,18 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       : await db
           .select()
           .from(tables.channels)
-          .where(and(eq(tables.channels.platform, "instagram"), isNull(tables.channels.deletedAt)));
+          .where(
+            and(
+              eq(tables.channels.platform, "instagram"),
+              isNull(tables.channels.deletedAt),
+              // Skip channels synced within the window. `lt(lastSuccessfulSyncAt, cutoff)`
+              // alone would also drop never-synced channels (NULL is never < anything), so a
+              // channel that has never had a clean sync must always be included.
+              ...(skipBeforeIso
+                ? [or(isNull(tables.channels.lastSuccessfulSyncAt), lt(tables.channels.lastSuccessfulSyncAt, skipBeforeIso))]
+                : [])
+            )
+          );
 
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
