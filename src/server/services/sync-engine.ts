@@ -7,8 +7,6 @@ import { igClient, type IgClient, type IgMedia, type IgMediaStats } from "../ig/
 import { IgError, SyncAlreadyRunningError, type IgErrorCode } from "../ig/errors";
 import { tryEnsureAsset, type EnsureAssetDeps } from "../ig/assets";
 import { computeChannelBaseline, scoreVideosAgainstBaseline, type VideoForCalc } from "./outlier-calc";
-import { autoAnalyzeNewOutliers } from "./auto-analyze";
-import { generateIdeasForNewOutliers } from "./ideas";
 import { getScoringOptions, getSetting, type ScoringOptions } from "../settings";
 import { insertNotification } from "../notifications/store";
 import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
@@ -1559,39 +1557,11 @@ async function syncOneChannel(
       medianViews,
     });
 
-    // After scoring, same reasoning as the enrichment gate above: this pass reads
-    // `videos.outlier_score`, which `recomputeChannelScores` just wrote, and the same
-    // Stop click that should not buy the enrichment pass more live requests should not
-    // buy this one more downloads/transcriptions/LLM calls either. Neither
-    // `autoAnalyzeNewOutliers` nor `generateIdeasForNewOutliers` ever throws, so unlike
-    // the page walk above there is nothing here to catch — the same guarantee
-    // `enrichViewCounts` makes for itself.
-    //
-    // Order matters: auto-analyze BEFORE generate-ideas. `generateIdeasForNewOutliers`
-    // only sees outliers that already have a `video_analyses` row (it inner-joins the
-    // table), so running it first would still find nothing to do on a freshly-scored
-    // outlier. Auto-analyze fills that row for the run's top unanalyzed outliers, and the
-    // ideas pass immediately behind it turns those same rows into inbox ideas in the same
-    // sync, instead of waiting for someone to click "Analyze" on each one first.
-    if (stopReason !== "cancelled" && !(await tracker.isCancelRequested())) {
-      const autoAnalyzed = await autoAnalyzeNewOutliers(channel.id, {
-        shouldStop: () => tracker.isCancelRequested(),
-        // Same heartbeat contract as the enrichment pass's own `tick`: reuses the
-        // "scoring" phase so the run doesn't appear to sit on a phase it already finished.
-        tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
-        runId,
-      });
-      log.info("sync.auto_analyze.finished", { channelId: channel.id, handle: channel.handle, ...autoAnalyzed }, runId);
-
-      const ideas = await generateIdeasForNewOutliers(channel.id, {
-        shouldStop: () => tracker.isCancelRequested(),
-        // One heartbeat per candidate idea, same contract as the enrichment pass's own
-        // `tick`: reuses the "scoring" phase so the run doesn't appear to sit on a phase
-        // it already finished.
-        tick: () => tracker.flushIfDue({ phase: "scoring", counters }),
-      });
-      log.info("sync.ideas.finished", { channelId: channel.id, handle: channel.handle, ...ideas }, runId);
-    }
+    // Sync mirrors Instagram metadata and assets, nothing else. The AI passes that once
+    // ran here (auto-analyze, then generate-ideas) downloaded and transcribed full videos
+    // and issued up to 20 LLM calls per channel, which made "Sync now" slow and RAM-heavy
+    // and failed outright without an LLM key. Both remain exported from `auto-analyze.ts`
+    // and `ideas.ts` for an explicit user action or a separate queued job to call.
 
     log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters }, runId);
     return { counters, stopReason };
