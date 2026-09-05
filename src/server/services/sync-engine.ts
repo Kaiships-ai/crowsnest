@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, ne } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
@@ -80,6 +80,14 @@ export interface RunSyncOpts {
    *  >= 1 the same way the resolved setting is. */
   concurrency?: number;
   /**
+   * Only meaningful for a library sweep (no `channelIds`). When > 0, a channel whose
+   * `lastSuccessfulSyncAt` is within this many minutes of now is left out of the run: it
+   * was synced recently enough that re-walking it now would only spend Instagram requests
+   * for nothing. A run scoped to explicit `channelIds` ignores this — naming a channel is
+   * an explicit "sync it now". Defaults to 0 (no skip); the scheduler passes the cadence.
+   */
+  skipFreshWithinMinutes?: number;
+  /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
    * a real job id: the alternative was snapshotting job ids, kicking `runSync()` off
@@ -109,7 +117,9 @@ const PAGE_JITTER_SPAN_MS = 500;
  *    different acts, and only the second one can corrupt a live run.
  */
 const HEARTBEAT_MAX_SILENCE_MS = (SYNC_STALL_SECONDS * 1000) / 3;
-const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
+/** Exported so sync-scheduler.ts can recognize a crash-stranded "running" row as stale
+ *  without hardcoding a second copy of this threshold (see runDueSync). */
+export const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
 /** Ceiling on a single backoff, including one Instagram asked for. A five-minute wait is
  *  already at the edge of what a user will sit through; beyond that, failing the channel
  *  and letting them retry is the honest outcome. */
@@ -1563,6 +1573,19 @@ async function syncOneChannel(
     // and failed outright without an LLM key. Both remain exported from `auto-analyze.ts`
     // and `ideas.ts` for an explicit user action or a separate queued job to call.
 
+    // Stamp the trustworthy completion time. Any stop that is not a user cancel means this
+    // channel finished a sync without error and its newest posts are current, which is what
+    // the library-sweep freshness skip and the scheduler read. A cancel leaves it untouched
+    // so a run stopped mid-walk never masquerades as fresh (unlike lastSyncedAt, written at
+    // the top of this function). Never throws for the same reason the rest of this tail does
+    // not: a bookkeeping write must not turn a completed channel into a gap.
+    if (stopReason !== "cancelled") {
+      await db
+        .update(tables.channels)
+        .set({ lastSuccessfulSyncAt: opts.now().toISOString() })
+        .where(eq(tables.channels.id, channel.id));
+    }
+
     log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters }, runId);
     return { counters, stopReason };
   } catch (err) {
@@ -1672,6 +1695,11 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // A removed channel is never synced again, whether it was named explicitly or
     // picked up by the platform sweep. Removal is soft, so without this filter the
     // flag would set and the next run would go straight back to fetching it.
+    const skipBeforeIso =
+      opts.channelIds || !opts.skipFreshWithinMinutes || opts.skipFreshWithinMinutes <= 0
+        ? null
+        : new Date(now().getTime() - opts.skipFreshWithinMinutes * 60_000).toISOString();
+
     const channelRows = opts.channelIds
       ? await db
           .select()
@@ -1680,7 +1708,18 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       : await db
           .select()
           .from(tables.channels)
-          .where(and(eq(tables.channels.platform, "instagram"), isNull(tables.channels.deletedAt)));
+          .where(
+            and(
+              eq(tables.channels.platform, "instagram"),
+              isNull(tables.channels.deletedAt),
+              // Skip channels synced within the window. `lt(lastSuccessfulSyncAt, cutoff)`
+              // alone would also drop never-synced channels (NULL is never < anything), so a
+              // channel that has never had a clean sync must always be included.
+              ...(skipBeforeIso
+                ? [or(isNull(tables.channels.lastSuccessfulSyncAt), lt(tables.channels.lastSuccessfulSyncAt, skipBeforeIso))]
+                : [])
+            )
+          );
 
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });

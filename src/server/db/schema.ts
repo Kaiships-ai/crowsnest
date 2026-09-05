@@ -72,6 +72,13 @@ export const channels = sqliteTable("channels", {
    *  stop early at already-known posts only while this is within `syncMetricsFreshnessHours`;
    *  past it the next sync walks the whole window so no post's metrics freeze (Round 1). */
   lastFullSyncAt: text("last_full_sync_at"),
+  /** ISO time this channel's most recent sync COMPLETED cleanly (any non-cancelled,
+   *  non-errored stop: lookback, exhausted, cap, or an incremental up-to-date stop).
+   *  Unlike `lastSyncedAt`, which is written near the START of a channel sync right after
+   *  the profile call and so reads "fresh" for a channel cancelled mid-walk, this is
+   *  written only at the end of a channel that finished without error. It is the only
+   *  timestamp the freshness skip and the scheduler trust. Null until the first clean sync. */
+  lastSuccessfulSyncAt: text("last_successful_sync_at"),
   /**
    * Marks the one tracked channel that is Kai's own account, so the app has a single
    * place to answer "which channel is mine" instead of nothing at all. This channel row
