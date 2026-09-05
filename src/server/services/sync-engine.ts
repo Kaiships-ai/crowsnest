@@ -1563,6 +1563,19 @@ async function syncOneChannel(
     // and failed outright without an LLM key. Both remain exported from `auto-analyze.ts`
     // and `ideas.ts` for an explicit user action or a separate queued job to call.
 
+    // Stamp the trustworthy completion time. Any stop that is not a user cancel means this
+    // channel finished a sync without error and its newest posts are current, which is what
+    // the library-sweep freshness skip and the scheduler read. A cancel leaves it untouched
+    // so a run stopped mid-walk never masquerades as fresh (unlike lastSyncedAt, written at
+    // the top of this function). Never throws for the same reason the rest of this tail does
+    // not: a bookkeeping write must not turn a completed channel into a gap.
+    if (stopReason !== "cancelled") {
+      await db
+        .update(tables.channels)
+        .set({ lastSuccessfulSyncAt: opts.now().toISOString() })
+        .where(eq(tables.channels.id, channel.id));
+    }
+
     log.info("sync.channel.finished", { channelId: channel.id, handle: channel.handle, stopReason, ...counters }, runId);
     return { counters, stopReason };
   } catch (err) {

@@ -3136,3 +3136,60 @@ describe("runSync — snapshot batching (Goal 3 T4)", () => {
     expect(snaps).toHaveLength(2);
   });
 });
+
+describe("runSync — lastSuccessfulSyncAt", () => {
+  test("stamps lastSuccessfulSyncAt on a clean sync, leaving it null before", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@cleanstamp");
+
+    const before = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(before[0].ts).toBeNull();
+
+    const now = () => new Date(Date.UTC(2026, 5, 1, 12, 0, 0));
+    const pages: Page[] = [{ items: [], nextCursor: null, stopReason: "exhausted" }];
+    await runSync({ channelIds: [channelId], client: stubClient({ pages }).client, sleep: noopSleep, now });
+
+    const after = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(after[0].ts).toBe("2026-06-01T12:00:00.000Z");
+  });
+
+  test("does not stamp lastSuccessfulSyncAt when the channel sync is cancelled", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@cancelstamp");
+
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async medias() {
+        // Cancel observed mid-walk, same mechanism the "co-operative cancel" tests above
+        // use: read the running job row and request cancel on it from inside the sidecar
+        // call, so the engine's cooperative check trips before the channel completes.
+        const running = await runningJob(channelId);
+        await requestCancel(running!.id);
+        return { items: [makeMedia("cancel-1", 1)], nextCursor: "cursor-2", stopReason: null };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(result.stopReason).toBe("cancelled");
+
+    const after = await db
+      .select({ ts: tables.channels.lastSuccessfulSyncAt })
+      .from(tables.channels)
+      .where(eq(tables.channels.id, channelId));
+    expect(after[0].ts).toBeNull();
+  });
+});
