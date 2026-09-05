@@ -24,14 +24,14 @@ export interface SyncSchedulerDeps {
   /** The syncCadenceMinutes setting. 0 disables the scheduler. */
   cadenceMinutes: () => Promise<number>;
   /** The newest sync_jobs row, or null on a fresh install. */
-  latestJob: () => Promise<{ status: string; startedAt: string } | null>;
+  latestJob: () => Promise<{ status: string; startedAt: string; heartbeatAt: string | null } | null>;
   /** Starts a detached library sweep that skips channels synced within the window. */
   startSweep: (skipFreshWithinMinutes: number) => Promise<void>;
 }
 
-async function defaultLatestJob(): Promise<{ status: string; startedAt: string } | null> {
+async function defaultLatestJob(): Promise<{ status: string; startedAt: string; heartbeatAt: string | null } | null> {
   const [row] = await db
-    .select({ status: tables.syncJobs.status, startedAt: tables.syncJobs.startedAt })
+    .select({ status: tables.syncJobs.status, startedAt: tables.syncJobs.startedAt, heartbeatAt: tables.syncJobs.heartbeatAt })
     .from(tables.syncJobs)
     .orderBy(desc(tables.syncJobs.startedAt))
     .limit(1);
@@ -62,7 +62,7 @@ export async function runDueSync(now: Date = new Date(), deps: Partial<SyncSched
   const d: SyncSchedulerDeps = { ...DEFAULT_DEPS, ...deps };
 
   let cadence: number;
-  let latest: { status: string; startedAt: string } | null;
+  let latest: { status: string; startedAt: string; heartbeatAt: string | null } | null;
   try {
     cadence = await d.cadenceMinutes();
     if (cadence <= 0) return { started: false, reason: "disabled" };
@@ -73,7 +73,13 @@ export async function runDueSync(now: Date = new Date(), deps: Partial<SyncSched
   }
 
   if (latest?.status === "running") {
-    const runningForMs = now.getTime() - new Date(latest.startedAt).getTime();
+    // Staleness must be judged on the same signal reapStaleLocks uses (heartbeatAt, refreshed
+    // on every sync progress patch), not startedAt: a genuinely-live sweep that simply runs
+    // longer than LOCK_STALE_MS would otherwise look "stale" every tick, triggering a
+    // redundant startSweep that acquireLock's arbitration rejects and logs as an error for
+    // the sweep's whole duration. heartbeatAt is set at insert (acquireLock) so a running row
+    // always has one; the startedAt fallback only covers a null read (e.g. a stubbed dep).
+    const runningForMs = now.getTime() - new Date(latest.heartbeatAt ?? latest.startedAt).getTime();
     // A fresh "running" row is a sync actually in flight: respect it. A STALE one (older
     // than the reaper's own threshold) is a crash-stranded lock left by a hard process
     // kill — reapStaleLocks only ever runs inside acquireLock, which only runs when a

@@ -17,39 +17,56 @@ describe("runDueSync (fake deps)", () => {
     expect(startSweep).not.toHaveBeenCalled();
   });
 
-  test("skips while a sync is running (fresh lock)", async () => {
+  test("skips while a sync is running (fresh heartbeat)", async () => {
     const startSweep = vi.fn(async () => {});
     const r = await runDueSync(new Date(iso(LOCK_STALE_MS - 1_000)), {
       cadenceMinutes: async () => 30,
-      latestJob: async () => ({ status: "running", startedAt: iso(0) }),
+      latestJob: async () => ({ status: "running", startedAt: iso(0), heartbeatAt: iso(0) }),
       startSweep,
     });
     expect(r).toEqual({ started: false, reason: "running" });
     expect(startSweep).not.toHaveBeenCalled();
   });
 
-  test("starts a sweep when the running row is stale (crash-stranded lock)", async () => {
-    // A row stuck on "running" past the reaper's own staleness threshold means the last
-    // attempt crashed without ever reaching a terminal status. The scheduler must not wedge
-    // forever waiting for a human to click "Sync now" — it falls through and lets
-    // acquireLock's reaper (inside startSweep -> runSync) clear the stranded row. A
-    // genuinely live run would instead be protected by acquireLock's own arbitration, not
-    // by this gate.
+  test("starts a sweep when the running row's heartbeat is stale (crash-stranded lock)", async () => {
+    // A row stuck on "running" whose heartbeat has gone silent past the reaper's own
+    // staleness threshold means the last attempt crashed without ever reaching a terminal
+    // status. The scheduler must not wedge forever waiting for a human to click "Sync now"
+    // — it falls through and lets acquireLock's reaper (inside startSweep -> runSync) clear
+    // the stranded row. A genuinely live run would instead be protected by acquireLock's own
+    // arbitration, not by this gate.
     const startSweep = vi.fn(async () => {});
     const r = await runDueSync(new Date(iso(LOCK_STALE_MS + 1_000)), {
       cadenceMinutes: async () => 30,
-      latestJob: async () => ({ status: "running", startedAt: iso(0) }),
+      latestJob: async () => ({ status: "running", startedAt: iso(0), heartbeatAt: iso(0) }),
       startSweep,
     });
     expect(r).toEqual({ started: true, reason: "started" });
     expect(startSweep).toHaveBeenCalledWith(30);
   });
 
+  test("does not treat a long-running sync as stale when its heartbeat is fresh", async () => {
+    // Regression for the false-alarm bug: a genuinely-live library sweep can run past
+    // LOCK_STALE_MS (its startedAt is far in the past), but as long as progress() keeps
+    // refreshing heartbeatAt, the scheduler must judge it live, not stale — otherwise it
+    // fires a redundant startSweep every tick for the sweep's whole duration, which
+    // acquireLock's arbitration rejects and logs as an error each time.
+    const startSweep = vi.fn(async () => {});
+    const now = iso(LOCK_STALE_MS * 3);
+    const r = await runDueSync(new Date(now), {
+      cadenceMinutes: async () => 30,
+      latestJob: async () => ({ status: "running", startedAt: iso(0), heartbeatAt: iso(LOCK_STALE_MS * 3 - 1_000) }),
+      startSweep,
+    });
+    expect(r).toEqual({ started: false, reason: "running" });
+    expect(startSweep).not.toHaveBeenCalled();
+  });
+
   test("not due when the last run is inside the cadence window", async () => {
     const startSweep = vi.fn(async () => {});
     const r = await runDueSync(new Date(iso(10 * 60_000)), {
       cadenceMinutes: async () => 30,
-      latestJob: async () => ({ status: "success", startedAt: iso(0) }),
+      latestJob: async () => ({ status: "success", startedAt: iso(0), heartbeatAt: iso(0) }),
       startSweep,
     });
     expect(r).toEqual({ started: false, reason: "not_due" });
@@ -60,7 +77,7 @@ describe("runDueSync (fake deps)", () => {
     const startSweep = vi.fn(async () => {});
     const r = await runDueSync(new Date(iso(31 * 60_000)), {
       cadenceMinutes: async () => 30,
-      latestJob: async () => ({ status: "success", startedAt: iso(0) }),
+      latestJob: async () => ({ status: "success", startedAt: iso(0), heartbeatAt: iso(0) }),
       startSweep,
     });
     expect(r).toEqual({ started: true, reason: "started" });
@@ -90,7 +107,7 @@ describe("runDueSync (fake deps)", () => {
     });
     const r = await runDueSync(new Date(iso(31 * 60_000)), {
       cadenceMinutes: async () => 30,
-      latestJob: async () => ({ status: "success", startedAt: iso(0) }),
+      latestJob: async () => ({ status: "success", startedAt: iso(0), heartbeatAt: iso(0) }),
       startSweep,
     });
     // The tick itself never throws and reports that it attempted a start.
@@ -110,7 +127,7 @@ describe("startSyncScheduler", () => {
     const cadenceMinutes = async () => 30;
     // latestJob resolves slowly so a second interval fires while the first tick is awaiting.
     const latestJob = () =>
-      new Promise<{ status: string; startedAt: string } | null>((resolve) => {
+      new Promise<{ status: string; startedAt: string; heartbeatAt: string | null } | null>((resolve) => {
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
         setTimeout(() => {
