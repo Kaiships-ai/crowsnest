@@ -1,5 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { log } from "@/server/lib/logger";
+import { LOCK_STALE_MS } from "./sync-engine";
 import { runDueSync, startSyncScheduler } from "./sync-scheduler";
 
 const iso = (ms: number, base = Date.UTC(2026, 0, 1)) => new Date(base + ms).toISOString();
@@ -16,15 +17,32 @@ describe("runDueSync (fake deps)", () => {
     expect(startSweep).not.toHaveBeenCalled();
   });
 
-  test("skips while a sync is running", async () => {
+  test("skips while a sync is running (fresh lock)", async () => {
     const startSweep = vi.fn(async () => {});
-    const r = await runDueSync(new Date(iso(60 * 60_000)), {
+    const r = await runDueSync(new Date(iso(LOCK_STALE_MS - 1_000)), {
       cadenceMinutes: async () => 30,
       latestJob: async () => ({ status: "running", startedAt: iso(0) }),
       startSweep,
     });
     expect(r).toEqual({ started: false, reason: "running" });
     expect(startSweep).not.toHaveBeenCalled();
+  });
+
+  test("starts a sweep when the running row is stale (crash-stranded lock)", async () => {
+    // A row stuck on "running" past the reaper's own staleness threshold means the last
+    // attempt crashed without ever reaching a terminal status. The scheduler must not wedge
+    // forever waiting for a human to click "Sync now" — it falls through and lets
+    // acquireLock's reaper (inside startSweep -> runSync) clear the stranded row. A
+    // genuinely live run would instead be protected by acquireLock's own arbitration, not
+    // by this gate.
+    const startSweep = vi.fn(async () => {});
+    const r = await runDueSync(new Date(iso(LOCK_STALE_MS + 1_000)), {
+      cadenceMinutes: async () => 30,
+      latestJob: async () => ({ status: "running", startedAt: iso(0) }),
+      startSweep,
+    });
+    expect(r).toEqual({ started: true, reason: "started" });
+    expect(startSweep).toHaveBeenCalledWith(30);
   });
 
   test("not due when the last run is inside the cadence window", async () => {

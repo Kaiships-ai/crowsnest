@@ -2,7 +2,7 @@ import { desc } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { getSetting } from "@/server/settings";
-import { runSync } from "./sync-engine";
+import { LOCK_STALE_MS, runSync } from "./sync-engine";
 
 /**
  * The in-process sync scheduler, modelled exactly on publish-scheduler.ts: one
@@ -72,9 +72,18 @@ export async function runDueSync(now: Date = new Date(), deps: Partial<SyncSched
     return { started: false, reason: "not_due" };
   }
 
-  if (latest?.status === "running") return { started: false, reason: "running" };
-
-  if (latest) {
+  if (latest?.status === "running") {
+    const runningForMs = now.getTime() - new Date(latest.startedAt).getTime();
+    // A fresh "running" row is a sync actually in flight: respect it. A STALE one (older
+    // than the reaper's own threshold) is a crash-stranded lock left by a hard process
+    // kill — reapStaleLocks only ever runs inside acquireLock, which only runs when a
+    // sync is attempted, so hard-skipping here forever would wedge the scheduler. Fall
+    // through instead: acquireLock's reaper clears the stranded row, and if a sync is
+    // genuinely still live (this row's staleness is a false read), acquireLock's
+    // IMMEDIATE arbitration rejects the new attempt and the fire-and-forget .catch below
+    // logs it — no crash, no double run.
+    if (runningForMs < LOCK_STALE_MS) return { started: false, reason: "running" };
+  } else if (latest) {
     const elapsedMs = now.getTime() - new Date(latest.startedAt).getTime();
     if (elapsedMs < cadence * 60_000) return { started: false, reason: "not_due" };
   }

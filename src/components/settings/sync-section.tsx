@@ -367,7 +367,7 @@ export function SyncSection({
         <SettingRow
           label="Sync cadence"
           hint="Minutes between automatic syncs."
-          warnNote={cadence === "0" ? "0 disables automatic sync; every sync then only starts from a click." : undefined}
+          warnNote={cadence.trim() !== "" && Number(cadence.trim()) === 0 ? "0 disables automatic sync; every sync then only starts from a click." : undefined}
           infoNote={envNote("syncCadenceMinutes")}
         >
           <NumberField

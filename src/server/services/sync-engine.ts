@@ -117,7 +117,9 @@ const PAGE_JITTER_SPAN_MS = 500;
  *    different acts, and only the second one can corrupt a live run.
  */
 const HEARTBEAT_MAX_SILENCE_MS = (SYNC_STALL_SECONDS * 1000) / 3;
-const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
+/** Exported so sync-scheduler.ts can recognize a crash-stranded "running" row as stale
+ *  without hardcoding a second copy of this threshold (see runDueSync). */
+export const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
 /** Ceiling on a single backoff, including one Instagram asked for. A five-minute wait is
  *  already at the edge of what a user will sit through; beyond that, failing the channel
  *  and letting them retry is the honest outcome. */

@@ -83,8 +83,8 @@ export interface AppSettings {
    *  sweep once it has elapsed. 0 disables automatic sync entirely (every sync then only
    *  starts from a click). */
   syncCadenceMinutes: number;
-  /** Days of media to retain. NOT CONSUMED — there is no reaper; `MEDIA_RETENTION_DAYS`
-   *  is validated at boot today and nothing reads it afterwards. Same treatment. */
+  /** Days of media to retain. NOT CONSUMED — there is no reaper yet; `MEDIA_RETENTION_DAYS`
+   *  is validated at boot today and nothing reads it afterwards. */
   mediaRetentionDays: number;
   /** Wall clock minutes a library sync is allowed before it counts as over its SLA budget.
    *  Read by the finish path in sync-engine.ts to decide whether to raise an sla_breach
