@@ -232,6 +232,14 @@ export const videoAnalyses = sqliteTable("video_analyses", {
   whyItWorked: text("why_it_worked"),
   summary: text("summary"),
   model: text("model"),
+  /**
+   * Origin of the text analysis: "mcp" (an agent authored it through
+   * crowsnest_save_analysis), "auto" (the retired auto-analyze pass), "manual"
+   * (the in-app Analyze action), or "legacy" (written before this column existed).
+   * Distinct from `model`, which names the text model; two rows can share a model
+   * yet differ in who asked for the analysis.
+   */
+  source: text("source"),
   createdAt: text("created_at").notNull(),
 
   /**
