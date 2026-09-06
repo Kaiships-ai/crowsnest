@@ -249,3 +249,35 @@ describe("crowsnest_metrics prior-period comparison", () => {
     expect(Array.isArray(body.posts.items)).toBe(true);
   });
 });
+
+describe("sync control tools", () => {
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+  });
+
+  test("crowsnest_sync_selected rejects an empty channelIds array (no library-wide default)", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_selected", { channelIds: [] });
+    expect(r.isError).toBe(true);
+    expect((r.structuredContent as { code?: string }).code).toBe("NO_CHANNELS");
+  });
+
+  test("crowsnest_sync_status returns null progress for an unknown job id, not an error", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_status", { jobId: "no-such-job" });
+    expect(r.isError).not.toBe(true);
+    expect((r.structuredContent as { progress: unknown }).progress).toBeNull();
+  });
+
+  test("crowsnest_sync_cancel reports requested=false when nothing is running under that id", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_cancel", { jobId: "no-such-job" });
+    expect(r.isError).not.toBe(true);
+    expect((r.structuredContent as { requested: boolean }).requested).toBe(false);
+  });
+});

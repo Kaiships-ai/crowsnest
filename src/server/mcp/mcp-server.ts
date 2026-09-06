@@ -21,6 +21,7 @@ import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
 import { getAsset, resolveAssetPath } from "@/server/media/store";
 import { saveAgentAnalysis } from "@/server/services/analyze";
+import { startSyncAction, getSyncProgressAction, cancelSyncAction } from "@/server/actions/sync-actions";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -260,6 +261,52 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const r = await saveAgentAnalysis(args.videoId, args);
       return r.ok ? result({ ok: true, videoId: args.videoId }) : errorResult({ error: r.error, videoId: args.videoId });
+    }
+  );
+
+  // Sync control. Thin wrappers over the sync actions, each already returning a result
+  // object; the MCP boundary never throws. sync_selected refuses an empty channelIds
+  // array — there is no whole-library default here (matches runSync's own scoping).
+
+  server.registerTool(
+    "crowsnest_sync_selected",
+    {
+      title: "Sync selected channels",
+      description: "Start a sync for exactly the given channel ids and return a job id. Requires a non-empty channelIds array; there is no whole-library default. Poll it with crowsnest_sync_status.",
+      inputSchema: { channelIds: z.array(z.string()).describe("The channel ids to sync, from crowsnest_channels. Must be non-empty.") },
+    },
+    async (args) => {
+      if (!Array.isArray(args.channelIds) || args.channelIds.length === 0) {
+        return errorResult({ error: "channelIds must be a non-empty array", code: "NO_CHANNELS" });
+      }
+      const r = await startSyncAction(args.channelIds);
+      return r.ok ? result({ jobId: r.jobId }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_sync_status",
+    {
+      title: "Sync status",
+      description: "Read a sync run's progress by job id. Returns null progress when the id names no run.",
+      inputSchema: { jobId: z.string().describe("The job id from crowsnest_sync_selected.") },
+    },
+    async (args) => {
+      const r = await getSyncProgressAction(args.jobId);
+      return r.ok ? result({ progress: r.progress }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_sync_cancel",
+    {
+      title: "Cancel a sync",
+      description: "Request cooperative cancel of a running sync by job id. The run stops at its next channel boundary keeping committed work. `requested` is false when there was nothing still running to cancel.",
+      inputSchema: { jobId: z.string().describe("The job id from crowsnest_sync_selected.") },
+    },
+    async (args) => {
+      const r = await cancelSyncAction(args.jobId);
+      return r.ok ? result({ ok: true, jobId: args.jobId, requested: r.requested }) : errorResult({ error: r.error, code: r.code });
     }
   );
 
