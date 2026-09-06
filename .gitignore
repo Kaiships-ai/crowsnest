@@ -75,3 +75,6 @@ crowsnest.db-shm
 # mkdocs build
 /site/
 /.mkdocs-venv/
+.gitnexus
+
+/evidence

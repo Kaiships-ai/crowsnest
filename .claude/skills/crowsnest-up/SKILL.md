@@ -1,6 +1,6 @@
 ---
 name: crowsnest-up
-description: Boot the crowsnest local stack (9router, dev server on 3000, connected browser). User-invoked only.
+description: Boot the crowsnest local stack (9router, database migrations, dev server on 3000, connected browser). User-invoked only.
 disable-model-invocation: true
 ---
 
@@ -8,7 +8,8 @@ disable-model-invocation: true
 
 Bring the crowsnest dev stack up in one shot and leave it running. Three
 services: 9router (LLM proxy on 20128), the Next dev server on port 3000, and a
-connected headed browser pointed at the app.
+connected headed browser pointed at the app, with the local database brought up
+to the schema the checked-out code expects before the server starts.
 
 Every step is idempotent: check if the thing is already up before starting it.
 Never broad-kill (`pkill -f next-server` nukes unrelated servers and starts a
@@ -42,7 +43,67 @@ Check with a short poll, not a single shot, since tray boot takes a second or
 two. If it stays 000, read `$HOME/.crowsnest/9router.log` and report. Do not
 retry more than once.
 
-## Step 2: Dev server on 3000 (run it in an orca pane)
+## Step 2: Database schema (migrate before the server starts)
+
+A stale local database does not fail at boot. It fails later, per page, as
+`no such column: "sync_cursor"` or `no such table: creator_seeds`, which reads
+like a code bug and is not one. Bring the schema up first.
+
+```bash
+npm run db:migrate 2>&1 | tail -5
+npm run db:bootstrap 2>&1 | tail -3
+```
+
+`db:migrate` backs the file up first (`data/crowsnest.db.bak-<epoch>`) and
+prunes old backups, so a plain run is safe. `db:bootstrap` is idempotent: it
+inserts the built-in filter presets and the curated creator seeds, reporting
+how many were created versus already present.
+
+Completion: both commands exit 0, and a spot check of the newest columns
+returns them.
+
+```bash
+sqlite3 data/crowsnest.db "PRAGMA table_info(channels);" | awk -F'|' '{print $2}' | grep -c sync_cursor
+sqlite3 data/crowsnest.db "select count(*) from creator_seeds;"
+```
+
+### If migrate fails with "table already exists"
+
+The ledger has drifted: the tables are physically present but
+`__drizzle_migrations` never recorded the migration that created them, usually
+from an older schema push that bypassed the ledger. `migrate()` then replays an
+old migration and dies, so every later migration is skipped too.
+
+Do NOT delete the database and do NOT hand-edit the schema. Stamp the
+already-applied migrations, then migrate. Drizzle's ledger hash is a plain
+sha256 of the migration file, so verify the scheme against a known-applied row
+before writing anything:
+
+```bash
+# 1. How far apart are ledger and files?
+sqlite3 data/crowsnest.db "select count(*) from __drizzle_migrations;"
+ls drizzle/*.sql | wc -l
+
+# 2. Prove the hash scheme reproduces an existing row (must print the same hash twice).
+sqlite3 data/crowsnest.db "select hash from __drizzle_migrations order by created_at desc limit 1;"
+shasum -a 256 drizzle/<the matching migration>.sql | awk '{print $1}'
+```
+
+For each pending migration whose objects already exist (check with
+`PRAGMA table_info(<table>)` or `select name from sqlite_master`), insert a
+ledger row using the file's sha256 and the `when` value from
+`drizzle/meta/_journal.json`:
+
+```bash
+h=$(shasum -a 256 drizzle/00NN_<name>.sql | awk '{print $1}')
+sqlite3 data/crowsnest.db "insert into __drizzle_migrations (hash, created_at) values ('$h', <when from _journal.json>);"
+```
+
+Only stamp a migration whose objects you confirmed are already there. Stamping
+one that has not really run silently skips real schema changes. Then re-run
+`npm run db:migrate`.
+
+## Step 3: Dev server on 3000 (run it in an orca pane)
 
 The dev server MUST run in a real orca terminal pane, not from a Bash tool
 call. This shell runs with `CLAUDE_CODE_SANDBOXED=1`; a backgrounded
@@ -52,7 +113,7 @@ survives.
 
 First check port 3000:
 
-- Already serving (HTTP 200 on `http://localhost:3000`): skip to Step 3.
+- Already serving (HTTP 200 on `http://localhost:3000`): skip to Step 4.
 - Held by something else: stop, report what holds it (`lsof -nP -iTCP:3000 -sTCP:LISTEN`), do not kill.
 - Down: open a pane and run the dev server in it.
 
@@ -92,7 +153,7 @@ the pane with `orca terminal read --terminal "$SURF" --screen --json` and
 report what it shows (compile error, wrong cwd, port conflict). Do not fall
 back to nohup, it will not stay up.
 
-## Step 3: Connect browser and open the app
+## Step 4: Connect browser and open the app
 
 Launch browse with cwd = a repo SUBDIR (`.gstack/browse-cwd`).
 
@@ -139,7 +200,19 @@ Completion, all three must hold:
 
 ## Done
 
-Report the final state as three lines: 9router (up/failed), dev server on 3000
-(up and stable / exited, with cause), browser (connected and showing the app /
-not). If any step failed, name the failing step and the log line, do not paper
-over it.
+Report the final state as four lines: 9router (up/failed), database (migrations
+applied or already current, seed counts), dev server on 3000 (up and stable /
+exited, with cause), browser (connected and showing the app / not). If any step
+failed, name the failing step and the log line, do not paper over it.
+
+Then smoke the routes the recent work touched, so a schema or route-group
+problem shows up here rather than the first time someone clicks:
+
+```bash
+for p in / /feed /channels/discover /mine /runs /settings; do
+  printf "%-20s %s\n" "$p" "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:3000$p")"
+done
+```
+
+All six must read 200. A 500 on one route with the others fine is usually the
+stale-schema case from Step 2, not a broken page.
