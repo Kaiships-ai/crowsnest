@@ -293,7 +293,12 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                   // amber: amber is the rail's single signal and it belongs on the Feed
                   // outlier cue, not on "you are here". Raised surface + weight carry the
                   // rest of the active state.
-                  "mx-3 flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm transition-colors",
+                  // `relative` anchors the collapsed-mode signal dot below. Keyboard focus
+                  // gets the app's amber focus ring (globals: focus is amber because nothing
+                  // else competes for it), inset so it never collides with the rail edge —
+                  // the nav links had only the browser default before.
+                  "relative mx-3 flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm transition-colors",
+                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
                   collapsed && "justify-center px-0",
                   itemActive
                     ? "border-[color:var(--line-strong)] bg-popover font-semibold text-foreground"
@@ -332,6 +337,12 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                       </span>
                     )}
                   </>
+                )}
+                {/* Collapsed rail keeps the signal alive as a bare amber dot — the count has
+                    no room, but "there is something on Feed worth making" must not vanish
+                    just because the labels did. Same score-amber, same hidden-at-zero rule. */}
+                {collapsed && item.href === "/feed" && feedOutlierCount > 0 && (
+                  <span aria-hidden className="absolute right-2 top-1.5 size-1.5 rounded-full bg-primary" />
                 )}
               </Link>
             </div>
