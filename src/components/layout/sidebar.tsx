@@ -135,6 +135,25 @@ export interface SidebarProps {
 export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  // Optimistic active item. A shell route is `force-dynamic`, so a nav click waits on a
+  // server render (fast, but not free) before `pathname` moves and the active marker
+  // follows — long enough to read as "nothing happened yet". Instead, on click we light
+  // the target immediately and reconcile when the route commits: `displayHref` is the
+  // pending target while a navigation is in flight, then falls back to the real pathname.
+  // One item is ever active, it switches on the click frame, and the existing 150ms color
+  // transition keeps the switch smooth rather than abrupt.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  // React's "adjust state during render" reset pattern, not an effect: the moment the
+  // pathname changes (the click's route committed, or the user went elsewhere by any
+  // means) the optimistic target is stale, so drop it in the same render rather than one
+  // commit later. Tracking the last pathname in state is what lets this run in render
+  // without an effect and without a cascading re-render.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
+    setPendingHref(null);
+  }
+  const displayHref = pendingHref ?? pathname;
   const [panelOpen, setPanelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
@@ -235,7 +254,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
 
       <nav className="flex flex-1 flex-col gap-0.5 pb-2" aria-label="Primary">
         {NAV_ITEMS.map((item, index) => {
-          const itemActive = isNavItemActive(pathname, item.href);
+          const itemActive = isNavItemActive(displayHref, item.href);
           const Icon = item.icon;
           const startsNewGroup = index === 0 || NAV_ITEMS[index - 1].group !== item.group;
 
@@ -261,7 +280,12 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                 onNavigate={(e) => {
                   if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
                     e.preventDefault();
+                    return;
                   }
+                  // Light the target now, not after the server render commits. Skipped when
+                  // it is already the active route (a re-click navigates nowhere, so there
+                  // is nothing to reconcile and no pending state to strand).
+                  if (!itemActive) setPendingHref(item.href);
                 }}
                 className={cn(
                   // A transparent left border on every item so the active one can light it
