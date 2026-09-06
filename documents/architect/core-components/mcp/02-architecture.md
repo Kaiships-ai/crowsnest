@@ -2,17 +2,19 @@
 
 `documents/architect/core-components/mcp/`
 
-Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 19 `crowsnest_*` tools (seven read, twelve remix).
+Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 27 `crowsnest_*` tools: seven data reads, twelve remix tools, and eight monthly and weekly planning tools (four research reads, three sync-control tools, one analysis write), plus a prior-period comparison on `crowsnest_metrics`. The planning tool set is recorded in section 9 and specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md).
 
 ## 1. Module structure
 
 | File | Export | Role |
 | --- | --- | --- |
-| `src/server/mcp/mcp-server.ts` | `buildMcpServer`, `result`, `errorResult`, `mediaInfoFor`, `MediaInfo` | The server factory and the tool contract. `buildMcpServer` constructs an `McpServer` and registers all 19 `crowsnest_*` tools, each a thin wrapper over an existing query or service function. `result`/`errorResult` are the output contract; `mediaInfoFor` is the media handoff helper. |
+| `src/server/mcp/mcp-server.ts` | `buildMcpServer`, `result`, `errorResult`, `mediaInfoFor`, `MediaInfo` | The server factory and the tool contract. `buildMcpServer` constructs an `McpServer` and registers all 27 `crowsnest_*` tools, each a thin wrapper over an existing query, action, or service function. `result`/`errorResult` are the output contract; `mediaInfoFor` is the media handoff helper. |
+| `src/server/queries/research.ts` | `getResearchSet`, `getOutlierPack`, `OwnBenchmarkRow`, `ResearchOutlier` | The research read bundles behind `crowsnest_research_set` and `crowsnest_outlier_pack`. Both call `getOutlierFeed` (never re-implementing the feed SQL) and join each item to its `video_analyses` row, then pair the competitor outliers with the own-channel `reachIndex` benchmark from `getOwnPosts`. |
+| `src/server/services/analyze.ts` | `saveAgentAnalysis` (among others) | Validates agent-authored fields against `VideoAnalysisSchema` and upserts the `video_analyses` row stamped `source = "mcp"`, never calling the LLM. Backs `crowsnest_save_analysis`. |
 | `src/server/mcp/http.ts` | `handleMcpRequest` | Bridges the app's raw Node http server to the MCP streamable HTTP transport. Reads the JSON body on POST, builds a fresh server and a stateless transport per request, and tears both down when the response closes. A thrown error becomes a JSON-RPC 500 envelope, never an unhandled crash. |
 | `server.ts` (repo root) | (the app server) | Routes any request whose URL starts with `/api/mcp` to `handleMcpRequest`, in-process; everything else goes to Next. This is what keeps the MCP on the app's one SQLite connection. |
 
-The server owns no schema and no migration. Every table it touches belongs to another component and is reached only through that component's query or service function.
+The MCP server owns no schema and no migration. It reaches the sync actions (`startSyncAction`, `getSyncProgressAction`, `cancelSyncAction`), the channel and run queries (`getChannelsList`, `getChannelDetail`, `getChannelMedianBasis`, `getLastRunHealth`), the research bundles (`getResearchSet`, `getOutlierPack`), and `saveAgentAnalysis`, each already belonging to another component. The one schema change these tools need, the `source` column on `video_analyses`, belongs to the analyze component and shipped in migration `0027`.
 
 ## 2. In-process mount
 
@@ -56,10 +58,13 @@ The two always agree because they are the same value serialized once. A client c
 
 ## 4. Read tools versus write tools
 
-The 19 tools split by whether they change data.
+The 27 tools split by whether they change data.
 
-- **Read tools (7):** `crowsnest_feed`, `crowsnest_video`, `crowsnest_brief`, `crowsnest_scripts`, `crowsnest_ideas`, `crowsnest_metrics`, `crowsnest_plans`. Each wraps a query function and returns rows. `crowsnest_plans` is read-only: it lists planned posts but never creates or changes one.
+- **Data read tools (7):** `crowsnest_feed`, `crowsnest_video`, `crowsnest_brief`, `crowsnest_scripts`, `crowsnest_ideas`, `crowsnest_metrics`, `crowsnest_plans`. Each wraps a query function and returns rows. `crowsnest_plans` is read-only: it lists planned posts but never creates or changes one.
 - **Remix tools (12):** the `crowsnest_remix_*` chain. Some are reads (`crowsnest_remix_state`), some create or advance a session (`crowsnest_remix_session`, `crowsnest_remix_set_prompt`, `crowsnest_remix_choose_hook`, `crowsnest_remix_style`, `crowsnest_remix_save_script`, `crowsnest_remix_finish`), and some call the model to generate (`crowsnest_remix_hooks`, `crowsnest_remix_outline`, `crowsnest_remix_variants`, `crowsnest_remix_regenerate_variant`). The generate tools need the LLM proxy; the rest do not. The only planned post the MCP ever writes is the one `crowsnest_remix_finish` creates or reuses, and that write goes through the remix service, on the same connection, exactly as the dashboard's finish does.
+- **Research read tools (4):** `crowsnest_channels`, `crowsnest_channel_stats`, `crowsnest_research_set`, `crowsnest_outlier_pack`. Reads that pull the planning landscape and the two working-set bundles, each bundle pairing competitor outliers (`outlierScore`) with the own-channel `reachIndex` benchmark. No write.
+- **Sync-control tools (3):** `crowsnest_sync_selected` and `crowsnest_sync_cancel` start and stop a scoped channel sync (a side effect, not a database write of the MCP's own); `crowsnest_sync_status` reads its progress. All three wrap the sync actions the dashboard uses.
+- **Agent analysis write (1):** `crowsnest_save_analysis` upserts a `video_analyses` row stamped `source = "mcp"` through `saveAgentAnalysis`, on the same connection, with no LLM call.
 
 Stage progression on the session is left to the service functions (finish sets the stage); the tools do not manage the dashboard's stepper, because that only affects how the UI renders the session.
 
@@ -88,6 +93,91 @@ The two unbounded list tools, `crowsnest_scripts` and `crowsnest_ideas`, take `l
 
 ## 8. Open, not verified
 
-- **The transport and the route are not exercised end to end.** The vitest suite (`src/server/mcp/mcp-server.test.ts`) tests the tool handlers directly, reaching them through the server's private `_registeredTools` registry, and tests the contract helpers and `mediaInfoFor` in isolation. It does not stand up the streamable HTTP transport or drive the real `/api/mcp` route in `server.ts`. That an actual MCP client connecting over `/api/mcp` gets a well-formed JSON-RPC response, and that the per-request server-and-transport teardown behaves under a real connection, is asserted from the code but not proven by a test.
+- **The streamable HTTP transport and the `/api/mcp` route are not exercised end to end.** Most of the vitest suite (`src/server/mcp/mcp-server.test.ts`) tests the tool handlers directly, reaching them through the server's private `_registeredTools` registry, and tests the contract helpers and `mediaInfoFor` in isolation. `src/server/mcp/mcp-roundtrip.test.ts` now stands up a real SDK `Client` over a linked `InMemoryTransport` pair and drives `tools/list` and `tools/call` through it, so the wire shape is proven over a real transport. That harness does not use the streamable HTTP transport or the real `/api/mcp` route in `server.ts`; that an actual MCP client connecting over HTTP gets a well-formed JSON-RPC response, and that the per-request server-and-transport teardown behaves under a real HTTP connection, is asserted from the code but not proven by a test.
 - **No live MCP client run is proven.** The Reel Factory handoff, a client calling the read tools and then the remix chain against a running crowsnest, has not been shown to complete end to end. The generate remix tools (hooks, outline, variants) also depend on the LLM proxy, whose own live path is unverified per [llm](../llm/02-architecture.md#7-open-not-verified).
 - **The endpoint carries no credential check of its own.** `handleMcpRequest` performs no authentication; reachability is governed only by which interface `server.ts` binds (the `HOST` environment variable). Whether that is the intended trust boundary for a machine with other local processes is recorded, not verified, in [test cases](04-test-cases.md#4-security-lite).
+- **`channel_stats.lastRun` is the last sync run overall, not the requested channel's.** `getLastRunHealth` takes no channel id, so `crowsnest_channel_stats` reports the most recent sync of any channel, not one scoped to the queried channel. The doc states this as the tool's real behavior; a per-channel run health is carried as an enhancement in [backlog to enhance](05-backlog-to-enhance.md).
+
+## 9. Monthly and weekly planning tools
+
+The monthly and weekly planning tool set is shipped and reachable over `/api/mcp`. It is specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md). It keeps the existing contract: every new tool is a thin wrapper over an existing query or action, returning through `result()` on success and `errorResult()` on a handled failure.
+
+### Tools and their backing functions
+
+| Tool | Backs onto | Role |
+| --- | --- | --- |
+| `crowsnest_channels` | `getChannelsList` (`queries/channels.ts`) | The tracked channels and their fleets. Returns `{ channels }`. |
+| `crowsnest_channel_stats` | `getChannelDetail`, `getChannelMedianBasis` (`queries/channels.ts`), `getLastRunHealth` (`queries/runs.ts`) | One channel's detail and baseline, median basis, and last sync health. Returns `{ detail, basis, lastRun }`; an unknown id is an error result. |
+| `crowsnest_research_set` | `getResearchSet` (`queries/research.ts`), which calls `getOutlierFeed` (`queries/feed.ts`) joined with `videoAnalyses`, plus `getOwnPosts` (`queries/own-channel.ts`) | A broad reading bundle: outliers with their analyses, alongside the own channel's `reachIndex` benchmark. Returns `{ outliers, ownBenchmark }`. |
+| `crowsnest_outlier_pack` | `getOutlierPack` (`queries/research.ts`) with the same own benchmark block, plus `mediaInfoFor` for the handoff | A tight top N shortlist with the media handoff, plus a rising mode (short `sinceDays`, ranked by recency) for the weekly refresh. Returns `{ items, ownBenchmark }`. |
+| `crowsnest_sync_selected` | `startSyncAction` (`actions/sync-actions.ts`) | Starts a sync scoped to the given channel ids and returns `{ jobId }`. Requires a non-empty id array (code `NO_CHANNELS` otherwise). |
+| `crowsnest_sync_status` | `getSyncProgressAction` (`actions/sync-actions.ts`) | The run's progress by job id, wrapped as `{ progress }`; null progress for an unknown job is not an error. |
+| `crowsnest_sync_cancel` | `cancelSyncAction` (`actions/sync-actions.ts`) | Cooperative cancel by job id. Returns `{ ok, jobId, requested }`, `requested` false when nothing was running. |
+| `crowsnest_save_analysis` | `saveAgentAnalysis` (`services/analyze.ts`), which validates against `VideoAnalysisSchema` (`llm/schemas.ts`) and upserts `videoAnalyses` | The agent authors the analysis; the tool validates the fields and upserts the row with `source = "mcp"`. No in-app model call. |
+| `crowsnest_metrics` (changed) | `getOwnChannelOverview(windowDays, { offsetDays })` (`queries/own-channel.ts`) | Gained a prior-period comparison: returns `{ current, previous, posts }` so the agent reads this window against the one before it (month over month). |
+
+Own performance and competitor performance stay different units. The own posts score on `reachIndex`, competitors on `outlierScore`; the research tools return both rather than inventing a single shared number.
+
+### The one schema change, and who owns it
+
+The MCP still owns no schema and no migration. The single change these tools need is a nullable `source` text column on `video_analyses` (values `mcp`, `auto`, `manual`, with rows written before the column backfilled `legacy`). It shipped in migration `0027`, which adds the column and sets existing rows to `legacy`. The column lives on the analyze component's `videoAnalyses` table, not on any MCP table; `crowsnest_save_analysis` writes it but does not define it. Remix (`describeSourceStructure`) and Ideas read the same table unchanged, so they consume the agent-authored row with no change.
+
+### Saving an agent-authored analysis
+
+`saveAgentAnalysis` first reads the `videos` row to confirm the id exists, then validates the incoming fields against `VideoAnalysisSchema`, and only if both hold upserts the `videoAnalyses` row stamped with agent provenance. An existing row for the video is updated in place; otherwise a new row is inserted.
+
+```mermaid
+sequenceDiagram
+    actor Client as MCP client
+    participant Tool as crowsnest_save_analysis
+    participant DB
+
+    Client->>Tool: crowsnest_save_analysis(videoId, fields)
+    activate Tool
+    Tool->>DB: **Confirm the video exists** (videos)<br/>params:{ videoId }
+    DB-->>Tool: Return the video row or nothing
+    alt video not found
+        Tool-->>Client: Return error response that the video is unknown<br/>params:{ error: "video not found", videoId }
+    end
+    Tool->>Tool: **Validate the fields**<br/>parse against VideoAnalysisSchema, no DB query
+    alt fields invalid
+        Tool-->>Client: Return error response that the analysis is malformed<br/>params:{ error: "the validation message", videoId }
+    end
+    Tool->>DB: **Upsert the analysis with agent provenance** (videoAnalyses)<br/>params:{ videoId, source: "mcp", validated fields }
+    DB-->>Tool: Return the upserted row
+    deactivate Tool
+    Tool-->>Client: Return success response that the analysis was saved<br/>params:{ ok: true, videoId }
+```
+
+### Starting a scoped sync
+
+`crowsnest_sync_selected` rejects an empty channel id array (there is no library-wide default) before calling `startSyncAction`, which starts the run detached and returns once the `syncJobs` lock row is claimed, so the tool hands back a job id the caller then polls with `crowsnest_sync_status`.
+
+```mermaid
+sequenceDiagram
+    actor Client as MCP client
+    participant Tool as crowsnest_sync_selected
+    participant Action as startSyncAction
+    participant Worker as runSync
+    participant DB
+
+    Client->>Tool: crowsnest_sync_selected(channelIds)
+    activate Tool
+    Tool->>Tool: **Require a non-empty channel id list**<br/>an empty array is rejected, there is no library-wide default
+    alt channelIds empty
+        Tool-->>Client: Return error response that channel ids are required<br/>params:{ error: "channelIds must be a non-empty array", code: "NO_CHANNELS" }
+    end
+    Tool->>Action: startSyncAction(channelIds)
+    activate Action
+    Action->>Worker: runSync(channelIds), detached
+    activate Worker
+    Worker->>DB: **Claim the run lock, insert the sync job** (syncJobs)<br/>params:{ id, channelIds }
+    DB-->>Worker: Return {SyncJob}<br/>params:{ id }
+    Worker-->>Action: onJobStarted(jobId)
+    Action-->>Tool: Return {jobId}
+    deactivate Action
+    Tool-->>Client: Return success response that the sync started<br/>params:{ jobId }
+    deactivate Tool
+    Worker->>DB: **Continue fetching and upserting videos** (videos)<br/>params:{ jobId: SyncJob.id }
+    deactivate Worker
+```

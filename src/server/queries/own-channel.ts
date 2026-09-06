@@ -201,7 +201,10 @@ function aggregateMetric(posts: JoinedOwnPost[], key: "reach" | "saved" | "share
   };
 }
 
-export async function getOwnChannelOverview(windowDays: number = DEFAULT_WINDOW_DAYS): Promise<OwnChannelOverview> {
+export async function getOwnChannelOverview(
+  windowDays: number = DEFAULT_WINDOW_DAYS,
+  opts: { offsetDays?: number } = {},
+): Promise<OwnChannelOverview> {
   const [snapshot] = await db.select().from(tables.ownAccountSnapshots).orderBy(desc(tables.ownAccountSnapshots.capturedAt)).limit(1);
   const account = snapshot
     ? {
@@ -214,8 +217,15 @@ export async function getOwnChannelOverview(windowDays: number = DEFAULT_WINDOW_
     : null;
 
   const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
-  const cutoff = new Date(Date.now() - windowDays * 86_400_000).toISOString();
-  const inWindow = allPosts.filter((p) => p.postedAt >= cutoff);
+  // offsetDays shifts the day-range window back for a prior-period comparison (month over
+  // month). It applies ONLY to this inWindow filter; the median below stays a trailing
+  // post-count window over allPosts, unchanged, so a prior-period read is still scored
+  // against the same baseline as the current one.
+  const offsetDays = opts.offsetDays ?? 0;
+  const now = Date.now();
+  const end = new Date(now - offsetDays * 86_400_000).toISOString();
+  const start = new Date(now - (offsetDays + windowDays) * 86_400_000).toISOString();
+  const inWindow = allPosts.filter((p) => p.postedAt >= start && p.postedAt < end);
 
   const failedSampleSize = inWindow.filter((p) => p.insightsError !== null).length;
   const postsMeasured = inWindow.filter((p) => p.measuredAt !== null && p.insightsError === null).length;

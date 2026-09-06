@@ -20,6 +20,11 @@ import {
 import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
 import { getAsset, resolveAssetPath } from "@/server/media/store";
+import { saveAgentAnalysis } from "@/server/services/analyze";
+import { startSyncAction, getSyncProgressAction, cancelSyncAction } from "@/server/actions/sync-actions";
+import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
+import { getLastRunHealth } from "@/server/queries/runs";
+import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -203,17 +208,20 @@ export function buildMcpServer(): McpServer {
     "crowsnest_metrics",
     {
       title: "Own channel metrics",
-      description: "How the user's own channel is doing: a window overview plus the recent measured own posts (from the Graph API). Needs an own channel set and a valid Graph token; returns an error otherwise.",
+      description: "How the user's own channel is doing, month over month: the current window overview AND the immediately prior window of the same length (so the plan reads this period against the one before it), plus the recent measured own posts (from the Graph API). Needs an own channel set and a valid Graph token; returns an error otherwise.",
       inputSchema: {
-        windowDays: z.number().optional().describe("Overview window in days."),
+        windowDays: z.number().optional().describe("Overview window in days, default 30. The prior window is the same length, immediately before it."),
         limit: z.number().optional().describe("How many recent own posts, default 20."),
       },
     },
     async (args) => {
       try {
-        const overview = await getOwnChannelOverview(args.windowDays);
+        const current = await getOwnChannelOverview(args.windowDays, { offsetDays: 0 });
+        // Same length, immediately before the current window — the resolved windowDays,
+        // so passing no windowDays still lines the two windows up.
+        const previous = await getOwnChannelOverview(current.windowDays, { offsetDays: current.windowDays });
         const posts = await getOwnPosts({ limit: args.limit ?? 20 });
-        return result({ overview, posts });
+        return result({ current, previous, posts });
       } catch (err) {
         return errorResult({ error: err instanceof Error ? err.message : "metrics unavailable", hint: "set an own channel and a valid Graph token" });
       }
@@ -233,6 +241,146 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const range = args.from && args.to ? { from: args.from, to: args.to } : undefined;
       return result(await getPlannedPosts(range));
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_save_analysis",
+    {
+      title: "Save an agent-authored analysis",
+      description:
+        "Save the analysis YOU (the agent) wrote for a video, with provenance. Validates the fields against the same schema the in-app analyzer uses and stores them stamped source=\"mcp\". Remix and Ideas then read this analysis. Never calls any in-app model. Rejects (without writing) an unknown video id or fields that fail validation.",
+      inputSchema: {
+        videoId: z.string().describe("The video id, from crowsnest_feed."),
+        hookType: z.string().describe("The hook type, e.g. curiosity-gap, negative-warning."),
+        structureSegments: z
+          .array(z.any())
+          .describe("Story beats: each { label, startSec, endSec, note, transcript }. transcript is the verbatim words spoken in the beat window."),
+        formatTags: z.array(z.string()).describe("Format tags, e.g. talking-head, screen-recording."),
+        styleTags: z.array(z.string()).describe("Style tags, e.g. fast-cut, high-energy."),
+        whyItWorked: z.string().describe("Why the video over-performed."),
+      },
+    },
+    async (args) => {
+      const r = await saveAgentAnalysis(args.videoId, args);
+      return r.ok ? result({ ok: true, videoId: args.videoId }) : errorResult({ error: r.error, videoId: args.videoId });
+    }
+  );
+
+  // Sync control. Thin wrappers over the sync actions, each already returning a result
+  // object; the MCP boundary never throws. sync_selected refuses an empty channelIds
+  // array — there is no whole-library default here (matches runSync's own scoping).
+
+  server.registerTool(
+    "crowsnest_sync_selected",
+    {
+      title: "Sync selected channels",
+      description: "Start a sync for exactly the given channel ids and return a job id. Requires a non-empty channelIds array; there is no whole-library default. Poll it with crowsnest_sync_status.",
+      inputSchema: { channelIds: z.array(z.string()).describe("The channel ids to sync, from crowsnest_channels. Must be non-empty.") },
+    },
+    async (args) => {
+      if (!Array.isArray(args.channelIds) || args.channelIds.length === 0) {
+        return errorResult({ error: "channelIds must be a non-empty array", code: "NO_CHANNELS" });
+      }
+      const r = await startSyncAction(args.channelIds);
+      return r.ok ? result({ jobId: r.jobId }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_sync_status",
+    {
+      title: "Sync status",
+      description: "Read a sync run's progress by job id. Returns null progress when the id names no run.",
+      inputSchema: { jobId: z.string().describe("The job id from crowsnest_sync_selected.") },
+    },
+    async (args) => {
+      const r = await getSyncProgressAction(args.jobId);
+      return r.ok ? result({ progress: r.progress }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_sync_cancel",
+    {
+      title: "Cancel a sync",
+      description: "Request cooperative cancel of a running sync by job id. The run stops at its next channel boundary keeping committed work. `requested` is false when there was nothing still running to cancel.",
+      inputSchema: { jobId: z.string().describe("The job id from crowsnest_sync_selected.") },
+    },
+    async (args) => {
+      const r = await cancelSyncAction(args.jobId);
+      return r.ok ? result({ ok: true, jobId: args.jobId, requested: r.requested }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  // Research read tools. The landscape (channels, channel_stats) and the two working-set
+  // bundles (research_set broad, outlier_pack tight). Each bundle returns competitor
+  // outliers (outlierScore) and the user's own posts (reachIndex) side by side — different
+  // units, both returned, never merged.
+
+  server.registerTool(
+    "crowsnest_channels",
+    {
+      title: "Tracked channels",
+      description: "The channels crowsnest tracks, with their fleets. The set the agent plans from.",
+      inputSchema: {},
+    },
+    async () => result({ channels: await getChannelsList() })
+  );
+
+  server.registerTool(
+    "crowsnest_channel_stats",
+    {
+      title: "Channel stats",
+      description: "One channel's baseline, median basis, and last sync health. Returns an error when the id is unknown.",
+      inputSchema: { channelId: z.string().describe("The channel id, from crowsnest_channels.") },
+    },
+    async (args) => {
+      const detail = await getChannelDetail(args.channelId);
+      if (!detail) return errorResult({ error: "not found", channelId: args.channelId });
+      const basis = await getChannelMedianBasis(args.channelId);
+      const lastRun = getLastRunHealth();
+      return result({ detail, basis, lastRun });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_research_set",
+    {
+      title: "Research set",
+      description: "A broad reading bundle: top outliers with their analyses, plus your own reachIndex benchmark, so each idea reads against both competitor outlierScore and your own reach (different units, both returned).",
+      inputSchema: {
+        minScore: z.number().optional().describe("Minimum outlier score."),
+        sinceDays: z.number().optional().describe("Only videos within this many days."),
+        query: z.string().optional().describe("Free-text search over caption and channel."),
+        limit: z.number().optional().describe("Max outliers, default 24."),
+      },
+    },
+    async (args) =>
+      result(await getResearchSet({ minScore: args.minScore, sinceDays: args.sinceDays, query: args.query, limit: args.limit ?? 24 }))
+  );
+
+  server.registerTool(
+    "crowsnest_outlier_pack",
+    {
+      title: "Outlier pack",
+      description: "A tight top-N shortlist ready to act on: outliers with analyses, the media handoff, and your own reachIndex benchmark. Set rising=true with a short sinceDays to surface this week's surges (e.g. a launch) for the weekly refresh.",
+      inputSchema: {
+        limit: z.number().optional().describe("Max items, default 8."),
+        sinceDays: z.number().optional().describe("Only videos within this many days."),
+        rising: z.boolean().optional().describe("Rank by recency for a weekly surge instead of by score."),
+      },
+    },
+    async (args) => {
+      const pack = await getOutlierPack({ limit: args.limit ?? 8, sinceDays: args.sinceDays, rising: args.rising });
+      const items = await Promise.all(
+        pack.items.map(async (i) => ({
+          ...i,
+          media: await mediaInfoFor(i.videoAssetId),
+          thumbnail: await mediaInfoFor(i.thumbnailAssetId),
+        }))
+      );
+      return result({ items, ownBenchmark: pack.ownBenchmark });
     }
   );
 

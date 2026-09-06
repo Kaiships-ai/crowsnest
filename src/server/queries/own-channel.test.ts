@@ -148,6 +148,19 @@ describe("getOwnChannelOverview — stored data", () => {
     expect(overview.postsMeasured).toBe(0);
     expect(overview.metrics.reach.failedSampleSize).toBe(0);
   });
+
+  test("offsetDays selects the prior window, leaving the current window untouched", async () => {
+    // Two posts in the last 30 days, one 30-60 days ago.
+    await seedPost({ postedAt: isoDaysAgo(2) });
+    await seedPost({ postedAt: isoDaysAgo(20) });
+    await seedPost({ postedAt: isoDaysAgo(45) });
+
+    const current = await getOwnChannelOverview(30, { offsetDays: 0 });
+    const previous = await getOwnChannelOverview(30, { offsetDays: 30 });
+
+    expect(current.postsInWindow).toBe(2);
+    expect(previous.postsInWindow).toBe(1);
+  });
 });
 
 describe("getOwnPosts", () => {

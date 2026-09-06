@@ -139,3 +139,232 @@ describe("pagination on crowsnest_scripts and crowsnest_ideas", () => {
     expect(body.total).toBeGreaterThanOrEqual(body.count);
   });
 });
+
+// registerTool's callback isn't part of McpServer's public type — reach into the
+// internal registry to call a tool directly, same as the pagination block above.
+function callTool(server: McpServer, name: string, args: Record<string, unknown>) {
+  const registry = (server as unknown as {
+    _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<{ structuredContent: unknown; isError?: boolean }> }>;
+  })._registeredTools;
+  return registry[name].handler(args, {});
+}
+
+const VALID_ANALYSIS = {
+  hookType: "curiosity-gap",
+  structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens with a question", transcript: "here is the mistake" }],
+  formatTags: ["talking-head"],
+  styleTags: ["fast-cut"],
+  whyItWorked: "cold-open question kept retention high",
+};
+
+describe("crowsnest_save_analysis", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+  let eq: typeof import("drizzle-orm")["eq"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    ({ eq } = await import("drizzle-orm"));
+    migrate();
+  });
+
+  async function seedVideo(): Promise<string> {
+    const channelId = newId();
+    const videoId = newId();
+    const now = new Date().toISOString();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@save-${channelId}`, trackedSince: now });
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `save-${videoId}`,
+      url: "https://example.com/p", postedAt: now, firstSeenAt: now,
+    });
+    return videoId;
+  }
+
+  test("stores an agent analysis with source=mcp", async () => {
+    const videoId = await seedVideo();
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS });
+    expect(r.isError).not.toBe(true);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.source).toBe("mcp");
+    expect(row.hookType).toBe("curiosity-gap");
+  });
+
+  test("rejects invalid fields without writing a row", async () => {
+    const videoId = await seedVideo();
+    const server = buildMcpServer();
+    // structureSegments members fail VideoAnalysisSchema (missing note/transcript/times).
+    const r = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS, structureSegments: [{ label: "Hook" }] });
+    expect(r.isError).toBe(true);
+    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(rows).toHaveLength(0);
+  });
+});
+
+describe("crowsnest_metrics prior-period comparison", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+    await db.delete(tables.ownPostInsights);
+    await db.delete(tables.ownPosts);
+  });
+
+  function isoDaysAgo(days: number): string {
+    return new Date(Date.now() - days * 86_400_000).toISOString();
+  }
+
+  test("returns current and previous windows plus posts", async () => {
+    // Two own posts in the last 30 days, one 30-60 days ago.
+    for (const daysAgo of [3, 20, 45]) {
+      await db.insert(tables.ownPosts).values({
+        id: newId(), externalId: `m-${newId()}`, permalink: `https://ig/p/${newId()}`,
+        mediaType: "VIDEO", productType: "REELS", format: "Reel",
+        postedAt: isoDaysAgo(daysAgo), firstSeenAt: isoDaysAgo(daysAgo),
+      });
+    }
+
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_metrics", { windowDays: 30 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as {
+      current: { postsInWindow: number };
+      previous: { postsInWindow: number };
+      posts: { items: unknown[] };
+    };
+    expect(body.current.postsInWindow).toBe(2);
+    expect(body.previous.postsInWindow).toBe(1);
+    expect(Array.isArray(body.posts.items)).toBe(true);
+  });
+});
+
+describe("sync control tools", () => {
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+  });
+
+  test("crowsnest_sync_selected rejects an empty channelIds array (no library-wide default)", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_selected", { channelIds: [] });
+    expect(r.isError).toBe(true);
+    expect((r.structuredContent as { code?: string }).code).toBe("NO_CHANNELS");
+  });
+
+  test("crowsnest_sync_status returns null progress for an unknown job id, not an error", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_status", { jobId: "no-such-job" });
+    expect(r.isError).not.toBe(true);
+    expect((r.structuredContent as { progress: unknown }).progress).toBeNull();
+  });
+
+  test("crowsnest_sync_cancel reports requested=false when nothing is running under that id", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_sync_cancel", { jobId: "no-such-job" });
+    expect(r.isError).not.toBe(true);
+    expect((r.structuredContent as { requested: boolean }).requested).toBe(false);
+  });
+});
+
+describe("research read tools", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+    await db.delete(tables.videoAnalyses);
+    await db.delete(tables.videos);
+    await db.delete(tables.channels);
+  });
+
+  async function seedOutlier(score: number): Promise<string> {
+    const channelId = newId();
+    const videoId = newId();
+    const now = new Date().toISOString();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@rt-${channelId}`, trackedSince: now });
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `rt-${videoId}`,
+      url: "https://example.com/p", postedAt: now, firstSeenAt: now, viewCount: 500_000, outlierScore: score,
+    });
+    return videoId;
+  }
+
+  test("crowsnest_channels returns the tracked channels", async () => {
+    await seedOutlier(6);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_channels", {});
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { channels: unknown[] };
+    expect(body.channels.length).toBeGreaterThan(0);
+  });
+
+  test("crowsnest_channel_stats errors on an unknown channel id", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_channel_stats", { channelId: "no-such-channel" });
+    expect(r.isError).toBe(true);
+  });
+
+  test("crowsnest_channel_stats returns detail, basis, and lastRun for a real channel", async () => {
+    await seedOutlier(6);
+    const server = buildMcpServer();
+    // Discover a real channel id through the same tool the agent would use.
+    const list = await callTool(server, "crowsnest_channels", {});
+    const channels = (list.structuredContent as { channels: { id: string }[] }).channels;
+    expect(channels.length).toBeGreaterThan(0);
+    const r = await callTool(server, "crowsnest_channel_stats", { channelId: channels[0].id });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { detail: unknown; basis: unknown; lastRun: unknown };
+    expect(body).toHaveProperty("detail");
+    expect(body).toHaveProperty("basis");
+    expect(body).toHaveProperty("lastRun");
+    expect(body.detail).not.toBeNull();
+  });
+
+  test("crowsnest_research_set returns outliers + own benchmark", async () => {
+    await seedOutlier(7);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_research_set", { limit: 10 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { outliers: unknown[]; ownBenchmark: unknown[] };
+    expect(Array.isArray(body.outliers)).toBe(true);
+    expect(Array.isArray(body.ownBenchmark)).toBe(true);
+    expect(body.outliers.length).toBeGreaterThan(0);
+  });
+
+  test("crowsnest_outlier_pack returns at most limit items with a media handoff block", async () => {
+    await seedOutlier(9);
+    await seedOutlier(8);
+    await seedOutlier(7);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_outlier_pack", { limit: 2 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { items: { media: unknown; thumbnail: unknown }[]; ownBenchmark: unknown[] };
+    expect(body.items.length).toBeLessThanOrEqual(2);
+    expect(body.items.length).toBeGreaterThan(0);
+    // media/thumbnail keys present (null here since no asset ids), proving the handoff wiring.
+    expect(body.items[0]).toHaveProperty("media");
+    expect(body.items[0]).toHaveProperty("thumbnail");
+  });
+});
