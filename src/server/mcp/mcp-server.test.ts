@@ -205,3 +205,47 @@ describe("crowsnest_save_analysis", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe("crowsnest_metrics prior-period comparison", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+    await db.delete(tables.ownPostInsights);
+    await db.delete(tables.ownPosts);
+  });
+
+  function isoDaysAgo(days: number): string {
+    return new Date(Date.now() - days * 86_400_000).toISOString();
+  }
+
+  test("returns current and previous windows plus posts", async () => {
+    // Two own posts in the last 30 days, one 30-60 days ago.
+    for (const daysAgo of [3, 20, 45]) {
+      await db.insert(tables.ownPosts).values({
+        id: newId(), externalId: `m-${newId()}`, permalink: `https://ig/p/${newId()}`,
+        mediaType: "VIDEO", productType: "REELS", format: "Reel",
+        postedAt: isoDaysAgo(daysAgo), firstSeenAt: isoDaysAgo(daysAgo),
+      });
+    }
+
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_metrics", { windowDays: 30 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as {
+      current: { postsInWindow: number };
+      previous: { postsInWindow: number };
+      posts: { items: unknown[] };
+    };
+    expect(body.current.postsInWindow).toBe(2);
+    expect(body.previous.postsInWindow).toBe(1);
+    expect(Array.isArray(body.posts.items)).toBe(true);
+  });
+});

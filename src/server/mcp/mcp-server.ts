@@ -204,17 +204,20 @@ export function buildMcpServer(): McpServer {
     "crowsnest_metrics",
     {
       title: "Own channel metrics",
-      description: "How the user's own channel is doing: a window overview plus the recent measured own posts (from the Graph API). Needs an own channel set and a valid Graph token; returns an error otherwise.",
+      description: "How the user's own channel is doing, month over month: the current window overview AND the immediately prior window of the same length (so the plan reads this period against the one before it), plus the recent measured own posts (from the Graph API). Needs an own channel set and a valid Graph token; returns an error otherwise.",
       inputSchema: {
-        windowDays: z.number().optional().describe("Overview window in days."),
+        windowDays: z.number().optional().describe("Overview window in days, default 30. The prior window is the same length, immediately before it."),
         limit: z.number().optional().describe("How many recent own posts, default 20."),
       },
     },
     async (args) => {
       try {
-        const overview = await getOwnChannelOverview(args.windowDays);
+        const current = await getOwnChannelOverview(args.windowDays, { offsetDays: 0 });
+        // Same length, immediately before the current window — the resolved windowDays,
+        // so passing no windowDays still lines the two windows up.
+        const previous = await getOwnChannelOverview(current.windowDays, { offsetDays: current.windowDays });
         const posts = await getOwnPosts({ limit: args.limit ?? 20 });
-        return result({ overview, posts });
+        return result({ current, previous, posts });
       } catch (err) {
         return errorResult({ error: err instanceof Error ? err.message : "metrics unavailable", hint: "set an own channel and a valid Graph token" });
       }
