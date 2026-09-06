@@ -70,6 +70,26 @@ A journey should read the same way a manual tester would narrate it: go here, do
 that. Do not fold multiple unrelated user goals into one journey; a case that mixes an add
 flow with an unrelated delete flow is two cases, not one.
 
+The three parts map onto the browse-e2e table's `Steps` column (Arrive and Act steps) and its
+`Expected` column (the Assert visible state), per the column definitions in
+`references/test-cases-format.md`. Keep each step to one user action naming its `data-testid`, and
+name in Expected the `data-testid` every assertion reads: an assertion that cannot name a testid
+says which `lib.sh` helper reads it (`assert_text` for cleaned page text, `assert_url_contains`
+for the URL). Vague assertions such as "the channel appears" or "the page works" are the wrong-node
+collision this discipline exists to prevent, and are rejected at the Phase 4b gate.
+
+Before writing any rows, build a scratch feature-to-journey coverage matrix from
+`03-feature-description.md`: one row per `●`/`◐` feature down the side, the nine corner-case types
+across the top. Write a happy-path journey for every built feature (the floor), then corner rows
+until five distinct types are covered. The matrix does not ship; it just makes the gaps visible.
+One happy-path journey per built feature, not one per business rule (rules stay in the behavior
+lens), and a single journey may cover several features (`Feat: 2,4,5`), so breadth is measured by
+distinct `Feat` values covered, not by row count. The `Mode` column says whether a journey is
+`offline` (runs against the seeded fixture database, so `npm run e2e` runs it everywhere) or
+`live` (needs the sidecar, an LLM key, or the Graph token, and is honestly 🟡 in a bare sandbox);
+a 🟡 on a `Mode: offline` row is a gate failure, and an `offline` row with `Script: none` is
+unfinished.
+
 ## Capturing evidence (mandatory)
 
 Driving a journey is only half of running it. The other half is leaving proof a human can
@@ -117,6 +137,17 @@ Source route: `src/app/(shell)/channels/page.tsx`, rendering `ChannelsKanban`
 These `data-testid` values now exist on `kanban-board.tsx` and `add-channel-dialog.tsx` --
 adding them was a prerequisite for scripting this journey at all, not an optional nice to
 have, per the data-testid discipline above.
+
+As a browse-e2e case-table row, in the columns `references/test-cases-format.md` defines, this
+journey reads:
+
+| ID | P | Feat | Type | Mode | Journey | Setup | Steps | Expected | Script | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| E2E-01 | P1 | 1 | happy | live | Track a new channel by handle from the Channels board | Dev server up, sidecar logged into a burner account, `/channels` open with one fleet and the Unassigned column | Arrive on `/channels`; Act: click `data-testid="channels-add-channel-trigger"`, confirm `data-testid="add-channel-tab-handle"`, type the handle into `data-testid="add-channel-handle-input"`, click `data-testid="add-channel-submit-handle"` | Toast reads "{handle} tracked"; dialog closes; `data-testid="channels-tracked-count"` increments by one; after reload a card persists in the Unassigned bucket (`data-testid="channel-card"`, used for presence or count only) | `scripts/e2e/ig-sync-e2e-01.sh` | blank until run |
+
+The `Mode` here is `live` because the "{handle} tracked" success path needs a real sidecar; the
+checked-in `Script` runs the same add-channel form `offline` against the inline error path, as the
+next paragraph describes.
 
 The checked-in script closest to this worked example is `scripts/e2e/ig-sync-e2e-01.sh`,
 with one deliberate difference: it runs with the Instagram sidecar down and asserts the

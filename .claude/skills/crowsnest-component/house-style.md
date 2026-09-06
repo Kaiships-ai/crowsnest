@@ -42,6 +42,7 @@ This is the quality bar every one of the five component docs under `documents/ar
 
 - One section per lens, covering all four lenses from `references/test-cases-format.md`: behavior, route and action, browse-e2e, security-lite.
 - Each lens is a table of cases, in the format `references/test-cases-format.md` defines.
+- Browse-e2e coverage floor: the browse-e2e lens carries at least one happy-path journey for every `●`/`◐` feature in this component's `03` summary table, plus at least five journeys across distinct corner-case types (or a one-line "not applicable" reason per missing type), per the coverage mandate in `references/test-cases-format.md`. Its rows carry the `Feat`, `Type`, `Mode`, and `Script` columns that reference defines.
 - The Result column uses the markers `🟢 pass, 🔴 fail, 🟡 blocked` once a case has run (blank or `not run` only before its phase's test gate). Every browser-run case (the whole browse-e2e lens, plus any behavior case driven through `browse`) embeds its screenshot from the component's `test-shots/` folder in the Result cell, per `references/test-cases-format.md`. Screenshots live in `documents/architect/core-components/<name>/test-shots/`, one per case, named for the case id lower-cased (`test-shots/e2e-02.png`).
 
 ## 05-backlog-to-enhance.md
