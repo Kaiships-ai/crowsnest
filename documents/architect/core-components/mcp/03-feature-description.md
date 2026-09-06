@@ -10,9 +10,12 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Read crowsnest data | Seven read tools: feed, video, brief, scripts, ideas, metrics, plans | ● | `mcp-server.ts`, `src/server/queries/*` | none |
+| 2 | Read crowsnest data | Seven read tools: feed, video, brief, scripts, ideas, metrics, plans. Metrics gains a prior-period comparison | ● | `mcp-server.ts`, `src/server/queries/*` | prior period planned in [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) |
 | 3 | Drive a remix | Twelve `crowsnest_remix_*` tools, session through finish | ● | `mcp-server.ts`, `src/server/services/remix` | none |
 | 4 | Hand off media | `crowsnest_video` and `crowsnest_brief` return the stored media's on-disk path, size, and duration | ● | `mcp-server.ts` (`mediaInfoFor`), `src/server/media/store` | none |
+| 5 | Research contract | Four read tools: `crowsnest_channels`, `crowsnest_channel_stats`, `crowsnest_research_set`, `crowsnest_outlier_pack`, each carrying the human's own benchmark beside competitor outliers | ○ | `src/server/queries/channels`, `feed`, `own-channel` | [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) |
+| 6 | Sync control | `crowsnest_sync_selected`, `crowsnest_sync_status`, `crowsnest_sync_cancel` drive a scoped channel sync | ○ | `src/server/actions/sync-actions` | [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) |
+| 7 | Agent analysis | `crowsnest_save_analysis` writes an agent-authored analysis to `video_analyses` with `source = "mcp"` | ○ | `src/server/llm/schemas` (`VideoAnalysisSchema`), `src/server/db/schema` | [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) |
 
 ## 2. Read crowsnest data
 
@@ -31,7 +34,7 @@ Seven tools read crowsnest's data. Inputs are optional unless noted; each return
 | `crowsnest_brief` | `postId` (required, from `crowsnest_plans`) | A planned post's brief: title, source video, remix hook and beats, layout, score. The source video carries its own media. Unknown id returns `errorResult({ error: "not found", postId })`. |
 | `crowsnest_scripts` | `limit` (default 50), `offset` (default 0) | `{ total, count, items }`: every saved script, newest first, sliced in memory over the full list. |
 | `crowsnest_ideas` | `tab` (`inbox` \| `shortlist`, default `inbox`), `limit` (default 50), `offset` (default 0) | `{ total, count, items }`: the ideas in the requested tab, sliced in memory. |
-| `crowsnest_metrics` | `windowDays`, `limit` (default 20) | `{ overview, posts }` for the own channel, from the Graph API. Without an own channel set and a valid token, returns an error result with the reason and a hint. |
+| `crowsnest_metrics` | `windowDays`, `limit` (default 20) | `{ overview, posts }` for the own channel, from the Graph API. Without an own channel set and a valid token, returns an error result with the reason and a hint. A prior-period comparison, so the agent can read this window against the one before it (month over month), is planned as an extension to `getOwnChannelOverview`; see [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md). |
 | `crowsnest_plans` | `from`, `to` (`YYYY-MM-DD`, inclusive; a range applies only when both are given) | Planned posts, optionally within the range. |
 
 ### How to access it
@@ -127,7 +130,118 @@ There is no separate tool; the media block comes back inside `crowsnest_video` a
 
 Nothing to walk through for a person: when a client asks crowsnest for a video or a brief, it gets back where the video and thumbnail files actually live on the machine, along with their size and duration, so the tool that produces the reel opens a real local file instead of a link that would expire.
 
-## 5. Interactions with other systems
+## 5. Research contract
+
+This feature is designed, not built. It is the read surface an agent uses to plan a month and refresh a week; it is specified in [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) and does not exist in `mcp-server.ts` yet.
+
+### Who uses it
+
+An MCP client planning content. The agent reads the tracked channels and their baselines, pulls a broad reading bundle and a tight shortlist, and reads every candidate against both the competitor's outlier score and the human's own reach at once. The dashboard shows the same channel and outlier data through the same queries.
+
+### What it does
+
+Four planned read tools, each returning through `result()` over its backing query.
+
+| Tool | Inputs | Returns |
+| --- | --- | --- |
+| `crowsnest_channels` | optional fleet filter | The tracked channels and their fleets. Backed by `getChannelsList` or `getKanbanBoard`. |
+| `crowsnest_channel_stats` | `channelId` | One channel's baseline, median basis, consistency, and last sync health. Backed by `getChannelDetail`, `getChannelMedianBasis`, and `getLastRunHealth`. |
+| `crowsnest_research_set` | a theme or niche | A broad reading bundle: outliers with their analyses and channel context, plus an own benchmark block carrying the human's own comparable `reachIndex`, so each candidate reads against both baselines. Backed by `getOutlierFeed` joined with `videoAnalyses` and the own-channel query. |
+| `crowsnest_outlier_pack` | top N, optional rising mode (`sinceDays`) | A tight top N shortlist ready to act on, with the media handoff and the same own benchmark block. In rising mode it takes a short `sinceDays` and ranks by recency and velocity, so a launch surge surfaces for the weekly refresh. |
+
+### How to access it
+
+Over `/api/mcp`, as MCP tool calls, once built. There is no crowsnest screen for these tools; the dashboard reads the same channel and outlier data through the same query functions.
+
+### Business rules
+
+- Own performance and competitor performance are different units. The human's posts score on `reachIndex` (reach over the human's own median reach); competitors score on `outlierScore` (views over the competitor's own baseline). `research_set` and `outlier_pack` return both in the own benchmark block rather than collapsing them into one number.
+- Rising mode on `outlier_pack` surfaces a surge, a cluster of new high-view videos about a topic. Naming the event, a specific product launch, is the agent's world knowledge, not crowsnest's.
+- Each tool is a thin wrapper over queries the dashboard already uses, so any data rule (what counts as an outlier, how a baseline is computed) lives in that component, not here.
+
+### Limitations
+
+- These tools do not exist yet; the section describes the approved design, not shipped behavior.
+- The own benchmark block's richness depends on how the own channel is synced (Graph only versus through the sidecar), an open question in the spec; it changes only how rich the block is, not the shape of the tools.
+
+### User guide
+
+These tools are for a program, not a person, so there will be no screen to walk through. Once built, an MCP client pointed at crowsnest will be able to list the tracked channels, read one channel's baseline and sync health, pull a broad research bundle for a theme, and pull a tight shortlist to act on, always reading each competitor outlier beside the human's own comparable reach, and, in rising mode, catch a surge fast enough for a weekly plan to react.
+
+## 6. Sync control
+
+This feature is designed, not built. It is specified in [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) and does not exist in `mcp-server.ts` yet.
+
+### Who uses it
+
+An MCP client that needs to freshen the channels it plans from before it reads them. The dashboard triggers the same syncs through the same server actions.
+
+### What it does
+
+Three planned tools, thin wrappers over the existing sync actions.
+
+| Tool | Inputs | Returns / effect |
+| --- | --- | --- |
+| `crowsnest_sync_selected` | `channelIds` (non-empty) | Starts a sync scoped to the given channels and returns a job id. Requires a non-empty channel id array; there is no library-wide default. Backed by `startSyncAction`. |
+| `crowsnest_sync_status` | `jobId` | The run's progress. Backed by `getSyncProgressAction`. |
+| `crowsnest_sync_cancel` | `jobId` | Cooperative cancel. Backed by `cancelSyncAction`. |
+
+### How to access it
+
+Over `/api/mcp`, as MCP tool calls, once built.
+
+### Business rules
+
+- `crowsnest_sync_selected` requires a non-empty `channelIds` array; unlike the dashboard's whole-library sync, the tool refuses an empty call rather than syncing everything.
+- Cancel is cooperative: `cancelSyncAction` requests a stop, it does not kill the run mid-request.
+- These tools trigger real Instagram traffic through the sidecar, the same path the dashboard's sync uses, so they add no new trust boundary.
+
+### Limitations
+
+- These tools do not exist yet; the section describes the approved design.
+- The tools own no sync logic; scoping, progress, and cancellation all live in `sync-actions.ts`.
+
+### User guide
+
+There is no screen for this. Once built, an MCP client will be able to start a sync scoped to just the channels it is about to plan from, poll the job for progress, and cancel it, without touching the whole library.
+
+## 7. Agent analysis
+
+This feature is designed, not built. It is specified in [mcp monthly and weekly planning](../../../planning/spec/2026-09-06-mcp-monthly-planning.md) and does not exist in `mcp-server.ts` yet.
+
+### Who uses it
+
+An MCP client that is itself the model. When a strong outlier has no analysis, the agent writes one and saves it, so its taste becomes durable crowsnest data that Remix and Ideas then read unchanged.
+
+### What it does
+
+One planned write tool.
+
+| Tool | Inputs | Returns / effect |
+| --- | --- | --- |
+| `crowsnest_save_analysis` | `videoId`, `fields` | The agent authors the analysis; the tool validates `fields` against `VideoAnalysisSchema` and upserts the `video_analyses` row with `source = "mcp"`. No in-app LLM call. |
+
+### How to access it
+
+Over `/api/mcp`, as an MCP tool call, once built.
+
+### Business rules
+
+- The agent is the model: there is no in-app LLM call, the tool only validates and stores what the agent already wrote.
+- Fields that fail `VideoAnalysisSchema` validation come back as an error result, not a partial write.
+- The row is stamped `source = "mcp"`, distinguishing agent-authored analyses from in-app ones. This relies on a planned `source` column on `video_analyses` (nullable text, existing rows backfilled as `legacy`), the spec's only schema change.
+- Remix (`describeSourceStructure`) and Ideas read the same `video_analyses` table, so they consume the agent artifact with no change.
+
+### Limitations
+
+- This tool does not exist yet; the section describes the approved design, including the not-yet-added `source` column.
+- It writes one analysis per call for one video; there is no batch write.
+
+### User guide
+
+There is no screen for this. Once built, when an MCP client finds a strong outlier with no analysis, it can write the analysis itself and save it into crowsnest, after which the remix and ideas flows read that analysis exactly as they read an analysis produced in the app.
+
+## 8. Interactions with other systems
 
 Data ownership. The MCP owns no tables. Every value it returns is produced by a query or service function belonging to the feed, analyze, remix, vault, ideas, own-channel, planned-posts, or media components, so a rule about any of that data lives in that component, not here.
 
@@ -137,7 +251,7 @@ The LLM proxy. The four generate remix tools call the model through the same pro
 
 Errors. A handled failure is an error result the caller reads, never a thrown exception. Only an unexpected throw in the transport becomes a JSON-RPC 500, caught and rendered as an envelope in `handleMcpRequest`.
 
-## 6. Edge cases
+## 9. Edge cases
 
 - **No credential on the endpoint.** `handleMcpRequest` performs no auth; any local process that can reach the bound interface can call the tools. The trust boundary is which interface `server.ts` binds, recorded in [test cases](04-test-cases.md#4-security-lite).
 - **The proxy is down.** The generate remix tools return an error; the read tools and the non-generating remix tools are unaffected.
