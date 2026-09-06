@@ -10,6 +10,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import type { ChannelRow, KanbanBoard as KanbanBoardData } from "@/server/queries/channels";
 import { moveChannelsAction, reorderFleetsAction } from "@/server/actions/fleet-actions";
@@ -21,6 +22,7 @@ import { AddChannelDialog } from "./add-channel-dialog";
 import { KanbanColumn, UNASSIGNED } from "./kanban-column";
 import { ChannelCard } from "./channel-card";
 import { NewFleetDialog } from "./new-fleet-dialog";
+import { SyncSelectionBar } from "./sync-selection-bar";
 
 function toFleetId(dropId: string): FleetId {
   return dropId === UNASSIGNED ? null : dropId;
@@ -51,6 +53,36 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
   const [dragStartOverlay, setDragStartOverlay] = useState<Overlay | null>(null);
   const [pending, startTransition] = useTransition();
   const [reduceMotion] = useState(prefersReducedMotion);
+
+  // Bulk-select state, board-local and in memory only: a reload drops it (ig-sync
+  // 03-feature-description, "Sync several channels at once"). Independent of the move
+  // overlay above, so selecting never touches a staged fleet move.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const { start: startSync, isRunning: syncRunning } = useSyncProgress();
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleColumn(ids: string[], on: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+  }
+  function syncSelected() {
+    if (selected.size === 0) return;
+    // Clears once the start resolves. The button is disabled while a sync runs, so the
+    // "already running" refusal path is not normally reachable from here.
+    void startSync([...selected]).then(() => setSelected(new Set()));
+  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     // The card already spreads sortable.attributes/listeners onto a focusable handle, so
@@ -216,6 +248,7 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
             channelIds={buckets.get(null) ?? []} channelsById={channelsById}
             sampleSizeById={board.sampleSizeById}
             canMoveLeft={false} canMoveRight={false} onMoveLeft={() => {}} onMoveRight={() => {}}
+            selectedIds={selected} onToggleSelect={toggleSelect} onToggleColumn={toggleColumn}
           />
           {board.fleets.map((f, idx) => (
             <KanbanColumn
@@ -224,6 +257,7 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
               sampleSizeById={board.sampleSizeById}
               canMoveLeft={idx > 0} canMoveRight={idx < board.fleets.length - 1}
               onMoveLeft={() => reorder(f.id, -1)} onMoveRight={() => reorder(f.id, 1)}
+              selectedIds={selected} onToggleSelect={toggleSelect} onToggleColumn={toggleColumn}
             />
           ))}
         </div>
@@ -239,6 +273,15 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {selected.size > 0 && (
+        <SyncSelectionBar
+          count={selected.size}
+          syncing={syncRunning}
+          onSync={syncSelected}
+          onClear={() => setSelected(new Set())}
+        />
+      )}
 
       <div className="flex flex-none items-center justify-between gap-6 border-t border-line-strong bg-popover px-6 py-3">
         <span className="text-xs text-muted-foreground">
