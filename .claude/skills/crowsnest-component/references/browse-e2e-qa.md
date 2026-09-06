@@ -70,6 +70,26 @@ A journey should read the same way a manual tester would narrate it: go here, do
 that. Do not fold multiple unrelated user goals into one journey; a case that mixes an add
 flow with an unrelated delete flow is two cases, not one.
 
+## Capturing evidence (mandatory)
+
+Driving a journey is only half of running it. The other half is leaving proof a human can
+double-check without re-running it. For every browse-e2e case you actually drive:
+
+1. At the frame that proves Expected (the toast, the new row, the count that changed, the bar
+   that appeared), take a screenshot: `browse screenshot <abs path>` or `browse snapshot -a -o
+   <abs path>` for an annotated one.
+2. Save it into the component's own evidence folder, `documents/architect/core-components/<name>/
+   test-shots/`, named for the case, lower-cased: `test-shots/e2e-02.png`, `test-shots/beh-07.png`.
+3. Read the screenshot back yourself (the `browse` skill's own rule 11) so you have actually seen
+   what you are about to assert, then set the case's Result cell to the marker plus the embedded
+   image, per `references/test-cases-format.md`: `🟢 ![E2E-02](test-shots/e2e-02.png) <one-line
+   note>`. A 🔴 embeds the shot of the wrong state; a 🟡 embeds nothing and names the missing
+   dependency.
+
+The screenshot is not decoration. It is the artifact that lets the person reviewing the component
+confirm the test was run and passed, which is exactly why a browse-e2e row can never be marked
+🟢 without one.
+
 ## Worked example
 
 Journey: track a new channel by handle from the Channels board.

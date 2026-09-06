@@ -90,18 +90,45 @@ Phase 1, 3, and 5 do not need the test-case or diagram references.
 - Gate: present the plan, file count, migrations or breaking changes, the two sweeps' outcomes,
   and the test-coverage plan. Wait for the human to say start before Phase 4 starts.
 
-## Phase 4: implement. No gate.
+## Phase 4: implement, then the mandatory test gate. No human gate, but a hard test gate.
 
 - Call `ship:subagent-driven-development`. Use its independent-tasks parallel mode where the
   plan's tasks are independent; it is the parallel engine for this phase.
-- Three test layers, crowsnest-native:
-  - unit: `vitest`.
-  - route and action: `vitest` against server actions, API routes, and drizzle, using a temp
-    SQLite database.
-  - e2e: browser journeys via the `browse` skill, driven by `data-testid`, per
-    `references/browse-e2e-qa.md`.
+
+### 4a. Build
+
+Implement the plan's tasks. Each shipped feature must add or update the `data-testid` values its
+browse-e2e cases in `04-test-cases.md` name, per `references/browse-e2e-qa.md`; a journey with no
+testid to target is an incomplete feature, not a testing problem to defer.
+
+### 4b. The test gate (mandatory, blocks progression)
+
+Running the tests is not optional and is not deferred to Phase 5. Before this phase ends, and
+before starting the next feature or component, every layer below runs and every case that maps to
+what shipped is marked in `04-test-cases.md` with a 🟢/🔴/🟡 marker (see
+`references/test-cases-format.md`). A shipped case left `not run` fails the gate.
+
+- **unit** (`vitest`): the feature's unit cases pass.
+- **route and action** (`vitest` against server actions, API routes, and drizzle on a temp
+  SQLite database): the feature's route/action cases pass.
+- **browse-e2e** (the `browse` skill, driven by `data-testid`, per `references/browse-e2e-qa.md`):
+  every browse-e2e journey for what shipped is actually driven against the running dev server. For
+  each, capture a screenshot at the frame that proves Expected, save it into the component's
+  `test-shots/` folder (`documents/architect/core-components/<name>/test-shots/<id>.png`), read it
+  back, and embed it in that case's Result cell with its marker. This is the evidence a human uses
+  to double-check the run; a browse-e2e case can never be 🟢 without its screenshot.
+- **security-lite**: the applicable secret / sidecar-token / license cases run and are marked.
 - Run `verify:live` where a real sidecar or LLM path is exercised.
-- No human gate here; the gate that closes this work is Phase 5's.
+
+Marker rules: 🟢 the case ran and Expected held; 🔴 it ran and Expected did not (a 🔴 on a P1
+case blocks the gate and is filed as a `05-backlog` row); 🟡 a real dependency the sandbox lacks
+(no sidecar, no credentials, no LLM key) stopped it, named, and deferred to the release gate. 🟡
+is only for a genuinely un-runnable layer, never a shortcut past one that could have run. The gate
+passes when every shipped case is 🟢, or 🟡 with a named blocker; a 🔴 P1 or a `not run` shipped
+case does not pass.
+
+No human gate here; the gate that closes this work is Phase 5's. But Phase 5 does not start until
+4b's test gate has passed.
 
 ## Phase 5: verify and doc-sync. Human gate.
 
@@ -119,9 +146,13 @@ code so the synced docs ride the same PR.
 ### 5a. Verify
 
 - Call `ship:verification-before-completion`.
-- Reconcile the three test layers against `04-test-cases.md`: which browse-e2e journeys ran at full
-  depth, which were simplified or could not run (no sidecar, no real credentials, no LLM), and why.
-  A layer that could not run in the sandbox is named for the release gate, never silently dropped.
+- Confirm Phase 4b's test gate actually ran and its markers are in `04-test-cases.md`: every
+  shipped case is 🟢 (with an embedded `test-shots/` screenshot for each browser-run case), 🔴, or
+  🟡 with a named blocker, and no shipped case is still `not run`. If any shipped case is unmarked,
+  Phase 4b did not finish; go back and run it, do not paper over it here.
+- Reconcile the layers against `04-test-cases.md`: which browse-e2e journeys ran at full depth
+  (🟢 with evidence), which are 🟡 and why (no sidecar, no real credentials, no LLM). A layer that
+  could not run in the sandbox is a named 🟡 for the release gate, never silently dropped.
 
 ### 5b. Doc-sync to reality (mandatory, not a word-swap)
 
@@ -180,8 +211,10 @@ from the plan. Wait for the human to confirm done.
 
 - A gate rejection: revise on the feedback, re-present the same gate. Nothing downstream starts.
 - An existing component: read first, enhance, never overwrite blindly.
-- `browse` or `verify:live` unavailable: note it, fall back to `vitest` plus a manual check,
-  never skip a test layer silently.
+- `browse` or `verify:live` unavailable: mark the affected browse-e2e case 🟡 in `04-test-cases.md`
+  with the reason (no `browse`, no sidecar, no credentials) and the release gate it defers to, then
+  fall back to `vitest` plus a manual check. Never skip a test layer silently and never mark a case
+  🟢 without having actually driven it and captured its `test-shots/` screenshot.
 - One quality bar governs every doc this skill touches: `house-style.md`. One invariant owner
   for the five-doc block and the index or nav wiring: `document-component`.
 - Phase 4 was delegated to `ship:subagent-driven-development`: its reviews and its
@@ -197,5 +230,5 @@ from the plan. Wait for the human to confirm done.
 | 1: research and concept | yes | none (this skill, plus `where-are-we`) | name, slug, scope, dependencies, agreed |
 | 2: design, features-first | yes | none (this skill's own agents) | `01`, `02`, `03`, `04` drafted, per `house-style.md` |
 | 3: implementation plan | yes | `ship:writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
-| 4: implement | no | `ship:subagent-driven-development` | code, tests across three layers, committed |
+| 4: implement + test gate | no human gate, hard test gate | `ship:subagent-driven-development` | code committed, then 4b runs every layer and marks each shipped case 🟢/🔴/🟡 in `04` with a `test-shots/` screenshot per browser-run case; a `not run` or 🔴 P1 blocks Phase 5 |
 | 5: verify and doc-sync | yes | `ship:verification-before-completion` | verify (5a), then the mandatory doc-sync-to-reality pass (5b) driven by the shipped diff, then the docs-match-code check (5c); backlog updated, done confirmed. SDD finishing does not satisfy this. |

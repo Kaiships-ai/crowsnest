@@ -10,6 +10,33 @@ four lenses after `03-feature-description.md` exists, then their output is merge
 section is a table of cases plus an optional "Not checkable by hand" list for anything the lens
 cannot exercise without a tool the component does not have.
 
+## Result markers and evidence
+
+The Result column is blank at authoring time. Once a case is actually run during Phase 4's test
+gate (or Phase 5 verification), it carries one of these markers, never bare prose:
+
+- 🟢 pass: the case ran and Expected held. A browser-run case (the whole browse-e2e lens, plus
+  any behavior case driven through `browse`) MUST embed the screenshot that proves it, so a
+  reader can double-check the result without re-running it.
+- 🔴 fail: the case ran and Expected did not hold. Name what actually happened, and embed the
+  screenshot of the wrong state. A 🔴 on a P1 case blocks the phase; it is filed as a
+  `05-backlog` row, not left as the only record.
+- 🟡 blocked: the case could not run because a dependency the sandbox lacks was missing (no
+  sidecar, no real credentials, no LLM key). Name the missing dependency and the release gate it
+  is deferred to. 🟡 is for a genuinely un-runnable layer, never for a layer that was simply
+  skipped.
+
+A case still shows `not run` only before its phase's test gate has run; a mandatory case left
+`not run` blocks the phase (see the `crowsnest-component` skill, Phase 4).
+
+**Evidence folder.** Every component keeps its browser screenshots in a `test-shots/` folder
+beside its five docs (`documents/architect/core-components/<name>/test-shots/`). Name each shot
+for the case it proves, lower-cased: `test-shots/e2e-02.png`, `test-shots/beh-07.png`. Embed it
+from the Result cell as an inline image so it renders in the mkdocs site and in the doc itself,
+for example `🟢 ![E2E-02](test-shots/e2e-02.png) bar read 2, action posted 200, selection
+cleared`. One shot per case is enough; capture the single frame that proves Expected (or, for a
+🔴, disproves it).
+
 Use `documents/architect/core-components/feed/04-test-cases.md` as the worked example of the
 table shape and the writing style: a top-of-file "how to run this file" paragraph naming the
 dev server, the seed data needed, and which rows need an external service, then one table per
@@ -40,8 +67,10 @@ Table columns:
 - Setup: the data or state the case needs before the steps start.
 - Steps: the numbered actions a person takes.
 - Expected: what should be true after the steps.
-- Result: left blank at authoring time; filled in during Phase 4 or 5 verification
-  (`pass (browser)`, `not run`, `fail (confirmed): ...`, or `blocked: ...`).
+- Result: left blank at authoring time; filled in during Phase 4's test gate or Phase 5 with a
+  🟢/🔴/🟡 marker per "Result markers and evidence" above. A behavior case driven through
+  `browse` embeds its screenshot from `test-shots/`; one checkable purely by reading a value
+  carries the marker and a one-line note.
 
 ## route and action
 
@@ -65,8 +94,9 @@ Table columns:
 - Call: the exact function or endpoint invocation, with its arguments.
 - Expected: the return value and the resulting database state, read back with a drizzle query
   in the same test.
-- Result: left blank at authoring time; filled in when the vitest suite runs (`pass`, `fail`, or
-  `not run` if the case is written but not yet wired to a real test file).
+- Result: left blank at authoring time; filled in when the vitest suite runs, with a 🟢/🔴/🟡
+  marker per "Result markers and evidence" above (no screenshot; this lens has no browser).
+  A case written but not yet wired to a real test file is 🟡 with that noted, not left blank.
 
 Each row here should be reachable from a case in the behavior lens (the same user action, one
 level lower), but this lens also covers cases the behavior lens cannot reach by hand, such as a
@@ -95,10 +125,11 @@ Table columns:
   journey to complete (the sidecar, the LLM proxy, the post-fetch provider).
 - Steps: the `data-testid`-driven actions the `browse` skill performs, in order.
 - Expected: the observable end state after the full journey.
-- Result: left blank at authoring time; filled in during Phase 4 or 5 when the journey is
-  actually driven through `browse` (`pass (browser)`, `not run`, or `blocked: <reason>` if
-  `browse` is unavailable and the case fell back to a manual check per the skill's error
-  handling).
+- Result: left blank at authoring time; filled in during Phase 4's test gate or Phase 5 when the
+  journey is actually driven through `browse`, with a 🟢/🔴/🟡 marker AND an embedded screenshot
+  from `test-shots/` per "Result markers and evidence" above. A browse-e2e row that shipped can
+  never stay `not run`: it is either driven (🟢/🔴 with a shot) or 🟡 with the named missing
+  dependency. `browse` being unavailable is itself a 🟡, not a silent skip.
 
 Cases here should be journeys, not single-page checks; a single-page visual check belongs in
 the behavior lens instead.
@@ -134,8 +165,9 @@ Table columns:
   `.env.local` key, an invalid or absent sidecar token, no license present.
 - Steps: how the case attempts to violate the guarantee.
 - Expected: the refusal, the redaction, or the absence of the leak.
-- Result: left blank at authoring time; filled in when the case is run (`pass`, `fail`, or
-  `not run`).
+- Result: left blank at authoring time; filled in when the case is run, with a 🟢/🔴/🟡 marker
+  per "Result markers and evidence" above. A secret-handling or sidecar-token case driven through
+  the browser or a shell attempt embeds its screenshot or names the command output as evidence.
 
 Do not add rows for threats that do not apply to a local single-user desktop app, such as
 per-tenant rate limiting or role escalation. If a component genuinely has no security-lite
