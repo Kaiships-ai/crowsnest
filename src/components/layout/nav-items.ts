@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type NavGroup = "Research" | "Create" | "Sources" | "System" | "Setup";
+export type NavGroup = "Overview" | "Create" | "Sources" | "System" | "Setup";
 
 export type NavItem = {
   href: string;
@@ -28,9 +28,13 @@ export type NavItem = {
  * constant, on purpose: the palette renders this list as-is with no per-user
  * data behind it.
  *
- * Grouping and order follow the prototype rail's RESEARCH / CREATE / SOURCES
- * / SYSTEM / SETUP sections. "My channel" is a real route (`/mine`) and lives
- * here. "Post" is deliberately NOT here: the prototype's "Post" entry points
+ * Order follows the creator's day and the product loop, not category: OVERVIEW
+ * (Dashboard, the daily landing that answers "what to make next") leads, then
+ * CREATE (the signal-to-remix loop: Feed, Ideas, Vault, in flow order), then
+ * SOURCES (the inputs, configured less often), then SYSTEM (diagnostics) and
+ * SETUP (config) at the bottom where infrequent tasks belong. Frequency and
+ * journey both descend, so nothing daily sits below the fold. "My channel" is a
+ * real route (`/mine`) and lives here. "Post" is deliberately NOT here: the prototype's "Post" entry points
  * at whatever post is currently open, which has no fixed href to give this
  * array. sidebar.tsx renders it separately, right below Feed, using the same
  * `recently_viewed` fact the Dashboard's "Recently viewed" rail already reads
@@ -51,15 +55,15 @@ export type NavItem = {
  * `(shell)/layout.tsx` (`countInboxIdeas()`) as a prop instead.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/feed", label: "Feed", icon: Flame, group: "Research" },
-  { href: "/ideas", label: "Ideas", icon: Lightbulb, group: "Research" },
+  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
+  { href: "/feed", label: "Feed", icon: Flame, group: "Create" },
+  { href: "/ideas", label: "Ideas", icon: Lightbulb, group: "Create" },
   { href: "/vault", label: "Vault", icon: Archive, group: "Create" },
   { href: "/channels", label: "Channels", icon: Users, group: "Sources" },
   { href: "/channels/discover", label: "Discover", icon: Compass, group: "Sources" },
   { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "System" },
-  { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
   { href: "/runs", label: "Runs", icon: Activity, group: "System" },
+  { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
   { href: "/persona", label: "Persona", icon: Drama, group: "Setup" },
   { href: "/settings", label: "Settings", icon: Settings, group: "Setup" },
 ];

@@ -119,22 +119,48 @@ export interface SidebarProps {
   /** `countInboxIdeas()`, read once per full navigation by `(shell)/layout.tsx` — same
    *  flow `getStartedItems` already uses to get real per-user data into this otherwise
    *  static rail (see nav-items.ts's module doc for why the count isn't a NAV_ITEMS
-   *  field). Rendered only on the Ideas item, and only as a plain count — DESIGN-SYSTEM.md
-   *  §3 bans amber on a sidebar count badge, so this is neutral text, never a color. */
+   *  field). Rendered only on the Ideas item, and only as a plain count — the Ideas inbox
+   *  is a mundane tally, not the product's core signal, so it stays neutral text. Amber on
+   *  the rail is reserved for `feedOutlierCount` below (the one "worth making" signal). */
   ideasInboxCount: number;
+  /** Outliers new since the creator last opened Feed (`getNewFeedOutliers()`, threaded
+   *  from `(shell)/layout.tsx` exactly like `ideasInboxCount`). This is the rail's single
+   *  amber signal — the product's whole promise ("here is what beat the median, go make
+   *  it") surfaced where the eye lands. Rendered only on the Feed item, only when > 0, and
+   *  it is the one place amber is allowed on the rail; every other rail count is neutral.
+   *  DESIGN.md's world is "a single amber signal", and this is it. */
+  feedOutlierCount: number;
 }
 
-export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
+export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  // Optimistic active item. A shell route is `force-dynamic`, so a nav click waits on a
+  // server render (fast, but not free) before `pathname` moves and the active marker
+  // follows — long enough to read as "nothing happened yet". Instead, on click we light
+  // the target immediately and reconcile when the route commits: `displayHref` is the
+  // pending target while a navigation is in flight, then falls back to the real pathname.
+  // One item is ever active, it switches on the click frame, and the existing 150ms color
+  // transition keeps the switch smooth rather than abrupt.
+  const [pendingHref, setPendingHref] = useState<string | null>(null);
+  // React's "adjust state during render" reset pattern, not an effect: the moment the
+  // pathname changes (the click's route committed, or the user went elsewhere by any
+  // means) the optimistic target is stale, so drop it in the same render rather than one
+  // commit later. Tracking the last pathname in state is what lets this run in render
+  // without an effect and without a cascading re-render.
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
+    setPendingHref(null);
+  }
+  const displayHref = pendingHref ?? pathname;
   const [panelOpen, setPanelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
-  // job is latest — so a run started on a channel page or in another tab shows up here.
-  // (Not "or by the scheduler": there is no scheduler. Every run starts from a click —
-  // see the "Inert settings" note in settings/sync-section.tsx.) The old code fetched
-  // status exactly once on mount, which is why anything started elsewhere was invisible
-  // until a reload.
+  // job is latest — so a run started on a channel page, in another tab, or by the
+  // in-process sync scheduler (sync-scheduler.ts, which starts a library sweep on the
+  // syncCadenceMinutes cadence) shows up here. The old code fetched status exactly once on
+  // mount, which is why anything started elsewhere was invisible until a reload.
   const { progress, isRunning, stalled, error, start, cancel } = useSyncProgress();
   // Set by whichever page currently holds state a navigation would drop (the channels
   // board's unsaved drag moves, so far) — see navigation-blocker.tsx. A confirm() rather
@@ -176,6 +202,20 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
   const dot = progress === null ? "never" : VIEW_STATE_DOT[state];
   const railStatusLabel = railLabel(state, progress);
 
+  // The rail's one earned moment. This rail lives in the shell layout and stays mounted
+  // across navigations — `router.refresh()` repaints it with a fresh `feedOutlierCount`
+  // rather than remounting it — so a count that GREW means new outliers genuinely arrived
+  // since the last render, the one moment worth a flicker. Bumping the key remounts just
+  // the Feed badge, replaying its settle animation then and only then; an ordinary
+  // navigation that left the count unchanged reuses the element and stays still, so the
+  // signal never turns into per-navigation noise.
+  const prevFeedOutliers = useRef(feedOutlierCount);
+  const [outlierSettleKey, setOutlierSettleKey] = useState(0);
+  useEffect(() => {
+    if (feedOutlierCount > prevFeedOutliers.current) setOutlierSettleKey((k) => k + 1);
+    prevFeedOutliers.current = feedOutlierCount;
+  }, [feedOutlierCount]);
+
   return (
     <aside
       className={cn(
@@ -214,7 +254,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
 
       <nav className="flex flex-1 flex-col gap-0.5 pb-2" aria-label="Primary">
         {NAV_ITEMS.map((item, index) => {
-          const itemActive = isNavItemActive(pathname, item.href);
+          const itemActive = isNavItemActive(displayHref, item.href);
           const Icon = item.icon;
           const startsNewGroup = index === 0 || NAV_ITEMS[index - 1].group !== item.group;
 
@@ -240,32 +280,69 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
                 onNavigate={(e) => {
                   if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
                     e.preventDefault();
+                    return;
                   }
+                  // Light the target now, not after the server render commits. Skipped when
+                  // it is already the active route (a re-click navigates nowhere, so there
+                  // is nothing to reconcile and no pending state to strand).
+                  if (!itemActive) setPendingHref(item.href);
                 }}
                 className={cn(
-                  "mx-3 flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
+                  // A transparent left border on every item so the active one can light it
+                  // without shifting the row 2px. The marker is `line-strong` (neutral), not
+                  // amber: amber is the rail's single signal and it belongs on the Feed
+                  // outlier cue, not on "you are here". Raised surface + weight carry the
+                  // rest of the active state.
+                  // `relative` anchors the collapsed-mode signal dot below. Keyboard focus
+                  // gets the app's amber focus ring (globals: focus is amber because nothing
+                  // else competes for it), inset so it never collides with the rail edge —
+                  // the nav links had only the browser default before.
+                  "relative mx-3 flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm transition-colors",
+                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
                   collapsed && "justify-center px-0",
                   itemActive
-                    // Raised surface, never the amber `primary` token — amber on nav
-                    // active state is exactly what the design rules ban it from.
-                    ? "bg-popover font-semibold text-foreground"
+                    ? "border-[color:var(--line-strong)] bg-popover font-semibold text-foreground"
                     : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
                 )}
               >
-                <Icon className="size-4 shrink-0" />
+                {/* Stroke tuned finer than Lucide's default 2 so the glyphs read as
+                    precise instrument marks against the grotesque/mono type, and the active
+                    item's icon thickens to 2 in lockstep with its bolded label — weight is
+                    the one thing that changes across the whole active row, icon included. */}
+                <Icon className="size-4 shrink-0" strokeWidth={itemActive ? 2 : 1.75} />
                 {!collapsed && (
                   <>
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {/* Count only, never amber (DESIGN-SYSTEM.md §3: "Logo, checklist,
-                        progress bar, sidebar count badge" are banned amber surfaces).
-                        Hidden at zero — an empty inbox needs no badge to say so, matching
-                        1.3 "silence is the default". */}
+                    {/* Ideas is a mundane tally, so its count stays neutral. Hidden at
+                        zero — an empty inbox needs no badge to say so, "silence is the
+                        default". */}
                     {item.href === "/ideas" && ideasInboxCount > 0 && (
                       <span className="shrink-0 rounded-none bg-popover px-1.5 py-0.5 font-mono text-2xs tabular-nums text-muted-foreground">
                         {ideasInboxCount}
                       </span>
                     )}
+                    {/* The rail's ONE amber signal: outliers new since the last Feed visit.
+                        Amber here is not a decoration — globals.css reserves it for "the
+                        score, and the only thing amber is allowed to mean", and an outlier
+                        IS a high score, so this count is that exact meaning surfaced where
+                        the eye lands. `score-wash` background + `primary` text = the washed
+                        amber signal, restrained not shouted, and the only amber on the rail.
+                        Hidden at zero, same silence-is-default rule. */}
+                    {item.href === "/feed" && feedOutlierCount > 0 && (
+                      <span
+                        key={outlierSettleKey}
+                        className="rail-signal-settle shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary"
+                      >
+                        {feedOutlierCount}
+                      </span>
+                    )}
                   </>
+                )}
+                {/* Collapsed rail keeps the signal alive as a bare amber dot — the count has
+                    no room, but "there is something on Feed worth making" must not vanish
+                    just because the labels did. Same score-amber, same hidden-at-zero rule. */}
+                {collapsed && item.href === "/feed" && feedOutlierCount > 0 && (
+                  <span aria-hidden className="absolute right-2 top-1.5 size-1.5 rounded-full bg-primary" />
                 )}
               </Link>
             </div>
@@ -374,13 +451,13 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
             {/* pr-3 matters as much as pl-3: without a right inset the ellipsis renders hard
                 against the rail's border, which reads as "clipped" rather than "shortened". */}
             {active && progress !== null && (
-              <p className="mt-1 truncate px-3 text-[11px] text-muted-foreground tabular-nums">{railDetail(progress)}</p>
+              <p className="mt-1 truncate px-3 text-2xs text-muted-foreground tabular-nums">{railDetail(progress)}</p>
             )}
 
             {/* Rendered, not toasted: a poll that fails every second would stack a tower of
                 identical toasts. The last good progress row stays on screen beside it (see
                 reducePoll) rather than blanking. */}
-            {error !== null && <p className="mt-1 truncate px-3 text-[11px] text-destructive">{error}</p>}
+            {error !== null && <p className="mt-1 truncate px-3 text-2xs text-destructive">{error}</p>}
           </>
         )}
       </div>

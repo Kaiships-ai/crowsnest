@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { bandOrAny, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
+import { bumpFeedLastVisit } from "@/server/queries/dashboard";
 import { getFeedBandCounts, getOutlierFeed, getSavedFilters, type FeedFilters, type FeedSort } from "@/server/queries/feed";
 
 const DEFAULT_LIMIT = 24;
@@ -15,6 +16,12 @@ const LOAD_MORE_STEP = 24;
 // ROUTE_TITLES — so page content here starts at h2 or plain text (M6).
 export default async function FeedPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
+
+  // Landing on Feed means the creator is seeing the current outliers, so move the "new
+  // since last visit" cutoff to now: the sidebar's amber Feed cue counts against this, and
+  // is what clears it once they arrive. Fire-and-forget relative to the reads below — the
+  // cue is read in the layout on the next navigation, never off this same render.
+  await bumpFeedLastVisit();
 
   const [fleets, savedFilters, allChannels] = await Promise.all([getFleets(), getSavedFilters(), getChannelsList()]);
 

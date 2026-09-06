@@ -259,6 +259,52 @@ export async function readAndBumpDashboardLastVisit(now: string = nowIso()): Pro
   return prev;
 }
 
+const FEED_LAST_VISIT_KEY = "feed_last_visit";
+
+/**
+ * Reads the stored Feed last-visit timestamp without writing it — the sidebar's live
+ * "new outliers" cue is computed in `(shell)/layout.tsx` on every navigation, and only
+ * the Feed page itself should move the cutoff (see `bumpFeedLastVisit`). Keeping the read
+ * and the bump separate is what lets the cue still show the count on the navigation that
+ * lands on Feed, then clear on the next one, rather than the layout zeroing its own cue.
+ * Distinct from `dashboard_last_visit`: opening the Dashboard must not clear the Feed cue.
+ */
+export async function getFeedLastVisit(): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(tables.appSettings)
+    .where(eq(tables.appSettings.key, FEED_LAST_VISIT_KEY))
+    .limit(1);
+  return row?.value ?? null;
+}
+
+/** Moves the Feed last-visit cutoff to `now`. Called on Feed page load, so "new since
+ *  your last visit" means since the previous time you opened Feed. Same key-value table
+ *  and insert-or-update shape as `readAndBumpDashboardLastVisit`, no schema change. */
+export async function bumpFeedLastVisit(now: string = nowIso()): Promise<void> {
+  const [row] = await db
+    .select()
+    .from(tables.appSettings)
+    .where(eq(tables.appSettings.key, FEED_LAST_VISIT_KEY))
+    .limit(1);
+  if (row) {
+    await db.update(tables.appSettings).set({ value: now }).where(eq(tables.appSettings.key, FEED_LAST_VISIT_KEY));
+  } else {
+    await db.insert(tables.appSettings).values({ key: FEED_LAST_VISIT_KEY, value: now });
+  }
+}
+
+/**
+ * The sidebar Feed cue: how many outliers are new since the creator last opened Feed.
+ * Reuses `getNewOutliersSince` (score >= OUTLIER_MIN_SCORE, first seen after the cutoff,
+ * not removed) so the rail's amber signal counts exactly what the Dashboard's own
+ * new-outliers stat does — one definition of "new outlier", never a second. Null cutoff
+ * (first ever Feed visit) yields 0, same honest first-visit rule.
+ */
+export async function getNewFeedOutliers(): Promise<number> {
+  return getNewOutliersSince(await getFeedLastVisit());
+}
+
 const RECENTLY_VIEWED_KEY = "recently_viewed";
 
 /**
