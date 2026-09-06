@@ -110,29 +110,120 @@ Playwright suite. See the sibling reference `browse-e2e-qa.md` for the full conv
 `data-testid`; text and role selectors are the exception, because they collide silently), how a
 journey is written, and a worked example.
 
-Table columns:
+### Coverage mandate
 
-| ID | P | Journey | Claim | Setup | Steps | Expected | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- |
+The browse-e2e lens must carry, per component, at least one happy-path journey for every `●`
+(Built) or `◐` (Partial) feature in the `03-feature-description.md` summary table, plus at least
+five journeys that each exercise a distinct corner-case type from the taxonomy below. A `○`
+(Roadmap) feature needs no journey. Five distinct types, not five rows of one type: a component
+with three empty-state journeys and two boundary journeys has covered two types, not five.
+
+The floor is mechanical because it anchors to something already counted. The count of `●` plus
+`◐` rows in the summary table is the number of required happy-path journeys, which a person or a
+script reads off directly. Every browse-e2e row names, in the `Feat` column, the summary `#` it
+covers, so breadth is measured by distinct `Feat` values covered, not by row count: one journey
+that spans several features (`Feat: 2,4,5`) counts toward all of them.
+
+If a corner-case type genuinely does not apply to a component (a component with no external call
+has no `network` type), record a one-line "not applicable" reason under the browse-e2e heading,
+the same latitude security-lite already has when it says it has no threat surface. What is not
+allowed is silence: five real types, or a named reason a type does not apply.
+
+### Corner-case taxonomy
+
+Each name maps to a real crowsnest surface, so these are not generic QA buckets. A type counts
+only when it has its own named journey and an observable assertion.
+
+| Type key | What it means on this app | Real example surface |
+| --- | --- | --- |
+| `empty` | The zero-data state and its recovery link | feed's empty states (no channels, no sync, empty search, empty filter slice), each with recovery copy |
+| `failure` | An action that fails and shows its reason inline, not a toast | Add channel with the sidecar down: `add-channel-dialog.tsx`'s error Alert, "The Instagram service isn't running." |
+| `boundary` | A count, page size, or cap at its edge | feed page size of 24 then Load more to `limit=48`; recently-viewed capped at eight |
+| `invalid` | Malformed, blank, or junk input rejected | a pasted profile URL rejected as invalid input, writing no channel row |
+| `concurrency` | Two tabs or a double click racing one row | a second sync returns `SYNC_ALREADY_RUNNING` while the first is still active |
+| `auth` | A license, sidecar-token, or Graph-token gate refusal driven through the UI | a missing Graph token shows the connect panel without hiding stored metrics |
+| `stale` | Optimistic UI or reload reconciliation, the window where the visible state and the database disagree | a keep button flips only after the page re-reads; a saved view deleted in another tab returns `SAVED_VIEW_NOT_FOUND` |
+| `network` | An external service unreachable mid-journey | a stopped sidecar produces `IG_SERVICE_DOWN` and no running job remains |
+| `repeat` | The same action run twice: dedupe or upsert, not duplicate | re-importing an existing post upserts rather than creating a duplicate |
+
+The taxonomy is a menu, not a mandate to hit all nine. Five distinct applicable types is the
+floor; a genuinely inapplicable type is the one-line "not applicable" note above.
+
+### Table columns
+
+| ID | P | Feat | Type | Mode | Journey | Setup | Steps | Expected | Script | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 
 - ID: a short prefix plus a number, for example `E2E-01`.
 - P: same P1 to P3 priority scale.
+- Feat: the `03` feature summary `#` this journey covers, for example `2`, or `2,4` when the
+  journey spans two features. This is what makes the coverage mandate countable: sum the distinct
+  `Feat` values against the built-feature list. Breadth is distinct-`Feat`-covered, so a journey
+  covering several features counts for all of them; a corner-case journey still names the feature
+  it stresses.
+- Type: `happy` for a happy-path journey, or one taxonomy key (`empty`, `failure`, `boundary`,
+  `invalid`, `concurrency`, `auth`, `stale`, `network`, `repeat`) for a corner case.
+- Mode: `offline` or `live`. `offline` journeys run against the seeded fixture database with no
+  external service, and are the ones `npm run e2e` can run everywhere. `live` journeys need a real
+  service (the sidecar logged into a burner account, an LLM key, the Graph token) and are honestly
+  🟡 in a bare sandbox. Naming this in a column, instead of burying it in Setup prose, is what lets
+  the 4b gate treat a 🟡 on a `live` row as expected and a 🟡 on an `offline` row as a failure to
+  run something that could have run.
 - Journey: the named multi-step flow this case belongs to, for example "import a post then find
   it in the feed."
-- Claim: the one-sentence end-to-end behavior being asserted, spanning at least two surfaces or
-  a full round trip (act, then reload or navigate, then confirm the effect persisted).
 - Setup: the dev server state, seed data, and any service that must be reachable for the whole
   journey to complete (the sidecar, the LLM proxy, the post-fetch provider).
-- Steps: the `data-testid`-driven actions the `browse` skill performs, in order.
-- Expected: the observable end state after the full journey.
+- Steps: the `data-testid`-driven actions the `browse` skill performs, in the three-part
+  Arrive / Act / Assert shape (see `browse-e2e-qa.md`), one user action per step, each naming the
+  `data-testid` it targets.
+- Expected: the observable end state after the full journey. Every assertion must name the
+  `data-testid` it reads (no vague "the channel appears" or "the page works"); an assertion that
+  cannot name a testid says which `lib.sh` helper reads it instead (`assert_text` reads cleaned
+  page text, `assert_url_contains` reads the URL).
+- Script: the path to the checked-in `scripts/e2e/<component>-<id>.sh`, for example
+  `scripts/e2e/feed-e2e-01.sh`, or `none` if the journey is hand-run only. `none` is allowed only for a
+  `live` journey no harness can seed; an `offline` row with `Script: none` is unfinished.
 - Result: left blank at authoring time; filled in during Phase 4's test gate or Phase 5 when the
   journey is actually driven through `browse`, with a 🟢/🔴/🟡 marker AND an embedded screenshot
-  from `test-shots/` per "Result markers and evidence" above. A browse-e2e row that shipped can
-  never stay `not run`: it is either driven (🟢/🔴 with a shot) or 🟡 with the named missing
-  dependency. `browse` being unavailable is itself a 🟡, not a silent skip.
+  from `test-shots/` per "Result markers and evidence" above, plus a one-line note in the cell of
+  what was actually observed. A browse-e2e row that shipped can never stay `not run`: it is either
+  driven (🟢/🔴 with a shot) or 🟡 with the named missing dependency. `browse` being unavailable is
+  itself a 🟡, not a silent skip.
+
+### Tightened rules
+
+- Every assertion in Expected names the `data-testid` it reads. Prose assertions on unnamed
+  elements ("the channel appears", "the page works") are how a journey silently asserts on the
+  wrong node, the collision the `data-testid` discipline in `browse-e2e-qa.md` warns about.
+- A 🟡 on a `Mode: offline` row is a gate failure. An offline row has, by definition, no external
+  dependency to be blocked on, so a 🟡 there means the author skipped a runnable journey. A 🟡 is
+  honest only on a `Mode: live` row, where it names the real missing dependency.
+- An `offline` row with `Script: none` is unfinished. The lasting artifact of a browse-e2e case is
+  the table row plus the checked-in script, so an offline journey that could be scripted but was
+  not is incomplete work, not a passing row.
 
 Cases here should be journeys, not single-page checks; a single-page visual check belongs in
 the behavior lens instead.
+
+### Authoring the breadth (Phase 2b)
+
+Before writing rows, build a scratch feature-to-journey coverage matrix: one row per `●`/`◐`
+feature down the side, the nine corner-case types across the top. Write a happy-path journey for
+every built feature (the floor), then corner rows until five distinct types are covered. The
+matrix does not ship; it just forces the gaps into view, the way cn-weekly's funnel table forces
+coverage into view. Guardrails against busywork: one happy-path journey per built feature, not one
+per business rule (rules stay in the behavior lens), and a journey may cover several features
+(`Feat: 2,4,5`) so breadth is distinct-`Feat`-covered, not row count.
+
+### Migration
+
+Do not rewrite all eleven `04` docs at once. Backfill incrementally, worst-first: kit and mcp
+(zero browse-e2e rows today) first, then the six single-row components (analyze, discover, llm,
+remix, plus feed, ig-sync, and mine, which are closest). Let each component's backfill ride its
+next Phase 5b doc-sync, and track the shortfall as a `test-coverage` row (Status `open`) in that
+component's `05-backlog-to-enhance.md` so `scripts/plan-status.sh` counts the remaining gap.
+Grandfather the existing rows: annotate them with the new `Feat`, `Mode`, and `Script` columns
+(defaulting `Script` to `none` and `Mode` from their Setup prose) rather than deleting them.
 
 ## security-lite
 

@@ -64,6 +64,15 @@ Phase 1, 3, and 5 do not need the test-case or diagram references.
     asserting it.
   - Test-case agents write `04-test-cases.md` across the four lenses defined in
     `references/test-cases-format.md`: behavior, route and action, browse-e2e, security-lite.
+    For the browse-e2e lens, before writing rows the agent builds a scratch feature-to-journey
+    coverage matrix from `03-feature-description.md`: one row per `●`/`◐` feature down the side,
+    the nine corner-case types across the top. It then writes one happy-path journey per built
+    feature (the floor) and corner rows until five distinct corner-case types are covered, per the
+    coverage mandate in `references/test-cases-format.md`. The matrix is scratch and does not ship.
+    One happy-path journey per built feature (not one per business rule; rules stay in the behavior
+    lens), and a journey may cover several features (`Feat: 2,4,5`), so breadth is distinct-`Feat`-
+    covered, not row count. Every browse-e2e row carries the `Feat`, `Type`, `Mode`, and `Script`
+    columns.
 - Merge the test-case agents' output into one `04-test-cases.md`; refine `01-concept-brief.md`.
 - Every doc this phase touches follows `house-style.md`.
 - Gate: present design decisions, dependencies and integration points, risks. Wait for a yes
@@ -126,6 +135,25 @@ case blocks the gate and is filed as a `05-backlog` row); 🟡 a real dependency
 is only for a genuinely un-runnable layer, never a shortcut past one that could have run. The gate
 passes when every shipped case is 🟢, or 🟡 with a named blocker; a 🔴 P1 or a `not run` shipped
 case does not pass.
+
+**Browse-e2e coverage check.** Read the `03` feature summary table and the `04` browse-e2e table.
+The gate passes only when, per component: (a) every `●`/`◐` feature `#` appears in at least one
+browse-e2e row's `Feat` column; (b) the rows cover at least five distinct corner-case types (or a
+named "not applicable" line per missing type); (c) no `Mode: offline` row is `not run` or 🟡 (an
+offline row has no external dependency to be blocked on); (d) every `Mode: offline` row names a
+`Script` path that exists under `scripts/e2e/`. These are grep-able facts, not judgment calls.
+Emit a short coverage record, for example:
+
+```
+Feature paths: 8 required, 8 covered
+Corner types: empty, failure, boundary, network, repeat (5 distinct)
+Offline: 8  Live: 2  Blocked: 1 (sidecar, release gate)
+Unmarked shipped rows: 0   Missing screenshots: 0
+Gate: pass
+```
+
+A small `scripts/e2e-coverage.sh` reading the `03` and `04` tables could automate this; it is a
+recommended follow-up, not built now.
 
 No human gate here; the gate that closes this work is Phase 5's. But Phase 5 does not start until
 4b's test gate has passed.
