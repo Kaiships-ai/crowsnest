@@ -13,6 +13,9 @@ let getFleetSpikes: typeof import("./dashboard")["getFleetSpikes"];
 let getRecentlyViewed: typeof import("./dashboard")["getRecentlyViewed"];
 let getNewOutliersSince: typeof import("./dashboard")["getNewOutliersSince"];
 let readAndBumpDashboardLastVisit: typeof import("./dashboard")["readAndBumpDashboardLastVisit"];
+let getFeedLastVisit: typeof import("./dashboard")["getFeedLastVisit"];
+let bumpFeedLastVisit: typeof import("./dashboard")["bumpFeedLastVisit"];
+let getNewFeedOutliers: typeof import("./dashboard")["getNewFeedOutliers"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -26,6 +29,9 @@ beforeAll(async () => {
     getRecentlyViewed,
     getNewOutliersSince,
     readAndBumpDashboardLastVisit,
+    getFeedLastVisit,
+    bumpFeedLastVisit,
+    getNewFeedOutliers,
   } = await import("./dashboard"));
 });
 
@@ -333,5 +339,41 @@ describe("what changed since the last visit", () => {
     expect(first).toBeNull(); // nothing stored yet
     const second = await readAndBumpDashboardLastVisit("2026-08-06T00:00:00.000Z");
     expect(second).toBe("2026-08-05T00:00:00.000Z");
+  });
+});
+
+describe("feed cue (new outliers since last Feed visit)", () => {
+  test("getFeedLastVisit reads null before any visit, then the bumped value", async () => {
+    expect(await getFeedLastVisit()).toBeNull();
+    await bumpFeedLastVisit("2026-08-05T00:00:00.000Z");
+    expect(await getFeedLastVisit()).toBe("2026-08-05T00:00:00.000Z");
+    // bump is insert-or-update: a second bump replaces, never duplicates the row.
+    await bumpFeedLastVisit("2026-08-06T00:00:00.000Z");
+    expect(await getFeedLastVisit()).toBe("2026-08-06T00:00:00.000Z");
+  });
+
+  test("bumping the Feed cutoff does not touch the dashboard cutoff, and vice versa", async () => {
+    await readAndBumpDashboardLastVisit("2026-08-01T00:00:00.000Z");
+    await bumpFeedLastVisit("2026-08-10T00:00:00.000Z");
+    // Reading (and re-bumping) the dashboard visit returns the dashboard value, proving
+    // the two keys are independent — opening the Dashboard must not clear the Feed cue.
+    expect(await readAndBumpDashboardLastVisit("2026-08-11T00:00:00.000Z")).toBe("2026-08-01T00:00:00.000Z");
+    expect(await getFeedLastVisit()).toBe("2026-08-10T00:00:00.000Z");
+  });
+
+  test("getNewFeedOutliers counts only outliers first seen after the last Feed visit", async () => {
+    const channelId = await seedChannel();
+    // First ever visit: cutoff is null, so nothing is "new" yet (the whole-library-is-new
+    // trap the underlying getNewOutliersSince guards against).
+    await seedVideo(channelId, { outlierScore: 5, firstSeenAt: "2026-08-01T00:00:00.000Z" });
+    expect(await getNewFeedOutliers()).toBe(0);
+
+    await bumpFeedLastVisit("2026-08-05T00:00:00.000Z");
+    // One outlier first seen AFTER the cutoff (counts), one BEFORE (already seen), and one
+    // after but below the outlier score (not an outlier), so only the first counts.
+    await seedVideo(channelId, { outlierScore: 8, firstSeenAt: "2026-08-06T00:00:00.000Z" });
+    await seedVideo(channelId, { outlierScore: 8, firstSeenAt: "2026-08-02T00:00:00.000Z" });
+    await seedVideo(channelId, { outlierScore: 0, firstSeenAt: "2026-08-07T00:00:00.000Z" });
+    expect(await getNewFeedOutliers()).toBe(1);
   });
 });

@@ -19,6 +19,9 @@ const eslintConfig = defineConfig([
     ".claude/**",
     // Local plugin skills (taste/ship) and their helper scripts, not app source:
     "plugins/**",
+    // GitNexus generated runner and index cache (its own CommonJS runtime), gitignored,
+    // not app source.
+    ".gitnexus/**",
   ]),
 ]);
 

@@ -9,7 +9,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
-import { getDashboardStats } from "@/server/queries/dashboard";
+import { getDashboardStats, getNewFeedOutliers } from "@/server/queries/dashboard";
 import { countInboxIdeas } from "@/server/queries/ideas";
 import { getSavedPosts } from "@/server/queries/saved-posts";
 
@@ -41,11 +41,14 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   // get-started-checklist.tsx for what each result backs. `countInboxIdeas` backs the
   // Ideas nav item's pending count (Task 9) — see nav-items.ts's module doc for why that
   // count is threaded down as a prop instead of living on NAV_ITEMS itself.
-  const [strip, stats, savedPosts, ideasInboxCount] = await Promise.all([
+  const [strip, stats, savedPosts, ideasInboxCount, feedOutlierCount] = await Promise.all([
     getFailureStrip(),
     getDashboardStats(),
     getSavedPosts(),
     countInboxIdeas(),
+    // The rail's live signal: outliers new since the creator last opened Feed. Read here
+    // (not bumped) so it survives until they actually visit Feed, which moves the cutoff.
+    getNewFeedOutliers(),
   ]);
 
   // Four real facts, not the prototype's four session flags — see
@@ -67,7 +70,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
             pixel that isn't rail. A fixed grid column would have kept the old 240px
             gutter reserved even after the rail collapsed to an icon strip. */}
         <div className="flex h-screen">
-          <Sidebar getStartedItems={getStartedItems} ideasInboxCount={ideasInboxCount} />
+          <Sidebar getStartedItems={getStartedItems} ideasInboxCount={ideasInboxCount} feedOutlierCount={feedOutlierCount} />
           <div className="flex h-full min-w-0 flex-1 flex-col">
             <Topbar strip={strip} />
             <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>

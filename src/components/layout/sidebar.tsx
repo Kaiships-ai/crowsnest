@@ -119,12 +119,20 @@ export interface SidebarProps {
   /** `countInboxIdeas()`, read once per full navigation by `(shell)/layout.tsx` — same
    *  flow `getStartedItems` already uses to get real per-user data into this otherwise
    *  static rail (see nav-items.ts's module doc for why the count isn't a NAV_ITEMS
-   *  field). Rendered only on the Ideas item, and only as a plain count — DESIGN-SYSTEM.md
-   *  §3 bans amber on a sidebar count badge, so this is neutral text, never a color. */
+   *  field). Rendered only on the Ideas item, and only as a plain count — the Ideas inbox
+   *  is a mundane tally, not the product's core signal, so it stays neutral text. Amber on
+   *  the rail is reserved for `feedOutlierCount` below (the one "worth making" signal). */
   ideasInboxCount: number;
+  /** Outliers new since the creator last opened Feed (`getNewFeedOutliers()`, threaded
+   *  from `(shell)/layout.tsx` exactly like `ideasInboxCount`). This is the rail's single
+   *  amber signal — the product's whole promise ("here is what beat the median, go make
+   *  it") surfaced where the eye lands. Rendered only on the Feed item, only when > 0, and
+   *  it is the one place amber is allowed on the rail; every other rail count is neutral.
+   *  DESIGN.md's world is "a single amber signal", and this is it. */
+  feedOutlierCount: number;
 }
 
-export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
+export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [panelOpen, setPanelOpen] = useState(false);
@@ -243,12 +251,15 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
                   }
                 }}
                 className={cn(
-                  "mx-3 flex items-center gap-2.5 px-3 py-2 text-sm transition-colors",
+                  // A transparent left border on every item so the active one can light it
+                  // without shifting the row 2px. The marker is `line-strong` (neutral), not
+                  // amber: amber is the rail's single signal and it belongs on the Feed
+                  // outlier cue, not on "you are here". Raised surface + weight carry the
+                  // rest of the active state.
+                  "mx-3 flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm transition-colors",
                   collapsed && "justify-center px-0",
                   itemActive
-                    // Raised surface, never the amber `primary` token — amber on nav
-                    // active state is exactly what the design rules ban it from.
-                    ? "bg-popover font-semibold text-foreground"
+                    ? "border-[color:var(--line-strong)] bg-popover font-semibold text-foreground"
                     : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
                 )}
               >
@@ -256,13 +267,24 @@ export function Sidebar({ getStartedItems, ideasInboxCount }: SidebarProps) {
                 {!collapsed && (
                   <>
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {/* Count only, never amber (DESIGN-SYSTEM.md §3: "Logo, checklist,
-                        progress bar, sidebar count badge" are banned amber surfaces).
-                        Hidden at zero — an empty inbox needs no badge to say so, matching
-                        1.3 "silence is the default". */}
+                    {/* Ideas is a mundane tally, so its count stays neutral. Hidden at
+                        zero — an empty inbox needs no badge to say so, "silence is the
+                        default". */}
                     {item.href === "/ideas" && ideasInboxCount > 0 && (
                       <span className="shrink-0 rounded-none bg-popover px-1.5 py-0.5 font-mono text-2xs tabular-nums text-muted-foreground">
                         {ideasInboxCount}
+                      </span>
+                    )}
+                    {/* The rail's ONE amber signal: outliers new since the last Feed visit.
+                        Amber here is not a decoration — globals.css reserves it for "the
+                        score, and the only thing amber is allowed to mean", and an outlier
+                        IS a high score, so this count is that exact meaning surfaced where
+                        the eye lands. `score-wash` background + `primary` text = the washed
+                        amber signal, restrained not shouted, and the only amber on the rail.
+                        Hidden at zero, same silence-is-default rule. */}
+                    {item.href === "/feed" && feedOutlierCount > 0 && (
+                      <span className="shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary">
+                        {feedOutlierCount}
                       </span>
                     )}
                   </>
