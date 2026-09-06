@@ -55,9 +55,42 @@ Not checkable by hand:
 
 ## 3. browse-e2e
 
-N/A. The mcp component has no browser UI, so there is no journey to script and no `data-testid` to add. A client that speaks MCP over `/api/mcp` is not a browser, and no crowsnest page invokes these tools. Any end-to-end verification lives in an MCP client integration (the behavior lens above), not in a `browse` journey.
+Not applicable: mcp has no UI; its clients are programs, not people at a screen. Its behavior is
+covered by the route-and-action lens (the tool handlers in `mcp-server.test.ts`, reaching each
+handler through `_registeredTools`) and the live MCP round-trip (`mcp-roundtrip.test.ts`, driving a
+real `Client` over `InMemoryTransport`). There is no browser surface for the coverage mandate to
+apply to: a `browse` journey drives a headless browser and cannot make an MCP `tools/call`, and no
+crowsnest page invokes these tools, so there is no route to `Arrive` on, no `data-testid` to target,
+and no journey to script under `scripts/e2e/`. The mandate's happy-path-per-built-feature floor and
+its five-distinct-corner-case floor are recorded here as not applicable for this component, the same
+latitude the taxonomy grants a component with no threat surface.
 
-The monthly-planning tools add no new browse-e2e journey: the same channels, outliers, and own-channel metrics they read already surface in the dashboard through the same queries, so any UI assertion rides the existing feed and channels journeys rather than a new one.
+Every corner-case type the taxonomy names is exercised at the handler level instead, where it is
+observable, rather than through a browser that has nothing to click:
+
+- `empty` and `boundary`: `crowsnest_scripts`/`crowsnest_ideas` slice by `limit`/`offset` with
+  `total`/`count` reflecting the page (ACTION-05, ACTION-06).
+- `invalid`: `crowsnest_sync_selected` rejects an empty `channelIds` array with code `NO_CHANNELS`
+  (ACTION-12); `crowsnest_save_analysis` rejects fields that fail `VideoAnalysisSchema` and writes no
+  row (ACTION-17).
+- `failure`/`network`: a handled failure (unknown id, an unknown job, a refused sync start) crosses
+  the boundary as an `isError` result, never a thrown exception (ACTION-02, ACTION-13, ACTION-14,
+  ACTION-15, ACTION-20).
+- `repeat`: a second `crowsnest_save_analysis` for the same video upserts the one `video_analyses`
+  row in place rather than inserting a duplicate (ACTION-18); `crowsnest_remix_finish` is idempotent
+  and reuses the one undated draft planned post.
+
+The one browser-driven check that touches the mcp surface is a cross-lens read: an MCP tool result
+matching what the dashboard shows for the same data (BEH-02 already did this by hand for
+`crowsnest_feed`). Even that is not an mcp browse-e2e journey. The browser half only opens the
+dashboard feed, which is the [feed](../feed/04-test-cases.md) component's own browse-e2e journey; the
+tool half is the MCP client call the behavior lens above records. The monthly-planning tools add
+nothing new here either: the channels, outliers, and own-channel metrics they read already surface in
+the dashboard through the same query functions, so any UI assertion rides the existing feed and
+channels journeys rather than a new mcp one.
+
+No `data-testid` gap is filed to [backlog to enhance](05-backlog-to-enhance.md): with no journey to
+script, there is no element to tag, so there is nothing for a later QA round to be blocked on.
 
 ## 4. security-lite
 
