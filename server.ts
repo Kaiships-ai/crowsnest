@@ -1,4 +1,8 @@
 // server.ts
+// MUST be first: sets globalThis.AsyncLocalStorage before any Next module loads, so a
+// custom `tsx server.ts` entrypoint does not crash on Next 16's AsyncLocalStorage
+// invariant. See src/server/als-polyfill.ts for the full explanation.
+import "./src/server/als-polyfill";
 import { createServer } from "node:http";
 import next from "next";
 import { handleMcpRequest } from "./src/server/mcp/http";
