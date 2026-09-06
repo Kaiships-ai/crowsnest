@@ -8,7 +8,9 @@ Every core loop page renders inside a persistent shell: a sidebar, a topbar with
 
 The shell wraps every page under `(shell)`. From the outside in it is a navigation blocker, a command menu, the client error reporter, and then a two column frame: the sidebar on the left, and a column holding the topbar above the scrolling page content.
 
-The sidebar carries the navigation items and a get started checklist. The checklist is four real facts read on each navigation, not session flags: finish setup, watch a channel, save a post, draft a script, each marked done from a live count. The topbar carries the failure strip, a banner of recent failures across the app.
+The sidebar carries the navigation items and a get started checklist. The items are ordered by the creator's day and the product loop rather than by category: an overview section (the dashboard, the daily landing) leads, then create (the feed, ideas, and the vault, in the order signal turns into a saved idea), then sources, then system and setup at the bottom where infrequent tasks belong. The current page is marked with a neutral accent bar down its left edge; clicking a nav item lights the target immediately and reconciles when the route commits, so the marker never lags the click. The feed item also carries the sidebar's one live signal: a count of outliers new since the creator last opened the feed, shown in the amber the design system reserves for the score and hidden when the count is zero. That count is the same "new outlier" the dashboard counts, and the cutoff it measures against moves only when the creator opens the feed.
+
+The checklist is four real facts read on each navigation, not session flags: finish setup, watch a channel, save a post, draft a script, each marked done from a live count. The topbar carries the failure strip, a banner of recent failures across the app.
 
 > Technical note: the layout is a server component rendered with `force-dynamic`. Without that, a build could freeze the failure strip and the counts at build time. Because it is dynamic, the shell re reads its counts and its strip on every full navigation into it.
 
@@ -20,7 +22,7 @@ Before the shell renders anything, it checks a gate: a fresh install with setup 
 
 The core loop does not poll. Pages render on the server with a snapshot of the database, and that snapshot refreshes in two ways.
 
-A full navigation re runs the page and the shell. Moving between feed, mine, and studio re reads everything, so counts and strips are current after any navigation.
+A full navigation re runs the page and the shell. Moving between feed, mine, and channels re reads everything, so counts and strips are current after any navigation.
 
 An explicit refresh re reads the current page without a navigation. After a write, a client component calls a refresh so the server data it depends on reappears with the change: the keep this post button flips to "Kept", the calendar shows a new plan, the failure strip freshens when a run finishes while the shell is already mounted. The refresh is how a server rendered value reflects a client action without a manual reload.
 
@@ -58,4 +60,4 @@ The shell includes a keyboard driven command menu for jumping between pages and 
 
 - A fresh install never sees the shell; it is redirected to first run until setup is done.
 - The failure strip and counts are current as of the last navigation or refresh, so a change made by a background job appears only after the next navigation or an explicit refresh.
-- Because the layout is dynamic, every navigation into the shell re runs its four count queries; at single user local scale this is cheap and intended.
+- Because the layout is dynamic, every navigation into the shell re runs its handful of count queries (the failure strip, the dashboard stats, saved posts, the ideas inbox count, and the new-outlier count behind the feed cue); at single user local scale this is cheap and intended.
