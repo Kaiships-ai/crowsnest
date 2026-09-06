@@ -184,6 +184,20 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   const dot = progress === null ? "never" : VIEW_STATE_DOT[state];
   const railStatusLabel = railLabel(state, progress);
 
+  // The rail's one earned moment. This rail lives in the shell layout and stays mounted
+  // across navigations — `router.refresh()` repaints it with a fresh `feedOutlierCount`
+  // rather than remounting it — so a count that GREW means new outliers genuinely arrived
+  // since the last render, the one moment worth a flicker. Bumping the key remounts just
+  // the Feed badge, replaying its settle animation then and only then; an ordinary
+  // navigation that left the count unchanged reuses the element and stays still, so the
+  // signal never turns into per-navigation noise.
+  const prevFeedOutliers = useRef(feedOutlierCount);
+  const [outlierSettleKey, setOutlierSettleKey] = useState(0);
+  useEffect(() => {
+    if (feedOutlierCount > prevFeedOutliers.current) setOutlierSettleKey((k) => k + 1);
+    prevFeedOutliers.current = feedOutlierCount;
+  }, [feedOutlierCount]);
+
   return (
     <aside
       className={cn(
@@ -263,7 +277,11 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                     : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
                 )}
               >
-                <Icon className="size-4 shrink-0" />
+                {/* Stroke tuned finer than Lucide's default 2 so the glyphs read as
+                    precise instrument marks against the grotesque/mono type, and the active
+                    item's icon thickens to 2 in lockstep with its bolded label — weight is
+                    the one thing that changes across the whole active row, icon included. */}
+                <Icon className="size-4 shrink-0" strokeWidth={itemActive ? 2 : 1.75} />
                 {!collapsed && (
                   <>
                     <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -283,7 +301,10 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                         amber signal, restrained not shouted, and the only amber on the rail.
                         Hidden at zero, same silence-is-default rule. */}
                     {item.href === "/feed" && feedOutlierCount > 0 && (
-                      <span className="shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary">
+                      <span
+                        key={outlierSettleKey}
+                        className="rail-signal-settle shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary"
+                      >
                         {feedOutlierCount}
                       </span>
                     )}
