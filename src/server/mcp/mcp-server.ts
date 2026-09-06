@@ -22,6 +22,9 @@ import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel
 import { getAsset, resolveAssetPath } from "@/server/media/store";
 import { saveAgentAnalysis } from "@/server/services/analyze";
 import { startSyncAction, getSyncProgressAction, cancelSyncAction } from "@/server/actions/sync-actions";
+import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
+import { getLastRunHealth } from "@/server/queries/runs";
+import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -307,6 +310,77 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const r = await cancelSyncAction(args.jobId);
       return r.ok ? result({ ok: true, jobId: args.jobId, requested: r.requested }) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  // Research read tools. The landscape (channels, channel_stats) and the two working-set
+  // bundles (research_set broad, outlier_pack tight). Each bundle returns competitor
+  // outliers (outlierScore) and the user's own posts (reachIndex) side by side — different
+  // units, both returned, never merged.
+
+  server.registerTool(
+    "crowsnest_channels",
+    {
+      title: "Tracked channels",
+      description: "The channels crowsnest tracks, with their fleets. The set the agent plans from.",
+      inputSchema: {},
+    },
+    async () => result({ channels: await getChannelsList() })
+  );
+
+  server.registerTool(
+    "crowsnest_channel_stats",
+    {
+      title: "Channel stats",
+      description: "One channel's baseline, median basis, and last sync health. Returns an error when the id is unknown.",
+      inputSchema: { channelId: z.string().describe("The channel id, from crowsnest_channels.") },
+    },
+    async (args) => {
+      const detail = await getChannelDetail(args.channelId);
+      if (!detail) return errorResult({ error: "not found", channelId: args.channelId });
+      const basis = await getChannelMedianBasis(args.channelId);
+      const lastRun = getLastRunHealth();
+      return result({ detail, basis, lastRun });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_research_set",
+    {
+      title: "Research set",
+      description: "A broad reading bundle: top outliers with their analyses, plus your own reachIndex benchmark, so each idea reads against both competitor outlierScore and your own reach (different units, both returned).",
+      inputSchema: {
+        minScore: z.number().optional().describe("Minimum outlier score."),
+        sinceDays: z.number().optional().describe("Only videos within this many days."),
+        query: z.string().optional().describe("Free-text search over caption and channel."),
+        limit: z.number().optional().describe("Max outliers, default 24."),
+      },
+    },
+    async (args) =>
+      result(await getResearchSet({ minScore: args.minScore, sinceDays: args.sinceDays, query: args.query, limit: args.limit ?? 24 }))
+  );
+
+  server.registerTool(
+    "crowsnest_outlier_pack",
+    {
+      title: "Outlier pack",
+      description: "A tight top-N shortlist ready to act on: outliers with analyses, the media handoff, and your own reachIndex benchmark. Set rising=true with a short sinceDays to surface this week's surges (e.g. a launch) for the weekly refresh.",
+      inputSchema: {
+        limit: z.number().optional().describe("Max items, default 8."),
+        sinceDays: z.number().optional().describe("Only videos within this many days."),
+        rising: z.boolean().optional().describe("Rank by recency for a weekly surge instead of by score."),
+      },
+    },
+    async (args) => {
+      const pack = await getOutlierPack({ limit: args.limit ?? 8, sinceDays: args.sinceDays, rising: args.rising });
+      const items = await Promise.all(
+        pack.items.map(async (i) => ({
+          ...i,
+          media: await mediaInfoFor(i.videoAssetId),
+          thumbnail: await mediaInfoFor(i.thumbnailAssetId),
+        }))
+      );
+      return result({ items, ownBenchmark: pack.ownBenchmark });
     }
   );
 

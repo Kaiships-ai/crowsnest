@@ -281,3 +281,74 @@ describe("sync control tools", () => {
     expect((r.structuredContent as { requested: boolean }).requested).toBe(false);
   });
 });
+
+describe("research read tools", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+    await db.delete(tables.videoAnalyses);
+    await db.delete(tables.videos);
+    await db.delete(tables.channels);
+  });
+
+  async function seedOutlier(score: number): Promise<string> {
+    const channelId = newId();
+    const videoId = newId();
+    const now = new Date().toISOString();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@rt-${channelId}`, trackedSince: now });
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `rt-${videoId}`,
+      url: "https://example.com/p", postedAt: now, firstSeenAt: now, viewCount: 500_000, outlierScore: score,
+    });
+    return videoId;
+  }
+
+  test("crowsnest_channels returns the tracked channels", async () => {
+    await seedOutlier(6);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_channels", {});
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { channels: unknown[] };
+    expect(body.channels.length).toBeGreaterThan(0);
+  });
+
+  test("crowsnest_channel_stats errors on an unknown channel id", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_channel_stats", { channelId: "no-such-channel" });
+    expect(r.isError).toBe(true);
+  });
+
+  test("crowsnest_research_set returns outliers + own benchmark", async () => {
+    await seedOutlier(7);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_research_set", { limit: 10 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { outliers: unknown[]; ownBenchmark: unknown[] };
+    expect(Array.isArray(body.outliers)).toBe(true);
+    expect(Array.isArray(body.ownBenchmark)).toBe(true);
+    expect(body.outliers.length).toBeGreaterThan(0);
+  });
+
+  test("crowsnest_outlier_pack returns at most limit items with a media handoff block", async () => {
+    await seedOutlier(9);
+    await seedOutlier(8);
+    await seedOutlier(7);
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_outlier_pack", { limit: 2 });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { items: { media: unknown; thumbnail: unknown }[]; ownBenchmark: unknown[] };
+    expect(body.items.length).toBeLessThanOrEqual(2);
+    expect(body.items.length).toBeGreaterThan(0);
+    // media/thumbnail keys present (null here since no asset ids), proving the handoff wiring.
+    expect(body.items[0]).toHaveProperty("media");
+    expect(body.items[0]).toHaveProperty("thumbnail");
+  });
+});
