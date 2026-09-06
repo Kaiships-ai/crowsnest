@@ -78,3 +78,7 @@ crowsnest.db-shm
 .gitnexus
 
 /evidence
+
+# local agent scratch mirrors (real skills live in .claude/skills/)
+/.agents/
+/.codex/
