@@ -17,6 +17,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 2 | Track a channel | Add an Instagram handle; the sidecar resolves the profile | ● | `services/sync-engine.ts` (addChannel) | none |
 | 3 | Sync a channel's posts | Page recent media, upsert videos, snapshot metrics, rescore | ● | `services/sync-engine.ts` (runSync) | onboarding empty IG_PASSWORD blocks buyer installs |
 | 4 | Backfill blank view counts | Re-read the real play count via `/media-stats` where the listing returned zero | ● | `services/sync-engine.ts` (startViewCountBackfillAction) | none |
+| 5 | Sync several channels at once | Select channels on the board and start one sync covering all of them | ● | `components/channels/` (kanban-board, kanban-column, channel-card, sync-selection-bar); `actions/sync-actions.ts` (startSyncAction) | none |
 |  | TikTok / YouTube Shorts ingestion | Multi-platform tracking; the `platform` column is reserved | ○ | no backend yet | roadmap |
 
 ## 2. Track a channel
@@ -122,7 +123,38 @@ The "Backfill blank view counts" button in Settings, under the sync section.
 
 If some posts in your feed are missing view counts, open Settings, find the sync section, and click Backfill blank view counts. It re checks Instagram for the real number on posts that never got one and updates them in place. You can follow its progress from the Runs screen, the same way you would an ordinary sync.
 
-## 5. Interactions with other systems
+## 5. Sync several channels at once
+
+### Who uses it
+
+The user, from the channels board, when they want to refresh a chosen set of channels in one action rather than opening each card's menu.
+
+### What it does
+
+The board offers a selection mode: a checkbox on every channel card, and a select-all control on each fleet column that ticks or clears that column's channels. As soon as one channel is selected, a selection bar appears with the count and a Sync selected action; pressing it starts a single sync scoped to exactly the selected channel ids and clears the selection. It is the same run the per-channel Sync now already starts, only with more than one id, so progress, the lock, cancel, and the failure strip all behave identically. Selection is board-local state and never persists across a reload.
+
+### How to access it
+
+Tick a channel card's checkbox on the channels board, or use a fleet column's select-all. The selection bar appears above the board footer while any channel is selected, with Sync selected and Clear.
+
+### Business rules
+
+- Sync selected passes only the explicitly selected channel ids to `startSyncAction`; it never falls back to a whole-library sweep when the selection is empty, so the action is disabled with nothing selected.
+- The same single-flight lock applies: if a sync is already running, Sync selected is refused with "a sync is already running", the same as any other start, rather than queued.
+- Selecting channels does not reorder or move them; selection is independent of the drag-to-reorder overlay and of any unsaved fleet moves in the footer.
+- The selection is cleared once a sync is successfully started, and on a reload; it is never written to the database.
+
+### Limitations
+
+- Selection is per board view and in memory only; a reload or navigating away drops it.
+- There is no cross-fleet filter to select against beyond per-fleet select-all and per-card ticks; the board has no search or filter control of its own yet.
+- One sync runs at a time, so selecting channels while a sync is in flight cannot start a second overlapping run; the selection waits for the current run to finish.
+
+### User guide
+
+To refresh several channels at once, open the Channels board and tick the checkbox on each channel you want, or use a fleet column's select-all to tick the whole column. A bar shows how many are selected; click Sync selected to start one sync that walks all of them, or Clear to start over. You can leave the page once it starts, the same as any other sync, and follow it from the progress panel. If a sync is already running, crowsnest tells you to wait for it to finish rather than starting a second one.
+
+## 6. Interactions with other systems
 
 Persistence and autosave. There is no autosave; a sync writes durable rows as it goes (`videos`, `video_children`, `video_snapshots`, `channel_snapshots`, and the `sync_jobs` progress row). Downloaded assets are content addressed and deduped, so a re download of identical bytes reuses the same file. A metric Instagram withheld (null, or a zero read as "not disclosed") never erases a count already stored.
 
@@ -136,7 +168,7 @@ Status and failures. A sync's verdict surfaces in the shell failure strip ([stat
 
 Configuration and settings. Credentials (`IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`) and the sidecar URL/port are environment configuration read by the sidecar and the app; the lookback days, item cap, retry counts, and the view count enrichment budget are settings with DB over env over default precedence, so a change takes effect on the next sync without a restart. The outlier scoring options (baseline method, window, minimum posts, views floor) are read once per rescore from settings.
 
-## 6. Edge cases
+## 7. Edge cases
 
 - **The sidecar must start, or the whole feature is dark.** The onboarding bug that writes an empty `IG_PASSWORD` makes the sidecar exit 78 and launchd crash loop it; port 8765 never comes up, and every sync reads local service down. This is the single most consequential dependency and the known hard blocker for buyers.
 - **Only Instagram is ingested.** The add channel dialog once offered TikTok and YouTube Shorts chips, but the backend could never sync them, so choosing either produced a channel row that silently never updated. The chips were removed (`OBS-3` in the backlog); the `platform` column stays in the schema for a future second source.

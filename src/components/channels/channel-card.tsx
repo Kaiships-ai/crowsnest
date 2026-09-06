@@ -13,6 +13,7 @@ import { GripVertical, MoreHorizontal } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { formatCompact, relativeTime } from "@/lib/format";
@@ -118,6 +119,8 @@ export function ChannelCard({
   channel,
   overlay = false,
   sampleSize = 0,
+  selected = false,
+  onToggleSelect,
 }: {
   channel: ChannelRow;
   overlay?: boolean;
@@ -125,12 +128,34 @@ export function ChannelCard({
    *  the right default for the drag clone: the note would only make the floating card
    *  taller than the one it is standing in for. */
   sampleSize?: number;
+  /** Whether this card is ticked for a bulk sync. */
+  selected?: boolean;
+  /** Toggle this card's selection. Absent means the board is not in selection mode, so
+   *  no checkbox renders — the same reason the overlay clone never carries one. */
+  onToggleSelect?: (id: string) => void;
 }) {
   if (overlay) return <ChannelCardOverlay channel={channel} sampleSize={sampleSize} />;
-  return <ChannelCardLive channel={channel} sampleSize={sampleSize} />;
+  return (
+    <ChannelCardLive
+      channel={channel}
+      sampleSize={sampleSize}
+      selected={selected}
+      onToggleSelect={onToggleSelect}
+    />
+  );
 }
 
-function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleSize: number }) {
+function ChannelCardLive({
+  channel,
+  sampleSize,
+  selected,
+  onToggleSelect,
+}: {
+  channel: ChannelRow;
+  sampleSize: number;
+  selected: boolean;
+  onToggleSelect?: (id: string) => void;
+}) {
   const router = useRouter();
   const { start } = useSyncProgress();
   const [removing, setRemoving] = useState(false);
@@ -151,6 +176,18 @@ function ChannelCardLive({ channel, sampleSize }: { channel: ChannelRow; sampleS
         className="border border-border bg-card px-4 pt-3 pb-4 select-none data-[dragging]:opacity-40"
       >
         <div className="flex items-center gap-2.5">
+          {/* The selection checkbox is a fourth distinct target on the card, before the
+              grip. dnd-kit's listeners live on the grip alone, so ticking never starts a
+              drag, and it sits outside the body Link so it never opens the channel. */}
+          {onToggleSelect && (
+            <Checkbox
+              data-testid="channel-select"
+              checked={selected}
+              onCheckedChange={() => onToggleSelect(channel.id)}
+              aria-label={`Select ${channel.handle}`}
+              className="shrink-0"
+            />
+          )}
           {/* dnd-kit's drag handle used to be the whole body span below, which meant
               clicking the card to open it fought with dragging it and lost — the ...
               menu's View item was the only way in. The handle is a small dedicated

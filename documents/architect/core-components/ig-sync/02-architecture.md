@@ -144,7 +144,7 @@ erDiagram
 
 **Asset serving.** Downloaded bytes are content addressed (`<sha256[0:2]>/<sha256>.<ext>` under `MEDIA_ROOT`), deduped, and served by the app so the browser never renders a signed Instagram URL that expires within hours. `POST /resolve-media` re resolves a single post's currently valid URLs before an on demand video download.
 
-**Detached start.** `startSyncAction` returns the moment the lock is won (job id in hand, via `onJobStarted`) and lets the run finish under Next's `after()`, so the browser never holds a POST open for a minutes long sync. Progress and cancel both go through the `sync_jobs` row: `getSyncProgressAction` polls it, `cancelSyncAction` sets `cancel_requested`, and the engine notices co operatively at the next page or channel boundary, keeping everything already committed.
+**Detached start.** `startSyncAction` returns the moment the lock is won (job id in hand, via `onJobStarted`) and lets the run finish under Next's `after()`, so the browser never holds a POST open for a minutes long sync. It accepts an optional `channelIds` array and syncs exactly those channels, which is the one seam every trigger reuses: a card's Sync now passes a single id, the channels board's multi-select Sync selected passes the ticked ids, and the scheduler and settings pass none for a whole library sweep. Selecting channels is board-local UI state (`components/channels/`), never a column, so it adds no table and no engine path. Progress and cancel both go through the `sync_jobs` row: `getSyncProgressAction` polls it, `cancelSyncAction` sets `cancel_requested`, and the engine notices co operatively at the next page or channel boundary, keeping everything already committed.
 
 ## 5. Sequence: one sync pass
 
