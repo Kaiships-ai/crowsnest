@@ -14,6 +14,7 @@ let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSch
 let NoTranscriptProviderError: typeof import("@/server/transcribe")["NoTranscriptProviderError"];
 let getOrCreateAnalysis: typeof import("./analyze")["getOrCreateAnalysis"];
 let saveAgentAnalysis: typeof import("./analyze")["saveAgentAnalysis"];
+let rowToAnalysis: typeof import("./analyze")["rowToAnalysis"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -22,7 +23,7 @@ beforeAll(async () => {
   ({ resolveModel } = await import("@/server/llm/client"));
   ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
   ({ NoTranscriptProviderError } = await import("@/server/transcribe"));
-  ({ getOrCreateAnalysis, saveAgentAnalysis } = await import("./analyze"));
+  ({ getOrCreateAnalysis, saveAgentAnalysis, rowToAnalysis } = await import("./analyze"));
 });
 
 const FAKE_ANALYSIS = {
@@ -104,6 +105,18 @@ describe("saveAgentAnalysis", () => {
     expect(r.ok).toBe(false);
     const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
     expect(rows).toHaveLength(0);
+  });
+
+  test("Remix and Ideas read the agent-saved analysis unchanged (via rowToAnalysis)", async () => {
+    // rowToAnalysis is the exact mapping remix.ts imports and uses to describe a source
+    // video's structure, so this proves the agent artifact is consumed downstream as is.
+    const { videoId } = await seedVideo({ withTranscript: false });
+    await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    const mapped = rowToAnalysis(row);
+    expect(mapped.hookType).toBe("curiosity-gap");
+    expect(mapped.formatTags).toEqual(FAKE_ANALYSIS.formatTags);
+    expect(mapped.whyItWorked).toBe(FAKE_ANALYSIS.whyItWorked);
   });
 
   test("rejects an unknown video id", async () => {

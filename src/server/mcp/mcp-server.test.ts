@@ -326,6 +326,22 @@ describe("research read tools", () => {
     expect(r.isError).toBe(true);
   });
 
+  test("crowsnest_channel_stats returns detail, basis, and lastRun for a real channel", async () => {
+    await seedOutlier(6);
+    const server = buildMcpServer();
+    // Discover a real channel id through the same tool the agent would use.
+    const list = await callTool(server, "crowsnest_channels", {});
+    const channels = (list.structuredContent as { channels: { id: string }[] }).channels;
+    expect(channels.length).toBeGreaterThan(0);
+    const r = await callTool(server, "crowsnest_channel_stats", { channelId: channels[0].id });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { detail: unknown; basis: unknown; lastRun: unknown };
+    expect(body).toHaveProperty("detail");
+    expect(body).toHaveProperty("basis");
+    expect(body).toHaveProperty("lastRun");
+    expect(body.detail).not.toBeNull();
+  });
+
   test("crowsnest_research_set returns outliers + own benchmark", async () => {
     await seedOutlier(7);
     const server = buildMcpServer();
