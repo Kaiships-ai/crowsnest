@@ -20,6 +20,7 @@ import {
 import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
 import { getAsset, resolveAssetPath } from "@/server/media/store";
+import { saveAgentAnalysis } from "@/server/services/analyze";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -233,6 +234,29 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const range = args.from && args.to ? { from: args.from, to: args.to } : undefined;
       return result(await getPlannedPosts(range));
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_save_analysis",
+    {
+      title: "Save an agent-authored analysis",
+      description:
+        "Save the analysis YOU (the agent) wrote for a video, with provenance. Validates the fields against the same schema the in-app analyzer uses and stores them stamped source=\"mcp\". Remix and Ideas then read this analysis. Never calls any in-app model. Rejects (without writing) an unknown video id or fields that fail validation.",
+      inputSchema: {
+        videoId: z.string().describe("The video id, from crowsnest_feed."),
+        hookType: z.string().describe("The hook type, e.g. curiosity-gap, negative-warning."),
+        structureSegments: z
+          .array(z.any())
+          .describe("Story beats: each { label, startSec, endSec, note, transcript }. transcript is the verbatim words spoken in the beat window."),
+        formatTags: z.array(z.string()).describe("Format tags, e.g. talking-head, screen-recording."),
+        styleTags: z.array(z.string()).describe("Style tags, e.g. fast-cut, high-energy."),
+        whyItWorked: z.string().describe("Why the video over-performed."),
+      },
+    },
+    async (args) => {
+      const r = await saveAgentAnalysis(args.videoId, args);
+      return r.ok ? result({ ok: true, videoId: args.videoId }) : errorResult({ error: r.error, videoId: args.videoId });
     }
   );
 

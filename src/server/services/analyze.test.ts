@@ -13,6 +13,7 @@ let resolveModel: typeof import("@/server/llm/client")["resolveModel"];
 let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSchema"];
 let NoTranscriptProviderError: typeof import("@/server/transcribe")["NoTranscriptProviderError"];
 let getOrCreateAnalysis: typeof import("./analyze")["getOrCreateAnalysis"];
+let saveAgentAnalysis: typeof import("./analyze")["saveAgentAnalysis"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -21,7 +22,7 @@ beforeAll(async () => {
   ({ resolveModel } = await import("@/server/llm/client"));
   ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
   ({ NoTranscriptProviderError } = await import("@/server/transcribe"));
-  ({ getOrCreateAnalysis } = await import("./analyze"));
+  ({ getOrCreateAnalysis, saveAgentAnalysis } = await import("./analyze"));
 });
 
 const FAKE_ANALYSIS = {
@@ -74,6 +75,43 @@ async function seedVideo(opts: { withTranscript: boolean }) {
 function fakeLlm(generateParsed: LlmClient["generateParsed"]): LlmClient {
   return { generateText: vi.fn(), generateParsed, ping: vi.fn() };
 }
+
+describe("saveAgentAnalysis", () => {
+  test("validates and upserts with source=mcp, never calling the llm", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    const ok = await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+    expect(ok).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.source).toBe("mcp");
+    expect(row.hookType).toBe("curiosity-gap");
+  });
+
+  test("re-save updates the existing row in place, keeping source=mcp", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+    await saveAgentAnalysis(videoId, { ...FAKE_ANALYSIS, hookType: "negative-warning" });
+
+    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].hookType).toBe("negative-warning");
+    expect(rows[0].source).toBe("mcp");
+  });
+
+  test("rejects invalid fields without writing a row", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    const r = await saveAgentAnalysis(videoId, { hookType: "x" }); // missing required fields
+    expect(r.ok).toBe(false);
+    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(rows).toHaveLength(0);
+  });
+
+  test("rejects an unknown video id", async () => {
+    migrate();
+    const r = await saveAgentAnalysis("no-such-video", FAKE_ANALYSIS);
+    expect(r).toEqual({ ok: false, error: "video not found" });
+  });
+});
 
 describe("getOrCreateAnalysis", () => {
   test("cache hit returns the existing row without calling the llm", async () => {

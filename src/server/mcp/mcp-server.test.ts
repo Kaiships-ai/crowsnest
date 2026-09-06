@@ -139,3 +139,69 @@ describe("pagination on crowsnest_scripts and crowsnest_ideas", () => {
     expect(body.total).toBeGreaterThanOrEqual(body.count);
   });
 });
+
+// registerTool's callback isn't part of McpServer's public type — reach into the
+// internal registry to call a tool directly, same as the pagination block above.
+function callTool(server: McpServer, name: string, args: Record<string, unknown>) {
+  const registry = (server as unknown as {
+    _registeredTools: Record<string, { handler: (args: unknown, extra: unknown) => Promise<{ structuredContent: unknown; isError?: boolean }> }>;
+  })._registeredTools;
+  return registry[name].handler(args, {});
+}
+
+const VALID_ANALYSIS = {
+  hookType: "curiosity-gap",
+  structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "opens with a question", transcript: "here is the mistake" }],
+  formatTags: ["talking-head"],
+  styleTags: ["fast-cut"],
+  whyItWorked: "cold-open question kept retention high",
+};
+
+describe("crowsnest_save_analysis", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+  let eq: typeof import("drizzle-orm")["eq"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    ({ eq } = await import("drizzle-orm"));
+    migrate();
+  });
+
+  async function seedVideo(): Promise<string> {
+    const channelId = newId();
+    const videoId = newId();
+    const now = new Date().toISOString();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@save-${channelId}`, trackedSince: now });
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `save-${videoId}`,
+      url: "https://example.com/p", postedAt: now, firstSeenAt: now,
+    });
+    return videoId;
+  }
+
+  test("stores an agent analysis with source=mcp", async () => {
+    const videoId = await seedVideo();
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS });
+    expect(r.isError).not.toBe(true);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.source).toBe("mcp");
+    expect(row.hookType).toBe("curiosity-gap");
+  });
+
+  test("rejects invalid fields without writing a row", async () => {
+    const videoId = await seedVideo();
+    const server = buildMcpServer();
+    // structureSegments members fail VideoAnalysisSchema (missing note/transcript/times).
+    const r = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS, structureSegments: [{ label: "Hook" }] });
+    expect(r.isError).toBe(true);
+    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(rows).toHaveLength(0);
+  });
+});

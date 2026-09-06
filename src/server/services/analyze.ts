@@ -48,6 +48,41 @@ export function rowToAnalysis(row: typeof tables.videoAnalyses.$inferSelect): St
 }
 
 /**
+ * Save an analysis the AGENT authored (through crowsnest_save_analysis), not one the
+ * in-app model produced. Validates the fields against the same VideoAnalysisSchema the
+ * in-app path validates, then upserts the video_analyses row stamped source="mcp". Never
+ * calls the LLM. Returns a result object rather than throwing, for the MCP boundary.
+ */
+export async function saveAgentAnalysis(
+  videoId: string,
+  fields: unknown,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [video] = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
+  if (!video) return { ok: false, error: "video not found" };
+
+  const parsed = VideoAnalysisSchema.safeParse(fields);
+  if (!parsed.success) return { ok: false, error: parsed.error.message };
+  const a = parsed.data;
+
+  const textFields = {
+    hookType: a.hookType,
+    structureSegments: a.structureSegments,
+    formatTags: a.formatTags,
+    styleTags: a.styleTags,
+    whyItWorked: a.whyItWorked,
+    source: "mcp" as const,
+  };
+
+  const [existing] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
+  if (existing) {
+    await db.update(tables.videoAnalyses).set(textFields).where(eq(tables.videoAnalyses.videoId, videoId));
+  } else {
+    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, createdAt: nowIso() });
+  }
+  return { ok: true };
+}
+
+/**
  * Cached, on-demand Claude video analysis (Task 2 of the phase-3 plan; wired to
  * on-demand transcription per the final pre-ship review's finding B1). A cache hit
  * returns without ever touching the transcript or Claude.
