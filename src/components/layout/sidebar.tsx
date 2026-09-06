@@ -138,11 +138,10 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   const [panelOpen, setPanelOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
-  // job is latest — so a run started on a channel page or in another tab shows up here.
-  // (Not "or by the scheduler": there is no scheduler. Every run starts from a click —
-  // see the "Inert settings" note in settings/sync-section.tsx.) The old code fetched
-  // status exactly once on mount, which is why anything started elsewhere was invisible
-  // until a reload.
+  // job is latest — so a run started on a channel page, in another tab, or by the
+  // in-process sync scheduler (sync-scheduler.ts, which starts a library sweep on the
+  // syncCadenceMinutes cadence) shows up here. The old code fetched status exactly once on
+  // mount, which is why anything started elsewhere was invisible until a reload.
   const { progress, isRunning, stalled, error, start, cancel } = useSyncProgress();
   // Set by whichever page currently holds state a navigation would drop (the channels
   // board's unsaved drag moves, so far) — see navigation-blocker.tsx. A confirm() rather
@@ -417,13 +416,13 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
             {/* pr-3 matters as much as pl-3: without a right inset the ellipsis renders hard
                 against the rail's border, which reads as "clipped" rather than "shortened". */}
             {active && progress !== null && (
-              <p className="mt-1 truncate px-3 text-[11px] text-muted-foreground tabular-nums">{railDetail(progress)}</p>
+              <p className="mt-1 truncate px-3 text-2xs text-muted-foreground tabular-nums">{railDetail(progress)}</p>
             )}
 
             {/* Rendered, not toasted: a poll that fails every second would stack a tower of
                 identical toasts. The last good progress row stays on screen beside it (see
                 reducePoll) rather than blanking. */}
-            {error !== null && <p className="mt-1 truncate px-3 text-[11px] text-destructive">{error}</p>}
+            {error !== null && <p className="mt-1 truncate px-3 text-2xs text-destructive">{error}</p>}
           </>
         )}
       </div>
