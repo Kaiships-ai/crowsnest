@@ -107,22 +107,22 @@ No video, no schedule, no publish. Those are separate steps.
 
 ### 2c: Hooks (HUMAN GATE)
 
-- `crowsnest_remix_hooks(sessionId, steer?)` returns the hook options. Pass a `steer` note for a different angle.
-- Wait for the human to pick a hook, then `crowsnest_remix_choose_hook(sessionId, hook)`.
+- `crowsnest_remix_hooks(sessionId, steer?)` returns a prompt, `{ system, user, context }`, not finished hooks. It is keyless: no internal model runs. YOU write the 5 hook options by fulfilling that prompt. Pass a `steer` note for a different angle.
+- Present your 5 hooks. Wait for the human to pick one, then `crowsnest_remix_choose_hook(sessionId, hook)` with the chosen text (theirs or yours).
 
 ### 2d: Style and outline
 
 - `crowsnest_remix_style(sessionId, styleVaultItemId?)`. Omit the id to use the source video's own structure.
-- `crowsnest_remix_outline(sessionId, steer?)`. Read the beats back. The user can steer with a note and you regenerate.
+- `crowsnest_remix_outline(sessionId, steer?)` returns a prompt; YOU write the beat outline by fulfilling it. Save it back with `crowsnest_remix_outline(sessionId, outline)` (shape `{ beats: [{ label, content, targetSec }] }`) so the next stage's script prompt carries your real beats. Read the beats back to the user; steer with a note and rewrite.
 
-### 2e: Variants (HUMAN GATE)
+### 2e: Script (HUMAN GATE)
 
-- `crowsnest_remix_variants(sessionId, steer?)` returns three. A failed variant comes back as an error at its slot; regenerate just that one with `crowsnest_remix_regenerate_variant(sessionId, index, steer?)`.
-- Wait for the human to pick one variant by index. Do not pick for them.
+- `crowsnest_remix_variants(sessionId, steer?)` returns the script prompt, `{ system, user, context }`, keyless. YOU write the script by fulfilling it. `context.angles` lists the fixed per-take angles; append one yourself if you want more than one take to choose between.
+- Present your script (or takes). Wait for the human to approve one. Do not pick for them.
 
 ### 2f: Save, finish, and write the review
 
-- `crowsnest_remix_save_script(sessionId, variantIndex, title)` returns the script id.
+- `crowsnest_remix_save_script(sessionId, title, script)` saves YOUR script text and returns the script id.
 - `crowsnest_remix_finish(sessionId)` returns the planned post id (an undated draft).
 - Write the review file at `docs/remix-reviews/{postId}.md` in the layout under Output. Fill the context from the session state and `crowsnest_video`; put the chosen variant in section 2 and the rejected hooks and the other variants in sections 1 and 6; write your own recommendation. Leave every `Decision:` line blank for the human.
 - Present the file and walk the six review sections. The remix is not done until the user has filled the decision checklist.
