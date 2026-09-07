@@ -53,6 +53,24 @@ test("crowsnest_ig_status reports a future cooldown as retryAfterSec", async () 
   expect((r.structuredContent as { retryAfterSec: number }).retryAfterSec).toBeGreaterThan(0);
 });
 
+test("crowsnest_ig_status stays reachable=true when the sidecar answers with a non-down error", async () => {
+  // A sidecar that responds but reports drift or an unauthorized session has still
+  // answered: reachable must stay true, so the agent does not bootstrap a running sidecar.
+  mocks.getIgStatusAction.mockResolvedValue({
+    ok: false,
+    error: "Session drifted from the configured account.",
+    code: "IG_DRIFT",
+    retryable: false,
+    needsUserAction: true,
+  });
+  const server = buildMcpServer();
+
+  const r = await callTool(server, "crowsnest_ig_status", {});
+
+  expect(r.isError).not.toBe(true);
+  expect(r.structuredContent).toMatchObject({ reachable: true });
+});
+
 test("crowsnest_ig_status reports reachable=false and the bootstrap command when the sidecar is down", async () => {
   mocks.getIgStatusAction.mockResolvedValue({
     ok: false,
