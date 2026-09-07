@@ -759,3 +759,36 @@ export const notifications = sqliteTable(
     byUnread: index("notifications_read_created").on(t.readAt, t.id),
   }),
 );
+
+/**
+ * An agent-authored content artifact: the durable output of the external reasoning brain
+ * (Claude, Codex) that crowsnest is the source of truth for. One row per artifact of a
+ * given kind (angles, an outlier library, an idea bank, a Week 01 to 04 monthly plan, a
+ * brief), carrying the agent's own structured payload plus provenance so a later reader
+ * knows which videos informed it, which agent and model produced it, and what it assumed.
+ *
+ * `data` is the agent's own JSON; its shape is chosen by the agent per kind, and crowsnest
+ * stores and returns it verbatim rather than imposing a schema per kind, so the MCP content
+ * machine can evolve artifact shapes without a migration. `kind` is validated against a
+ * known set at the service boundary (services/artifacts.ts), not by a DB constraint, so a
+ * new kind is one line of code, not a migration. Keyless by construction: nothing that
+ * writes this table ever calls a model. This is the persistence half of the content
+ * machine, the counterpart to the read tools (feed, research_set, outlier_pack).
+ */
+export const contentArtifacts = sqliteTable(
+  "content_artifacts",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(), // "angles" | "outlier_library" | "idea_bank" | "monthly_plan" | "brief"
+    title: text("title").notNull(),
+    data: text("data", { mode: "json" }).$type<unknown>().notNull(),
+    // Provenance (v0.3 content-machine contract): who reasoned, on what, from where.
+    sourceVideoIds: text("source_video_ids", { mode: "json" }).$type<string[]>(),
+    agent: text("agent").notNull(), // "claude" | "codex" | a free label for the reasoning brain
+    model: text("model"), // the model id if the agent knows it, else null
+    assumptions: text("assumptions"), // the agent's stated assumptions, free text
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [index("content_artifacts_kind_created").on(t.kind, t.createdAt)],
+);

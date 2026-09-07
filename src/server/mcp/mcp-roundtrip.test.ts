@@ -38,6 +38,8 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_sync_cancel",
       "crowsnest_ig_status",
       "crowsnest_save_analysis",
+      "crowsnest_save_artifact",
+      "crowsnest_artifacts",
       // P0 slice 2b: the remix generate stages are prompt providers, not generators —
       // still on the surface, just reshaped — and save_script takes the agent's own
       // script text.
@@ -107,5 +109,50 @@ test("crowsnest_channels returns a well-formed (record) structuredContent over t
 test("crowsnest_sync_selected's non-empty guard surfaces as isError over the wire", async () => {
   const client = await connectedClient();
   const res = await client.callTool({ name: "crowsnest_sync_selected", arguments: { channelIds: [] } });
+  expect(res.isError).toBe(true);
+});
+
+test("crowsnest_save_artifact persists an agent-authored idea bank and crowsnest_artifacts reads it back", async () => {
+  const client = await connectedClient();
+  const ideas = Array.from({ length: 120 }, (_, i) => ({ concept: `idea ${i}`, angle: "curiosity" }));
+
+  const saved = await client.callTool({
+    name: "crowsnest_save_artifact",
+    arguments: {
+      kind: "idea_bank",
+      title: "120 ideas for launch week",
+      data: { ideas },
+      agent: "claude",
+      model: "claude-opus-4-8",
+      sourceVideoIds: ["v1", "v2"],
+      assumptions: "audience skews technical founders",
+    },
+  });
+  expect(saved.isError).not.toBe(true);
+  const { id, artifact } = saved.structuredContent as { id: string; artifact: { data: { ideas: unknown[] }; agent: string } };
+  expect(id).toBeTruthy();
+  // 100+ ideas in one artifact: the flat idea table's one-per-video cap does not apply here.
+  expect(artifact.data.ideas).toHaveLength(120);
+  expect(artifact.agent).toBe("claude");
+
+  // read one back by id
+  const byId = await client.callTool({ name: "crowsnest_artifacts", arguments: { id } });
+  expect(byId.isError).not.toBe(true);
+  expect((byId.structuredContent as { id: string }).id).toBe(id);
+
+  // list by kind
+  const byKind = await client.callTool({ name: "crowsnest_artifacts", arguments: { kind: "idea_bank" } });
+  expect(byKind.isError).not.toBe(true);
+  const list = byKind.structuredContent as { total: number; items: { id: string }[] };
+  expect(list.total).toBeGreaterThanOrEqual(1);
+  expect(list.items.some((i) => i.id === id)).toBe(true);
+});
+
+test("crowsnest_save_artifact rejects an unknown kind over the wire", async () => {
+  const client = await connectedClient();
+  const res = await client.callTool({
+    name: "crowsnest_save_artifact",
+    arguments: { kind: "not_a_kind", title: "x", data: { a: 1 }, agent: "claude" },
+  });
   expect(res.isError).toBe(true);
 });
