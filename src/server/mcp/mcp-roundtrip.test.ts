@@ -35,6 +35,7 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_sync_selected",
       "crowsnest_sync_status",
       "crowsnest_sync_cancel",
+      "crowsnest_ig_status",
       "crowsnest_save_analysis",
     ]),
   );

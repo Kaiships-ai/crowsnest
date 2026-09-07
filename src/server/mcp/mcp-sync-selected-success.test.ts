@@ -50,3 +50,22 @@ test("crowsnest_sync_selected surfaces a refused start as a handled error, not a
   expect(r.isError).toBe(true);
   expect(r.structuredContent).toMatchObject({ code: "SYNC_ALREADY_RUNNING" });
 });
+
+test("crowsnest_sync_selected's sidecar-down error carries the exact bootstrap command", async () => {
+  mocks.startSyncAction.mockResolvedValue({ ok: false, error: "The Instagram service isn't running.", code: "IG_SERVICE_DOWN" });
+  const server = buildMcpServer();
+
+  const r = await callTool(server, "crowsnest_sync_selected", { channelIds: ["c1"] });
+
+  expect(r.isError).toBe(true);
+  expect(r.structuredContent).toMatchObject({ code: "IG_SERVICE_DOWN", bootstrap: "npm run ig:service" });
+});
+
+test("crowsnest_sync_selected's non-sidecar error does not carry a bootstrap field", async () => {
+  mocks.startSyncAction.mockResolvedValue({ ok: false, error: "A sync is already running", code: "SYNC_ALREADY_RUNNING" });
+  const server = buildMcpServer();
+
+  const r = await callTool(server, "crowsnest_sync_selected", { channelIds: ["c1"] });
+
+  expect(r.structuredContent).not.toHaveProperty("bootstrap");
+});
