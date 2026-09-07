@@ -87,6 +87,16 @@ test("crowsnest_remix_hooks and crowsnest_remix_outline return a { system, user,
   expect(hooks.structuredContent).toHaveProperty("context");
 });
 
+test("crowsnest_remix_outline's schema takes an optional outline to save, bidirectional like choose_hook", async () => {
+  const client = await connectedClient();
+  const tools = await client.listTools();
+  const outlineTool = tools.tools.find((t) => t.name === "crowsnest_remix_outline");
+  expect(outlineTool).toBeDefined();
+  const props = (outlineTool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+  expect(props).toHaveProperty("outline");
+  expect(props).toHaveProperty("sessionId");
+});
+
 test("crowsnest_channels returns a well-formed (record) structuredContent over the wire", async () => {
   const client = await connectedClient();
   const res = await client.callTool({ name: "crowsnest_channels", arguments: {} });

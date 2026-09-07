@@ -75,8 +75,8 @@ Eleven tools drive the remix pipeline, one per step. There is one session per so
 | `crowsnest_remix_hooks` | `sessionId`, optional `vaultItemId`, `steer` | Returns `{ system, user, context }`, the Hooks stage's assembled prompt. No model call. The calling agent writes the hook options itself; optionally seeds the prompt from a vault hook or steers it with a note. |
 | `crowsnest_remix_choose_hook` | `sessionId`, `hook` | Sets the chosen hook by text (the agent's own text, or one it wrote from `crowsnest_remix_hooks`); returns `{ ok, chosenHook }`. |
 | `crowsnest_remix_style` | `sessionId`, optional `styleVaultItemId` | Sets the style vault item, or clears it (omit the id) to use the source video's own structure. |
-| `crowsnest_remix_outline` | `sessionId`, optional `steer` | Returns `{ system, user, context }`, the Outline stage's assembled prompt from the chosen hook and style. No model call. The calling agent writes the beat outline itself. |
-| `crowsnest_remix_variants` | `sessionId`, optional `steer` | Returns `{ system, user, context }`, the Script stage's assembled prompt from the chosen hook and outline. No model call. `context.angles` lists the fixed per-take angles the in-app path used to vary multiple takes, for an agent that wants more than one script to choose between. |
+| `crowsnest_remix_outline` | `sessionId`, optional `steer`, optional `outline` | Bidirectional, like `crowsnest_remix_hooks` plus `crowsnest_remix_choose_hook` folded into one tool. With no `outline`: returns `{ system, user, context }`, the Outline stage's assembled prompt from the chosen hook and style. No model call. With `outline` (the agent's own `{ beats: [{ label, content, targetSec }] }`): persists it onto the session via `updateStage` and returns `{ ok, outline }`. |
+| `crowsnest_remix_variants` | `sessionId`, optional `steer` | Returns `{ system, user, context }`, the Script stage's assembled prompt from the chosen hook and the session's saved outline. No model call. `context.angles` lists the fixed per-take angles the in-app path used to vary multiple takes, for an agent that wants more than one script to choose between. |
 | `crowsnest_remix_save_script` | `sessionId`, `title`, `script` | Saves the agent's own `script` text as this session's script and records it as the chosen result; returns `{ ok, scriptId }`. |
 | `crowsnest_remix_finish` | `sessionId` | Finishes the session: creates or reuses an undated draft planned post carrying the chosen script, and returns its `postId`. Idempotent. |
 
@@ -84,7 +84,7 @@ Eleven tools drive the remix pipeline, one per step. There is one session per so
 
 ### How to access it
 
-Over `/api/mcp`, as MCP tool calls. A typical run: read the feed, open a video, create a session for it, set the prompt, build research, fulfill the hooks prompt and choose a hook, pick a style, fulfill the outline prompt, fulfill the script prompt and save the script, and finish, ending with a draft planned post whose brief the producer reads back through `crowsnest_brief`.
+Over `/api/mcp`, as MCP tool calls. A typical run: read the feed, open a video, create a session for it, set the prompt, build research, fulfill the hooks prompt and choose a hook, pick a style, fulfill the outline prompt and save the outline back (calling `crowsnest_remix_outline` a second time, now with `outline`), fulfill the script prompt and save the script, and finish, ending with a draft planned post whose brief the producer reads back through `crowsnest_brief`. Skipping the outline save-back leaves the script prompt with no beats in it, since `crowsnest_remix_variants` reads the session's saved outline.
 
 ### Business rules
 
@@ -92,6 +92,7 @@ Over `/api/mcp`, as MCP tool calls. A typical run: read the feed, open a video, 
 - Stage progression on the session is left to the service functions; the tools do not manage the dashboard's stepper, which only affects how the UI renders the session.
 - `crowsnest_remix_finish` is idempotent: it creates or reuses one undated draft planned post, so calling it twice does not make two.
 - The three prompt tools (`hooks`, `outline`, `variants`) assemble exactly what the in-app generate functions would send to the model (same system prompt, same builder, same session fields) and return it instead of calling `getLlm`; no proxy state or key affects them.
+- `crowsnest_remix_outline` is the one prompt tool with a save-back path on the same name: passing `outline` skips prompt assembly entirely and persists the given outline via `updateStage`, the same column `generateOutline` writes on the in-app path.
 
 ### Limitations
 

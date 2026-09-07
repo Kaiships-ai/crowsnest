@@ -100,20 +100,35 @@ test("P0 slice 2b: remix chain runs end to end with no ANTHROPIC_API_KEY set —
     const style = await callTool(server, "crowsnest_remix_style", { sessionId });
     expect(style.isError).not.toBe(true);
 
-    // 8. outline — returns a prompt
+    // 8. outline — with no outline arg, returns a prompt
     const outline = await callTool(server, "crowsnest_remix_outline", { sessionId });
     expect(outline.isError).not.toBe(true);
     const outlinePrompt = outline.structuredContent as { system: string; user: string; context: unknown };
     expect(typeof outlinePrompt.system).toBe("string");
     expect(outlinePrompt.user).toContain(chosenHook);
 
+    // 8b. outline — WITH an outline, saves it onto the session. This is the bug fix:
+    // buildScriptPrompt reads session.outline, which was always empty on the keyless
+    // path before this (the agent had a prompt to fulfill but no way to save its
+    // result back), so the script prompt silently fell back to the "no outline beats
+    // yet" placeholder instead of carrying the agent's real beats.
+    const agentOutline = { beats: [{ label: "Hook", content: "Open with the mistake", targetSec: 3 }, { label: "Payoff", content: "Reveal the fix", targetSec: 20 }] };
+    const saveOutline = await callTool(server, "crowsnest_remix_outline", { sessionId, outline: agentOutline });
+    expect(saveOutline.isError).not.toBe(true);
+    expect((saveOutline.structuredContent as { ok: boolean }).ok).toBe(true);
+
     // Also prove crowsnest_remix_variants returns a prompt (not generated variants),
-    // with context.angles for the agent to write more than one take if it wants to.
+    // with context.angles for the agent to write more than one take if it wants to,
+    // and that its user prompt carries the agent's OWN saved outline beats, not the
+    // "(no outline beats yet)" placeholder.
     const variants = await callTool(server, "crowsnest_remix_variants", { sessionId });
     expect(variants.isError).not.toBe(true);
     const scriptPrompt = variants.structuredContent as { system: string; user: string; context: { angles?: string[] } };
     expect(typeof scriptPrompt.system).toBe("string");
     expect(scriptPrompt.user).toContain(chosenHook);
+    expect(scriptPrompt.user).toContain("Open with the mistake");
+    expect(scriptPrompt.user).toContain("Reveal the fix");
+    expect(scriptPrompt.user).not.toContain("no outline beats yet");
     expect(Array.isArray(scriptPrompt.context.angles)).toBe(true);
     expect((scriptPrompt.context.angles ?? []).length).toBeGreaterThan(0);
 

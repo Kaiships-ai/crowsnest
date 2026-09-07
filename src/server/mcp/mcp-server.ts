@@ -6,6 +6,7 @@ import { getVideoDetail } from "@/server/queries/video";
 import { getPostBrief } from "@/server/queries/post-brief";
 import { getScripts } from "@/server/queries/vault";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
+import { OutlineSchema } from "@/server/llm/schemas";
 import {
   getOrCreateSession,
   getRemixSession,
@@ -554,13 +555,22 @@ export function buildMcpServer(): McpServer {
     {
       title: "Outline prompt",
       description:
-        "Returns the prompt for the Outline stage: { system, user, context }. No internal model call, no proxy or key needed — YOU write the beat outline by fulfilling this prompt from the session's chosen hook and style, then carry it into the script you write for crowsnest_remix_variants. Steer with a note.",
+        "With no outline argument: returns the prompt for the Outline stage, { system, user, context }. No internal model call, no proxy or key needed — YOU write the beat outline by fulfilling this prompt from the session's chosen hook and style. Passing an outline saves it onto the session instead (same shape you wrote it in: { beats: [{ label, content, targetSec }] }), so crowsnest_remix_variants' script prompt carries YOUR real beats rather than a placeholder. Steer with a note (prompt mode only).",
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        steer: z.string().optional().describe("A note to steer the prompt."),
+        steer: z.string().optional().describe("A note to steer the prompt (prompt mode only)."),
+        outline: OutlineSchema.optional().describe(
+          "Your outline to save: { beats: [{ label, content, targetSec }] }. Omit to get the prompt instead."
+        ),
       },
     },
-    async (args) => result(await buildOutlinePrompt(args.sessionId, { steer: args.steer }))
+    async (args) => {
+      if (args.outline !== undefined) {
+        await updateStage(args.sessionId, { outline: args.outline });
+        return result({ ok: true, outline: args.outline });
+      }
+      return result(await buildOutlinePrompt(args.sessionId, { steer: args.steer }));
+    }
   );
 
   server.registerTool(
