@@ -1,6 +1,6 @@
 # mcp: feature description
 
-The mcp component is crowsnest's tool surface for an MCP client. It has no screen of its own; its users are programs, not people at a screen. A client connects to `/api/mcp` and calls tools: seven that read crowsnest's data, twelve that drive the remix pipeline, and eight monthly and weekly planning tools (four research reads, three sync-control tools, and one analysis write), for twenty-seven in all. The whole surface is the handoff from crowsnest, which finds, analyzes, and remixes, to the tool that produces the finished reel, which opens the local media files the read tools point it at. This document describes those tools from the layer's own side: what each returns, how they group, and what the media handoff carries.
+The mcp component is crowsnest's tool surface for an MCP client. It has no screen of its own; its users are programs, not people at a screen. A client connects to `/api/mcp` and calls tools: seven that read crowsnest's data, eleven that drive the remix pipeline (keyless: no internal model call anywhere in that chain), and nine monthly and weekly planning tools (four research reads, four sync-control tools, and one analysis write), for twenty-seven in all. The whole surface is the handoff from crowsnest, which finds, analyzes, and remixes, to the tool that produces the finished reel, which opens the local media files the read tools point it at. This document describes those tools from the layer's own side: what each returns, how they group, and what the media handoff carries.
 
 Every tool wraps a query or service function the dashboard already uses, so a tool returns exactly what the corresponding UI shows, and a remix driven through the tools advances exactly the session the remix page advances. Every tool returns through one contract: `result()` on success (JSON text and `structuredContent` that agree), `errorResult()` on a handled failure (an `isError` payload, never a thrown exception).
 
@@ -11,7 +11,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
 | 2 | Read crowsnest data | Seven read tools: feed, video, brief, scripts, ideas, metrics, plans. Metrics carries a prior-period comparison (`current`, `previous`, `posts`) | ● | `mcp-server.ts`, `src/server/queries/*` | none |
-| 3 | Drive a remix | Twelve `crowsnest_remix_*` tools, session through finish | ● | `mcp-server.ts`, `src/server/services/remix` | none |
+| 3 | Drive a remix | Eleven `crowsnest_remix_*` tools, session through finish, keyless (the three generate tools return a prompt, not a generation) | ● | `mcp-server.ts`, `src/server/services/remix` | none |
 | 4 | Hand off media | `crowsnest_video` and `crowsnest_brief` return the stored media's on-disk path, size, and duration | ● | `mcp-server.ts` (`mediaInfoFor`), `src/server/media/store` | none |
 | 5 | Research contract | Four read tools: `crowsnest_channels`, `crowsnest_channel_stats`, `crowsnest_research_set`, `crowsnest_outlier_pack`, each carrying the human's own reach benchmark beside competitor outliers | ● | `mcp-server.ts`, `src/server/queries/research`, `channels`, `own-channel` | none |
 | 6 | Sync control | `crowsnest_sync_selected`, `crowsnest_sync_status`, `crowsnest_sync_cancel` drive a scoped channel sync | ● | `mcp-server.ts`, `src/server/actions/sync-actions` | none |
@@ -60,46 +60,48 @@ These tools are for a program, not a person, so there is no screen to walk throu
 
 ### Who uses it
 
-An MCP client steering a remix, one step at a time. The same twelve service functions back the remix page, so a remix advanced through these tools and one advanced through the dashboard are the same session.
+An MCP client steering a remix end to end with its own reasoning: Crowsnest is a deterministic data and action layer here, not a second model. The chain is keyless: no `ANTHROPIC_API_KEY`, no LLM proxy, anywhere in it. The read/write stages call the same service functions the dashboard uses, so a remix advanced through these tools and one advanced through the dashboard land in the same `remix_sessions` row; the three generate stages call a pure prompt-builder the dashboard's own generate functions were built from, not the model.
 
 ### What it does
 
-Twelve tools drive the remix pipeline, one per step. There is one session per source video. The generate tools (hooks, outline, variants, regenerate) need the LLM proxy; the others do not.
+Eleven tools drive the remix pipeline, one per step. There is one session per source video.
 
 | Tool | Inputs | Returns / effect |
 | --- | --- | --- |
 | `crowsnest_remix_session` | `videoId` | Gets or creates the one session for a source video; returns the session state. |
 | `crowsnest_remix_state` | `sessionId` | The current session state: topic, chosen hook, outline, variants, chosen variant. Null when unknown. |
 | `crowsnest_remix_set_prompt` | `sessionId`, optional `topic`, `niche`, `targetLengthSec` | Sets only the given fields; returns the updated state. |
-| `crowsnest_remix_research` | `sessionId` | Assembles research notes from the source analysis, transcript, and similar outliers. No model call, so it works with the proxy down. |
-| `crowsnest_remix_hooks` | `sessionId`, optional `vaultItemId`, `steer` | Generates hook options. Needs the proxy. Optionally seeds from a vault hook or steers with a note. |
-| `crowsnest_remix_choose_hook` | `sessionId`, `hook` | Sets the chosen hook by text; returns `{ ok, chosenHook }`. |
+| `crowsnest_remix_research` | `sessionId` | Assembles research notes from the source analysis, transcript, and similar outliers. No model call. |
+| `crowsnest_remix_hooks` | `sessionId`, optional `vaultItemId`, `steer` | Returns `{ system, user, context }`, the Hooks stage's assembled prompt. No model call. The calling agent writes the hook options itself; optionally seeds the prompt from a vault hook or steers it with a note. |
+| `crowsnest_remix_choose_hook` | `sessionId`, `hook` | Sets the chosen hook by text (the agent's own text, or one it wrote from `crowsnest_remix_hooks`); returns `{ ok, chosenHook }`. |
 | `crowsnest_remix_style` | `sessionId`, optional `styleVaultItemId` | Sets the style vault item, or clears it (omit the id) to use the source video's own structure. |
-| `crowsnest_remix_outline` | `sessionId`, optional `steer` | Generates the beat outline from the chosen hook and style. Needs the proxy. |
-| `crowsnest_remix_variants` | `sessionId`, optional `steer` | Generates script variants (three by default). Needs the proxy. A failed variant comes back as an error at its slot. |
-| `crowsnest_remix_regenerate_variant` | `sessionId`, `index`, optional `steer` | Regenerates one variant slot by zero-based index, keeping the others. Needs the proxy. |
-| `crowsnest_remix_save_script` | `sessionId`, `variantIndex`, `title` | Saves one variant as a script and records it as the chosen variant; returns `{ ok, scriptId }`. Errors if the session or variant text is missing. |
+| `crowsnest_remix_outline` | `sessionId`, optional `steer`, optional `outline` | Bidirectional, like `crowsnest_remix_hooks` plus `crowsnest_remix_choose_hook` folded into one tool. With no `outline`: returns `{ system, user, context }`, the Outline stage's assembled prompt from the chosen hook and style. No model call. With `outline` (the agent's own `{ beats: [{ label, content, targetSec }] }`): persists it onto the session via `updateStage` and returns `{ ok, outline }`. |
+| `crowsnest_remix_variants` | `sessionId`, optional `steer` | Returns `{ system, user, context }`, the Script stage's assembled prompt from the chosen hook and the session's saved outline. No model call. `context.angles` lists the fixed per-take angles the in-app path used to vary multiple takes, for an agent that wants more than one script to choose between. |
+| `crowsnest_remix_save_script` | `sessionId`, `title`, `script` | Saves the agent's own `script` text as this session's script and records it as the chosen result; returns `{ ok, scriptId }`. |
 | `crowsnest_remix_finish` | `sessionId` | Finishes the session: creates or reuses an undated draft planned post carrying the chosen script, and returns its `postId`. Idempotent. |
+
+`crowsnest_remix_regenerate_variant` is retired (P0 slice 2b): there is no crowsnest-generated variant left to regenerate. An agent wanting another take just calls `crowsnest_remix_variants` again, optionally with a different `steer`.
 
 ### How to access it
 
-Over `/api/mcp`, as MCP tool calls. A typical run: read the feed, open a video, create a session for it, set the prompt, build research, generate and choose a hook, pick a style, generate an outline and variants, save one, and finish, ending with a draft planned post whose brief the producer reads back through `crowsnest_brief`.
+Over `/api/mcp`, as MCP tool calls. A typical run: read the feed, open a video, create a session for it, set the prompt, build research, fulfill the hooks prompt and choose a hook, pick a style, fulfill the outline prompt and save the outline back (calling `crowsnest_remix_outline` a second time, now with `outline`), fulfill the script prompt and save the script, and finish, ending with a draft planned post whose brief the producer reads back through `crowsnest_brief`. Skipping the outline save-back leaves the script prompt with no beats in it, since `crowsnest_remix_variants` reads the session's saved outline.
 
 ### Business rules
 
 - One session per source video: `crowsnest_remix_session` gets the existing one or creates it.
 - Stage progression on the session is left to the service functions; the tools do not manage the dashboard's stepper, which only affects how the UI renders the session.
 - `crowsnest_remix_finish` is idempotent: it creates or reuses one undated draft planned post, so calling it twice does not make two.
-- The generate tools call the model through the same proxy the dashboard uses; with the proxy down they fail exactly as the dashboard's generation does.
+- The three prompt tools (`hooks`, `outline`, `variants`) assemble exactly what the in-app generate functions would send to the model (same system prompt, same builder, same session fields) and return it instead of calling `getLlm`; no proxy state or key affects them.
+- `crowsnest_remix_outline` is the one prompt tool with a save-back path on the same name: passing `outline` skips prompt assembly entirely and persists the given outline via `updateStage`, the same column `generateOutline` writes on the in-app path.
 
 ### Limitations
 
-- The four generate tools need the LLM proxy; without it they return an error, not a partial result.
-- `crowsnest_remix_save_script` returns an error result rather than throwing when the session is unknown or there is no variant text at the given index.
+- `crowsnest_remix_save_script` trusts the caller's `script` text as is; there is no length or format check beyond it being a string.
+- There is no built-in way for the agent to compare multiple script takes side by side inside crowsnest: unlike the in-app path's three stored `variants`, the keyless path saves one script at a time, so producing more than one take means calling `crowsnest_remix_variants` more than once (with a different `context.angles` entry appended, or a different `steer`) and choosing which text to save.
 
 ### User guide
 
-There is no screen for this; a client drives the remix. Pointed at a source video, an MCP client can carry a remix from research through a chosen hook, an outline, and script variants, save the one it wants, and finish, which leaves crowsnest with a draft planned post ready to produce, the same result the remix page produces by hand.
+There is no screen for this; a client drives the remix, writing every generated word itself from the prompts crowsnest hands back. Pointed at a source video, an MCP client can carry a remix from research through a chosen hook, an outline, and a script it wrote, save it, and finish, which leaves crowsnest with a draft planned post ready to produce, the same shape of result the remix page produces by hand, with no crowsnest-side model call anywhere in the path.
 
 ## 4. Hand off media
 

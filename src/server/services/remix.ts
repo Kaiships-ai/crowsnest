@@ -302,6 +302,111 @@ function withPersona(user: string, persona: Persona): string {
   return lines.length > 0 ? `${user}\n${lines.join("\n")}` : user;
 }
 
+/** A stage's assembled prompt, for a caller that fulfills it itself instead of asking
+ *  crowsnest to call an internal model — the keyless MCP remix path (P0 slice 2b).
+ *  `context` carries whatever structured bits that caller needs beyond the raw text. */
+export interface RemixPrompt {
+  system: string;
+  user: string;
+  context: Record<string, unknown>;
+}
+
+/**
+ * Assembles the Hooks stage prompt — same inputs and shape `generateHooks` sends to the
+ * LLM (source hook pattern, niche, persona, facts, opening line, steer), just returned
+ * instead of fulfilled. Makes no model call. The caller writes hooks itself and reports
+ * its pick via `crowsnest_remix_choose_hook`.
+ */
+export async function buildHookPrompt(id: string, opts?: { vaultItemId?: string; steer?: string }): Promise<RemixPrompt> {
+  const session = await getSession(id);
+  const video = await getVideoRow(session.sourceVideoId);
+  const analysis = await getAnalysis(session.sourceVideoId);
+
+  const pattern = opts?.vaultItemId
+    ? (await getVaultItemTemplateText(opts.vaultItemId)) ?? describeSourceHookPattern(analysis)
+    : describeSourceHookPattern(analysis);
+
+  const niche = await getNicheProfile();
+  const persona = await getPersona();
+  const topic = session.topic ?? video?.caption ?? "this topic";
+  const facts = session.researchNotes?.facts || undefined;
+  const openingLine = analysis?.structureSegments[0]?.transcript;
+
+  const user = withPersona(
+    buildHookUser({ topic, niche, pattern, facts, whyItWorked: analysis?.whyItWorked, openingLine, steer: opts?.steer }),
+    persona
+  );
+
+  return { system: HOOK_SYSTEM, user, context: { topic, niche, pattern } };
+}
+
+/**
+ * Assembles the Outline stage prompt — same inputs `generateOutline` sends to the LLM
+ * (chosen structure, hook, target length, persona, facts, steer). Makes no model call.
+ * The caller writes the outline itself and reports it back via the Script stage.
+ */
+export async function buildOutlinePrompt(id: string, opts?: { steer?: string }): Promise<RemixPrompt> {
+  const session = await getSession(id);
+  const video = await getVideoRow(session.sourceVideoId);
+  const analysis = await getAnalysis(session.sourceVideoId);
+
+  const structure = session.styleVaultItemId
+    ? (await getVaultItemTemplateText(session.styleVaultItemId)) ?? describeSourceStructure(analysis)
+    : describeSourceStructure(analysis);
+
+  const niche = await getNicheProfile();
+  const persona = await getPersona();
+  const topic = session.topic ?? video?.caption ?? "this topic";
+  const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
+  const facts = session.researchNotes?.facts || undefined;
+
+  const user = withPersona(
+    buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts, whyItWorked: analysis?.whyItWorked, steer: opts?.steer }),
+    persona
+  );
+
+  return { system: OUTLINE_SYSTEM, user, context: { topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure } };
+}
+
+/**
+ * Assembles the Script stage prompt — same inputs `generateVariants` sends to the LLM
+ * (hook, outline, persona, facts, similar outliers, source beats, steer), minus a baked
+ * -in angle: `context.angles` carries the same fixed per-slot angles `generateVariants`
+ * cycles through (`VARIANT_ANGLES`), so a caller wanting more than one take can append
+ * each angle to `user` itself, same as this service always did internally. Makes no
+ * model call. The caller writes the script itself and saves it via
+ * `crowsnest_remix_save_script`.
+ */
+export async function buildScriptPrompt(id: string, opts?: { steer?: string }): Promise<RemixPrompt> {
+  const session = await getSession(id);
+  const video = await getVideoRow(session.sourceVideoId);
+  const analysis = await getAnalysis(session.sourceVideoId);
+
+  const niche = await getNicheProfile();
+  const persona = await getPersona();
+  const facts = session.researchNotes?.facts || undefined;
+  const similar = session.researchNotes?.similar?.length
+    ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
+    : undefined;
+
+  const baseUser = buildScriptUser({
+    topic: session.topic ?? video?.caption ?? "this topic",
+    niche,
+    hook: session.chosenHook ?? "",
+    outline: session.outline ?? { beats: [] },
+    targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
+    facts,
+    similar,
+    sourceBeats: analysis?.structureSegments,
+    whyItWorked: analysis?.whyItWorked,
+    steer: opts?.steer,
+  });
+
+  const user = withPersona(baseUser, persona);
+
+  return { system: SCRIPT_SYSTEM, user, context: { angles: VARIANT_ANGLES } };
+}
+
 /**
  * One Claude call -> HookOptionsSchema (5 hooks). Template comes from a chosen Vault
  * hook item if `opts.vaultItemId` is given, else falls back to the source video's own
