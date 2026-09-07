@@ -2,19 +2,19 @@
 
 `documents/architect/core-components/mcp/`
 
-Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 27 `crowsnest_*` tools: seven data reads, twelve remix tools, and eight monthly and weekly planning tools (four research reads, three sync-control tools, one analysis write), plus a prior-period comparison on `crowsnest_metrics`. The planning tool set is recorded in section 9 and specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md).
+Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 28 `crowsnest_*` tools: seven data reads, twelve remix tools, and nine monthly and weekly planning tools (four research reads, four sync-control tools including sidecar readiness, one analysis write), plus a prior-period comparison on `crowsnest_metrics`. The planning tool set is recorded in section 9 and specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md).
 
 ## 1. Module structure
 
 | File | Export | Role |
 | --- | --- | --- |
-| `src/server/mcp/mcp-server.ts` | `buildMcpServer`, `result`, `errorResult`, `mediaInfoFor`, `MediaInfo` | The server factory and the tool contract. `buildMcpServer` constructs an `McpServer` and registers all 27 `crowsnest_*` tools, each a thin wrapper over an existing query, action, or service function. `result`/`errorResult` are the output contract; `mediaInfoFor` is the media handoff helper. |
+| `src/server/mcp/mcp-server.ts` | `buildMcpServer`, `result`, `errorResult`, `mediaInfoFor`, `MediaInfo` | The server factory and the tool contract. `buildMcpServer` constructs an `McpServer` and registers all 28 `crowsnest_*` tools, each a thin wrapper over an existing query, action, or service function. `result`/`errorResult` are the output contract; `mediaInfoFor` is the media handoff helper. |
 | `src/server/queries/research.ts` | `getResearchSet`, `getOutlierPack`, `OwnBenchmarkRow`, `ResearchOutlier` | The research read bundles behind `crowsnest_research_set` and `crowsnest_outlier_pack`. Both call `getOutlierFeed` (never re-implementing the feed SQL) and join each item to its `video_analyses` row, then pair the competitor outliers with the own-channel `reachIndex` benchmark from `getOwnPosts`. |
 | `src/server/services/analyze.ts` | `saveAgentAnalysis` (among others) | Validates agent-authored fields against `VideoAnalysisSchema` and upserts the `video_analyses` row stamped `source = "mcp"`, never calling the LLM. Backs `crowsnest_save_analysis`. |
 | `src/server/mcp/http.ts` | `handleMcpRequest` | Bridges the app's raw Node http server to the MCP streamable HTTP transport. Reads the JSON body on POST, builds a fresh server and a stateless transport per request, and tears both down when the response closes. A thrown error becomes a JSON-RPC 500 envelope, never an unhandled crash. |
 | `server.ts` (repo root) | (the app server) | Routes any request whose URL starts with `/api/mcp` to `handleMcpRequest`, in-process; everything else goes to Next. This is what keeps the MCP on the app's one SQLite connection. |
 
-The MCP server owns no schema and no migration. It reaches the sync actions (`startSyncAction`, `getSyncProgressAction`, `cancelSyncAction`), the channel and run queries (`getChannelsList`, `getChannelDetail`, `getChannelMedianBasis`, `getLastRunHealth`), the research bundles (`getResearchSet`, `getOutlierPack`), and `saveAgentAnalysis`, each already belonging to another component. The one schema change these tools need, the `source` column on `video_analyses`, belongs to the analyze component and shipped in migration `0027`.
+The MCP server owns no schema and no migration. It reaches the sync actions (`startSyncAction`, `getSyncProgressAction`, `cancelSyncAction`), the sidecar health action (`getIgStatusAction`), the channel and run queries (`getChannelsList`, `getChannelDetail`, `getChannelMedianBasis`, `getLastRunHealth`), the research bundles (`getResearchSet`, `getOutlierPack`), and `saveAgentAnalysis`, each already belonging to another component. The one schema change these tools need, the `source` column on `video_analyses`, belongs to the analyze component and shipped in migration `0027`.
 
 ## 2. In-process mount
 
@@ -58,12 +58,12 @@ The two always agree because they are the same value serialized once. A client c
 
 ## 4. Read tools versus write tools
 
-The 27 tools split by whether they change data.
+The 28 tools split by whether they change data.
 
 - **Data read tools (7):** `crowsnest_feed`, `crowsnest_video`, `crowsnest_brief`, `crowsnest_scripts`, `crowsnest_ideas`, `crowsnest_metrics`, `crowsnest_plans`. Each wraps a query function and returns rows. `crowsnest_plans` is read-only: it lists planned posts but never creates or changes one.
 - **Remix tools (12):** the `crowsnest_remix_*` chain. Some are reads (`crowsnest_remix_state`), some create or advance a session (`crowsnest_remix_session`, `crowsnest_remix_set_prompt`, `crowsnest_remix_choose_hook`, `crowsnest_remix_style`, `crowsnest_remix_save_script`, `crowsnest_remix_finish`), and some call the model to generate (`crowsnest_remix_hooks`, `crowsnest_remix_outline`, `crowsnest_remix_variants`, `crowsnest_remix_regenerate_variant`). The generate tools need the LLM proxy; the rest do not. The only planned post the MCP ever writes is the one `crowsnest_remix_finish` creates or reuses, and that write goes through the remix service, on the same connection, exactly as the dashboard's finish does.
 - **Research read tools (4):** `crowsnest_channels`, `crowsnest_channel_stats`, `crowsnest_research_set`, `crowsnest_outlier_pack`. Reads that pull the planning landscape and the two working-set bundles, each bundle pairing competitor outliers (`outlierScore`) with the own-channel `reachIndex` benchmark. No write.
-- **Sync-control tools (3):** `crowsnest_sync_selected` and `crowsnest_sync_cancel` start and stop a scoped channel sync (a side effect, not a database write of the MCP's own); `crowsnest_sync_status` reads its progress. All three wrap the sync actions the dashboard uses.
+- **Sync-control tools (4):** `crowsnest_sync_selected` and `crowsnest_sync_cancel` start and stop a scoped channel sync (a side effect, not a database write of the MCP's own); `crowsnest_sync_status` reads its progress. `crowsnest_ig_status` reads Instagram sidecar readiness (reachable, logged in, the exact bootstrap command) through the same `getIgStatusAction` Settings' sidecar control uses, so an agent can check before it syncs instead of learning the sidecar is down from a failed sync. All four wrap actions the dashboard already uses.
 - **Agent analysis write (1):** `crowsnest_save_analysis` upserts a `video_analyses` row stamped `source = "mcp"` through `saveAgentAnalysis`, on the same connection, with no LLM call.
 
 Stage progression on the session is left to the service functions (finish sets the stage); the tools do not manage the dashboard's stepper, because that only affects how the UI renders the session.
@@ -110,9 +110,10 @@ The monthly and weekly planning tool set is shipped and reachable over `/api/mcp
 | `crowsnest_channel_stats` | `getChannelDetail`, `getChannelMedianBasis` (`queries/channels.ts`), `getLastRunHealth` (`queries/runs.ts`) | One channel's detail and baseline, median basis, and last sync health. Returns `{ detail, basis, lastRun }`; an unknown id is an error result. |
 | `crowsnest_research_set` | `getResearchSet` (`queries/research.ts`), which calls `getOutlierFeed` (`queries/feed.ts`) joined with `videoAnalyses`, plus `getOwnPosts` (`queries/own-channel.ts`) | A broad reading bundle: outliers with their analyses, alongside the own channel's `reachIndex` benchmark. Returns `{ outliers, ownBenchmark }`. |
 | `crowsnest_outlier_pack` | `getOutlierPack` (`queries/research.ts`) with the same own benchmark block, plus `mediaInfoFor` for the handoff | A tight top N shortlist with the media handoff, plus a rising mode (short `sinceDays`, ranked by recency) for the weekly refresh. Returns `{ items, ownBenchmark }`. |
-| `crowsnest_sync_selected` | `startSyncAction` (`actions/sync-actions.ts`) | Starts a sync scoped to the given channel ids and returns `{ jobId }`. Requires a non-empty id array (code `NO_CHANNELS` otherwise). |
+| `crowsnest_sync_selected` | `startSyncAction` (`actions/sync-actions.ts`) | Starts a sync scoped to the given channel ids and returns `{ jobId }`. Requires a non-empty id array (code `NO_CHANNELS` otherwise). A sidecar-down failure (code `IG_SERVICE_DOWN`) carries `bootstrap: "npm run ig:service"` in the error result, added at the MCP boundary; `startSyncAction` itself is unchanged. |
 | `crowsnest_sync_status` | `getSyncProgressAction` (`actions/sync-actions.ts`) | The run's progress by job id, wrapped as `{ progress }`; null progress for an unknown job is not an error. |
 | `crowsnest_sync_cancel` | `cancelSyncAction` (`actions/sync-actions.ts`) | Cooperative cancel by job id. Returns `{ ok, jobId, requested }`, `requested` false when nothing was running. |
+| `crowsnest_ig_status` | `getIgStatusAction` (`actions/ig-actions.ts`) | Instagram sidecar readiness: reachable, logged in, and the bootstrap command, reusing the exact health probe Settings' sidecar control renders. Never an error result; even "sidecar down" is a successful read of that fact. |
 | `crowsnest_save_analysis` | `saveAgentAnalysis` (`services/analyze.ts`), which validates against `VideoAnalysisSchema` (`llm/schemas.ts`) and upserts `videoAnalyses` | The agent authors the analysis; the tool validates the fields and upserts the row with `source = "mcp"`. No in-app model call. |
 | `crowsnest_metrics` (changed) | `getOwnChannelOverview(windowDays, { offsetDays })` (`queries/own-channel.ts`) | Gained a prior-period comparison: returns `{ current, previous, posts }` so the agent reads this window against the one before it (month over month). |
 
@@ -181,3 +182,14 @@ sequenceDiagram
     Worker->>DB: **Continue fetching and upserting videos** (videos)<br/>params:{ jobId: SyncJob.id }
     deactivate Worker
 ```
+
+### Sidecar readiness, and the bootstrap contract
+
+An external MCP agent has no browser and no Settings page, so a sync attempt against a down sidecar used to be its first signal that the sidecar even exists. `crowsnest_ig_status` closes that gap without adding a second health probe: it calls the same `getIgStatusAction` the Settings page's Instagram section and sidecar control already call, and shapes the same result two ways.
+
+- **The sidecar answered** (`getIgStatusAction` returns `ok: true`): `{ reachable: true, loggedIn, retryAfterSec?, bootstrap }`. `retryAfterSec` is present only while an Instagram rate-limit cooldown is still in effect (`IgHealth.cooldownUntil` in the future), computed as whole seconds remaining.
+- **The sidecar did not answer** (`ok: false`): `{ reachable: false, loggedIn: null, bootstrap, error, code }` when the code is `IG_SERVICE_DOWN`. Any other failure code (`IG_DRIFT`, `IG_SERVICE_UNAUTHORIZED`, ...) still means the process answered, so `reachable` stays `true` even though `ok` was `false`.
+
+Neither branch is an MCP error result: determining "the sidecar is down" is itself a successful read, exactly as `crowsnest_sync_status` returning null progress for an unknown job is not an error. `bootstrap` is always the literal string `"npm run ig:service"` (the same command `scripts/ig-service.sh` documents and the sidecar control button spawns programmatically), present on every response so the agent never has to branch to find it.
+
+The same string is threaded through `crowsnest_sync_selected`'s failure path: when `startSyncAction` returns `code: "IG_SERVICE_DOWN"`, the tool's `errorResult` adds `bootstrap` before returning. This is added at the MCP boundary only; `startSyncAction` and the sync engine's error classification (`classifyIgError`, [ig-sync architecture](../ig-sync/02-architecture.md)) are unchanged.
