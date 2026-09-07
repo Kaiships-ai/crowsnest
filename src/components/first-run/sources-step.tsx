@@ -39,6 +39,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SeedPicker } from "@/components/discover/seed-picker";
+import { normalizeHandle } from "@/lib/handle";
 import { addChannelAction } from "@/server/actions/sync-actions";
 import type { CreatorSeedRow } from "@/server/queries/discover";
 
@@ -65,6 +66,10 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
   const [draft, setDraft] = useState("");
   const [failed, setFailed] = useState<{ handle: string; error: string }[]>([]);
   const [pending, setPending] = useState(false);
+  // ONB-3: a token that fails `normalizeHandle`'s format check at add time — never queued,
+  // so it can't sit in the pending list and let well-formed handles beside it get written
+  // as real `channels` rows while the step itself doesn't advance.
+  const [addError, setAddError] = useState<string | null>(null);
   // Channels the SeedPicker already followed (added + synced) this mount. Unlike the
   // manual list, these are live `channels` rows the moment Follow is pressed, so they are
   // carried through Continue rather than re-added.
@@ -81,6 +86,12 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
    * hand is exactly the kind of friction this step shouldn't add on top of "no
    * suggestions exist." Whatever's already in the pending list, or repeated within the
    * same paste, is silently deduped rather than rejected.
+   *
+   * ONB-3: each token is run through `normalizeHandle` here, at add time — the same
+   * format check `handleContinue` already applies per-handle via `addChannelAction`, just
+   * moved earlier so a malformed token is bounced before it ever joins the pending list,
+   * instead of sitting there until Continue partially writes the well-formed handles
+   * beside it and the step doesn't advance.
    */
   function addHandles() {
     const tokens = draft
@@ -89,19 +100,30 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
       .filter(Boolean);
     if (tokens.length === 0) return;
 
-    setHandles((prev) => {
-      const seen = new Set(prev.map(normalizeForDedupe));
-      const next = [...prev];
-      for (const token of tokens) {
-        const key = normalizeForDedupe(token);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        next.push(token);
+    // Split up front, not inside the `setHandles` updater: a functional updater can run
+    // after this function returns, so anything read right after calling it (like this
+    // rejected list) must not depend on a side effect the updater produces.
+    const accepted: string[] = [];
+    const rejected: string[] = [];
+    const seen = new Set(handles.map(normalizeForDedupe));
+    for (const token of tokens) {
+      let normalized: string;
+      try {
+        normalized = normalizeHandle(token);
+      } catch {
+        rejected.push(token);
+        continue;
       }
-      return next;
-    });
-    setDraft("");
-    const addedKeys = new Set(tokens.map(normalizeForDedupe));
+      const key = normalizeForDedupe(normalized);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      accepted.push(normalized);
+    }
+
+    if (accepted.length > 0) setHandles((prev) => [...prev, ...accepted]);
+    setAddError(rejected.length > 0 ? `Invalid Instagram handle${rejected.length > 1 ? "s" : ""}: ${rejected.join(", ")}` : null);
+    setDraft(rejected.join(" "));
+    const addedKeys = new Set(accepted.map(normalizeForDedupe));
     setFailed((prev) => prev.filter((f) => !addedKeys.has(normalizeForDedupe(f.handle))));
   }
 
@@ -174,6 +196,7 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
           Add
         </Button>
       </div>
+      {addError !== null && <p className="mt-2 max-w-[460px] text-xs text-destructive">{addError}</p>}
       <p className="mt-2 max-w-[460px] text-xs text-muted-foreground">
         {canVerifyHandles
           ? "Checked against Instagram when you press Continue — a real handle's name and follower count show up on the Channels page right after; one that doesn't exist shows up there as \"Sync failed\" instead."

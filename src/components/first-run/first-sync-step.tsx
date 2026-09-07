@@ -16,6 +16,22 @@
  * `first_run_completed` (via the existing generic `updateAppSettingsAction`, not a new
  * action) and hands off to the shell, which reads the same `sync_jobs` row through
  * `getFailureStrip()` and shows the failure strip itself if the run didn't fully succeed.
+ *
+ * ONB-4: `useSyncProgress()` (no `channelId`) answers "what's the latest sync_jobs row
+ * anywhere" by design — that's what lets the sidebar and Settings show a run started
+ * elsewhere. Mounted straight onto that hook, this step inherited the same view: land here
+ * (Settings > Replay first run is the documented way back, and it lands on a database that
+ * has almost certainly synced before) while any job anywhere is mid-run or already
+ * terminal, and this step would show that unrelated job's panel with "Open Crowsnest"
+ * already clickable — completing first-run having never synced the channels just added.
+ *
+ * `started`/`onStarted` (lifted to `onboarding-flow.tsx`, next to `channelIds`, for the
+ * same reason: state that must survive this step being unmounted and remounted by the
+ * rail nav) gate that: the hook's `progress` is only trusted once this step has actually
+ * launched a run. Before that, "Run first sync" renders regardless of what the hook
+ * reports. This does not change what the hook itself does or reports for its other
+ * callers (sidebar, Settings, channel cards) — a sync started elsewhere is still exactly
+ * as visible there as it always was.
  */
 
 import { useState } from "react";
@@ -31,6 +47,10 @@ export interface FirstSyncStepProps {
    *  was just chosen even on a database that (per the compound first-run gate) already
    *  had other channels in it. */
   channelIds: string[];
+  /** Whether this step has launched a run this session — see the module doc's ONB-4
+   *  paragraph. False means "trust nothing `useSyncProgress` reports yet." */
+  started: boolean;
+  onStarted: () => void;
   onOpenCrowsnest: () => void;
 }
 
@@ -41,12 +61,19 @@ function headline(status: "running" | "success" | "partial" | "failed" | null): 
   return "Sync finished with problems";
 }
 
-export function FirstSyncStep({ channelIds, onOpenCrowsnest }: FirstSyncStepProps) {
+export function FirstSyncStep({ channelIds, started, onStarted, onOpenCrowsnest }: FirstSyncStepProps) {
   const { progress, stalled, start, cancel } = useSyncProgress();
   const [finishing, setFinishing] = useState(false);
 
-  const status = progress?.status ?? null;
+  // ONB-4: before this step has started its own run, an unrelated job elsewhere must not
+  // be read as this run's status — see the module doc.
+  const status = started ? (progress?.status ?? null) : null;
   const terminal = status !== null && status !== "running";
+
+  async function runFirstSync() {
+    onStarted();
+    await start(channelIds.length > 0 ? channelIds : undefined);
+  }
 
   async function openCrowsnest() {
     setFinishing(true);
@@ -64,8 +91,8 @@ export function FirstSyncStep({ channelIds, onOpenCrowsnest }: FirstSyncStepProp
           : "Every number below is read off this run's own record, not guessed on the client."}
       </p>
 
-      {status === null && (
-        <Button className="mt-12" onClick={() => void start(channelIds.length > 0 ? channelIds : undefined)}>
+      {!started && (
+        <Button className="mt-12" onClick={() => void runFirstSync()}>
           Run first sync
         </Button>
       )}

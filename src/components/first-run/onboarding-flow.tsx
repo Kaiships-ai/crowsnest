@@ -71,6 +71,11 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
   const [niche, setNiche] = useState(initialNiche);
   const [igStatus, setIgStatus] = useState<IgStatusResult>(initialIgStatus);
   const [channelIds, setChannelIds] = useState<string[]>([]);
+  // ONB-4: whether the sync step has launched its own run this session. Lifted here (like
+  // `channelIds`) rather than kept local to `FirstSyncStep`, so navigating away via the
+  // rail nav and back doesn't forget it and let an unrelated `sync_jobs` row read as this
+  // step's own run again — see first-sync-step.tsx's module doc.
+  const [syncStarted, setSyncStarted] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const currentStepMeta = ONBOARDING_STEPS.find((s) => s.key === step);
 
@@ -251,7 +256,12 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
           )}
 
           {step === "sync" && (
-            <FirstSyncStep channelIds={channelIds} onOpenCrowsnest={() => router.push("/")} />
+            <FirstSyncStep
+              channelIds={channelIds}
+              started={syncStarted}
+              onStarted={() => setSyncStarted(true)}
+              onOpenCrowsnest={() => router.push("/")}
+            />
           )}
         </div>
       </div>
