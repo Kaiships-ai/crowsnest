@@ -5,4 +5,5 @@ Bugs and enhancements for analyze. One row per item.
 | ID | Title | Severity | Type | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | B-17a | analyzeVideoAction and reanalyzeVideoAction omit the error code field, so callers cannot tell failures apart | low | bug | bug-triage | open |
+| B-19 | Analyze detail-page surfaces carry no `data-testid`, blocking every browse-e2e journey (04-test-cases.md section 3). Add stable testids to `src/components/video/video-detail.tsx`: `analyze-run-button`, `analyze-reanalyze-button`, `analyze-gate-no-key`, `analyze-gate-no-provider`, `video-tab-hook`, `video-tab-why`, `video-tab-transcript`, `analyze-hook-type`, `analyze-beats`, `analyze-why-text`, `video-generate-idea-button` | low | test-coverage | test-cases | open |
 | B-18 | Persona dirty-guard (`persona-dirty.ts`, `persona-section.tsx`) covers reload, tab-close, and hard navigation only, via a `beforeunload` warning; soft Next Link navigation away from the page is not intercepted. A router-level guard is a follow-up if in-app navigation loss is reported | low | enhancement | code-review | open |

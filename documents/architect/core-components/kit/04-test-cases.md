@@ -58,7 +58,54 @@ Not checkable by hand:
 
 ## 3. browse-e2e
 
-The Kit ships no browser-drivable user interface of its own. Its whole surface is a shell installer and a command line tool; the browser window it eventually opens (`kai up`, on success) renders the dashboard owned by the rest of the app, not anything the Kit itself draws. No browse-e2e cases apply to this component.
+The Kit draws no DOM of its own: its whole surface is a shell installer and the `kai`
+command line tool. So its end-to-end journeys are driven by running the installer and
+`kai` subcommands and asserting on stdout and on the files and launchd state they leave
+behind (`.env.local`, `~/.kai/entitlement.json`, the plists `kai status` reads), not by
+clicking a rendered page. The one place the Kit reaches a browser is `kai up`, which on
+success hands off to the dashboard at `http://localhost:3000`; that dashboard belongs to
+the rest of the app, so the Kit's only browser assertion there is the URL it opens
+(`assert_url_contains localhost:3000`), read by the same helper a browse journey uses.
+
+Two consequences follow, both honest rather than gaps to close:
+
+- No `data-testid` exists or is needed in `src/cli/`, confirmed by grep. A CLI has no
+  elements to tag, so every assertion below names its real observable (an exact stdout
+  line, a written file value, or a `kai status` line) instead of a testid, per the
+  format reference's allowance for assertions that read something other than the DOM. No
+  testid gap is filed to `05-backlog`, because there is no DOM element to add one to.
+- Every journey is `Mode: live`. A kit journey needs a real Apple Silicon Mac, a real
+  Polar license, and a real `~/.kai` install; `npm run e2e`'s seeded-fixture harness
+  starts a dev server against a fixture database and cannot lay down a real bundle or spend
+  a real activation. So no row is `offline` and every `Script` is `none`, which the format
+  reference permits precisely for a live journey no harness can seed. These are run by hand
+  on a real machine, or against a release-prep box that has the install and a burner key.
+
+Corner-case coverage below spans six distinct types (`empty`, `auth`, `invalid`,
+`failure`, `boundary`, `network`). The three not written here (`concurrency`, `stale`,
+`repeat`) do apply to the Kit but are already exercised one level down in the route lens
+(`start`'s bootout-then-bootstrap idempotency in ACTION-07, `status`'s launchd read in
+ACTION-08, `login`'s re-validate-not-reactivate in ACTION-01); six distinct types already
+clears the floor of five, so they are not duplicated here as browser journeys.
+
+Happy-path journeys cover every built feature in the `03` summary: `Feat` 2, 3, 4, 5, 6,
+7, and 8, one journey each.
+
+| ID | P | Feat | Type | Mode | Journey | Setup | Steps | Expected | Script | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| E2E-01 | P1 | 2 | happy | live | Install the product with `curl \| sh` | Clean `~/.kai` on an arm64 Mac, a valid Polar key, network up | Arrive at a fresh terminal; Act: run the `curl -fsSL .../install.sh \| sh` line, paste the key at the `/dev/tty` prompt; Assert on the closing stdout | Install completes and the footer prints the next commands `kai login <KEY>` and `kai kit init`; `~/.local/bin/kai` is a working symlink and `~/.kai/app/current` points at the new version dir | none | not run |
+| E2E-02 | P1 | 3 | happy | live | Activate a license with `kai login` | Installed `kai`, valid key, no `~/.kai/entitlement.json` | Arrive at the terminal; Act: run `kai login <key>`; Assert on stdout and the written file | stdout reads `License active. Saved to <path>` then `Next: kai kit init`; `~/.kai/entitlement.json` exists at mode `-rw-------` with `key`, `activation_id`, `customer_id`, `validated_at` | none | not run |
+| E2E-03 | P1 | 4 | happy | live | Set up config with `kai kit init` (piped answers) | Logged in, `.env.local` absent or with a `change-me` token, answers file prepared | Arrive at the terminal; Act: run `kai kit init < answers` (piped, the path unaffected by KIT-1); Assert on stdout and `.env.local` | stdout prints `Generated IG_SERVICE_TOKEN` and `Wrote <envPath>` then `Kit ready. Starting crowsnest...`; `.env.local` is mode 0600 with a random `IG_SERVICE_TOKEN` and a non-empty `IG_PASSWORD` from the piped answer | none | not run |
+| E2E-04 | P1 | 5 | happy | live | Start services and open the dashboard with `kai up` | Logged in, kit initialized, port 3000 free | Arrive at the terminal; Act: run `kai up`; Assert on stdout and the browser the poll opens | stdout reads `crowsnest is running: http://localhost:3000`; the default browser opens and `assert_url_contains localhost:3000` holds; both LaunchAgents load (confirmed by the following `kai status`) | none | not run |
+| E2E-05 | P1 | 6 | happy | live | Read license and service state with `kai status` | Logged in, services in a known running state, network unplugged | Arrive at the terminal; Act: run `kai status`; Assert on stdout with no network | stdout reads `Licensed. Activation <id>, last checked <ts>` and one line per service reading `running`; the command makes no outbound connection | none | not run |
+| E2E-06 | P1 | 7 | happy | live | Run the offline health check with `kai doctor` | A healthy bundle install, network unplugged | Arrive at the terminal; Act: run `kai doctor`; Assert on stdout with no network | every check prints an `[OK] <label> <detail>` line (VERSION, native modules, sidecar venv, `.env.local`, entitlement, services); no outbound connection is made | none | not run |
+| E2E-07 | P1 | 8 | happy | live | Update to a newer release with `kai update` | An installed older version, a newer release in R2, cached key present | Arrive at the terminal; Act: run `kai update`; Assert on stdout and preserved state | stdout prints `Updating crowsnest...` then completes; `~/.kai/app/current` points at the new version while `~/.kai/state` (database, `.env.local`, media) is unchanged; services restart if they were running | none | not run |
+| E2E-08 | P2 | 6 | empty | live | `kai status` on a machine that has never been set up | Clean `~/.kai`: no entitlement, no plists installed | Arrive at the terminal; Act: run `kai status`; Assert on the zero-state stdout and its recovery copy | stdout reads `Not logged in. Run: kai login <license-key>` and each service line reads `not installed`; the recovery command is named inline, nothing else is printed | none | not run |
+| E2E-09 | P1 | 4 | auth | live | A license-gated command refuses without an entitlement | Installed `kai`, `~/.kai/entitlement.json` absent | Arrive at the terminal; Act: run `kai kit init`; Assert it refuses before touching `.env.local` | stdout reads `No license found. Run \`kai login <license-key>\` first.` and the command exits non-zero; no `.env.local` is written | none | not run |
+| E2E-10 | P2 | 3 | invalid | live | `kai login` with no key prints usage instead of calling Polar | Installed `kai` | Arrive at the terminal; Act: run `kai login` with no argument; Assert on stdout | stdout reads `Usage: kai login <license-key>` and the command exits non-zero; no network call is made | none | not run |
+| E2E-11 | P2 | 5 | failure | live | `kai up` times out on a server that never answers and points at doctor | Kit initialized but the server cannot bind 3000 (port taken or a broken build) | Arrive at the terminal; Act: run `kai up` and wait out the 25s poll; Assert on stdout | stdout reads `The dashboard did not come up within 25s.`, then the last 10 lines of the server log, then `Run \`kai doctor\` to diagnose.`; the browser is not opened | none | not run |
+| E2E-12 | P2 | 3 | boundary | live | `kai login` on a third machine hits the two-activation cap | The key already activated on two other machines, this machine with no cached activation | Arrive at the terminal; Act: run `kai login <key>`; Assert on the refusal stdout | stdout reads `That license key is already active on 2 machines. Deactivate one in the Polar customer portal, then run \`kai login\` again.`; no `entitlement.json` is written | none | not run |
+| E2E-13 | P2 | 3 | network | live | `kai login` with Polar unreachable reports the outage, not a bad key | Installed `kai`, valid key, but `api.polar.sh` blocked or offline | Arrive at the terminal; Act: run `kai login <key>` with Polar unreachable; Assert on stdout | stdout reads `Could not reach Polar: <message>`, distinct from the `License not recognized` bad-key path; no `entitlement.json` is written | none | not run |
 
 ## 4. security-lite
 
