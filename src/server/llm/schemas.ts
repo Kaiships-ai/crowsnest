@@ -6,8 +6,10 @@ import { z } from "zod";
  * to `LlmClient.generateParsed` via `zodOutputFormat` (see client.ts) — the SDK
  * guarantees the parsed result matches the shape below, or client.ts throws
  * `LlmParseError` after one retry. Keep these in sync with the prompts that target
- * them (analyze-prompt.ts, remix-prompts.ts describe the shape in prose; these
- * `z.object`s are the enforced contract).
+ * them (remix-prompts.ts describes the shape in prose; these `z.object`s are the
+ * enforced contract). VideoAnalysisSchema itself is now also the validation contract
+ * for `saveAgentAnalysis` (analyze.ts) — the external agent's MCP-authored analysis
+ * is checked against the exact same schema an in-app model call used to produce.
  */
 
 /**

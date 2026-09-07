@@ -173,7 +173,7 @@ describe("crowsnest_save_analysis", () => {
     migrate();
   });
 
-  async function seedVideo(): Promise<string> {
+  async function seedVideo(opts: { withTranscript?: boolean } = {}): Promise<string> {
     const channelId = newId();
     const videoId = newId();
     const now = new Date().toISOString();
@@ -182,6 +182,14 @@ describe("crowsnest_save_analysis", () => {
       id: videoId, channelId, platform: "instagram", externalId: `save-${videoId}`,
       url: "https://example.com/p", postedAt: now, firstSeenAt: now,
     });
+    if (opts.withTranscript) {
+      await db.insert(tables.transcripts).values({
+        videoId,
+        text: "Here's the mistake almost everyone makes in their first month.",
+        source: "whisper-local",
+        createdAt: now,
+      });
+    }
     return videoId;
   }
 
@@ -203,6 +211,30 @@ describe("crowsnest_save_analysis", () => {
     expect(r.isError).toBe(true);
     const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
     expect(rows).toHaveLength(0);
+  });
+
+  test("P0 slice 2a: keyless round trip — save via crowsnest_save_analysis, read back via crowsnest_video, transcript included, no ANTHROPIC_API_KEY set", async () => {
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const videoId = await seedVideo({ withTranscript: true });
+      const server = buildMcpServer();
+
+      const saved = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS });
+      expect(saved.isError).not.toBe(true);
+
+      const read = await callTool(server, "crowsnest_video", { videoId });
+      expect(read.isError).not.toBe(true);
+      const body = read.structuredContent as {
+        analysis: { hookType: string; whyItWorked: string } | null;
+        transcript: { text: string } | null;
+      };
+      expect(body.analysis?.hookType).toBe(VALID_ANALYSIS.hookType);
+      expect(body.analysis?.whyItWorked).toBe(VALID_ANALYSIS.whyItWorked);
+      expect(body.transcript?.text.length).toBeGreaterThan(0);
+    } finally {
+      if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    }
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -35,7 +35,6 @@ import { assetUrl } from "@/lib/media-url";
 import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { SavePostButton } from "./save-post-button";
-import { analyzeVideoAction, reanalyzeVideoAction } from "@/server/actions/analyze-actions";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { generateIdeaAction } from "@/server/actions/idea-actions";
 import type { FeedItem } from "@/server/queries/feed";
@@ -62,129 +61,14 @@ export interface FeedNav {
 }
 
 /**
- * Shared "no analysis yet" gate rendered inside both the Hook & Structure and
- * Why-it-worked tabs (Task 2) — one Claude call produces both, so whichever tab the
- * user lands on first can trigger it. Checked in order:
- *  1. No transcript yet and no way to make one (`canTranscribe` false — neither
- *     whisper.cpp nor Groq usable): an Alert with the brew/Settings hint, since
- *     there's nothing a button click could do (final-review finding B1).
- *  2. No transcript yet but transcription is possible: an active "Transcribe &
- *     Analyze" button — `analyzeVideoAction` now transcribes on demand before
- *     analyzing, and the transcribe half works fully keyless (whisper.cpp is local),
- *     so this button is live even with no ANTHROPIC_API_KEY set; if analysis itself
- *     then needs the key, that specific error surfaces from the same click.
- *  3. Has a transcript, no Claude key: the original key-missing Alert (DESIGN.md §6
- *     keyless-mode contract).
- *  4. Otherwise: the original "Analyze this video" button.
+ * Rendered inside both the Hook & Structure and Why-it-worked tabs when no analysis
+ * exists yet (P0 slice 2a: analysis is no longer produced in-app — there is no internal
+ * model key and no Analyze/Re-analyze button. An external agent authors it through the
+ * crowsnest_save_analysis MCP tool; once it does, `detail.analysis` is populated and
+ * this placeholder is replaced by the real content on the next load).
  */
-function AnalysisGate({
-  videoId,
-  hasTranscript,
-  hasKey,
-  canTranscribe,
-}: {
-  videoId: string;
-  hasTranscript: boolean;
-  hasKey: boolean;
-  canTranscribe: boolean;
-}) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-
-  async function runAnalysis() {
-    setPending(true);
-    const result = await analyzeVideoAction(videoId);
-    setPending(false);
-    if (result.ok) {
-      toast.success("Analysis complete");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }
-
-  if (!hasTranscript && !canTranscribe) {
-    return (
-      <Alert>
-        <AlertTitle>No transcript available yet</AlertTitle>
-        <AlertDescription>
-          Install a local transcriber (<code>brew install yt-dlp whisper-cpp</code>, then download a GGML model,
-          see Settings for the exact missing path) or add GROQ_API_KEY in Settings, then try again.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (!hasTranscript) {
-    return (
-      <Button onClick={runAnalysis} disabled={pending}>
-        {pending ? "Transcribing…" : "Transcribe & Analyze"}
-      </Button>
-    );
-  }
-
-  if (!hasKey) {
-    return (
-      <Alert>
-        <AlertTitle>Add your Claude API key</AlertTitle>
-        <AlertDescription>Add ANTHROPIC_API_KEY in Settings to enable analysis.</AlertDescription>
-      </Alert>
-    );
-  }
-
-  return (
-    <Button onClick={runAnalysis} disabled={pending}>
-      {pending ? "Analyzing…" : "Analyze this video"}
-    </Button>
-  );
-}
-
-/** Asks for a fresh text pass over a video that already has one. Needed because beats
- *  only carry a verbatim per-beat transcript from the analysis that produced them, and
- *  older rows have none — this is the only way to fill them in.
- *
- *  BUG-01: this used to render live regardless of `hasKey`, unlike `AnalyzeButton`
- *  (`AnalysisGate` above), so a video with no `ANTHROPIC_API_KEY` configured could still
- *  click Re-analyze and hit a raw error toast instead of the same pre-emptive
- *  "add your key" state used everywhere else analysis is gated. Exported (only other
- *  function in this file that is) so video-detail.test.tsx can cover the gate directly
- *  without mounting the full detail page's data-heavy props. */
-export function ReanalyzeButton({ videoId, hasKey }: { videoId: string; hasKey: boolean }) {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
-
-  async function rerun() {
-    setPending(true);
-    const result = await reanalyzeVideoAction(videoId);
-    setPending(false);
-    if (result.ok) {
-      toast.success("Re-analysis complete");
-      router.refresh();
-    } else {
-      toast.error(result.error);
-    }
-  }
-
-  if (!hasKey) {
-    return (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button variant="ghost" size="sm" disabled>
-              Re-analyze
-            </Button>
-          }
-        />
-        <TooltipContent>Add ANTHROPIC_API_KEY in Settings to enable analysis.</TooltipContent>
-      </Tooltip>
-    );
-  }
-
-  return (
-    <Button variant="ghost" size="sm" onClick={rerun} disabled={pending}>
-      {pending ? "Re-analyzing…" : "Re-analyze"}
-    </Button>
-  );
+function NoAnalysisYet() {
+  return <p className="text-sm text-muted-foreground">No analysis yet. Ask your agent to analyze this video.</p>;
 }
 
 /**
@@ -202,14 +86,10 @@ export function ReanalyzeButton({ videoId, hasKey }: { videoId: string; hasKey: 
  */
 function HookStructureTab({
   analysis,
-  videoId,
   durationSec,
-  hasKey,
 }: {
   analysis: StoredVideoAnalysis;
-  videoId: string;
   durationSec: number | null;
-  hasKey: boolean;
 }) {
   return (
     <div className="flex flex-col gap-8">
@@ -233,12 +113,9 @@ function HookStructureTab({
       </div>
 
       <div>
-        <div className="flex items-baseline justify-between gap-4">
-          <span data-lab className="font-mono text-2xs text-faint">
-            Beats
-          </span>
-          <ReanalyzeButton videoId={videoId} hasKey={hasKey} />
-        </div>
+        <span data-lab className="font-mono text-2xs text-faint">
+          Beats
+        </span>
         {analysis.structureSegments.length > 0 ? (
           <div className="mt-6 flex flex-col gap-6">
             {analysis.structureSegments.map((segment, i) => {
@@ -253,9 +130,10 @@ function HookStructureTab({
                   </span>
                   <div>
                     <span className="text-sm font-semibold">{segment.label}</span>
-                    {/* Verbatim words for this beat, quoted out of the transcript by the
-                        analyze pass. Absent on rows analyzed before the field existed —
-                        those show the re-analyze hint rather than an invented quote. */}
+                    {/* Verbatim words for this beat, quoted out of the transcript by
+                        whichever analysis wrote this row. Absent on rows saved before the
+                        field existed — those show a plain placeholder, never an invented
+                        quote. */}
                     <div className="mt-3 border-l-2 border-border pl-3">
                       <span data-lab className="font-mono text-2xs text-faint">
                         transcript
@@ -267,7 +145,7 @@ function HookStructureTab({
                           <p className="mt-1 text-sm text-muted-foreground">(no words spoken in this beat)</p>
                         )
                       ) : (
-                        <p className="mt-1 text-sm text-muted-foreground">(re-analyze to capture the transcript per beat)</p>
+                        <p className="mt-1 text-sm text-muted-foreground">(no per-beat transcript on this analysis)</p>
                       )}
                     </div>
                     <div className="mt-3">
@@ -337,19 +215,12 @@ export function SimilarOutliers({ items }: { items: FeedItem[] }) {
 
 export function VideoDetail({
   detail,
-  hasLlmKey,
-  canTranscribe,
   medianBasis,
   feedNav,
   savedPost,
   children,
 }: {
   detail: VideoDetailData;
-  hasLlmKey: boolean;
-  /** Whether at least one transcript provider (whisper.cpp locally, or Groq via
-   * GROQ_API_KEY) is actually usable right now — threaded down to AnalysisGate so it
-   * can offer a live "Transcribe & Analyze" button instead of a dead end. */
-  canTranscribe: boolean;
   /** The sample the hero score was computed from — `getChannelMedianBasis`, keyed to
    *  this video so its own bar can be picked out of the histogram. Null only if the
    *  channel row vanished between the feed query and this render. */
@@ -365,7 +236,6 @@ export function VideoDetail({
   children: ReactNode;
 }) {
   const { item } = detail;
-  const hasTranscript = detail.transcript !== null;
   const router = useRouter();
   const [generatingIdea, startGenerateIdea] = useTransition();
 
@@ -633,28 +503,16 @@ export function VideoDetail({
                   </ScrollArea>
                 </div>
               ) : (
-                <p className="pt-4 text-sm text-muted-foreground">
-                  No transcript yet. Open Hook &amp; structure or Why it worked and click Transcribe &amp; Analyze
-                </p>
+                <p className="pt-4 text-sm text-muted-foreground">No transcript yet.</p>
               )}
             </TabsContent>
 
             <TabsContent value="hook" className="pt-4">
               {detail.analysis ? (
-                <HookStructureTab
-                  analysis={detail.analysis}
-                  videoId={item.videoId}
-                  durationSec={item.durationSec}
-                  hasKey={hasLlmKey}
-                />
+                <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
-                  <AnalysisGate
-                    videoId={item.videoId}
-                    hasTranscript={hasTranscript}
-                    hasKey={hasLlmKey}
-                    canTranscribe={canTranscribe}
-                  />
+                  <NoAnalysisYet />
                 </div>
               )}
             </TabsContent>
@@ -666,12 +524,7 @@ export function VideoDetail({
                 </p>
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
-                  <AnalysisGate
-                    videoId={item.videoId}
-                    hasTranscript={hasTranscript}
-                    hasKey={hasLlmKey}
-                    canTranscribe={canTranscribe}
-                  />
+                  <NoAnalysisYet />
                 </div>
               )}
             </TabsContent>

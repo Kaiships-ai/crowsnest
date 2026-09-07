@@ -141,8 +141,7 @@ export interface PublishTickResult {
 
 /**
  * One scheduler tick. Never throws: a failure reading candidates, claiming a row, or
- * re-arming a retry is logged and the tick still resolves — same contract
- * `autoAnalyzeNewOutliers` (auto-analyze.ts) already uses for its own candidate query.
+ * re-arming a retry is logged and the tick still resolves.
  * A `publish` call that throws (instead of resolving with `state: "failed"`, which
  * publish-post.ts always does on its own errors) is caught per-row so one bad row can
  * never stop the rest of the batch or kill the interval this runs under.

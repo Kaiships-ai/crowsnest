@@ -234,8 +234,9 @@ export const videoAnalyses = sqliteTable("video_analyses", {
   model: text("model"),
   /**
    * Origin of the text analysis: "mcp" (an agent authored it through
-   * crowsnest_save_analysis), "auto" (the retired auto-analyze pass), "manual"
-   * (the in-app Analyze action), or "legacy" (written before this column existed).
+   * crowsnest_save_analysis — the only path new rows are written through as of P0
+   * slice 2a), "auto" (the retired auto-analyze pass), "manual" (the retired in-app
+   * Analyze/Re-analyze action), or "legacy" (written before this column existed).
    * Distinct from `model`, which names the text model; two rows can share a model
    * yet differ in who asked for the analysis.
    */

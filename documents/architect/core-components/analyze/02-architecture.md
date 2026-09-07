@@ -2,25 +2,23 @@
 
 `documents/architect/core-components/analyze/`
 
-Status: shipped and in daily use, a Kit install completing a real analysis with a live Claude key has not been proven end to end.
+Status: shipped and in daily use. Analysis is authored only by an external agent (Claude or Codex) through MCP; there is no internal-model analyze path and no `ANTHROPIC_API_KEY` requirement anywhere in this component (P0 slice 2a). Generate idea is unaffected by that retirement and still needs a Claude key.
 
 ## 1. Module structure
 
 | File | Export | Role |
 | --- | --- | --- |
-| `src/components/video/video-detail.tsx` | `AnalysisGate`, `ReanalyzeButton`, `VideoDetail` (default export) | The video detail page. Holds the analyze gate, which picks one of four faces from `hasTranscript`, `hasKey`, and `canTranscribe`, the Re-analyze control by the Beats heading, and the Generate idea button in the action row. Pending state is plain component state, not a transition, so the disabled button is the only thing the wait blocks. |
-| `src/app/(shell)/feed/[videoId]/page.tsx` | `VideoDetailPage` (default), `generateMetadata` | The server read that decides the gate's face. Resolves `hasLlmKey()` and `availableTranscriptProviders()` (folded into `canTranscribe`) and threads them, plus the detail read below, into `VideoDetail`. |
-| `src/server/queries/video.ts` | `getVideoDetail`, `recordRecentlyViewed` | Assembles the video detail read: the video row, its transcript row (or null), and its analysis row (or null, via `rowToAnalysis`). `hasTranscript` on the page is `detail.transcript !== null`. |
-| `src/server/actions/analyze-actions.ts` | `analyzeVideoAction`, `reanalyzeVideoAction` | Thin `"use server"` wrappers over `getOrCreateAnalysis` that translate errors into `{ ok, error }`. They carry no `code` field, unlike most core-loop actions, so the client branches on success or failure only, the open backlog item is B-17a in [backlog to enhance](05-backlog-to-enhance.md). `runFramePassAction` and `getFramePassJobAction` also live in this file but belong to the separate frame pass, not text analysis. |
-| `src/server/services/analyze.ts` | `getOrCreateAnalysis`, `rowToAnalysis`, `StoredVideoAnalysis` | The real logic: cache lookup, on-demand transcription, the model call, and the write. Fully covered by `analyze.test.ts`. |
-| `src/server/services/prompts/analyze-prompt.ts` | `ANALYZE_SYSTEM`, `buildAnalyzeUser` | The system and user prompts fed to the model for a text analysis pass. |
-| `src/server/actions/idea-actions.ts` | `generateIdeaAction` | The `"use server"` wrapper over `generateIdea`. Unlike the analyze actions, it carries a `code` field on every failure (`IDEA_GENERATE_FAILED`, `IDEA_GENERATE_UNKNOWN`). `setIdeaStatusAction`, `createScriptFromIdeaAction`, and `setIdeaNotesAction` also live in this file but belong to the ideas inbox, out of scope for this repo. |
-| `src/server/services/ideas.ts` | `generateIdea`, `generateIdeasForNewOutliers` | `generateIdea` reads a video's `video_analyses` row and the single persona, asks the model, and upserts the `idea` row keyed on `sourceVideoId`; it never throws. `generateIdeasForNewOutliers` is the sync's automatic idea pass over a channel's already-analyzed outliers, capped at 20. |
-| `src/server/services/auto-analyze.ts` | `autoAnalyzeNewOutliers`, `AUTO_ANALYZE_CAP` | The sync's automatic analyze pass: downloads (if needed) then analyzes a channel's top unanalyzed outliers, capped at 10 (`AUTO_ANALYZE_CAP`). Never throws. |
-| `src/server/services/outlier-calc.ts` | `OUTLIER_IDEA_THRESHOLD` | The outlier score (3) both automatic passes gate candidates on. |
-| `src/server/llm/schemas.ts` | `VideoAnalysisSchema`, `IdeaSchema`, `StoredAnalysisFields`, `StoredStructureSegment` | `VideoAnalysisSchema` is validated 1:1 against what the text model returns; `IdeaSchema` is `concept` plus `angle`. |
-| `src/server/llm/client.ts` | `getLlm`, `resolveModel`, `hasLlmKey`, `NoApiKeyError` | The [llm layer](../llm/01-concept-brief.md) analyze and Generate idea reach the model through. |
-| `src/server/transcribe/index.ts` | `getOrCreateTranscript`, `availableTranscriptProviders`, `NoTranscriptProviderError`, `VideoNotDownloadedError` | The cache-first whisper.cpp then Groq chain. `getOrCreateTranscript` throws `VideoNotDownloadedError` when the video has no locally downloaded video asset yet, there is deliberately no remote-URL fallback. |
+| `src/components/video/video-detail.tsx` | `VideoDetail` (default export) | The video detail page. Renders the stored analysis (Hook and structure tab, Why it worked tab) when `detail.analysis` is present, or a plain "No analysis yet" placeholder when it is not. There is no Analyze/Re-analyze button on this page; nothing here calls a model. |
+| `src/app/(shell)/feed/[videoId]/page.tsx` | `VideoDetailPage` (default), `generateMetadata` | The server read for the detail page. Reads the video, its transcript, and its analysis (all through `getVideoDetail`) and threads them into `VideoDetail`. |
+| `src/server/queries/video.ts` | `getVideoDetail`, `recordRecentlyViewed` | Assembles the video detail read: the video row, its transcript row (or null), and its analysis row (or null, via `rowToAnalysis`). |
+| `src/server/services/analyze.ts` | `saveAgentAnalysis`, `rowToAnalysis`, `StoredVideoAnalysis` | The whole of analyze's write path. `saveAgentAnalysis` validates an agent-authored analysis against `VideoAnalysisSchema` and upserts the `video_analyses` row stamped `source: "mcp"`; it never touches the LLM client, `getLlm`, or any model call. `rowToAnalysis` is the shared row-to-shape mapping remix.ts and the `crowsnest_video` MCP tool both read through. |
+| `src/server/mcp/mcp-server.ts` | `crowsnest_save_analysis`, `crowsnest_video` | The MCP surface. `crowsnest_save_analysis` is the only way a new analysis is written; it wraps `saveAgentAnalysis` and validates against the same `VideoAnalysisSchema` the retired in-app path used. `crowsnest_video` reads one video's full detail, analysis and transcript text included, for the agent to ground its authoring in. |
+| `src/server/actions/idea-actions.ts` | `generateIdeaAction` | The `"use server"` wrapper over `generateIdea`. Carries a `code` field on every failure (`IDEA_GENERATE_FAILED`, `IDEA_GENERATE_UNKNOWN`). `setIdeaStatusAction`, `createScriptFromIdeaAction`, and `setIdeaNotesAction` also live in this file but belong to the ideas inbox, out of scope for this repo. |
+| `src/server/services/ideas.ts` | `generateIdea`, `generateIdeasForNewOutliers` | Unchanged by the analyze retirement, still key-gated. `generateIdea` reads a video's `video_analyses` row (however it was written, agent or otherwise) and the single persona, asks the model, and upserts the `idea` row keyed on `sourceVideoId`; it never throws. `generateIdeasForNewOutliers` is the sync's automatic idea pass over a channel's already-analyzed outliers, capped at 20; since the in-app auto-analyze pass is retired, an outlier only reaches this inner join once an external agent has analyzed it through MCP. |
+| `src/server/services/outlier-calc.ts` | `OUTLIER_IDEA_THRESHOLD` | The outlier score (3) the ideas pass gates candidates on. |
+| `src/server/llm/schemas.ts` | `VideoAnalysisSchema`, `IdeaSchema`, `StoredAnalysisFields`, `StoredStructureSegment` | `VideoAnalysisSchema` is the validation contract both `saveAgentAnalysis` and `crowsnest_save_analysis` check an agent's analysis against; `IdeaSchema` is `concept` plus `angle`, still used by Generate idea's model call. |
+| `src/server/llm/client.ts` | `getLlm`, `resolveModel`, `hasLlmKey`, `NoApiKeyError` | The [llm layer](../llm/01-concept-brief.md) Generate idea reaches the model through. No longer imported anywhere in `analyze.ts` or the analyze actions. |
+| `src/server/transcribe/index.ts` | `getOrCreateTranscript`, `availableTranscriptProviders`, `NoTranscriptProviderError`, `VideoNotDownloadedError` | The cache-first whisper.cpp then Groq chain, kept as infrastructure. Nothing in this component currently calls it on demand; a transcript reaches `video_analyses`/`crowsnest_video` only if one was already written to the `transcripts` table by another path. |
 | `src/server/db/schema.ts` | `transcripts`, `videoAnalyses`, `idea` | `transcripts` and `video_analyses` are one row per video, keyed on `video_id`; `idea` is one row per generated idea, uniqueness enforced by the partial index `idea_source_active`. |
 
 ## 2. ER diagram
@@ -51,10 +49,11 @@ erDiagram
         string format_tags "json array"
         string style_tags "json array"
         string why_it_worked
-        string summary "never written by the analyze pass, see key decisions"
+        string summary "never written by any current path, see key decisions"
         string model
+        string source "mcp for every row written by current code; auto/manual/legacy are retired or pre-column values"
         string created_at
-        string layout "json, null until a separate frame pass runs, a re-analysis never touches it"
+        string layout "json, null until a separate frame pass runs"
         integer frames_sampled
     }
     IDEA {
@@ -80,74 +79,58 @@ erDiagram
 | idea | idea_status | Plain index on `status`; backs the ideas inbox filtering by inbox, shortlisted, scripted, or discarded, a screen out of scope for this repo. |
 | idea | idea_source_active | Partial unique on `source_video_id` where `status != 'discarded'`; the database-level backstop for "at most one non-discarded idea per video". `generateIdea` still does a select-then-update upsert rather than relying on it, because a partial index is not a target `onConflictDoUpdate` can name. |
 
-`transcripts` and `video_analyses` carry no indexes beyond their primary key (`video_id` itself), which doubles as the foreign key into `videos` and the cache key `getOrCreateTranscript` and `getOrCreateAnalysis` both look up by.
+`transcripts` and `video_analyses` carry no indexes beyond their primary key (`video_id` itself), which doubles as the foreign key into `videos` and the cache key `getOrCreateTranscript` and `saveAgentAnalysis` both look up by.
 
 ## 4. Data flow
 
-**The read.** The detail page reads four facts on the server, does the video have an analysis, does it have a transcript, is the Claude key set, is a transcript provider reachable right now, and `AnalysisGate` picks its face from them. An already-analyzed video shows the result and the Re-analyze control instead of a gate.
+**The read.** `getVideoDetail` reads the video row, its transcript row (or null), and its analysis row (or null, via `rowToAnalysis`) and hands all three to `VideoDetail`. When `detail.analysis` is present, the Hook and structure and Why it worked tabs render it; when it is not, both tabs render a plain "No analysis yet" placeholder. There is no gate logic, no key check, and no button.
 
-**Analyze.** A click runs `analyzeVideoAction`, which calls `getOrCreateAnalysis(videoId)`. A cache hit returns the stored text fields without touching the transcript or the model. On a miss it reads the stored transcript or, if there is none, calls `getOrCreateTranscript` (cache-first whisper.cpp then Groq); that call needs the video's own downloaded video asset and throws `VideoNotDownloadedError` when it is not there, a distinct failure from `NoTranscriptProviderError` (neither provider usable). Once a transcript is in hand, the client is resolved with `getLlm()` (which throws `NoApiKeyError` when unkeyed) and `generateParsed` is called against `VideoAnalysisSchema`. The parsed text fields plus `resolveModel()` are inserted as one `video_analyses` row, there is no partial write. On success the action returns `{ ok: true }`, the client toasts and calls `router.refresh()`; on failure `errorMessage` maps `NoApiKeyError`, `NoTranscriptProviderError`, `VideoNotDownloadedError`, and the SDK's typed errors to a string toast, and nothing is written. Because `canTranscribe` is computed from provider availability alone, not from whether this particular video's asset has downloaded, the gate can offer a live "Transcribe & Analyze" button on a video whose asset is not yet local, in which case the click still fails, with `VideoNotDownloadedError`'s own message surfacing as the toast.
+**Write, through MCP.** An external agent (Claude Code, Codex, or any MCP-speaking client connected to crowsnest) calls `crowsnest_video` to read a video's caption, metrics, and full transcript text, forms its own read of the hook, beats, format, style, and why-it-worked, then calls `crowsnest_save_analysis` with those fields. The tool wraps `saveAgentAnalysis`, which validates the payload against `VideoAnalysisSchema` (the identical schema the retired in-app model call used), and either upserts the `video_analyses` row stamped `source: "mcp"` or returns `{ ok: false, error }` without writing anything on a validation failure or an unknown video id. Calling it again for the same video updates the existing row in place. Nothing in this path resolves an LLM client, checks for `ANTHROPIC_API_KEY`, or can throw `NoApiKeyError`; the whole pass is deterministic reads and writes plus one schema check.
 
-**Re-analyze.** `reanalyzeVideoAction` calls `getOrCreateAnalysis(videoId, { force: true })`, which updates only the text columns (hook, structure, format, style, why) and leaves the layout columns, the frame-pass provenance, and `createdAt` alone, a text pass has seen no frames.
+**Generate idea.** Unchanged. `generateIdeaAction` calls `generateIdea`, which reads the video's `video_analyses` row (however it was written) and the single persona, asks the model, and upserts one `idea` row keyed on `sourceVideoId`. It rewrites only an untouched `inbox` idea; a shortlisted or scripted one is left as the user left it. `generateIdea` never throws, a bad reply comes back as `{ id: "", created: false }`.
 
-**Generate idea.** `generateIdeaAction` calls `generateIdea`, which reads the video's `video_analyses` row and the single persona, asks the model, and upserts one `idea` row keyed on `sourceVideoId`. It rewrites only an untouched `inbox` idea; a shortlisted or scripted one is left as the user left it. `generateIdea` never throws, a bad reply comes back as `{ id: "", created: false }`, so the same call is safe to run per outlier in the sync's automatic pass.
+**The sync's automatic idea pass.** Near the end of every channel's sync, `sync-engine.ts` no longer calls an in-app auto-analyze pass; that pass (`auto-analyze.ts`) is retired. `generateIdeasForNewOutliers` itself is untouched and still runs from an explicit call (an on-demand job, not sync's own tail), over the channel's already-analyzed outliers at or above `OUTLIER_IDEA_THRESHOLD`, capped at 20; since nothing in-app writes an analysis anymore, only outliers an agent has already analyzed through MCP are visible to it.
 
-**The sync's automatic passes.** Near the end of every channel's sync, `sync-engine.ts` calls `autoAnalyzeNewOutliers` then `generateIdeasForNewOutliers`, in that order and never awaited around a throw, because neither function ever throws on its own account. `autoAnalyzeNewOutliers` selects the channel's unanalyzed outliers at or above `OUTLIER_IDEA_THRESHOLD`, top-scorers-first, capped at `AUTO_ANALYZE_CAP` (10), downloads a video asset when one is not yet local, then calls `getOrCreateAnalysis`. `generateIdeasForNewOutliers` runs afterward over the channel's already-analyzed outliers at or above the same threshold, capped at 20, and calls `generateIdea` per candidate, this ordering is why an outlier can gain both an analysis and an idea in the same sync run.
-
-## 5. Sequence: one analyze pass
+## 5. Sequence: an agent authors an analysis through MCP
 
 ```mermaid
 sequenceDiagram
-    actor UI as Hook and structure tab
-    participant Action as analyzeVideoAction
-    participant Transcribe as getOrCreateTranscript
-    participant Llm
+    actor Agent as External agent (Claude/Codex)
+    participant Video as crowsnest_video
+    participant Save as crowsnest_save_analysis
     participant DB
 
-    UI->>Action: analyzeVideoAction(videoId)
-    activate Action
-    Action->>DB: **Check for an existing analysis row** (videoAnalyses)<br/>params:{ videoId }
-    DB-->>Action: Return {VideoAnalysis} or null<br/>params:{ videoId }
-    alt already analyzed, not forced
-        Action-->>UI: Return success response that the stored analysis is shown<br/>params:{ videoId }
-    end
-    Action->>DB: **Check for a stored transcript** (transcripts)<br/>params:{ videoId }
-    DB-->>Action: Return {Transcript} or null<br/>params:{ videoId }
-    alt no stored transcript
-        Action->>Transcribe: **Create a transcript on demand**<br/>params:{ videoId }
-        alt no usable provider, or the video has no downloaded asset yet
-            Transcribe-->>Action: Return error that no transcript could be made<br/>params:{ reasons }
-            Action-->>UI: Return error response that no transcript could be made<br/>params:{ error }
-        end
-        Transcribe-->>Action: Return {text, source}<br/>params:{ source }
-    end
-    Action->>DB: **Confirm the video still exists** (videos)<br/>params:{ videoId }
-    DB-->>Action: Return {Video} or null<br/>params:{ videoId }
+    Agent->>Video: crowsnest_video(videoId)
+    Video->>DB: Read video, transcript, and existing analysis rows<br/>params:{ videoId }
+    DB-->>Video: Return {Video, Transcript, VideoAnalysis|null}
+    Video-->>Agent: Return the video's caption, metrics, transcript text, and any existing analysis
+
+    Agent->>Save: crowsnest_save_analysis(videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked)
+    Save->>DB: **Confirm the video exists** (videos)<br/>params:{ videoId }
+    DB-->>Save: Return {Video} or null
     alt video not found
-        Action-->>UI: Return error response that the video is gone<br/>params:{ error: "Video not found, try refreshing the page" }
+        Save-->>Agent: Return error "video not found", nothing written
     end
-    alt no Claude API key set
-        Action-->>UI: Return error response that a key is needed<br/>params:{ error: "Add ANTHROPIC_API_KEY in Settings to enable analysis" }
+    Save->>Save: Validate the payload against VideoAnalysisSchema
+    alt validation fails
+        Save-->>Agent: Return the validation error, nothing written
     end
-    Action->>Llm: **Generate the analysis from the transcript** (generateParsed, VideoAnalysisSchema)<br/>params:{ videoId }
-    Llm-->>Action: Return {VideoAnalysis}<br/>params:{ hookType, structureSegments, formatTags, styleTags, whyItWorked }
-    Action->>DB: **Insert the analysis row** (videoAnalyses)<br/>params:{ videoId, hookType: VideoAnalysis.hookType, model }
-    DB-->>Action: Return {VideoAnalysis}<br/>params:{ videoId }
-    deactivate Action
-    Action-->>UI: Return success response that the analysis is ready<br/>params:{ videoId }
+    Save->>DB: **Upsert the video_analyses row, source="mcp"** (videoAnalyses)<br/>params:{ videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked }
+    DB-->>Save: Row written
+    Save-->>Agent: Return { ok: true, videoId }
 ```
 
-This is the primary, unanalyzed-video pass. A re-analysis follows the same shape but skips the first cache-hit check by design (`force: true`) and updates the existing row's text columns instead of inserting a new one; the layout columns are never touched, matching the decision below. Generate idea is a separate pass, over the `idea` table, not shown here.
+A second call for the same video updates the row in place; there is no separate re-analyze path, the agent simply calls `crowsnest_save_analysis` again with a fresh reading.
 
 ## 6. Key decisions
 
-- **Layout is not analysis.** `StoredVideoAnalysis` is a strict superset of the text model's `VideoAnalysis`; the layout columns are written only by a separate frame pass with its own model and timestamp. `getOrCreateAnalysis` returns the plain text shape, and a re-analysis never touches layout, so a text pass can never misattribute a frame reading it did not do.
-- **Cache-first, on-demand, keyed by video id.** The one row per video is the cache; a hit skips the transcript chain and the model entirely. Transcription is created on demand only on a miss, so a freshly synced and downloaded video is analyzable without a separate transcribe step.
-- **Analyze actions omit the `code` field.** Unlike most core-loop actions, `analyzeVideoAction` and `reanalyzeVideoAction` return only `{ ok, error }`, so a failure surfaces as a raw string toast the client cannot tell apart, carried as open item B-17a in [backlog to enhance](05-backlog-to-enhance.md). `generateIdeaAction`, by contrast, does carry a `code` field (`IDEA_GENERATE_FAILED`, `IDEA_GENERATE_UNKNOWN`) on every failure.
-- **A missing downloaded video asset is a distinct failure from a missing transcript provider.** `getOrCreateTranscript` throws `VideoNotDownloadedError`, not `NoTranscriptProviderError`, when `videos.videoAssetId` is null; there is deliberately no remote-URL fallback, so a caller can never get an empty transcript for a video sync has not downloaded bytes for yet.
-- **The `video_analyses.summary` column is never written by the analyze pass.** Confirmed at the data level, filed as B-10 in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md), where the summary's rendering also lives.
-- **One idea per video, enforced in the database.** The `idea_source_active` partial index is the backstop; the service does a select-then-update upsert because that partial index is not a target `onConflictDoUpdate` can name.
+- **Analysis is authored only by an external agent, never in-app.** P0 slice 2a removed `getOrCreateAnalysis`, `analyzeVideoAction`, `reanalyzeVideoAction`, and the in-app auto-analyze pass (`auto-analyze.ts`). Crowsnest needs no `ANTHROPIC_API_KEY` to have video analyses; `crowsnest_save_analysis` is the only write path for new rows.
+- **Layout is not analysis.** `StoredVideoAnalysis` is a strict superset of the text model's `VideoAnalysis`; the layout columns are written only by a separate frame pass with its own model and timestamp, untouched by this retirement.
+- **Same validation contract, different author.** `saveAgentAnalysis` and `crowsnest_save_analysis` validate against the exact `VideoAnalysisSchema` the retired in-app model call validated against, so a `video_analyses` row looks identical downstream (Remix, the detail page, `rowToAnalysis`) regardless of who authored it.
+- **`crowsnest_video` carries the raw transcript text.** So an agent has everything it needs to author a grounded analysis in one read, without a second tool call: caption, metrics, the full transcript text (via `getVideoDetail`, which already read the `transcripts` table), and any existing analysis.
+- **The `video_analyses.summary` column is still never written.** Confirmed at the data level, filed as B-10 in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md), where the summary's rendering also lives.
+- **One idea per video, enforced in the database.** Unchanged. The `idea_source_active` partial index is the backstop; the service does a select-then-update upsert because that partial index is not a target `onConflictDoUpdate` can name.
 
 ## 7. Open, not verified
 
-Per [packaging and release](../../shared/packaging-and-release.md), a Kit install has not been proven to complete a real AI analysis with real credentials, and the no-proxy LLM path (hitting the Anthropic API directly, no local router) is unverified end to end.
+Per [packaging and release](../../shared/packaging-and-release.md), a Kit install has not been proven to complete a real Generate idea call with real credentials; that feature still needs the Claude key. The keyless analyze path introduced in this slice needs no such proof, since it never touches a model or a key.
