@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { getVideoPreviewAction } from "@/server/queries/preview-action";
 import type { VideoDetail } from "@/server/queries/video";
 import { OutlierBadge } from "./outlier-badge";
+import { platformLabel } from "./platform-chip";
 
 // Keyed by the id it was fetched for, so `loading`/`notFound` are derived from
 // comparing `result.id` to the current `id` rather than tracked as separate state —
@@ -98,6 +99,14 @@ export function QuickPreviewSheet({
               <div className="flex flex-col gap-1">
                 <p className="text-sm font-medium text-foreground">{detail.item.channel.handle}</p>
                 <p className="line-clamp-2 text-sm text-muted-foreground">{detail.item.caption}</p>
+                {/* B-16: the card and the detail page both mark a soft-removed post; this
+                    sheet didn't. Same marker markup as outlier-card.tsx, driven off the
+                    same derived `FeedItem.deleted` flag. */}
+                {detail.item.deleted && (
+                  <span className="text-2xs text-destructive" data-num="1">
+                    No longer on {platformLabel(detail.item.channel.platform)}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-4 text-sm text-muted-foreground">

@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { looksLikeInstagramUrl } from "@/lib/handle";
 import { bridgeAddChannel, bridgeImportReel } from "./sync-bridge";
 
 // The platform picker used to offer TikTok and YouTube Shorts. Nothing could ever sync
@@ -76,6 +77,14 @@ export function AddChannelDialog({
     // Clear the previous rejection first, so a retry does not sit under a stale reason
     // while the new attempt is in flight.
     setError(null);
+    // BEH-01: a pasted profile URL (e.g. `https://www.instagram.com/creator/`) is a typo
+    // here, not a handle — `normalizeHandle` would silently extract "creator" and send it
+    // on to the add-channel action, surfacing that action's own failure instead of naming
+    // the real mistake. Caught before the request goes out; nothing is written.
+    if (looksLikeInstagramUrl(handle)) {
+      setError("That looks like a URL. Enter just the handle, like \"creator\".");
+      return;
+    }
     setPending(true);
     const result = await bridgeAddChannel(handle);
     setPending(false);
@@ -151,12 +160,12 @@ export function AddChannelDialog({
                 <Input
                   id="channel-handle"
                   data-testid="add-channel-handle-input"
-                  placeholder="@handle or instagram.com/handle"
+                  placeholder="@handle"
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
                 />
                 <p className="text-muted-foreground text-xs">
-                  A profile URL works too — it&apos;s normalised to a handle.
+                  Just the handle, not the full profile link.
                 </p>
               </div>
               <Button type="submit" data-testid="add-channel-submit-handle" disabled={!handle || pending}>
