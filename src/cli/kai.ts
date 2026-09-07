@@ -30,6 +30,16 @@ import {
   wheelhouse,
 } from "./runtime";
 import * as svc from "./service-darwin";
+import {
+  claudeCodeAddArgs,
+  claudeDesktopConfigPath,
+  claudeDesktopJson,
+  codexConfigPath,
+  genericMcpJson,
+  probeMcp,
+  registerClaudeCode,
+  registerCodex,
+} from "./mcp-register";
 
 // Only run the CLI (or respawn it below) when this file is executed directly, not when
 // a test imports it for `ask`/`checkPairedIgCreds`/etc. tsx runs this file as CJS in the
@@ -282,11 +292,21 @@ async function cmdKitInit(): Promise<void> {
 
   console.log("\nKit ready. Starting crowsnest...");
   await cmdUp();
+
+  // With the server up, register the MCP endpoint so Claude/Codex can drive crowsnest
+  // right away. Non-fatal: init has already succeeded, and cmdMcp prints manual config.
+  console.log("\nWiring up MCP for your agent...");
+  try {
+    await cmdMcp();
+  } catch (err) {
+    console.error(`MCP registration hit a snag (run \`kai mcp\` to retry): ${(err as Error).message}`);
+  }
 }
 
 // ---------------------------------------------------------------- service commands
 
 const SERVER_URL = "http://localhost:3000";
+const MCP_URL = `${SERVER_URL}/api/mcp`;
 
 function requireLicense(): void {
   if (!readEntitlement()) die("No license found. Run `kai login <license-key>` first.");
@@ -362,6 +382,41 @@ async function cmdUp(): Promise<void> {
   spawnSync("open", [SERVER_URL], { stdio: "ignore" });
 }
 
+/**
+ * Register the crowsnest MCP server with the local reasoning agents and print config for
+ * every other client. Crowsnest is the data/action brain; Claude/Codex is the reasoning
+ * brain, so a buyer's very next move after setup is pointing their agent at the MCP
+ * endpoint. `print` (or --print) only prints, never writes; the default `kai mcp` both
+ * registers the local agents and prints. Never fatal: a failed client registration still
+ * leaves the printed config as the manual fallback.
+ */
+async function cmdMcp(rest: string[] = []): Promise<void> {
+  const printOnly = rest.includes("--print") || rest[0] === "print";
+
+  const probe = await probeMcp(MCP_URL);
+  if (probe.reachable) {
+    console.log(`MCP endpoint ${MCP_URL} [OK] ${probe.detail}`);
+  } else {
+    console.log(`MCP endpoint ${MCP_URL} [!!] not reachable (${probe.detail}). Start it with \`kai up\`.`);
+  }
+
+  if (!printOnly) {
+    console.log("\nRegistering with local agents:");
+    for (const r of [registerClaudeCode(MCP_URL), registerCodex(MCP_URL)]) {
+      console.log(`  [${r.ok ? "OK" : "--"}] ${r.client.padEnd(12)} ${r.detail}`);
+    }
+  }
+
+  console.log("\nGeneric MCP client (add to its config):");
+  console.log(genericMcpJson(MCP_URL));
+  console.log(`\nClaude Code (manual): claude ${claudeCodeAddArgs(MCP_URL).join(" ")}`);
+  console.log(`\nCodex (${codexConfigPath()}): append`);
+  console.log(`  [mcp_servers.crowsnest]\n  url = "${MCP_URL}"`);
+  console.log(`\nClaude Desktop (${claudeDesktopConfigPath()}):`);
+  console.log(claudeDesktopJson(MCP_URL));
+  console.log('\nRestart your MCP client, then verify with a call like crowsnest_channels.');
+}
+
 async function cmdStatusFull(): Promise<void> {
   const e = readEntitlement();
   console.log(`License:  ${e ? `active (activation ${e.activation_id})` : "not logged in"}`);
@@ -421,6 +476,17 @@ async function cmdDoctor(): Promise<void> {
     !igRunning || igHealthy,
     !igRunning ? "not running" : igHealthy ? "responds to /health" : "not responding to /health (see kai up, or the ig log)",
   );
+
+  // MCP endpoint: the reason the Kit exists (Claude/Codex reach crowsnest through it).
+  // Only a failure when the server is up but the endpoint doesn't answer a tools/list.
+  const serverRunning = svc.running("com.crowsnest.server");
+  if (serverRunning) {
+    const probe = await probeMcp(MCP_URL);
+    ok("mcp endpoint", probe.reachable, probe.reachable ? `${MCP_URL} (${probe.detail})` : `${MCP_URL} unreachable: ${probe.detail}`);
+  } else {
+    ok("mcp endpoint", true, "server stopped (start with kai up), then: kai mcp");
+  }
+
   // uv + wheelhouse presence, bundle only
   if (isBundle) {
     ok("uv", existsSync(uvBin), uvBin);
@@ -529,6 +595,9 @@ async function main(): Promise<void> {
     case "up":
       await cmdUp();
       break;
+    case "mcp":
+      await cmdMcp(rest);
+      break;
     case "start":
       await cmdStart();
       break;
@@ -552,6 +621,7 @@ async function main(): Promise<void> {
       console.log("  kai login <license-key>   validate your key, claim an activation");
       console.log("  kai kit init              set up config, build the db, start crowsnest");
       console.log("  kai up                    start crowsnest and open the dashboard");
+      console.log("  kai mcp                   register the MCP server with Claude/Codex, print config");
       console.log("  kai start | stop          run or halt the background services");
       console.log("  kai status                license + service state");
       console.log("  kai doctor                health check");
