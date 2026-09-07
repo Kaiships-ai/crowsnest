@@ -11,9 +11,9 @@ import {
   getRemixSession,
   updateStage,
   buildResearch,
-  generateHooks,
-  generateOutline,
-  generateVariants,
+  buildHookPrompt,
+  buildOutlinePrompt,
+  buildScriptPrompt,
   saveScript,
   finishRemix,
 } from "@/server/services/remix";
@@ -102,7 +102,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data and drive a remix end to end. Browse over-performers with crowsnest_feed, read one with crowsnest_video (its analysis, plus the source media path, size, and duration for handoff), then run the crowsnest_remix_* chain (session, set_prompt, research, hooks, choose_hook, style, outline, variants, save_script, finish) to turn it into a script and a draft planned post. crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, crowsnest_metrics, and crowsnest_plans are read-only. Before crowsnest_sync_selected, check crowsnest_ig_status: it says whether the Instagram sidecar is reachable and gives the exact command to start it when it isn't." }
+    { instructions: "Read Crowsnest data and drive a remix end to end — keyless: no internal model key or proxy is used anywhere in this chain, YOU are the only reasoning model. Browse over-performers with crowsnest_feed, read one with crowsnest_video (its analysis, plus the source media path, size, and duration for handoff), then run the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt — you write the hooks), choose_hook (your pick), style, outline (returns a prompt — you write the outline), variants (returns a prompt — you write the script), save_script (your script text), finish. finish turns it into a draft planned post. crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, crowsnest_metrics, and crowsnest_plans are read-only. Before crowsnest_sync_selected, check crowsnest_ig_status: it says whether the Instagram sidecar is reachable and gives the exact command to start it when it isn't." }
   );
 
   server.registerTool(
@@ -440,10 +440,15 @@ export function buildMcpServer(): McpServer {
   );
 
   // Remix, exposed one tool per stage so a caller can steer each step. Every tool calls
-  // the same service functions the dashboard uses. The generate tools (hooks, outline,
-  // variants) need the LLM proxy; the others do not. Stage progression on the session is
-  // left to the service functions (finish sets the stage); these tools do not manage the
-  // stepper, since that only affects how the dashboard renders the session.
+  // the same service functions the dashboard uses, except the three generate stages
+  // (hooks, outline, variants): the MCP path is keyless (P0 slice 2b) — they return the
+  // assembled { system, user, context } prompt instead of calling an internal model, and
+  // the calling agent writes the result itself and reports it back (choose_hook,
+  // save_script). The in-app dashboard still calls the internal model directly via the
+  // generate*/quickRemix functions in remix.ts — unchanged, out of scope here. Stage
+  // progression on the session is left to the service functions (finish sets the stage);
+  // these tools do not manage the stepper, since that only affects how the dashboard
+  // renders the session.
 
   server.registerTool(
     "crowsnest_remix_session",
@@ -500,15 +505,16 @@ export function buildMcpServer(): McpServer {
   server.registerTool(
     "crowsnest_remix_hooks",
     {
-      title: "Generate hooks",
-      description: "Generate hook options for a session. Needs the LLM proxy. Optionally seed from a vault hook, or steer with a note.",
+      title: "Hook prompt",
+      description:
+        "Returns the prompt for the Hooks stage: { system, user, context }. No internal model call, no proxy or key needed — YOU (the calling agent) write 5 hook options by fulfilling this prompt, then set your pick with crowsnest_remix_choose_hook. Optionally seed the prompt from a vault hook, or steer it with a note.",
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        vaultItemId: z.string().optional().describe("A vault hook item id to seed from."),
-        steer: z.string().optional().describe("A note to steer the generation, e.g. punchier."),
+        vaultItemId: z.string().optional().describe("A vault hook item id to seed the prompt from."),
+        steer: z.string().optional().describe("A note to steer the prompt, e.g. punchier."),
       },
     },
-    async (args) => result({ hooks: await generateHooks(args.sessionId, { vaultItemId: args.vaultItemId, steer: args.steer }) })
+    async (args) => result(await buildHookPrompt(args.sessionId, { vaultItemId: args.vaultItemId, steer: args.steer }))
   );
 
   server.registerTool(
@@ -546,60 +552,44 @@ export function buildMcpServer(): McpServer {
   server.registerTool(
     "crowsnest_remix_outline",
     {
-      title: "Generate outline",
-      description: "Generate the beat outline for a session from its chosen hook and style. Needs the LLM proxy. Steer with a note.",
+      title: "Outline prompt",
+      description:
+        "Returns the prompt for the Outline stage: { system, user, context }. No internal model call, no proxy or key needed — YOU write the beat outline by fulfilling this prompt from the session's chosen hook and style, then carry it into the script you write for crowsnest_remix_variants. Steer with a note.",
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        steer: z.string().optional().describe("A note to steer the generation."),
+        steer: z.string().optional().describe("A note to steer the prompt."),
       },
     },
-    async (args) => result(await generateOutline(args.sessionId, { steer: args.steer }))
+    async (args) => result(await buildOutlinePrompt(args.sessionId, { steer: args.steer }))
   );
 
   server.registerTool(
     "crowsnest_remix_variants",
     {
-      title: "Generate variants",
-      description: "Generate script variants (three by default) for a session. Needs the LLM proxy. A failed variant is returned as an error at its slot. Steer with a note.",
+      title: "Script prompt",
+      description:
+        "Returns the prompt for the Script stage: { system, user, context }. No internal model call, no proxy or key needed — YOU write the script by fulfilling this prompt from the session's chosen hook and outline, then save it with crowsnest_remix_save_script. context.angles lists the fixed per-take angles crowsnest itself used to vary multiple takes; append one to the prompt yourself if you want more than one script to choose between. Steer with a note.",
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        steer: z.string().optional().describe("A note to steer the generation."),
+        steer: z.string().optional().describe("A note to steer the prompt."),
       },
     },
-    async (args) => result({ variants: await generateVariants(args.sessionId, { steer: args.steer }) })
-  );
-
-  server.registerTool(
-    "crowsnest_remix_regenerate_variant",
-    {
-      title: "Regenerate one variant",
-      description: "Regenerate a single variant slot by index, keeping the others. Needs the LLM proxy. Steer with a note.",
-      inputSchema: {
-        sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        index: z.number().describe("Zero-based variant index."),
-        steer: z.string().optional().describe("A note to steer the generation."),
-      },
-    },
-    async (args) => result({ variants: await generateVariants(args.sessionId, { index: args.index, steer: args.steer }) })
+    async (args) => result(await buildScriptPrompt(args.sessionId, { steer: args.steer }))
   );
 
   server.registerTool(
     "crowsnest_remix_save_script",
     {
       title: "Save a script",
-      description: "Save one variant as a script and record it as the chosen variant. Give the variant index and a title.",
+      description: "Save YOUR script text (from fulfilling crowsnest_remix_variants' prompt) as this session's script, titled. No internal model call.",
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
-        variantIndex: z.number().describe("Zero-based index of the variant to save."),
         title: z.string().describe("Title to give the saved script."),
+        script: z.string().describe("The full script text you wrote."),
       },
     },
     async (args) => {
-      const session = await getRemixSession(args.sessionId);
-      if (!session) return errorResult({ error: "session not found", sessionId: args.sessionId });
-      const content = session.variants?.[args.variantIndex];
-      if (typeof content !== "string") return errorResult({ error: "no variant text at that index", variantIndex: args.variantIndex });
-      const { scriptId } = await saveScript(args.sessionId, content, args.title, args.variantIndex);
+      const { scriptId } = await saveScript(args.sessionId, args.script, args.title);
       return result({ ok: true, scriptId });
     }
   );

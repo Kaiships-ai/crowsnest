@@ -26,7 +26,8 @@ async function connectedClient() {
 test("a client can list the new read and write tools over a real transport", async () => {
   const client = await connectedClient();
   const tools = await client.listTools();
-  expect(tools.tools.map((t) => t.name)).toEqual(
+  const names = tools.tools.map((t) => t.name);
+  expect(names).toEqual(
     expect.arrayContaining([
       "crowsnest_channels",
       "crowsnest_channel_stats",
@@ -37,8 +38,53 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_sync_cancel",
       "crowsnest_ig_status",
       "crowsnest_save_analysis",
+      // P0 slice 2b: the remix generate stages are prompt providers, not generators —
+      // still on the surface, just reshaped — and save_script takes the agent's own
+      // script text.
+      "crowsnest_remix_hooks",
+      "crowsnest_remix_outline",
+      "crowsnest_remix_variants",
+      "crowsnest_remix_save_script",
     ]),
   );
+  // regenerate_variant made no sense once there are no crowsnest-generated variants to
+  // regenerate — the calling agent just re-fulfills crowsnest_remix_variants' prompt.
+  expect(names).not.toContain("crowsnest_remix_regenerate_variant");
+});
+
+test("crowsnest_remix_save_script's schema takes the agent's own script text, not a variant index", async () => {
+  const client = await connectedClient();
+  const tools = await client.listTools();
+  const saveScript = tools.tools.find((t) => t.name === "crowsnest_remix_save_script");
+  expect(saveScript).toBeDefined();
+  const props = (saveScript?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+  expect(props).toHaveProperty("script");
+  expect(props).toHaveProperty("title");
+  expect(props).toHaveProperty("sessionId");
+  expect(props).not.toHaveProperty("variantIndex");
+});
+
+test("crowsnest_remix_hooks and crowsnest_remix_outline return a { system, user, context } prompt over the wire", async () => {
+  const client = await connectedClient();
+  const { db, tables, newId } = await import("@/server/db");
+  const channelId = newId();
+  const videoId = newId();
+  const now = new Date().toISOString();
+  await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@rt-remix-${channelId}`, trackedSince: now });
+  await db.insert(tables.videos).values({
+    id: videoId, channelId, platform: "instagram", externalId: `rt-remix-${videoId}`,
+    url: "https://example.com/p", postedAt: now, firstSeenAt: now,
+  });
+
+  const session = await client.callTool({ name: "crowsnest_remix_session", arguments: { videoId } });
+  expect(session.isError).not.toBe(true);
+  const sessionId = (session.structuredContent as { id: string }).id;
+
+  const hooks = await client.callTool({ name: "crowsnest_remix_hooks", arguments: { sessionId } });
+  expect(hooks.isError).not.toBe(true);
+  expect(hooks.structuredContent).toHaveProperty("system");
+  expect(hooks.structuredContent).toHaveProperty("user");
+  expect(hooks.structuredContent).toHaveProperty("context");
 });
 
 test("crowsnest_channels returns a well-formed (record) structuredContent over the wire", async () => {
