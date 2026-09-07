@@ -5,8 +5,8 @@ import { fieldValue, framePassCta } from "./layout-section";
 
 /**
  * `LayoutSection` itself uses `useRouter`/`useState` (client hooks with no Router
- * context in a node test run — the same reason `video-detail.tsx`'s `AnalysisGate` and
- * `carousel-viewer.tsx` have no render tests in this repo either), so only the pure
+ * context in a node test run — the same reason `carousel-viewer.tsx` has no render
+ * tests in this repo either), so only the pure
  * anti-fabrication rule is unit tested here: a value with no supporting frames is never
  * a reading, per schema.ts's `VideoLayoutField` doc comment.
  */

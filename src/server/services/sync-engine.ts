@@ -1557,11 +1557,13 @@ async function syncOneChannel(
       medianViews,
     });
 
-    // Sync mirrors Instagram metadata and assets, nothing else. The AI passes that once
-    // ran here (auto-analyze, then generate-ideas) downloaded and transcribed full videos
-    // and issued up to 20 LLM calls per channel, which made "Sync now" slow and RAM-heavy
-    // and failed outright without an LLM key. Both remain exported from `auto-analyze.ts`
-    // and `ideas.ts` for an explicit user action or a separate queued job to call.
+    // Sync mirrors Instagram metadata and assets, nothing else. The in-app auto-analyze
+    // pass that once ran here (download, transcribe, and call an internal model per
+    // outlier) made "Sync now" slow and RAM-heavy and failed outright without an LLM key;
+    // it is retired (P0 slice 2a — auto-analyze.ts is gone). Analysis is now authored
+    // only by an external agent through MCP (crowsnest_save_analysis), never in-app.
+    // `ideas.ts`'s `generateIdeasForNewOutliers` is untouched by that retirement and
+    // stays exported for an explicit user action or a separate queued job to call.
 
     // Stamp the trustworthy completion time. Any stop that is not a user cancel means this
     // channel finished a sync without error and its newest posts are current, which is what

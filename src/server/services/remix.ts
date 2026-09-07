@@ -211,7 +211,8 @@ function angleFor(index: number): string {
 /**
  * Reuses the latest remix session for this source video if one exists (any stage —
  * "resume where you left off" is the intended UX), else creates a fresh one at stage
- * "prompt". Mirrors analyze.ts's getOrCreateAnalysis cache-or-create shape (Task 2).
+ * "prompt". Mirrors the cache-or-create shape analyze.ts's saveAgentAnalysis/rowToAnalysis
+ * pair uses for a video_analyses row (Task 2).
  */
 export async function getOrCreateSession(videoId: string): Promise<RemixSessionRow> {
   const [existing] = await db

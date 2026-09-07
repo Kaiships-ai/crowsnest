@@ -1,8 +1,6 @@
 # analyze: feature description
 
-Analyze is what turns a raw outlier in the feed into an analyzed one. It reads a video and writes down what it is doing: its hook type, the beats of its structure, format and style tags, and a why-it-worked note. It lives on the video detail page inside the Hook and structure and Why it worked tabs, driven by one button and the generation it triggers, there is no separate page and no dialog. A second feature, Generate idea, lives in the same page's action row: it turns one analyzed video plus the creator's persona into a single content idea in the ideas inbox.
-
-Both features need an analysis (or, for Generate idea, an already-existing one) to run, and analysis itself needs two things: a transcript of the video, and the Claude API key. A transcript it will make on demand through a transcript provider (whisper.cpp locally, or Groq with a key) if none is stored and the video's own asset has already been downloaded; the key it cannot make, and without it the generation fails. Success and failure surface only as toasts; the two dead-end states, no transcript provider and no key, render as alerts in the gate rather than as toasts.
+Analyze is what turns a raw outlier in the feed into an analyzed one. It reads a video and writes down what it is doing: its hook type, the beats of its structure, format and style tags, and a why-it-worked note. Since P0 slice 2a, that reading is done entirely outside the app: an external agent (Claude Code, Codex, or any MCP-speaking client connected to crowsnest) reads a video's context through the `crowsnest_video` MCP tool and writes its analysis back through `crowsnest_save_analysis`. Crowsnest itself needs no model key and does no reasoning; the video detail page's Hook and structure and Why it worked tabs simply render whatever analysis exists, or a plain "No analysis yet" placeholder when none does. A second feature, Generate idea, lives in the same page's action row and is unaffected: it turns one analyzed video plus the creator's persona into a single content idea in the ideas inbox, and still needs the Claude key.
 
 ## 1. Feature summary
 
@@ -10,42 +8,40 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Analyze and reanalyze a video | Transcribes on demand if needed, then writes hook, structure, format tags, style tags, and why-it-worked for a video; Re-analyze replaces the text columns on an already-analyzed one | ● | `src/server/services/analyze.ts` (`getOrCreateAnalysis`) | B-17a: the action omits the error code field |
+| 2 | Analysis, authored by an external agent through MCP | An agent reads a video's context via `crowsnest_video` and writes hook, structure, format tags, style tags, and why-it-worked via `crowsnest_save_analysis`; the detail page renders whatever exists | ● | `src/server/services/analyze.ts` (`saveAgentAnalysis`), `src/server/mcp/mcp-server.ts` (`crowsnest_save_analysis`, `crowsnest_video`) | none open; the in-app Analyze/Re-analyze button and its B-17a error-code gap are retired along with it |
 | 3 | Generate an idea | Turns one analyzed video plus the creator's persona into a content idea in the ideas inbox | ● | `src/server/services/ideas.ts` (`generateIdea`) | B-12 (filed in feed's backlog): the button does not gate on a key or reflect an existing idea |
 
-## 2. Analyze and reanalyze a video
+## 2. Analysis, authored by an external agent through MCP
 
 ### Who uses it
 
-The user, from the video detail page's Hook and structure tab or Why it worked tab, to run the first analysis, and from the Re-analyze control next to the Beats heading, to run a fresh pass over a video that already has one.
+The external agent connected to crowsnest over MCP (Claude Code, Codex, or any other MCP client), not the crowsnest user directly. The user's part is passive: opening a video's detail page to read whatever analysis the agent has written.
 
 ### What it does
 
-Reads a video's stored transcript, or creates one on demand when none is stored and a provider is reachable, and writes one `video_analyses` row: hook type, beat-by-beat structure, format tags, style tags, and a why-it-worked note. One pass fills both the Hook and structure tab and the Why it worked tab, since they share the same row, whichever tab the user analyzes from. Re-analyze runs the same text pass again over an already-analyzed video and replaces only the text columns; it leaves the video's layout, written by a separate frame pass, and the first-analyzed timestamp alone.
+`crowsnest_video` gives the agent a video's caption, metrics, full transcript text, and any existing analysis in one read. The agent forms its own hook type, beat-by-beat structure, format tags, style tags, and why-it-worked note, then calls `crowsnest_save_analysis` with those fields. The tool validates them against `VideoAnalysisSchema`, the same schema the retired in-app model call used, and upserts one `video_analyses` row stamped `source: "mcp"`. Calling it again for the same video replaces the row in place; there is no separate re-analyze tool, a fresh call is a fresh reading.
 
 ### How to access it
 
-The "Analyze this video" or "Transcribe & Analyze" button, inside the gate both the Hook and structure and Why it worked tabs show on an unanalyzed video. The Re-analyze control next to the Beats heading, on a video that already has an analysis.
+There is no in-app control. The video detail page's Hook and structure and Why it worked tabs render `detail.analysis` when it is present; when it is not, both tabs show a plain "No analysis yet" message. Producing an analysis is entirely the connected agent's initiative, driven by its own MCP tool calls (`crowsnest_video`, then `crowsnest_save_analysis`).
 
 ### Business rules
 
-- The gate picks one of four faces from whether the video has a transcript, whether a transcript provider is reachable right now, and whether the Claude key is set: no transcript and no reachable provider is a dead-end alert with no button; no transcript but a reachable provider is a live "Transcribe & Analyze" button, which works even with no Claude key, since transcribing is keyless; a transcript but no key is an alert asking for the key; a transcript and the key is the plain "Analyze this video" button.
-- A live "Transcribe & Analyze" button does not guarantee the click will succeed: the gate's reachable-provider check looks only at whether whisper.cpp or Groq is usable in general, not at whether this particular video's own asset has already been downloaded, which the transcript step also needs. A video without a downloaded asset yet fails the click with its own distinct error.
-- A cache hit returns the stored analysis without touching the transcript chain or the model at all.
-- Clicking the button disables it immediately, so a second click in the same tab cannot start a second pass; the button relabels to "Transcribing" for the transcribe-and-analyze branch (for the whole wait, even during the analysis half) or "Analyzing" for the plain branch, and "Re-analyzing" for Re-analyze.
-- On success the analysis row is written whole, never partially; the toast reads "Analysis complete" (or "Re-analysis complete"), and the client re-reads the page so both tabs repaint. On failure nothing is written and the button re-enables.
-- Two tabs racing the very first analysis of one video contend for a single row keyed by the video id; the later write can fail with a generic error while the first succeeds, and at most one analysis row ever exists for a video.
-- The pending wait is plain component state, not a transition, so the rest of the page, including the arrow-key feed navigation, stays live and the user can leave mid-analysis; the server pass runs to completion regardless, but its toast and refresh do not fire on a page the user has left.
+- `crowsnest_save_analysis` validates its payload against `VideoAnalysisSchema` before writing anything; an invalid payload or an unknown video id returns an error and leaves the database untouched.
+- A cache is not involved on the write side the way it was for the retired in-app pass: every call the agent makes writes (insert or update); there is no cache-hit short-circuit, since the agent decides for itself whether to re-read and re-author.
+- On the read side, the detail page always shows whatever `video_analyses` row currently exists, however it was written; it does not distinguish an agent-authored row from a legacy in-app one beyond the `source` column, which the page does not currently render.
+- Crowsnest needs no `ANTHROPIC_API_KEY`, no Groq key, and no reachable transcript provider for this path to work end to end; the only external dependency is the agent itself having a model to reason with, which is entirely outside crowsnest's process.
+- `crowsnest_video` returns the video's transcript text (via `getVideoDetail`, which reads the `transcripts` table) so the agent has what it needs to ground its analysis without a second tool call. If no transcript row exists yet, the field reads null; nothing in this component currently transcribes on demand.
 
 ### Limitations
 
-- `analyzeVideoAction` and `reanalyzeVideoAction` return only `{ ok, error }` with no `code` field, so a failure surfaces as a raw string toast the client cannot tell apart from any other failure (B-17a, [backlog to enhance](05-backlog-to-enhance.md)).
-- There is no cancel or stop control; the button stays disabled until the pass settles or fails on its own, and there is no way to abort a running generation from the page.
-- A re-analysis is not versioned: the previous hook, beats, tags, and note are gone with no history kept, and the only way back to a different reading is to re-analyze again.
+- There is no in-app way to trigger, watch, or cancel an analysis; the whole feature's liveness depends on an external agent actually calling the two MCP tools.
+- There is no versioning: a second `crowsnest_save_analysis` call for the same video replaces the row in place, and the previous hook, beats, tags, and note are gone with no history kept.
+- A video with no transcript row yet has nothing for the agent to ground an analysis in beyond the caption and metrics `crowsnest_video` also returns; nothing in this component creates a transcript on demand (that capability, `getOrCreateTranscript`, exists in `src/server/transcribe` but is not currently wired to any caller in this path).
 
 ### User guide
 
-Open a video's detail page and click Hook and structure or Why it worked. If the video has not been analyzed yet, a button offers to analyze it, or to transcribe and analyze it first if it has no transcript yet. Click it, and crowsnest reads the video, transcribing it first if needed, and writes down its hook type, its structure beat by beat, and why it worked; both tabs fill in from the one pass, whichever tab you started it from. To get a fresh read on a video you have already analyzed, click Re-analyze next to the Beats heading; this replaces the hook, beats, tags, and note with a new pass, but leaves the video's Layout tab, which comes from a separate reading, untouched.
+Open a video's detail page and click Hook and structure or Why it worked. If an agent has already analyzed the video through MCP, both tabs show its hook type, beat-by-beat structure, and why-it-worked note. If not, both tabs read "No analysis yet." Ask your connected agent (for example, in a Claude Code or Codex session with the crowsnest MCP server attached) to analyze the video; once it calls `crowsnest_save_analysis`, reload the page to see the result.
 
 ## 3. Generate an idea
 
@@ -65,13 +61,13 @@ The "Generate idea" button in the action row, alongside Remix this, the two save
 
 - At most one non-discarded idea exists per video, enforced by the `idea_source_active` partial index; a second press on the same video updates the existing idea rather than creating a duplicate.
 - The update only rewrites an idea whose status is still `inbox`; an idea the user has already shortlisted or scripted is left exactly as it was, and the toast still reads "Idea updated" either way.
-- What the idea is built from is decided when the request actually runs, not when the page loaded: the model reads the video's current analysis, the creator's persona, and the video's outlier score at that moment, so a Re-analyze done first changes what the next Generate idea produces.
-- The same generation runs automatically for a channel's analyzed outliers during a sidecar sync (`generateIdeasForNewOutliers`); the button is the on-demand version of that pass, and the two never produce two ideas for the same video.
-- `generateIdea` never throws on a bad model reply; it reports back that nothing was created instead, so the same call is safe to run per outlier in the sync's automatic pass.
+- What the idea is built from is decided when the request actually runs, not when the page loaded: the model reads the video's current analysis, the creator's persona, and the video's outlier score at that moment, so a fresh `crowsnest_save_analysis` call from the agent changes what the next Generate idea produces.
+- `generateIdeasForNewOutliers` can also run this same generation, on demand, over a channel's analyzed outliers; the button is the on-demand version for a single video, and the two never produce two ideas for the same video.
+- `generateIdea` never throws on a bad model reply; it reports back that nothing was created instead.
 
 ### Limitations
 
-- Unlike the analyze gate on the same page, the button does not check whether generation is actually available before rendering; a missing key or a down proxy surfaces only after the click, as a failed toast (B-12, filed in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md)).
+- Unlike the retired analyze gate, the button does not check whether generation is actually available before rendering; a missing key or a down proxy surfaces only after the click, as a failed toast (B-12, filed in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md)).
 - The button never reflects whether an idea already exists for the video; it always reads "Generate idea," regardless (B-12).
 - The button honors no shortcut of its own; the detail page's arrow keys page to the previous or next video and are not tied to it.
 
@@ -81,26 +77,25 @@ On an analyzed video's detail page, click Generate idea in the action row near t
 
 ## 4. Interactions with other systems
 
-Persistence and autosave. There is no autosave and no dirty state for either feature; both commit as one row at the end of their pass. A transcript made on demand is persisted as its own row first, cache-first, so a later analyze or a later remix reuses it rather than transcribing again.
+Persistence and autosave. There is no autosave and no dirty state for either feature; both commit as one row at the end of their pass.
 
-History and undo. Neither feature keeps history. Re-analyze overwrites the stored hook, beats, tags, and note in place with no version kept. Generate idea overwrites an untouched inbox idea's concept and angle in place; a discarded idea can later be regenerated as a fresh inbox idea.
+History and undo. Neither feature keeps history. A fresh `crowsnest_save_analysis` call overwrites the stored hook, beats, tags, and note in place with no version kept. Generate idea overwrites an untouched inbox idea's concept and angle in place; a discarded idea can later be regenerated as a fresh inbox idea.
 
-Navigation and refresh. Analyze and Re-analyze call a client refresh on success so the tabs repaint without a manual reload. Generate idea does not refresh, since nothing on the video detail page depends on the idea it wrote. Neither wait is a React transition, so navigation is never blocked by either pending state.
+Navigation and refresh. Neither feature refreshes the page on the user's behalf: an agent-written analysis appears once the user reloads or re-navigates to the detail page; Generate idea's own action does not refresh either, since nothing on the video detail page depends on the idea it wrote.
 
-Background jobs and the sidecar. Neither feature runs as a background job from the button; both run inside their server action and return once the model call settles. The sidecar's own sync calls the same underlying services directly, `autoAnalyzeNewOutliers` then `generateIdeasForNewOutliers`, over a channel's top-scoring outliers, near the end of every sync, so a video can already be analyzed and have an idea before the user ever opens it.
+Background jobs and the sidecar. Analysis is never produced by a sidecar job; the in-app auto-analyze pass that once ran at the end of a sync (`auto-analyze.ts`) is retired. `generateIdeasForNewOutliers` can still run over a channel's already-analyzed outliers, but since nothing in-app writes an analysis anymore, only outliers an agent has analyzed through MCP are visible to it.
 
-External services. The Claude API does both the analysis and the idea generation, direct or through a local proxy. The transcript providers, whisper.cpp locally or Groq with a key, make a transcript when none is stored; whisper.cpp also needs the video's own asset already downloaded by ig-sync.
+External services. No external model service is called by crowsnest itself for analysis; the reasoning happens entirely inside the connected agent's own process, outside crowsnest. The Claude API still does Generate idea's generation, direct or through a local proxy.
 
-Status and failures. Success and failure both surface as toasts for both features; there is no inline error region on the video detail page. The two dead-end states, no provider and no key, render as alerts in the analyze gate rather than as toasts, since a click there could do nothing.
+Status and failures. `crowsnest_save_analysis` returns `{ ok: true }` or `{ ok: false, error }` to the calling agent; there is nothing for the crowsnest user to see beyond the eventual rendered result. Generate idea's success and failure both surface as toasts on the detail page.
 
-Configuration and settings. The Claude key and the Groq key are set in Settings, and whisper.cpp availability depends on a local install; together these decide which gate face is shown. The resolved Claude model name is recorded on the analysis row. The creator's persona (audience, voice, do, and don't guidance) grounds Generate idea; the outlier score threshold and per-sync caps that gate the automatic passes are read from settings and do not apply to either manual button. On the Persona screen itself, each of the four fields carries a why-line naming which part of generation it steers, an enriched placeholder describing the same, and an "Insert example" action that fills the field with a sample value, but only while the field is still empty; it never overwrites text the user has already entered.
+Configuration and settings. Analysis needs no crowsnest-side configuration at all; it is entirely a function of the connected agent's own model access. The Claude key set in Settings gates only Generate idea (and, unrelated to this component, Remix). The resolved model name recorded on an agent-authored analysis row (`video_analyses.model`) is whatever the connected agent's own MCP client sends, if anything; the column is not populated by crowsnest itself for this path. The creator's persona (audience, voice, do, and don't guidance) grounds Generate idea; the outlier score threshold that gates the automatic idea pass is read from settings.
 
 ## 5. Edge cases
 
-- The gate appears on two tabs, Hook and structure and Why it worked. One pass fills both, so whichever tab the user analyzes from, both show a result afterward.
-- Layout is not produced by analysis. A video's layout comes from a separate frame pass, run from its own control in the Layout tab, with its own model and timestamp; a re-analysis deliberately leaves the layout columns untouched, because a text pass has seen no frames and reusing or wiping them would misattribute a real reading.
-- Re-analyze exists mostly to backfill old rows. Beats gained a verbatim per-beat transcript quote later than the first analyses were written; a beat from before that shows a re-analyze hint instead of an invented quote, and Re-analyze is the only way to fill it in.
-- Style tags render muted with an "unverified" marker while format tags render plain, because a text-only model can only guess at visual style until a frame pass confirms it. This is display, owned by the video detail page, but it reflects what an analysis pass can and cannot know.
+- Analysis exists purely as a function of whether an agent has called `crowsnest_save_analysis` for a video; there is no crowsnest-side trigger, cache warm, or backfill.
+- Layout is not produced by analysis. A video's layout comes from a separate frame pass, run from its own control in the Layout tab, with its own model and timestamp; nothing in the MCP-authored analysis path touches the layout columns.
+- A beat with no per-beat transcript quote (written before that field existed, or by an agent that omitted it) renders a plain placeholder rather than an invented quote; there is no in-app re-analyze action to backfill it, only another `crowsnest_save_analysis` call.
+- Style tags render muted with an "unverified" marker while format tags render plain, because a text-only reading can only guess at visual style until a frame pass confirms it. This is display, owned by the video detail page, but it reflects what a text analysis can and cannot know regardless of who authored it.
 - Save to Vault and Generate idea both need an analysis to exist before they are offered; on an unanalyzed video neither is reachable.
-- A video with no locally downloaded asset yet can still show a live "Transcribe & Analyze" button, because reachability is checked at the provider level, not per video; the click then fails with a distinct "video has no downloaded video asset yet" error rather than the usual no-provider message.
 - Generate idea's "Idea updated" toast covers two different outcomes: rewriting an untouched inbox idea with a fresh concept and angle, and leaving a shortlisted or scripted idea exactly as it was. The toast does not tell them apart.

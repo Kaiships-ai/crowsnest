@@ -1,6 +1,5 @@
-import { beforeAll, describe, expect, test, vi } from "vitest";
+import { beforeAll, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import type { LlmClient } from "@/server/llm/client";
 
 // Test-DB pattern (phase-1 final-review M7, mirrored across feed.test.ts / sync-engine.test.ts):
 // env must be set in beforeAll BEFORE any dynamic import of "@/server/db".
@@ -9,10 +8,7 @@ let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
-let resolveModel: typeof import("@/server/llm/client")["resolveModel"];
 let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSchema"];
-let NoTranscriptProviderError: typeof import("@/server/transcribe")["NoTranscriptProviderError"];
-let getOrCreateAnalysis: typeof import("./analyze")["getOrCreateAnalysis"];
 let saveAgentAnalysis: typeof import("./analyze")["saveAgentAnalysis"];
 let rowToAnalysis: typeof import("./analyze")["rowToAnalysis"];
 
@@ -20,10 +16,8 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ resolveModel } = await import("@/server/llm/client"));
   ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
-  ({ NoTranscriptProviderError } = await import("@/server/transcribe"));
-  ({ getOrCreateAnalysis, saveAgentAnalysis, rowToAnalysis } = await import("./analyze"));
+  ({ saveAgentAnalysis, rowToAnalysis } = await import("./analyze"));
 });
 
 const FAKE_ANALYSIS = {
@@ -73,10 +67,6 @@ async function seedVideo(opts: { withTranscript: boolean }) {
   return { channelId, videoId };
 }
 
-function fakeLlm(generateParsed: LlmClient["generateParsed"]): LlmClient {
-  return { generateText: vi.fn(), generateParsed, ping: vi.fn() };
-}
-
 describe("saveAgentAnalysis", () => {
   test("validates and upserts with source=mcp, never calling the llm", async () => {
     const { videoId } = await seedVideo({ withTranscript: false });
@@ -124,122 +114,33 @@ describe("saveAgentAnalysis", () => {
     const r = await saveAgentAnalysis("no-such-video", FAKE_ANALYSIS);
     expect(r).toEqual({ ok: false, error: "video not found" });
   });
-});
 
-describe("getOrCreateAnalysis", () => {
-  test("cache hit returns the existing row without calling the llm", async () => {
-    const { videoId } = await seedVideo({ withTranscript: true });
-    await db.insert(tables.videoAnalyses).values({ videoId, ...FAKE_ANALYSIS, model: "claude-sonnet-5", createdAt: nowIso() });
+  test("keyless path: an agent-authored analysis is written and read back with no ANTHROPIC_API_KEY set", async () => {
+    // P0 slice 2a: analysis.ts no longer imports the LLM client at all, so this test
+    // needs no fake/mock LLM and no key of any kind — proving the whole write-then-read
+    // path (saveAgentAnalysis -> rowToAnalysis, the same mapping remix.ts and the
+    // crowsnest_video MCP tool both consume) is genuinely keyless end to end.
+    const prevKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    try {
+      const { videoId } = await seedVideo({ withTranscript: true });
+      const ok = await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+      expect(ok).toEqual({ ok: true });
 
-    const generateParsed = vi.fn();
-    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) });
+      const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+      const analysis = rowToAnalysis(row);
+      expect(analysis.hookType).toBe(FAKE_ANALYSIS.hookType);
+      expect(analysis.structureSegments).toEqual(FAKE_ANALYSIS.structureSegments);
+      expect(analysis.whyItWorked).toBe(FAKE_ANALYSIS.whyItWorked);
 
-    expect(generateParsed).not.toHaveBeenCalled();
-    expect(result).toEqual(FAKE_ANALYSIS);
-  });
-
-  test("cache miss with an existing transcript calls generateParsed with VideoAnalysisSchema and upserts video_analyses with the resolved model", async () => {
-    const { videoId } = await seedVideo({ withTranscript: true });
-    const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
-
-    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) });
-
-    expect(result).toEqual(FAKE_ANALYSIS);
-    expect(generateParsed).toHaveBeenCalledTimes(1);
-    const call = generateParsed.mock.calls[0][0] as { schema: unknown; user: string };
-    expect(call.schema).toBe(VideoAnalysisSchema);
-    expect(call.user).toContain("Here's the mistake"); // transcript text made it into the prompt
-
-    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-    expect(row).toBeDefined();
-    expect(row.model).toBe(resolveModel());
-    expect(row.hookType).toBe(FAKE_ANALYSIS.hookType);
-    expect(row.structureSegments).toEqual(FAKE_ANALYSIS.structureSegments);
-  });
-
-  test("no transcript yet: creates one via the injected transcribe function, then analyzes with its text (final-review finding B1)", async () => {
-    const { videoId } = await seedVideo({ withTranscript: false });
-    const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
-    const transcribe = vi.fn().mockResolvedValue({ text: "a freshly transcribed line", source: "whisper-local", cached: false });
-
-    const result = await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), transcribe });
-
-    expect(transcribe).toHaveBeenCalledWith(videoId);
-    expect(result).toEqual(FAKE_ANALYSIS);
-    const call = generateParsed.mock.calls[0][0] as { user: string };
-    expect(call.user).toContain("a freshly transcribed line");
-  });
-
-  test("no transcript yet and no provider available: NoTranscriptProviderError propagates untouched, llm never called, no row persisted", async () => {
-    const { videoId } = await seedVideo({ withTranscript: false });
-    const generateParsed = vi.fn();
-    const boom = new NoTranscriptProviderError([{ name: "whisper-cpp-local", reason: "not installed" }]);
-    const transcribe = vi.fn().mockRejectedValue(boom);
-
-    await expect(getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), transcribe })).rejects.toBe(boom);
-    expect(generateParsed).not.toHaveBeenCalled();
-
-    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-    expect(rows).toHaveLength(0);
-  });
-
-  test("an llm error propagates untouched rather than being swallowed or wrapped", async () => {
-    const { videoId } = await seedVideo({ withTranscript: true });
-    class FakeRateLimitError extends Error {}
-    const boom = new FakeRateLimitError("rate limited");
-    const generateParsed = vi.fn().mockRejectedValue(boom);
-
-    await expect(getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed) })).rejects.toBe(boom);
-
-    const rows = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-    expect(rows).toHaveLength(0); // failed generation must not leave a partial row
-  });
-
-  test("a beat's verbatim transcript survives the round trip through video_analyses", async () => {
-    const { videoId } = await seedVideo({ withTranscript: true });
-    await getOrCreateAnalysis(videoId, { llm: fakeLlm(vi.fn().mockResolvedValue(FAKE_ANALYSIS)) });
-
-    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-    expect(row.structureSegments?.[0].transcript).toBe(
-      "Here's the mistake almost everyone makes in their first month"
-    );
-  });
-
-  test("force re-analyzes an already-analyzed video and replaces the beats without touching the layout columns", async () => {
-    const { videoId } = await seedVideo({ withTranscript: true });
-    // A row from before the per-beat transcript existed, carrying a real frame pass.
-    await db.insert(tables.videoAnalyses).values({
-      videoId,
-      hookType: "stale-hook",
-      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "the old summary" }],
-      formatTags: [],
-      styleTags: [],
-      whyItWorked: "stale",
-      model: "claude-sonnet-5",
-      createdAt: nowIso(),
-      layout: {
-        onScreenText: { value: "SIGN UP", fromFramesSec: [1.5] },
-        textPosition: { value: "lower third", fromFramesSec: [1.5] },
-        cutRhythm: { value: "fast", fromFramesSec: [1.5, 4] },
-        framing: { value: "medium", fromFramesSec: [1.5] },
-      },
-      framesSampled: 8,
-      frameModel: "claude-frame-reader",
-    });
-
-    const generateParsed = vi.fn().mockResolvedValue(FAKE_ANALYSIS);
-    await getOrCreateAnalysis(videoId, { llm: fakeLlm(generateParsed), force: true });
-
-    expect(generateParsed).toHaveBeenCalledTimes(1); // force means the cache does not short-circuit
-    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-    expect(row.hookType).toBe("curiosity-gap");
-    expect(row.structureSegments?.[0].transcript).toBe(
-      "Here's the mistake almost everyone makes in their first month"
-    );
-    // The frame pass is a separate provenance; a text re-analysis must not clear it.
-    expect(row.framesSampled).toBe(8);
-    expect(row.frameModel).toBe("claude-frame-reader");
-    expect(row.layout).not.toBeNull();
+      const [transcriptRow] = await db
+        .select({ text: tables.transcripts.text })
+        .from(tables.transcripts)
+        .where(eq(tables.transcripts.videoId, videoId));
+      expect(transcriptRow.text.length).toBeGreaterThan(0);
+    } finally {
+      if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
+    }
   });
 });
 

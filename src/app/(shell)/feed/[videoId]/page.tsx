@@ -5,11 +5,9 @@ import { notFound } from "next/navigation";
 import { SimilarSection, SimilarSkeleton } from "@/components/video/similar-section";
 import { VideoDetail } from "@/components/video/video-detail";
 import type { SearchParams } from "@/lib/feed-filters";
-import { hasLlmKey } from "@/server/llm/client";
 import { getChannelMedianBasis } from "@/server/queries/channels";
 import { getSavedPostByVideoId } from "@/server/queries/saved-posts";
 import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
-import { availableTranscriptProviders } from "@/server/transcribe";
 import { resolveFeedNav } from "./resolve-feed-nav";
 
 // Both generateMetadata and the page component need the same fetch this request —
@@ -78,13 +76,11 @@ export default async function VideoDetailPage({
   if (!detail) notFound();
   // A bare `/feed/[videoId]` visit (no forwarded filter) scopes prev/next against the
   // full raw library, the same default feed/page.tsx now shows on a bare `/feed` visit.
-  const [transcriptProviders, medianBasis, feedNav, savedPost] = await Promise.all([
-    availableTranscriptProviders(),
+  const [medianBasis, feedNav, savedPost] = await Promise.all([
     getChannelMedianBasis(detail.item.channel.id, videoId),
     resolveFeedNav(videoId, sp),
     getSavedPostByVideoId(videoId),
   ]);
-  const canTranscribe = transcriptProviders.some((p) => p.available);
   // Fire-and-forget (Task 1, phase 4): never await this — a slow/failing visit-track
   // write must not delay rendering the page itself. Errors are already swallowed
   // inside recordRecentlyViewed.
@@ -94,8 +90,6 @@ export default async function VideoDetailPage({
     <div className="mx-auto h-full max-w-[1120px]">
       <VideoDetail
         detail={detail}
-        hasLlmKey={hasLlmKey()}
-        canTranscribe={canTranscribe}
         medianBasis={medianBasis}
         feedNav={feedNav}
         savedPost={savedPost}
