@@ -11,6 +11,7 @@ import { getScoringOptions, getSetting, type ScoringOptions } from "../settings"
 import { insertNotification } from "../notifications/store";
 import { BACKFILL_LOCK_KEY, SYNC_STALL_SECONDS, type StopReason, type SyncGap, type SyncJobStatus, type SyncPhase } from "./sync-types";
 import { insertVideoSnapshots, type VideoSnapshotInsert } from "./sync-batch";
+import { normalizeHandle } from "../../lib/handle";
 
 /**
  * Channel sync against the instagrapi sidecar.
@@ -162,21 +163,10 @@ function toCalc(row: { id: string; viewCount: number | null; postedAt: string })
   return { id: row.id, viewCount: row.viewCount, postedAt: row.postedAt };
 }
 
-/**
- * Instagram handles only. Rejects the URL-as-handle mistake that put
- * `@https://www.instagram.com/hormozi/` in the live database.
- */
-export function normalizeHandle(input: string): string {
-  let h = input.trim();
-  const urlMatch = h.match(/instagram\.com\/([A-Za-z0-9._]+)/i);
-  if (urlMatch) h = urlMatch[1];
-  if (h.startsWith("@")) h = h.slice(1);
-  h = h.replace(/\/+$/, "").trim();
-  if (!/^[A-Za-z0-9._]{1,30}$/.test(h)) {
-    throw new Error(`Invalid Instagram handle: ${JSON.stringify(input)}`);
-  }
-  return `@${h}`;
-}
+/** Re-exported so existing server-side callers keep one import; the implementation is
+ *  a pure, dependency-free function shared with the client-side first-run sources step
+ *  (see `src/lib/handle.ts`'s own doc comment for why it lives outside this file). */
+export { normalizeHandle };
 
 // ---------------------------------------------------------------- locking
 

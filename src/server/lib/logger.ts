@@ -46,7 +46,7 @@ function emit(level: LogLevel, event: string, fields: LogFields = {}, runId?: st
 
   if (level !== "debug") {
     try {
-      insertLogEvent({ ts: new Date().toISOString(), level, source: "backend", event, fields, runId });
+      insertLogEvent({ ts: new Date().toISOString(), level, source: "backend", event, fields: redact(fields), runId });
     } catch {
       // A logging sink must never break the caller. The line is already on stdout.
     }
