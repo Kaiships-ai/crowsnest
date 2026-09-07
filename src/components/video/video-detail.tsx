@@ -141,8 +141,15 @@ function AnalysisGate({
 
 /** Asks for a fresh text pass over a video that already has one. Needed because beats
  *  only carry a verbatim per-beat transcript from the analysis that produced them, and
- *  older rows have none — this is the only way to fill them in. */
-function ReanalyzeButton({ videoId }: { videoId: string }) {
+ *  older rows have none — this is the only way to fill them in.
+ *
+ *  BUG-01: this used to render live regardless of `hasKey`, unlike `AnalyzeButton`
+ *  (`AnalysisGate` above), so a video with no `ANTHROPIC_API_KEY` configured could still
+ *  click Re-analyze and hit a raw error toast instead of the same pre-emptive
+ *  "add your key" state used everywhere else analysis is gated. Exported (only other
+ *  function in this file that is) so video-detail.test.tsx can cover the gate directly
+ *  without mounting the full detail page's data-heavy props. */
+export function ReanalyzeButton({ videoId, hasKey }: { videoId: string; hasKey: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
 
@@ -156,6 +163,21 @@ function ReanalyzeButton({ videoId }: { videoId: string }) {
     } else {
       toast.error(result.error);
     }
+  }
+
+  if (!hasKey) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button variant="ghost" size="sm" disabled>
+              Re-analyze
+            </Button>
+          }
+        />
+        <TooltipContent>Add ANTHROPIC_API_KEY in Settings to enable analysis.</TooltipContent>
+      </Tooltip>
+    );
   }
 
   return (
@@ -182,10 +204,12 @@ function HookStructureTab({
   analysis,
   videoId,
   durationSec,
+  hasKey,
 }: {
   analysis: StoredVideoAnalysis;
   videoId: string;
   durationSec: number | null;
+  hasKey: boolean;
 }) {
   return (
     <div className="flex flex-col gap-8">
@@ -213,7 +237,7 @@ function HookStructureTab({
           <span data-lab className="font-mono text-2xs text-faint">
             Beats
           </span>
-          <ReanalyzeButton videoId={videoId} />
+          <ReanalyzeButton videoId={videoId} hasKey={hasKey} />
         </div>
         {analysis.structureSegments.length > 0 ? (
           <div className="mt-6 flex flex-col gap-6">
@@ -617,7 +641,12 @@ export function VideoDetail({
 
             <TabsContent value="hook" className="pt-4">
               {detail.analysis ? (
-                <HookStructureTab analysis={detail.analysis} videoId={item.videoId} durationSec={item.durationSec} />
+                <HookStructureTab
+                  analysis={detail.analysis}
+                  videoId={item.videoId}
+                  durationSec={item.durationSec}
+                  hasKey={hasLlmKey}
+                />
               ) : (
                 <div className="flex flex-col items-start gap-6 py-16">
                   <AnalysisGate

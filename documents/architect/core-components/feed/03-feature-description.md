@@ -112,12 +112,11 @@ Click any card, or focus it and press Enter or Space.
 - The sheet shows the score, channel, caption, counts, and a transcript excerpt, but not the analysis, the baseline, the carousel, or the save and keep buttons; those live on the full detail page.
 - "Open full page" carries the feed's active filter and sort as a query suffix, so the detail page's previous and next navigation resolves against the same ordered set the sheet was opened from.
 - The open sheet is client-only state, not in the URL, so a reload returns to the feed with no sheet open. Escape, the close button, or a click on the dimmed area all close it.
-- A video the platform has removed still resolves and previews here, but unlike the card and the detail page, the sheet shows no "no longer on the platform" flag for it. Only a video whose row is truly gone shows "This post couldn't be found."
+- A video the platform has removed still resolves and previews here, marked "No longer on Instagram" the same way the card is. Only a video whose row is truly gone shows "This post couldn't be found."
 
 ### Limitations
 
 - The sheet has no error branch on a failed server read: a rejected fetch leaves it stuck on its placeholder bars rather than showing an error or a not-found state, tracked as `FEED-Q3` in the [backlog](05-backlog-to-enhance.md).
-- A soft-removed video previews with no removed marker, unlike the card and the detail page, tracked as `B-16` in the [backlog](05-backlog-to-enhance.md).
 
 ### User guide
 
@@ -237,6 +236,5 @@ Configuration and settings. The two built-in saved views, and their default crit
 ## 9. Edge cases
 
 - **The default-view logic disagrees with itself in the codebase.** `feed/page.tsx` applies the seeded High Conviction view on a bare visit, but doc comments elsewhere in `feed-filters.ts` and `resolve-feed-nav.ts` describe a bare visit as the full unfiltered library. The page code is what actually runs; the comments are stale. Tracked as `FEED-Q1` in the [backlog](05-backlog-to-enhance.md).
-- **A soft-removed video reads differently depending on where it is shown.** The card and the detail page mark it "No longer on Instagram" or a removed banner; the quick preview sheet shows no such flag for the same video, tracked as `B-16` in the [backlog](05-backlog-to-enhance.md).
 - **Two tabs racing the same write.** A second keep on an already-saved video, or a second delete or rename of a saved view another tab already changed, is refused rather than silently duplicated or lost (`SAVED_POST_ALREADY_SAVED`, `SAVED_VIEW_NOT_FOUND`).
 - **Re-importing a post by URL updates it in place.** `importReelByUrl` upserts on the same `(platform, external_id)` key a sidecar sync uses, so importing a post already in the feed refreshes its row rather than creating a duplicate.
