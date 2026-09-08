@@ -12,7 +12,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | The outlier feed page | Ranked grid or list of outlier posts, follower-band counts, Load more, four empty states | ● | `src/app/(shell)/feed/page.tsx` | FEED-Q1 |
+| 2 | The outlier feed page | Ranked grid or list of outlier posts, follower-band counts, Load more, four empty states | ● | `src/app/(shell)/feed/(list)/page.tsx` | FEED-Q1 |
 | 3 | The filter bar and saved views | URL-driven filter controls, saved views, Add post URL import | ● | `src/components/feed/filter-bar.tsx`, `saved-view-actions.ts` | FEED-Q2 |
 | 4 | The quick preview sheet | Read-only panel over the feed showing one video's details | ● | `src/components/feed/quick-preview-sheet.tsx`, `preview-action.ts` | FEED-Q3 |
 | 5 | The keep this post button | One-row-per-video toggle that saves a post to a shortlist | ● | `src/components/video/save-post-button.tsx`, `saved-post-actions.ts` | none |

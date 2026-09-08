@@ -26,7 +26,7 @@ A video's user visible states: analyzed or not (whether it has a video analysis)
 
 ### Channel
 
-An account whose posts are tracked. The table is `channels`. It carries the handle, display name, avatar, follower count, and platform. Exactly one channel can be the user's own channel, marked `isOwn` and enforced unique. The own channel is what the my channel page and the studio measure against; every other channel is a reference or competitor whose outliers fill the feed.
+An account whose posts are tracked. The table is `channels`. It carries the handle, display name, avatar, follower count, and platform. Exactly one channel can be the user's own channel, marked `isOwn` and enforced unique. The own channel is what the my channel page measures against; every other channel is a reference or competitor whose outliers fill the feed. A channel can be assigned to an Instagram account it syncs under, through `accountId` (null means the default account).
 
 ### Video analysis
 
@@ -64,13 +64,9 @@ A dated intention to publish on the user's own channel, optionally carrying a sc
 
 A planned post's states: draft (no date), scheduled (a future date), missed (a past date, derived), and published (marked by hand). A script it carried can also be detached, which the calendar shows distinctly from a plan that never had one.
 
-### Create run
-
-One cook pipeline execution in the studio: the process that cooks and renders a planned post into a video. The table is `createRuns`, with a status that is one of running, waiting, success, failed, or canceled, plus timestamps, a heartbeat, the rendered asset id when it succeeds, an error message when it fails, and the process id. This repo calls a create run a cook run. Its internals (the pseudo terminal and the websocket) are out of scope; the cook run document describes only the statuses the user sees. Background jobs owns the status meanings.
-
 ### Remix run
 
-One generation attempt inside a remix session: a hook generation, an outline generation, or a variant generation. The table is `remixRuns`, append only, written on both success and failure. The run log on the remix page shows these. A remix run is not a create run; when a document says run without qualifying it, it says which.
+One generation attempt inside a remix session: a hook generation, an outline generation, or a variant generation. The table is `remixRuns`, append only, written on both success and failure. The run log on the remix page shows these. It is the in-app remix's own history; the keyless MCP remix path does not write it.
 
 ### Vault item
 
@@ -84,6 +80,14 @@ A post actually published on the user's own channel and measured through the Gra
 
 Loose key and value settings in `appSettings`, read by various pages: the recently viewed list, saved filter defaults, and thresholds like `scoreMinUsablePosts`. See [persistence](persistence.md).
 
+### Content artifact
+
+An artifact the reasoning agent (Claude, Codex) authored and persisted through MCP, in `contentArtifacts`. One row per artifact of a `kind`: angles, an outlier library, an idea bank (100 or more ideas in one row), a Week 01 to 04 monthly plan, or a brief. The row holds the agent's own JSON payload plus provenance (which agent, which model, the source video ids, the assumptions, timestamps). Crowsnest stores and returns it verbatim; nothing here calls a model. This is the source of truth for agent-authored content, read back with `crowsnest_artifacts` and reflected in the dashboard's content pipeline. See [mcp](../core-components/mcp/02-architecture.md).
+
+### Instagram account
+
+An Instagram account crowsnest can sync under, in `igAccounts` (multi-account sync). A single-account install has one row, the default. Each account carries its own identity for isolation: username, an optional proxy and device seed, an optional session path and sidecar port, a per-account cooldown clock, and a status (active or paused). Exactly one account is the default, enforced by a partial unique index. The password is not on the row; it lives in the secrets table keyed `IG_PASSWORD::<accountId>`. Channels are assigned to an account stickily through `channels.accountId` (null means the default). See [ig-sync](../core-components/ig-sync/02-architecture.md).
+
 ## How records change underneath a page
 
 Because pages render on the server and re-read on navigation, a record can change between when a page loads and when the user acts on it. The cases that matter, referenced by every interrupt table:
@@ -91,7 +95,6 @@ Because pages render on the server and re-read on navigation, a record can chang
 - A video is removed by a sync. Its saved post is cascade deleted; its planned post keeps the link but the link goes null.
 - A script is deleted or detached. The planned post's script link goes null; the planned post is never deleted with it.
 - A planned post is edited in another tab. The two tabs hold different copies until one re-reads.
-- A create run's status is updated by its process. The studio panel receives the new status and repaints its run pill.
 
 ## Edge cases
 

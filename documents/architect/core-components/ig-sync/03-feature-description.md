@@ -18,6 +18,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 3 | Sync a channel's posts | Page recent media, upsert videos, snapshot metrics, rescore | ● | `services/sync-engine.ts` (runSync) | onboarding empty IG_PASSWORD blocks buyer installs |
 | 4 | Backfill blank view counts | Re-read the real play count via `/media-stats` where the listing returned zero | ● | `services/sync-engine.ts` (startViewCountBackfillAction) | none |
 | 5 | Sync several channels at once | Select channels on the board and start one sync covering all of them | ● | `components/channels/` (kanban-board, kanban-column, channel-card, sync-selection-bar); `actions/sync-actions.ts` (startSyncAction) | none |
+| 6 | Manage Instagram accounts | Add accounts with their own session, cooldown, and proxy or device identity; assign channels stickily; the scheduler isolates one account's cooldown from the others | ◐ | `services/accounts.ts`; `components/settings/accounts-section.tsx`; `actions/account-actions.ts` | live parallel-across-accounts execution needs per-account credentials (see multi-account.md) |
 |  | TikTok / YouTube Shorts ingestion | Multi-platform tracking; the `platform` column is reserved | ○ | no backend yet | roadmap |
 
 ## 2. Track a channel
@@ -154,13 +155,41 @@ Tick a channel card's checkbox on the channels board, or use a fleet column's se
 
 To refresh several channels at once, open the Channels board and tick the checkbox on each channel you want, or use a fleet column's select-all to tick the whole column. A bar shows how many are selected; click Sync selected to start one sync that walks all of them, or Clear to start over. You can leave the page once it starts, the same as any other sync, and follow it from the progress panel. If a sync is already running, crowsnest tells you to wait for it to finish rather than starting a second one.
 
-## 6. Interactions with other systems
+## 6. Manage Instagram accounts
+
+### Who uses it
+
+An operator running more than one burner Instagram profile, who wants some channels synced under one identity and others under another.
+
+### What it does
+
+Models each Instagram account as a first-class row with its own session, cooldown clock, and proxy or device identity. Channels are assigned to an account stickily, so a channel always syncs under the same identity. A sync groups the channels by account, and a paused or cooling-down account is skipped while every other account still runs, so one account's rate-limit never stops the others.
+
+### How to access it
+
+Settings, the Accounts section (under Connections). Channel-to-account assignment is on the Channels screen.
+
+### Business rules
+
+- The first account added is the default; exactly one account is the default, enforced by a partial unique index. A channel with no assignment syncs under the default.
+- A password is stored in the secrets table keyed `IG_PASSWORD::<accountId>`, never on the account row.
+- A cooldown or failure sets only that account's `cooldownUntil`; the scheduler (`planAccountSync`) skips it and runs the rest. Removing a non-default account unassigns its channels back to the default.
+
+### Limitations
+
+- v0.3 runs accounts sequentially with isolated per-account state. It does not yet run live bounded-parallel traffic across separate sidecars; that needs live per-account credentials to verify and is the documented next step. Within an account, the sidecar's process-global lock still serializes every call.
+
+### User guide
+
+In Settings, open Accounts, add an account with a label and username (a password and proxy are optional). The first one becomes the default. Pause an account to skip it on the next sync, or remove a non-default one to send its channels back to the default. Assign a channel to an account on the Channels screen. See [multi-account](../../shared/multi-account.md) for the operational detail and safety limits.
+
+## 7. Interactions with other systems
 
 Persistence and autosave. There is no autosave; a sync writes durable rows as it goes (`videos`, `video_children`, `video_snapshots`, `channel_snapshots`, and the `sync_jobs` progress row). Downloaded assets are content addressed and deduped, so a re download of identical bytes reuses the same file. A metric Instagram withheld (null, or a zero read as "not disclosed") never erases a count already stored.
 
 Navigation and refresh. Pages render on the server and re read on navigation, so a channel's last sync figures and the feed update on the next load, not live. The failure strip is read once per server render and freshened by the live sync poll while the shell is mounted.
 
-Background jobs and the sidecar. ig-sync is the sidecar sync, the writer of the feed and the source of the outlier scoring input. It is owned in full by [background jobs](../../shared/background-jobs.md); the sync window, concurrency, and retry behavior are environment/settings defaults (30 day lookback, 200 item cap, concurrency 2, 3 retries), not user facing promises. `getLastRunHealth` (`queries/runs.ts`) reads the last sync run's status, timings, and counts for a future dashboard and the planned `crowsnest_metrics` MCP tool; it has no page reading it yet.
+Background jobs and the sidecar. ig-sync is the sidecar sync, the writer of the feed and the source of the outlier scoring input. It is owned in full by [background jobs](../../shared/background-jobs.md); the sync window, concurrency, and retry behavior are environment/settings defaults (30 day lookback, 200 item cap, concurrency 1, 3 retries), not user facing promises. `getLastRunHealth` (`queries/runs.ts`) reads the last sync run's status, timings, and counts; the `crowsnest_channel_stats` MCP tool consumes it, and no dashboard page reads it directly.
 
 External services. The one external dependency is Instagram, reached only through the local sidecar. Its degradation is summarized in [external services](../../shared/external-services.md): a down sidecar means a stale feed, an expired session means "reconnect in settings", a rate limit means a cooldown. None of these takes down the rest of the app.
 
@@ -168,7 +197,7 @@ Status and failures. A sync's verdict surfaces in the shell failure strip ([stat
 
 Configuration and settings. Credentials (`IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`) and the sidecar URL/port are environment configuration read by the sidecar and the app; the lookback days, item cap, retry counts, and the view count enrichment budget are settings with DB over env over default precedence, so a change takes effect on the next sync without a restart. The outlier scoring options (baseline method, window, minimum posts, views floor) are read once per rescore from settings.
 
-## 7. Edge cases
+## 8. Edge cases
 
 - **The sidecar must start, or the whole feature is dark.** The onboarding bug that writes an empty `IG_PASSWORD` makes the sidecar exit 78 and launchd crash loop it; port 8765 never comes up, and every sync reads local service down. This is the single most consequential dependency and the known hard blocker for buyers.
 - **Only Instagram is ingested.** The add channel dialog once offered TikTok and YouTube Shorts chips, but the backend could never sync them, so choosing either produced a channel row that silently never updated. The chips were removed (`OBS-3` in the backlog); the `platform` column stays in the schema for a future second source.

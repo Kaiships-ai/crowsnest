@@ -1,6 +1,6 @@
 # llm: feature description
 
-The llm layer has no screen of its own. Its features are the operations every AI feature reaches it through, a structured or free-text generation, and a keyless connection check, and what the user sees is owned by the callers: analyze, remix, generate idea, and the Settings API Keys card. This document describes those operations from the layer's own side: what a request does, how the two client modes differ, and what each failure returns to the caller that surfaces it.
+The llm layer has no screen of its own. Its features are the operations every AI feature reaches it through, a structured or free-text generation, and a keyless connection check, and what the user sees is owned by the callers: remix, generate idea, and the Settings API Keys card. This document describes those operations from the layer's own side: what a request does, how the two client modes differ, and what each failure returns to the caller that surfaces it.
 
 ## 1. Feature summary
 
@@ -16,7 +16,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 ### Who uses it
 
-Every generation in the app: analyze's structured breakdown, remix's hooks, outline, and script variants, and generate idea. Each caller reaches this feature through the same client, injected as `opts?.llm ?? getLlm()` so tests can pass a fake.
+Every in-app generation: remix's hooks, outline, and script variants, and generate idea. Each caller reaches this feature through the same client, injected as `opts?.llm ?? getLlm()` so tests can pass a fake.
 
 ### What it does
 
@@ -28,7 +28,7 @@ On the compat path, the router translates only the streaming wire format and ign
 
 ### How to access it
 
-Every caller reaches this feature through `getLlm()` (`src/server/llm/client.ts`). `analyze.ts` calls `generateParsed` with `VideoAnalysisSchema`. `remix.ts` calls `generateParsed` for `HookOptionsSchema` and `OutlineSchema`, and `generateText` for the three script variants. `ideas.ts` calls `generateParsed` with `IdeaSchema`. None of them constructs a client or names a model directly.
+Every caller reaches this feature through `getLlm()` (`src/server/llm/client.ts`). `remix.ts` calls `generateParsed` for `HookOptionsSchema` and `OutlineSchema`, and `generateText` for the script variants. `ideas.ts` calls `generateParsed` with `IdeaSchema`. Neither constructs a client or names a model directly.
 
 ### Business rules
 
@@ -36,7 +36,6 @@ Every caller reaches this feature through `getLlm()` (`src/server/llm/client.ts`
 - The client is a cached singleton; `resetLlmClient()` drops it so a key changed in Settings is picked up on the next call without a restart.
 - `generateParsed` retries exactly once, and only on a null structured output, never on an HTTP error; an `AuthenticationError` is not retried into a second billed call.
 - Script variants are per-slot isolated: `generateVariants` runs `Promise.allSettled` over N `generateText` calls, so one failed variant becomes an error at its slot and the call essentially never throws; zero of N succeeding is what the caller's run log records as a failed attempt.
-- A re-analysis calls `generateParsed` again and overwrites only the text columns; the layer has no memory of a prior call and no notion of the layout columns it never produces.
 
 ### Limitations
 
@@ -46,7 +45,7 @@ Every caller reaches this feature through `getLlm()` (`src/server/llm/client.ts`
 
 ### User guide
 
-The llm layer has no screen of its own, so there is nothing to walk through here directly. What a generation looks like to the user, the Analyze button, the remix hook and outline cards, the script variant slots, is documented in each caller's own user guide. What is true everywhere those surfaces reach this layer: a missing Anthropic key shows as a message inviting you to add it in Settings, and a real attempt that fails shows a different message naming the problem, so you can tell "nothing was tried" from "something went wrong" at a glance.
+The llm layer has no screen of its own, so there is nothing to walk through here directly. What a generation looks like to the user, the remix hook and outline cards, the script variant slots, and the generated idea, is documented in each caller's own user guide. What is true everywhere those surfaces reach this layer: a missing Anthropic key shows as a message inviting you to add it in Settings, and a real attempt that fails shows a different message naming the problem, so you can tell "nothing was tried" from "something went wrong" at a glance.
 
 ## 3. Check the connection (ping and the generation probe)
 
@@ -86,7 +85,7 @@ Open Settings, find the API Keys card, and click Test next to Anthropic. The car
 
 ## 4. Interactions with other systems
 
-**Persistence.** The layer writes nothing. Callers persist results, an analysis row, a session field, a run-log row; a failed generation leaves no partial row.
+**Persistence.** The layer writes nothing. Callers persist results, an idea row, a session field, a run-log row; a failed generation leaves no partial row.
 
 **Configuration and settings.** The key is a managed secret set in Settings; `CLAUDE_MODEL` and `LLM_BASE_URL` are environment only. The key is database first, so a change applies without a restart.
 
@@ -97,5 +96,4 @@ Open Settings, find the API Keys card, and click Test next to Anthropic. The car
 - The only fully keyless path in the app is transcription (whisper.cpp), not this layer. Both native and compat require a key; `LLM_BASE_URL` changes routing, not the credential.
 - `generateParsed` retries exactly once, and only on a null structured output, never on an HTTP error.
 - Script variants are per-slot isolated, so one failed variant does not fail the others; zero of N succeeding is the failed-attempt fact the caller's run log records.
-- A re-analysis overwrites only the text columns the model produces; the layout columns, which come from a separate, not-yet-wired frame pass, are untouched.
 - In compat mode a green ping with a red generation is a real, distinct state (`reachable_unverified`) rather than a false "up", because the router can answer `count_tokens` locally and still fail generation for the same model.

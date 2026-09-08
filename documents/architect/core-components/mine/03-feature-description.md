@@ -1,6 +1,6 @@
 # mine: feature description
 
-mine is what fills `/mine`. The user does not go elsewhere to see how their own account is doing or to sketch what they mean to post next: one page owns both, and the two halves deliberately do not depend on each other. The planner (features 5 and 6 below) reads and writes `planned_posts` and needs no external service. The metrics half (features 2, 3, and 7) reads the official Instagram Graph API, kept in a table set (`own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`) entirely separate from the tracked-channel tables ig-sync writes.
+mine is what fills `/mine`. The user does not go elsewhere to see how their own account is doing or to sketch what they mean to post next: one page owns both, and the two halves deliberately do not depend on each other. The planner (features 5 and 6 below) reads and writes `planned_posts` and needs no external service; publishing a plan (feature 8) is the one planner-side action that does, reaching the Instagram Graph API through the [publish](../publish/01-concept-brief.md) component. The metrics half (features 2, 3, and 7) reads the official Instagram Graph API, kept in a table set (`own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`) entirely separate from the tracked-channel tables ig-sync writes.
 
 Two gates decide what the page shows, and neither is faked when its data is missing. The first is whether any tracked channel is marked as the user's own (`channels.isOwn`); with none, the whole page is the own-channel picker (feature 2). The second is the Graph API token; with it missing or failing, the metrics band is replaced or topped by a connect panel (feature 7) rather than a spinner or zeros. The planner tab strip renders in every state, because it depends on neither gate.
 
@@ -11,11 +11,12 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
 | 2 | Choose your own channel | Marks one tracked channel as the user's own so the rest of the page has an identity to measure | ● | `src/components/mine/own-channel-picker.tsx`, `setOwnChannelAction` | B-15 |
-| 3 | View your own channel dashboard | The header, six stat tiles, progress bar, and reach-by-post bars, gated on the Graph token | ● | `src/app/(shell)/mine/page.tsx`, `own-stat-tiles.tsx`, `reach-by-post-bars.tsx` | none |
+| 3 | View your own channel dashboard | The header, six stat tiles, progress bar, and reach-by-post bars, gated on the Graph token | ● | `src/app/(shell)/(loaded)/mine/page.tsx`, `own-stat-tiles.tsx`, `reach-by-post-bars.tsx` | none |
 | 4 | Browse own posts and weekday metrics | A flat post list and a weekday-average reach chart, both read-only | ● | `reach-by-post-bars.tsx` (`OwnPostList`), `own-weekday-rhythm.tsx` | none |
-| 5 | Plan a post | Create or edit a planned post: a dated intention to publish, optionally carrying a script | ● | `plan-dialog.tsx`, `planned-post-actions.ts` | B-04 |
+| 5 | Plan a post | Create or edit a planned post: a dated intention to publish, optionally carrying a script | ● | `plan-dialog.tsx`, `planned-post-actions.ts` | none |
 | 6 | Manage the month calendar | The seven-column grid, the day detail panel, marking a plan published, and deleting one | ● | `mine-calendar.tsx`, `markPlanPublishedAction`, `deletePlannedPostAction` | B-09 |
 | 7 | Connect and measure the Graph API | Check the token, and run a measurement that fills the own-channel tables | ● | `graph-connect-panel.tsx`, `graph-actions.ts` | none |
+| 8 | Publish a planned post | Upload a video, write a caption, then publish now or schedule, cancel a schedule, or retry a failed publish | ● | `publish-dialog.tsx`, `mine-calendar.tsx`, `planned-post-actions.ts` | none |
 
 ## 2. Choose your own channel
 
@@ -112,7 +113,7 @@ The user, from the month calendar (feature 6).
 
 ### What it does
 
-The plan dialog creates a new planned post or edits an existing one. A planned post is a dated intention to publish, optionally carrying a script, a video kind, and (when it came from a source video) a remix session link; nothing about it publishes or reminds on its own. Clicking an empty day, or "New planned post", opens it in create mode with the date prefilled; clicking an existing plan opens it in edit mode with that plan's fields loaded. A plan with no script is allowed, but only on purpose: with no script selected, an "I don't have a script yet" checkbox must be ticked before Save enables.
+The plan dialog creates a new planned post or edits an existing one. A planned post is a dated intention to publish, optionally carrying a script, a video kind, and (when it came from a source video) a remix session link; the plan dialog itself neither publishes nor reminds, and publishing a plan is a separate step (feature 8). Clicking an empty day, or "New planned post", opens it in create mode with the date prefilled; clicking an existing plan opens it in edit mode with that plan's fields loaded. A plan with no script is allowed, but only on purpose: with no script selected, an "I don't have a script yet" checkbox must be ticked before Save enables.
 
 ### How to access it
 
@@ -121,22 +122,21 @@ The "New planned post" button and empty-day clicks on the month calendar, and cl
 ### Business rules
 
 - A date present at save writes a `scheduled` plan; a blank date writes a `draft`. On edit, giving a dateless plan a date schedules it, and clearing a scheduled plan's date returns it to draft. A date in the past is accepted, not refused; it reads as `missed` on the calendar, computed on read, not stored.
-- Create is a single write. Edit applies only the fields that changed, as up to four separate server actions in a fixed order: title and note, then date, then script, then video kind (B-04). A mid-sequence failure leaves whatever already succeeded written, stops with one inline error, and does not name which writes landed.
+- Create is a single write. Edit is one write too: `savePlanEditAction` takes only the fields that changed, validates all of them up front, then applies them in a single transaction, so a rejected edit changes nothing and a failure never leaves a partial write.
 - A plan carrying a script from a remix session cannot have that script changed or removed in this dialog; the script select is replaced by a line pointing to the vault instead. Other fields on such a plan stay editable.
 - Detaching a script writes a note ("Script detached on {date}.") so the plan reads as one that lost its script, distinct from one that never had one; attaching a new script clears that note.
 - A blank or whitespace-only title is refused on both create and edit; the title is trimmed before the check.
 - The video kind select offers exactly the fixed eight kinds (explainer, site-tour, product-promo, music-video, pr-announcement, talking-head, slideshow, general); the action's `BAD_VIDEO_KIND` refusal exists to guard a crafted request, since the UI cannot produce an unrecognized value.
-- From edit mode, "Create in Studio" navigates to `/mine/{postId}/studio` without saving any pending, unsaved edits.
 
 ### Limitations
 
-- There is no time field and no target-length field anywhere in this dialog, even though the underlying record can hold both; other paths (a remix finish, the studio) can set them, and editing through this dialog preserves whatever value they already have.
-- Marking a plan published and deleting a plan are not in this dialog; those live on the calendar (feature 6) and the studio.
+- There is no time field and no target-length field anywhere in this dialog, even though the underlying record can hold both; other paths (a remix finish, or scheduling through the publish dialog) can set them, and editing through this dialog preserves whatever value they already have.
+- Marking a plan published, deleting a plan, and publishing a plan are not in this dialog; those live on the calendar (features 6 and 8).
 - The checkbox copy states that a scriptless plan "gets flagged stale after 30 days if it still has neither"; no code path in this repository currently computes or renders that flag anywhere, so the copy currently describes behavior that does not exist yet.
 
 ### User guide
 
-To plan a post, click a day on the calendar, or click New planned post. Give it a title, optionally a note, optionally a script and a video kind, and save. If you have not written a script yet, tick the box saying so, so the plan is clearly marked as an idea rather than looking finished. To change a plan later, click it on the calendar, edit any field, and save again. From an existing plan you can also click Create in Studio to start cooking it.
+To plan a post, click a day on the calendar, or click New planned post. Give it a title, optionally a note, optionally a script and a video kind, and save. If you have not written a script yet, tick the box saying so, so the plan is clearly marked as an idea rather than looking finished. To change a plan later, click it on the calendar, edit any field, and save again. When you are ready to publish it, open it on the calendar and use Upload and schedule (feature 8).
 
 ## 6. Manage the month calendar
 
@@ -146,7 +146,7 @@ The user, on the Month tab of `/mine`, the default tab.
 
 ### What it does
 
-The calendar is a seven-column grid, Monday through Sunday, of the current month. Each day cell shows what published (when the channel has been measured), what is planned, or nothing. Clicking a day opens a detail panel with that day's date, the plan's title, state, note, and script; from there the user can open the plan for editing, mark it published, or delete it. Cell precedence is fixed: published wins over missed, missed over scheduled, scheduled over dead air, dead air over open, so a day that both published and carried a plan reads as published.
+The calendar is a seven-column grid, Monday through Sunday, of the current month. Each day cell shows what published (when the channel has been measured), what is planned, or nothing, and a plan that is mid-publish shows its lifecycle instead (scheduled, publishing, or failed). Clicking a day opens a detail panel with that day's date, the plan's title, state, note, and script; from there the user can open the plan for editing, mark it published, delete it, or take it through publish (feature 8). Cell precedence is fixed: published wins over publishing, publishing over failed, failed over missed, missed over scheduled, scheduled over dead air, dead air over open, so a day that both published and carried a plan reads as published.
 
 ### How to access it
 
@@ -157,7 +157,7 @@ The Month trigger in the tab strip; it is the tab the page opens on. The previou
 - "Missed" is never stored. `getCalendarMonth` computes it on every read from today against a `scheduled` plan's `plannedDate`; there is no code path in this component that writes it.
 - A plan marked published (even on a past date) reads as published, not missed, because published is checked ahead of missed in the cell precedence.
 - Marking a plan published writes `publishedOwnPostId` and the plan's `state`, then re-reads the month; the toast reads "Marked published" when reconciled against a matching own post, or "Marked published, no post linked" otherwise.
-- Deleting a plan removes the row, closes the panel, re-reads, and shows a "Planned post deleted" toast with an Undo action. The Undo re-creates the plan from its title, note, date, and script only; it does not restore the original row's id, remix session link, source video link, video kind, planned time, target length, or published mark (B-09).
+- Deleting a plan removes the row, closes the panel, re-reads, and shows a "Planned post deleted" toast with an Undo action. A plan that carries an uploaded video asks for confirmation first, through a designed confirm dialog rather than the browser's native prompt. The Undo re-creates the plan from its title, note, date, and script only; it does not restore the original row's id, remix session link, source video link, video kind, planned time, target length, or published mark (B-09).
 - Dead-air shading (three or more elapsed days with nothing published) and the reconciliation prompt both depend on the channel having been measured at least once; with no measurement, the grid still renders every plan, and a line above it explains that the rest is unavailable.
 - The reconciliation prompt (a plan and an own post sharing a date) is a suggestion the user must click to accept; it is never applied automatically, and it stops appearing once the plan is marked published by hand.
 - There is no drag anywhere on this grid. Rescheduling a plan is a date-field edit in the plan dialog; day cells are plain buttons.
@@ -201,3 +201,38 @@ The connect panel, which renders automatically whenever the Graph token is not c
 ### User guide
 
 If My channel shows a message about connecting instead of your numbers, click Check connection to see the current state. Once it reads connected, click Measure now to pull your real posts and their reach, saves, and shares from Instagram. This can take a moment; when it finishes, a toast tells you how many posts were measured and the dashboard fills in.
+
+## 8. Publish a planned post
+
+### Who uses it
+
+The user, from a plan's day detail panel on the month calendar, once a plan is ready to go up.
+
+### What it does
+
+The publish dialog takes one planned post from a draft to a published Instagram Reel. It uploads an mp4, writes the Reel's caption, and then either publishes it now or schedules it for a chosen date and time. It opens from the day panel of a plan in a `draft`, `scheduled`, `missed`, or `failed` state, through an "Upload and schedule" button (which reads "Edit publish" once a video is attached). The same day panel also renders the rest of the lifecycle without the dialog: a scheduled plan shows when it will publish, a plan being published shows a "publishing" pulse, a failed plan shows its error class and message with a Retry button, and a published plan shows a check with a link to the post. A scheduled plan can be cancelled from the panel, which returns it to an undated draft while keeping its video and caption. The pipeline that actually uploads, builds the Reel, and fires a scheduled publish belongs to the [publish](../publish/01-concept-brief.md) component; this feature is the mine-side surface that drives it.
+
+### How to access it
+
+The "Upload and schedule" (or "Edit publish") button in a plan's day detail panel opens the dialog. The "cancel scheduled publish" link appears in the panel once a plan has a scheduled time, and the Retry button appears on a failed plan that is still under the attempt cap.
+
+### Business rules
+
+- Only an mp4 is accepted; the dialog refuses any other file by type and extension before it uploads.
+- The caption is capped at Instagram's 2200-character ceiling, shown as a live count, and saved both when the field loses focus and again on submit.
+- There is exactly one primary action, and its label is the whole decision: "Schedule" when both a date and a time are set, "Publish now" when they are not. It stays disabled until a video is attached, a caption is written, and both the Graph token and the storage bucket are configured.
+- When the Graph token or the storage bucket is not configured, the dialog names exactly which variables are missing (`IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID`, or the five `S3_*` variables) and disables the action, but the video and the caption still save, so the plan keeps its draft rather than losing the work.
+- A publish can only be scheduled forward: a past date is never pre-filled, and the date field's minimum is today.
+- Dry run is the safe default off production and shows a banner saying the final publish call is skipped, so a dev machine can rehearse the whole path without touching the live account.
+- Cancelling a scheduled publish, and deleting a plan that carries an uploaded video, both go through a designed confirm dialog rather than the browser's native prompt.
+- Retry is offered only while the plan is under the attempt cap, and `retryFailedPublishAction` refuses an over-cap retry regardless of what the UI shows.
+
+### Limitations
+
+- Publishing needs both the Instagram Graph token and an S3-compatible bucket set in the environment; without them the dialog can attach a video and save a caption but cannot publish, and there is no in-app settings control for either yet.
+- There is no upload progress bar and no live container-poll progress; while a publish runs the cell shows a "publishing" pulse and the outcome appears on the next refresh.
+- Recovery from a process killed mid-publish (a row left in `publishing`) is not handled from this page; that is an open item of the [publish](../publish/02-architecture.md) component.
+
+### User guide
+
+When a plan is ready to go up, open it on the calendar and click Upload and schedule. Drop in your mp4, write the caption, and either pick a date and time to schedule it or leave the time blank to publish now. If publishing is not set up yet, the dialog tells you exactly which settings are missing; your video and caption still save so nothing is lost. A scheduled plan shows when it will publish and can be cancelled back to a draft; a plan that fails shows why and offers Retry; a published plan shows a check and a link to the post.
