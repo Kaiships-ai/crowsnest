@@ -9,8 +9,8 @@ the doc's own word.
 
 | Component | Verdict before | Highest-severity drift | Now |
 | --- | --- | --- | --- |
-| mcp | already synced (v0.3) | 27 to 29 tools, artifact tools | in sync |
-| kit | already synced (v0.3) | kai mcp, rollback, mcp-register | in sync |
+| mcp | synced in the v0.3 branch, not this pass | 27 to 29 tools, artifact tools | synced |
+| kit | synced in the v0.3 branch, not this pass | kai mcp, rollback, mcp-register | synced |
 | ig-sync | major | no multi-account section; stale metrics and concurrency | synced |
 | analyze | minor | one retired repro step (Re-analyze) | synced |
 | feed | minor | stale landing-page path | synced |
