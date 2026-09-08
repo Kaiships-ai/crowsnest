@@ -11,16 +11,16 @@ its first sync.
 | File | Export | Role |
 | --- | --- | --- |
 | `src/server/db/schema.ts` | `creatorSeeds` | The table: `id`, `platform` (default `"instagram"`), `handle`, `niche`, `why`, `source`, `createdAt`; unique index on `(platform, handle)`. |
-| `drizzle/0022_cloudy_the_hand.sql` | (migration) | Creates `creator_seeds` and its unique index. |
-| `data/seeds/fitness.json`, `finance.json`, `tech.json`, `business.json` | (seed content) | One file per niche, `{ niche, label, creators: [{ handle, why, source }] }`. 118 creators total across the four files (30 fitness, 28 finance, 30 tech, 30 business). |
+| `drizzle/0025_black_titanium_man.sql` | (migration) | Creates `creator_seeds` and its unique index. |
+| `data/seeds/fitness.json`, `finance.json`, `tech.json`, `business.json` | (seed content) | One file per niche, `{ niche, label, creators: [{ handle, why, source }] }`. 113 creators total across the four files (27 fitness, 26 finance, 30 tech, 30 business). |
 | `data/seeds/README.md` | (doc) | The curation contract: `why` must describe content style or expertise, never a metric; documents a `scripts/verify-seeds.ts` pre-commit handle check that is not present in this repo today. |
 | `src/server/db/bootstrap.ts` | `bootstrapCreatorSeeds` | Reads the four seed files in a fixed order (`SEED_NICHES`, not globbed), trims each handle and strips a leading `@`, inserts one row per creator keyed on `(platform, handle)`. Idempotent: re-running never duplicates a row. Invoked from `npm run db:bootstrap` alongside `bootstrapSystemFilters`. |
 | `src/server/queries/discover.ts` | `listCreatorSeeds`, `CreatorSeedRow` | Left-joins `creatorSeeds` to `channels` (matched on `platform = "instagram"`, `handle`, `deletedAt IS NULL`) to compute a `tracked` boolean per seed. Accepts an optional `niche` filter; orders by niche then handle, both ascending. |
 | `src/server/actions/discover-actions.ts` | `followCreatorAction` | One-click follow: normalizes the handle (`normalizeHandle`), checks for an existing live `channels` row, and if none exists calls `addChannelAction` then `startSyncAction`. Idempotent: an already-tracked handle is a no-op reporting `alreadyTracked: true`. |
-| `src/app/(shell)/channels/discover/page.tsx` | `DiscoverPage` (default) | `force-dynamic` route at `/channels/discover`. Awaits `listCreatorSeeds()` with no niche filter and renders `DiscoverBoard`. |
+| `src/app/(shell)/(loaded)/channels/discover/page.tsx` | `DiscoverPage` (default) | `force-dynamic` route at `/channels/discover`. Awaits `listCreatorSeeds()` with no niche filter and renders `DiscoverBoard`. |
 | `src/components/discover/discover-board.tsx` | `DiscoverBoard` | Client niche tabs (All, fitness, finance, tech, business) that filter the already-fetched seed list in memory; one `CreatorSeedCard` per visible seed. |
 | `src/components/discover/creator-seed-card.tsx` | `CreatorSeedCard` | One card: handle, niche badge, `why`, and a Follow button cycling `idle` → `pending` → `tracked`. |
-| `src/components/discover/seed-picker.tsx` | `SeedPicker` | A self-contained multi-select variant: checkbox rows, a `maxSelect` cap (default 10), and a single "Follow selected" button that calls `followCreatorAction` once per checked handle. Not imported by any route. |
+| `src/components/discover/seed-picker.tsx` | `SeedPicker` | A self-contained multi-select variant: checkbox rows, a `maxSelect` cap (default 10), and a single "Follow selected" button that calls `followCreatorAction` once per checked handle. Mounted in the first-run sources step (`src/components/first-run/sources-step.tsx`). |
 | `src/components/layout/nav-items.ts` | `NAV_ITEMS` | Adds the Discover entry (`Compass` icon, `Sources` group, `/channels/discover`) right after Channels. |
 
 ## 2. ER diagram
@@ -155,7 +155,3 @@ sequenceDiagram
 - **Whether `scripts/verify-seeds.ts` exists or runs.** `data/seeds/README.md` states handles
   are "verified against the sidecar by `scripts/verify-seeds.ts` before commit," but no such
   file exists in this repository today. Tracked in the [backlog](05-backlog-to-enhance.md).
-- **Whether `SeedPicker` has ever been exercised against a real first-run flow.** It is
-  covered by its own component test (`seed-picker.test.tsx`) with a mocked
-  `followCreatorAction`, but nothing in the shipped app mounts it, so its behavior inside an
-  actual first-run step is unverified.

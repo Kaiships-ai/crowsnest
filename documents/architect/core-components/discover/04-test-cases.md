@@ -4,7 +4,7 @@ Result markers: 🟢 pass, 🔴 bug, 🟡 blocked (missing dependency named in t
 
 How to run this file: start the dev server and open `http://localhost:3001` (never
 `127.0.0.1`), on a database that has run `npm run db:bootstrap` at least once, so
-`creator_seeds` holds the curated list (118 rows across fitness, finance, tech, and
+`creator_seeds` holds the curated list (113 rows across fitness, finance, tech, and
 business). Seed a mix for the tracked-state cases: leave most seeds untracked, and add one
 seed's handle as a tracked channel (and separately, one as a soft-deleted channel) to check
 the tracked and untracked-after-removal paths. The discover page needs no external service

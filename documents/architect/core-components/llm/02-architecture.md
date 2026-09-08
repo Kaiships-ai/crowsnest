@@ -2,19 +2,19 @@
 
 `documents/architect/core-components/llm/`
 
-Status: shipped and in use by analyze and remix, the no-proxy path has not been proven to complete a live generation end to end.
+Status: shipped and in use by remix and the ideas loop, the no-proxy path has not been proven to complete a live generation end to end.
 
 ## 1. Module structure
 
 | File | Export | Role |
 | --- | --- | --- |
 | `src/server/llm/client.ts` | `LlmClient`, `AnthropicLlmClient`, `CompatLlmClient`, `NoApiKeyError`, `LlmParseError`, `resolveModel`, `hasLlmKey`, `isCompatMode`, `getLlm`, `resetLlmClient`, `_createLlm`, `_createCompatLlm` | The whole layer: the client interface, its two implementations, the model resolver, the key check, the compat-mode check, the lazy singleton, the cache reset, and the test-only constructor seams. Nothing else in the app constructs an Anthropic client. |
-| `src/server/llm/schemas.ts` | `VideoAnalysisSchema`, `HookOptionsSchema`, `OutlineSchema`, `IdeaSchema`, `VideoLayoutSchema`, `BeatLayoutSchema`, `VideoLayoutFieldSchema`, `LegacyFlatVideoLayoutSchema`, `asBeatLayout` | The Zod schemas every structured call validates against. `VideoAnalysisSchema` (analyze), `HookOptionsSchema` and `OutlineSchema` (remix), `IdeaSchema` (ideas). The layout schemas describe the shape a future frame pass would produce; no caller constructs a `VideoLayout` today. These are the enforced contract; the prompts describe the same shape in prose. |
+| `src/server/llm/schemas.ts` | `VideoAnalysisSchema`, `HookOptionsSchema`, `OutlineSchema`, `IdeaSchema`, `VideoLayoutSchema`, `BeatLayoutSchema`, `VideoLayoutFieldSchema`, `LegacyFlatVideoLayoutSchema`, `asBeatLayout` | The Zod schemas every structured call validates against. `HookOptionsSchema` and `OutlineSchema` (remix), `IdeaSchema` (ideas). `VideoAnalysisSchema` is not a `generateParsed` target of this layer; it is the validation contract the agent-authored write path (`analyze.ts`'s `saveAgentAnalysis`, reached through `crowsnest_save_analysis`) checks its input against. The layout schemas describe the shape a future frame pass would produce; no caller constructs a `VideoLayout` today. These are the enforced contract; the prompts describe the same shape in prose. |
 | `src/server/llm/error-message.ts` | `llmErrorMessage` | The one place the typed `@anthropic-ai/sdk` error hierarchy is mapped to a user-facing string. Checked most-specific-first: `AuthenticationError`, then `RateLimitError`, then `APIConnectionError`, then the base `APIError`. `NoApiKeyError` is deliberately not handled here; it is not an SDK class, and every call site gives it its own feature-specific message first. |
 | `src/server/llm/generation-probe.ts` | `probeLlmGeneration`, `GenerationProbeState`, `GenerationProbeResult` | The health check that actually calls `generateText` (a one-word prompt, `maxTokens: 8`) rather than only pinging, and classifies the result into `up`, `reachable_unverified`, or `down`. |
 | `src/server/llm/router-control.ts` | process supervisor for the local 9router proxy | Starts, tracks by pid, and stops only the pid it started; probes reachability. Not part of the request path; it manages the proxy the compat client talks to. |
 | `src/server/secrets/store.ts` | `getSecret`, `setSecret`, `clearSecret`, `secretStatus`, `MANAGED_SECRETS` | `getSecret` (database first, environment fallback) resolves the API key. A key set through Settings takes effect without a restart because the database row wins over the environment variable. Shared by every managed secret in the app, not owned by llm alone. |
-| Callers | | `src/server/services/analyze.ts`, `src/server/services/remix.ts`, and `src/server/services/ideas.ts` invoke the client; `src/server/actions/settings-actions.ts` and `src/server/actions/router-actions.ts` drive `ping` and the probe. |
+| Callers | | `src/server/services/remix.ts` and `src/server/services/ideas.ts` invoke the client; `src/server/actions/settings-actions.ts` and `src/server/actions/router-actions.ts` drive `ping` and the probe. |
 
 ## 2. ER diagram
 
@@ -41,7 +41,7 @@ erDiagram
 
 **Which client is built.** `getLlm()` throws `NoApiKeyError` immediately if no key is resolvable, so no request is ever attempted without a credential. With a key it constructs a single Anthropic instance and wraps it: `CompatLlmClient` when `LLM_BASE_URL` is set (`isCompatMode()`), `AnthropicLlmClient` otherwise. The instance is cached as a module-level singleton; `resetLlmClient()` nulls it so the next call re-resolves the key and base URL from scratch. The key comes from `getSecret("ANTHROPIC_API_KEY")` and is passed explicitly to the constructor, because a zero-arg `new Anthropic()` would read only `process.env` and never see a database-only key. `LLM_BASE_URL` is not a managed secret, so it is read straight from the environment.
 
-**Which model.** `resolveModel()` returns `process.env.CLAUDE_MODEL ?? "claude-sonnet-5"`. The default is Claude Sonnet 5 (`claude-sonnet-5`, 1M context, $2 input and $10 output per 1M tokens; verified against the claude-api skill's current model table, the cheapest of the Sonnet and Opus tier). The resolver is exported so a caller that persists which model produced a result, `analyze.ts` writing `model: resolveModel()` onto the `video_analyses` row, reuses the same logic rather than re-deriving it.
+**Which model.** `resolveModel()` returns `process.env.CLAUDE_MODEL ?? "claude-sonnet-5"`. The default is Claude Sonnet 5 (`claude-sonnet-5`, 1M context, $2 input and $10 output per 1M tokens; verified against the claude-api skill's current model table, the cheapest of the Sonnet and Opus tier). The resolver is exported, but every current caller lets the client apply it: `client.ts` calls `resolveModel()` on each request, so text, structured, and ping calls all name the model the same way. No caller persists the model id today.
 
 **The native path (`AnthropicLlmClient`).** `generateText` calls `messages.create` and concatenates only `type === "text"` blocks. `generateParsed` calls `messages.parse` with `output_config: { format: zodOutputFormat(schema) }`, the SDK's native structured-output support, and returns `response.parsed_output`. On a `null` parsed output it retries once, then throws `LlmParseError`; a non-2xx failure raises a typed SDK error from `.parse()` itself and is not retried. No `temperature`, `top_p`, or `thinking` parameter is sent: Sonnet 5 rejects non-default sampling parameters, and omitting `thinking` runs adaptive thinking, which is already the default. `max_tokens` defaults to 2048.
 
@@ -53,43 +53,57 @@ erDiagram
 
 ## 5. Sequence: reaching the model for one grounded generation call
 
-The example below follows `analyzeVideo` (`src/server/services/analyze.ts`) calling `client.generateParsed` for a video's structured breakdown, the same key-resolution and retry mechanics every caller of this layer goes through.
+The example below follows `generateIdea` (`src/server/services/ideas.ts`) calling `client.generateParsed` for one content idea, the same key-resolution and retry mechanics every caller of this layer goes through. It reads the source video, that video's analysis row, and the single persona row to ground the prompt, then upserts an `idea` row. Unlike a UI-triggered action, `generateIdea` never throws: the sync's auto-generate pass calls it once per analyzed outlier, so a missing key or an unparseable reply is logged and returned as no idea created, rather than surfaced as an error to a screen.
 
 ```mermaid
 sequenceDiagram
-    actor UI as Video detail page
-    participant Action as analyzeVideo
+    actor Sync as Sync auto-generate pass
+    participant Idea as generateIdea
     participant Claude as Anthropic API or local router
     participant DB
 
-    UI->>Action: Click Analyze
-    activate Action
-    Action->>DB: **Resolve the Anthropic API key** (secrets)<br/>params:{ name: "ANTHROPIC_API_KEY" }
-    DB-->>Action: Return {Secret} or null<br/>params:{ name }
+    Sync->>Idea: generateIdea(videoId)
+    activate Idea
+    Idea->>DB: **Read the source video** (videos)<br/>params:{ id: videoId }
+    DB-->>Idea: Return {Video} or null<br/>params:{ id, outlierScore }
+    Idea->>DB: **Read the video's analysis** (videoAnalyses)<br/>params:{ videoId: Video.id }
+    DB-->>Idea: Return {VideoAnalysis} or null<br/>params:{ videoId }
+    Idea->>DB: **Read the single persona row** (persona)<br/>params:{ id: "persona" }
+    DB-->>Idea: Return {Persona}<br/>params:{ audience, voice, do, dont }
+    Idea->>DB: **Resolve the Anthropic API key** (secrets)<br/>params:{ name: "ANTHROPIC_API_KEY" }
+    DB-->>Idea: Return {Secret} or null<br/>params:{ name }
     alt no key resolvable
-        Action-->>UI: Return error response that no key is configured<br/>params:{ code: "NoApiKeyError" }
+        Idea-->>Sync: Return that no idea was created, NoApiKeyError logged<br/>params:{ id: "", created: false }
     end
-    Action->>Claude: **Request a structured analysis** (generateParsed)<br/>params:{ schema: "VideoAnalysisSchema" }
-    Claude-->>Action: Return {parsed_output} or null
+    Idea->>Claude: **Request a structured idea** (generateParsed)<br/>params:{ schema: "IdeaSchema" }
+    Claude-->>Idea: Return {parsed_output} or null
     opt parsed_output is null
-        Action->>Claude: **Retry once** (generateParsed)<br/>params:{ schema: "VideoAnalysisSchema" }
-        Claude-->>Action: Return {parsed_output} or null
+        Idea->>Claude: **Retry once** (generateParsed)<br/>params:{ schema: "IdeaSchema" }
+        Claude-->>Idea: Return {parsed_output} or null
     end
     alt still null after the retry
-        Action-->>UI: Return error response that the structured output could not be parsed<br/>params:{ code: "LlmParseError" }
+        Idea-->>Sync: Return that no idea was created, LlmParseError logged<br/>params:{ id: "", created: false }
     end
-    Action->>DB: **Write the analysis** (videoAnalyses)<br/>params:{ videoId, hookType, model: resolveModel() }
-    DB-->>Action: Return {VideoAnalysis}<br/>params:{ videoId }
-    deactivate Action
-    Action-->>UI: Return success response that the analysis is ready<br/>params:{ videoId }
+    Idea->>DB: **Find an existing non-discarded idea for this video** (idea)<br/>params:{ sourceVideoId: Video.id }
+    DB-->>Idea: Return {Idea} or null<br/>params:{ id, status }
+    alt a non-discarded idea already exists
+        opt it is still an untouched inbox idea
+            Idea->>DB: **Update its concept and angle in place** (idea)<br/>params:{ id: Idea.id, concept, angle, scoreAtCreation, updatedAt }
+        end
+        Idea-->>Sync: Return the existing idea, not created<br/>params:{ id: Idea.id, created: false }
+    else no active idea yet
+        Idea->>DB: **Insert the new idea** (idea)<br/>params:{ id, sourceVideoId: Video.id, concept, angle, status: "inbox", scoreAtCreation }
+        Idea-->>Sync: Return that a new idea was created<br/>params:{ id, created: true }
+    end
+    deactivate Idea
 ```
 
-`generateParsed`'s key resolution and retry happen inside `getLlm()` and the client itself; the diagram surfaces them as steps on `analyzeVideo` because that is the caller a reader traces the request through, the same convention the module structure table above uses for "nothing else constructs an Anthropic client." A non-2xx SDK error (an `AuthenticationError` or a connection failure) is not shown as a separate branch here because it propagates untouched, unlike the null-parsed-output case, which is retried once inside the layer before it reaches the caller.
+`generateParsed`'s key resolution and retry happen inside `getLlm()` and the client itself; the diagram surfaces them as steps on `generateIdea` because that is the caller a reader traces the request through, the same convention the module structure table above uses for "nothing else constructs an Anthropic client." A non-2xx SDK error (an `AuthenticationError` or a connection failure) is not drawn as a separate branch: `generateIdea` catches every failure the same way, logs it, and returns no idea created. The null-parsed-output case differs only in that the layer retries it once before it is caught.
 
 ## 6. Key decisions
 
 - **One client interface, two implementations, picked at runtime by `LLM_BASE_URL`.** Callers inject a fake `LlmClient` in tests (`opts?.llm ?? getLlm()`), so every service test runs with zero live API calls. Neither caller knows or cares which real client is behind the interface.
-- **The key gate lives in the layer, not in every caller.** `getLlm()` throws `NoApiKeyError` before any request, so the distinction between "no credential, nothing attempted" and "credential present, request failed" is held in one place. Callers map the two to different user-facing surfaces, a block panel reason in remix, a key alert in analyze, via `llmErrorMessage`.
+- **The key gate lives in the layer, not in every caller.** `getLlm()` throws `NoApiKeyError` before any request, so the distinction between "no credential, nothing attempted" and "credential present, request failed" is held in one place. Callers map the two to different user-facing surfaces, a block panel reason in the remix studio (`remix-actions.ts`) and the Test result on the Settings API Keys card (`settings-actions.ts`), each routing typed SDK errors through `llmErrorMessage`.
 - **Structured output is native where it can be and prompt-engineered where it cannot.** The native path trusts the SDK's `zodOutputFormat`; the compat path cannot, because the router drops `output_config.format`, so it asks for JSON in the system prompt and parses by hand. Both keep the identical one-retry-then-fail contract so callers see the same `LlmParseError` regardless of route.
 - **The key is resolved through the secret store, not the environment alone.** `getSecret` is database first, so a key entered in Settings takes effect immediately; `resetLlmClient()` (called on any key change) drops the cached client so the new key is picked up without a server restart.
 - **A key is required on both paths.** `LLM_BASE_URL` only changes where the request is routed, not whether a key is needed. There is no fully keyless path through this layer the way there is for local transcription (whisper.cpp).

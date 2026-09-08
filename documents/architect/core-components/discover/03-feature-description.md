@@ -10,8 +10,8 @@ Discover is a curated directory of Instagram creators to follow. A fixed list of
 handles, one file per niche, is loaded into a `creator_seeds` table at install time. The
 page at `/channels/discover` groups them under niche tabs and lets a user follow any of them
 with one click, which adds the handle as a tracked channel and queues a sync for it through
-the same path a manual "Add channel" already uses. A second, unmounted component offers the
-same list as a capped multi-select for a future first-run step.
+the same path a manual "Add channel" already uses. A second component offers the
+same list as a capped multi-select, mounted in the first-run sources step.
 
 ## 1. Feature summary
 
@@ -19,8 +19,8 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | The discover page | Curated, niche-grouped creator cards with a one-click Follow | ● | `src/app/(shell)/channels/discover/page.tsx`, `src/components/discover/discover-board.tsx` | DISC-01, DISC-02 |
-| 3 | The seed picker | Capped multi-select variant of the same seed list, for a future first-run step | ◐ | `src/components/discover/seed-picker.tsx` | DISC-03 |
+| 2 | The discover page | Curated, niche-grouped creator cards with a one-click Follow | ● | `src/app/(shell)/(loaded)/channels/discover/page.tsx`, `src/components/discover/discover-board.tsx` | DISC-01, DISC-02 |
+| 3 | The seed picker | Capped multi-select variant of the same seed list, mounted in the first-run sources step | ● | `src/components/discover/seed-picker.tsx`, `src/components/first-run/sources-step.tsx` | none |
 
 ## 2. The discover page
 
@@ -70,8 +70,8 @@ shows "Tracked" instead of a Follow button.
 
 ### Who uses it
 
-Intended for a first-run buyer picking their first channels to track, once a future
-first-run step mounts it. Nobody can reach it in the shipped app today.
+A first-run buyer picking their first channels to track, in the onboarding "sources" step
+that mounts it.
 
 ### What it does
 
@@ -81,9 +81,9 @@ instead of cards, capped at a configurable number of selections (10 by default),
 
 ### How to access it
 
-Not reachable from any route in the shipped app. It is a self-contained component
-(`src/components/discover/seed-picker.tsx`) with no import site outside its own test file.
-It is built to be mounted directly by a future first-run "sources" step.
+It is mounted in the first-run "sources" step (`src/components/first-run/sources-step.tsx`),
+reached at `/first-run` during onboarding. There is no standalone route that renders it
+outside first run.
 
 ### Business rules
 
@@ -100,7 +100,10 @@ It is built to be mounted directly by a future first-run "sources" step.
 
 ### User guide
 
-Not applicable yet; this component has no reachable entry point in the current app.
+During first-run setup, the "Choose who to watch" step shows a short list of suggested
+creators for your niche. Check up to 10 you want to track and press "Follow selected" to
+start following them all at once, or add your own handles below. You can find more later
+from Discover.
 
 ## 4. Interactions with other systems
 
