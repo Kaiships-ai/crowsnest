@@ -1,3 +1,4 @@
+import { AccountsSection } from "@/components/settings/accounts-section";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
 import { GraphSection } from "@/components/settings/graph-section";
@@ -10,6 +11,7 @@ import { RunsAlertsSection } from "@/components/settings/runs-alerts-section";
 import { ScoringSection } from "@/components/settings/scoring-section";
 import { SecretsSection } from "@/components/settings/secrets-section";
 import { SettingsNav, type SettingsNavGroup } from "@/components/settings/settings-nav";
+import { listAccounts } from "@/server/services/accounts";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
@@ -29,6 +31,7 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     label: "Connections",
     items: [
       { id: "instagram", label: "Instagram" },
+      { id: "accounts", label: "Accounts" },
       { id: "graph-api", label: "Graph API" },
     ],
   },
@@ -100,6 +103,10 @@ export default async function SettingsPage() {
   // module reads it, not through a server action's async RPC boundary.
   const secretStatuses = secretStatus();
 
+  // Multi-account list (v0.3). A direct service read like secretStatus above, not a server
+  // action, since this is a server component reading the local db.
+  const accounts = await listAccounts();
+
   const binaries: BinaryStatus[] = [
     { label: "yt-dlp", available: ytdlpPath !== null, reason: ytdlpPath === null ? "not found on PATH" : undefined },
     { label: "whisper-cli (+ model)", available: whisper.available, reason: whisper.reason },
@@ -123,6 +130,10 @@ export default async function SettingsPage() {
         <p className="pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[0].label}</p>
         <div id="instagram" className="scroll-mt-6 border-b border-border pb-8">
           <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+        </div>
+
+        <div id="accounts" className="scroll-mt-6 border-b border-border py-8">
+          <AccountsSection initialAccounts={accounts} />
         </div>
 
         <div id="graph-api" className="scroll-mt-6 border-b border-border py-8">

@@ -27,6 +27,7 @@ import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
 import { getLastRunHealth } from "@/server/queries/runs";
 import { getResearchSet, getOutlierPack } from "@/server/queries/research";
+import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -103,7 +104,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Read Crowsnest data and drive a remix end to end — keyless: no internal model key or proxy is used anywhere in this chain, YOU are the only reasoning model. Browse over-performers with crowsnest_feed, read one with crowsnest_video (its analysis, plus the source media path, size, and duration for handoff), then run the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt — you write the hooks), choose_hook (your pick), style, outline (returns a prompt — you write the outline), variants (returns a prompt — you write the script), save_script (your script text), finish. finish turns it into a draft planned post. crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, crowsnest_metrics, and crowsnest_plans are read-only. Before crowsnest_sync_selected, check crowsnest_ig_status: it says whether the Instagram sidecar is reachable and gives the exact command to start it when it isn't." }
+    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only." }
   );
 
   server.registerTool(
@@ -281,6 +282,57 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const r = await saveAgentAnalysis(args.videoId, args);
       return r.ok ? result({ ok: true, videoId: args.videoId }) : errorResult({ error: r.error, videoId: args.videoId });
+    }
+  );
+
+  // Content-machine persistence. The downstream artifacts of the flow — angles, an outlier
+  // library, an idea bank (100+ ideas), a Week 01 to 04 monthly plan, and briefs — are
+  // authored by YOU (the agent) and persisted here with provenance. Keyless: nothing below
+  // ever calls a model. save_analysis above is the per-video sibling; these carry the
+  // larger, cross-video reasoning outputs.
+
+  server.registerTool(
+    "crowsnest_save_artifact",
+    {
+      title: "Save a content artifact",
+      description:
+        "Persist an artifact YOU (the agent) authored, as crowsnest's source of truth, with provenance. Kinds: angles, outlier_library, idea_bank (put 100+ ideas in one artifact), monthly_plan (Week 01 to 04), brief. Keyless: never calls any model. `data` is your own JSON — the shape is up to you for the kind. Pass an existing `id` to update in place. Returns the stored artifact with its id and timestamps. Read them back with crowsnest_artifacts.",
+      inputSchema: {
+        kind: z.enum(ARTIFACT_KINDS).describe("angles | outlier_library | idea_bank | monthly_plan | brief."),
+        title: z.string().describe("A short human title for this artifact."),
+        data: z.unknown().describe("Your artifact payload as JSON. e.g. idea_bank: an array of 100+ ideas; monthly_plan: weeks 01-04 with picks; angles: the angle list."),
+        agent: z.string().describe("Who reasoned this, for provenance: 'claude', 'codex', or your label."),
+        sourceVideoIds: z.array(z.string()).optional().describe("Video ids that informed this artifact (provenance), from crowsnest_feed."),
+        model: z.string().optional().describe("Your model id, if known (provenance)."),
+        assumptions: z.string().optional().describe("Assumptions you made while reasoning (provenance)."),
+        id: z.string().optional().describe("An existing artifact id to update in place; omit to create a new one."),
+      },
+    },
+    async (args) => {
+      const r = await saveArtifact(args);
+      return r.ok ? result({ ok: true, id: r.id, artifact: r.artifact }) : errorResult({ error: r.error });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_artifacts",
+    {
+      title: "Read content artifacts",
+      description:
+        "List agent-authored content artifacts (angles, outlier libraries, idea banks, monthly plans, briefs), newest first, or fetch one by id. This is how you read back what you (or a prior agent run) persisted with crowsnest_save_artifact.",
+      inputSchema: {
+        id: z.string().optional().describe("Fetch exactly this artifact; returns an error when the id is unknown."),
+        kind: z.enum(ARTIFACT_KINDS).optional().describe("Only artifacts of this kind."),
+        limit: z.number().optional().describe("Max items, default 20."),
+        offset: z.number().optional().describe("Skip this many, for paging."),
+      },
+    },
+    async (args) => {
+      if (args.id) {
+        const a = await getArtifact(args.id);
+        return a ? result(a) : errorResult({ error: "not found", id: args.id });
+      }
+      return result(await listArtifacts({ kind: args.kind, limit: args.limit ?? 20, offset: args.offset ?? 0 }));
     }
   );
 

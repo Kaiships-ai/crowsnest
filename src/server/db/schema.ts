@@ -95,9 +95,19 @@ export const channels = sqliteTable("channels", {
    *  A removed channel is filtered out of the channels list and out of sync, but its
    *  rows, and everything hanging off its videos, stay in the database untouched. */
   deletedAt: text("deleted_at"),
+  /**
+   * Sticky assignment to an Instagram account (multi-account sync, v0.3). Null means the
+   * default account, which is the only account a single-account install has, so every
+   * existing channel keeps syncing exactly as before. When set, this channel always syncs
+   * under that account's own session, cooldown, and proxy/device identity, never another's
+   * (the "sticky" guarantee). `set null` on delete so removing an account unassigns its
+   * channels rather than cascading them away.
+   */
+  accountId: text("account_id").references(() => igAccounts.id, { onDelete: "set null" }),
 }, (t) => [
   uniqueIndex("channels_platform_handle").on(t.platform, t.handle),
   uniqueIndex("channels_single_own").on(t.isOwn).where(sql`${t.isOwn} = 1`),
+  index("channels_account").on(t.accountId),
 ]);
 
 export const fleets = sqliteTable("fleets", {
@@ -758,4 +768,81 @@ export const notifications = sqliteTable(
   (t) => ({
     byUnread: index("notifications_read_created").on(t.readAt, t.id),
   }),
+);
+
+/**
+ * An agent-authored content artifact: the durable output of the external reasoning brain
+ * (Claude, Codex) that crowsnest is the source of truth for. One row per artifact of a
+ * given kind (angles, an outlier library, an idea bank, a Week 01 to 04 monthly plan, a
+ * brief), carrying the agent's own structured payload plus provenance so a later reader
+ * knows which videos informed it, which agent and model produced it, and what it assumed.
+ *
+ * `data` is the agent's own JSON; its shape is chosen by the agent per kind, and crowsnest
+ * stores and returns it verbatim rather than imposing a schema per kind, so the MCP content
+ * machine can evolve artifact shapes without a migration. `kind` is validated against a
+ * known set at the service boundary (services/artifacts.ts), not by a DB constraint, so a
+ * new kind is one line of code, not a migration. Keyless by construction: nothing that
+ * writes this table ever calls a model. This is the persistence half of the content
+ * machine, the counterpart to the read tools (feed, research_set, outlier_pack).
+ */
+export const contentArtifacts = sqliteTable(
+  "content_artifacts",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind").notNull(), // "angles" | "outlier_library" | "idea_bank" | "monthly_plan" | "brief"
+    title: text("title").notNull(),
+    data: text("data", { mode: "json" }).$type<unknown>().notNull(),
+    // Provenance (v0.3 content-machine contract): who reasoned, on what, from where.
+    sourceVideoIds: text("source_video_ids", { mode: "json" }).$type<string[]>(),
+    agent: text("agent").notNull(), // "claude" | "codex" | a free label for the reasoning brain
+    model: text("model"), // the model id if the agent knows it, else null
+    assumptions: text("assumptions"), // the agent's stated assumptions, free text
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [index("content_artifacts_kind_created").on(t.kind, t.createdAt)],
+);
+
+/**
+ * An Instagram account crowsnest can sync under (multi-account sync, v0.3). A
+ * single-account install has exactly one row, the default, and behaves exactly as before.
+ * Each account carries its OWN identity so accounts stay isolated: its own session file,
+ * its own cooldown clock, and its own proxy and device seed. Channels are assigned to an
+ * account (channels.accountId) stickily, so a channel always syncs under the same
+ * identity.
+ *
+ * Isolation is the point: a 429 or ban on one account sets only that account's
+ * `cooldownUntil` and never touches another's, and the sync planner (services/accounts.ts)
+ * skips a cooled-down account while letting its siblings run. The password is NOT stored
+ * here; it lives in the secrets table keyed `IG_PASSWORD::<accountId>`, the same plaintext
+ * -local, never-returned-to-the-browser handling as every other secret.
+ *
+ * `port` and `sessionPath` are the hooks for running an isolated sidecar per account. They
+ * are optional and unset on a single-account install; wiring N live sidecars to them, and
+ * verifying real parallel-across-accounts IG traffic, needs live per-account credentials
+ * and is the documented next step (see documents/architect/shared/multi-account.md).
+ */
+export const igAccounts = sqliteTable(
+  "ig_accounts",
+  {
+    id: text("id").primaryKey(),
+    label: text("label").notNull(), // human name, e.g. "Burner A"
+    username: text("username").notNull(), // the IG handle this account logs in as
+    isDefault: integer("is_default", { mode: "boolean" }).notNull().default(false),
+    status: text("status").notNull().default("active"), // "active" | "paused"
+    proxy: text("proxy"), // per-account proxy URL, optional
+    deviceSeed: text("device_seed"), // per-account device identity seed, optional
+    sessionPath: text("session_path"), // isolated session file path, optional (derived when null)
+    port: integer("port"), // isolated sidecar port, optional (single account uses the default port)
+    cooldownUntil: text("cooldown_until"), // ISO; set per-account on a 429/backoff, never shared
+    lastSyncAt: text("last_sync_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("ig_accounts_username").on(t.username),
+    // At most one default account, the structural guarantee that "the default account" is
+    // never ambiguous (same pattern as channels_single_own).
+    uniqueIndex("ig_accounts_single_default").on(t.isDefault).where(sql`${t.isDefault} = 1`),
+  ],
 );

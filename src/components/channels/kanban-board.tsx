@@ -235,6 +235,18 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
         </span>
       </div>
 
+      {board.channels.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <p className="text-sm text-foreground">No channels tracked yet.</p>
+          <p className="max-w-[44ch] text-sm text-muted-foreground">
+            Add the creators you want to research as sources, then run a sync to pull their posts and start scoring
+            outliers.
+          </p>
+          <div className="pt-2">
+            <AddChannelDialog />
+          </div>
+        </div>
+      ) : (
       <DndContext
         sensors={sensors}
         onDragStart={onDragStart}
@@ -273,6 +285,7 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+      )}
 
       {selected.size > 0 && (
         <SyncSelectionBar

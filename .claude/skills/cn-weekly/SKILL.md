@@ -81,6 +81,7 @@ No video, no schedule, no publish. Those are separate steps.
   - Middle funnel (followers): high if the analysis shows a teachable method, a tutorial, a Q and A, or a before and after; low for pure spectacle. A heuristic read of the analysis, so mark it to confirm.
   - Bottom funnel (leads): high only if the video is a case study, a comparison, or an authority piece that sits next to the offer. Human judgment. Leave blank as `(human)` until the user fills it.
 - Write the file at `docs/content-machine/weeks/{date}.md` with the table and the legend. Name the source outlier per row so the views score can be checked.
+- Also persist the plan into crowsnest as the source of truth, so it is queryable over MCP and shows in the dashboard's content pipeline: `crowsnest_save_artifact(kind: "monthly_plan", title: "Week of {date}", data: { rows, legend, pickedRow }, agent: "claude", sourceVideoIds: [the row source outlier ids], assumptions: "which scores are derived vs human")`. The markdown file is for the human to read; the artifact is the durable, provenance-stamped record.
 
 ### 1d: Pick a row (HUMAN GATE)
 

@@ -242,6 +242,46 @@ Over `/api/mcp`, as an MCP tool call.
 
 There is no screen for this. When an MCP client finds a strong outlier with no analysis, it can write the analysis itself and save it into crowsnest, after which the remix and ideas flows read that analysis exactly as they read an analysis produced in the app.
 
+## 7b. Content artifacts (`crowsnest_save_artifact`, `crowsnest_artifacts`)
+
+### What it does
+
+Persists and reads back the larger, cross-video artifacts the content machine produces:
+angles, an outlier library, an idea bank, a Week 01 to 04 monthly plan, and briefs. The
+agent authors the artifact; crowsnest stores it as the source of truth with provenance and
+returns it. Keyless: nothing here calls a model. `crowsnest_save_artifact` creates one (or
+updates it in place when given an `id`); `crowsnest_artifacts` lists them newest first,
+optionally by kind, or fetches one by id.
+
+### How to access it
+
+Over `/api/mcp`, as MCP tool calls.
+
+### Business rules
+
+- The agent is the model. The tool validates the input against a schema and stores it; it
+  never generates content. `kind` must be one of angles, outlier_library, idea_bank,
+  monthly_plan, or brief, and `title`, `data`, and `agent` are required.
+- `data` is the agent's own JSON; crowsnest stores and returns it verbatim, imposing no
+  per-kind schema, so artifact shapes can evolve without a migration.
+- Provenance is first class: each row stamps `agent`, `model`, `sourceVideoIds`, and
+  `assumptions`, plus created and updated timestamps.
+- One artifact can hold many items, so an idea bank of 100 or more ideas is a single row,
+  not one row per idea (the flat `idea` table's one-per-video cap does not apply).
+
+### Data model
+
+A new `content_artifacts` table (migration `0028`), owned by the content-artifacts service
+(`src/server/services/artifacts.ts`), not by MCP. `kind` is validated at the service
+boundary, not by a DB constraint.
+
+### User guide
+
+The dashboard's content-pipeline section reads these back and shows each artifact with its
+kind and provenance, so the app reflects what the agent produced. Reading the full content
+of an artifact is an MCP call (`crowsnest_artifacts`), which is the intended path: the agent
+that wrote it, or a later agent run, reads it back over MCP.
+
 ## 8. Interactions with other systems
 
 Data ownership. The MCP owns no tables. Every value it returns is produced by a query or service function belonging to the feed, analyze, remix, vault, ideas, own-channel, planned-posts, or media components, so a rule about any of that data lives in that component, not here.

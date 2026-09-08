@@ -1,17 +1,14 @@
 import type { Metadata } from "next";
-import { Archivo, IBM_Plex_Mono } from "next/font/google";
+import { Archivo, IBM_Plex_Mono, Geist } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 // Archivo carries everything that is words. IBM Plex Mono carries everything that is a
 // number, an id, a timestamp or a system state, per the design system's hard rule.
-const archivo = Archivo({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const plexMono = IBM_Plex_Mono({
   variable: "--font-mono",
@@ -30,8 +27,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${archivo.variable} ${plexMono.variable} font-sans antialiased`}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+      <body className={`${geist.variable} ${plexMono.variable} font-sans antialiased`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} themes={["dark", "light"]} disableTransitionOnChange>
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
