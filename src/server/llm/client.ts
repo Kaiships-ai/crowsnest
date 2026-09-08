@@ -55,10 +55,11 @@ export interface LlmClient {
 const DEFAULT_MAX_TOKENS = 2048;
 
 /**
- * `process.env.CLAUDE_MODEL ?? "claude-sonnet-5"` — spec §7 pins this default as Kai's
- * cost decision; never hardcode a different model. Exported (not just used internally)
- * so callers that persist which model produced a result — e.g. analyze.ts's
- * `video_analyses.model` column — don't re-derive the same env-resolution logic.
+ * `process.env.CLAUDE_MODEL ?? "claude-sonnet-5"` (spec section 7 pins this default as
+ * Kai's cost decision; never hardcode a different model). Called internally by
+ * `generateParsed`/`generateText` to name the model on each request. Exported only so the
+ * client tests can assert the resolved default; no production caller persists the model id
+ * anymore (the retired in-app analyze path was the last one).
  */
 export function resolveModel(): string {
   return process.env.CLAUDE_MODEL ?? "claude-sonnet-5";

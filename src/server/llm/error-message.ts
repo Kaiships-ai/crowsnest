@@ -2,8 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 
 /**
  * Maps the typed `@anthropic-ai/sdk` error hierarchy to a friendly, user-facing
- * string — shared by every server action that calls into `LlmClient`
- * (analyze-actions.ts, remix-actions.ts) so this translation lives in exactly one
+ * string, shared by every server action that calls into `LlmClient`
+ * (remix-actions.ts, settings-actions.ts) so this translation lives in exactly one
  * place (phase-3 review finding M1) instead of being reimplemented per action file.
  *
  * Checked most-specific-first per the plan's Global Constraints. `NoApiKeyError` is
