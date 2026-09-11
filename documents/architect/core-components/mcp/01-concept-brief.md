@@ -2,7 +2,7 @@
 
 `documents/architect/core-components/mcp/`
 
-Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 19 `crowsnest_*` tools (seven read, twelve remix).
+Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 30 `crowsnest_*` tools (seven read, eleven remix, nine monthly and weekly planning, two content-artifact, one on-demand transcription).
 
 ## 1. What it is
 
@@ -20,7 +20,7 @@ Running the server in-process, rather than as a second service with its own data
 
 | Concept | Description |
 | --- | --- |
-| Tool | One `crowsnest_*` capability registered on the server (`registerTool`), with a title, a description, a Zod input schema, and a handler. There are 19: seven read tools and twelve remix tools. |
+| Tool | One `crowsnest_*` capability registered on the server (`registerTool`), with a title, a description, a Zod input schema, and a handler. There are 30: seven read tools, eleven remix tools, nine monthly and weekly planning tools, two content-artifact tools, and one on-demand transcription tool (`crowsnest_transcribe`). |
 | Result contract | Every handler returns through `result()` or `errorResult()`. `result(value)` surfaces the value both as pretty-printed JSON text and as `structuredContent`, and the two always agree because they come from one value. `errorResult(payload)` sets `isError: true` and carries a machine-readable payload instead of throwing across the MCP boundary. |
 | Media info | For a video or a brief, `mediaInfoFor(assetId)` returns the stored asset's on-disk `path`, `byteSize`, and `durationSec`, read from the `media_assets` row. It never stats or reads the file and never throws; a null id or a missing row returns null, and an unresolvable stored path returns a null `path` rather than an error. This is what makes the handoff a local file, not an expiring URL. |
 | Stateless transport | Each request builds a fresh server and a fresh streamable HTTP transport, torn down when the response closes (`http.ts`). No session bookkeeping; enough for a single local user driving tools. |
@@ -45,8 +45,9 @@ Because it is mounted in-process and stateless, the MCP has no background job, n
 | Ideas query (`src/server/queries/ideas`) | Backs `crowsnest_ideas`: the inbox or shortlist. |
 | Own-channel queries (`src/server/queries/own-channel`) | Back `crowsnest_metrics`: the window overview and recent own posts. |
 | Planned-posts query (`src/server/queries/planned-posts`) | Backs `crowsnest_plans`: dated intentions, optionally within a range. |
-| Remix service (`src/server/services/remix`) | Backs all twelve remix tools: session, state, prompt, research, hooks, outline, variants, save, finish. |
+| Remix service (`src/server/services/remix`) | Backs all eleven remix tools: session, state, prompt, research, hooks, outline, variants, save, finish. |
 | Media store (`src/server/media/store`) | `getAsset` and `resolveAssetPath` back `mediaInfoFor`, the media handoff for a video or brief. |
+| Transcription (`src/server/transcribe`, `src/server/actions/media-actions`) | `getOrCreateTranscript` and `downloadVideoAction` back `crowsnest_transcribe`: download the video on demand, then run the cache-first whisper.cpp then Groq chain. |
 | The app's HTTP server (`server.ts`) | Routes `/api/mcp` to the MCP handler in-process, sharing the one SQLite connection. |
 
 ### Downstream (what depends on the mcp)
