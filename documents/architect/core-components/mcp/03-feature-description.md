@@ -1,6 +1,6 @@
 # mcp: feature description
 
-The mcp component is crowsnest's tool surface for an MCP client. It has no screen of its own; its users are programs, not people at a screen. A client connects to `/api/mcp` and calls tools: seven that read crowsnest's data, eleven that drive the remix pipeline (keyless: no internal model call anywhere in that chain), and nine monthly and weekly planning tools (four research reads, four sync-control tools, and one analysis write), for twenty-seven in all. The whole surface is the handoff from crowsnest, which finds, analyzes, and remixes, to the tool that produces the finished reel, which opens the local media files the read tools point it at. This document describes those tools from the layer's own side: what each returns, how they group, and what the media handoff carries.
+The mcp component is crowsnest's tool surface for an MCP client. It has no screen of its own; its users are programs, not people at a screen. A client connects to `/api/mcp` and calls tools: seven that read crowsnest's data, eleven that drive the remix pipeline (keyless: no internal model call anywhere in that chain), nine monthly and weekly planning tools (four research reads, four sync-control tools, and one analysis write), and one that fetches and transcribes a video on demand, for twenty-eight in all. The whole surface is the handoff from crowsnest, which finds, analyzes, and remixes, to the tool that produces the finished reel, which opens the local media files the read tools point it at. This document describes those tools from the layer's own side: what each returns, how they group, and what the media handoff carries.
 
 Every tool wraps a query or service function the dashboard already uses, so a tool returns exactly what the corresponding UI shows, and a remix driven through the tools advances exactly the session the remix page advances. Every tool returns through one contract: `result()` on success (JSON text and `structuredContent` that agree), `errorResult()` on a handled failure (an `isError` payload, never a thrown exception).
 
@@ -16,6 +16,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 5 | Research contract | Four read tools: `crowsnest_channels`, `crowsnest_channel_stats`, `crowsnest_research_set`, `crowsnest_outlier_pack`, each carrying the human's own reach benchmark beside competitor outliers | ● | `mcp-server.ts`, `src/server/queries/research`, `channels`, `own-channel` | none |
 | 6 | Sync control | `crowsnest_sync_selected`, `crowsnest_sync_status`, `crowsnest_sync_cancel` drive a scoped channel sync | ● | `mcp-server.ts`, `src/server/actions/sync-actions` | none |
 | 7 | Agent analysis | `crowsnest_save_analysis` writes an agent-authored analysis to `video_analyses` with `source = "mcp"` | ● | `mcp-server.ts`, `src/server/services/analyze` (`saveAgentAnalysis`), `src/server/llm/schemas` (`VideoAnalysisSchema`) | none |
+| 8 | Transcribe on demand | `crowsnest_transcribe` fetches a video (downloading it from Instagram if not already stored) and returns its verbatim transcript, caching the result | ● | `mcp-server.ts`, `src/server/transcribe` (`getOrCreateTranscript`), `src/server/actions/media-actions` (`downloadVideoAction`) | none |
 
 ## 2. Read crowsnest data
 
@@ -282,6 +283,39 @@ kind and provenance, so the app reflects what the agent produced. Reading the fu
 of an artifact is an MCP call (`crowsnest_artifacts`), which is the intended path: the agent
 that wrote it, or a later agent run, reads it back over MCP.
 
+## 7c. Transcribe a video on demand (`crowsnest_transcribe`)
+
+### Who uses it
+
+An MCP client that wants a video's verbatim words to ground an analysis, on a post that has no transcript yet. `crowsnest_video` only returns a transcript when a `transcripts` row already exists, and nothing else creates one: sync downloads thumbnails, never video bytes, and the auto-analyze pass that once transcribed was retired in P0 slice 2a. This is the one tool that produces a transcript on request.
+
+### What it does
+
+One action tool.
+
+| Tool | Inputs | Returns / effect |
+| --- | --- | --- |
+| `crowsnest_transcribe` | `videoId` (required, from a feed item) | `{ videoId, text, source, cached }`. Fetches the video if it is not already stored (`downloadVideoAction`, which re-resolves a fresh Instagram URL and downloads the bytes), then runs the cache-first whisper.cpp then Groq chain (`getOrCreateTranscript`) and persists the row. `cached` is true when a `transcripts` row already existed, so a repeat call returns instantly without a provider run. A photo or carousel with no downloadable video, an unknown id, an unreachable sidecar, or no available transcript provider all return `errorResult({ error, videoId })`. |
+
+### How to access it
+
+Over `/api/mcp`, as an MCP tool call. In the flow, it slots between reading a video and authoring its analysis: call `crowsnest_transcribe(videoId)`, then `crowsnest_video(videoId)` returns the now-stored transcript, then `crowsnest_save_analysis`.
+
+### Business rules
+
+- The download step is idempotent: `downloadVideoAction` returns the existing asset id when the video is already stored, so it only pays the Instagram round-trip once per video.
+- Transcription is cache-first: the second call for a video returns the stored row with `cached: true`, never re-running a provider.
+- It needs a live IG sidecar session to download a video for the first time, and at least one available transcript provider (local whisper.cpp, or `GROQ_API_KEY` for Groq) to transcribe one. Either being absent is a handled error result, not a thrown exception.
+
+### Limitations
+
+- It transcribes one video per call; there is no batch form.
+- A first transcription is a real, potentially slow round-trip (download plus a provider run); only the cached path is instant.
+
+### User guide
+
+There is no screen for this. When a client finds a strong outlier with no transcript, it can ask crowsnest to fetch and transcribe it, then read the words back through `crowsnest_video` to ground its analysis, the same transcript any other path would surface.
+
 ## 8. Interactions with other systems
 
 Data ownership. The MCP owns no tables. Every value it returns is produced by a query or service function belonging to the feed, analyze, remix, vault, ideas, own-channel, planned-posts, or media components, so a rule about any of that data lives in that component, not here.
@@ -296,6 +330,7 @@ Errors. A handled failure is an error result the caller reads, never a thrown ex
 
 - **No credential on the endpoint.** `handleMcpRequest` performs no auth; any local process that can reach the bound interface can call the tools. The trust boundary is which interface `server.ts` binds, recorded in [test cases](04-test-cases.md#4-security-lite).
 - **The proxy is down.** The generate remix tools return an error; the read tools and the non-generating remix tools are unaffected.
-- **An unknown id.** `crowsnest_video`, `crowsnest_brief`, and the save/state remix tools return an error result naming the missing id or session, not a thrown exception.
+- **An unknown id.** `crowsnest_video`, `crowsnest_brief`, `crowsnest_transcribe`, and the save/state remix tools return an error result naming the missing id or session, not a thrown exception.
+- **Transcribe with no provider or a dead sidecar.** `crowsnest_transcribe` returns an error result (the download failure, or `no transcript provider available` with a per-provider reason), never a thrown exception; a photo or carousel with no downloadable video is the same handled error.
 - **A large list.** `crowsnest_scripts` and `crowsnest_ideas` read the whole list before slicing; on a local vault this is fine, but it is the known ceiling in [backlog to enhance](05-backlog-to-enhance.md).
 - **A missing media file.** A null asset id or an unresolvable stored path yields a null media block or a null `path`, never an error; the producer sees the absence rather than a failure.
