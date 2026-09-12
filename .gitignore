@@ -82,3 +82,6 @@ crowsnest.db-shm
 # local agent scratch mirrors (real skills live in .claude/skills/)
 /.agents/
 /.codex/
+
+# local retro/analytics scratch
+/.context/

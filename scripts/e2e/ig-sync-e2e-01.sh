@@ -40,5 +40,6 @@ sleep 0.5
 
 step "assert: the inline error names the sidecar being down, not a toast"
 assert_text "The Instagram service isn't running."
+snap "sidecar-down-error"
 
 echo "ig-sync-e2e-01: PASS"
