@@ -400,3 +400,67 @@ describe("research read tools", () => {
     expect(body.items[0]).toHaveProperty("thumbnail");
   });
 });
+
+describe("crowsnest_transcribe", () => {
+  let db: typeof import("@/server/db")["db"];
+  let tables: typeof import("@/server/db")["tables"];
+  let newId: typeof import("@/server/db")["newId"];
+  let migrate: typeof import("@/server/db/test-migrate")["migrate"];
+  let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+
+  beforeAll(async () => {
+    ({ db, tables, newId } = await import("@/server/db"));
+    ({ migrate } = await import("@/server/db/test-migrate"));
+    ({ buildMcpServer } = await import("./mcp-server"));
+    migrate();
+  });
+
+  async function seedVideo(opts: { videoAssetId?: string; mediaType?: "video" | "photo"; withTranscript?: boolean } = {}): Promise<string> {
+    const channelId = newId();
+    const videoId = newId();
+    const now = new Date().toISOString();
+    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: `@tr-${channelId}`, trackedSince: now });
+    if (opts.videoAssetId) {
+      await db.insert(tables.mediaAssets).values({
+        id: opts.videoAssetId, sha256: opts.videoAssetId, kind: "video", contentType: "video/mp4",
+        byteSize: 1, storagePath: `${opts.videoAssetId}.mp4`, downloadedAt: now,
+      });
+    }
+    await db.insert(tables.videos).values({
+      id: videoId, channelId, platform: "instagram", externalId: `tr-${videoId}`,
+      url: "https://example.com/p", postedAt: now, firstSeenAt: now,
+      mediaType: opts.mediaType ?? "video", videoAssetId: opts.videoAssetId ?? null,
+    });
+    if (opts.withTranscript) {
+      await db.insert(tables.transcripts).values({ videoId, text: "the exact words that were spoken", source: "whisper-local", createdAt: now });
+    }
+    return videoId;
+  }
+
+  test("returns the cached transcript, offline, when the video is already downloaded", async () => {
+    // videoAssetId set => downloadVideoAction no-ops (no IG round-trip); transcripts row
+    // present => getOrCreateTranscript returns cached (no provider call). Fully offline.
+    const videoId = await seedVideo({ videoAssetId: newId(), withTranscript: true });
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_transcribe", { videoId });
+    expect(r.isError).not.toBe(true);
+    const body = r.structuredContent as { text: string; source: string; cached: boolean };
+    expect(body.text).toBe("the exact words that were spoken");
+    expect(body.cached).toBe(true);
+  });
+
+  test("errors for a photo post with no downloadable video, without touching Instagram", async () => {
+    const videoId = await seedVideo({ mediaType: "photo" });
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_transcribe", { videoId });
+    expect(r.isError).toBe(true);
+    const body = r.structuredContent as { error: string };
+    expect(body.error).toMatch(/photo/i);
+  });
+
+  test("errors for an unknown video id", async () => {
+    const server = buildMcpServer();
+    const r = await callTool(server, "crowsnest_transcribe", { videoId: "does-not-exist" });
+    expect(r.isError).toBe(true);
+  });
+});

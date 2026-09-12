@@ -49,5 +49,6 @@ sleep 0.3
 step "assert: kept in the vault"
 assert_text "Kept in the vault"
 assert_text "Kept"
+snap "kept-in-vault"
 
 echo "feed-e2e-01: PASS"

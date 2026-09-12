@@ -31,13 +31,13 @@ There is no in-app control. The video detail page's Hook and structure and Why i
 - A cache is not involved on the write side the way it was for the retired in-app pass: every call the agent makes writes (insert or update); there is no cache-hit short-circuit, since the agent decides for itself whether to re-read and re-author.
 - On the read side, the detail page always shows whatever `video_analyses` row currently exists, however it was written; it does not distinguish an agent-authored row from a legacy in-app one beyond the `source` column, which the page does not currently render.
 - Crowsnest needs no `ANTHROPIC_API_KEY`, no Groq key, and no reachable transcript provider for this path to work end to end; the only external dependency is the agent itself having a model to reason with, which is entirely outside crowsnest's process.
-- `crowsnest_video` returns the video's transcript text (via `getVideoDetail`, which reads the `transcripts` table) so the agent has what it needs to ground its analysis without a second tool call. If no transcript row exists yet, the field reads null; nothing in this component currently transcribes on demand.
+- `crowsnest_video` returns the video's transcript text (via `getVideoDetail`, which reads the `transcripts` table) so the agent has what it needs to ground its analysis without a second tool call. If no transcript row exists yet, the field reads null; the agent can call the mcp `crowsnest_transcribe` tool to fetch and transcribe the video, after which `crowsnest_video` returns the words. The analyze component itself does not transcribe.
 
 ### Limitations
 
 - There is no in-app way to trigger, watch, or cancel an analysis; the whole feature's liveness depends on an external agent actually calling the two MCP tools.
 - There is no versioning: a second `crowsnest_save_analysis` call for the same video replaces the row in place, and the previous hook, beats, tags, and note are gone with no history kept.
-- A video with no transcript row yet has nothing for the agent to ground an analysis in beyond the caption and metrics `crowsnest_video` also returns; nothing in this component creates a transcript on demand (that capability, `getOrCreateTranscript`, exists in `src/server/transcribe` but is not currently wired to any caller in this path).
+- A video with no transcript row yet: the agent grounds on the caption and metrics `crowsnest_video` returns, or calls the mcp `crowsnest_transcribe` tool to create the transcript first (it downloads the video, then runs `getOrCreateTranscript`). The analyze component itself does not transcribe; the on-demand caller lives in the mcp component.
 
 ### User guide
 

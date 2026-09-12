@@ -22,6 +22,9 @@ import { listIdeas } from "@/server/queries/ideas";
 import { getOwnPosts, getOwnChannelOverview } from "@/server/queries/own-channel";
 import { getAsset, resolveAssetPath } from "@/server/media/store";
 import { saveAgentAnalysis } from "@/server/services/analyze";
+import { getOrCreateTranscript } from "@/server/transcribe";
+import { downloadVideoAction } from "@/server/actions/media-actions";
+import { errorMessage } from "@/server/lib/action-result";
 import { startSyncAction, getSyncProgressAction, cancelSyncAction } from "@/server/actions/sync-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/server/queries/channels";
@@ -154,6 +157,34 @@ export function buildMcpServer(): McpServer {
       const media = await mediaInfoFor(detail.item.videoAssetId);
       const thumbnail = await mediaInfoFor(detail.item.thumbnailAssetId);
       return result({ ...detail, media, thumbnail });
+    }
+  );
+
+  // On-demand transcription. crowsnest_video only returns a transcript when a `transcripts`
+  // row already exists; nothing else in the MCP surface creates one (sync downloads
+  // thumbnails, never video bytes, and the auto-analyze pass that once transcribed was
+  // retired in P0 slice 2a). This is the only path that fetches the video and transcribes
+  // it on request, so an agent can ground an analysis in verbatim words for a post older
+  // than any prior transcript. Reuses downloadVideoAction (idempotent: no-ops when the
+  // video is already stored) then getOrCreateTranscript (cache-first, so a repeat call is
+  // instant and free).
+  server.registerTool(
+    "crowsnest_transcribe",
+    {
+      title: "Transcribe video",
+      description:
+        "Fetch and transcribe one video by id, returning its verbatim transcript. Downloads the video from Instagram on demand if it is not already stored (needs a live IG sidecar session), then runs the local whisper.cpp then Groq fallback chain and caches the result; a repeat call returns the cached transcript instantly. Use this to ground an analysis in the exact words of a post that has no transcript yet. Errors (isError) when the id is unknown, the post is a photo or carousel with no downloadable video, Instagram cannot be reached, or no transcript provider is available.",
+      inputSchema: { videoId: z.string().describe("The video id, from crowsnest_feed items.") },
+    },
+    async (args) => {
+      const dl = await downloadVideoAction(args.videoId);
+      if (!dl.ok) return errorResult({ error: dl.error, videoId: args.videoId });
+      try {
+        const transcript = await getOrCreateTranscript(args.videoId);
+        return result({ videoId: args.videoId, ...transcript });
+      } catch (err) {
+        return errorResult({ error: errorMessage(err), videoId: args.videoId });
+      }
     }
   );
 

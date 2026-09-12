@@ -43,5 +43,6 @@ assert_text "Planned"
 
 step "assert: the day cell shows the plan's title"
 assert_text "$PLAN_TITLE"
+snap "planned-on-grid"
 
 echo "mine-e2e-02: PASS"

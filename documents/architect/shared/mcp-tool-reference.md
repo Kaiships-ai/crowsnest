@@ -8,13 +8,16 @@ it takes actions like syncing a channel or creating a draft post. It does not th
 agent reads crowsnest's data, writes its own reasoning back, and steers each step.
 
 The whole surface is keyless. No `ANTHROPIC_API_KEY` and no LLM proxy are used anywhere in it.
-Where a step needs a model, crowsnest hands the agent an assembled prompt to fulfill and takes
-the agent's own answer back; it never calls a model itself.
+Where a step needs a reasoning model, crowsnest hands the agent an assembled prompt to fulfill and
+takes the agent's own answer back; it never calls a reasoning model itself. The one exception is
+transcription: `crowsnest_transcribe` runs a speech-to-text provider (local whisper.cpp, or Groq
+when `GROQ_API_KEY` is set) to turn a video into text. That is not the reasoning brain and needs
+no `ANTHROPIC_API_KEY`.
 
 The endpoint is `http://localhost:3000/api/mcp`, streamable HTTP. Register it with
 `kai mcp` (see [buyer quickstart](../../business-requirement/buyer-quickstart.md)).
 
-## The 29 tools by phase
+## The 30 tools by phase
 
 Every tool name is prefixed `crowsnest_`. Inputs marked optional have defaults noted where they
 matter. Unknown ids and handled failures come back as a readable error result, not a thrown
@@ -59,6 +62,15 @@ and Ideas then read your analysis unchanged. No model is called; you are the mod
 | Tool | Purpose | Key inputs |
 | --- | --- | --- |
 | `crowsnest_save_analysis` | Save the per-video analysis you wrote, with provenance. Rejects an unknown video id or fields that fail validation, writing nothing. | `videoId`, `hookType`, `structureSegments` (beats: `{ label, startSec, endSec, note, transcript }`), `formatTags`, `styleTags`, `whyItWorked` |
+
+### Transcribe on demand
+
+When a video has no transcript yet, fetch and transcribe it so `crowsnest_video` can return the
+words to ground your analysis. A repeat call returns the cached transcript instantly.
+
+| Tool | Purpose | Key inputs |
+| --- | --- | --- |
+| `crowsnest_transcribe` | Fetch one video (downloading it from Instagram if not already stored) and transcribe it, returning its verbatim transcript; caches the result. Needs a live sidecar to download a new video and a transcript provider (local whisper.cpp, or Groq with `GROQ_API_KEY`). | `videoId` (from `crowsnest_feed`) |
 
 ### Content artifacts
 
@@ -121,7 +133,8 @@ Uses `crowsnest_outlier_pack` with `rising=true` and `sinceDays=7`, then `crowsn
 "Open video V, read its transcript and metrics, write an analysis of why it over-performed (hook
 type, story beats, format and style tags), and save it back to crowsnest under your name."
 Uses `crowsnest_video`, then `crowsnest_save_analysis`. You are the model here; crowsnest only
-validates and stores what you wrote.
+validates and stores what you wrote. If `crowsnest_video` returns a null transcript, call
+`crowsnest_transcribe(videoId)` first, then re-read the video.
 
 **Save an idea bank of 100+ ideas.**
 "Read the research set for the productivity niche, then brainstorm 120 short-form ideas grounded
