@@ -77,15 +77,18 @@ export async function saveAgentAnalysis(
     formatTags: a.formatTags,
     styleTags: a.styleTags,
     whyItWorked: a.whyItWorked,
-    summary: a.summary ?? null,
     source: "mcp" as const,
   };
 
   const [existing] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
   if (existing) {
-    await db.update(tables.videoAnalyses).set(textFields).where(eq(tables.videoAnalyses.videoId, videoId));
+    // `summary` is omitted from the SET entirely when the payload doesn't carry one, so a
+    // re-save without a summary can't null out one stored by an earlier save. An explicit
+    // "" still clears it, since that's a defined value distinct from undefined.
+    const update = a.summary !== undefined ? { ...textFields, summary: a.summary } : textFields;
+    await db.update(tables.videoAnalyses).set(update).where(eq(tables.videoAnalyses.videoId, videoId));
   } else {
-    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, createdAt: nowIso() });
+    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, summary: a.summary ?? null, createdAt: nowIso() });
   }
   return { ok: true };
 }

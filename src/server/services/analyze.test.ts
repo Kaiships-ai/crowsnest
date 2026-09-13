@@ -130,6 +130,20 @@ describe("saveAgentAnalysis", () => {
     expect(row.summary).toBeNull();
   });
 
+  test("B-10 P1: re-saving without a summary does not clobber a previously stored one", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    await saveAgentAnalysis(videoId, {
+      ...FAKE_ANALYSIS,
+      summary: "A creator opens with a cold-open question, then pays it off with three fast-cut tips.",
+    });
+    const ok = await saveAgentAnalysis(videoId, { ...FAKE_ANALYSIS, hookType: "negative-warning" });
+    expect(ok).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.hookType).toBe("negative-warning");
+    expect(row.summary).toBe("A creator opens with a cold-open question, then pays it off with three fast-cut tips.");
+  });
+
   test("rejects an unknown video id", async () => {
     migrate();
     const r = await saveAgentAnalysis("no-such-video", FAKE_ANALYSIS);
