@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { formatCompact, formatDuration, formatMultiplier, relativeTime, formatEngagementRate } from "./format";
+import { formatCompact, formatDuration, formatMultiplier, relativeTime, formatEngagementRate, plural } from "./format";
 
 describe("formatCompact", () => {
   const cases: [number | null, string][] = [
@@ -75,6 +75,22 @@ describe("relativeTime", () => {
   test("days ago", () => {
     expect(relativeTime(isoAgo(3 * 86_400_000))).toBe("3d ago");
     expect(relativeTime(isoAgo(45 * 86_400_000))).toBe("45d ago");
+  });
+});
+
+describe("plural", () => {
+  // OBS-2: the feed result count must not always say "results" — singular count
+  // gets the bare word, everything else gets the "s" suffix.
+  test("1 -> singular, no suffix", () => {
+    expect(plural("result", 1)).toBe("result");
+  });
+
+  test("2 -> plural, suffixed", () => {
+    expect(plural("result", 2)).toBe("results");
+  });
+
+  test("0 -> plural, suffixed", () => {
+    expect(plural("result", 0)).toBe("results");
   });
 });
 

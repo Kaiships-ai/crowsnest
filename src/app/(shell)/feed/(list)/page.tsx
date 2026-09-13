@@ -4,6 +4,7 @@ import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { buttonVariants } from "@/components/ui/button";
 import { bandOrAny, defaultViewCriteria, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
+import { plural } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { bumpFeedLastVisit } from "@/server/queries/dashboard";
@@ -165,7 +166,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
           <>
             <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
               <span>
-                <span data-num="1">{total}</span> result{total === 1 ? "" : "s"}
+                <span data-num="1">{total}</span> {plural("result", total)}
               </span>
               {applyDefault && (
                 <>
