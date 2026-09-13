@@ -52,3 +52,15 @@ test("submits a bare handle normally", async () => {
 
   expect(mocks.addChannelAction).toHaveBeenCalledWith("creator", { requireProfile: true });
 });
+
+// OBS-3: this dialog used to offer a platform picker with TikTok and YouTube Shorts
+// options that could never sync (ig-sync only ever writes platform: "instagram"). The
+// dialog now has no platform control at all — it only ever tracks Instagram, so there is
+// nothing to pick.
+test("offers no platform picker that promises TikTok or YouTube Shorts", () => {
+  render(<AddChannelDialog open onOpenChange={() => {}} initialTab="handle" />);
+
+  expect(screen.queryByText("TikTok")).toBeNull();
+  expect(screen.queryByText("YouTube Shorts")).toBeNull();
+  expect(screen.queryByRole("combobox", { name: /platform/i })).toBeNull();
+});
