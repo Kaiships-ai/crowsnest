@@ -49,6 +49,11 @@ For specialized proof, hand off to the owning skill:
 - Scenario lab and QA campaigns across surfaces: `crowsnest-qa-testing`.
 - Real Instagram session proof: `scripts/verify-live.sh` (a burner account and a
   running sidecar; see the script header).
+- Installable Kit and containerized lanes: building and proving the buyer Kit under
+  `packaging/`, the install and license gate, the `crowsnest-docker-e2e` lane, and
+  failed-lane reruns are in `references/package-and-docker.md`. Load it when the change
+  touches packaging, install, update, rollback, the download gate, or the docker e2e
+  lane.
 
 A narrow green rerun does not by itself authorize release. Release identity is
 owned by `scripts/release-prep.sh` and `.github/workflows/release.yml`.
