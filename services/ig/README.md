@@ -182,7 +182,13 @@ One newest-first page:
 - Paging carries two extra query params so the rule survives a page boundary:
   `already_kept` and `out_of_window_streak` (both default `0`). Pass back what
   you have accumulated; `next_cursor` is `null` whenever `stop_reason` is
-  terminal.
+  `lookback` or `exhausted` (the window, or the account's media, is fully
+  enumerated). A `cap` stop is not terminal the same way: it means the
+  caller's `max_items` budget ran out partway through this raw page, not that
+  the raw page was the last one, so `next_cursor` still carries the real
+  cursor to the next raw page. A caller whose budget is smaller than one raw
+  page must use it to resume, or it strands that page's own un-kept tail
+  forever (crowsnest ig-sync PERF-2).
 
 ### `POST /resolve-media` `{pk}`
 Re-resolves a single media's **current** `video_url` / `thumbnail_url` (+

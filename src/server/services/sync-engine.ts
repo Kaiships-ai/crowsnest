@@ -1461,10 +1461,22 @@ async function syncOneChannel(
       // The cap breaks MID-page, before this page's tail items are processed, so resume
       // must RE-FETCH this page from the cursor it was requested with (`cursor`), NOT skip
       // ahead to page.nextCursor, or the tail is lost until a later full walk. Re-processing
-      // the head is harmless: upserts are idempotent. A cap on page 1 has no request cursor,
-      // so clear it and let the next run do a fresh top walk (which re-fetches page 1).
-      if (cursor === undefined) await clearCursor(channel.id);
-      else await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
+      // the head is harmless: upserts are idempotent.
+      //
+      // A cap on page 1 has no request cursor of its own (`cursor` is undefined: nothing
+      // was requested to get there, it is the start of the walk), so there is nothing to
+      // re-fetch. Falling back to `clearCursor` here (the old behaviour) stranded the page's
+      // own tail forever whenever `MAX_ITEMS_PER_SYNC` is smaller than one raw page: every
+      // resumed run is ALSO a fresh page-1 fetch with the same budget, so it re-trips the
+      // cap at the identical spot and never makes progress (PERF-2). Falling back to
+      // `pageNextCursor` (the page's own next-page cursor, which the sidecar now reports
+      // even on a "cap" stop) instead guarantees forward progress: the next run continues
+      // from page 2 rather than re-walking page 1's head forever. The few items of page 1's
+      // own tail that a pathologically low cap skips this way are picked up whenever a
+      // later full walk (a cursor TTL expiry, or a larger cap) re-crawls from the top.
+      if (cursor !== undefined) await persistCursor(channel.id, cursor, boundary, runId, opts.now().toISOString());
+      else if (pageNextCursor) await persistCursor(channel.id, pageNextCursor, boundary, runId, opts.now().toISOString());
+      else await clearCursor(channel.id);
     } else if (stopReason === "cancelled") {
       // Unlike the cap, the current page was fully processed and the cancel checked after
       // it, so resume from the NEXT page's cursor rather than re-fetching this one.
