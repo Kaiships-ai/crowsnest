@@ -255,7 +255,12 @@ export function MineCalendar({
         onClick: async () => {
           // Carry the whole row snapshot back through re-create so Undo is lossless
           // (B-09): restore the original id, time, target length, kind, and remix/source
-          // provenance, not just title/note/date/script.
+          // provenance, not just title/note/date/script — and the plan's own state, so a
+          // deleted "published" or "missed" plan doesn't come back as a fresh
+          // scheduled/draft. `state` is passed through verbatim; createPlannedPostAction
+          // itself downgrades anything that would revive a half-armed row ("publishing",
+          // "failed") to its safe create-default, so this call never has to know which
+          // states are safe.
           const restored = await createPlannedPostAction({
             id: plan.id,
             title: plan.title,
@@ -267,6 +272,7 @@ export function MineCalendar({
             scriptId: plan.scriptId ?? undefined,
             remixSessionId: plan.remixSessionId ?? undefined,
             sourceVideoId: plan.sourceVideoId ?? undefined,
+            state: plan.state,
           });
           if (!restored.ok) {
             toast.error(restored.error);

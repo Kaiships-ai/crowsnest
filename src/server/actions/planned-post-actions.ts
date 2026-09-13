@@ -10,7 +10,7 @@ import { errorMessage, type ActionResult, type SimpleResult } from "../lib/actio
 import { isGraphConfigured } from "../graph/client";
 import { getAssetStore } from "../media/asset-store";
 import { getStorageProvider } from "../publish/storage-provider";
-import { scriptExists } from "../queries/planned-posts";
+import { scriptExists, type PlannedPostState } from "../queries/planned-posts";
 import { publishPlannedPost } from "../services/publish-post";
 import { DEFAULT_MAX_ATTEMPTS } from "../services/publish-scheduler";
 import { isVideoKind } from "../services/video-kind";
@@ -54,6 +54,24 @@ export async function createPlannedPostAction(input: {
   remixSessionId?: string;
   sourceVideoId?: string;
   videoKind?: string;
+  /** Restores the plan's own status on a lossless Undo (B-09 follow-up), not just its
+   *  fields — a deleted "published" or "missed" plan used to come back as the
+   *  create-default (scheduled/draft), silently losing its state. Only "draft",
+   *  "scheduled" and "published" are ever actually written here; any other value
+   *  (including "missed" and "publishing"/"failed") falls back to the create-default
+   *  below instead of being refused, so a caller can pass a snapshot's raw `state`
+   *  verbatim and still always get a plan back. "missed" is never a stored value
+   *  (queries/planned-posts.ts derives it on read from a "scheduled" row whose date has
+   *  passed) so it lands on the default, which is "scheduled" whenever plannedDate is
+   *  present — the same row, which re-derives back to "missed" on the next read.
+   *  "publishing" and "failed" both depend on publish-lifecycle evidence
+   *  (videoAssetId, caption, scheduledAt, idempotencyKey, attemptCount, lastError) this
+   *  action's input never carries and this Undo deliberately does not restore (see the
+   *  file header); writing either state name back with none of that evidence would
+   *  revive a half-armed row (a "publishing" plan nothing is ever going to finish, or a
+   *  "failed" one `retryFailedPublishAction` would re-arm with no video or caption), so
+   *  both fall back to the same safe default instead. */
+  state?: PlannedPostState;
 }): Promise<ActionResult<{ id: string }>> {
   try {
     const title = input.title.trim();
@@ -76,9 +94,11 @@ export async function createPlannedPostAction(input: {
     // A date in the past is allowed on create — see contract 6's failure list: refusing
     // it would stop the user recording a slot they blew, which is what "missed" exists
     // to show. It just reads as "missed" immediately, computed at read time.
+    const SAFE_RESTORE_STATES = new Set<PlannedPostState>(["draft", "scheduled", "published"]);
+    const restoredState = input.state !== undefined && SAFE_RESTORE_STATES.has(input.state) ? input.state : undefined;
     await db.insert(tables.plannedPosts).values({
       id,
-      state: input.plannedDate ? "scheduled" : "draft",
+      state: restoredState ?? (input.plannedDate ? "scheduled" : "draft"),
       title,
       note: input.note?.trim() || null,
       plannedDate: input.plannedDate ?? null,

@@ -33,6 +33,7 @@ let retryFailedPublishAction: typeof import("./planned-post-actions")["retryFail
 let DEFAULT_MAX_ATTEMPTS: typeof import("../services/publish-scheduler")["DEFAULT_MAX_ATTEMPTS"];
 let deleteScriptAction: typeof import("./remix-actions")["deleteScriptAction"];
 let getPlannedPosts: typeof import("../queries/planned-posts")["getPlannedPosts"];
+type PlannedPostState = import("../queries/planned-posts").PlannedPostState;
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -196,6 +197,118 @@ describe("createPlannedPostAction", () => {
     expect(row.scriptId).toBe(scriptId);
     expect(row.remixSessionId).toBe(remixSessionId);
     expect(row.sourceVideoId).toBe(sourceVideoId);
+  });
+
+  // Follow-up to B-09: the row snapshot was lossless but the plan's own state was not —
+  // a deleted "published" plan came back through the create-default (plannedDate ?
+  // "scheduled" : "draft"), silently losing the fact that it had gone out.
+  test("Undo restores a published plan's state, not the create-default (B-09 follow-up)", async () => {
+    const created = (await createPlannedPostAction({ title: "Went out", plannedDate: "2026-08-01" })) as { ok: true; id: string };
+    await markPlanPublishedAction(created.id, null);
+
+    const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(snapshot.state).toBe("published");
+    await deletePlannedPostAction(created.id);
+
+    const restored = await createPlannedPostAction({
+      id: snapshot.id,
+      title: snapshot.title,
+      plannedDate: snapshot.plannedDate ?? undefined,
+      state: snapshot.state as PlannedPostState,
+    });
+    expect(restored.ok).toBe(true);
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.state).toBe("published");
+    // publishedOwnPostId is deliberately not part of the snapshot this Undo restores
+    // (markPlanPublishedAction is still the only writer of that link).
+    expect(row.publishedOwnPostId).toBeNull();
+  });
+
+  // "missed" (queries/planned-posts.ts's PlannedPostState) is never a stored value — it
+  // is derived on every read from a "scheduled" row whose plannedDate has passed. The
+  // calendar cell Undo reads from holds that derived state, so this proves passing it
+  // straight through does not leak "missed" into storage: it writes back "scheduled",
+  // which immediately re-derives as "missed" again on the next read.
+  test("Undo passed a derived 'missed' state writes back 'scheduled', which re-derives as missed", async () => {
+    const created = (await createPlannedPostAction({ title: "Blew it", plannedDate: "2020-01-01" })) as { ok: true; id: string };
+    const before = (await getPlannedPosts()).find((p) => p.id === created.id)!;
+    expect(before.state).toBe("missed");
+    await deletePlannedPostAction(created.id);
+
+    const restored = await createPlannedPostAction({
+      id: before.id,
+      title: before.title,
+      plannedDate: before.plannedDate ?? undefined,
+      state: before.state,
+    });
+    expect(restored.ok).toBe(true);
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.state).toBe("scheduled"); // never the literal "missed"
+
+    const after = (await getPlannedPosts()).find((p) => p.id === created.id)!;
+    expect(after.state).toBe("missed"); // re-derived, round trip intact
+  });
+
+  // A "scheduled" plan armed for a real publish (schedulePublishAction) carries
+  // scheduledAt/idempotencyKey/videoAssetId/caption alongside the "scheduled" label.
+  // None of those are inputs this action accepts, so restoring the label alone can never
+  // produce a half-armed row — this pins that down.
+  test("Undo on an armed 'scheduled' publish restores the label without reviving the claim", async () => {
+    configurePublish();
+    try {
+      const id = await seedPublishablePlan();
+      await schedulePublishAction(id, FUTURE_SCHEDULE);
+      const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+      expect(snapshot.state).toBe("scheduled");
+      expect(snapshot.scheduledAt).not.toBeNull();
+      await deletePlannedPostAction(id);
+
+      const restored = await createPlannedPostAction({
+        id: snapshot.id,
+        title: snapshot.title,
+        plannedDate: snapshot.plannedDate ?? undefined,
+        plannedTime: snapshot.plannedTime ?? undefined,
+        state: snapshot.state as PlannedPostState,
+      });
+      expect(restored.ok).toBe(true);
+
+      const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+      expect(row.state).toBe("scheduled");
+      expect(row.scheduledAt).toBeNull();
+      expect(row.idempotencyKey).toBeNull();
+      expect(row.videoAssetId).toBeNull();
+      expect(row.caption).toBeNull();
+    } finally {
+      unconfigurePublish();
+    }
+  });
+
+  // "publishing" (mid-flight, no exit control in the UI) and "failed" (retryFailedPublishAction
+  // would re-arm it with no video or caption to actually publish) both depend on
+  // publish-lifecycle evidence this action never receives. Undo must not revive either
+  // state name; it falls back to the safe create-default instead.
+  test.each(["publishing", "failed"] as const)("Undo never revives a stuck '%s' claim; falls back to the safe default", async (stuckState) => {
+    const created = (await createPlannedPostAction({ title: "Stuck", plannedDate: "2026-09-01" })) as { ok: true; id: string };
+    await db.update(tables.plannedPosts).set({ state: stuckState, attemptCount: 1, lastError: "boom" }).where(eq(tables.plannedPosts.id, created.id));
+    const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    await deletePlannedPostAction(created.id);
+
+    const restored = await createPlannedPostAction({
+      id: snapshot.id,
+      title: snapshot.title,
+      plannedDate: snapshot.plannedDate ?? undefined,
+      state: snapshot.state as PlannedPostState,
+    });
+    expect(restored.ok).toBe(true);
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    // Falls back to the create-default: plannedDate is present, so "scheduled" — never
+    // the stuck state name, and none of its evidence (attemptCount/lastError) either.
+    expect(row.state).toBe("scheduled");
+    expect(row.attemptCount).toBe(0);
+    expect(row.lastError).toBeNull();
   });
 });
 
