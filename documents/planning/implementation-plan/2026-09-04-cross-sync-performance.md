@@ -109,10 +109,10 @@ threadpool assumption with a concurrent-request test against a stub before enabl
 
 ### T6 — Tests, docs, verification
 - Full new-test sweep green (concurrency, retry classes, resume, batching).
-- Update `documents/architect/core-components/ig-sync/01..05` via `document-component`
+- Update `documents/architect/core-components/ig-sync/01..05` via `crowsnest-document-component`
   (house style: no em/en dashes, straight quotes, sentence-case headings, grounded).
   Record the before/after 5-channel wall clock in `05` and the PR.
-- `ship:verification-before-completion` with real data: copy main-tree `data/crowsnest.db`
+- `verification-before-completion` with real data: copy main-tree `data/crowsnest.db`
   into the worktree; run `npm run verify:live -- @handle` for the timing number (live
   sidecar, throwaway account) or, if live is withheld, time a 5-channel run against the
   copied DB's channels and state the measurement basis.

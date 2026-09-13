@@ -29,7 +29,7 @@ shipped: 2026-09-02 7655093
 
 ## Parallelization
 
-- **Wave 1 (parallel): Tasks 1-6.** Distinct file sets: T1 owns `src/cli/kai.ts`; T2 owns `src/cli/license.ts`; T3 owns `.github/` + `scripts/testid-audit.sh`; T4 owns `src/components`/`src/app` testids + the `04-test-cases` blocked cells; T5 owns `scripts/release-prep.sh` + `packaging/`; T6 owns `scripts/next-bug.sh` + `.claude/skills/fix-backlog-item/`. No two share a file.
+- **Wave 1 (parallel): Tasks 1-6.** Distinct file sets: T1 owns `src/cli/kai.ts`; T2 owns `src/cli/license.ts`; T3 owns `.github/` + `scripts/testid-audit.sh`; T4 owns `src/components`/`src/app` testids + the `04-test-cases` blocked cells; T5 owns `scripts/release-prep.sh` + `packaging/`; T6 owns `scripts/next-bug.sh` + `.claude/skills/crowsnest-fix-backlog-item/`. No two share a file.
 - **Wave 2 (parallel): Tasks 7-10.** T7 (e2e harness) needs T4's testids and edits `scripts/release-prep.sh` (created by T5) plus `package.json`; T8 and T9 are pilot bug fixes in disjoint files; T10 (nightly routine) references T6's skill. Run Wave 1 to completion and commit before Wave 2.
 
 Shared verification helper: `npm test` (vitest), `npm run typecheck`, `npm run lint`, `bash scripts/plan-status.sh`.
@@ -97,13 +97,13 @@ Shared verification helper: `npm test` (vitest), `npm run typecheck`, `npm run l
 
 ### Task 6: Auto-fix tooling
 
-**Files:** Create `scripts/next-bug.sh`, `.claude/skills/fix-backlog-item/SKILL.md`.
+**Files:** Create `scripts/next-bug.sh`, `.claude/skills/crowsnest-fix-backlog-item/SKILL.md`.
 
-**Read first:** `scripts/plan-status.sh` (the grep over `05-backlog-to-enhance.md` boards), `.claude/skills/{crowsnest-component,where-are-we,ship-systematic-debugging,ship-verification-before-completion}/SKILL.md`.
+**Read first:** `scripts/plan-status.sh` (the grep over `05-backlog-to-enhance.md` boards), `.claude/skills/{crowsnest-component,crowsnest-status,ship-systematic-debugging,ship-verification-before-completion}/SKILL.md`.
 
 - [ ] **Step 1: `scripts/next-bug.sh`.** Read every `documents/architect/core-components/*/05-backlog-to-enhance.md`, print open rows with `Type=bug`, sorted blocker > high > medium > low, excluding rows whose title links a plan. Support `--verify vitest|browse` filtering via a heuristic (source names a `.tsx` or a "shows/renders/overlay" title -> browse; else vitest). One line per item: `component ID severity verify source title`.
 - [ ] **Step 2:** Run it; confirm it prints real open rows. `bash scripts/plan-status.sh` still runs.
-- [ ] **Step 3: `.claude/skills/fix-backlog-item/SKILL.md`.** An orchestrator skill (frontmatter `name: fix-backlog-item`, `disable-model-invocation: true`, trigger `/fix-backlog-item`): take one board row -> read its `Source` and the component `02-architecture.md` for the seam -> branch via `ship-using-git-worktrees` -> `ship-systematic-debugging` phases 1-2, failing test first (vitest for server/lib/routes, a `scripts/e2e/*.sh` journey for UI rows) -> fix -> `ship-verification-before-completion` + `npm test && npm run typecheck` -> flip the row `done`, open a PR, never merge. Skip `ship-writing-plans` for fixes touching 3 files or fewer. Encode the blast-radius guardrail: auto-eligible (Type=bug, diff small, files only under `src/lib|src/server/queries|src/components|src/app`, a test present) opens a normal PR labelled `auto-fix`; anything touching `src/cli`, `packaging`, `src/server/db`, `services/ig`, `.env*`, `service-darwin.ts`, or `Type=enhancement` opens a DRAFT PR labelled `needs-human` and sets the row to `in-review`, never `done`.
+- [ ] **Step 3: `.claude/skills/crowsnest-fix-backlog-item/SKILL.md`.** An orchestrator skill (frontmatter `name: crowsnest-fix-backlog-item`, `disable-model-invocation: true`, trigger `/crowsnest-fix-backlog-item`): take one board row -> read its `Source` and the component `02-architecture.md` for the seam -> branch via `ship-using-git-worktrees` -> `ship-systematic-debugging` phases 1-2, failing test first (vitest for server/lib/routes, a `scripts/e2e/*.sh` journey for UI rows) -> fix -> `ship-verification-before-completion` + `npm test && npm run typecheck` -> flip the row `done`, open a PR, never merge. Skip `ship-writing-plans` for fixes touching 3 files or fewer. Encode the blast-radius guardrail: auto-eligible (Type=bug, diff small, files only under `src/lib|src/server/queries|src/components|src/app`, a test present) opens a normal PR labelled `auto-fix`; anything touching `src/cli`, `packaging`, `src/server/db`, `services/ig`, `.env*`, `service-darwin.ts`, or `Type=enhancement` opens a DRAFT PR labelled `needs-human` and sets the row to `in-review`, never `done`.
 - [ ] **Step 4:** Follow the writing rules for the skill (this is a skill file, prose). Report. Do NOT commit.
 
 ### Task 7: e2e harness (Wave 2)
@@ -137,11 +137,11 @@ Shared verification helper: `npm test` (vitest), `npm run typecheck`, `npm run l
 
 ### Task 10: Nightly auto-fix routine (Wave 2)
 
-**Files:** Create the schedule/cron config for a nightly routine (per the `schedule` skill's format), referencing `scripts/next-bug.sh` + the `fix-backlog-item` skill.
+**Files:** Create the schedule/cron config for a nightly routine (per the `schedule` skill's format), referencing `scripts/next-bug.sh` + the `crowsnest-fix-backlog-item` skill.
 
-**Read first:** the `schedule` skill; `scripts/next-bug.sh` and `fix-backlog-item/SKILL.md` (from T6).
+**Read first:** the `schedule` skill; `scripts/next-bug.sh` and `crowsnest-fix-backlog-item/SKILL.md` (from T6).
 
-- [ ] **Step 1:** Define a nightly routine that runs `scripts/next-bug.sh --verify vitest | head -1` and invokes `/fix-backlog-item` on that row, opening a PR. Document that it only takes vitest-verifiable rows (cloud cannot drive `browse`).
+- [ ] **Step 1:** Define a nightly routine that runs `scripts/next-bug.sh --verify vitest | head -1` and invokes `/crowsnest-fix-backlog-item` on that row, opening a PR. Document that it only takes vitest-verifiable rows (cloud cannot drive `browse`).
 - [ ] **Step 2:** Validate the config is well-formed. Report. Do NOT commit. (Do not actually register a live cron without the user; leave it as a committed config plus a one-line how-to-enable.)
 
 ---

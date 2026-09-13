@@ -17,11 +17,11 @@ Phase 1 decides which and adapts.
 | Phase step | Owned by | Skill called |
 | --- | --- | --- |
 | P1 research, P2 design, P5 doc-sync | new, this skill's own agents | none |
-| Scaffold and wire the 5-doc block | reuse | `document-component` |
-| P3 plan | reuse | `ship:writing-plans` |
-| P4 build | reuse | `ship:subagent-driven-development` |
-| P5 verify | reuse | `ship:verification-before-completion` |
-| Open-item counts in P1 | reuse | `where-are-we` |
+| Scaffold and wire the 5-doc block | reuse | `crowsnest-document-component` |
+| P3 plan | reuse | `writing-plans` |
+| P4 build | reuse | `subagent-driven-development` |
+| P5 verify | reuse | `verification-before-completion` |
+| Open-item counts in P1 | reuse | `crowsnest-status` |
 
 ## References to load
 
@@ -39,8 +39,8 @@ grounds with `references/gitnexus-grounding.md`. Beyond that:
 Establish what the component is and whether it is new or an enhancement.
 
 - Ground with GitNexus first (`references/gitnexus-grounding.md`): bind `repo: "crowsnest"`, check index freshness, map the affected flow with `gitnexus-exploring` (`query`, `clusters`, `context`), then read only the files the graph points at. Any scout sub-agent gets this instruction and the reference path.
-- Enhancement: read the five docs, the graph-narrowed `src/` for the component, and `where-are-we` (`scripts/plan-status.sh`) for open backlog and active plans. Summarize what exists, what changes, what is affected.
-- New: research the concept, scan `src/` for a real seam (not a feature of an existing block, the rule `document-component` owns), and scaffold the five-doc block with `document-component`.
+- Enhancement: read the five docs, the graph-narrowed `src/` for the component, and `crowsnest-status` (`scripts/plan-status.sh`) for open backlog and active plans. Summarize what exists, what changes, what is affected.
+- New: research the concept, scan `src/` for a real seam (not a feature of an existing block, the rule `crowsnest-document-component` owns), and scaffold the five-doc block with `crowsnest-document-component`.
 
 **Gate:** present name, slug, what it is and why, new versus enhancement, dependencies. Wait for a yes before Phase 2.
 
@@ -61,7 +61,7 @@ Browse-e2e authoring: before writing rows, build a scratch feature-to-journey ma
 
 Write the plan and run two coverage sweeps before the gate.
 
-- Call `ship:writing-plans`. The plan goes to `documents/planning/implementation-plan/`, following that skill's naming. It is never a sixth component doc.
+- Call `writing-plans`. The plan goes to `documents/planning/implementation-plan/`, following that skill's naming. It is never a sixth component doc.
 - Cross-module reuse sweep: read the Limitations and business-rules bullets across `01`, `02`, `03`. For every file or component they name, including reused ones outside the new component, confirm a plan task exists; a deliberate gap goes in the plan's Risks. Run it as a GitNexus `impact {name, repo: "crowsnest"}` query, not a grep: each symbol's callers and blast radius must map to a plan task or an explicit Risks skip.
 - Surface sweep (crowsnest-specific): does the change touch `.env.local` keys, the drizzle schema or a migration, the launchd services, or the sidecar contract? Answer per surface, add a plan task where yes, note deliberate skips in Risks.
 
@@ -69,7 +69,7 @@ Write the plan and run two coverage sweeps before the gate.
 
 ## Phase 4: implement, then the mandatory test gate. No human gate.
 
-Call `ship:subagent-driven-development` in independent-tasks parallel mode where the plan's tasks are independent.
+Call `subagent-driven-development` in independent-tasks parallel mode where the plan's tasks are independent.
 
 ### 4a. Build
 
@@ -122,11 +122,11 @@ Phase 5 does not start until 4b passes.
 
 Verify the build, then rewrite the docs to the system that now exists. The doc-sync is the half that gets skipped, so run it every time, even if the branch already merged. Prefer to run it on the code's branch so the synced docs ride the same PR; if the branch merged first, run the sync as an immediate follow-up.
 
-Phase 4's `ship:subagent-driven-development` runs its own per-task reviews, a whole-branch review, and `ship:finishing-a-development-branch`. None of that is Phase 5, and `ship:verification-before-completion` is not the doc-sync.
+Phase 4's `subagent-driven-development` runs its own per-task reviews, a whole-branch review, and `finishing-a-development-branch`. None of that is Phase 5, and `verification-before-completion` is not the doc-sync.
 
 ### 5a. Verify
 
-- Call `ship:verification-before-completion`.
+- Call `verification-before-completion`.
 - Confirm 4b ran and its markers are in `04`: every shipped case 🟢 (with an embedded `test-shots/` screenshot per browser-run case), 🔴, or 🟡 with a named blocker, and none still `not run`. An unmarked shipped case means 4b did not finish; go back and run it.
 - Reconcile the layers against `04`: which browse-e2e journeys ran at full depth (🟢 with evidence), which are 🟡 and why. A sandbox-un-runnable layer is a named 🟡 for the release gate, never a silent drop.
 
@@ -139,7 +139,7 @@ The docs describe the design as of Phase 2; rewrite them to the built system.
    - Architecture agent updates `02` to the built system: the module-structure table for every new or changed export; the ER, data-flow, and DB-operation diagrams to the real flow; and every "open, not verified" / "not built" / "planned" line rewritten as fact or deleted for anything that shipped. A shipped feature is never described as unbuilt. Keep only genuinely open items.
    - Feature agent updates `03`: flip each status marker to its true built state (`○`/`◐` becomes `●` where it shipped), fix file references and the open-item column, and extend the user-guide prose to the shipped behavior. Text only, no images (`03` feeds the mkdocs site).
 3. Update `05-backlog-to-enhance.md` yourself: mark implemented rows done and link the plan; file every deviation and every deferred or parked review finding as a new row.
-4. Confirm the mkdocs nav and the five-doc invariant via `document-component`, then confirm the site builds (`mkdocs build`, or the project's nav check).
+4. Confirm the mkdocs nav and the five-doc invariant via `crowsnest-document-component`, then confirm the site builds (`mkdocs build`, or the project's nav check).
 
 ### 5c. Verify the docs match the code
 
@@ -176,17 +176,17 @@ Present: files changed, test results per layer, the 5a coverage reconciliation, 
 | a gate is rejected | revise on the feedback and re-present the same gate; nothing downstream starts |
 | the component already exists | read first, enhance, never overwrite blindly |
 | `browse` is unavailable, or a `Mode: live` service (sidecar, credentials, LLM key) is unreachable | mark the case 🟡 in `04` with the reason and the release gate it defers to, then fall back to `vitest` plus a manual check. Never skip a layer silently, and never mark 🟢 without driving the case and capturing its `test-shots/` screenshot |
-| the build "feels done" after Phase 4 | it is not done until Phase 5's 5b and 5c have run and the gate is confirmed. `ship:subagent-driven-development` reviews and `ship:finishing-a-development-branch` do not satisfy Phase 5 |
+| the build "feels done" after Phase 4 | it is not done until Phase 5's 5b and 5c have run and the gate is confirmed. `subagent-driven-development` reviews and `finishing-a-development-branch` do not satisfy Phase 5 |
 | the branch merged before doc-sync | run 5b as an immediate follow-up branch; do not defer it |
 
-`house-style.md` governs every doc this skill touches. `document-component` owns the five-doc block and the index or nav wiring.
+`house-style.md` governs every doc this skill touches. `crowsnest-document-component` owns the five-doc block and the index or nav wiring.
 
 ## Quick reference
 
 | Phase | Gate | Delegated skill | Key output |
 | --- | --- | --- | --- |
-| 1: research and concept | yes | none (this skill, plus `where-are-we`) | name, slug, scope, dependencies, agreed |
+| 1: research and concept | yes | none (this skill, plus `crowsnest-status`) | name, slug, scope, dependencies, agreed |
 | 2: design, features-first | yes | none (this skill's own agents) | `01`, `02`, `03`, `04` drafted, per `house-style.md` |
-| 3: implementation plan | yes | `ship:writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
-| 4: implement + test gate | no human gate, hard test gate | `ship:subagent-driven-development` | code committed, then 4b runs every layer and marks each shipped case 🟢/🔴/🟡 in `04` with a `test-shots/` screenshot per browser-run case; a `not run` or 🔴 P1 blocks Phase 5 |
-| 5: verify and doc-sync | yes | `ship:verification-before-completion`, `/code-review` | verify (5a), doc-sync to reality (5b), docs-match-code check (5c), independent `/code-review` of code plus synced docs (5d, blocker/high blocks the gate), learnings appended (5e); backlog updated, done confirmed. SDD finishing does not satisfy this. |
+| 3: implementation plan | yes | `writing-plans` | plan in `documents/planning/implementation-plan/`, two sweeps shown |
+| 4: implement + test gate | no human gate, hard test gate | `subagent-driven-development` | code committed, then 4b runs every layer and marks each shipped case 🟢/🔴/🟡 in `04` with a `test-shots/` screenshot per browser-run case; a `not run` or 🔴 P1 blocks Phase 5 |
+| 5: verify and doc-sync | yes | `verification-before-completion`, `/code-review` | verify (5a), doc-sync to reality (5b), docs-match-code check (5c), independent `/code-review` of code plus synced docs (5d, blocker/high blocks the gate), learnings appended (5e); backlog updated, done confirmed. SDD finishing does not satisfy this. |

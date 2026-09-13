@@ -6,36 +6,30 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 <!-- END:nextjs-agent-rules -->
 
-# Skills and plugins
+# Skills
 
-Two local plugins live under `plugins/`, registered by `.claude-plugin/marketplace.json`
-as the `crowsnest-local` marketplace and enabled in `.claude/settings.json`:
+All skills live flat under `.claude/skills/`, one directory per skill, invoked by their
+bare name (no plugin, no `ship:` / `taste:` prefix). Product skills carry a `crowsnest-`
+prefix; generic and vendor skills keep plain names (the `gitnexus-*` family stays as is).
 
-- `ship` (8 skills): the build-and-ship lifecycle. Invoke as `ship:<name>`, e.g.
-  `ship:brainstorming`, `ship:writing-plans`, `ship:subagent-driven-development`,
-  `ship:systematic-debugging`, `ship:using-git-worktrees`,
-  `ship:verification-before-completion`, `ship:finishing-a-development-branch`,
-  `ship:writing-skills`.
-- `taste` (9 skills): the design lane, dropped in whenever work touches UI. Invoke as
-  `taste:<name>`, e.g. `taste:hallmark`, `taste:apple-design`, `taste:prototype`,
-  `taste:pick-ui-library`, `taste:find-animation-opportunities`,
-  `taste:improve-animations`, `taste:review-animations`, `taste:animation-vocabulary`,
-  `taste:emil-design-eng`.
-
-Always use the namespaced `ship:` / `taste:` form. The old unprefixed and hyphenated
-names (`ship-writing-plans`) are gone.
+- Build-and-ship lifecycle: `brainstorming`, `writing-plans`,
+  `subagent-driven-development`, `systematic-debugging`, `using-git-worktrees`,
+  `verification-before-completion`, `finishing-a-development-branch`, `writing-skills`.
+- Design lane (whenever work touches UI): `hallmark`, `apple-design`, `prototype`,
+  `pick-ui-library`, `find-animation-opportunities`, `improve-animations`,
+  `review-animations`, `animation-vocabulary`, `emil-design-eng`.
 
 # Component workflow
 
 New or reworked components go through the `/crowsnest-component` skill
 (`.claude/skills/crowsnest-component/SKILL.md`): a 5-phase, 4-gate orchestrator that
-delegates plan to `ship:writing-plans`, build to `ship:subagent-driven-development`,
-and verification to `ship:verification-before-completion`, then wires the five-doc set
-into the docs site via `document-component`. Its quality bar is
+delegates plan to `writing-plans`, build to `subagent-driven-development`,
+and verification to `verification-before-completion`, then wires the five-doc set
+into the docs site via `crowsnest-document-component`. Its quality bar is
 `.claude/skills/crowsnest-component/house-style.md`.
 
 Bug backlog auto-fix: `scripts/next-bug.sh` pulls the top open `05-backlog` row and the
-`/fix-backlog-item` skill fixes it in a worktree (systematic debugging, failing test
+`/crowsnest-fix-backlog-item` skill fixes it in a worktree (systematic debugging, failing test
 first, verification, opens a PR, never self-merges).
 
 # Documentation
@@ -49,7 +43,7 @@ the index. Preview with `mkdocs serve`.
 
 ## Writing rule (docs)
 
-Enforced by the doc skills (`house-style.md`, `document-component`), not by hooks:
+Enforced by the doc skills (`house-style.md`, `crowsnest-document-component`), not by hooks:
 no em or en dashes, straight quotes only, sentence-case headings, grounded to code with
 no invented facts. Docs are evergreen: state the current system as fact, no `Date:`
 field, no dated "verified on" framing, no ticket IDs as inline citations. Each component

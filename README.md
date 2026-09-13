@@ -398,10 +398,9 @@ from the wrong origin, and it does it silently.
 <details>
 <summary>Development skills and workflow cases</summary>
 
-Two plugins under `plugins/`, registered by `.claude-plugin/marketplace.json` as the
-`crowsnest-local` marketplace: `ship` (build-and-ship lifecycle) and `taste` (design lane).
-Repo-local skills live under `.claude/skills/`. Invoke plugin skills as `ship:<name>` /
-`taste:<name>`; invoke repo-local ones as `/<name>`. `[GATE]` marks a human sign-off.
+All skills live flat under `.claude/skills/`, invoked by bare name (`/<name>`). Product skills
+carry a `crowsnest-` prefix; the build-and-ship lifecycle and design-lane skills keep plain
+names; the `gitnexus-*` family stays as is. `[GATE]` marks a human sign-off.
 
 **Workflow cases**
 
@@ -417,13 +416,13 @@ sign-off.
  a component   from backlog  feature/build   UI change     for the channel
    │             │              │               │              │
    ▼             ▼              ▼               ▼              ▼
- A. /crowsnest  B. next-bug   C. ship:brain-  D. /cn-design  G. /cn-weekly
-    -component     .sh →          storming        -router →      → /cn-remix
-    (5 phases,     /fix-          → plan →         taste:*
-    4 gates)       backlog-       build →         → back to
-                   item          verify → PR      A or C
+ A. /crowsnest  B. next-bug   C. brain-      D. pick a      G. /crowsnest-weekly
+    -component     .sh →          storming       design         → /crowsnest-remix
+    (5 phases,     fix row →      → plan →        skill →
+    4 gates)       PR             build →         back to
+                                  verify → PR     A or C
 
-   Supporting cases:  E. docs (document-component)   H. new skill (ship:writing-skills)
+   Supporting cases:  E. docs (crowsnest-document-component)   H. new skill (writing-skills)
                       F. release (release-prep.sh)   I. every PR (ci.yml)
 ```
 
@@ -432,41 +431,44 @@ sign-off.
 
 1. P1 research and concept `[GATE]`
 2. P2 design, features-first `[GATE]`
-3. P3 plan via `ship:writing-plans` `[GATE]`
-4. P4 build via `ship:subagent-driven-development`
-5. P5 verify via `ship:verification-before-completion` + doc-sync via `document-component` `[GATE]`
+3. P3 plan via `writing-plans` `[GATE]`
+4. P4 build via `subagent-driven-development`
+5. P5 verify via `verification-before-completion` + doc-sync via `crowsnest-document-component` `[GATE]`
 
-**B. Bug fix from the backlog** — `/fix-backlog-item`. Never self-merges. Risky surfaces
+**B. Bug fix from the backlog** — `/crowsnest-fix-backlog-item`. Never self-merges. Risky surfaces
 (`src/cli`, `packaging`, `src/server/db`, `services/ig`, `.env`, launchd) open a
 draft/needs-human PR and set the row `in-review`. Nightly unattended variant:
 `.github/workflows/nightly-autofix.yml` (cron inert until enabled).
 
 1. `scripts/next-bug.sh` picks the top open bug row
-2. `ship:using-git-worktrees` isolates the work
-3. `ship:systematic-debugging` writes the failing test first, then the fix
-4. `ship:verification-before-completion`
+2. `using-git-worktrees` isolates the work
+3. `systematic-debugging` writes the failing test first, then the fix
+4. `verification-before-completion`
 5. Open PR `[GATE: human merges]`
 
 **C. Ad-hoc feature or build** (no component doc).
 
-1. `ship:brainstorming` `[GATE]`
-2. `ship:writing-plans` `[GATE]`
-3. `ship:using-git-worktrees`
-4. `ship:subagent-driven-development`
-5. `ship:verification-before-completion`
-6. `ship:finishing-a-development-branch` `[GATE]`
+1. `brainstorming` `[GATE]`
+2. `writing-plans` `[GATE]`
+3. `using-git-worktrees`
+4. `subagent-driven-development`
+5. `verification-before-completion`
+6. `finishing-a-development-branch` `[GATE]`
 
 **D. UI / design.**
 
-1. `/cn-design-router` routes to the right `taste:*` lane
-2. Do the design work in that lane
+1. Pick the design skill that matches: `hallmark` (new page or redesign), `prototype`
+   (divergent variants), `apple-design` / `emil-design-eng` (craft and motion),
+   `pick-ui-library` (dependency choice), or the animation skills
+   (`find-animation-opportunities`, `improve-animations`, `review-animations`)
+2. Do the design work with that skill
 3. Re-enter case A or C to ship
 
 **E. Docs.**
 
-1. `document-component` scaffolds or edits the five-doc block to `house-style.md`
+1. `crowsnest-document-component` scaffolds or edits the five-doc block to `house-style.md`
 2. Specs go to `documents/planning/spec/`, plans to `documents/planning/implementation-plan/`
-3. Check status with `/where-are-we`; manage rows with `/backlog-board`
+3. Check status with `/crowsnest-status`; manage rows with `/crowsnest-backlog-board`
 
 **F. Release.**
 
@@ -481,8 +483,8 @@ draft/needs-human PR and set the row `in-review`. Nightly unattended variant:
 
 **G. Content / marketing.** Both steps use the `crowsnest` MCP server.
 
-1. `/cn-weekly` builds the weekly funnel plan (2 gates)
-2. `/cn-remix` analyzes a video into a saved script + planned post (5 gates)
+1. `/crowsnest-weekly` builds the weekly funnel plan (2 gates)
+2. `/crowsnest-remix` analyzes a video into a saved script + planned post (5 gates)
 
 **Connect the MCP.** The running app exposes an MCP server over HTTP, the surface where a
 finished remix leaves crowsnest and reaches the tool that produces the reel. Register it with
@@ -492,12 +494,12 @@ Claude Code once:
 claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
 ```
 
-`/cn-weekly` and `/cn-remix` (case G) consume this MCP to read the feed and drive the remix
+`/crowsnest-weekly` and `/crowsnest-remix` (case G) consume this MCP to read the feed and drive the remix
 handoff.
 
 **H. Author a new skill.**
 
-1. `ship:writing-skills`
+1. `writing-skills`
 
 **I. Every PR.**
 
@@ -507,41 +509,40 @@ handoff.
 
 | Skill | Purpose |
 |-------|---------|
-| `ship:brainstorming` | Shape a problem, classify it (spike / bounded / architectural) |
-| `ship:writing-plans` | Write a phase-by-phase implementation plan to `documents/planning/` |
-| `ship:using-git-worktrees` | Isolate the work in a dedicated branch or worktree |
-| `ship:subagent-driven-development` | Dispatch the build across sub-agents, then review the diff |
-| `ship:systematic-debugging` | Root-cause a bug, failing test first (red, green, refactor) |
-| `ship:verification-before-completion` | Prove it works before claiming done |
-| `ship:finishing-a-development-branch` | Commit, push, PR, merge decision |
-| `ship:writing-skills` | Author a new skill for either plugin |
+| `brainstorming` | Shape a problem, classify it (spike / bounded / architectural) |
+| `writing-plans` | Write a phase-by-phase implementation plan to `documents/planning/` |
+| `using-git-worktrees` | Isolate the work in a dedicated branch or worktree |
+| `subagent-driven-development` | Dispatch the build across sub-agents, then review the diff |
+| `systematic-debugging` | Root-cause a bug, failing test first (red, green, refactor) |
+| `verification-before-completion` | Prove it works before claiming done |
+| `finishing-a-development-branch` | Commit, push, PR, merge decision |
+| `writing-skills` | Author a new skill for either plugin |
 
 **`taste` plugin** (design lane). `*` = triggerable only as `/taste:<name>`
 
 | Skill | Purpose |
 |-------|---------|
-| `taste:hallmark` | Anti-slop design for greenfield pages, audits, redesigns |
-| `taste:emil-design-eng` | Design-engineering polish and component craft |
-| `taste:apple-design` | Apple-grade gesture and motion feel |
-| `taste:find-animation-opportunities` | Spot where motion would help |
-| `taste:improve-animations` | Plan and apply animation improvements |
-| `taste:animation-vocabulary` | Name and specify a motion effect |
-| `taste:review-animations` * | Review animation quality against standards |
-| `taste:pick-ui-library` * | Choose a UI dependency |
-| `taste:prototype` * | Throwaway UI mock |
+| `hallmark` | Anti-slop design for greenfield pages, audits, redesigns |
+| `emil-design-eng` | Design-engineering polish and component craft |
+| `apple-design` | Apple-grade gesture and motion feel |
+| `find-animation-opportunities` | Spot where motion would help |
+| `improve-animations` | Plan and apply animation improvements |
+| `animation-vocabulary` | Name and specify a motion effect |
+| `review-animations` * | Review animation quality against standards |
+| `pick-ui-library` * | Choose a UI dependency |
+| `prototype` * | Throwaway UI mock |
 
 **Repo-local skills** (`.claude/skills/`). `/` = user-invoked only
 
 | Skill | Invoke | Purpose |
 |-------|--------|---------|
 | `crowsnest-component` | `/` | Component concept-to-shipped, 5 phases / 4 gates (case A) |
-| `fix-backlog-item` | `/` | Take one backlog bug row through fix to PR (case B) |
-| `document-component` | `/` | Scaffold/edit the five-doc block and mkdocs nav (case E) |
-| `where-are-we` | `/` + model | Lego status: open-backlog counts and active plans |
-| `backlog-board` | `/` + model | Add, close, or review backlog rows |
-| `cn-design-router` | `/` | Route a design request to the right `taste:*` skill (case D) |
-| `cn-weekly` | `/` + model | Weekly content funnel plan, hands off to `cn-remix` (case G) |
-| `cn-remix` | `/` + model | Analyze a video into a script + planned post (case G) |
+| `crowsnest-fix-backlog-item` | `/` | Take one backlog bug row through fix to PR (case B) |
+| `crowsnest-document-component` | `/` | Scaffold/edit the five-doc block and mkdocs nav (case E) |
+| `crowsnest-status` | `/` + model | Lego status: open-backlog counts and active plans |
+| `crowsnest-backlog-board` | `/` + model | Add, close, or review backlog rows |
+| `crowsnest-weekly` | `/` + model | Weekly content funnel plan, hands off to `crowsnest-remix` (case G) |
+| `crowsnest-remix` | `/` + model | Analyze a video into a script + planned post (case G) |
 | `crowsnest-up` | `/` | Boot the local stack (9router, dev server, browser) |
 | `product-description` | `/` + model | Build an outside-in product-description doc repo |
 

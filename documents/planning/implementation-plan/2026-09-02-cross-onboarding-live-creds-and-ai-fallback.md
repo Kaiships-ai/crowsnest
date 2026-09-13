@@ -8,7 +8,7 @@ shipped: null
 
 # Onboarding Live Credentials and AI Fallback Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use ship:subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close the two seams `documents/architect/core-components/onboarding/01-concept-brief.md` names as blocking a clean buyer install: dashboard-saved Instagram credentials never reach the packaged (launchd) sidecar, and a valid Anthropic key still fails when `LLM_BASE_URL` points at a 9router that isn't running.
 

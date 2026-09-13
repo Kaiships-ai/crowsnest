@@ -12,7 +12,7 @@ shipped: 2026-09-02 94e4883
 
 **Goal:** Build the `crowsnest-component` orchestrator skill and its doc house-style, and apply the house-style to the `ig-sync` component as the worked example.
 
-**Architecture:** A single five-phase skill that delegates planning, building, and verifying to the existing ship-* skills and scaffolding to `document-component`. Alongside it, a quality-bar doc (`house-style.md`) and three reference docs (drizzle ER and sequences, browse-driven e2e, the four-lens test-case format). All deliverables are markdown; there is no runtime code, so each task verifies with structure and lint checks, not vitest.
+**Architecture:** A single five-phase skill that delegates planning, building, and verifying to the existing ship-* skills and scaffolding to `crowsnest-document-component`. Alongside it, a quality-bar doc (`house-style.md`) and three reference docs (drizzle ER and sequences, browse-driven e2e, the four-lens test-case format). All deliverables are markdown; there is no runtime code, so each task verifies with structure and lint checks, not vitest.
 
 **Tech Stack:** Markdown skills and docs. Verification uses `grep`, `scripts/plan-status.sh`, and a mermaid render check (kroki). No new dependencies.
 
@@ -22,7 +22,7 @@ shipped: 2026-09-02 94e4883
 
 - Writing rule, every deliverable: no em or en dashes, no curly quotes, sentence-case headings, grounded to real code, no invented facts. (Copied from spec D7.)
 - The five-doc invariant holds: a component folder has exactly `01`..`05`, never a sixth. Plans live in `documents/planning/implementation-plan/`. (Spec D6.)
-- `document-component` stays the owner of the five-doc invariant and the index/mkdocs wiring. The new skill calls it, does not replace it. (Spec 3.1.5.)
+- `crowsnest-document-component` stays the owner of the five-doc invariant and the index/mkdocs wiring. The new skill calls it, does not replace it. (Spec 3.1.5.)
 - The skill is an orchestrator: Phases 3, 4, and 5-verify delegate to `ship-writing-plans`, `ship-subagent-driven-development`, and `ship-verification-before-completion`. Do not duplicate their content. (Spec D3.)
 - Working name is `crowsnest-component`. Do not rename in this plan. (Spec 9.)
 - Evergreen doc rule: state the current system as fact, no dated evidence framing, no `Date:` header field, no ticket ids as inline citations. (Spec 5.)
@@ -56,7 +56,7 @@ Shared verification helpers used by several tasks:
 - Consumes: nothing.
 - Produces: the section contract every one of the five component docs must satisfy. Tasks 5, 6, 7 reference this file by path.
 
-**Read first:** `documents/planning/spec/2026-09-02-crowsnest-component-workflow.md` section 5; the funflow reference `/Users/kienbeovl/Desktop/JITS/sun-phuquoc-airway/funflow-v2-aio/documents/architect/core-components/pats/01-concept-brief.md` and `.../pats/02-architecture.md` (structure to match); the existing `.claude/skills/document-component/SKILL.md` (the invariant to respect).
+**Read first:** `documents/planning/spec/2026-09-02-crowsnest-component-workflow.md` section 5; the funflow reference `/Users/kienbeovl/Desktop/JITS/sun-phuquoc-airway/funflow-v2-aio/documents/architect/core-components/pats/01-concept-brief.md` and `.../pats/02-architecture.md` (structure to match); the existing `.claude/skills/crowsnest-document-component/SKILL.md` (the invariant to respect).
 
 - [ ] **Step 1: Write the file with these exact sections**
 
@@ -191,18 +191,18 @@ git commit -m "docs: add four-lens test-cases format reference"
 - Consumes: `house-style.md` (Task 1) and the three references (Tasks 2, 3, 4), by path.
 - Produces: the runnable skill. Nothing depends on it inside this plan.
 
-**Read first:** all of `documents/planning/spec/2026-09-02-crowsnest-component-workflow.md` (sections 4 and 4.2 are the phase content); `.claude/skills/ship-writing-plans/SKILL.md`, `.claude/skills/ship-subagent-driven-development/SKILL.md`, `.claude/skills/ship-verification-before-completion/SKILL.md`, `.claude/skills/document-component/SKILL.md`, and the `where-are-we` skill, so the delegation is described accurately.
+**Read first:** all of `documents/planning/spec/2026-09-02-crowsnest-component-workflow.md` (sections 4 and 4.2 are the phase content); `.claude/skills/ship-writing-plans/SKILL.md`, `.claude/skills/ship-subagent-driven-development/SKILL.md`, `.claude/skills/ship-verification-before-completion/SKILL.md`, `.claude/skills/crowsnest-document-component/SKILL.md`, and the `crowsnest-status` skill, so the delegation is described accurately.
 
 - [ ] **Step 1: Write the frontmatter and body**
 
-Frontmatter: `name: crowsnest-component`; a `description` that says it takes a crowsnest component from concept to shipped through five phases and four gates, and names the trigger `/crowsnest-component`; `disable-model-invocation: true` (match `document-component`, this is a user-triggered workflow).
+Frontmatter: `name: crowsnest-component`; a `description` that says it takes a crowsnest component from concept to shipped through five phases and four gates, and names the trigger `/crowsnest-component`; `disable-model-invocation: true` (match `crowsnest-document-component`, this is a user-triggered workflow).
 
 Body sections: `# crowsnest-component`; a one-paragraph overview naming it an orchestrator; `## Composition` (the delegation table from spec 4.1); `## Phase 1: research and concept` through `## Phase 5: verify and doc-sync`, each with its human-gate note and its delegated skill, copied faithfully from spec 4.2; `## Error handling` (spec 4.3); `## Quick reference` (a five-row phase table: phase, gate yes/no, delegated skill, key output). Every phase that produces a doc points at `house-style.md`; Phase 2 points at `references/drizzle-er-and-sequence.md` and `references/test-cases-format.md`; Phase 4 points at `references/browse-e2e-qa.md`.
 
 - [ ] **Step 2: Verify the five phases and the delegations are present**
 
 Run: `grep -cE '^## Phase [1-5]:' .claude/skills/crowsnest-component/SKILL.md` -> expect `5`.
-Run: `grep -oE 'ship-writing-plans|ship-subagent-driven-development|ship-verification-before-completion|document-component' .claude/skills/crowsnest-component/SKILL.md | sort -u | wc -l` -> expect `4`.
+Run: `grep -oE 'ship-writing-plans|ship-subagent-driven-development|ship-verification-before-completion|crowsnest-document-component' .claude/skills/crowsnest-component/SKILL.md | sort -u | wc -l` -> expect `4`.
 
 - [ ] **Step 3: Verify no dashes or curly quotes**
 
@@ -270,16 +270,16 @@ git commit -m "docs: upgrade ig-sync docs to the component house-style"
 
 ---
 
-### Task 7: point `document-component` at the house-style
+### Task 7: point `crowsnest-document-component` at the house-style
 
 **Files:**
-- Modify: `.claude/skills/document-component/SKILL.md`
+- Modify: `.claude/skills/crowsnest-document-component/SKILL.md`
 
 **Interfaces:**
 - Consumes: `house-style.md` (Task 1).
 - Produces: nothing downstream in this plan.
 
-**Read first:** the current `.claude/skills/document-component/SKILL.md`.
+**Read first:** the current `.claude/skills/crowsnest-document-component/SKILL.md`.
 
 - [ ] **Step 1: Add a quality-bar reference**
 
@@ -287,8 +287,8 @@ Add a short section that points at `.claude/skills/crowsnest-component/house-sty
 
 - [ ] **Step 2: Verify the reference is present and the invariant text is intact**
 
-Run: `grep -c 'house-style.md' .claude/skills/document-component/SKILL.md` -> expect at least `1`.
-Run: `grep -c 'EXACTLY five' .claude/skills/document-component/SKILL.md` -> expect `1` (the invariant line is untouched).
+Run: `grep -c 'house-style.md' .claude/skills/crowsnest-document-component/SKILL.md` -> expect at least `1`.
+Run: `grep -c 'EXACTLY five' .claude/skills/crowsnest-document-component/SKILL.md` -> expect `1` (the invariant line is untouched).
 
 - [ ] **Step 3: Verify no dashes or curly quotes**
 
@@ -297,8 +297,8 @@ Run the dash-and-curly-quote scan -> expect no output.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add .claude/skills/document-component/SKILL.md
-git commit -m "docs: point document-component at the house-style quality bar"
+git add .claude/skills/crowsnest-document-component/SKILL.md
+git commit -m "docs: point crowsnest-document-component at the house-style quality bar"
 ```
 
 ---
@@ -343,7 +343,7 @@ git commit -m "docs: move spec and plan paths to planning/spec and planning/impl
 
 ## Self-review
 
-**Spec coverage.** Spec section 3.1 items 1-6 map to tasks: item 1 (SKILL) -> Task 5; item 2 (house-style) -> Task 1; item 3 (three references) -> Tasks 2, 3, 4; item 4 (ig-sync exemplar) -> Task 6; item 5 (document-component) -> Task 7; item 6 (path conventions) -> Task 8. Acceptance criteria 1-6 (spec section 8) each trace to a task's verify steps. Out-of-scope items (business skill, the other eight retrofits) are correctly absent.
+**Spec coverage.** Spec section 3.1 items 1-6 map to tasks: item 1 (SKILL) -> Task 5; item 2 (house-style) -> Task 1; item 3 (three references) -> Tasks 2, 3, 4; item 4 (ig-sync exemplar) -> Task 6; item 5 (crowsnest-document-component) -> Task 7; item 6 (path conventions) -> Task 8. Acceptance criteria 1-6 (spec section 8) each trace to a task's verify steps. Out-of-scope items (business skill, the other eight retrofits) are correctly absent.
 
 **Placeholder scan.** No "TBD", "TODO", or "handle edge cases". Each task names exact files, exact sections, and exact verify commands. Doc content is specified as a concrete section contract plus the exact source files to read, which is the honest altitude for a doc-authoring plan (the deliverable is prose derived from the code, not code).
 

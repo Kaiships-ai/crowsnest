@@ -1,8 +1,1 @@
-{
-  "extraKnownMarketplaces": {
-    "crowsnest-local": {
-      "source": { "source": "directory", "path": "." }
-    }
-  },
-  "enabledPlugins": { "taste@crowsnest-local": true, "ship@crowsnest-local": true }
-}
+{}

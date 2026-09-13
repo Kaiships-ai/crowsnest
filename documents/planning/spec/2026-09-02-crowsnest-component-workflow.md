@@ -5,7 +5,7 @@ kind: spec
 slug: crowsnest-component-workflow
 supersedes: none
 related:
-  - .claude/skills/document-component/SKILL.md
+  - .claude/skills/crowsnest-document-component/SKILL.md
   - .claude/skills/ship-brainstorming/SKILL.md
   - .claude/skills/ship-writing-plans/SKILL.md
   - documents/architect/core-components/ig-sync/
@@ -65,7 +65,7 @@ adapts to that reality.
    - `browse-e2e-qa.md`
    - `test-cases-format.md`
 4. Apply the house-style to the `ig-sync` component (its five docs), as the reference example.
-5. Update `.claude/skills/document-component/SKILL.md` to reference `house-style.md` as the quality
+5. Update `.claude/skills/crowsnest-document-component/SKILL.md` to reference `house-style.md` as the quality
    bar. It stays the owner of the five-doc invariant and the index/mkdocs wiring.
 6. Path-convention updates (small):
    - `ship-brainstorming`: architectural specs are written to `documents/planning/spec/`, not to a
@@ -93,19 +93,19 @@ conductor.
 | Phase step | Owned by | Skill called |
 | --- | --- | --- |
 | P1 research, P2 design, P5 doc-sync | new | none (its own agents) |
-| Scaffold and wire the 5-doc block | reuse | `document-component` |
+| Scaffold and wire the 5-doc block | reuse | `crowsnest-document-component` |
 | P3 plan | reuse | `ship-writing-plans` |
 | P4 build | reuse | `ship-subagent-driven-development` |
 | P5 verify | reuse | `ship-verification-before-completion` |
-| Open-item counts in P1 | reuse | `where-are-we` |
+| Open-item counts in P1 | reuse | `crowsnest-status` |
 
 ### 4.2 The five phases
 
 **Phase 1: research and concept. Human gate.**
 - If the component exists (enhancement): read its five docs, the real `src/` for that component, and
-  run `where-are-we` for open items. Summarize what exists, what changes, what is affected.
+  run `crowsnest-status` for open items. Summarize what exists, what changes, what is affected.
 - If new: research the concept, scan `src/` for a real seam (not a feature of an existing block, per
-  the `document-component` rule), propose the five-doc block.
+  the `crowsnest-document-component` rule), propose the five-doc block.
 - Gate: present name, slug, what it is and why, new-versus-enhancement, dependencies. Wait for a yes.
 
 **Phase 2: design, features-first. Human gate.**
@@ -149,7 +149,7 @@ conductor.
 - Two parallel doc-sync agents: one updates `02-architecture.md` to the real implemented code; one
   extends each feature's entry in `03-feature-description.md` with user-guide detail (text only, no
   images; `03` feeds the mkdocs site directly). Update `05-backlog-to-enhance.md`: remove items just
-  implemented, add new tech debt found. Confirm the mkdocs nav via `document-component`.
+  implemented, add new tech debt found. Confirm the mkdocs nav via `crowsnest-document-component`.
 - Gate: present files changed, test results per layer, an e2e coverage reconciliation (which
   `04-test-cases.md` e2e journeys are covered at full depth, which are simplified and why), and any
   deviation from the plan. Wait for the human to confirm done.
@@ -160,7 +160,7 @@ conductor.
 - An existing component: read first, enhance, never overwrite blindly.
 - `browse` or `verify:live` unavailable: note it, fall back to `vitest` plus a manual check, never
   skip a layer silently.
-- One quality bar is `house-style.md`; one invariant owner is `document-component`.
+- One quality bar is `house-style.md`; one invariant owner is `crowsnest-document-component`.
 
 ## 5. The doc house-style (B)
 
@@ -223,7 +223,7 @@ in `04-test-cases.md`. One small worked example.
 
 documents/architect/core-components/ig-sync/   (5 docs upgraded to house-style)
 
-.claude/skills/document-component/SKILL.md      (updated: references house-style.md)
+.claude/skills/crowsnest-document-component/SKILL.md      (updated: references house-style.md)
 .claude/skills/ship-brainstorming/SKILL.md      (updated: spec path)
 .claude/skills/ship-writing-plans/SKILL.md      (updated: plan path)
 
@@ -239,7 +239,7 @@ documents/planning/implementation-plan/         (plans go here going forward)
    grounded in real crowsnest code.
 3. The `ig-sync` five docs are upgraded to the house-style: a real drizzle ER diagram, a dependency
    map, DB-operation sequence diagrams that render, and the four-lens test cases. No sixth doc.
-4. `document-component` references `house-style.md` and still owns the five-doc invariant and wiring.
+4. `crowsnest-document-component` references `house-style.md` and still owns the five-doc invariant and wiring.
 5. `ship-brainstorming` writes architectural specs to `documents/planning/spec/`; `ship-writing-plans`
    writes plans to `documents/planning/implementation-plan/`.
 6. Every doc follows the writing rule: no em or en dashes, straight quotes, sentence-case headings,

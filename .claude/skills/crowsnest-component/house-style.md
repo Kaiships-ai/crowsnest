@@ -1,6 +1,6 @@
 # Component doc house style
 
-This is the quality bar every one of the five component docs under `documents/architect/core-components/<name>/` must meet, adapted from the funflow `pats` reference docs to crowsnest's Next.js plus SQLite/drizzle stack. It does not add a sixth doc and does not change the writing rule owned by `document-component`.
+This is the quality bar every one of the five component docs under `documents/architect/core-components/<name>/` must meet, adapted from the funflow `pats` reference docs to crowsnest's Next.js plus SQLite/drizzle stack. It does not add a sixth doc and does not change the writing rule owned by `crowsnest-document-component`.
 
 ## 01-concept-brief.md
 

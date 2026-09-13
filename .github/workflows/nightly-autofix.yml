@@ -4,7 +4,7 @@ name: nightly-autofix
 #
 # Picks the top open, vitest-verifiable bug row off the backlog boards
 # (scripts/next-bug.sh --verify vitest) and runs it through the
-# fix-backlog-item skill (.claude/skills/fix-backlog-item/SKILL.md), which
+# crowsnest-fix-backlog-item skill (.claude/skills/crowsnest-fix-backlog-item/SKILL.md), which
 # isolates a worktree, writes a failing test, fixes the root cause, verifies
 # with npm test + npm run typecheck, then opens a PR. The skill's own
 # blast-radius guardrail decides normal PR vs. draft "needs-human" PR; either
@@ -70,7 +70,7 @@ jobs:
         if: steps.pick.outputs.row != ''
         run: npm install -g @anthropic-ai/claude-code
 
-      - name: Run fix-backlog-item on the picked row
+      - name: Run crowsnest-fix-backlog-item on the picked row
         if: steps.pick.outputs.row != ''
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -80,7 +80,7 @@ jobs:
           ROW: ${{ steps.pick.outputs.row }}
         run: |
           set -euo pipefail
-          # fix-backlog-item has disable-model-invocation: true, so it is
+          # crowsnest-fix-backlog-item has disable-model-invocation: true, so it is
           # never triggered by keyword matching, only by this explicit
           # slash-command invocation, on the exact row picked above.
           #
@@ -90,5 +90,5 @@ jobs:
           # the current flag name/value before the first real run; if the
           # skill needs a different permission mode to reach `gh pr create`
           # non-interactively, adjust here.
-          claude -p "/fix-backlog-item ${ROW}" \
+          claude -p "/crowsnest-fix-backlog-item ${ROW}" \
             --permission-mode bypassPermissions
