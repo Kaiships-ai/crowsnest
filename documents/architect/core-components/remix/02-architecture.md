@@ -2,7 +2,7 @@
 
 `documents/architect/core-components/remix/`
 
-Status: shipped and in daily use, with two known bugs open (regenerating the outline leaves stale script variants in place with no warning, and Quick Remix is not blocked when the model proxy is down the way the other generation controls are). A failed research assembly now clears its skeleton for an error and Retry rather than stranding the stage on the loader.
+Status: shipped and in daily use, with one known bug open (regenerating the outline leaves stale script variants in place with no warning). A failed research assembly now clears its skeleton for an error and Retry rather than stranding the stage on the loader, and Quick Remix gates on the same `proxyDown` signal as the other generation controls (B-11, fixed).
 
 ## 1. Module structure
 
@@ -11,7 +11,7 @@ Status: shipped and in daily use, with two known bugs open (regenerating the out
 | File | Export | Role |
 | --- | --- | --- |
 | `remix-studio.tsx` | `RemixStudio` | The client shell. Holds the session row in local state, tracks the active stage versus the furthest reached, owns Back, Restart, Continue, and Quick Remix, and re reads the run log after each generation. |
-| `stage-prompt.tsx` | `StagePrompt` | The topic, niche chip, target length, and Quick Remix button. |
+| `stage-prompt.tsx` | `StagePrompt` | The topic, niche chip, target length, and Quick Remix button, disabled on the same key/proxy gate as the generation stages. |
 | `stage-research.tsx` | `StageResearch` | Renders the assembled research and the editable facts box. |
 | `stage-hook.tsx` | `StageHook` | Generates and picks a hook; the vault seed select and the option cards. |
 | `stage-style.tsx` | `StageStyle` | Generates and edits the outline; the structure select and the beat rows. |
@@ -130,7 +130,7 @@ erDiagram
 
 **Finish.** `finishRemix` is the one durable non-generation write and is idempotent. It finds the most recent `planned_posts` row linked to the session, runs `reconcileAttachedScript` (writes a `scripts` row matching the current chosen variant, or reuses a matching one), then reuses that plan or inserts a new undated draft plan, and returns its post id for the link into `/mine/{postId}/studio`.
 
-**Quick Remix.** `quickRemix` runs research, then hooks (auto picking the first), then outline, then variants, sequentially, and lands the session at stage `script`, every earlier stage still reachable.
+**Quick Remix.** `quickRemix` runs research, then hooks (auto picking the first), then outline, then variants, sequentially, and lands the session at stage `script`, every earlier stage still reachable. Its button in `stage-prompt.tsx` gates on the same `hasLlmKey` and `proxyDown` props `remix-studio.tsx` passes to Hook/Style/Script, disabling itself (with the same inline key/proxy note) rather than starting a run that is doomed to fail partway through.
 
 ## 5. Sequence: generating a set of hooks
 
@@ -196,7 +196,7 @@ The stepper's inter-stage connector (`stepper.tsx`) steps from the hairline `--b
 ## 8. Open, not verified
 
 - **Whether a truly concurrent double finish on a session with no plan can both insert.** `finishRemix` reads the most recent linked plan before deciding to insert, and there is no unique constraint on `planned_posts.remix_session_id` backing that read; two finishes racing at the database level, rather than the disabled-button case one browser tab already prevents, have not been proven safe.
-- **Whether the known bugs in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduce exactly as described against a live LLM proxy.** The stale-variants-after-outline-regenerate gap and Quick Remix skipping the proxy-down block are read from the code paths involved, not from a reproduced run against a real proxy outage. The stuck research skeleton is covered: `StageResearch` now renders an error and Retry on a failed assembly.
+- **Whether the remaining known bug in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduces exactly as described against a live LLM proxy.** The stale-variants-after-outline-regenerate gap is read from the code paths involved, not from a reproduced run against a real proxy outage. The stuck research skeleton and the Quick Remix proxy-down block are both covered: `StageResearch` renders an error and Retry on a failed assembly, and Quick Remix gates on `proxyDown`.
 - **Whether a Kit-installed buyer's remix generation completes end to end against the real Anthropic API with no local proxy.** This depends on the [llm layer](../llm/01-concept-brief.md), whose own open questions cover the no-proxy path.
 
 ## 9. MCP vs in-app: two remix paths

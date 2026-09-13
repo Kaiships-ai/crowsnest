@@ -28,6 +28,7 @@ export function StagePrompt({
   sourceTopic,
   niche,
   hasLlmKey,
+  proxyDown,
   quickRemixPending,
   onUpdate,
   onQuickRemix,
@@ -36,6 +37,10 @@ export function StagePrompt({
   sourceTopic: string;
   niche: string;
   hasLlmKey: boolean;
+  // Same signal Hook/Style/Script gate on (remix-studio.tsx's `proxyDown`, from
+  // run-log-view.ts's `isProxyLikelyDown`) — Quick Remix runs those same three calls
+  // server-side in one shot, so it needs the same gate, not a parallel one (B-11).
+  proxyDown: boolean;
   quickRemixPending: boolean;
   onUpdate: (patch: { topic?: string; targetLengthSec?: number }) => void;
   onQuickRemix: () => void;
@@ -113,17 +118,26 @@ export function StagePrompt({
         </Select>
       </div>
 
-      {!hasLlmKey && (
+      {(!hasLlmKey || proxyDown) && (
         // Blocked, not broken — the generation path is just offline, same as every
-        // other stage's key-gate. Prompt itself still works without it, so this stays
-        // an inline note rather than swallowing the whole stage.
+        // other stage's key/proxy gate. Prompt itself still works without it, so this
+        // stays an inline note rather than swallowing the whole stage.
         <Alert className="rounded-none">
-          <AlertTitle>Add your Claude API key</AlertTitle>
-          <AlertDescription>Add ANTHROPIC_API_KEY in Settings to generate hooks, outlines, and scripts.</AlertDescription>
+          <AlertTitle>{hasLlmKey ? "Local proxy unavailable" : "Add your Claude API key"}</AlertTitle>
+          <AlertDescription>
+            {hasLlmKey
+              ? "The last attempt in the run log failed to connect. Start the local proxy, then retry — this stage isn't broken, it's offline."
+              : "Add ANTHROPIC_API_KEY in Settings to generate hooks, outlines, and scripts."}
+          </AlertDescription>
         </Alert>
       )}
 
-      <Button variant="secondary" onClick={onQuickRemix} disabled={!topic || !hasLlmKey || quickRemixPending} className="w-fit">
+      <Button
+        variant="secondary"
+        onClick={onQuickRemix}
+        disabled={!topic || !hasLlmKey || proxyDown || quickRemixPending}
+        className="w-fit"
+      >
         {quickRemixPending ? "Running Quick Remix…" : "Quick Remix ✨"}
       </Button>
     </div>

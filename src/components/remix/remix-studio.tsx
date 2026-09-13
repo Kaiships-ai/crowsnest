@@ -214,6 +214,7 @@ export function RemixStudio({
                 sourceTopic={detail.item.caption ?? "this topic"}
                 niche={niche}
                 hasLlmKey={hasLlmKey}
+                proxyDown={proxyDown}
                 quickRemixPending={quickRemixPending}
                 onUpdate={patchSession}
                 onQuickRemix={handleQuickRemix}
