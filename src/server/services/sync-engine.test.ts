@@ -2826,6 +2826,97 @@ describe("runSync — resume from persisted cursor", () => {
     expect(row.syncBoundary).toBe(mediasCalls[0].sinceIso);
   });
 
+  test("a cap hit ON PAGE 1 persists the page's own next cursor instead of stranding its tail (PERF-2)", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-cap-page1");
+
+    // Page 1 (the run's very first fetch) has no request cursor of its own: `cursor` is
+    // undefined going into that fetch, because nothing was requested to get there. A cap
+    // that trips mid-page-1 used to fall back to `clearCursor`, which forces the next run
+    // to re-fetch page 1 with the SAME budget and re-trip at the SAME spot forever,
+    // stranding items d and e until a later, differently-capped full walk. The fix must
+    // fall back to the page's own `nextCursor` so the next run advances past page 1.
+    const { client, mediasCalls } = resumeStub({
+      __start__: {
+        items: [
+          makeMedia("perf2-p1-a", 1),
+          makeMedia("perf2-p1-b", 2),
+          makeMedia("perf2-p1-c", 3),
+          makeMedia("perf2-p1-d", 4),
+          makeMedia("perf2-p1-e", 5),
+        ],
+        nextCursor: "cursor-2",
+        stopReason: null,
+      },
+    });
+
+    let jobId: string | undefined;
+    const result = await runSync({
+      channelIds: [channelId],
+      client,
+      sleep: noopSleep,
+      lookbackDays: 30,
+      maxItems: 3,
+      onJobStarted: (id) => {
+        jobId = id;
+      },
+    });
+
+    expect(result.stopReason).toBe("cap");
+    expect(mediasCalls[0].cursor).toBeUndefined();
+    const row = await channelRow(channelId);
+    // No request cursor existed for page 1 itself, so the resume falls back to the page's
+    // own nextCursor (cursor-2) instead of clearing — the next run advances to page 2
+    // rather than re-fetching page 1 with the same budget forever.
+    expect(row.syncCursor).toBe("cursor-2");
+    expect(row.syncCursorAt).toBeTruthy();
+    expect(row.syncCursorRunId).toBe(jobId);
+  });
+
+  test("a second run resumes page 1's stranded tail from the persisted next cursor (PERF-2)", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@resume-cap-page1-continue");
+
+    // Run 1: cap trips mid-page-1 (budget 3, page has 5), persisting cursor-2 (page 1's
+    // own nextCursor) per the fix above.
+    const run1 = resumeStub({
+      __start__: {
+        items: [
+          makeMedia("perf2-p2-a", 1),
+          makeMedia("perf2-p2-b", 2),
+          makeMedia("perf2-p2-c", 3),
+          makeMedia("perf2-p2-d", 4),
+          makeMedia("perf2-p2-e", 5),
+        ],
+        nextCursor: "cursor-2",
+        stopReason: null,
+      },
+    });
+    const first = await runSync({ channelIds: [channelId], client: run1.client, sleep: noopSleep, lookbackDays: 30, maxItems: 3 });
+    expect(first.itemsSeen).toBe(3);
+
+    // Run 2: resumes from cursor-2 (page 2 in the upstream's own pagination), which is
+    // where the un-kept tail of the first raw page (d, e) actually lives upstream too, once
+    // the sidecar's own pagination catches up on a real account. This stub only proves the
+    // engine follows the persisted cursor rather than re-fetching page 1 from scratch.
+    const run2 = resumeStub({
+      "cursor-2": { items: [makeMedia("perf2-p2-d", 4), makeMedia("perf2-p2-e", 5)], nextCursor: null, stopReason: "exhausted" },
+    });
+    const second = await runSync({ channelIds: [channelId], client: run2.client, sleep: noopSleep, lookbackDays: 30 });
+
+    expect(run2.mediasCalls[0].cursor).toBe("cursor-2");
+    expect(second.itemsSeen).toBe(2);
+    expect(second.itemsCreated).toBe(2);
+
+    const rows = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
+    expect(rows.map((r) => r.externalId).sort()).toEqual(["perf2-p2-a", "perf2-p2-b", "perf2-p2-c", "perf2-p2-d", "perf2-p2-e"]);
+  });
+
   test("a second run resumes from the saved cursor, reuses its boundary, and does not soft-delete", async () => {
     const { db, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");

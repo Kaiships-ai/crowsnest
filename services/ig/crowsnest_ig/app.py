@@ -290,7 +290,15 @@ def create_app(config: Config | None = None) -> FastAPI:
 
         if stop_reason == "page" and not next_cursor:
             stop_reason = "exhausted"
-        if stop_reason in ("lookback", "cap", "exhausted"):
+        # "lookback" and "exhausted" are genuinely terminal: the window (or the account's
+        # media) is fully enumerated, so there is nothing left to page to and the cursor is
+        # nulled. "cap" is NOT terminal the same way: it means the caller's budget ran out
+        # mid raw-page, not that the raw page was the last one. Nulling it here used to
+        # strand a raw page's own un-kept tail forever whenever a caller's budget was
+        # smaller than one raw page (PERF-2), because the caller had no cursor at all to
+        # resume the walk with. Passing the real `next_cursor` through lets the caller
+        # advance past this page on a retry instead of stalling on it.
+        if stop_reason in ("lookback", "exhausted"):
             next_cursor = None
 
         log_event(
