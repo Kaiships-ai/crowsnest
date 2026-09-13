@@ -35,7 +35,7 @@ import {
 import { getOutlierFeed } from "@/server/queries/feed";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
 import { listArtifacts } from "@/server/services/artifacts";
-import { hasLlmKey, isCompatMode } from "@/server/llm/client";
+import { hasLlmKey, isRoutedThroughProxy } from "@/server/llm/client";
 
 // Read once, server-side, same reasoning as the Remix screen's own `LLM_PROXY_URL`
 // (`(shell)/feed/[videoId]/remix/page.tsx`): the one honest thing this app can say
@@ -73,7 +73,7 @@ export const dynamic = "force-dynamic";
 //   below and labelled secondary.
 export default async function DashboardPage() {
   const llmKeyConfigured = hasLlmKey();
-  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult, stackHealth, pipelineArtifacts, plannedPosts] = await Promise.all([
+  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult, routedThroughProxy, stackHealth, pipelineArtifacts, plannedPosts] = await Promise.all([
     getDashboardStats(),
     getTopOutliersToday(),
     getFleetSpikes(),
@@ -92,6 +92,11 @@ export default async function DashboardPage() {
     // this page load (see dependency-status.ts's own doc on why that matters here).
     getIgStatusAction(),
     llmKeyConfigured ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
+    // ENH-2: whether a call is *actually* routed through the proxy right now — the same
+    // live `routerReachable()` check `getLlm()` itself makes, not `isCompatMode()`'s
+    // presence-only signal. A configured-but-unreachable proxy must read as "direct
+    // Anthropic," matching what getLlm() really hands back, not "routed through proxy."
+    isRoutedThroughProxy(),
     // M4-U8: the two halves of stack health that come out of this app's own tables —
     // the last sync and anything still running — next to the two live pings above, so
     // all four read at once. Two indexed reads over `sync_jobs`/`frame_pass_jobs`, in
@@ -115,7 +120,7 @@ export default async function DashboardPage() {
   const llmStatus = classifyLlmStatus({
     hasKey: llmKeyConfigured,
     proxyUrl: LLM_PROXY_URL,
-    routedThroughProxy: isCompatMode(),
+    routedThroughProxy,
     ping: llmPingResult ?? "timed_out",
   });
 

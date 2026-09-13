@@ -24,6 +24,7 @@ import { Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
+import { isRoutedThroughProxyAction } from "@/server/actions/router-actions";
 import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import {
   bothHealthy,
@@ -128,21 +129,25 @@ export function DependencyStatusPanel({ sidecar: initialSidecar, llm: initialLlm
   const [llm, setLlm] = useState(initialLlm);
   const [isPending, startTransition] = useTransition();
 
-  // Re-runs only the two live probes (getIgStatusAction, the same $0 ping the Settings
-  // page's own "Test" button uses) — config facts (hasLlmKey, proxyUrl, routedThroughProxy)
-  // don't change without a server restart, so they're reused from the initial classify.
+  // Re-runs the live probes: getIgStatusAction, the same $0 ping the Settings page's own
+  // "Test" button uses, and isRoutedThroughProxyAction (ENH-2) — that last one is a live
+  // reachability check, not a static config fact, so it must be re-read here too, not
+  // reused from the initial classify, or "Check again" could keep showing a stale
+  // "routed through proxy" after the proxy actually died (or came back) mid-session.
+  // `hasLlmKey`/`proxyUrl` alone are still config facts that only change on a restart.
   function recheck() {
     startTransition(async () => {
-      const [igResult, pingResult] = await Promise.all([
+      const [igResult, pingResult, routedThroughProxy] = await Promise.all([
         getIgStatusAction(),
         hasLlmKey ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
+        hasLlmKey ? isRoutedThroughProxyAction() : Promise.resolve(false),
       ]);
       setSidecar(classifySidecarStatus(igResult));
       setLlm(
         classifyLlmStatus({
           hasKey: hasLlmKey,
           proxyUrl: initialLlm.proxyUrl,
-          routedThroughProxy: initialLlm.routedThroughProxy,
+          routedThroughProxy,
           ping: pingResult ?? "timed_out",
         }),
       );

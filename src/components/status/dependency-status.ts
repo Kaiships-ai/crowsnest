@@ -93,8 +93,11 @@ export interface LlmStatus {
    *  through every state so "where it looked" is always answerable, not just on failure. */
   proxyUrl: string | null;
   /** Whether the something that answered (or didn't) is the local proxy rather than the
-   *  real API — same test as `isCompatMode()` (llm/client.ts), passed in rather than
-   *  re-derived so this module never reads `process.env` itself. */
+   *  real API — same test as `isRoutedThroughProxy()` (llm/client.ts), passed in rather
+   *  than re-derived so this module never reads `process.env` itself. Deliberately not
+   *  `isCompatMode()`'s presence-only signal (ENH-2): a proxy that is merely configured
+   *  but unreachable must read here as "not routed through it," matching what `getLlm()`
+   *  itself falls back to. */
   routedThroughProxy: boolean;
   /**
    * True when the ping got an actual response — any response, including an error

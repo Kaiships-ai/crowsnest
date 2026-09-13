@@ -2,9 +2,20 @@
 
 import { errorMessage, type SimpleResult } from "@/server/lib/action-result";
 import { log } from "@/server/lib/logger";
+import { isRoutedThroughProxy } from "@/server/llm/client";
 import { probeLlmGeneration } from "@/server/llm/generation-probe";
 import { routerPidAlive, routerReachable, startRouter, stopRouter, waitForRouterHealthy } from "@/server/llm/router-control";
 import { getSetting } from "@/server/settings";
+
+/**
+ * ENH-2: the client-callable twin of `isRoutedThroughProxy()` (llm/client.ts), for the
+ * dashboard dependency badge's "Check again" button — a client component, so it cannot
+ * import that server-only module directly and must go through a "use server" action
+ * like every other live probe it re-runs.
+ */
+export async function isRoutedThroughProxyAction(): Promise<boolean> {
+  return isRoutedThroughProxy();
+}
 
 /**
  * Driver actions for the 9router supervisor (`router-control.ts`), mirroring
