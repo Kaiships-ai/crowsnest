@@ -61,7 +61,7 @@ and Ideas then read your analysis unchanged. No model is called; you are the mod
 
 | Tool | Purpose | Key inputs |
 | --- | --- | --- |
-| `crowsnest_save_analysis` | Save the per-video analysis you wrote, with provenance. Rejects an unknown video id or fields that fail validation, writing nothing. | `videoId`, `hookType`, `structureSegments` (beats: `{ label, startSec, endSec, note, transcript }`), `formatTags`, `styleTags`, `whyItWorked` |
+| `crowsnest_save_analysis` | Save the per-video analysis you wrote, with provenance. Rejects an unknown video id or fields that fail validation, writing nothing. | `videoId`, `hookType`, `structureSegments` (beats: `{ label, startSec, endSec, note, transcript }`), `formatTags`, `styleTags`, `whyItWorked`, optional `summary` (a one-paragraph summary, shown at the top of the video detail page) |
 
 ### Transcribe on demand
 

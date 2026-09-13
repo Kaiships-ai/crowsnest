@@ -1,10 +1,22 @@
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { db, nowIso, tables } from "@/server/db";
 import {
   VideoAnalysisSchema,
   type StoredAnalysisFields,
   type StoredVideoLayout,
 } from "@/server/llm/schemas";
+
+/**
+ * `VideoAnalysisSchema` plus `summary` (B-10). `summary` is kept out of
+ * `VideoAnalysisSchema` itself rather than added there: that schema is also the
+ * `VideoAnalysis` type remix.ts and `rowToAnalysis` build on, and widening it would force
+ * every one of those (which have no use for a video-level summary) to carry the field
+ * too. `summary` stays optional so an agent that saves an analysis without one behaves
+ * exactly as before; when it is sent, this is now the only thing that persists it, so the
+ * video detail page's Summary section (`video-detail.tsx`) actually has something to show.
+ */
+const AgentAnalysisSchema = VideoAnalysisSchema.extend({ summary: z.string().optional() });
 
 /**
  * `VideoAnalysis` plus the Layout section's provenance columns (V1 data contracts,
@@ -55,7 +67,7 @@ export async function saveAgentAnalysis(
   const [video] = await db.select().from(tables.videos).where(eq(tables.videos.id, videoId)).limit(1);
   if (!video) return { ok: false, error: "video not found" };
 
-  const parsed = VideoAnalysisSchema.safeParse(fields);
+  const parsed = AgentAnalysisSchema.safeParse(fields);
   if (!parsed.success) return { ok: false, error: parsed.error.message };
   const a = parsed.data;
 
@@ -70,9 +82,13 @@ export async function saveAgentAnalysis(
 
   const [existing] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId)).limit(1);
   if (existing) {
-    await db.update(tables.videoAnalyses).set(textFields).where(eq(tables.videoAnalyses.videoId, videoId));
+    // `summary` is omitted from the SET entirely when the payload doesn't carry one, so a
+    // re-save without a summary can't null out one stored by an earlier save. An explicit
+    // "" still clears it, since that's a defined value distinct from undefined.
+    const update = a.summary !== undefined ? { ...textFields, summary: a.summary } : textFields;
+    await db.update(tables.videoAnalyses).set(update).where(eq(tables.videoAnalyses.videoId, videoId));
   } else {
-    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, createdAt: nowIso() });
+    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, summary: a.summary ?? null, createdAt: nowIso() });
   }
   return { ok: true };
 }

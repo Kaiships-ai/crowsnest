@@ -308,6 +308,7 @@ export function buildMcpServer(): McpServer {
         formatTags: z.array(z.string()).describe("Format tags, e.g. talking-head, screen-recording."),
         styleTags: z.array(z.string()).describe("Style tags, e.g. fast-cut, high-energy."),
         whyItWorked: z.string().describe("Why the video over-performed."),
+        summary: z.string().optional().describe("A one-paragraph summary of the video, shown at the top of the video detail page."),
       },
     },
     async (args) => {

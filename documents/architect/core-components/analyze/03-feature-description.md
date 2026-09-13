@@ -19,7 +19,7 @@ The external agent connected to crowsnest over MCP (Claude Code, Codex, or any o
 
 ### What it does
 
-`crowsnest_video` gives the agent a video's caption, metrics, full transcript text, and any existing analysis in one read. The agent forms its own hook type, beat-by-beat structure, format tags, style tags, and why-it-worked note, then calls `crowsnest_save_analysis` with those fields. The tool validates them against `VideoAnalysisSchema`, the same schema the retired in-app model call used, and upserts one `video_analyses` row stamped `source: "mcp"`. Calling it again for the same video replaces the row in place; there is no separate re-analyze tool, a fresh call is a fresh reading.
+`crowsnest_video` gives the agent a video's caption, metrics, full transcript text, and any existing analysis in one read. The agent forms its own hook type, beat-by-beat structure, format tags, style tags, why-it-worked note, and (optionally) a one-paragraph summary, then calls `crowsnest_save_analysis` with those fields. The tool validates the required fields against `VideoAnalysisSchema`, the same schema the retired in-app model call used, plus the optional `summary`, and upserts one `video_analyses` row stamped `source: "mcp"`. Calling it again for the same video replaces the row in place; there is no separate re-analyze tool, a fresh call is a fresh reading. The video detail page's Summary section renders `summary` when an agent has supplied one.
 
 ### How to access it
 

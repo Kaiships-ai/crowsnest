@@ -219,9 +219,9 @@ One write tool.
 
 | Tool | Inputs | Returns / effect |
 | --- | --- | --- |
-| `crowsnest_save_analysis` | `videoId`, plus the analysis fields flat: `hookType`, `structureSegments`, `formatTags`, `styleTags`, `whyItWorked` | `{ ok: true, videoId }` on success. The tool passes the fields to `saveAgentAnalysis`, which validates them against `VideoAnalysisSchema` and upserts the `video_analyses` row with `source = "mcp"`. No in-app LLM call. An unknown video id or fields that fail validation return `errorResult({ error, videoId })` and write nothing. |
+| `crowsnest_save_analysis` | `videoId`, plus the analysis fields flat: `hookType`, `structureSegments`, `formatTags`, `styleTags`, `whyItWorked`, and an optional `summary` | `{ ok: true, videoId }` on success. The tool passes the fields to `saveAgentAnalysis`, which validates them against `VideoAnalysisSchema` extended with an optional `summary` and upserts the `video_analyses` row with `source = "mcp"`. No in-app LLM call. An unknown video id or fields that fail validation return `errorResult({ error, videoId })` and write nothing. |
 
-The analysis fields are the ones `VideoAnalysisSchema` defines: `hookType`, `structureSegments` (each beat `{ label, startSec, endSec, note, transcript }`), `formatTags`, `styleTags`, and `whyItWorked`. There is no `summary` field on the tool; the schema does not carry one.
+The required analysis fields are the ones `VideoAnalysisSchema` defines: `hookType`, `structureSegments` (each beat `{ label, startSec, endSec, note, transcript }`), `formatTags`, `styleTags`, and `whyItWorked`. `summary`, a one-paragraph summary shown at the top of the video detail page's right column, is optional and kept out of `VideoAnalysisSchema` itself (remix.ts and `rowToAnalysis` build on that schema and have no use for it); `saveAgentAnalysis` validates it against a local extension of the schema instead (B-10: the field used to be rendered but had no write path at all).
 
 ### How to access it
 
