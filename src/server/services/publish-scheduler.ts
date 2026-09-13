@@ -18,6 +18,21 @@ import { publishPlannedPost, type PublishPostResult } from "./publish-post";
  * `failed` (terminal) forever. publish-post.ts already increments `attemptCount` on
  * every failure, so this module only reads it.
  *
+ * A third, independent pass (PUB-04) reaps rows stuck in `publishing`: a process killed
+ * between the atomic claim and publishPlannedPost's own terminal write leaves a row
+ * `publishing` forever, since nothing else ever moves a `publishing` row off that state.
+ * The reap re-claims a `publishing` row whose `updatedAt` is older than
+ * `PUBLISHING_STALE_MS`, using the exact same guarded conditional-UPDATE shape as the
+ * scheduled->publishing claim (same pattern as `reapStaleLocks` in sync-engine.ts), then
+ * hands it to `publishPlannedPost` the same as a fresh claim.
+ *
+ * `updatedAt` is a heartbeat, not just a claim timestamp: publishPlannedPost (publish-
+ * post.ts) touches it at the start of its real work, between each major step, and on
+ * every attempt of its dominant long step (the container poll), so a legitimate publish
+ * still running past `PUBLISHING_STALE_MS` since its original claim keeps looking fresh
+ * to this reaper and is never concurrently re-claimed into a second, duplicate publish.
+ * Only a row whose process actually stopped touching it (a crash) ever goes stale.
+ *
  * Everything reachable from the outside (db reads/writes, the publish call, the retry
  * policy) is injectable via `PublishSchedulerDeps`, defaulting to the real db and the
  * real `publishPlannedPost` — same deps-injection seam publish-post.ts itself uses, so
@@ -45,6 +60,26 @@ export function defaultBackoffMs(attemptCount: number): number {
  *  more than one tick's worth of publishes. */
 const CLAIM_BATCH_SIZE = 10;
 
+/**
+ * How long a `publishing` row may sit with no heartbeat write before the reaper treats
+ * it as crash-stranded and re-claims it (PUB-04). Set well above the longest gap between
+ * publishPlannedPost's heartbeats, not just above one attempt's total worst case:
+ * mid-poll, `pollReelContainer` heartbeats every attempt (2s apart, each attempt capped
+ * at Graph's own 30s `AbortSignal.timeout`, so the worst single gap is ~32s); every other
+ * step is bracketed by its own heartbeat before and after. 20 minutes leaves a wide
+ * margin over that ~32s worst-case gap, so a live publish's `updatedAt` can never
+ * actually go stale — only a genuinely crashed process (which stops heartbeating
+ * entirely) is ever reaped.
+ *
+ * Residual risk: the object upload step (`provider.upload`) is bracketed by heartbeats
+ * before and after but not ticked during it, since it has no attempt-loop to hook a
+ * heartbeat into like `pollReelContainer` does. A single upload pathologically slower
+ * than `PUBLISHING_STALE_MS` could still be reclaimed concurrently; this is far narrower
+ * than the pre-heartbeat risk (any publish, not just an extreme upload) and matches the
+ * bound storage-provider.ts already assumes for one object.
+ */
+export const PUBLISHING_STALE_MS = 20 * 60_000;
+
 /** No `app_settings` key exists yet for this interval (none of Settings' existing
  *  cadence keys cover the publish scheduler, and adding one is out of this task's file
  *  scope — see settings/index.ts). Assumption: a raw env override plus this hardcoded
@@ -65,6 +100,15 @@ export interface PublishSchedulerDeps {
   /** The atomic claim: `UPDATE ... SET state='publishing' WHERE id=? AND
    *  state='scheduled'`. Returns true iff exactly one row changed. */
   claim: (id: string, nowIso: string) => Promise<boolean>;
+  /** `publishing` rows whose `updatedAt` is older than `cutoffIso`, capped at `limit`
+   *  (PUB-04). */
+  selectStalePublishing: (cutoffIso: string, limit: number) => Promise<{ id: string }[]>;
+  /** The reaper's atomic re-claim: `UPDATE ... SET updatedAt=? WHERE id=? AND
+   *  state='publishing' AND updatedAt < cutoffIso`. Returns true iff exactly one row
+   *  changed — same shape as `claim`, so two ticks (or a tick racing the still-alive
+   *  original attempt's eventual terminal write, which unconditionally overwrites
+   *  `updatedAt` too) can never both win. */
+  reclaimPublishing: (id: string, nowIso: string, cutoffIso: string) => Promise<boolean>;
   /** `failed` rows with `attemptCount < maxAttempts`, capped at `limit`. */
   selectRetryableFailed: (maxAttempts: number, limit: number) => Promise<{ id: string; attemptCount: number }[]>;
   /** Re-arms one failed row back to `scheduled` at `scheduledAt`, but only if it is
@@ -73,6 +117,9 @@ export interface PublishSchedulerDeps {
   rearmForRetry: (id: string, scheduledAt: string, nowIso: string) => Promise<void>;
   maxAttempts: number;
   backoffMs: (attemptCount: number) => number;
+  /** How stale a `publishing` row's `updatedAt` must be before the reaper re-claims it.
+   *  Defaults to `PUBLISHING_STALE_MS`. */
+  publishingStaleMs: number;
 }
 
 function errorMessage(err: unknown): string {
@@ -93,6 +140,26 @@ async function defaultClaim(id: string, nowIso: string): Promise<boolean> {
     .update(tables.plannedPosts)
     .set({ state: "publishing", updatedAt: nowIso })
     .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled")));
+  return (result as { changes?: number }).changes === 1;
+}
+
+async function defaultSelectStalePublishing(cutoffIso: string, limit: number): Promise<{ id: string }[]> {
+  return db
+    .select({ id: tables.plannedPosts.id })
+    .from(tables.plannedPosts)
+    .where(and(eq(tables.plannedPosts.state, "publishing"), lt(tables.plannedPosts.updatedAt, cutoffIso)))
+    .orderBy(asc(tables.plannedPosts.updatedAt))
+    .limit(limit);
+}
+
+// Same guarded shape as `defaultClaim`: the WHERE re-checks both `state` and the
+// staleness cutoff at write time, not just at select time, so a row resolved (or reaped
+// by another tick) between the select and this UPDATE is correctly left alone (changes=0).
+async function defaultReclaimPublishing(id: string, nowIso: string, cutoffIso: string): Promise<boolean> {
+  const result = await db
+    .update(tables.plannedPosts)
+    .set({ updatedAt: nowIso })
+    .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "publishing"), lt(tables.plannedPosts.updatedAt, cutoffIso)));
   return (result as { changes?: number }).changes === 1;
 }
 
@@ -125,10 +192,13 @@ const DEFAULT_DEPS: PublishSchedulerDeps = {
   publish: (postId) => publishPlannedPost(postId, { claimed: true }),
   selectDueScheduled: defaultSelectDueScheduled,
   claim: defaultClaim,
+  selectStalePublishing: defaultSelectStalePublishing,
+  reclaimPublishing: defaultReclaimPublishing,
   selectRetryableFailed: defaultSelectRetryableFailed,
   rearmForRetry: defaultRearmForRetry,
   maxAttempts: DEFAULT_MAX_ATTEMPTS,
   backoffMs: defaultBackoffMs,
+  publishingStaleMs: PUBLISHING_STALE_MS,
 };
 
 export interface PublishTickResult {
@@ -164,6 +234,34 @@ export async function runDuePublishes(now: Date = new Date(), deps: Partial<Publ
       const claimed = await d.claim(id, nowIso);
       if (!claimed) continue; // another tick already claimed this row — do not publish
       result.claimed += 1;
+      const outcome = await d.publish(id);
+      if (outcome.state === "published") result.published += 1;
+      else if (outcome.state === "failed") result.failed += 1;
+    } catch (err) {
+      result.failed += 1;
+      log.error("publish_scheduler.publish_threw", { postId: id, error: errorMessage(err) });
+    }
+  }
+
+  // Independent of the claim pass above (PUB-04): re-claim any `publishing` row a crash
+  // stranded past `publishingStaleMs` and hand it to `publishPlannedPost` exactly like a
+  // fresh claim. A crashed row's `updatedAt` never moves, so this pass is what recovers
+  // it — nothing else in the system ever will.
+  const staleCutoffIso = new Date(now.getTime() - d.publishingStaleMs).toISOString();
+  let stalePublishing: { id: string }[];
+  try {
+    stalePublishing = await d.selectStalePublishing(staleCutoffIso, CLAIM_BATCH_SIZE);
+  } catch (err) {
+    log.error("publish_scheduler.select_stale_publishing_failed", { error: errorMessage(err) });
+    return result;
+  }
+
+  for (const { id } of stalePublishing) {
+    try {
+      const reclaimed = await d.reclaimPublishing(id, nowIso, staleCutoffIso);
+      if (!reclaimed) continue; // already resolved, or another tick reaped it first
+      result.claimed += 1;
+      log.warn("publish_scheduler.publishing_reaped", { postId: id, staleAfterMs: d.publishingStaleMs });
       const outcome = await d.publish(id);
       if (outcome.state === "published") result.published += 1;
       else if (outcome.state === "failed") result.failed += 1;

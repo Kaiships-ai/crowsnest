@@ -78,7 +78,7 @@ describe("publishPlannedPost", () => {
     expect(result).toMatchObject({ ok: true, state: "published", mediaId: null, dryRun: true });
     expect(upload).toHaveBeenCalledTimes(1);
     expect(deps.createReelContainer).toHaveBeenCalledWith({ videoUrl: "https://media.example.com/x.mp4", caption: "hello" });
-    expect(deps.pollReelContainer).toHaveBeenCalledWith("container_1");
+    expect(deps.pollReelContainer).toHaveBeenCalledWith("container_1", { sleep: expect.any(Function) });
     expect(deps.publishReel).not.toHaveBeenCalled();
     expect(del).toHaveBeenCalledWith("crowsnest/x.mp4");
 
@@ -277,5 +277,57 @@ describe("publishPlannedPost", () => {
 
     expect(result).toMatchObject({ ok: true, state: "published", dryRun: false });
     expect(deps.publishReel).toHaveBeenCalledTimes(1);
+  });
+
+  describe("heartbeat (closes the PUB-04 double-publish window)", () => {
+    test("touches updatedAt at the start of real work and between each major step, ahead of the terminal write", async () => {
+      process.env.PUBLISH_DRY_RUN = "0";
+      const { deps, writeRow } = makeDeps(baseRow());
+
+      await publishPlannedPost("plan_1", deps);
+
+      // Every writeRow call up to (but not including) the final terminal write is a
+      // heartbeat: it patches only `updatedAt`, nothing else.
+      const heartbeatCalls = writeRow.mock.calls.slice(0, -1);
+      expect(heartbeatCalls.length).toBeGreaterThanOrEqual(4); // start-of-work, post-upload, post-create, post-poll
+      for (const [, patch] of heartbeatCalls) {
+        expect(Object.keys(patch as object)).toEqual(["updatedAt"]);
+      }
+    });
+
+    test("hands pollReelContainer a sleep option that heartbeats on every attempt, not just once", async () => {
+      const { deps, writeRow } = makeDeps(baseRow());
+      const pollReelContainer = vi.fn(async (_id: string, opts?: { sleep?: (ms: number) => Promise<void> }) => {
+        // Simulate 5 poll attempts, each followed by the injected sleep — the real
+        // pollReelContainer's own loop shape (graph/client.ts).
+        for (let i = 0; i < 5; i++) await opts!.sleep!(0);
+        return { status: "FINISHED" as const };
+      });
+
+      await publishPlannedPost("plan_1", { ...deps, pollReelContainer });
+
+      const heartbeatsDuringPoll = writeRow.mock.calls.filter(([, patch]) => Object.keys(patch as object).length === 1 && "updatedAt" in (patch as object));
+      // start-of-work + post-upload + post-create + 5 in-poll heartbeats + post-poll = 9
+      expect(heartbeatsDuringPoll.length).toBeGreaterThanOrEqual(5);
+    });
+
+    test("a heartbeat write failure is logged and swallowed, never fails an otherwise-good publish", async () => {
+      process.env.PUBLISH_DRY_RUN = "0";
+      const { deps, store } = makeDeps(baseRow());
+      const writeRow = vi.fn(async (id: string, patch: Record<string, unknown>) => {
+        // Fail every heartbeat-shaped write (updatedAt-only); only the multi-field
+        // terminal write is allowed through.
+        if (Object.keys(patch).length === 1 && "updatedAt" in patch) {
+          throw new Error("db busy");
+        }
+        const existing = store.get(id);
+        if (existing) store.set(id, { ...existing, ...patch });
+      });
+
+      const result = await publishPlannedPost("plan_1", { ...deps, writeRow: writeRow as PublishPostDeps["writeRow"] });
+
+      expect(result).toMatchObject({ ok: true, state: "published", mediaId: "media_1" });
+      expect(store.get("plan_1")!.state).toBe("published");
+    });
   });
 });

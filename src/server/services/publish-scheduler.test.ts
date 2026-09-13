@@ -18,13 +18,16 @@ let runDuePublishes: typeof import("./publish-scheduler")["runDuePublishes"];
 let startPublishScheduler: typeof import("./publish-scheduler")["startPublishScheduler"];
 let defaultBackoffMs: typeof import("./publish-scheduler")["defaultBackoffMs"];
 let DEFAULT_MAX_ATTEMPTS: typeof import("./publish-scheduler")["DEFAULT_MAX_ATTEMPTS"];
+let PUBLISHING_STALE_MS: typeof import("./publish-scheduler")["PUBLISHING_STALE_MS"];
+let publishPlannedPost: typeof import("./publish-post")["publishPlannedPost"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   process.env.IG_SERVICE_TOKEN ??= "test-token";
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ runDuePublishes, startPublishScheduler, defaultBackoffMs, DEFAULT_MAX_ATTEMPTS } = await import("./publish-scheduler"));
+  ({ runDuePublishes, startPublishScheduler, defaultBackoffMs, DEFAULT_MAX_ATTEMPTS, PUBLISHING_STALE_MS } = await import("./publish-scheduler"));
+  ({ publishPlannedPost } = await import("./publish-post"));
 });
 
 beforeEach(async () => {
@@ -165,6 +168,52 @@ describe("runDuePublishes (fake deps)", () => {
   });
 });
 
+describe("the stale 'publishing' reaper (fake deps)", () => {
+  test("a publishing row past the stale threshold is reclaimed and republished", async () => {
+    const publish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+    const result = await runDuePublishes(new Date(iso(0)), {
+      selectDueScheduled: vi.fn(async () => []),
+      claim: vi.fn(),
+      selectStalePublishing: vi.fn(async () => [{ id: "stuck" }]),
+      reclaimPublishing: vi.fn(async () => true),
+      publish,
+      selectRetryableFailed: vi.fn(async () => []),
+      rearmForRetry: vi.fn(),
+    });
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledWith("stuck");
+    expect(result).toEqual({ claimed: 1, published: 1, failed: 0 });
+  });
+
+  test("a reclaim that returns false (already resolved or reaped by another tick) is skipped, not republished", async () => {
+    const publish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+    const result = await runDuePublishes(new Date(iso(0)), {
+      selectDueScheduled: vi.fn(async () => []),
+      claim: vi.fn(),
+      selectStalePublishing: vi.fn(async () => [{ id: "stuck" }]),
+      reclaimPublishing: vi.fn(async () => false),
+      publish,
+      selectRetryableFailed: vi.fn(async () => []),
+      rearmForRetry: vi.fn(),
+    });
+
+    expect(publish).not.toHaveBeenCalled();
+    expect(result).toEqual({ claimed: 0, published: 0, failed: 0 });
+  });
+
+  test("a failing stale-publishing select does not throw out of the tick; resolves with zeros", async () => {
+    const result = await runDuePublishes(new Date(iso(0)), {
+      selectDueScheduled: vi.fn(async () => []),
+      claim: vi.fn(),
+      selectStalePublishing: vi.fn(async () => {
+        throw new Error("db down");
+      }),
+    });
+    expect(result).toEqual({ claimed: 0, published: 0, failed: 0 });
+  });
+});
+
 describe("startPublishScheduler reentrancy guard", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
@@ -278,6 +327,105 @@ describe("the atomic claim (real db)", () => {
     expect(reloaded.id).toBe(id);
     expect(reloaded.state).toBe("scheduled");
     expect(new Date(reloaded.scheduledAt!).getTime() - now.getTime()).toBe(defaultBackoffMs(1));
+  });
+
+  test("a row stuck 'publishing' past the stale threshold gets re-claimed exactly once, no double publish", async () => {
+    // Simulates PUB-04: a process was killed after the atomic claim (state -> "publishing")
+    // but before publishPlannedPost's own terminal write landed. Nothing but the reaper
+    // ever moves a "publishing" row again, so `updatedAt` here is still the claim's own
+    // timestamp — old enough to be past PUBLISHING_STALE_MS.
+    const id = await seedPlan({
+      state: "publishing",
+      videoAssetId: null,
+      updatedAt: iso(-PUBLISHING_STALE_MS - 1_000),
+    });
+
+    const publish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+    const now = new Date(iso(0));
+
+    // Two overlapping ticks race to reap the SAME stuck row, both against the real
+    // default `reclaimPublishing` (an `UPDATE ... WHERE state='publishing' AND
+    // updatedAt < cutoff` guarded write, same shape as the scheduled->publishing claim).
+    const [r1, r2] = await Promise.all([
+      runDuePublishes(now, { selectDueScheduled: async () => [], publish }),
+      runDuePublishes(now, { selectDueScheduled: async () => [], publish }),
+    ]);
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish).toHaveBeenCalledWith(id);
+    expect(r1.claimed + r2.claimed).toBe(1);
+  });
+
+  test("a 'publishing' row still inside the stale threshold is left alone (a live attempt in flight)", async () => {
+    const id = await seedPlan({
+      state: "publishing",
+      videoAssetId: null,
+      updatedAt: iso(-1_000), // recent claim, well under PUBLISHING_STALE_MS
+    });
+
+    const publish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+    await runDuePublishes(new Date(iso(0)), { selectDueScheduled: async () => [], publish });
+
+    expect(publish).not.toHaveBeenCalled();
+    const [row] = await db.select().from(tables.plannedPosts);
+    expect(row.id).toBe(id);
+    expect(row.state).toBe("publishing"); // untouched, still owned by whatever claimed it
+  });
+
+  test("a live publish's heartbeat keeps the reaper from reclaiming it, even past the original claim's stale cutoff (PUB-04 follow-up)", async () => {
+    // The row's `updatedAt` is seeded far enough in the past that, without a heartbeat,
+    // it would already be reclaimable at fakeNow. publishPlannedPost's real heartbeat
+    // (publish-post.ts) must move it forward during the poll so the reaper leaves it be.
+    const fakeNow = iso(0);
+    await db.insert(tables.mediaAssets).values({
+      id: "asset_1",
+      sha256: "deadbeef",
+      kind: "video",
+      contentType: "video/mp4",
+      byteSize: 1024,
+      storagePath: "videos/asset_1.mp4",
+      downloadedAt: iso(0),
+    });
+    const id = await seedPlan({
+      state: "publishing",
+      videoAssetId: "asset_1",
+      updatedAt: iso(-PUBLISHING_STALE_MS - 1_000, Date.parse(fakeNow)),
+    });
+
+    const upload = vi.fn(async () => ({ publicUrl: "https://media.example.com/x.mp4", objectKey: "crowsnest/x.mp4" }));
+    const del = vi.fn(async () => {});
+
+    let reaperClaimedWhileRunning: number | null = null;
+    const pollReelContainer = vi.fn(async (_containerId: string, opts?: { sleep?: (ms: number) => Promise<void> }) => {
+      // The dominant long step: heartbeat fires here (via the injected sleep), THEN,
+      // simulating a concurrent scheduler tick, the reaper runs against the SAME real db
+      // row at a "now" past the row's original stale cutoff.
+      await opts!.sleep!(0);
+      const reaperPublish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+      const reaperTick = await runDuePublishes(new Date(fakeNow), { selectDueScheduled: async () => [], publish: reaperPublish });
+      reaperClaimedWhileRunning = reaperTick.claimed;
+      return { status: "FINISHED" as const };
+    });
+
+    const result = await publishPlannedPost(id, {
+      claimed: true,
+      now: () => fakeNow, // pins the heartbeat's timestamp to the same fake clock as the reaper check above
+      resolveVideoPath: vi.fn(async () => "/media/asset_1.mp4"),
+      getStorageProvider: vi.fn(() => ({ upload, delete: del })),
+      isGraphConfigured: vi.fn(() => true),
+      createReelContainer: vi.fn(async () => ({ containerId: "container_1" })),
+      pollReelContainer,
+      publishReel: vi.fn(async () => ({ mediaId: "media_1" })),
+    });
+
+    expect(result).toMatchObject({ ok: true, state: "published" });
+    // The reaper ran concurrently, past the row's ORIGINAL stale cutoff, and still found
+    // nothing to reclaim: the heartbeat had already refreshed updatedAt past the cutoff.
+    expect(reaperClaimedWhileRunning).toBe(0);
+
+    const [row] = await db.select().from(tables.plannedPosts);
+    expect(row.id).toBe(id);
+    expect(row.state).toBe("published"); // published exactly once, never reclaimed mid-flight
   });
 
   test("real selectRetryableFailed excludes a permanent failure (non-retryable errorClass)", async () => {
