@@ -11,6 +11,15 @@ plus cross-cutting `shared/` concerns) on three axes: Quality, Completeness, and
 Coverage. This is an advisory read-and-report workflow; it proposes score edits
 backed by evidence, it does not mutate GitHub or land anything.
 
+## Covered surfaces
+
+Completeness rubrics live under `references/completeness/`, one per real crowsnest
+component (progressive disclosure: load only the surface you are scoring, and the
+`README.md` for the rubric shape and the three axes). The eleven covered surfaces are:
+`analyze`, `discover`, `feed`, `ig-sync`, `kit`, `llm`, `mcp`, `mine`, `onboarding`,
+`publish`, `remix`. A surface with no rubric file yet is scored with the default process
+below against its five-doc set; add a rubric when you score it.
+
 ## Source model
 
 - The surface list and category scope come from the component docs under
@@ -62,8 +71,10 @@ mkdocs build --strict
 When asked to score or refresh a surface:
 
 1. Read the surface's five-doc set under `documents/architect/`.
-2. Read the completeness rubric for that surface (its category scope in the docs;
-   surface-specific guidance overrides the default process below).
+2. Read the completeness rubric for that surface under `references/completeness/`
+   (`<surface>.md`, plus `references/completeness/README.md` for the rubric shape and how
+   the three axes are scored). Surface-specific questions and guidance there override the
+   default process below.
 3. Gather public repo evidence from docs, source, tests, and QA scenario
    metadata.
 4. Prefer existing coverage-evidence artifacts for executed proof.

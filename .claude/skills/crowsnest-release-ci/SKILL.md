@@ -10,6 +10,15 @@ Use this with `crowsnest-release-maintainer` when a release candidate needs full
 validation, install/update proof, or CI recovery. It runs and recovers the gate;
 it never bumps a version, pushes a tag, or publishes.
 
+## References
+
+Read the deep material only when you reach that phase; keep this file for the
+operational core.
+
+| File | Read it when |
+| --- | --- |
+| `references/release-ci-notes.md` | Before an expensive proof or after a blocker: the firebreak rationale, the immutable execution-plan concept and its crowsnest TODO, the release-secret preflight and its R2 TODO, quota-safe recovery patterns, and the lessons from the openclaw lineage. |
+
 ## Guardrails
 
 - No version bump, tag, publish, or promotion without explicit operator approval.
@@ -25,26 +34,23 @@ it never bumps a version, pushes a tag, or publishes.
 - Freeze the candidate SHA and Tooling SHA once. Main lineage authorizes the
   initial Tooling SHA selection; it does not authorize replacing that tooling
   after `main` advances.
-- **Release firebreak.** After the Code SHA is frozen, admit only confirmed
-  product defects, packaging or provenance defects in the bytes to publish,
-  security defects, or failures that make publication impossible. Queue every
-  other finding for post-publish confidence or the next release. This is the
-  whole point of the freeze: do not let a green candidate absorb "while we're
-  here" fixes.
+- Apply the release firebreak after the Code SHA is frozen: admit only defects
+  that make the bytes unpublishable, queue everything else. Rationale and the
+  exact admit list are in `references/release-ci-notes.md`.
 - Use trusted `main` workflow revisions as immutable dispatch sources. Do not
   adopt newer main code, repair unrelated main CI, or wait for broad main health
   because the workflow source lives on `main`.
 - Touch `main` only for an operator-requested change or the smallest critical
   main-owned blocker that prevents this release and cannot be handled from the
   release branch.
-- Validate live-service secrets before dispatching expensive proofs. crowsnest's
-  live lane is Instagram: `npm run verify:live` needs a real IG account. There is
-  no internal LLM key to validate (the MCP brain is deterministic; Claude or
-  Codex is the only reasoning brain, supplied by the operator's own session).
+- Validate the release secrets and the live path before dispatching expensive
+  proofs. crowsnest's live lane is Instagram: `npm run verify:live` needs a real
+  IG account. There is no internal LLM key to validate (the MCP brain is
+  deterministic; Claude or Codex is the only reasoning brain, supplied by the
+  operator's own session). See the preflight section in the reference.
 - Treat a live IG flake separately from a code failure: confirm session validity,
   the sidecar `/health` result, and the exact failing lane before editing code.
-  A stale session-file token surfaces as a 401 and is a credential fix, not a
-  code fix.
+  A stale session-file token surfaces as a 401 and is a credential fix.
 - Watch one run at a time with compact summaries. Avoid broad polling loops;
   `gh` API quota is easy to burn. Fetch logs only for failed or blocking jobs.
 
@@ -65,19 +71,9 @@ they may name the same commit.
 - Narrow lane evidence does not by itself become publish authorization. Keep it
   in the evidence ledger for the release owner to judge against the publish gate.
 
-## Immutable execution plan
-
-Openclaw sealed each full-validation dispatch into one immutable execution-plan
-artifact (original parent attempt, exact child tuples, coverage, gates, reuse
-identity) so decision, recovery, and verification consumed the same bytes and a
-retry could restore the plan rather than reconstruct it. crowsnest has no
-equivalent workflow yet. TODO: wire a `full-release-validation` workflow that
-seals an execution-plan artifact per run so retries adopt the same children
-instead of redispatching. Until then, record the plan by hand in the state
-record: the exact Validation and Tooling SHAs, the CI run id and attempt, the
-release-workflow run id and attempt, the selected gates, and any reused evidence.
-Reused evidence is not trusted merely because it exists; re-confirm the target
-SHA, changed paths, and run identity before treating a lane as passed.
+crowsnest has no sealed execution-plan artifact yet; record the plan by hand and
+re-confirm reused evidence. Full concept, and the workflow TODO, in
+`references/release-ci-notes.md`.
 
 ## Preflight
 
@@ -92,15 +88,17 @@ git rev-parse HEAD
 If the release touches IG code (`services/ig` or `src/server/ig`), confirm a
 usable IG session is available for `npm run verify:live` before dispatch; a
 model-list style "auth looks fine" is not proof, run the real live check. Do not
-print secrets or session tokens.
+print secrets or session tokens. The release-secret preflight (R2 credentials,
+and its TODO) is in `references/release-ci-notes.md`.
 
 ## Dispatch
 
 The gate is two workflows plus local proofs.
 
 - Pull-request and push CI is `.github/workflows/ci.yml` (ubuntu): `npm ci`,
-  `npm run typecheck`, `npm run lint`, `npm test`, `bash scripts/testid-audit.sh`.
-  This is the product gate; it must be green on the Code SHA.
+  `npm run typecheck`, `npm run lint`, `npm test`, `bash scripts/testid-audit.sh`,
+  `bash scripts/skill-lint.sh`. This is the product gate; it must be green on the
+  Code SHA.
 - The release workflow `.github/workflows/release.yml` runs on a `v*` tag push
   (macOS arm64): the test gate again, the `darwin-arm64` Kit bundle build, the
   fresh-HOME Kit smoke (install the tarball into a throwaway HOME, assert the IG
@@ -176,16 +174,5 @@ active CI and release-workflow run URLs, attempts, and conclusions; the Kit
 bundle and fresh-HOME smoke result; the live IG check result when IG code
 changed; targeted local proof commands; and any known gaps or unrelated
 failures. Make the final note durable: run URLs, SHAs, command proof, and gaps.
-
-## Notes from the openclaw lineage
-
-- Full validation used to start before all secrets were proven; a present secret
-  is not a valid secret. Prove the real live path first.
-- Repeated `gh run view` and log fetches exhausted quota; check `rate_limit`
-  before log-heavy work, list failed jobs once, then inspect only those.
-- Replacement runs dispatched while an existing run was still recoverable
-  multiplied polling and identity checks. Prefer a narrow re-run of the failed
-  surface; create a fresh full run only when shared tooling changed, earlier
-  evidence is invalid, or the operator asks. Record the invalidating event.
-- Leave a bad credential unset. A failing candidate secret should not overwrite
-  a working one.
+For the recovery patterns and lessons behind these rules, read
+`references/release-ci-notes.md`.
