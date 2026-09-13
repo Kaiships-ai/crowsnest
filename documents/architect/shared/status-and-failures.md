@@ -2,35 +2,31 @@
 
 ## Summary
 
-The core loop tells the user what is happening and what went wrong through four
+The core loop tells the user what is happening and what went wrong through three
 surfaces, each with its own scope and lifetime. A toast is transient and belongs to one
 action. The failure strip is persistent and sits in the shell across the whole app. The
-remix run log is the per session history of one remix. A run pill is the live status of
-one cook run. Around all four are the empty and error states each page shows when it has
+remix run log is the per session history of one remix. Around all three are the empty and error states each page shows when it has
 nothing to render or cannot render. This document owns them as one account: what each is,
 how they differ, and how each behaves when an action is interrupted.
 
 This is a reference document, not the description of a single interaction. The other
 documents describe the actions; this one names the surfaces those actions light up and
-keeps their meanings in one place so no two documents describe the same pill or the same
+keeps their meanings in one place so no two documents describe the same surface or the same
 tone differently. Where a surface belongs to a feature, that feature's document owns the
-interaction and links here for the surface. The run status meanings themselves are owned
-by [background jobs](background-jobs.md); this document covers how they are
-shown, not what they mean.
+interaction and links here for the surface.
 
 ## The simple case
 
 The user keeps a post: a toast slides in reading "Kept in the vault" and fades on its own.
-They start a cook in the studio: a pill appears next to the button reading "cooking" and a
-clock counts up. They generate script variants in the remix: a row lands in the run log
+They generate script variants in the remix: a row lands in the run log
 reading "Success" with the elapsed time. Meanwhile a sync failed an hour ago, so the strip
-under the topbar has been quietly carrying "Partial sync" on every page they visited. Four
-surfaces, four scopes: one for the action just taken, one for the app's standing state, one
-for the remix's own history, one for the live run in front of them.
+under the topbar has been quietly carrying "Partial sync" on every page they visited. Three
+surfaces, three scopes: one for the action just taken, one for the app's standing state, one
+for the remix's own history.
 
 ## The interaction, event by event
 
-There is no single interaction here. The four surfaces are described below, then the empty
+There is no single interaction here. The three surfaces are described below, then the empty
 and error states, then how each behaves through the five phases where it has behavior at
 all.
 
@@ -119,26 +115,6 @@ The run log is also where the studio reads whether the model proxy is down: a co
 error in the last few rows flips the generation stages to blocked, and the next successful
 attempt clears it. That inference belongs to the remix studio; the run log is the evidence it reads.
 
-### The create-run run pills
-
-The run pill is the live status of one cook run, on the studio panel.
-It is per run and live: it repaints as the run reports a new status and it is not persisted,
-so it is view state that resets on a reload. It shows the five create run statuses with user
-facing labels, not the raw status words:
-
-- running reads "cooking", with a pulsing amber dot.
-- waiting reads "waiting on you", with a pulsing neutral dot.
-- success reads "done".
-- failed reads "failed".
-- canceled reads "canceled".
-
-Amber is reserved for the running dot alone; the other pills reuse the neutral, positive,
-and destructive tones the runs list already uses. A status the panel does not recognize
-falls back to the "canceled" pill rather than showing nothing, so an unknown status still
-reads as a neutral, ended looking pill. A clock beside the pill counts up while the status is
-running or waiting and freezes on any ending. The full drive from the user's side, including
-the clock's zero point and the Stop button, is owned by the studio's cook run document.
-
 ### Empty and error states
 
 When a page has nothing to render, or cannot render, it says so in place rather than showing
@@ -157,12 +133,6 @@ been measured has no own posts to reconcile against, so those markers stay off e
 than reading an empty month as a failure. The scheduled, missed, and open states still render,
 because they come from planned posts and need no Graph connection.
 
-The studio panel's Output pane reads "Run Cook to start the session"
-before a cook, and "Cooking. The render appears here when it finishes." once a cook is started
-but before a render lands. A failed cook keeps that placeholder rather than inventing an error
-panel; the terminal is where the reason was printed. The header also notes "Frame pass not run"
-when the post has no frame pass, a separate readiness note rather than a failure.
-
 ## Variants
 
 The surfaces differ by what drives them, not by a per action variant table. The axis that
@@ -170,10 +140,10 @@ matters is scope and lifetime.
 
 | Variant | Set on arrival | Changed while acting |
 | --- | --- | --- |
-| Record state | The strip reflects the last sync's stored outcome; a pill reflects nothing until a run reports; the run log reflects the session's stored attempts; empty states reflect what the read found. | A new sync verdict appears on the next navigation; a pill repaints live as the run reports; a run log row appends on each attempt; a re read changes an empty state to content or the reverse. |
+| Record state | The strip reflects the last sync's stored outcome; the run log reflects the session's stored attempts; empty states reflect what the read found. | A new sync verdict appears on the next navigation; a run log row appends on each attempt; a re read changes an empty state to content or the reverse. |
 | Attached data present or absent | The strip's facts row shows only the codes and counts the sync actually recorded; a partial run log row shows its real "N of M" count; empty states name only the reason that applies. | Missing pieces are dropped rather than shown blank, so a surface never fabricates a field the data did not carry. |
 | External service availability | A down sidecar, an expired session, or a network failure each pick a distinct strip kind. The proxy being down shows up in the run log as connection errors, not in the strip. | The strip reclassifies on the next sync; the run log's proxy down read flips the generation stages on the next attempt. |
-| Keyboard shortcut in play | None of these surfaces is keyboard driven. | The strip's dismiss and recovery controls are ordinary buttons; toasts and pills have no keyboard affordance of their own. |
+| Keyboard shortcut in play | None of these surfaces is keyboard driven. | The strip's dismiss and recovery controls are ordinary buttons; toasts have no keyboard affordance of their own. |
 
 ## Cancel and interrupt
 
@@ -185,22 +155,19 @@ action; this is the surfaces' side of them.
 - Navigate away. A toast is app level, so it survives a navigation within the shell and keeps
   its remaining time and its Undo. The failure strip re reads on the new page and shows the
   same standing verdict. The remix run log is server backed, so it rebuilds from the session
-  on the page it belongs to. A run pill is live view state and is lost on leaving the studio;
-  the run itself keeps going server side, and its true state is read fresh, not from the pill.
+  on the page it belongs to.
 - Reload. Toasts are cleared, so an Undo not yet clicked is gone. The strip is re read from
-  the latest sync row. The run log is re read from the database. A run pill resets to the
-  starting Cook control even while the cook is still running, because the pill was never
-  persisted; the run continues and its render still gates publish once it lands.
+  the latest sync row. The run log is re read from the database.
 
-The rule across all four: the durable surfaces (the strip's underlying sync row, the run
-log's rows) come back exactly as the database holds them, and the ephemeral surfaces (toasts,
-pills) do not come back at all. Nothing is left half shown, because a surface that cannot be
+The rule across all three: the durable surfaces (the strip's underlying sync row, the run
+log's rows) come back exactly as the database holds them, and the ephemeral surface (a toast)
+does not come back at all. Nothing is left half shown, because a surface that cannot be
 rebuilt from the server simply starts clean.
 
 ## Interactions with other systems
 
 **Persistence and autosave.** The run log rows and the sync job behind the strip are durable
-and survive a reload. Toasts and run pills are ephemeral view state and do not. The strip's
+and survive a reload. Toasts are ephemeral view state and do not. The strip's
 data is a server rendered snapshot re read on each navigation. See
 [persistence](persistence.md).
 
@@ -211,13 +178,11 @@ replaced. See the feed component's keep-this-post document for the undo pattern 
 
 **Navigation and refresh.** The strip is read once per server render and freshened by the
 live sync poll while the shell is mounted; a `router.refresh()` after a write is what flips
-any server rendered status a toast reported. Run pills do not use refresh; they repaint from
-the live session. See [navigation and shell](navigation-and-shell.md).
+any server rendered status a toast reported. See [navigation and shell](navigation-and-shell.md).
 
 **Background jobs and the sidecar.** The failure strip is the sidecar sync's
-status surface; the run pill is the cook run's. Both read their
-state from the database, which is why a run's verdict outlives the page that started it. See
-[background jobs](background-jobs.md).
+status surface, reading its state from the database, which is why a sync's verdict outlives
+the page that started it. See [background jobs](background-jobs.md).
 
 **External services.** The strip classifies the sidecar, session, cooldown, and network
 codes a sync reports. The LLM proxy being down does not touch the
@@ -227,15 +192,11 @@ generation. See [external services](external-services.md).
 **Status and failures.** This document owns them.
 
 **Configuration and settings.** No user setting changes the tones, the labels, or the
-classification. The pill labels, the run log tones, and the strip kinds are fixed in the
+classification. The run log tones and the strip kinds are fixed in the
 code, not tunable.
 
 ## Edge cases
 
-- The strip's framing is app wide but its content is the last sync only. A failed cook run
-  surfaces on its own pill and, per the feature documents, is meant to reach the strip too,
-  but the strip's classifier reads sync jobs; whether a cook failure actually lands there was
-  not confirmed.
 - A run in flight hides the strip entirely rather than showing a stale verdict underneath the
   progress panel, so the shell never shows two contradictory sync states at once.
 - A partial notice is the only strip kind the user can dismiss, because it is the only one
@@ -244,8 +205,6 @@ code, not tunable.
 - A variant generation that saved at least one variant writes a Success row even though some
   variants failed; the Partial tone exists precisely so that "1 of 3" is not shown as loudly
   as "3 of 3". The failed slots show their own inline errors on the stage.
-- An unrecognized run status renders as the "canceled" pill rather than nothing, so a status
-  the panel was never taught still reads as an ended run.
 - A toast is fire and forget: navigating keeps it, but reloading drops it, so an Undo the user
   meant to click but did not is unrecoverable after a reload.
 - The calendar's published and dead air markers stay off for an unmeasured channel, so an

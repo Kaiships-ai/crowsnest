@@ -4,7 +4,7 @@
 
 This document owns what each record in the core loop is, in the user's terms, and the states each can be in. Other documents link here instead of redefining a video, a planned post, a script, or a run. It is a reference, not an interaction, so it does not use the five phase skeleton. It does cover how records change underneath an open page, which every interrupt table depends on.
 
-The core loop moves one object into the next: a video becomes the source of a remix session, the session produces a script, the script is carried by a planned post, and the planned post is driven by a create run into a rendered video. Each hop is a separate record, linked by id, so losing a later record never loses an earlier one.
+The core loop moves one object into the next: a video becomes the source of a remix session, the session produces a script, the script is carried by a planned post, and the planned post is handed off through the MCP for production. Each hop is a separate record, linked by id, so losing a later record never loses an earlier one.
 
 ```
 stateDiagram-v2
@@ -12,8 +12,7 @@ stateDiagram-v2
     video --> remixSession : remix (one session per video)
     remixSession --> script : save a variant
     script --> plannedPost : finish the remix
-    plannedPost --> createRun : cook in the studio
-    createRun --> renderedVideo : success
+    plannedPost --> [*] : MCP handoff for production
 ```
 
 ## The objects
