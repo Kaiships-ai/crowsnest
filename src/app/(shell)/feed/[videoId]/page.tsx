@@ -5,7 +5,9 @@ import { notFound } from "next/navigation";
 import { SimilarSection, SimilarSkeleton } from "@/components/video/similar-section";
 import { VideoDetail } from "@/components/video/video-detail";
 import type { SearchParams } from "@/lib/feed-filters";
+import { hasLlmKey } from "@/server/llm/client";
 import { getChannelMedianBasis } from "@/server/queries/channels";
+import { getIdeaBySourceVideoId } from "@/server/queries/ideas";
 import { getSavedPostByVideoId } from "@/server/queries/saved-posts";
 import { getVideoDetail, recordRecentlyViewed } from "@/server/queries/video";
 import { resolveFeedNav } from "./resolve-feed-nav";
@@ -78,10 +80,11 @@ export default async function VideoDetailPage({
   // High Conviction default, the same default feed/page.tsx applies on a bare `/feed`
   // visit (resolveFeedNav applies it via the shared resolveFeedCriteria, FEED-Q1);
   // `all=1` on the forwarded suffix escapes back to the full raw library, same as there.
-  const [medianBasis, feedNav, savedPost] = await Promise.all([
+  const [medianBasis, feedNav, savedPost, existingIdea] = await Promise.all([
     getChannelMedianBasis(detail.item.channel.id, videoId),
     resolveFeedNav(videoId, sp),
     getSavedPostByVideoId(videoId),
+    getIdeaBySourceVideoId(videoId),
   ]);
   // Fire-and-forget (Task 1, phase 4): never await this — a slow/failing visit-track
   // write must not delay rendering the page itself. Errors are already swallowed
@@ -95,6 +98,8 @@ export default async function VideoDetailPage({
         medianBasis={medianBasis}
         feedNav={feedNav}
         savedPost={savedPost}
+        hasLlmKey={hasLlmKey()}
+        existingIdea={existingIdea}
       >
         <Suspense fallback={<SimilarSkeleton />}>
           <SimilarSection videoId={videoId} />

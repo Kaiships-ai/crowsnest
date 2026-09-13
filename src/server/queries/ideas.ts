@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { feedItemColumns, toFeedItem, type FeedItem, type FeedItemRow } from "./feed";
 
@@ -121,6 +121,20 @@ export async function getIdea(id: string): Promise<IdeaListItem | null> {
     .limit(1);
 
   return row ? toIdeaListItem(row) : null;
+}
+
+/** The single non-discarded idea for one video, or null. Mirrors `generateIdea`'s own
+ *  "at most one active idea per source video" read (`services/ideas.ts`, backed by the
+ *  partial unique index `idea_source_active`) — used by the video detail page (B-12) so
+ *  its Generate-idea control can reflect that an idea already exists instead of
+ *  offering a blind re-generate. */
+export async function getIdeaBySourceVideoId(videoId: string): Promise<{ id: string; status: string } | null> {
+  const [row] = await db
+    .select({ id: tables.idea.id, status: tables.idea.status })
+    .from(tables.idea)
+    .where(and(eq(tables.idea.sourceVideoId, videoId), ne(tables.idea.status, "discarded")))
+    .limit(1);
+  return row ?? null;
 }
 
 /** How many ideas sit in the inbox right now — backs the Ideas nav item's count badge
