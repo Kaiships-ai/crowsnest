@@ -31,6 +31,15 @@ export const FILTER_PARAM_KEYS = [
  */
 export const ORDER_PARAM_KEYS = ["sort"] as const;
 
+/**
+ * The show-all escape (`?all=1`), forwarded alongside `FILTER_PARAM_KEYS` /
+ * `ORDER_PARAM_KEYS` so `filterQuerySuffix` carries it into `/feed/[videoId]` too (see
+ * that function's doc comment for why this matters to `shouldApplyDefaultView` there).
+ * Kept out of `FILTER_PARAM_KEYS`: it is an escape, not a slice, so it must never count
+ * as "a filter is set" for `isFeedEmpty` or ride into a saved view's criteria.
+ */
+export const ESCAPE_PARAM_KEYS = ["all"] as const;
+
 export type SearchParams = Record<string, string | string[] | undefined>;
 
 // Same bands `FOLLOWER_BAND_BOUNDS` (server/queries/feed.ts) has keys for. Kept
@@ -117,10 +126,18 @@ export function analyzedOrAny(v: string | string[] | undefined): "yes" | "no" | 
  * filter at all. `sort` (an `ORDER_PARAM_KEYS` member, not a `FILTER_PARAM_KEYS` one)
  * rides along too — a `sort=recent` feed's prev/next should walk that same order, not
  * silently reorder by score (whole-branch review, finding I1).
+ *
+ * `all` (an `ESCAPE_PARAM_KEYS` member) rides along as well (FEED-Q1): the detail
+ * page's own nav resolution (`resolve-feed-nav.ts`) applies the same bare-visit default
+ * (High Conviction) `feed/page.tsx` does, via the shared `shouldApplyDefaultView` /
+ * `resolveFeedCriteria`. Without forwarding `all=1`, a card clicked from the explicit
+ * "show all" library view would land on a detail page indistinguishable from a plain
+ * bare visit, and would wrongly resolve prev/next against the High Conviction slice
+ * instead of the full library the user was actually looking at.
  */
 export function filterQuerySuffix(sp: SearchParams): string {
   const qs = new URLSearchParams();
-  for (const key of [...FILTER_PARAM_KEYS, ...ORDER_PARAM_KEYS]) {
+  for (const key of [...FILTER_PARAM_KEYS, ...ORDER_PARAM_KEYS, ...ESCAPE_PARAM_KEYS]) {
     const v = first(sp[key]);
     if (v) qs.set(key, v);
   }
@@ -147,10 +164,12 @@ export function searchParamsFromEntries(entries: Iterable<[string, string]>): Se
 }
 
 /**
- * True when the URL carries no *filter* param at all — a bare `/feed` visit, which now
- * shows the full unfiltered library (no auto-applied default). Cosmetic params
- * (`density`, `view`, `sort`, `limit`) don't count as filters, so a density toggle alone
- * still reads as bare. Kept as a named predicate so "bare visit" has one definition.
+ * True when the URL carries no *filter* param at all — a bare `/feed` visit. This alone
+ * does NOT mean "the full unfiltered library": a bare visit opens on the High Conviction
+ * default view (see `shouldApplyDefaultView`); `?all=1` is the explicit escape back to
+ * everything. Cosmetic params (`density`, `view`, `sort`, `limit`) don't count as
+ * filters, so a density toggle alone still reads as bare. Kept as a named predicate so
+ * "bare visit" has one definition.
  */
 export function isFeedEmpty(sp: SearchParams): boolean {
   // `""` counts as absent too (M6, branch review): a hand-typed `/feed?minScore=` has
@@ -166,8 +185,8 @@ export function isFeedEmpty(sp: SearchParams): boolean {
  * escape (`?all=1`) is absent. Cosmetic params (`density`, `view`, `sort`, `limit`) don't
  * count as filters, so they leave the default in place, matching `isFeedEmpty`.
  *
- * `all` deliberately stays out of `FILTER_PARAM_KEYS`: it is an escape, not a slice, so it
- * must not ride along in `filterQuerySuffix` into a detail page that has no such concept.
+ * `all` deliberately stays out of `FILTER_PARAM_KEYS` (it lives in `ESCAPE_PARAM_KEYS`
+ * instead): it is an escape, not a slice, so it must never count as "a filter is set".
  */
 export function shouldApplyDefaultView(sp: SearchParams): boolean {
   if (first(sp.all) === "1") return false;
@@ -183,21 +202,52 @@ export interface ResolvedFeedCriteria {
   analyzed: "yes" | "no" | undefined;
 }
 
+/** The bare-visit default's criteria fields, i.e. the shape of a saved filter's `criteria`
+ * blob that `resolveFeedCriteria` and `defaultViewCriteria` care about. */
+export interface DefaultViewCriteria {
+  minScore?: number;
+  minViews?: number;
+  sinceDays?: number;
+}
+
 /**
- * The pure `searchParams -> criteria` mapping `feed/page.tsx` renders from. Split out so
- * it can be unit tested without a request, a database, or React — the surrounding page
- * component isn't (it awaits `searchParams` and calls DB-backed query functions).
- *
- * A bare `/feed` visit now resolves to no criteria at all (the full raw library). The
- * "Balanced" saved filter stays user-selectable, it just no longer auto-applies on a bare
- * visit, so there is no default blob to thread in here anymore.
+ * Picks the High Conviction preset's criteria out of a saved-filters list, in the shape
+ * `resolveFeedCriteria`'s `defaultCriteria` param wants. The ONE place that names "High
+ * Conviction" as the bare-visit default, shared by `feed/page.tsx` and
+ * `resolve-feed-nav.ts` so both read it off the same seeded row (`server/db/bootstrap.ts`)
+ * instead of two independent lookups that could drift (FEED-Q1).
  */
-export function resolveFeedCriteria(sp: SearchParams): ResolvedFeedCriteria {
+export function defaultViewCriteria(savedFilters: { name: string; criteria: Record<string, unknown> }[]): DefaultViewCriteria | undefined {
+  return savedFilters.find((f) => f.name === "High Conviction")?.criteria as DefaultViewCriteria | undefined;
+}
+
+/**
+ * The pure `searchParams -> criteria` mapping `feed/page.tsx` renders from, and the ONE
+ * place a bare `/feed` visit's default gets applied (FEED-Q1). Split out so it can be
+ * unit tested without a request, a database, or React — the surrounding page component
+ * isn't (it awaits `searchParams` and calls DB-backed query functions); `defaultCriteria`
+ * (typically `defaultViewCriteria(savedFilters)`) is passed in rather than fetched here
+ * for the same reason.
+ *
+ * A bare `/feed` visit (`shouldApplyDefaultView` true) resolves to `defaultCriteria` for
+ * whichever of minScore/minViews/sinceDays the URL itself didn't set; `?all=1` or any real
+ * filter param bypasses it entirely. `resolve-feed-nav.ts`'s `buildFeedFilters` calls this
+ * with the same `defaultCriteria` `feed/page.tsx` uses, so the detail page's prev/next
+ * always resolves against the exact set the list page actually showed — previously it
+ * called this with no default at all and silently resolved against the full library even
+ * when the list page had applied High Conviction, the split source of truth FEED-Q1
+ * tracked.
+ */
+export function resolveFeedCriteria(sp: SearchParams, defaultCriteria?: DefaultViewCriteria): ResolvedFeedCriteria {
+  const applyDefault = shouldApplyDefaultView(sp);
+  const minScore = numOrAny(sp.minScore);
+  const minViews = numOrAny(sp.minViews);
+  const sinceDays = numOrAny(sp.since);
   return {
     isEmpty: isFeedEmpty(sp),
-    minScore: numOrAny(sp.minScore),
-    minViews: numOrAny(sp.minViews),
-    sinceDays: numOrAny(sp.since),
+    minScore: applyDefault ? defaultCriteria?.minScore ?? minScore : minScore,
+    minViews: applyDefault ? defaultCriteria?.minViews ?? minViews : minViews,
+    sinceDays: applyDefault ? defaultCriteria?.sinceDays ?? sinceDays : sinceDays,
     minEngagement: minEngOrAny(sp.minEng),
     analyzed: analyzedOrAny(sp.analyzed),
   };

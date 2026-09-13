@@ -58,6 +58,15 @@ function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
+async function seedHighConvictionFilter(criteria: Record<string, unknown>): Promise<void> {
+  await db.insert(tables.savedFilters).values({
+    id: newId(),
+    name: "High Conviction",
+    criteria,
+    isSystem: true,
+  });
+}
+
 describe("resolveFeedNav", () => {
   test("a filtered searchParams scopes the index label and adjacency to the filtered set, not the library", async () => {
     const channelId = await seedChannel();
@@ -90,17 +99,59 @@ describe("resolveFeedNav", () => {
     expect(nav.nextHref).toBeNull();
   });
 
-  test("a bare searchParams resolves against the full raw library, not a default slice", async () => {
+  test("a bare searchParams resolves against the full raw library when no High Conviction preset exists", async () => {
     const channelId = await seedChannel();
     const inBand = await seedVideo(channelId, { outlierScore: 7 });
     const low = await seedVideo(channelId, { outlierScore: 2 });
 
     const nav = await resolveFeedNav(inBand, {});
 
-    // Bare = the whole library now (no auto-applied Balanced), so both posts count:
-    // "1 of 2", not the pre-change "1 of 1" a default minScore slice produced.
+    // No "High Conviction" row seeded (beforeEach clears savedFilters), so
+    // defaultViewCriteria has nothing to apply and this falls back to the raw library:
+    // both posts count, "1 of 2".
     expect(nav.indexLabel).toBe("1 of 2");
     expect(nav.nextHref).toContain(low);
+  });
+
+  // FEED-Q1: feed/page.tsx applies the seeded "High Conviction" saved filter as the
+  // bare-/feed default, but this file used to build its own filters straight off
+  // resolveFeedCriteria(sp) with no default at all — a card reached from a bare,
+  // High-Conviction-filtered /feed always resolved prev/next against the FULL library
+  // instead of the slice actually on screen. resolveFeedNav now fetches the same saved
+  // filters and passes the "High Conviction" criteria through, so this matches
+  // feed/page.tsx exactly.
+  test("FEED-Q1: a bare visit applies the same High Conviction default feed/page.tsx applies, not the full library", async () => {
+    const channelId = await seedChannel();
+    await seedHighConvictionFilter({ minScore: 5 });
+    // Only `high` clears the High Conviction minScore:5 bar; `low` would be in the full
+    // library but must NOT count once the default applies.
+    const high = await seedVideo(channelId, { outlierScore: 8 });
+    const low = await seedVideo(channelId, { outlierScore: 2 });
+
+    const nav = await resolveFeedNav(high, {});
+
+    expect(nav.indexLabel).toBe("1 of 1");
+    expect(nav.nextHref).toBeNull();
+
+    // The excluded post gets no adjacency either — it never matched the applied default.
+    const excludedNav = await resolveFeedNav(low, {});
+    expect(excludedNav.indexLabel).toBeNull();
+  });
+
+  test("FEED-Q1: ?all=1 escapes the High Conviction default, same as feed/page.tsx", async () => {
+    const channelId = await seedChannel();
+    await seedHighConvictionFilter({ minScore: 5 });
+    const high = await seedVideo(channelId, { outlierScore: 8 });
+    const low = await seedVideo(channelId, { outlierScore: 2 });
+
+    const nav = await resolveFeedNav(high, { all: "1" });
+
+    expect(nav.indexLabel).toBe("1 of 2");
+    expect(nav.nextHref).toContain(low);
+    // `all=1` rides along on the forwarded hrefs (ESCAPE_PARAM_KEYS) so a card clicked
+    // from the "show all" library still resolves to "show all" on the detail page.
+    expect(nav.nextHref).toContain("all=1");
+    expect(nav.backHref).toBe("/feed?all=1");
   });
 
   test("purely cosmetic params (density, view, limit) are dropped from the forwarded hrefs", async () => {
