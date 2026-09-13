@@ -21,11 +21,17 @@ import { publishPlannedPost, type PublishPostResult } from "./publish-post";
  * A third, independent pass (PUB-04) reaps rows stuck in `publishing`: a process killed
  * between the atomic claim and publishPlannedPost's own terminal write leaves a row
  * `publishing` forever, since nothing else ever moves a `publishing` row off that state.
- * The reap re-claims a `publishing` row whose `updatedAt` (the claim's own timestamp,
- * untouched since) is older than `PUBLISHING_STALE_MS`, using the exact same guarded
- * conditional-UPDATE shape as the scheduled->publishing claim (same pattern as
- * `reapStaleLocks` in sync-engine.ts), then hands it to `publishPlannedPost` the same as
- * a fresh claim.
+ * The reap re-claims a `publishing` row whose `updatedAt` is older than
+ * `PUBLISHING_STALE_MS`, using the exact same guarded conditional-UPDATE shape as the
+ * scheduled->publishing claim (same pattern as `reapStaleLocks` in sync-engine.ts), then
+ * hands it to `publishPlannedPost` the same as a fresh claim.
+ *
+ * `updatedAt` is a heartbeat, not just a claim timestamp: publishPlannedPost (publish-
+ * post.ts) touches it at the start of its real work, between each major step, and on
+ * every attempt of its dominant long step (the container poll), so a legitimate publish
+ * still running past `PUBLISHING_STALE_MS` since its original claim keeps looking fresh
+ * to this reaper and is never concurrently re-claimed into a second, duplicate publish.
+ * Only a row whose process actually stopped touching it (a crash) ever goes stale.
  *
  * Everything reachable from the outside (db reads/writes, the publish call, the retry
  * policy) is injectable via `PublishSchedulerDeps`, defaulting to the real db and the
@@ -55,19 +61,22 @@ export function defaultBackoffMs(attemptCount: number): number {
 const CLAIM_BATCH_SIZE = 10;
 
 /**
- * How long a `publishing` row may sit with no terminal write before the reaper treats it
- * as crash-stranded and re-claims it (PUB-04). Set well above any legitimate single
- * attempt's bounded worst case: `pollReelContainer` alone is 30 attempts, each capped at
- * Graph's own 30s `AbortSignal.timeout`, 2s apart (~16 minutes worst case), plus the
- * create/publish calls around it (also 30s-capped). 20 minutes leaves a wide margin.
+ * How long a `publishing` row may sit with no heartbeat write before the reaper treats
+ * it as crash-stranded and re-claims it (PUB-04). Set well above the longest gap between
+ * publishPlannedPost's heartbeats, not just above one attempt's total worst case:
+ * mid-poll, `pollReelContainer` heartbeats every attempt (2s apart, each attempt capped
+ * at Graph's own 30s `AbortSignal.timeout`, so the worst single gap is ~32s); every other
+ * step is bracketed by its own heartbeat before and after. 20 minutes leaves a wide
+ * margin over that ~32s worst-case gap, so a live publish's `updatedAt` can never
+ * actually go stale — only a genuinely crashed process (which stops heartbeating
+ * entirely) is ever reaped.
  *
- * ponytail: this is a timeout, not a heartbeat. `publishPlannedPost` never touches
- * `updatedAt` mid-attempt (unlike sync's `heartbeatAt` or frame-pass's `withHeartbeat`),
- * so a legitimate attempt that somehow ran longer than this looks identical to a crash
- * and gets reaped too, which risks a real double-publish. Ceiling: only safe as long as
- * publish attempts stay well under this bound in practice. Upgrade path: have
- * `publishPlannedPost` touch `updatedAt` at its own checkpoints (upload done, container
- * created, poll finished) if attempts start running this long for real.
+ * Residual risk: the object upload step (`provider.upload`) is bracketed by heartbeats
+ * before and after but not ticked during it, since it has no attempt-loop to hook a
+ * heartbeat into like `pollReelContainer` does. A single upload pathologically slower
+ * than `PUBLISHING_STALE_MS` could still be reclaimed concurrently; this is far narrower
+ * than the pre-heartbeat risk (any publish, not just an extreme upload) and matches the
+ * bound storage-provider.ts already assumes for one object.
  */
 export const PUBLISHING_STALE_MS = 20 * 60_000;
 

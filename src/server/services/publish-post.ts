@@ -21,6 +21,16 @@ import { GraphApiError, type GraphErrorClass } from "@/server/graph/errors";
  * decision the scheduler makes by first moving the row OFF "failed" before calling this
  * again. This function does not itself lock the row against concurrent callers; the
  * caller's atomic claim is what makes that safe.
+ *
+ * Heartbeat (closes PUB-04's follow-up P0): `updatedAt` is also this row's liveness
+ * signal for publish-scheduler.ts's stale-`publishing` reaper. A row claimed once and
+ * never touched again looks identical whether the process crashed or is still working —
+ * so this function touches `updatedAt` at the start of its real work, between each major
+ * step (upload, container create, poll, publish), and on every poll attempt (via
+ * `pollReelContainer`'s injectable `sleep`, the dominant long step at up to ~16 minutes
+ * worst case). As long as the gap between heartbeats stays well under
+ * `PUBLISHING_STALE_MS`, a legitimate in-flight publish can never look stale to the
+ * reaper, so it can never be concurrently re-claimed into a duplicate Instagram post.
  */
 
 type PlannedPostSelect = typeof tables.plannedPosts.$inferSelect;
@@ -105,12 +115,34 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function publishPlannedPost(
   postId: string,
   options: Partial<PublishPostDeps> & { claimed?: boolean } = {}
 ): Promise<PublishPostResult> {
   const { claimed = false, ...overrides } = options;
   const deps: PublishPostDeps = { ...DEFAULT_DEPS, ...overrides };
+
+  // Heartbeat: bump `updatedAt` so the scheduler's stale-`publishing` reaper reads this
+  // row as alive. Best-effort — a write failure here must never abort an otherwise-good
+  // publish, so it is logged and swallowed rather than propagated.
+  const touch = async (): Promise<void> => {
+    try {
+      await deps.writeRow(postId, { updatedAt: deps.now() });
+    } catch (err) {
+      log.warn("publish.heartbeat_failed", { postId, message: errorMessage(err) });
+    }
+  };
+  // Passed as `pollReelContainer`'s `sleep` so the poll loop (the dominant long step)
+  // heartbeats between every attempt instead of leaving `updatedAt` untouched for the
+  // whole ~16-minute worst case.
+  const heartbeatSleep = async (ms: number): Promise<void> => {
+    await touch();
+    await wait(ms);
+  };
 
   const row = await deps.loadRow(postId);
   if (!row) return { ok: false, state: "not_found" };
@@ -122,6 +154,10 @@ export async function publishPlannedPost(
   // Re-publishing that stuck row would post to Instagram twice, so only a caller that
   // proves a fresh claim may act on a "publishing" row; everyone else no-ops.
   if (row.state === "publishing" && !claimed) return { ok: true, state: "noop" };
+
+  // Real work starts now — first heartbeat, so the reaper's staleness clock reflects
+  // liveness from this moment, not just the original claim's timestamp.
+  await touch();
 
   const dryRun = resolveDryRun(row);
 
@@ -164,12 +200,14 @@ export async function publishPlannedPost(
   } catch (err) {
     return fail("storage", errorMessage(err));
   }
+  await touch(); // heartbeat: upload done, about to start the create/poll/publish steps
 
   try {
     let containerId: string;
     try {
       ({ containerId } = await deps.createReelContainer({ videoUrl: upload.publicUrl, caption: row.caption ?? "" }));
-      await deps.pollReelContainer(containerId);
+      await touch(); // heartbeat: container created; the poll loop below is the dominant long step
+      await deps.pollReelContainer(containerId, { sleep: heartbeatSleep });
     } catch (err) {
       if (err instanceof GraphApiError) return await fail(err.errorClass, err.message);
       return await fail("unknown", errorMessage(err));
@@ -177,6 +215,7 @@ export async function publishPlannedPost(
 
     if (dryRun) return await succeed(null);
 
+    await touch(); // heartbeat: poll finished, about to call publishReel
     try {
       const { mediaId } = await deps.publishReel(containerId);
       return await succeed(mediaId);

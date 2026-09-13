@@ -19,6 +19,7 @@ let startPublishScheduler: typeof import("./publish-scheduler")["startPublishSch
 let defaultBackoffMs: typeof import("./publish-scheduler")["defaultBackoffMs"];
 let DEFAULT_MAX_ATTEMPTS: typeof import("./publish-scheduler")["DEFAULT_MAX_ATTEMPTS"];
 let PUBLISHING_STALE_MS: typeof import("./publish-scheduler")["PUBLISHING_STALE_MS"];
+let publishPlannedPost: typeof import("./publish-post")["publishPlannedPost"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -26,6 +27,7 @@ beforeAll(async () => {
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({ runDuePublishes, startPublishScheduler, defaultBackoffMs, DEFAULT_MAX_ATTEMPTS, PUBLISHING_STALE_MS } = await import("./publish-scheduler"));
+  ({ publishPlannedPost } = await import("./publish-post"));
 });
 
 beforeEach(async () => {
@@ -368,6 +370,62 @@ describe("the atomic claim (real db)", () => {
     const [row] = await db.select().from(tables.plannedPosts);
     expect(row.id).toBe(id);
     expect(row.state).toBe("publishing"); // untouched, still owned by whatever claimed it
+  });
+
+  test("a live publish's heartbeat keeps the reaper from reclaiming it, even past the original claim's stale cutoff (PUB-04 follow-up)", async () => {
+    // The row's `updatedAt` is seeded far enough in the past that, without a heartbeat,
+    // it would already be reclaimable at fakeNow. publishPlannedPost's real heartbeat
+    // (publish-post.ts) must move it forward during the poll so the reaper leaves it be.
+    const fakeNow = iso(0);
+    await db.insert(tables.mediaAssets).values({
+      id: "asset_1",
+      sha256: "deadbeef",
+      kind: "video",
+      contentType: "video/mp4",
+      byteSize: 1024,
+      storagePath: "videos/asset_1.mp4",
+      downloadedAt: iso(0),
+    });
+    const id = await seedPlan({
+      state: "publishing",
+      videoAssetId: "asset_1",
+      updatedAt: iso(-PUBLISHING_STALE_MS - 1_000, Date.parse(fakeNow)),
+    });
+
+    const upload = vi.fn(async () => ({ publicUrl: "https://media.example.com/x.mp4", objectKey: "crowsnest/x.mp4" }));
+    const del = vi.fn(async () => {});
+
+    let reaperClaimedWhileRunning: number | null = null;
+    const pollReelContainer = vi.fn(async (_containerId: string, opts?: { sleep?: (ms: number) => Promise<void> }) => {
+      // The dominant long step: heartbeat fires here (via the injected sleep), THEN,
+      // simulating a concurrent scheduler tick, the reaper runs against the SAME real db
+      // row at a "now" past the row's original stale cutoff.
+      await opts!.sleep!(0);
+      const reaperPublish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+      const reaperTick = await runDuePublishes(new Date(fakeNow), { selectDueScheduled: async () => [], publish: reaperPublish });
+      reaperClaimedWhileRunning = reaperTick.claimed;
+      return { status: "FINISHED" as const };
+    });
+
+    const result = await publishPlannedPost(id, {
+      claimed: true,
+      now: () => fakeNow, // pins the heartbeat's timestamp to the same fake clock as the reaper check above
+      resolveVideoPath: vi.fn(async () => "/media/asset_1.mp4"),
+      getStorageProvider: vi.fn(() => ({ upload, delete: del })),
+      isGraphConfigured: vi.fn(() => true),
+      createReelContainer: vi.fn(async () => ({ containerId: "container_1" })),
+      pollReelContainer,
+      publishReel: vi.fn(async () => ({ mediaId: "media_1" })),
+    });
+
+    expect(result).toMatchObject({ ok: true, state: "published" });
+    // The reaper ran concurrently, past the row's ORIGINAL stale cutoff, and still found
+    // nothing to reclaim: the heartbeat had already refreshed updatedAt past the cutoff.
+    expect(reaperClaimedWhileRunning).toBe(0);
+
+    const [row] = await db.select().from(tables.plannedPosts);
+    expect(row.id).toBe(id);
+    expect(row.state).toBe("published"); // published exactly once, never reclaimed mid-flight
   });
 
   test("real selectRetryableFailed excludes a permanent failure (non-retryable errorClass)", async () => {
