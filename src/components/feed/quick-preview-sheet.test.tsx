@@ -69,4 +69,16 @@ describe("QuickPreviewSheet", () => {
     await waitFor(() => expect(screen.getByText("a post")).toBeTruthy());
     expect(screen.queryByText(/No longer on Instagram/)).toBeNull();
   });
+
+  // FEED-Q3: a rejected server read must resolve to an error state, not leave the
+  // sheet stuck on its placeholder skeletons forever.
+  test("shows an error state when the server read fails", async () => {
+    mocks.getVideoPreviewAction.mockRejectedValue(new Error("db read failed"));
+    const { container } = render(<QuickPreviewSheet id="v1" onClose={() => {}} />);
+    await waitFor(() =>
+      expect(screen.getByText(/couldn.t be loaded/i)).toBeTruthy(),
+    );
+    // and it is no longer sitting on the loading skeleton
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(0);
+  });
 });
