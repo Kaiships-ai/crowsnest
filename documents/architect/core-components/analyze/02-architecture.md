@@ -85,7 +85,7 @@ erDiagram
 
 **The read.** `getVideoDetail` reads the video row, its transcript row (or null), and its analysis row (or null, via `rowToAnalysis`) and hands all three to `VideoDetail`. When `detail.analysis` is present, the Hook and structure and Why it worked tabs render it; when it is not, both tabs render a plain "No analysis yet" placeholder. There is no gate logic, no key check, and no button.
 
-**Write, through MCP.** An external agent (Claude Code, Codex, or any MCP-speaking client connected to crowsnest) calls `crowsnest_video` to read a video's caption, metrics, and full transcript text, forms its own read of the hook, beats, format, style, and why-it-worked, then calls `crowsnest_save_analysis` with those fields. The tool wraps `saveAgentAnalysis`, which validates the payload against `VideoAnalysisSchema` (the identical schema the retired in-app model call used), and either upserts the `video_analyses` row stamped `source: "mcp"` or returns `{ ok: false, error }` without writing anything on a validation failure or an unknown video id. Calling it again for the same video updates the existing row in place. Nothing in this path resolves an LLM client, checks for `ANTHROPIC_API_KEY`, or can throw `NoApiKeyError`; the whole pass is deterministic reads and writes plus one schema check.
+**Write, through MCP.** An external agent (Claude Code, Codex, or any MCP-speaking client connected to crowsnest) calls `crowsnest_video` to read a video's caption, metrics, and full transcript text, forms its own read of the hook, beats, format, style, why-it-worked, and an optional one-paragraph summary, then calls `crowsnest_save_analysis` with those fields. The tool wraps `saveAgentAnalysis`, which validates the required fields against `VideoAnalysisSchema` (the identical schema the retired in-app model call used) plus the optional `summary`, and either upserts the `video_analyses` row stamped `source: "mcp"` or returns `{ ok: false, error }` without writing anything on a validation failure or an unknown video id. Calling it again for the same video updates the existing row in place. Nothing in this path resolves an LLM client, checks for `ANTHROPIC_API_KEY`, or can throw `NoApiKeyError`; the whole pass is deterministic reads and writes plus one schema check.
 
 **Generate idea.** Unchanged. `generateIdeaAction` calls `generateIdea`, which reads the video's `video_analyses` row (however it was written) and the single persona, asks the model, and upserts one `idea` row keyed on `sourceVideoId`. It rewrites only an untouched `inbox` idea; a shortlisted or scripted one is left as the user left it. `generateIdea` never throws, a bad reply comes back as `{ id: "", created: false }`.
 
@@ -105,17 +105,17 @@ sequenceDiagram
     DB-->>Video: Return {Video, Transcript, VideoAnalysis|null}
     Video-->>Agent: Return the video's caption, metrics, transcript text, and any existing analysis
 
-    Agent->>Save: crowsnest_save_analysis(videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked)
+    Agent->>Save: crowsnest_save_analysis(videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked, summary?)
     Save->>DB: **Confirm the video exists** (videos)<br/>params:{ videoId }
     DB-->>Save: Return {Video} or null
     alt video not found
         Save-->>Agent: Return error "video not found", nothing written
     end
-    Save->>Save: Validate the payload against VideoAnalysisSchema
+    Save->>Save: Validate the payload against VideoAnalysisSchema plus optional summary
     alt validation fails
         Save-->>Agent: Return the validation error, nothing written
     end
-    Save->>DB: **Upsert the video_analyses row, source="mcp"** (videoAnalyses)<br/>params:{ videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked }
+    Save->>DB: **Upsert the video_analyses row, source="mcp"** (videoAnalyses)<br/>params:{ videoId, hookType, structureSegments, formatTags, styleTags, whyItWorked, summary }
     DB-->>Save: Row written
     Save-->>Agent: Return { ok: true, videoId }
 ```
@@ -127,6 +127,7 @@ A second call for the same video updates the row in place; there is no separate 
 - **Analysis is authored only by an external agent, never in-app.** P0 slice 2a removed `getOrCreateAnalysis`, `analyzeVideoAction`, `reanalyzeVideoAction`, and the in-app auto-analyze pass (`auto-analyze.ts`). Crowsnest needs no `ANTHROPIC_API_KEY` to have video analyses; `crowsnest_save_analysis` is the only write path for new rows.
 - **Layout is not analysis.** `StoredVideoAnalysis` is a strict superset of the text model's `VideoAnalysis`; the layout columns are written only by a separate frame pass with its own model and timestamp, untouched by this retirement.
 - **Same validation contract, different author.** `saveAgentAnalysis` and `crowsnest_save_analysis` validate against the exact `VideoAnalysisSchema` the retired in-app model call validated against, so a `video_analyses` row looks identical downstream (Remix, the detail page, `rowToAnalysis`) regardless of who authored it.
+- **`summary` is optional and validated separately from `VideoAnalysisSchema` (B-10).** The column existed and the video detail page rendered it, but no write path ever populated it: `VideoAnalysisSchema` (the `VideoAnalysis` type Remix and `rowToAnalysis` build on) never defined it, so it always came back null. `saveAgentAnalysis` now validates an agent's `summary` against a local extension of that schema instead of widening `VideoAnalysisSchema` itself, so Remix and `rowToAnalysis` are untouched and a call with no `summary` still writes exactly as before.
 - **`crowsnest_video` carries the raw transcript text.** So an agent has everything it needs to author a grounded analysis in one read, without a second tool call: caption, metrics, the full transcript text (via `getVideoDetail`, which already read the `transcripts` table), and any existing analysis.
 - **The `video_analyses.summary` column is still never written.** Confirmed at the data level, filed as B-10 in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md), where the summary's rendering also lives.
 - **One idea per video, enforced in the database.** Unchanged. The `idea_source_active` partial index is the backstop; the service does a select-then-update upsert because that partial index is not a target `onConflictDoUpdate` can name.

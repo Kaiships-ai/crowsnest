@@ -5,7 +5,7 @@ Bugs and enhancements for feed. One row per item.
 | ID | Title | Severity | Type | Source | Status |
 | --- | --- | --- | --- | --- | --- |
 | B-05 | Save to Vault both can half-write and a retry duplicates the row that landed | medium | bug | bug-triage | done |
-| B-10 | The video analysis summary field is rendered but never written | low | bug | bug-triage | open |
+| B-10 | The video analysis summary field is rendered but never written. Root cause: `VideoAnalysisSchema`, the write contract `crowsnest_save_analysis` validates against, never defined a `summary` field, so even an agent that tried to send one had it silently dropped. Fixed by adding an optional `summary` to the MCP tool's input and to a local schema extension in `saveAgentAnalysis` (kept out of `VideoAnalysisSchema` itself, which Remix and `rowToAnalysis` also build on and have no use for it), so a supplied summary now persists to `video_analyses.summary` and the detail page's Summary section renders it. See `src/server/services/analyze.test.ts`. | low | bug | bug-triage | in-review |
 | B-12 | Generate idea does not gate on a key or reflect an existing idea | low | bug | bug-triage | open |
 | B-14 | notFound on the video detail route returns HTTP 200 instead of 404 | low | bug | bug-triage | done |
 | B-16 | Quick preview shows a soft-removed video with no removed marker. Fixed: `quick-preview-sheet.tsx` now renders the same "No longer on Instagram" marker as `outlier-card.tsx`, off the same `FeedItem.deleted` flag. See `src/components/feed/quick-preview-sheet.test.tsx` | low | bug | bug-triage | fixed |

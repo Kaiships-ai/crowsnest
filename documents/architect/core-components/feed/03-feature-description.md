@@ -212,7 +212,6 @@ A two-column reading surface at `/feed/{videoId}`. The left column holds the med
 
 ### Limitations
 
-- The analysis summary field is rendered on the page but never written by the analysis pass, so it always shows empty. Tracked as `B-10` in the [backlog](05-backlog-to-enhance.md).
 - Copy as prompt builds and copies a prompt regardless of analysis state, degrading section by section; Save to Vault stays gated on an analysis existing.
 
 ### User guide

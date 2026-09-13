@@ -109,6 +109,27 @@ describe("saveAgentAnalysis", () => {
     expect(mapped.whyItWorked).toBe(FAKE_ANALYSIS.whyItWorked);
   });
 
+  test("B-10: a summary sent with the analysis is persisted and read back", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    const ok = await saveAgentAnalysis(videoId, {
+      ...FAKE_ANALYSIS,
+      summary: "A creator opens with a cold-open question, then pays it off with three fast-cut tips.",
+    });
+    expect(ok).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.summary).toBe("A creator opens with a cold-open question, then pays it off with three fast-cut tips.");
+  });
+
+  test("summary stays optional: an analysis saved without one still writes, with a null summary", async () => {
+    const { videoId } = await seedVideo({ withTranscript: false });
+    const ok = await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+    expect(ok).toEqual({ ok: true });
+
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    expect(row.summary).toBeNull();
+  });
+
   test("rejects an unknown video id", async () => {
     migrate();
     const r = await saveAgentAnalysis("no-such-video", FAKE_ANALYSIS);
