@@ -46,11 +46,19 @@ function item(overrides: Partial<FeedItem> = {}): FeedItem {
   };
 }
 
-// Minimum opacity that keeps white text at >= 4.5:1 (WCAG AA, normal text) against a
-// pure-white frame composited under an opaque black plate: contrast = 1.05 / (L + 0.05),
-// so L must be <= 0.183, which the sRGB curve puts at ~50% black. Anything at or above
-// that is safe for every thumbnail, not just dark ones.
-const MIN_SAFE_OPACITY_PERCENT = 50;
+// Minimum black-plate opacity that keeps white text at >= 4.5:1 (WCAG AA, normal text)
+// over a pure-white frame, i.e. the worst case (brightest possible thumbnail).
+//
+// Compositing opaque black at alpha over white leaves a gray background of sRGB value
+// bg = 1 - alpha. Relative luminance uses the sRGB-to-linear curve:
+//   L(c) = c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+// White text has L = 1, so contrast = (1 + 0.05) / (L(bg) + 0.05) >= 4.5
+//   => L(bg) <= 1.05 / 4.5 - 0.05 = 0.18333
+//   => bg <= 1.055 * 0.18333 ** (1 / 2.4) - 0.055 ≈ 0.4653
+//   => alpha >= 1 - 0.4653 ≈ 0.5347, i.e. ~53.5% black minimum.
+// 50% black (a prior draft's floor) only reaches ~3.98:1 and FAILS AA; 54% is the first
+// whole percent that clears it (~4.59:1), so that is the floor asserted here.
+const MIN_SAFE_OPACITY_PERCENT = 54;
 
 describe("OutlierCard caption overlay", () => {
   test("renders the caption on an opaque plate, not a gradient scrim", () => {
