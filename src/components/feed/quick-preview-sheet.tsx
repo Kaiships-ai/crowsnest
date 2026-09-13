@@ -20,7 +20,10 @@ import { platformLabel } from "./platform-chip";
 // react-hooks/set-state-in-effect flags a bare `setLoading(true)` called synchronously
 // in the effect body, and a derived value is the more correct fix anyway (one fewer
 // state variable that could drift out of sync with `id`).
-type FetchResult = { id: string; detail: VideoDetail | null };
+// `detail: null` with `error: false` is a resolved not-found (the row is gone);
+// `error: true` is a failed/rejected read. Both resolve `loading` so the sheet
+// leaves its skeletons; the render branches on `error` to tell them apart.
+type FetchResult = { id: string; detail: VideoDetail | null; error: boolean };
 
 // "Hatching for a well with no data in it" (globals.css) — same treatment as
 // outlier-card.tsx and carousel-viewer.tsx, so the feed grid and the detail screen
@@ -52,13 +55,18 @@ export function QuickPreviewSheet({
   const [result, setResult] = useState<FetchResult | null>(null);
   const loading = id !== null && result?.id !== id;
   const detail = result?.id === id ? result.detail : null;
+  const errored = result?.id === id && result.error;
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    getVideoPreviewAction(id).then((fetchedDetail) => {
-      if (!cancelled) setResult({ id, detail: fetchedDetail });
-    });
+    getVideoPreviewAction(id)
+      .then((fetchedDetail) => {
+        if (!cancelled) setResult({ id, detail: fetchedDetail, error: false });
+      })
+      .catch(() => {
+        if (!cancelled) setResult({ id, detail: null, error: true });
+      });
     return () => {
       cancelled = true;
     };
@@ -78,6 +86,10 @@ export function QuickPreviewSheet({
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-4 w-1/3" />
             </>
+          ) : errored ? (
+            <p className="text-sm text-muted-foreground">
+              This post couldn&rsquo;t be loaded. Please try again.
+            </p>
           ) : !detail ? (
             <p className="text-sm text-muted-foreground">This post couldn&rsquo;t be found.</p>
           ) : (
