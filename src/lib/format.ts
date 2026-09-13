@@ -61,6 +61,11 @@ export function relativeTime(iso: string): string {
   return `${Math.floor(deltaMs / DAY_MS)}d ago`;
 }
 
+/** plural("result", 1) -> "result", plural("result", 2) -> "results", plural("result", 0) -> "results". */
+export function plural(word: string, count: number): string {
+  return count === 1 ? word : `${word}s`;
+}
+
 /** 34 -> "0:34", 95 -> "1:35", null -> "". M:SS, seconds zero-padded, no leading zero on minutes. */
 export function formatDuration(sec: number | null): string {
   if (sec === null) return "";
