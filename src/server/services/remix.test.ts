@@ -302,6 +302,29 @@ describe("generateOutline", () => {
     expect(call.user).toContain(FAKE_ANALYSIS.whyItWorked);
     expect(call.user).toContain(`(said: ${FAKE_ANALYSIS.structureSegments[0].transcript})`);
   });
+
+  test("clears stale script variants and the chosen-variant pick left over from the previous outline (B-03)", async () => {
+    const { videoId } = await seedVideo({ withAnalysis: true });
+    const session = await getOrCreateSession(videoId);
+    const llm = fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [{ label: "Hook", content: "open strong", targetSec: 3 }] }) });
+
+    // Variants generated from the first outline, one of them picked.
+    await generateOutline(session.id, { llm });
+    await generateVariants(session.id, { llm: fakeLlm({ generateText: vi.fn().mockResolvedValue("script one") }) });
+    await updateStage(session.id, { chosenVariantIndex: 0 });
+
+    const [beforeRow] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(beforeRow.variants).not.toBeNull();
+    expect(beforeRow.chosenVariantIndex).toBe(0);
+
+    // Regenerating the outline must not leave the old variants (built from the
+    // discarded outline) or the pick pointing at them in place.
+    await generateOutline(session.id, { llm: fakeLlm({ generateParsed: vi.fn().mockResolvedValue({ beats: [{ label: "Twist", content: "a new angle", targetSec: 5 }] }) }) });
+
+    const [afterRow] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, session.id));
+    expect(afterRow.variants).toBeNull();
+    expect(afterRow.chosenVariantIndex).toBeNull();
+  });
 });
 
 describe("generateVariants", () => {

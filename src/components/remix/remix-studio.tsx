@@ -243,7 +243,9 @@ export function RemixStudio({
                 hasLlmKey={hasLlmKey}
                 proxyDown={proxyDown}
                 llmProxyUrl={llmProxyUrl}
-                onOutlineChange={(outline) => patchSession({ outline })}
+                onOutlineChange={(outline, regenerated) =>
+                  patchSession(regenerated ? { outline, variants: null, chosenVariantIndex: null } : { outline })
+                }
                 onStyleVaultItemChange={(styleVaultItemId) => patchSession({ styleVaultItemId })}
                 onRunRecorded={refreshRunLog}
               />
