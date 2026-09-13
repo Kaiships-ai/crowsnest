@@ -15,6 +15,10 @@ export default defineConfig({
       // nothing about this repo and hide a real regression in the noise. tsconfig
       // already excludes plugins for the same reason.
       "plugins/**",
+      // Playwright specs (*.e2e.spec.ts) run under `npm run test:e2e`, not vitest.
+      // Without this, vitest collects them and each throws "Playwright Test did not
+      // expect test() to be called here."
+      "e2e/**",
     ],
     // Runs before each test file's own imports, so db/index.ts always reads a
     // CROWSNEST_DB_PATH default of ":memory:" at module-load time — see
