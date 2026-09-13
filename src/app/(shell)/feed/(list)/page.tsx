@@ -3,7 +3,7 @@ import Link from "next/link";
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { buttonVariants } from "@/components/ui/button";
-import { bandOrAny, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
+import { bandOrAny, defaultViewCriteria, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
 import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { bumpFeedLastVisit } from "@/server/queries/dashboard";
@@ -32,24 +32,19 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
   // i.e. no condition) is respected as-is. Cosmetic params (density, view, sort, limit)
   // aren't filters, so a density toggle alone still reads as bare.
   //
-  // The criteria come off the seeded saved-filter row, not a literal here, so changing the
-  // seed (src/server/db/bootstrap.ts) moves the default view without touching this page.
+  // `resolveFeedCriteria` is the ONE place this default gets applied (FEED-Q1) — the
+  // criteria come off the seeded saved-filter row via `defaultViewCriteria`, not a
+  // literal here, and `resolve-feed-nav.ts` calls the same two functions with the same
+  // saved filters so the detail page's prev/next never disagrees with this page.
   const applyDefault = shouldApplyDefaultView(sp);
-  const highConviction = savedFilters.find((f) => f.name === "High Conviction")?.criteria as
-    | { minScore?: number; minViews?: number; sinceDays?: number }
-    | undefined;
-
-  const resolved = resolveFeedCriteria(sp);
-  const minScore = applyDefault ? highConviction?.minScore ?? resolved.minScore : resolved.minScore;
-  const minViews = applyDefault ? highConviction?.minViews ?? resolved.minViews : resolved.minViews;
-  const sinceDays = applyDefault ? highConviction?.sinceDays ?? resolved.sinceDays : resolved.sinceDays;
+  const resolved = resolveFeedCriteria(sp, defaultViewCriteria(savedFilters));
 
   const filters: FeedFilters = {
     fleetId: first(sp.fleet),
     platform: first(sp.platform) as FeedFilters["platform"],
-    minScore,
-    minViews,
-    sinceDays,
+    minScore: resolved.minScore,
+    minViews: resolved.minViews,
+    sinceDays: resolved.sinceDays,
     followerBand: bandOrAny(sp.band),
     query: first(sp.q),
     minEngagement: resolved.minEngagement,

@@ -12,7 +12,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | The outlier feed page | Ranked grid or list of outlier posts, follower-band counts, Load more, four empty states | ● | `src/app/(shell)/feed/(list)/page.tsx` | FEED-Q1 |
+| 2 | The outlier feed page | Ranked grid or list of outlier posts, follower-band counts, Load more, four empty states | ● | `src/app/(shell)/feed/(list)/page.tsx` | none |
 | 3 | The filter bar and saved views | URL-driven filter controls, saved views, Add post URL import | ● | `src/components/feed/filter-bar.tsx`, `saved-view-actions.ts` | FEED-Q2 |
 | 4 | The quick preview sheet | Read-only panel over the feed showing one video's details | ● | `src/components/feed/quick-preview-sheet.tsx`, `preview-action.ts` | FEED-Q3 |
 | 5 | The keep this post button | One-row-per-video toggle that saves a post to a shortlist | ● | `src/components/video/save-post-button.tsx`, `saved-post-actions.ts` | none |
@@ -48,7 +48,6 @@ Opens automatically at `/feed`. A card, the quick preview, or any link carrying 
 
 ### Limitations
 
-- The default-view logic that decides what a bare visit shows is internally inconsistent across the codebase; see [architecture](02-architecture.md#9-open-not-verified) and `FEED-Q1` in the [backlog](05-backlog-to-enhance.md).
 - The quick preview and the video detail page are separate features, documented on their own.
 
 ### User guide
@@ -235,6 +234,5 @@ Configuration and settings. The two built-in saved views, and their default crit
 
 ## 9. Edge cases
 
-- **The default-view logic disagrees with itself in the codebase.** `feed/page.tsx` applies the seeded High Conviction view on a bare visit, but doc comments elsewhere in `feed-filters.ts` and `resolve-feed-nav.ts` describe a bare visit as the full unfiltered library. The page code is what actually runs; the comments are stale. Tracked as `FEED-Q1` in the [backlog](05-backlog-to-enhance.md).
 - **Two tabs racing the same write.** A second keep on an already-saved video, or a second delete or rename of a saved view another tab already changed, is refused rather than silently duplicated or lost (`SAVED_POST_ALREADY_SAVED`, `SAVED_VIEW_NOT_FOUND`).
 - **Re-importing a post by URL updates it in place.** `importReelByUrl` upserts on the same `(platform, external_id)` key a sidecar sync uses, so importing a post already in the feed refreshes its row rather than creating a duplicate.

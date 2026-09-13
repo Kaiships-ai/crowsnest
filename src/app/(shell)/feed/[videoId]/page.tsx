@@ -75,7 +75,9 @@ export default async function VideoDetailPage({
   const detail = await getCachedVideoDetail(videoId);
   if (!detail) notFound();
   // A bare `/feed/[videoId]` visit (no forwarded filter) scopes prev/next against the
-  // full raw library, the same default feed/page.tsx now shows on a bare `/feed` visit.
+  // High Conviction default, the same default feed/page.tsx applies on a bare `/feed`
+  // visit (resolveFeedNav applies it via the shared resolveFeedCriteria, FEED-Q1);
+  // `all=1` on the forwarded suffix escapes back to the full raw library, same as there.
   const [medianBasis, feedNav, savedPost] = await Promise.all([
     getChannelMedianBasis(detail.item.channel.id, videoId),
     resolveFeedNav(videoId, sp),
