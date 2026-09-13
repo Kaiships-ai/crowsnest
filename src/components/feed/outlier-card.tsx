@@ -108,9 +108,12 @@ export function OutlierCard({
             sits reads fine against a dark thumbnail and unreadable against a bright one
             (observed-bugs.md — a bright screen recording put white text on near-white).
             A solid plate behind the text is correct for every thumbnail, not just the
-            one it was tuned against. */}
+            one it was tuned against (OBS-1). bg-black/80, not /70: against a pure-white
+            frame /70 already clears WCAG AA (~8.6:1) but only by a slim margin once you
+            account for JPEG noise and backdrop-blur softening edge pixels; /80 (~11:1)
+            keeps a real margin over the 4.5:1 floor instead of skimming it. */}
         {isFull && item.caption && (
-          <p className="pointer-events-none absolute top-[14%] right-2 left-2 line-clamp-3 bg-black/70 px-1.5 py-1 text-sm leading-snug font-semibold text-pretty text-white backdrop-blur-sm">
+          <p className="pointer-events-none absolute top-[14%] right-2 left-2 line-clamp-3 bg-black/80 px-1.5 py-1 text-sm leading-snug font-semibold text-pretty text-white backdrop-blur-sm">
             {item.caption}
           </p>
         )}
