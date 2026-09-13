@@ -353,11 +353,11 @@ Verify
 PR
 ```
 
-Crowsnest is built and maintained through a set of skills (Claude Code plugins under
-`plugins/`, plus repo-local skills under `.claude/skills/`). The build spine above is the
-default flow; a `[GATE]` is a point where a human signs off before the flow continues. New
-or reworked components go through the dedicated `/crowsnest-component` skill (5 phases, 4
-gates), which delegates plan, build, and verify to the `ship` skills and keeps each
+Crowsnest is built and maintained through a set of skills, all flat under `.claude/skills/`
+and invoked by bare name (no plugins, no `ship:` / `taste:` prefixes). The build spine above
+is the default flow; a `[GATE]` is a point where a human signs off before the flow continues.
+New or reworked components go through the dedicated `/crowsnest-component` skill (5 phases, 4
+gates), which delegates plan, build, and verify to the build-and-ship skills and keeps each
 component's five-doc block and mkdocs nav in sync.
 
 ### Running locally
@@ -391,7 +391,9 @@ from the wrong origin, and it does it silently.
 | `npm run typecheck` | TypeScript check with no emit |
 | `npm run ig:service` | Start the Python Instagram sidecar (port 8765) |
 | `npm run verify:live -- @handle` | Sync a real channel and print the live evidence |
-| `npm run e2e` | Run the browser e2e harness |
+| `npm run e2e` | Run the bash browser e2e smoke harness |
+| `npm run test:e2e` | Run the Playwright e2e lane (mock-backend, keyless) |
+| `npm run skill-lint` | Validate every `.claude/skills` skill |
 
 </details>
 
@@ -503,9 +505,9 @@ handoff.
 
 **I. Every PR.**
 
-1. `.github/workflows/ci.yml` runs typecheck + lint + vitest + `scripts/testid-audit.sh`
+1. `.github/workflows/ci.yml` runs typecheck + lint + vitest + `scripts/testid-audit.sh` + `scripts/skill-lint.sh`
 
-**`ship` plugin** (build-and-ship, model- and `/`-triggerable)
+**Build-and-ship skills** (bare name, model- and `/`-triggerable)
 
 | Skill | Purpose |
 |-------|---------|
@@ -518,7 +520,7 @@ handoff.
 | `finishing-a-development-branch` | Commit, push, PR, merge decision |
 | `writing-skills` | Author a new skill for either plugin |
 
-**`taste` plugin** (design lane). `*` = triggerable only as `/taste:<name>`
+**Design-lane skills** (bare name). `*` = user-invoked only (`disable-model-invocation`)
 
 | Skill | Purpose |
 |-------|---------|
@@ -546,10 +548,25 @@ handoff.
 | `crowsnest-up` | `/` | Boot the local stack (9router, dev server, browser) |
 | `product-description` | `/` + model | Build an outside-in product-description doc repo |
 
+**Ported skill groups** (openclaw-derived, flat under `.claude/skills/`, 63 skills total). Open
+a group menu with `/cn-<group>`, or `/cn` to list every group.
+
+| Group | Command | Skills |
+|-------|---------|--------|
+| Ops and routing | `/cn-ops` | `crowsnest-route` (FAST/CAREFUL router, owns the TDD track), `crowsnest-update`, `crowsnest-live-updater` |
+| Testing and QA | `/cn-testing` | `crowsnest-testing`, `test-audit`, `crowsnest-e2e` (Playwright + mock-backend), `crowsnest-auto-qa`, `crowsnest-qa-testing`, `crowsnest-test-performance`, `proof-video` |
+| Review and land | `/cn-review` | `autoreview`, `crowsnest-pr`, `crowsnest-repair-sweep`, `crowsnest-score` |
+| Release | `/cn-release` | seven `crowsnest-release-*` skills plus `crowsnest-changelog-update` |
+| Docs | `/cn-docs` | `technical-documentation`, `crowsnest-refactor-docs` |
+| Code graph | `/cn-code` | `gitnexus-*`, `shadcn` |
+
+Each skill validated in CI by `scripts/skill-lint.sh` (name matches folder, closed
+frontmatter, a description, no duplicate names).
+
 **Key scripts and entry points**: `scripts/next-bug.sh` (bug queue), `scripts/release-prep.sh`
 (one-command release), `scripts/testid-audit.sh` (testid coverage), `scripts/plan-status.sh`
-(backlog and plan counts), `scripts/seed-e2e.ts` + `scripts/e2e/run.sh` (`npm run e2e`),
-`packaging/rollback.sh`. Workflows: `.github/workflows/{ci,release,nightly-autofix}.yml`.
+(backlog and plan counts), `scripts/seed-e2e.ts` + `scripts/e2e/run.sh` (`npm run e2e`), `scripts/skill-lint.sh`
+(skill validation, in CI), `packaging/rollback.sh`. Workflows: `.github/workflows/{ci,release,nightly-autofix}.yml`.
 Kit and gate: `packaging/{install.sh.template,gen-install.sh,release.sh,worker/}`,
 `src/cli/{kai,license,service-darwin,runtime}.ts`.
 
