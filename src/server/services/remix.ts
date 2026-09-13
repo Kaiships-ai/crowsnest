@@ -493,9 +493,15 @@ export async function generateOutline(id: string, opts?: { llm?: LlmClient; stee
       schema: OutlineSchema,
     });
 
+    // B-03: a new outline invalidates any script variants (and the pick among them)
+    // generated from the outline it replaces — leaving them in place would show the
+    // script stage happily displaying text built from beats that no longer exist.
+    // Clearing them here, in the one place a fresh outline is persisted, covers every
+    // caller (the in-app regenerate button and Quick Remix) rather than each one having
+    // to remember to do it itself.
     await db
       .update(tables.remixSessions)
-      .set({ outline: JSON.stringify(outline), updatedAt: nowIso() })
+      .set({ outline: JSON.stringify(outline), variants: null, chosenVariantIndex: null, updatedAt: nowIso() })
       .where(eq(tables.remixSessions.id, id));
 
     await recordRun({ sessionId: id, stage: "style", startedAt, startedAtMs, outcome: "success", detail: `outline generated (${outline.beats.length} beats)` });

@@ -12,7 +12,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 3 | Run every stage at once with Quick Remix | One click runs research, hooks, an outline, and variants in sequence and lands on the script stage | ● | `remix.ts` (quickRemix) | B-11 |
 | 4 | Review the assembled research | Assembles the source analysis, a transcript excerpt, and similar outliers with no model call | ● | `remix.ts` (buildResearch), `stage-research.tsx` | B-02 |
 | 5 | Generate and pick a hook | Generates opening lines grounded in the source's own hook pattern or a vault template, then lets the user pick one | ● | `remix.ts` (generateHooks), `stage-hook.tsx` | none |
-| 6 | Shape the outline | Generates a beat by beat outline and lets the user hand edit it | ● | `remix.ts` (generateOutline), `stage-style.tsx` | B-03 |
+| 6 | Shape the outline | Generates a beat by beat outline and lets the user hand edit it | ● | `remix.ts` (generateOutline), `stage-style.tsx` | none |
 | 7 | Write, edit, and save a script variant | Generates three script variants in parallel, lets the user edit and save one, and optionally date it on the plan | ● | `remix.ts` (generateVariants, saveScript), `stage-script.tsx` | none |
 | 8 | Finish: put the remix on the plan | Creates or reuses a planned post carrying the currently chosen script | ● | `remix.ts` (finishRemix), `stage-finish.tsx` | none |
 
@@ -157,7 +157,7 @@ Continue from the hook stage, or the style step in the stepper once reached.
 - Beat edits autosave on blur as the whole outline at once, not per field, so leaving a field commits every edit made since the last blur.
 - Continue is gated on an outline existing on the session, not on its content, so a generation that returns zero beats still satisfies the gate while the stage keeps showing "Generate an outline to get started."
 - Clearing a beat's seconds box, or typing a non number into it, sets that beat to 0 seconds rather than refusing the keystroke.
-- B-03 (open): regenerating the outline does not touch or warn about script variants already generated from the previous outline; they stay in place, now mismatched with the new beats, until the user regenerates them too.
+- Regenerating the outline clears any script variants (and the chosen-variant pick) already generated from the previous outline, since they were written from beats that no longer exist; the script stage shows its empty "write script to get started" state again until the user writes new variants from the new outline. Hand-editing a beat's text does not clear them: only a fresh Generate outline / Regenerate outline call does.
 - An empty vault does not block the stage: the select shows a disabled "No saved styles yet" and generation falls back to the source's own structure.
 
 ### Limitations

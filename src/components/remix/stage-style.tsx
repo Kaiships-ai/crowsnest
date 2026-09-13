@@ -39,7 +39,9 @@ export function StageStyle({
   hasLlmKey: boolean;
   proxyDown: boolean;
   llmProxyUrl: string | null;
-  onOutlineChange: (outline: Outline) => void;
+  /** `regenerated` is true only for a fresh LLM-generated outline (never a hand
+   *  edit) — the caller uses it to clear the now-stale script variants (B-03). */
+  onOutlineChange: (outline: Outline, regenerated?: boolean) => void;
   onStyleVaultItemChange: (id: string | null) => void;
   onRunRecorded: () => void;
 }) {
@@ -63,7 +65,7 @@ export function StageStyle({
     const result = await generateOutlineAction(session.id, steer);
     setGenerating(false);
     if (result.ok) {
-      onOutlineChange(result.outline);
+      onOutlineChange(result.outline, true);
       setBeats(result.outline.beats);
     } else {
       toast.error(result.error);
