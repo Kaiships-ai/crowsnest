@@ -6,13 +6,13 @@ This glossary merges two sources: the live vocabulary drawn from the current cod
 
 ## The surface
 
-**Core loop.** The path from an outlier in the feed, through a remix into a script, into a planned post, into a cook run in the studio, to publish. The subject of these documents. Routes outside it are out of scope.
+**Core loop.** The path from an outlier in the feed, through a remix into a script, into a planned post, then an MCP handoff for production, to publish. The subject of these documents. Routes outside it are out of scope.
 
 **Shell.** The persistent frame around every core loop page: the sidebar, the topbar, the command menu. Rendered by the `(shell)` layout. It redirects to first run until setup is done, and it re-reads its counts on navigation.
 
 **Feed.** The outlier feed page at `/feed`. A grid or list of videos from tracked channels, filtered and ordered, that the user browses to find something worth remixing.
 
-**Studio.** The page at `/mine/{postId}/studio` where a planned post is turned into a rendered video by a cook run, then published. Not to be confused with the remix studio, which is the remix page; where ambiguity is possible, these documents say "the studio page" and "the remix studio".
+**Remix studio.** The remix page (`/feed/{id}/remix`) where a source video is turned into a script through the remix session's six stages. Also called "the studio" where unambiguous.
 
 ## Accounts and identity
 
@@ -29,7 +29,7 @@ This glossary merges two sources: the live vocabulary drawn from the current cod
 
 **Video.** One top level post scraped from a tracked channel, the outlier the feed shows. The table is named `videos` but a video can be a photo, a video, or a carousel (its `mediaType`). A video belongs to a channel and carries metrics (views, likes, comments) and an outlier score. Videos are written by the sidecar sync, not by the user. Avoid: post, reel, media, item.
 
-**Planned post.** A dated intention to publish on the user's own channel, optionally carrying a script. The table is `plannedPosts`. Its `state` is draft or scheduled; missed is derived on read when a scheduled date has passed. A planned post is what the studio operates on. Do not confuse it with an own post. It lives only in this app and never touches Instagram: nothing schedules, nothing publishes, nothing reminds. The user marks one published by hand or it stays a plan. Avoid: scheduled post, queue item, calendar entry, campaign.
+**Planned post.** A dated intention to publish on the user's own channel, optionally carrying a script. The table is `plannedPosts`. Its `state` is draft or scheduled; missed is derived on read when a scheduled date has passed. A planned post is what the mine page's planner and the MCP's post brief operate on. Do not confuse it with an own post. It lives only in this app and never touches Instagram: nothing schedules, nothing publishes, nothing reminds. The user marks one published by hand or it stays a plan. Avoid: scheduled post, queue item, calendar entry, campaign.
 
 **Own post.** A post that has actually been published on the user's own channel and measured through the Graph API. The table is `ownPosts`. Read only in these documents; the metrics tabs on the my channel page show these.
 
@@ -59,9 +59,7 @@ This glossary merges two sources: the live vocabulary drawn from the current cod
 
 **Variant.** One of the candidate scripts the script stage generates. The default is three, generated against three fixed angles. The user picks one (the chosen variant) before saving.
 
-**Remix run.** One generation attempt inside a remix session: a hook generation, an outline generation, a variant generation. Logged append only to `remixRuns`, on success and on failure. The run log on the remix page shows these. Distinct from a create run.
-
-**Create run.** One cook pipeline execution in the studio: the pty process that cooks and renders a planned post into a video. Tracked in `createRuns` with a status. Distinct from a remix run. When this repo says "cook run" it means a create run.
+**Remix run.** One generation attempt inside a remix session: a hook generation, an outline generation, a variant generation. Logged append only to `remixRuns`, on success and on failure. The run log on the remix page shows these.
 
 ## State words
 
@@ -83,11 +81,11 @@ This glossary merges two sources: the live vocabulary drawn from the current cod
 
 The words every cancel and interrupt table relies on. Defined once here.
 
-**Commit.** The durable step of an action: a database row written, a script saved, a planned post created, a render asset recorded. Until an action commits, leaving discards it.
+**Commit.** The durable step of an action: a database row written, a script saved, a planned post created, an analysis saved. Until an action commits, leaving discards it.
 
 **Cancel.** The user ending an action on purpose before it commits: Escape or a close on a dialog, a Cancel button. A cancel discards uncommitted work and returns the user to where they were.
 
-**Stop.** Ending a running cook run on purpose. The Stop button injects into the pty and the run row moves to a stopped or failed status. What is left on disk depends on how far the run got.
+**Stop.** Ending an already running process on purpose, as opposed to a cancel before anything has started. What is left behind depends on how far the process got.
 
 **Interrupt.** Anything that ends or disturbs an action that the user did not do on purpose: navigating away, a reload, a service failing, the record changing underneath, a background job finishing on its own, a second action on the same record. The seven interrupt rows are the fixed list; each feature document fills every cell.
 
@@ -117,8 +115,6 @@ The words every cancel and interrupt table relies on. Defined once here.
 
 **Saved view.** A named set of feed filters (`savedFilters`). Two views are seeded and locked as built in: Balanced (a lower score threshold over a wider window) and High Conviction (a higher score threshold, a tighter window, a view floor). The user can add, rename, and delete their own views through the manage saved views dialog, but not the two built in ones.
 
-**Run pill.** The small status indicator on the studio panel that shows a create run's state. The five statuses are running, waiting, success, failed, and canceled; the pill labels them in the user's words: cooking, waiting on you, done, failed, and canceled. An unrecognized status reads as canceled.
-
 **Failure strip.** The banner in the shell that surfaces recent failures across the app, read by the layout on every navigation.
 
 **Command menu.** The keyboard driven menu in the shell for jumping between pages and actions.
@@ -131,17 +127,13 @@ The words every cancel and interrupt table relies on. Defined once here.
 
 **Connect panel.** The surface the my channel page shows when the Graph token is invalid or missing, in place of live metrics. Historical numbers, if any were measured before, can still show with the connect panel stacked over them.
 
-**Empty state.** What a list or a page shows when it has nothing to show yet: the feed with no matching videos, the calendar with no plans, the studio output before a cook. An empty state is a designed message, not an error.
+**Empty state.** What a list or a page shows when it has nothing to show yet: the feed with no matching videos, the calendar with no plans. An empty state is a designed message, not an error.
 
-## Studio and analysis
+## The brief and analysis
 
-**Brief.** What the studio shows for a planned post: its title and video kind, the source video, the remix's hook and beats, the layout fields, and a score. The visible brief is composed from the plan, the source video, and the remix session. A separate `brief.md` is written into the cook run's workspace when a cook starts; this repo calls that the cook brief. The two are related but not identical; the on screen brief shows less than the cook brief carries.
+**Brief.** A planned post's brief: its title and video kind, the source video, the remix's hook and beats, the layout fields, and a score. Composed from the plan, the source video, and the remix session, and read back through the MCP as the Reel Factory handoff.
 
 **Frame pass.** A separate analysis step that reads a video's frames to produce its layout. It is distinct from the text analysis that produces hook type, tags, and structure. Re analyzing a video updates the text fields but preserves the frame pass result. The frame pass client is not wired up in this build, so the layout is usually absent.
-
-**Render.** The video file a successful create run produces, stored as a render asset. Publish is gated on a render existing. Also called the render asset.
-
-**Score badge.** The small badge on the studio brief showing the source video's outlier score, or a dash when there is none.
 
 ## Metrics and scoring
 
