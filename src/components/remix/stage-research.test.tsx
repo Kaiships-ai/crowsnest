@@ -64,6 +64,17 @@ test("a failed research assembly leaves the skeleton for an error and retry", as
   expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
 });
 
+test("a rejected research assembly (thrown, not returned ok:false) also leaves the skeleton for an error and retry", async () => {
+  mocks.buildResearchAction.mockRejectedValue(new Error("boom before result could be built"));
+
+  await act(async () => {
+    render(<StageResearch session={session()} vaultSavedPosts={[]} onNotesChange={vi.fn()} />);
+  });
+
+  expect(screen.queryByText(/assembling research/i)).toBeNull();
+  expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
+});
+
 test("retry re-runs the assembly and renders the notes on success", async () => {
   mocks.buildResearchAction.mockResolvedValueOnce({ ok: false, error: "assembly failed" });
   const onNotesChange = vi.fn();

@@ -125,15 +125,22 @@ export function StageResearch({
   useEffect(() => {
     if (session.researchNotes) return;
     let cancelled = false;
-    buildResearchAction(session.id).then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        onNotesChange(result.notes);
-        setFacts(result.notes.facts);
-      } else {
-        setAssemblyFailed(true);
-      }
-    });
+    buildResearchAction(session.id)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          onNotesChange(result.notes);
+          setFacts(result.notes.facts);
+        } else {
+          setAssemblyFailed(true);
+        }
+      })
+      .catch(() => {
+        // buildResearchAction rejected outright (threw before it could build a
+        // Result) rather than returning {ok:false} — same failure surface either
+        // way, so route it to the identical error+Retry branch.
+        if (!cancelled) setAssemblyFailed(true);
+      });
     return () => {
       cancelled = true;
     };
