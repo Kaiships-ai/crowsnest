@@ -253,11 +253,20 @@ export function MineCalendar({
       action: {
         label: "Undo",
         onClick: async () => {
+          // Carry the whole row snapshot back through re-create so Undo is lossless
+          // (B-09): restore the original id, time, target length, kind, and remix/source
+          // provenance, not just title/note/date/script.
           const restored = await createPlannedPostAction({
+            id: plan.id,
             title: plan.title,
             note: plan.note ?? undefined,
             plannedDate: plan.plannedDate ?? undefined,
+            plannedTime: plan.plannedTime ?? undefined,
+            targetLengthSec: plan.targetLengthSec ?? undefined,
+            videoKind: plan.videoKind ?? undefined,
             scriptId: plan.scriptId ?? undefined,
+            remixSessionId: plan.remixSessionId ?? undefined,
+            sourceVideoId: plan.sourceVideoId ?? undefined,
           });
           if (!restored.ok) {
             toast.error(restored.error);

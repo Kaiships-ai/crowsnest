@@ -149,6 +149,54 @@ describe("createPlannedPostAction", () => {
     expect(row.scriptId).toBe(scriptId);
     expect(row.remixSessionId).toBe(remixSessionId);
   });
+
+  // B-09: the calendar delete Undo re-creates a deleted plan by calling this action with
+  // the full row snapshot it still holds. Undo must be lossless — every field the plan
+  // carried has to come back, including the two this action historically could not carry
+  // (its own id, and targetLengthSec), or Undo silently mints a different, emptier plan.
+  test("re-creates a deleted plan losslessly from its full snapshot (Undo, B-09)", async () => {
+    const scriptId = await seedScript();
+    const remixSessionId = await seedRemixSession();
+    const [session] = await db.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, remixSessionId));
+    const sourceVideoId = session.sourceVideoId;
+
+    // A fully loaded plan: dated and timed, with a target length, a kind, a script, and
+    // remix/source provenance.
+    const created = await createPlannedPostAction({ title: "Loaded", note: "keep me", plannedDate: "2026-08-01", plannedTime: "09:30", scriptId, remixSessionId, sourceVideoId, videoKind: "talking-head" });
+    expect(created.ok).toBe(true);
+    if (!created.ok) return;
+    await updatePlannedPostAction(created.id, { targetLengthSec: 42 });
+
+    // The snapshot the calendar holds for the row, then delete it (mirrors the Undo path).
+    const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    const deleted = await deletePlannedPostAction(created.id);
+    expect(deleted.ok).toBe(true);
+
+    // Undo: re-create from the full snapshot.
+    const restored = await createPlannedPostAction({
+      id: snapshot.id,
+      title: snapshot.title,
+      note: snapshot.note ?? undefined,
+      plannedDate: snapshot.plannedDate ?? undefined,
+      plannedTime: snapshot.plannedTime ?? undefined,
+      targetLengthSec: snapshot.targetLengthSec ?? undefined,
+      videoKind: snapshot.videoKind ?? undefined,
+      scriptId: snapshot.scriptId ?? undefined,
+      remixSessionId: snapshot.remixSessionId ?? undefined,
+      sourceVideoId: snapshot.sourceVideoId ?? undefined,
+    });
+    expect(restored.ok).toBe(true);
+    if (!restored.ok) return;
+
+    const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(row.id).toBe(created.id);
+    expect(row.plannedTime).toBe("09:30");
+    expect(row.targetLengthSec).toBe(42);
+    expect(row.videoKind).toBe("talking-head");
+    expect(row.scriptId).toBe(scriptId);
+    expect(row.remixSessionId).toBe(remixSessionId);
+    expect(row.sourceVideoId).toBe(sourceVideoId);
+  });
 });
 
 describe("videoKind (content machine v1, task 1)", () => {

@@ -2,7 +2,7 @@
 
 `documents/architect/core-components/mine/`
 
-Status: shipped and in daily use. The delete undo is lossy, and there is no UI control to clear the own channel once set; neither blocks the page from working, and each is tracked in the backlog.
+Status: shipped and in daily use. The delete undo is lossless, re-creating the plan under its original id with its time, target length, kind, and remix/source links intact. There is no UI control to clear the own channel once set; that does not block the page from working and is tracked in the backlog.
 
 ## 1. Module structure
 
@@ -206,7 +206,7 @@ The three parallel branches above stand in for the page's full `Promise.all`, wh
 - **Own-channel insights are a separate table set by design, not a flag on channels.** A flag on `channels` would put own posts inside the outlier feed and channel scoring by default, and every consumer would need an exclusion clause someone would eventually forget. Separation makes "own posts never appear in the outlier feed" a structural fact instead of a convention.
 - **Own posts are read-only; the Graph measurement is the only writer of them.** The instagrapi sidecar writes tracked videos, never own posts, so a sync never changes this page. A plan reaches `published` two ways: the user marks it by hand, or the publish pipeline publishes it and writes the state back onto the plan's `planned_posts` row (see the [publish](../publish/02-architecture.md) component); either way the own-post tables stay a read-only, measurement-fed record.
 - **Planning and publishing are separate dialogs.** The plan dialog stays a dated intention with no time or target-length field even though the record can hold both; publishing a plan (upload, caption, publish now or schedule) is the distinct `publish-dialog.tsx` flow, opened from the calendar. The scheduler that fires a scheduled publish belongs to the [publish](../publish/02-architecture.md) component; mine itself sends no reminders.
-- **No UI to clear the own channel.** `unsetOwnChannelAction` exists but no control on the page calls it (B-15); the delete Undo re-creates a plan lossily, dropping id and several links (B-09). See [05-backlog-to-enhance](05-backlog-to-enhance.md).
+- **No UI to clear the own channel.** `unsetOwnChannelAction` exists but no control on the page calls it (B-15). The delete Undo re-creates the plan losslessly: `createPlannedPostAction` takes an optional `id` so Undo restores the original row identity along with its time, target length, kind, and remix/source links. See [05-backlog-to-enhance](05-backlog-to-enhance.md).
 
 ## 8. Open, not verified
 

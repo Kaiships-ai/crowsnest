@@ -42,10 +42,14 @@ async function getPlan(id: string) {
 }
 
 export async function createPlannedPostAction(input: {
+  /** Normally minted here. Supplied only to re-create a just-deleted plan under its
+   *  original id so the calendar delete Undo is lossless (B-09). */
+  id?: string;
   title: string;
   note?: string;
   plannedDate?: string;
   plannedTime?: string;
+  targetLengthSec?: number;
   scriptId?: string;
   remixSessionId?: string;
   sourceVideoId?: string;
@@ -67,7 +71,7 @@ export async function createPlannedPostAction(input: {
       return { ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" };
     }
 
-    const id = newId();
+    const id = input.id ?? newId();
     const now = nowIso();
     // A date in the past is allowed on create — see contract 6's failure list: refusing
     // it would stop the user recording a slot they blew, which is what "missed" exists
@@ -79,6 +83,7 @@ export async function createPlannedPostAction(input: {
       note: input.note?.trim() || null,
       plannedDate: input.plannedDate ?? null,
       plannedTime: input.plannedTime ?? null,
+      targetLengthSec: input.targetLengthSec ?? null,
       scriptId: input.scriptId ?? null,
       remixSessionId: input.remixSessionId ?? null,
       sourceVideoId: input.sourceVideoId ?? null,
