@@ -218,10 +218,24 @@ function parseLooseJson<T>(raw: string, schema: z.ZodType<T>): { success: true; 
  * A base-URL override (`LLM_BASE_URL`) means a local OpenAI-compat router is
  * *configured* — see `CompatLlmClient`. Presence-only, deliberately: `getLlm()` also
  * checks `routerReachable()` before deciding which client to actually hand back, so this
- * function alone no longer says whether a given call is routed through the proxy.
+ * function alone no longer says whether a given call is routed through the proxy. Use
+ * `isRoutedThroughProxy()` for that question.
  */
 export function isCompatMode(): boolean {
   return Boolean(process.env.LLM_BASE_URL);
+}
+
+/**
+ * The live counterpart to `isCompatMode()`, and the exact test `getLlm()` uses to pick
+ * `useCompat` below — kept as its own export so status surfaces (the dashboard's
+ * dependency badge, ENH-2) can ask "is a call actually going to be routed through the
+ * proxy right now" without duplicating that decision or reaching into `getLlm()`'s
+ * cache. `isCompatMode()` alone answers a different, narrower question (is a proxy
+ * address merely configured) that a status badge must not present as "routed through
+ * proxy" — a configured-but-unreachable proxy still falls back to direct Anthropic.
+ */
+export async function isRoutedThroughProxy(): Promise<boolean> {
+  return isCompatMode() ? await routerReachable().catch(() => false) : false;
 }
 
 let cachedClient: LlmClient | null = null;
@@ -250,9 +264,7 @@ export async function getLlm(): Promise<LlmClient> {
   if (!cachedClient) {
     const apiKey = getSecret("ANTHROPIC_API_KEY");
     const baseURL = process.env.LLM_BASE_URL;
-    // routerReachable() already swallows its own errors and resolves false, but a
-    // rejection here must never take getLlm() down with it -- treat one as unreachable.
-    const useCompat = isCompatMode() ? await routerReachable().catch(() => false) : false;
+    const useCompat = await isRoutedThroughProxy();
     const anthropic = new Anthropic(useCompat && baseURL ? { apiKey, baseURL } : { apiKey });
     cachedClient = useCompat ? new CompatLlmClient(anthropic) : new AnthropicLlmClient(anthropic);
   }

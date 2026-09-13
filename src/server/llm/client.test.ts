@@ -12,6 +12,7 @@ let LlmParseError: typeof import("./client")["LlmParseError"];
 let getLlm: typeof import("./client")["getLlm"];
 let hasLlmKey: typeof import("./client")["hasLlmKey"];
 let isCompatMode: typeof import("./client")["isCompatMode"];
+let isRoutedThroughProxy: typeof import("./client")["isRoutedThroughProxy"];
 let resolveModel: typeof import("./client")["resolveModel"];
 let resetLlmClient: typeof import("./client")["resetLlmClient"];
 let _createLlm: typeof import("./client")["_createLlm"];
@@ -51,6 +52,7 @@ beforeAll(async () => {
     getLlm,
     hasLlmKey,
     isCompatMode,
+    isRoutedThroughProxy,
     resolveModel,
     resetLlmClient,
     _createLlm,
@@ -199,6 +201,41 @@ describe("getLlm reachability fallback", () => {
 
     await expect(getLlm()).rejects.toThrow(NoApiKeyError);
     expect(routerControl.routerReachable).not.toHaveBeenCalled();
+  });
+});
+
+describe("isRoutedThroughProxy (ENH-2: the dashboard badge's honesty check)", () => {
+  beforeEach(() => {
+    routerControl.routerReachable.mockClear();
+  });
+
+  test("LLM_BASE_URL unset: false, without probing reachability", async () => {
+    delete process.env.LLM_BASE_URL;
+
+    expect(await isRoutedThroughProxy()).toBe(false);
+    expect(routerControl.routerReachable).not.toHaveBeenCalled();
+  });
+
+  test("LLM_BASE_URL set and the proxy answers: true — a call really is routed through it", async () => {
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockResolvedValue(true);
+
+    expect(await isRoutedThroughProxy()).toBe(true);
+  });
+
+  test("LLM_BASE_URL set but the proxy does not answer: false — matches getLlm()'s own fallback to direct Anthropic, unlike isCompatMode() which would still read true", async () => {
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockResolvedValue(false);
+
+    expect(await isRoutedThroughProxy()).toBe(false);
+    expect(isCompatMode()).toBe(true);
+  });
+
+  test("routerReachable rejecting is treated as unreachable, not a thrown error", async () => {
+    process.env.LLM_BASE_URL = "http://localhost:20128";
+    routerControl.routerReachable.mockRejectedValue(new Error("boom"));
+
+    await expect(isRoutedThroughProxy()).resolves.toBe(false);
   });
 });
 
