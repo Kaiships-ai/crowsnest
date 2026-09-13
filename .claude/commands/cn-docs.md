@@ -10,8 +10,8 @@ INDEX skill nhóm DOCS. Args: $ARGUMENTS
 
 | # | Skill | Khi nào |
 |---|-------|---------|
-| 1 | technical-documentation 🥚 | chuẩn viết doc (feeds house-style) |
-| 2 | crowsnest-refactor-docs 🥚 | refactor doc cũ, audit nguồn |
+| 1 | technical-documentation | chuẩn viết doc (feeds house-style) |
+| 2 | crowsnest-refactor-docs | refactor doc cũ, audit nguồn |
 | 3 | crowsnest-document-component 🔒 | bộ 5-doc + mkdocs wiring |
 
-🥚 = chưa port · 🔒 = gõ Trigger tay.
+🔒 = gõ Trigger tay.

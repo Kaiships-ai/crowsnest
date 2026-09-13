@@ -52,7 +52,7 @@ Work in an isolated branch.
 Find the root cause, prove it with a failing test, then fix only that.
 
 - Call `systematic-debugging`. Finish Phase 1 and Phase 2 before any fix code. Its Iron Law holds here without exception.
-- Write the failing test first, picked by the row's verify method (table below).
+- A bug fix is always red-first, on any track: write the failing test first, picked by the row's verify method (table below). Select the layer with `crowsnest-testing` and author the test through the `test-audit` gate.
 - Confirm the test fails for the reason in the row's title, not an unrelated one.
 - Fix the root cause from Phase 1. One change, no riding refactor.
 - Three files or fewer: skip `writing-plans`, go test to fix. More than that: call `writing-plans`.

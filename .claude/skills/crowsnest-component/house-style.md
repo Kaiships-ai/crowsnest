@@ -54,6 +54,13 @@ This is the quality bar every one of the five component docs under `documents/ar
 
 Every deliverable follows the same rule: no em or en dashes, no curly quotes, sentence-case headings, grounded to real code, no invented facts.
 
+The full writing playbook lives in the `technical-documentation` skill. The load-bearing rules it adds to the above:
+
+- Write for the reader, not the system: name things by what a user recognizes, and lead with what they can do.
+- Active voice, present tense, concrete over clever, one idea per sentence.
+- Ground every claim in code or a passing test; anything unproven goes in the "open, not verified" section, never stated as fact elsewhere.
+- Cut slop: no filler intros, no "in order to", no restating the heading, no hedging that carries no information.
+
 Numbered sections: in every one of the five docs, each top-level `##` section heading is numbered sequentially from 1, per doc. In `03-feature-description.md` the feature summary table is section 1, so the feature detail sections begin at 2.
 
 Evergreen rule: these docs state the current system as fact. No dated "verified on" evidence framing, no `Date:` header field, no ticket IDs as inline citations. Verify live, then write the result as plain fact.

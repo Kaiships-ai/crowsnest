@@ -10,8 +10,8 @@ INDEX skill nhóm OPS. Args: $ARGUMENTS
 
 | # | Skill | Khi nào |
 |---|-------|---------|
-| 1 | crowsnest-route 🥚 | router FAST/CAREFUL (DANGER Next.js) |
-| 2 | crowsnest-update 🥚 | update + session recovery |
-| 3 | crowsnest-live-updater 🥚 | mirror main + tự sửa CI đỏ |
+| 1 | crowsnest-route | router FAST/CAREFUL (DANGER Next.js) |
+| 2 | crowsnest-update | update + session recovery |
+| 3 | crowsnest-live-updater | mirror main + tự sửa CI đỏ |
 
-🥚 = chưa port (route từ kai).
+All ported.

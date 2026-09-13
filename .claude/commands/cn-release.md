@@ -10,13 +10,13 @@ INDEX skill nhóm RELEASE. Args: $ARGUMENTS
 
 | # | Skill | Khi nào |
 |---|-------|---------|
-| 1 | crowsnest-release-maintainer 🥚 | prepare/publish/recover |
-| 2 | crowsnest-release-ci 🥚 | full release validation |
-| 3 | crowsnest-release-nightly 🥚 | alpha/nightly |
-| 4 | crowsnest-changelog-update 🥚 | auto-changelog từ git |
-| 5 | crowsnest-verify-release 🥚 | verify live + healthz |
-| 6 | crowsnest-release-validation 🥚 | feedback tester |
-| 7 | crowsnest-release-announcement 🥚 | announcement |
-| 8 | crowsnest-plugin-testing 🥚 | validate plugin |
+| 1 | crowsnest-release-maintainer | prepare/publish/recover |
+| 2 | crowsnest-release-ci | full release validation |
+| 3 | crowsnest-release-nightly | alpha/nightly |
+| 4 | crowsnest-changelog-update | auto-changelog từ git |
+| 5 | crowsnest-verify-release | verify live + healthz |
+| 6 | crowsnest-release-validation | feedback tester |
+| 7 | crowsnest-release-announcement | announcement |
+| 8 | crowsnest-plugin-testing (stub) | validate plugin |
 
-🥚 = chưa port.
+(stub) = frontmatter only, port sau.

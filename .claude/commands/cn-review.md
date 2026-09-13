@@ -10,12 +10,12 @@ INDEX skill nhóm REVIEW. Args: $ARGUMENTS
 
 | # | Skill | Khi nào |
 |---|-------|---------|
-| 1 | autoreview 🥚 | multi-model review gate |
-| 2 | crowsnest-pr 🥚 | review/triage/land PR |
-| 3 | crowsnest-repair-sweep 🥚 | sửa bug batch |
-| 4 | crowsnest-score 🥚 | maturity scorecard |
-| 5 | crowsnest-ci-limits 🥚 | quản capacity CI |
-| 6 | crowsnest-secret-scanning 🥚 | triage secret alert |
-| 7 | crowsnest-ghsa 🥚 | advisory GHSA |
+| 1 | autoreview | multi-model review gate |
+| 2 | crowsnest-pr | review/triage/land PR |
+| 3 | crowsnest-repair-sweep | sửa bug batch |
+| 4 | crowsnest-score | maturity scorecard |
+| 5 | crowsnest-ci-limits (stub) | quản capacity CI |
+| 6 | crowsnest-secret-scanning (stub) | triage secret alert |
+| 7 | crowsnest-ghsa (stub) | advisory GHSA |
 
-🥚 = chưa port.
+(stub) = frontmatter only, port sau.

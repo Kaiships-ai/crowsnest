@@ -78,7 +78,7 @@ Call `subagent-driven-development` in independent-tasks parallel mode where the 
 
 ### 4b. The test gate (mandatory, blocks Phase 5)
 
-Run every layer and mark every shipped-mapped case in `04-test-cases.md` with a 🟢/🔴/🟡 marker before this phase ends. A shipped case left `not run` fails the gate.
+Select and diagnose the layers with `crowsnest-testing`, at the depth `crowsnest-route` set for this work (FAST is the smallest meaningful check, CAREFUL is full coverage). Author every new test through the `test-audit` gate. Run every layer and mark every shipped-mapped case in `04-test-cases.md` with a 🟢/🔴/🟡 marker before this phase ends. A shipped case left `not run` fails the gate.
 
 | Layer | What runs |
 | --- | --- |
