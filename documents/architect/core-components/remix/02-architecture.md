@@ -2,7 +2,7 @@
 
 `documents/architect/core-components/remix/`
 
-Status: shipped and in daily use, with three known bugs open (a failed research assembly can strand the stage on its loading skeleton, regenerating the outline leaves stale script variants in place with no warning, and Quick Remix is not blocked when the model proxy is down the way the other generation controls are).
+Status: shipped and in daily use, with two known bugs open (regenerating the outline leaves stale script variants in place with no warning, and Quick Remix is not blocked when the model proxy is down the way the other generation controls are). A failed research assembly now clears its skeleton for an error and Retry rather than stranding the stage on the loader.
 
 ## 1. Module structure
 
@@ -187,6 +187,8 @@ sequenceDiagram
 
 The Hook, Style, and Script stages each render `generating-skeleton.tsx`'s `GeneratingSkeleton` while their generation call is in flight: one shared calm loading rhythm (a labelled row of skeleton blocks, stacked or gridded per stage) instead of each stage inventing its own busy state. The `GroundedIn` line stays visible above the skeleton the whole time a run is in flight, so what fed the run is never hidden.
 
+The Research stage runs its own auto-assembly skeleton on entry when `researchNotes` is still null. If `buildResearchAction` returns a failure, `StageResearch` clears that skeleton for an error line and a Retry button rather than spinning forever; Retry re-runs the assembly, and a success then renders the notes. Continue stays enabled throughout, so a buyer can proceed with no notes even if assembly keeps failing.
+
 The stepper's inter-stage connector (`stepper.tsx`) steps from the hairline `--border` rule to the strong `--line-strong` neutral rule once the run has reached past that segment (`i < furthestIndex`). The connector never turns amber or the pos green, per the Amber Law; the color change runs on a 200ms transition guarded by `motion-reduce`.
 
 `remix-studio.tsx` wraps the active stage in a `div` keyed on `activeStage` with an `animate-in fade-in slide-in-from-bottom-1` transition (150ms, `motion-reduce:animate-none`), so switching stages replays a fade-and-rise. `RunLog` renders outside that keyed wrapper, so the run log does not re-animate on every stage change.
@@ -194,7 +196,7 @@ The stepper's inter-stage connector (`stepper.tsx`) steps from the hairline `--b
 ## 8. Open, not verified
 
 - **Whether a truly concurrent double finish on a session with no plan can both insert.** `finishRemix` reads the most recent linked plan before deciding to insert, and there is no unique constraint on `planned_posts.remix_session_id` backing that read; two finishes racing at the database level, rather than the disabled-button case one browser tab already prevents, have not been proven safe.
-- **Whether the known bugs in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduce exactly as described against a live LLM proxy.** The stuck research skeleton, the stale-variants-after-outline-regenerate gap, and Quick Remix skipping the proxy-down block are read from the code paths involved, not from a reproduced run against a real proxy outage.
+- **Whether the known bugs in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduce exactly as described against a live LLM proxy.** The stale-variants-after-outline-regenerate gap and Quick Remix skipping the proxy-down block are read from the code paths involved, not from a reproduced run against a real proxy outage. The stuck research skeleton is covered: `StageResearch` now renders an error and Retry on a failed assembly.
 - **Whether a Kit-installed buyer's remix generation completes end to end against the real Anthropic API with no local proxy.** This depends on the [llm layer](../llm/01-concept-brief.md), whose own open questions cover the no-proxy path.
 
 ## 9. MCP vs in-app: two remix paths

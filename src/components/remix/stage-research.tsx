@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -115,25 +116,59 @@ export function StageResearch({
   // should be picked up again; the auto-build effect below sets it directly the one
   // other time it changes (inside its .then(), not synchronously in the effect body).
   const [facts, setFacts] = useState(session.researchNotes?.facts ?? "");
+  // Assembly can throw (buildResearch reads the db even though it makes no model
+  // call), and its failure has to leave the skeleton for a retry rather than spin
+  // forever (B-02). `attempt` bumping re-runs the effect for a manual retry.
+  const [assemblyFailed, setAssemblyFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (session.researchNotes) return;
     let cancelled = false;
-    buildResearchAction(session.id).then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        onNotesChange(result.notes);
-        setFacts(result.notes.facts);
-      }
-    });
+    buildResearchAction(session.id)
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          onNotesChange(result.notes);
+          setFacts(result.notes.facts);
+        } else {
+          setAssemblyFailed(true);
+        }
+      })
+      .catch(() => {
+        // buildResearchAction rejected outright (threw before it could build a
+        // Result) rather than returning {ok:false} — same failure surface either
+        // way, so route it to the identical error+Retry branch.
+        if (!cancelled) setAssemblyFailed(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [session.id, session.researchNotes, onNotesChange]);
+  }, [session.id, session.researchNotes, onNotesChange, attempt]);
 
-  // Checked directly (not via the `building` bool above) so TypeScript narrows
+  // Checked directly (not via a derived bool) so TypeScript narrows
   // session.researchNotes to non-null for the rest of the component.
   if (session.researchNotes === null) {
+    if (assemblyFailed) {
+      return (
+        <div className="flex flex-col gap-3" data-testid="remix-research-error">
+          <p className="text-sm text-muted-foreground">
+            Could not assemble research from the source post. You can retry, or continue and add your own facts on the
+            next stages.
+          </p>
+          <Button
+            variant="outline"
+            className="self-start rounded-none"
+            onClick={() => {
+              setAssemblyFailed(false);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Retry
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">Assembling research from the source post…</p>
