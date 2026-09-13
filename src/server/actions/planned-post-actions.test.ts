@@ -1,6 +1,10 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
+// A datetime-local string (YYYY-MM-DDTHH:MM) always ~30 days in the future, so the
+// schedule tests never rot into PLAN_SCHEDULE_IN_PAST as the calendar advances.
+const FUTURE_SCHEDULE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
 // revalidatePath needs a request-scoped work store that only exists inside a real
 // request; the new publish actions call it, so it is stubbed here (same shape as
 // fleet-actions.test.ts). The pre-publish actions never call it, so their tests are
@@ -503,7 +507,7 @@ describe("schedulePublishAction preconditions", () => {
   test("names the missing video", async () => {
     configurePublish();
     const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
-    const result = await schedulePublishAction(created.id, "2026-09-10T14:00");
+    const result = await schedulePublishAction(created.id, FUTURE_SCHEDULE);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NO_VIDEO" });
   });
 
@@ -511,7 +515,7 @@ describe("schedulePublishAction preconditions", () => {
     configurePublish();
     const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
     await db.update(tables.plannedPosts).set({ videoAssetId: await seedVideoAsset() }).where(eq(tables.plannedPosts.id, created.id));
-    const result = await schedulePublishAction(created.id, "2026-09-10T14:00");
+    const result = await schedulePublishAction(created.id, FUTURE_SCHEDULE);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NO_CAPTION" });
   });
 
@@ -520,7 +524,7 @@ describe("schedulePublishAction preconditions", () => {
     process.env.IG_GRAPH_TOKEN = "tok";
     process.env.IG_GRAPH_USER_ID = "user";
     const id = await seedPublishablePlan();
-    const result = await schedulePublishAction(id, "2026-09-10T14:00");
+    const result = await schedulePublishAction(id, FUTURE_SCHEDULE);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NO_BUCKET" });
   });
 
@@ -532,7 +536,7 @@ describe("schedulePublishAction preconditions", () => {
     process.env.S3_SECRET = "secret";
     process.env.S3_PUBLIC_BASE = "https://media.example.com";
     const id = await seedPublishablePlan();
-    const result = await schedulePublishAction(id, "2026-09-10T14:00");
+    const result = await schedulePublishAction(id, FUTURE_SCHEDULE);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NO_GRAPH" });
   });
 
@@ -553,7 +557,7 @@ describe("schedulePublishAction preconditions", () => {
   test("schedules when every precondition is met, setting scheduledAt and the idempotency key", async () => {
     configurePublish();
     const id = await seedPublishablePlan();
-    const result = await schedulePublishAction(id, "2026-09-10T14:00");
+    const result = await schedulePublishAction(id, FUTURE_SCHEDULE);
     expect(result).toEqual({ ok: true });
 
     const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
@@ -569,7 +573,7 @@ describe("cancelScheduledPublishAction", () => {
   test("returns a scheduled publish to a draft and clears scheduledAt", async () => {
     configurePublish();
     const id = await seedPublishablePlan();
-    await schedulePublishAction(id, "2026-09-10T14:00");
+    await schedulePublishAction(id, FUTURE_SCHEDULE);
 
     const result = await cancelScheduledPublishAction(id);
     expect(result).toEqual({ ok: true });
