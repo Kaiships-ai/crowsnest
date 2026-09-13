@@ -85,3 +85,8 @@ crowsnest.db-shm
 
 # local retro/analytics scratch
 /.context/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/

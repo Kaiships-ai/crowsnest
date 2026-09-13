@@ -34,7 +34,7 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 ## The bug board is generated, not committed
 
 There is no committed status file, because it would be the one file every parallel session
-conflicts on. Run scripts/plan-status.sh (or the where-are-we skill) to print, on demand, each
+conflicts on. Run scripts/plan-status.sh (or the crowsnest-status skill) to print, on demand, each
 component's open plans and open backlog count.
 
 ## Build the site

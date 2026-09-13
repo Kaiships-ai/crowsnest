@@ -210,7 +210,7 @@ the behavior lens instead.
 Before writing rows, build a scratch feature-to-journey coverage matrix: one row per `●`/`◐`
 feature down the side, the nine corner-case types across the top. Write a happy-path journey for
 every built feature (the floor), then corner rows until five distinct types are covered. The
-matrix does not ship; it just forces the gaps into view, the way cn-weekly's funnel table forces
+matrix does not ship; it just forces the gaps into view, the way crowsnest-weekly's funnel table forces
 coverage into view. Guardrails against busywork: one happy-path journey per built feature, not one
 per business rule (rules stay in the behavior lens), and a journey may cover several features
 (`Feat: 2,4,5`) so breadth is distinct-`Feat`-covered, not row count.

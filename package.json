@@ -17,6 +17,8 @@
     "db:bootstrap": "tsx src/server/db/bootstrap.ts",
     "verify:live": "bash scripts/verify-live.sh",
     "e2e": "bash scripts/e2e/run.sh",
+    "test:e2e": "playwright test",
+    "skill-lint": "bash scripts/skill-lint.sh",
     "ig:import-session": "bash scripts/import-session.sh"
   },
   "dependencies": {
@@ -48,6 +50,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

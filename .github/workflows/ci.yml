@@ -34,3 +34,6 @@ jobs:
 
       - name: Testid audit
         run: bash scripts/testid-audit.sh
+
+      - name: Skill lint
+        run: bash scripts/skill-lint.sh

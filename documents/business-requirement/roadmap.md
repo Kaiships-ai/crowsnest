@@ -36,7 +36,7 @@ docs carry the depth.
   as of this writing that is one blocker (onboarding), and a further set of medium and low
   severity bugs spread across feed, remix, mine, analyze, and ig-sync. Working through
   that board, starting with the blocker, is v0.3's other thread. Run
-  `scripts/plan-status.sh` (or the where-are-we skill) for the current count; this document
+  `scripts/plan-status.sh` (or the crowsnest-status skill) for the current count; this document
   does not carry a snapshot, because a committed count is the one thing every session would
   conflict on (`documents/index.md`).
 

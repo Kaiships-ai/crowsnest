@@ -7,7 +7,7 @@ one instead of from zero. This is the project's memory between fixes: the thing 
 It is deliberately not a retro process, a template, or a fifth doc. It is one table. Two
 skills touch it and nothing else does:
 
-- **`fix-backlog-item`** appends one row when it opens a PR (Step 8), and reads this file
+- **`crowsnest-fix-backlog-item`** appends one row when it opens a PR (Step 8), and reads this file
   for the component it is about to touch during seam-read (Step 2), so a repeated root
   cause is seen before the fix, not after.
 - **`crowsnest-component`** appends one row per shipped component at the Phase 5 doc-sync,
@@ -33,7 +33,7 @@ Columns:
 - **Root cause**: the actual cause from systematic-debugging Phase 1, one line, not the
   symptom.
 - **Fix**: the one-line fix, and the file it landed in.
-- **Guardrail note**: did `fix-backlog-item`'s blast-radius guardrail route this right
+- **Guardrail note**: did `crowsnest-fix-backlog-item`'s blast-radius guardrail route this right
   (auto vs needs-human), or did it over/under-flag? This is what lets the guardrail's
   thresholds (`5 files / 150 lines`, the surface list) be tuned from evidence instead of
   guessed. Leave `ok` when it routed correctly.
@@ -44,7 +44,7 @@ ok`.
 
 ## How to read it before a fix
 
-At `fix-backlog-item` Step 2, grep this file for the component you are about to touch. Two
+At `crowsnest-fix-backlog-item` Step 2, grep this file for the component you are about to touch. Two
 or more rows of the same Class on one component is the signal that the real fix is a shared
 guard at the seam, not another per-caller patch (the ponytail root-cause rule): fix it once
 where the callers route through, and say so in the new row.

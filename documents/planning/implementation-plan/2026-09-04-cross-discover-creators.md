@@ -8,7 +8,7 @@ shipped: null
 
 # Discover Creators Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use ship:subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give a fresh install a fast on-ramp to value: a curated, preseeded list of ~100 creators across four niches the user can browse, filter, and follow in one click (follow = add channel + queue sync), plus a drop-in seed-picker for first-run.
 
@@ -445,7 +445,7 @@ signature so the orchestrator can hand it to Goal 1.
 - Create: `documents/architect/core-components/discover/01-overview.md` … `05-backlog-to-enhance.md`
 - Modify: `README.md` (sections 4 Features + 5 journey), `PRODUCT.md` (capabilities), `documents/business-requirement/product-document.md`, `mkdocs.yml` (nav)
 
-- [ ] **Step 1:** Run `/document-component` (or scaffold by hand) for the `discover` component, grounded to the code in Tasks 1-8, house-style compliant (no em/en dashes, straight quotes, sentence-case headings, evergreen, no invented metrics).
+- [ ] **Step 1:** Run `/crowsnest-document-component` (or scaffold by hand) for the `discover` component, grounded to the code in Tasks 1-8, house-style compliant (no em/en dashes, straight quotes, sentence-case headings, evergreen, no invented metrics).
 - [ ] **Step 2:** README: add "Discover creators" to Features (§4) and a "pick a niche → follow creators → first sync" branch to the journey (§5). PRODUCT.md: add the discover capability under Capabilities. business-requirement/product-document.md: add the feature row. mkdocs.yml: add the discover component to nav.
 - [ ] **Step 3:** `mkdocs build` (or `mkdocs serve`) clean; `npm run lint`/docs checks pass.
 - [ ] **Step 4: Commit.**

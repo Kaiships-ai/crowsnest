@@ -1,8 +1,0 @@
-{
-  "name": "crowsnest-local",
-  "owner": { "name": "crowsnest" },
-  "plugins": [
-    { "name": "taste", "source": "./plugins/taste", "description": "Frontend design and taste skills" },
-    { "name": "ship", "source": "./plugins/ship", "description": "Ship workflow skills" }
-  ]
-}
