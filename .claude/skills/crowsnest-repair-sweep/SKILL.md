@@ -40,7 +40,7 @@ source SHA, authorized actions, and a useful stopping condition. Duplicate
 symptoms share an owner; repeated defect classes are repaired in the canonical
 owner, not by parallel near-identical patches.
 
-Use isolated per-item worktrees (see `ship:using-git-worktrees`) and preserve
+Use isolated per-item worktrees (see `using-git-worktrees`) and preserve
 unrelated files. Serialize shared fetch/ref/branch/worktree operations, PR
 preparation, and merge-ready handoffs in short slots; never hold a slot across
 coding, tests, or a remote wait. Pause only campaign-owned work under resource

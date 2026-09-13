@@ -65,9 +65,9 @@ abstraction intact.
    - `crowsnest-qa-testing` for scenario journeys across surfaces.
    - `crowsnest-e2e` (planned) for new Playwright browser proof; the existing
      browse-e2e journeys run via `npm run e2e`.
-   - `ship:systematic-debugging` for reproduction and root-cause discipline.
-   - `ship:using-git-worktrees` for isolated fix worktrees.
-   - `ship:verification-before-completion` before opening a PR.
+   - `systematic-debugging` for reproduction and root-cause discipline.
+   - `using-git-worktrees` for isolated fix worktrees.
+   - `verification-before-completion` before opening a PR.
    - `caveman:cavecrew-reviewer` or `/code-review` for fresh independent review.
 2. Identify the actual canonical `main` checkout; a worktree can have a different
    `HEAD`. Record `git -C <checkout> rev-parse HEAD` and confirm a clean tree with
