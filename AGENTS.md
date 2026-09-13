@@ -54,7 +54,9 @@ sixth doc. (The prior humanizer hooks that enforced this are removed; do not re-
 
 Before committing: `npm run build`, `npm run test`, `npm run lint`, `npm run typecheck`
 must all pass, and the working tree stays clean. CI on every PR (`.github/workflows/ci.yml`)
-runs typecheck, lint, vitest, and `scripts/testid-audit.sh`. Release is
+runs typecheck, lint, vitest, `scripts/testid-audit.sh`, and `scripts/skill-lint.sh`
+(validates every `.claude/skills` skill: name matches folder, closed frontmatter, a
+description, sane `disable-model-invocation`, no duplicate names). Release is
 `scripts/release-prep.sh <ver>` then `.github/workflows/release.yml`; the Kit changelog
 is `packaging/CHANGELOG.md`.
 
