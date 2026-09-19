@@ -244,6 +244,10 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                           <Link
                             href={item.href}
                             aria-current={itemActive ? "page" : undefined}
+                            // Survives the trip through SidebarMenuButton's `render` and
+                            // the TooltipTrigger it wraps this Link in: Base UI's
+                            // `useRender` merges onto the given element rather than
+                            // replacing it, so Next's own props reach the anchor intact.
                             onNavigate={(e) => {
                               if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
                                 e.preventDefault();
