@@ -1,15 +1,18 @@
 import Link from "next/link";
+import { Archive } from "lucide-react";
 
+import { PageContainer } from "@/components/layout/page-container";
 import { NewTemplateDialog } from "@/components/vault/new-template-dialog";
 import { ScriptCard } from "@/components/vault/script-card";
-import { SavedPostRow, VAULT_ROW_GRID } from "@/components/vault/saved-post-row";
+import { SavedPostRow } from "@/components/vault/saved-post-row";
 import { TemplateCard } from "@/components/vault/template-card";
 import { VaultEmptyState } from "@/components/vault/vault-empty-state";
 import { VaultSearch } from "@/components/vault/vault-search";
 import { VaultSortControl } from "@/components/vault/vault-sort-control";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
 import { getTopOutlierAllTime } from "@/server/queries/dashboard";
 import { getSavedPosts, type SavedPostSort } from "@/server/queries/saved-posts";
 import { getScripts, getVaultItems, type VaultItemRow } from "@/server/queries/vault";
@@ -37,9 +40,13 @@ function parseSort(value: string | undefined): SavedPostSort {
  * that would tell the user their Vault is empty when it is only filtered. */
 function NoMatches({ noun, query }: { noun: string; query: string }) {
   return (
-    <p className="py-16 text-center text-sm text-muted-foreground">
-      No {noun} match &ldquo;{query}&rdquo;.
-    </p>
+    <Empty className="py-16">
+      <EmptyHeader>
+        <EmptyTitle>
+          No {noun} match &ldquo;{query}&rdquo;.
+        </EmptyTitle>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -48,23 +55,29 @@ function NoMatches({ noun, query }: { noun: string; query: string }) {
 function EmptyTemplates({ kind, templatesEmpty }: { kind: "hook" | "style"; templatesEmpty: boolean }) {
   if (templatesEmpty) {
     return (
-      <div className="mx-auto flex max-w-[52ch] flex-col items-center gap-3 py-16 text-center">
-        <p className="text-lg font-medium">Nothing saved yet.</p>
-        <p className="text-sm text-muted-foreground">
-          Hooks and styles are saved from a video&rsquo;s detail page, not from here: open
-          an analyzed video and use its &ldquo;Save to Vault&rdquo; button to keep a hook
-          or a style.
-        </p>
-        <Link href="/feed" className={cn(buttonVariants({ variant: "default" }), "mt-2")}>
-          Open the feed
-        </Link>
-      </div>
+      <Empty className="py-16">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Archive />
+          </EmptyMedia>
+          <EmptyTitle>Nothing saved yet.</EmptyTitle>
+          <EmptyDescription>
+            Hooks and styles are saved from a video&rsquo;s detail page, not from here: open an analyzed video and use its
+            &ldquo;Save to Vault&rdquo; button to keep a hook or a style.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button render={<Link href="/feed" />}>Open the feed</Button>
+        </EmptyContent>
+      </Empty>
     );
   }
   return (
-    <p className="py-16 text-center text-sm text-muted-foreground">
-      No {kind === "hook" ? "hooks" : "styles"} saved yet.
-    </p>
+    <Empty className="py-16">
+      <EmptyHeader>
+        <EmptyTitle>No {kind === "hook" ? "hooks" : "styles"} saved yet.</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -82,7 +95,7 @@ function TemplateGrid({
   if (items.length === 0 && query !== "") return <NoMatches noun={kind === "hook" ? "hooks" : "styles"} query={query} />;
   if (items.length === 0) return <EmptyTemplates kind={kind} templatesEmpty={templatesEmpty} />;
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
         <TemplateCard key={item.id} item={item} />
       ))}
@@ -140,29 +153,26 @@ export default async function VaultPage({
     // scrollbar always present, so the column - and the tab bar inside it - never moves
     // horizontally on tab switch. Width/padding here are already tab-invariant: this div
     // wraps the header and the Tabs root, so no tab swap ever touches them.
-    <div className="mx-auto flex min-h-screen max-w-[1120px] flex-col gap-10 p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          {/* No heading here: Topbar already renders this route's h1 ("Vault") — see
-              nav-items/topbar's ROUTE_TITLES — so the page printed the same word a
-              second time down the left edge. Dropped outright, the way /logs and /runs
-              did, rather than demoted: /mine keeps its line because it names WHICH
-              channel is yours, which the topbar never says, and this one said nothing
-              the topbar had not already said. The count line leads the page now, and
-              its top margin goes with the heading it used to sit under. */}
-          <p className="font-mono text-2xs text-muted-foreground">
-            {vaultHeaderCopy(
-              {
-                savedPosts: savedPosts.length,
-                scripts: scripts.length,
-                hooks: hooks.length,
-                styles: styles.length,
-              },
-              query
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <PageContainer className="flex min-h-screen flex-col gap-8">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        {/* No heading here: Topbar already renders this route's h1 ("Vault") — see
+            nav-items/topbar's ROUTE_TITLES — so the page printed the same word a second
+            time down the left edge. Dropped outright, the way /logs and /runs did,
+            rather than demoted: /mine keeps its line because it names WHICH channel is
+            yours, which the topbar never says, and this one said nothing the topbar had
+            not already said. */}
+        <p className="font-mono text-2xs text-muted-foreground">
+          {vaultHeaderCopy(
+            {
+              savedPosts: savedPosts.length,
+              scripts: scripts.length,
+              hooks: hooks.length,
+              styles: styles.length,
+            },
+            query
+          )}
+        </p>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <VaultSearch query={query} />
           <NewTemplateDialog />
         </div>
@@ -199,30 +209,22 @@ export default async function VaultPage({
           ) : savedPosts.length === 0 ? (
             <VaultEmptyState topOutlierVideoId={topOutlierVideoId} />
           ) : (
-            <div className="flex flex-col">
-              {/* VAULT_ROW_GRID is `40px_minmax(0,1fr)_76px_112px_104px` - every column but
-                  the caption is a fixed pixel track, and SavedPostRow already falls back to
-                  "-" for a missing score/note rather than rendering an empty cell, so no
-                  column ever shrinks or grows with a row's content. Header and rows share
-                  this one grid, so they can't drift out of alignment either. */}
-              <div
-                className={cn(
-                  VAULT_ROW_GRID,
-                  "gap-4 border-b border-border pb-3 font-mono text-2xs tracking-wide text-muted-foreground"
-                )}
-              >
-                <span />
-                <span>SAVED POST</span>
-                <span className="text-right">SCORE</span>
-                <span className="text-right">WHY KEPT</span>
-                <span className="text-right">POSTED</span>
-              </div>
-              <div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10" />
+                  <TableHead>Saved post</TableHead>
+                  <TableHead className="w-[76px] text-right">Score</TableHead>
+                  <TableHead className="w-[112px] text-right">Why kept</TableHead>
+                  <TableHead className="w-[104px] text-right">Posted</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {savedPosts.map((row) => (
                   <SavedPostRow key={row.id} row={row} />
                 ))}
-              </div>
-            </div>
+              </TableBody>
+            </Table>
           )}
         </TabsContent>
 
@@ -230,11 +232,13 @@ export default async function VaultPage({
           {scripts.length === 0 && query !== "" ? (
             <NoMatches noun="scripts" query={query} />
           ) : scripts.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">
-              No scripts yet. Write one in the Remix Studio.
-            </p>
+            <Empty className="py-16">
+              <EmptyHeader>
+                <EmptyTitle>No scripts yet. Write one in the Remix Studio.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {scripts.map((script) => (
                 <ScriptCard key={script.id} script={script} />
               ))}
@@ -250,6 +254,6 @@ export default async function VaultPage({
           <TemplateGrid items={styles} kind="style" templatesEmpty={templatesEmpty} query={query} />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

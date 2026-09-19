@@ -14,8 +14,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { createVaultItemAction } from "@/server/actions/vault-actions";
@@ -78,9 +78,9 @@ export function NewTemplateDialog() {
           <DialogDescription>Add a hook or style template by hand.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="template-type">Type</Label>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="template-type">Type</FieldLabel>
             <Select items={TYPE_ITEMS} value={type} onValueChange={(v) => setType(v as "hook" | "style")}>
               <SelectTrigger id="template-type">
                 <SelectValue />
@@ -93,15 +93,15 @@ export function NewTemplateDialog() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="template-title">Title</Label>
+          <Field>
+            <FieldLabel htmlFor="template-title">Title</FieldLabel>
             <Input id="template-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Curiosity Gap Hook" />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="template-text">Template text</Label>
+          <Field>
+            <FieldLabel htmlFor="template-text">Template text</FieldLabel>
             <Textarea
               id="template-text"
               value={templateText}
@@ -109,13 +109,14 @@ export function NewTemplateDialog() {
               placeholder="the {topic} nobody is talking about (yet)"
               rows={3}
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="template-tags">Tags (comma separated)</Label>
+          <Field>
+            <FieldLabel htmlFor="template-tags">Tags</FieldLabel>
             <Input id="template-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="curiosity, warning" />
-          </div>
-        </div>
+            <FieldDescription>Comma separated.</FieldDescription>
+          </Field>
+        </FieldGroup>
 
         <DialogFooter>
           <Button onClick={submit} disabled={!title || !templateText || pending}>

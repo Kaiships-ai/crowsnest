@@ -17,7 +17,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CardAction, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format";
@@ -32,11 +36,12 @@ const POLL_MS = 15000;
 // what it was given rather than re-deciding the policy.
 const ALERT_KINDS = new Set<NotificationKind>(["run_failed", "sla_breach"]);
 
-// Mockup chip variants (`.kind.fail` / `.kind.sla` / `.kind.done`), matched by name.
-const KIND_CHIP_CLASS: Record<NotificationKind, string> = {
-  run_failed: "text-destructive border-destructive/45",
-  sla_breach: "text-destructive border-destructive/45",
-  run_finished: "text-success border-success/40",
+// One Badge variant per kind. `run_finished` is the only good-news kind, and `success`
+// is not a Badge variant, so it carries the token directly.
+const KIND_BADGE: Record<NotificationKind, { variant: "destructive" | "outline"; className?: string }> = {
+  run_failed: { variant: "destructive" },
+  sla_breach: { variant: "destructive" },
+  run_finished: { variant: "outline", className: "text-[var(--success)]" },
 };
 
 function fireBrowserNotification(n: NotificationRow): void {
@@ -137,52 +142,66 @@ export function NotificationCenter() {
       >
         <Bell className="size-4" />
         {unread > 0 && (
-          <span
-            aria-hidden
-            className="absolute -top-1.5 -right-1.5 grid h-[17px] min-w-[17px] place-items-center border border-border bg-popover px-1 font-mono text-[11px] font-semibold text-foreground"
-          >
+          <Badge aria-hidden className="absolute -top-1.5 -right-1.5 h-[17px] min-w-[17px] px-1 font-mono tabular-nums">
             {unread > 99 ? "99+" : unread}
-          </span>
+          </Badge>
         )}
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-96 max-h-[75vh] gap-0 overflow-y-auto p-0">
-        <div className="flex items-center justify-between gap-3 border-b border-border px-3.5 py-2.5">
-          <span className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
+      <PopoverContent align="end" className="max-h-[75vh] w-96 gap-0 overflow-y-auto p-0">
+        <CardHeader className="border-b py-3">
+          <CardTitle className="text-sm text-muted-foreground">
             Notifications{unread > 0 ? ` · ${unread} unread` : ""}
-          </span>
-          <Button type="button" size="xs" variant="outline" onClick={handleMarkAllRead} disabled={unread === 0}>
-            Mark all read
-          </Button>
-        </div>
+          </CardTitle>
+          <CardAction>
+            <Button type="button" size="xs" variant="outline" onClick={handleMarkAllRead} disabled={unread === 0}>
+              Mark all read
+            </Button>
+          </CardAction>
+        </CardHeader>
 
         {notifications.length === 0 ? (
-          <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">No notifications yet.</p>
+          <Empty className="p-6">
+            <EmptyHeader>
+              <EmptyTitle className="text-sm font-normal text-muted-foreground">No notifications yet.</EmptyTitle>
+            </EmptyHeader>
+          </Empty>
         ) : (
-          <ul>
+          <ItemGroup>
             {notifications.map((n) => {
               const unreadRow = n.readAt === null;
+              const badge = KIND_BADGE[n.kind];
               return (
-                <li
+                <Item
                   key={n.id}
-                  className={cn("flex gap-3 border-b border-border px-3.5 py-3 last:border-b-0", unreadRow && "bg-popover/45")}
+                  size="sm"
+                  className={cn("rounded-none border-b last:border-b-0", unreadRow && "bg-muted/40")}
                 >
-                  <span aria-hidden className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", unreadRow ? "bg-foreground" : "bg-transparent")} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <ItemMedia>
+                    <span
+                      aria-hidden
+                      className={cn("size-1.5 rounded-full", unreadRow ? "bg-foreground" : "bg-transparent")}
+                    />
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle>
                       <span className="truncate">{n.title}</span>
-                      <span className={cn("shrink-0 border px-1.5 py-px font-mono text-2xs", KIND_CHIP_CLASS[n.kind])}>{n.kind}</span>
-                    </div>
-                    <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>
-                    <p className="mt-1 font-mono text-2xs text-muted-foreground">{relativeTime(n.createdAt)}</p>
-                  </div>
-                  <Button type="button" size="xs" variant="outline" className="h-fit shrink-0 self-start" onClick={() => handleOpen(n)}>
-                    Open
-                  </Button>
-                </li>
+                      <Badge variant={badge.variant} className={cn("font-mono", badge.className)}>
+                        {n.kind}
+                      </Badge>
+                    </ItemTitle>
+                    <ItemDescription>{n.body}</ItemDescription>
+                    <ItemDescription className="font-mono text-2xs">{relativeTime(n.createdAt)}</ItemDescription>
+                  </ItemContent>
+                  <ItemActions className="self-start">
+                    <Button type="button" size="xs" variant="outline" onClick={() => handleOpen(n)}>
+                      Open
+                    </Button>
+                  </ItemActions>
+                </Item>
               );
             })}
-          </ul>
+          </ItemGroup>
         )}
       </PopoverContent>
     </Popover>

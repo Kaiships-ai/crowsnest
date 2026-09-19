@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, X } from "lucide-react";
 
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 
 /** Search across every Vault tab at once. Lives in the URL like VaultSortControl's
  * sort, so a search survives a reload and can be linked to.
@@ -43,26 +43,25 @@ export function VaultSearch({ query }: { query: string }) {
   }, [value, pathname, router, searchParams]);
 
   return (
-    <div className="relative w-full max-w-64">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-      <Input
+    <InputGroup className="w-full sm:w-64">
+      <InputGroupAddon align="inline-start">
+        <Search aria-hidden />
+      </InputGroupAddon>
+      <InputGroupInput
         type="search"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         placeholder="Search the Vault"
         aria-label="Search the Vault"
-        className="h-8 pl-8 pr-8 font-mono text-2xs"
+        className="font-mono text-2xs"
       />
       {value !== "" && (
-        <button
-          type="button"
-          onClick={() => setValue("")}
-          aria-label="Clear search"
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-3.5" />
-        </button>
+        <InputGroupAddon align="inline-end">
+          <InputGroupButton size="icon-xs" onClick={() => setValue("")} aria-label="Clear search">
+            <X />
+          </InputGroupButton>
+        </InputGroupAddon>
       )}
-    </div>
+    </InputGroup>
   );
 }

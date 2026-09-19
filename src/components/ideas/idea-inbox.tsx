@@ -3,9 +3,16 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Item, ItemContent, ItemTitle } from "@/components/ui/item";
+import { Kbd } from "@/components/ui/kbd";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IdeaCommandMenu, type IdeaCommandAction } from "@/components/ideas/command-menu";
 import { formatCompact, formatEngagementRate, formatMultiplier, relativeTime } from "@/lib/format";
@@ -20,17 +27,14 @@ const TABS: { value: IdeaTab; label: string }[] = [
 ];
 
 /** The score badge on an idea card/detail pane. Deliberately not `<OutlierBadge>` (the
- *  feed's own score badge): that component is a rounded pill, and DESIGN-SYSTEM.md §5
- *  puts radius 0 on badges — this is the one place that rule is actually followed to the
- *  letter. Amber wash/border/text per §3's amber law ("Score badge ... and the score
- *  gauge bar" is the one thing amber is for), and the word "score" rides inside the
- *  badge so the metric carries a text label rather than a bare number (§7 "Every metric
- *  has a text label ... `10.1x score`"). */
+ *  feed's own score badge, which carries the outlier tier logic this list does not
+ *  need). The word "score" rides inside the badge so the metric carries a text label
+ *  rather than a bare number. */
 function ScoreBadge({ score }: { score: number | null }) {
   return (
-    <span className="inline-flex w-fit shrink-0 items-center border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-2xs font-medium tabular-nums text-primary">
+    <Badge variant="secondary" className="font-mono tabular-nums">
       {formatMultiplier(score)} score
-    </span>
+    </Badge>
   );
 }
 
@@ -55,30 +59,23 @@ function IdeaCard({
   onSelect: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={selected ? "true" : undefined}
-      className={cn(
-        "flex w-full flex-col gap-2 border-b border-border px-4 py-3 text-left transition-colors",
-        // Selected mirrors the active-nav treatment (DESIGN-SYSTEM.md §3: "Active nav
-        // item. Use --card background plus --foreground plus a 2px --line-strong bar on
-        // the left") — a list row being "open" is the same concept as a rail item being
-        // "current", so it earns the same visual rather than inventing a second one.
-        selected
-          ? "border-l-2 border-l-border bg-card text-foreground"
-          : "border-l-2 border-l-transparent text-muted-foreground hover:bg-card/60 hover:text-foreground"
-      )}
+    <Item
+      size="sm"
+      variant={selected ? "muted" : "default"}
+      render={<button type="button" onClick={onSelect} aria-current={selected ? "true" : undefined} />}
+      className="rounded-none border-b text-left"
     >
-      {/* Concept-first: the idea's own pitch leads, not the source post's caption
-          (DESIGN-SYSTEM.md's concept-first rule) — one headline per card. */}
-      <p className="line-clamp-2 text-[15px] font-medium text-foreground">{idea.concept}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        <ScoreBadge score={idea.scoreAtCreation} />
-        <span className="truncate text-2xs text-muted-foreground">{idea.post.channel.handle}</span>
-      </div>
-      <NeutralMetrics item={idea.post} />
-    </button>
+      <ItemContent>
+        {/* Concept-first: the idea's own pitch leads, not the source post's caption
+            (the concept-first rule) — one headline per card. */}
+        <ItemTitle className="line-clamp-2">{idea.concept}</ItemTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <ScoreBadge score={idea.scoreAtCreation} />
+          <span className="truncate text-2xs text-muted-foreground">{idea.post.channel.handle}</span>
+        </div>
+        <NeutralMetrics item={idea.post} />
+      </ItemContent>
+    </Item>
   );
 }
 
@@ -88,12 +85,19 @@ function EmptyPane({ tab }: { tab: IdeaTab }) {
       ? "No ideas in the inbox yet. Sync a channel, or generate one from an analyzed post."
       : "Nothing shortlisted yet. Shortlist an idea from the inbox to see it here.";
   return (
-    <div className="flex flex-1 flex-col items-start justify-center gap-4 p-6">
-      <p className="max-w-[46ch] text-sm text-muted-foreground">{copy}</p>
-      <Link href="/feed" className="text-sm text-foreground underline underline-offset-4">
-        Open the feed
-      </Link>
-    </div>
+    <Empty className="flex-1">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Lightbulb />
+        </EmptyMedia>
+        <EmptyDescription>{copy}</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent>
+        <Button variant="outline" render={<Link href="/feed" />}>
+          Open the feed
+        </Button>
+      </EmptyContent>
+    </Empty>
   );
 }
 
@@ -288,29 +292,18 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-1 border-b border-border">
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => switchTab(t.value)}
-            aria-current={tab === t.value ? "true" : undefined}
-            className={cn(
-              "px-3 py-2 text-sm transition-colors",
-              // DESIGN-SYSTEM.md §3: "Selected toggle or segmented control. Use --card
-              // plus --foreground." — never amber, so this can't reuse the primary button.
-              tab === t.value
-                ? "bg-card font-semibold text-foreground"
-                : "font-normal text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(next) => switchTab(next as IdeaTab)}>
+        <TabsList variant="line" className="border-b border-border">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-      <div className="flex min-h-[520px] border border-border">
-        <div className="flex w-[340px] shrink-0 flex-col overflow-y-auto border-r border-border">
+      <div className="flex min-h-[520px] flex-col rounded-2xl border lg:flex-row">
+        <div className="flex w-full shrink-0 flex-col overflow-y-auto border-b lg:w-[340px] lg:border-r lg:border-b-0">
           {items.length === 0 ? (
             <EmptyPane tab={tab} />
           ) : (
@@ -348,22 +341,21 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
               </div>
 
               <div className="flex flex-col gap-2 border-t border-border pt-4">
-                <label htmlFor="idea-notes" className="text-xs font-medium text-muted-foreground">
-                  Your notes
-                </label>
-                <Textarea
-                  id="idea-notes"
-                  key={selected.id}
-                  defaultValue={selected.notes ?? ""}
-                  placeholder="Why this idea, what to change, anything worth remembering."
-                  className="rounded-none"
-                  onBlur={(e) => handleNotesBlur(selected.id, e.target.value)}
-                />
+                <Field>
+                  <FieldLabel htmlFor="idea-notes">Your notes</FieldLabel>
+                  <Textarea
+                    id="idea-notes"
+                    key={selected.id}
+                    defaultValue={selected.notes ?? ""}
+                    placeholder="Why this idea, what to change, anything worth remembering."
+                    onBlur={(e) => handleNotesBlur(selected.id, e.target.value)}
+                  />
+                </Field>
               </div>
 
-              <div className="mt-auto flex items-center gap-3 border-t border-border pt-4">
-                {/* The one primary action per screen (DESIGN-SYSTEM.md §3) — amber, and
-                    the only amber surface here besides the score badges. */}
+              <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-border pt-4">
+                {/* The one primary action per screen: everything else in this row is
+                    secondary or outline. */}
                 <Button
                   type="button"
                   disabled={pending === selected.id}
@@ -388,21 +380,20 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
                   Discard
                 </Button>
                 {/* The only on-screen advertisement that the K command menu (Export for
-                    LLM, Open in new tab, plus the three buttons above) exists at all —
-                    neutral ink/border, same <kbd> treatment IdeaCommandMenu's own rows
-                    use, so this never competes with the score badge for amber. Clicking
-                    it opens the identical menu K does; it doesn't add a second path. */}
-                <button
+                    LLM, Open in new tab, plus the three buttons above) exists at all.
+                    Clicking it opens the identical menu K does; it doesn't add a second
+                    path. */}
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => setMenuOpen((prev) => !prev)}
                   aria-expanded={menuOpen}
-                  className="ml-auto flex items-center gap-1.5 text-2xs text-muted-foreground hover:text-foreground"
+                  className="ml-auto text-muted-foreground"
                 >
-                  <kbd className="border border-border bg-transparent px-1.5 py-0.5 font-mono text-2xs text-muted-foreground">
-                    K
-                  </kbd>
+                  <Kbd>K</Kbd>
                   Commands
-                </button>
+                </Button>
               </div>
             </>
           )}
