@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { CommandMenu } from "@/components/layout/command-menu";
@@ -6,6 +7,7 @@ import type { GetStartedItem } from "@/components/layout/get-started-checklist";
 import { NavigationBlockerProvider } from "@/components/layout/navigation-blocker";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
@@ -60,22 +62,26 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     { key: "script", label: "Draft a script", href: "/vault?tab=scripts", done: stats.scriptsDrafted > 0 },
   ];
 
+  // Read server-side so the rail renders at its persisted width on the first paint
+  // instead of mounting expanded and snapping shut once the client reads the cookie.
+  // `sidebar_state` is written by SidebarProvider itself (see ui/sidebar.tsx).
+  const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+
   return (
     <NavigationBlockerProvider>
       <CommandMenu>
         <ClientErrorReporter />
-        {/* Flex, not a `grid-cols-[240px_1fr]` fixed track: the rail's own width (see
-            Sidebar) is the only thing that decides how wide it is, so the content pane
-            — `min-w-0` so its own children can still shrink/scroll — always gets every
-            pixel that isn't rail. A fixed grid column would have kept the old 240px
-            gutter reserved even after the rail collapsed to an icon strip. */}
-        <div className="flex h-screen">
+        <SidebarProvider defaultOpen={defaultOpen}>
           <Sidebar getStartedItems={getStartedItems} ideasInboxCount={ideasInboxCount} feedOutlierCount={feedOutlierCount} />
-          <div className="flex h-full min-w-0 flex-1 flex-col">
+          {/* The shell is a fixed viewport with one inner scroller, not a long page:
+              the topbar and the rail stay put while only the content moves. SidebarInset
+              is itself the <main>, so the scroller is a plain div inside it rather than
+              a second landmark. */}
+          <SidebarInset className="h-svh min-h-0 overflow-hidden">
             <Topbar strip={strip} />
-            <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
-          </div>
-        </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
       </CommandMenu>
     </NavigationBlockerProvider>
   );
