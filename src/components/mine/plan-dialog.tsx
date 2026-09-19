@@ -25,8 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -150,9 +150,9 @@ export function PlanDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="plan-title">Title</Label>
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor="plan-title">Title</FieldLabel>
             <Input
               id="plan-title"
               data-testid="plan-dialog-title"
@@ -160,54 +160,60 @@ export function PlanDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What this post is"
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="plan-date">Date</Label>
+          <Field>
+            <FieldLabel htmlFor="plan-date">Date</FieldLabel>
             <Input id="plan-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Leave blank to keep it as an undated draft.</p>
-          </div>
+            <FieldDescription>Leave blank to keep it as an undated draft.</FieldDescription>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="plan-note">Note</Label>
+          <Field>
+            <FieldLabel htmlFor="plan-note">Note</FieldLabel>
             <Textarea id="plan-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
-          </div>
+          </Field>
 
           {carriesRemix ? (
-            <p className="text-xs text-muted-foreground">
+            <FieldDescription>
               This plan carries a script from a remix run. Detaching it here isn&apos;t offered. Do that from
               the Vault.
-            </p>
+            </FieldDescription>
           ) : (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="plan-script">Script</Label>
-              <Select value={scriptId || "none"} onValueChange={(v) => setScriptId(!v || v === "none" ? "" : v)}>
-                <SelectTrigger id="plan-script">
-                  <SelectValue placeholder="No script" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No script</SelectItem>
-                  {scripts.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <>
+              <Field>
+                <FieldLabel htmlFor="plan-script">Script</FieldLabel>
+                <Select value={scriptId || "none"} onValueChange={(v) => setScriptId(!v || v === "none" ? "" : v)}>
+                  <SelectTrigger id="plan-script">
+                    <SelectValue placeholder="No script" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No script</SelectItem>
+                    {scripts.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
               {needsAck && (
-                <label className="mt-1 flex items-start gap-2 text-xs text-muted-foreground">
-                  <Checkbox checked={noScriptAck} onCheckedChange={(v) => setNoScriptAck(v === true)} className="mt-0.5" />
-                  <span>
+                <Field orientation="horizontal">
+                  <Checkbox
+                    id="plan-no-script-ack"
+                    checked={noScriptAck}
+                    onCheckedChange={(v) => setNoScriptAck(v === true)}
+                  />
+                  <FieldLabel htmlFor="plan-no-script-ack" className="font-normal text-muted-foreground">
                     I don&apos;t have a script yet. This plan will render as a note with a date, distinct from
                     one carrying a script, and gets flagged stale after 30 days if it still has neither.
-                  </span>
-                </label>
+                  </FieldLabel>
+                </Field>
               )}
-            </div>
+            </>
           )}
 
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="plan-video-kind">Video kind</Label>
+          <Field>
+            <FieldLabel htmlFor="plan-video-kind">Video kind</FieldLabel>
             <Select value={videoKind || "none"} onValueChange={(v) => setVideoKind(!v || v === "none" ? "" : v)}>
               <SelectTrigger id="plan-video-kind">
                 <SelectValue placeholder="Not set" />
@@ -221,10 +227,10 @@ export function PlanDialog({
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </Field>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
-        </div>
+          {error && <FieldError>{error}</FieldError>}
+        </FieldGroup>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

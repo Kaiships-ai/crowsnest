@@ -1,4 +1,5 @@
 import { IdeaInbox } from "@/components/ideas/idea-inbox";
+import { PageContainer } from "@/components/layout/page-container";
 import { listIdeas, type IdeaTab } from "@/server/queries/ideas";
 
 // Same reasoning as vault/page.tsx and persona/page.tsx: `searchParams` already opts
@@ -25,8 +26,8 @@ export default async function IdeasPage({
   const items = await listIdeas({ tab });
 
   return (
-    <div className="mx-auto max-w-[1120px] p-6">
+    <PageContainer>
       <IdeaInbox items={items} tab={tab} />
-    </div>
+    </PageContainer>
   );
 }

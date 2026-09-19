@@ -22,7 +22,7 @@ export function GeneratingSkeleton({
       <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">{label}</p>
       <div className={layout === "grid" ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "flex flex-col gap-3"}>
         {Array.from({ length: count }, (_, i) => (
-          <Skeleton key={i} className={`${rowClassName} w-full rounded-none`} />
+          <Skeleton key={i} className={`${rowClassName} w-full`} />
         ))}
       </div>
     </div>

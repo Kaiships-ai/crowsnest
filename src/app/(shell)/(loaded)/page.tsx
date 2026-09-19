@@ -11,6 +11,7 @@ import { ProducerDonut } from "@/components/dashboard/producer-donut";
 import { ReachScoreScatter } from "@/components/dashboard/reach-score-scatter";
 import { ScoreRankingList } from "@/components/dashboard/score-ranking-list";
 import { StatTile } from "@/components/dashboard/stat-tile";
+import { PageContainer } from "@/components/layout/page-container";
 import { StackHealthPanel } from "@/components/status/stack-health-panel";
 import {
   classifyLlmStatus,
@@ -18,8 +19,11 @@ import {
   LLM_PING_TIMEOUT_MS,
   withTimeout,
 } from "@/components/status/dependency-status";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { ItemGroup } from "@/components/ui/item";
+import { Separator } from "@/components/ui/separator";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import { getChannelsList } from "@/server/queries/channels";
@@ -132,13 +136,12 @@ export default async function DashboardPage() {
 
   // True-empty (DESIGN.md §6 spirit): zero channels tracked means every KPI would
   // read 0 and every section would be empty — one clear "get started" state instead
-  // of four separate empty sub-states stacked on top of each other. Left-aligned
-  // headline + supporting line + primary button, max-width 48ch, matches the
-  // prototype's own `noPosts` empty state (`dashboard` screen, line 386) rather
-  // than the centered single line this used to be.
+  // of four separate empty sub-states stacked on top of each other. It renders as the
+  // shared `Empty` composition (headline, supporting line, one primary action), the
+  // same shape every other whole-view empty in the app uses.
   if (stats.channelsTracked === 0) {
     return (
-      <div className="mx-auto max-w-[1120px] p-6">
+      <PageContainer>
         <StackHealthPanel
           sidecar={sidecarStatus}
           llm={llmStatus}
@@ -147,21 +150,23 @@ export default async function DashboardPage() {
           running={stackHealth.running}
           checkedAtMs={stackHealth.checkedAtMs}
         />
-        <div className="max-w-[48ch] pt-6 pb-24">
-          <p className="text-lg text-foreground">No channels are being watched, so there is nothing to score.</p>
-          <p className="mt-5 text-sm text-muted-foreground">
-            Add a channel and run a sync — medians take a few posts to settle before scores mean anything.
-          </p>
-          <Link href="/channels" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
-            Add a channel
-          </Link>
-        </div>
-      </div>
+        <Empty className="pt-6 pb-24">
+          <EmptyHeader>
+            <EmptyTitle>No channels are being watched, so there is nothing to score.</EmptyTitle>
+            <EmptyDescription>
+              Add a channel and run a sync — medians take a few posts to settle before scores mean anything.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button render={<Link href="/channels" />}>Add a channel</Button>
+          </EmptyContent>
+        </Empty>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-16 p-6">
+    <PageContainer className="flex flex-col gap-16">
       {/* The decision surface first: the one next action, decided from state. */}
       <NextActionBar next={nextAction} />
 
@@ -175,7 +180,7 @@ export default async function DashboardPage() {
         checkedAtMs={stackHealth.checkedAtMs}
       />
 
-      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
         <StatTile
           label="Channels tracked"
           value={String(stats.channelsTracked)}
@@ -195,57 +200,61 @@ export default async function DashboardPage() {
       </div>
 
       {/* 2. Selected research sources: the channels you plan from, and which fleets moved. */}
-      <section className="flex flex-col gap-6">
-        <div className="flex items-baseline justify-between gap-6">
-          <span data-lab className="font-mono text-2xs text-muted-foreground">
-            Research sources
-          </span>
-          <Link href="/channels" className="text-xs text-muted-foreground hover:text-foreground">
-            Manage channels →
-          </Link>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          <span className="font-mono text-foreground" data-num>
-            {channels.length}
-          </span>{" "}
-          channel{channels.length === 1 ? "" : "s"} tracked as research sources.
-          {fleetSpikes.length > 0 ? " Fleets with new spikes:" : " No fleets have new spikes this week."}
-        </p>
-        {fleetSpikes.length > 0 && (
-          <div className="flex flex-col divide-y divide-border border border-border">
-            {fleetSpikes.map((spike) => (
-              <FleetSpikeRow key={spike.fleetId} spike={spike} />
-            ))}
-          </div>
-        )}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Research sources</CardTitle>
+          <CardAction>
+            <Link href="/channels" className="text-xs text-muted-foreground hover:text-foreground">
+              Manage channels →
+            </Link>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-mono text-foreground" data-num>
+              {channels.length}
+            </span>{" "}
+            channel{channels.length === 1 ? "" : "s"} tracked as research sources.
+            {fleetSpikes.length > 0 ? " Fleets with new spikes:" : " No fleets have new spikes this week."}
+          </p>
+          {fleetSpikes.length > 0 && (
+            <ItemGroup>
+              {fleetSpikes.map((spike) => (
+                <FleetSpikeRow key={spike.fleetId} spike={spike} />
+              ))}
+            </ItemGroup>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 3. Highest-value outliers. */}
-      <section className="flex flex-col gap-6">
-        <div className="flex items-baseline justify-between gap-6">
-          <span data-lab className="font-mono text-2xs text-muted-foreground">
-            Highest-value outliers
-          </span>
-          <Link href="/feed" className="text-xs text-muted-foreground hover:text-foreground">
-            View all in Feed →
-          </Link>
-        </div>
-        {/* Honest new-since-visit count: no score history in this schema to diff, so no
-            faked "movers" line. Hidden at zero. */}
-        {newSinceVisit > 0 && (
-          <Link href="/feed" className="flex items-center gap-2 text-sm text-foreground hover:underline">
-            <span className="font-mono text-primary" data-num>
-              {newSinceVisit}
-            </span>
-            new outlier{newSinceVisit === 1 ? "" : "s"} since your last visit
-          </Link>
-        )}
-        {topOutliers.length > 0 ? (
-          <OutlierScrollRow items={topOutliers} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Analyze more videos to see patterns here.</p>
-        )}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Highest-value outliers</CardTitle>
+          <CardAction>
+            <Link href="/feed" className="text-xs text-muted-foreground hover:text-foreground">
+              View all in Feed →
+            </Link>
+          </CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-6">
+          {/* Honest new-since-visit count: no score history in this schema to diff, so no
+              faked "movers" line. Hidden at zero. */}
+          {newSinceVisit > 0 && (
+            <Link href="/feed" className="flex items-center gap-2 text-sm text-foreground hover:underline">
+              <span className="font-mono text-primary" data-num>
+                {newSinceVisit}
+              </span>
+              new outlier{newSinceVisit === 1 ? "" : "s"} since your last visit
+            </Link>
+          )}
+          {topOutliers.length > 0 ? (
+            <OutlierScrollRow items={topOutliers} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Analyze more videos to see patterns here.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 4. Current content pipeline: what the agent has persisted through MCP. */}
       <ContentPipeline
@@ -256,25 +265,26 @@ export default async function DashboardPage() {
         nowMs={nowMs}
       />
 
-      <section className="flex flex-col gap-6">
-        <span data-lab className="font-mono text-2xs text-muted-foreground">
-          Recently viewed
-        </span>
-        {recentlyViewed.length > 0 ? (
-          <OutlierScrollRow items={recentlyViewed} />
-        ) : (
-          <p className="text-sm text-muted-foreground">Videos you open will show up here.</p>
-        )}
-      </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recently viewed</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {recentlyViewed.length > 0 ? (
+            <OutlierScrollRow items={recentlyViewed} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Videos you open will show up here.</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Analytics, deliberately last and labelled as secondary: the dashboard above is
           the content-machine workflow; these charts are supporting detail, not the point.
           Each renders its own honest empty state, so only the all-channels "nothing has
           synced" case is handled here. */}
-      <section className="flex flex-col gap-8 border-t border-border pt-10">
-        <span data-lab className="font-mono text-2xs text-muted-foreground">
-          Analytics
-        </span>
+      <section className="flex flex-col gap-8">
+        <Separator />
+        <h2 className="font-heading text-base font-medium text-foreground">Analytics</h2>
         {allItems.length > 0 ? (
           <>
             <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
@@ -286,12 +296,16 @@ export default async function DashboardPage() {
             <CoverageList channels={channels} items={allItems} />
           </>
         ) : (
-          <p className="max-w-[56ch] text-sm text-muted-foreground">
-            No posts have synced yet, so there is nothing to plot. Run a sync — medians need about ten posts before a
-            score means anything.
-          </p>
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>No posts have synced yet, so there is nothing to plot.</EmptyTitle>
+              <EmptyDescription>
+                Run a sync — medians need about ten posts before a score means anything.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }

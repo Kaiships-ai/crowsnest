@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/layout/page-container";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GraphConnectPanel } from "@/components/mine/graph-connect-panel";
 import { MineCalendar } from "@/components/mine/mine-calendar";
@@ -85,7 +86,7 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
   const publishDryRun = process.env.PUBLISH_DRY_RUN === "1" || (process.env.PUBLISH_DRY_RUN === undefined && process.env.NODE_ENV !== "production");
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
+    <PageContainer className="flex flex-col gap-6">
       <div className="flex flex-wrap items-baseline justify-between gap-6">
         {/* h2, not h1: Topbar already renders this route's h1 ("My channel") — see
             nav-items/topbar's ROUTE_TITLES. Unlike /logs and /runs this line is not a
@@ -164,6 +165,6 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -4,15 +4,14 @@
  * Upload an mp4, write a caption, pick a time, and either schedule the publish or fire it
  * now (implementation plan Phase D, task D2). DESIGN.md is binding here:
  *
- * - Exactly ONE amber action per state — "Schedule" when a date and time are set,
- *   "Publish now" when they are not. Every other control (pick file, cancel) is neutral.
- *   The Amber Law: amber is the score and the one thing to do, nothing else.
- * - Square corners everywhere; the pill button is the only rounded form.
+ * - Exactly ONE primary action per state — "Schedule" when a date and time are set,
+ *   "Publish now" when they are not. Every other control (pick file, cancel) is neutral,
+ *   so the screen only ever offers one thing to press.
  * - Every number — the caption count, the date, the time — is IBM Plex Mono, tabular.
  * - When the Graph token or the storage bucket is missing, this does NOT fake a publish:
  *   it names exactly what to set (mirroring GraphConnectPanel) and disables the action,
  *   while the upload and caption still save so the plan keeps its draft.
- * - Dry-run shows a mono banner saying the final publish POST is skipped, so a dev box
+ * - Dry-run shows a banner saying the final publish POST is skipped, so a dev box
  *   can rehearse the whole path without touching the live account.
  */
 
@@ -20,11 +19,13 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Empty, EmptyContent, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { InputGroup, InputGroupAddon, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
 import { cn } from "@/lib/utils";
 import {
   publishNowAction,
@@ -136,36 +137,42 @@ export function PublishDialog({
 
         <div className="flex flex-col gap-4">
           {!configured && (
-            <div className="border-l-2 border-border pl-4" data-testid="publish-dialog-not-configured">
-              <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Publish setup</p>
-              {!graphConfigured && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Connect Graph to publish: set <code className="font-mono text-2xs text-foreground">IG_GRAPH_TOKEN</code> and{" "}
-                  <code className="font-mono text-2xs text-foreground">IG_GRAPH_USER_ID</code>.
-                </p>
-              )}
-              {!bucketConfigured && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Set <code className="font-mono text-2xs text-foreground">S3_*</code> to publish
-                  (<code className="font-mono text-2xs text-foreground">S3_ENDPOINT</code>,{" "}
-                  <code className="font-mono text-2xs text-foreground">S3_BUCKET</code>,{" "}
-                  <code className="font-mono text-2xs text-foreground">S3_KEY</code>,{" "}
-                  <code className="font-mono text-2xs text-foreground">S3_SECRET</code>,{" "}
-                  <code className="font-mono text-2xs text-foreground">S3_PUBLIC_BASE</code>).
-                </p>
-              )}
-              <p className="mt-2 text-sm text-muted-foreground">Your video and caption still save; the plan stays a draft until this is set.</p>
-            </div>
+            <Alert data-testid="publish-dialog-not-configured">
+              <AlertTitle>Publish setup</AlertTitle>
+              <AlertDescription>
+                {!graphConfigured && (
+                  <p>
+                    Connect Graph to publish: set <code className="font-mono text-2xs text-foreground">IG_GRAPH_TOKEN</code> and{" "}
+                    <code className="font-mono text-2xs text-foreground">IG_GRAPH_USER_ID</code>.
+                  </p>
+                )}
+                {!bucketConfigured && (
+                  <p>
+                    Set <code className="font-mono text-2xs text-foreground">S3_*</code> to publish
+                    (<code className="font-mono text-2xs text-foreground">S3_ENDPOINT</code>,{" "}
+                    <code className="font-mono text-2xs text-foreground">S3_BUCKET</code>,{" "}
+                    <code className="font-mono text-2xs text-foreground">S3_KEY</code>,{" "}
+                    <code className="font-mono text-2xs text-foreground">S3_SECRET</code>,{" "}
+                    <code className="font-mono text-2xs text-foreground">S3_PUBLIC_BASE</code>).
+                  </p>
+                )}
+                <p>Your video and caption still save; the plan stays a draft until this is set.</p>
+              </AlertDescription>
+            </Alert>
           )}
 
           {configured && dryRun && (
-            <p className="border border-border bg-card px-3 py-2 font-mono text-2xs tracking-wide text-muted-foreground" data-testid="publish-dialog-dry-run">
-              DRY RUN · the whole path runs but the final publish POST is skipped, so the live account is never touched.
-            </p>
+            <Alert data-testid="publish-dialog-dry-run">
+              <AlertDescription>
+                DRY RUN · the whole path runs but the final publish POST is skipped, so the live account is never touched.
+              </AlertDescription>
+            </Alert>
           )}
 
-          {/* Drop-zone (square, neutral) + a file-picker fallback. */}
-          <div
+          {/* Drop-zone + a file-picker fallback. The dashed border and the drag handlers
+              sit on the Empty itself so the whole region is the drop target, same as the
+              hand-rolled block it replaces. */}
+          <Empty
             data-testid="publish-dialog-dropzone"
             onDragOver={(e) => {
               e.preventDefault();
@@ -178,95 +185,96 @@ export function PublishDialog({
               const file = e.dataTransfer.files[0];
               if (file) void upload(file);
             }}
-            className={cn(
-              "flex flex-col items-center gap-2 border border-dashed border-border bg-ground px-4 py-6 text-center",
-              dragOver && "border-foreground"
-            )}
+            className={cn("gap-3 border border-dashed p-6", dragOver && "border-foreground")}
           >
-            <p className="font-mono text-2xs text-muted-foreground">
-              {uploading ? "Uploading…" : hasVideo ? (videoName ?? "Video attached") : "Drop an .mp4 here"}
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              data-testid="publish-dialog-pick"
-              disabled={uploading}
-              onClick={() => fileInput.current?.click()}
-            >
-              {hasVideo ? "Replace video" : "Choose file"}
-            </Button>
-            <input
-              ref={fileInput}
-              type="file"
-              accept="video/mp4,.mp4"
-              className="hidden"
-              data-testid="publish-dialog-file"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void upload(file);
-                e.target.value = "";
-              }}
-            />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="publish-caption">Caption</Label>
-              <span data-num className="font-mono text-2xs tabular-nums text-muted-foreground">
-                {caption.length} / {CAPTION_MAX}
-              </span>
-            </div>
-            <Textarea
-              id="publish-caption"
-              data-testid="publish-dialog-caption"
-              value={caption}
-              maxLength={CAPTION_MAX}
-              onChange={(e) => setCaption(e.target.value)}
-              onBlur={() => void saveCaption()}
-              placeholder="What this Reel says"
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="publish-date">Date</Label>
-              <Input
-                id="publish-date"
-                type="date"
-                min={today}
-                data-testid="publish-dialog-date"
-                className="font-mono tabular-nums"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+            <EmptyHeader>
+              <EmptyTitle>
+                {uploading ? "Uploading…" : hasVideo ? (videoName ?? "Video attached") : "Drop an .mp4 here"}
+              </EmptyTitle>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                data-testid="publish-dialog-pick"
+                disabled={uploading}
+                onClick={() => fileInput.current?.click()}
+              >
+                {hasVideo ? "Replace video" : "Choose file"}
+              </Button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="video/mp4,.mp4"
+                className="hidden"
+                data-testid="publish-dialog-file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void upload(file);
+                  e.target.value = "";
+                }}
               />
-            </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label htmlFor="publish-time">Time</Label>
-              <Input
-                id="publish-time"
-                type="time"
-                data-testid="publish-dialog-time"
-                className="font-mono tabular-nums"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              />
-            </div>
-          </div>
-          <p className="font-mono text-2xs text-muted-foreground">Leave the time blank to publish now instead of scheduling.</p>
+            </EmptyContent>
+          </Empty>
 
-          {error && (
-            <p className="text-sm text-destructive" data-testid="publish-dialog-error">
-              {error}
-            </p>
-          )}
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="publish-caption">Caption</FieldLabel>
+              <InputGroup>
+                <InputGroupTextarea
+                  id="publish-caption"
+                  data-testid="publish-dialog-caption"
+                  value={caption}
+                  maxLength={CAPTION_MAX}
+                  onChange={(e) => setCaption(e.target.value)}
+                  onBlur={() => void saveCaption()}
+                  placeholder="What this Reel says"
+                />
+                <InputGroupAddon align="block-end">
+                  <InputGroupText data-num className="ml-auto font-mono tabular-nums">
+                    {caption.length} / {CAPTION_MAX}
+                  </InputGroupText>
+                </InputGroupAddon>
+              </InputGroup>
+            </Field>
+
+            <div className="flex gap-3">
+              <Field className="flex-1">
+                <FieldLabel htmlFor="publish-date">Date</FieldLabel>
+                <Input
+                  id="publish-date"
+                  type="date"
+                  min={today}
+                  data-testid="publish-dialog-date"
+                  className="font-mono tabular-nums"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </Field>
+              <Field className="flex-1">
+                <FieldLabel htmlFor="publish-time">Time</FieldLabel>
+                <Input
+                  id="publish-time"
+                  type="time"
+                  data-testid="publish-dialog-time"
+                  className="font-mono tabular-nums"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                />
+              </Field>
+            </div>
+            <FieldDescription>Leave the time blank to publish now instead of scheduling.</FieldDescription>
+
+            {error && <FieldError data-testid="publish-dialog-error">{error}</FieldError>}
+          </FieldGroup>
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} data-testid="publish-dialog-cancel">
             Cancel
           </Button>
-          {/* The one amber action for this screen — its label is the only thing that
+          {/* The one primary action for this screen — its label is the only thing that
               changes between the scheduled and the immediate state. */}
           <Button onClick={submit} disabled={!canSubmit} data-testid="publish-dialog-submit">
             {submitting ? "Working…" : dated ? "Schedule" : "Publish now"}

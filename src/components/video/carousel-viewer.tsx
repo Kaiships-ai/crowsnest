@@ -1,10 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { VideoThumb } from "@/components/feed/video-thumb";
-import { Button } from "@/components/ui/button";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { assetUrl } from "@/lib/media-url";
 
 // "Hatching for a well with no data in it" (globals.css) — the tokened placeholder
@@ -81,16 +88,32 @@ function CarouselSlide({ child }: { child: CarouselChild }) {
  */
 export function CarouselViewer({ items }: { items: CarouselChild[] }) {
   const ordered = [...items].sort((a, b) => a.position - b.position);
-  const lastIndex = Math.max(ordered.length - 1, 0);
-  const [index, setIndex] = useState(0);
-  // Clamped rather than reset via effect: if the child list shrinks/reorders on a
-  // refresh, this just re-derives a valid index on the next render instead of
-  // needing a set-state-in-effect to keep `index` in bounds.
-  const current = Math.min(index, lastIndex);
+  const [api, setApi] = useState<CarouselApi>();
+  // Mirrored out of embla rather than owned here, so the "n / total" stamp stays true
+  // whether the slide changed from a button, a drag, or the arrow keys below.
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    if (!api) return;
+    const sync = () => {
+      setCurrent(api.selectedScrollSnap());
+    };
+    sync();
+    api.on("select", sync);
+    api.on("reInit", sync);
+    return () => {
+      api.off("select", sync);
+      api.off("reInit", sync);
+    };
+  }, [api]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      // Carousel's own key handler only fires when focus is inside the carousel, and it
+      // preventDefaults when it does — so a key it already consumed is left alone here
+      // rather than moving the slide twice.
+      if (e.defaultPrevented) return;
       // video-detail.tsx adds its own window keydown listener for the same two keys,
       // to move between posts. Both listeners are on `window` itself, so
       // stopPropagation doesn't stop a sibling listener on the same target — only
@@ -103,55 +126,49 @@ export function CarouselViewer({ items }: { items: CarouselChild[] }) {
       // stopping the feed nav on the moves it can actually take.
       e.preventDefault();
       e.stopPropagation();
-      if (e.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
-      else setIndex((i) => Math.min(i + 1, lastIndex));
+      if (e.key === "ArrowLeft") api?.scrollPrev();
+      else api?.scrollNext();
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lastIndex]);
+  }, [api]);
 
   if (ordered.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground" style={EMPTY_WELL}>
-        This carousel has no items.
-      </div>
+      <Empty className="h-full" style={EMPTY_WELL}>
+        <EmptyHeader>
+          <EmptyTitle>This carousel has no items.</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   return (
-    <div className="relative flex h-full w-full flex-col overflow-hidden bg-black">
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <CarouselSlide child={ordered[current]} />
-      </div>
+    // The `[&>[data-slot=carousel-content]]:h-full` reach-in is layout, not tone:
+    // CarouselContent's scroll container has a hardcoded className, and without a
+    // definite height it collapses to nothing inside this fixed-aspect media frame.
+    <Carousel
+      setApi={setApi}
+      className="flex h-full w-full flex-col overflow-hidden bg-black [&>[data-slot=carousel-content]]:h-full"
+    >
+      <CarouselContent className="ml-0 h-full">
+        {ordered.map((child) => (
+          <CarouselItem key={child.position} className="h-full pl-0">
+            <CarouselSlide child={child} />
+          </CarouselItem>
+        ))}
+      </CarouselContent>
 
-      {current > 0 && (
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon-sm"
-          aria-label="Previous item"
-          className="absolute left-2 top-1/2 -translate-y-1/2"
-          onClick={() => setIndex((i) => Math.max(i - 1, 0))}
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
-      )}
-      {current < lastIndex && (
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon-sm"
-          aria-label="Next item"
-          className="absolute right-2 top-1/2 -translate-y-1/2"
-          onClick={() => setIndex((i) => Math.min(i + 1, lastIndex))}
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      )}
+      {/* Pulled inside the frame: the primitive parks its controls in the gutter beside
+          the carousel, and this one is clipped to a 9:16 box with nothing either side. */}
+      <CarouselPrevious variant="secondary" aria-label="Previous item" className="left-2" />
+      <CarouselNext variant="secondary" aria-label="Next item" className="right-2" />
 
+      {/* Same scrim stamp the feed card's duration uses: a Badge's tokened surface has
+          no guaranteed contrast against arbitrary media, this does. */}
       <span data-num className="absolute right-2 bottom-2 bg-black/60 px-1.5 py-0.5 text-[11px] font-medium text-white">
         {current + 1} / {ordered.length}
       </span>
-    </div>
+    </Carousel>
   );
 }

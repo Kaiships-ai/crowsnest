@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
@@ -21,37 +25,35 @@ import type { RemixSessionRow } from "@/server/services/remix";
 
 /** A section divider matching the prototype's "source inputs, sent to every stage" /
  *  "reference, not sent" rows: a mono micro-label plus a rule filling the rest of the
- *  row. `tone` is purely a label color choice, not a repurposing of the score's amber
- *  (globals.css: amber is reserved for the score) — "input" reads as `text-success`, the
+ *  row. `tone` is purely a label color choice — "input" reads as `text-success`, the
  *  same muted green this codebase already uses for a positive/confirmed state. */
 function SectionHeader({ children, tone }: { children: ReactNode; tone: "input" | "reference" }) {
   return (
     <div className="flex items-center gap-3">
       <span className={cn("font-mono text-2xs tracking-wide uppercase", tone === "input" ? "text-success" : "text-muted-foreground")}>{children}</span>
-      <span className="h-px flex-1 bg-border" />
+      <Separator className="flex-1" />
     </div>
   );
 }
 
 /** The prototype's small tag next to each field label, naming which stages it feeds
- *  (or that it's reference-only). */
+ *  (or that it's reference-only). A `Badge` carrying the same two-tone distinction the
+ *  section headers use: green for "this is confirmed input", neutral for reference. */
 function FeedTag({ children, tone }: { children: ReactNode; tone: "input" | "reference" }) {
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded-sm border px-1.5 py-px font-mono text-2xs tracking-wide uppercase",
-        tone === "input" ? "border-success/40 text-success" : "border-border text-muted-foreground"
-      )}
-    >
+    <Badge variant="outline" className={cn("font-mono tracking-wide uppercase", tone === "input" && "border-success/40 text-success")}>
       {children}
-    </span>
+    </Badge>
   );
 }
 
-function FieldLabel({ label, tag, tone }: { label: string; tag: string; tone: "input" | "reference" }) {
+/** The heading row above a read-only source block: what it is, plus the tag naming
+ *  where it goes. A `FieldTitle`, not a `FieldLabel`, because none of these blocks has
+ *  a control to point a `for` at — they are what the analysis already found. */
+function SourceBlockHeading({ label, tag, tone }: { label: string; tag: string; tone: "input" | "reference" }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">{label}</Label>
+    <div className="flex w-full items-center justify-between gap-2">
+      <FieldTitle>{label}</FieldTitle>
       <FeedTag tone={tone}>{tag}</FeedTag>
     </div>
   );
@@ -158,7 +160,7 @@ export function StageResearch({
           </p>
           <Button
             variant="outline"
-            className="self-start rounded-none"
+            className="self-start"
             onClick={() => {
               setAssemblyFailed(false);
               setAttempt((n) => n + 1);
@@ -172,8 +174,8 @@ export function StageResearch({
     return (
       <div className="flex flex-col gap-3">
         <p className="text-sm text-muted-foreground">Assembling research from the source post…</p>
-        <Skeleton className="h-24 w-full rounded-none" />
-        <Skeleton className="h-32 w-full rounded-none" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-32 w-full" />
       </div>
     );
   }
@@ -196,33 +198,31 @@ export function StageResearch({
 
       {analysis ? (
         <>
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="Why it worked" tag="feeds hook, style, script" tone="input" />
+          <Field>
+            <SourceBlockHeading label="Why it worked" tag="feeds hook, style, script" tone="input" />
             <p className="border-l-2 border-success/40 bg-muted/30 p-3 text-sm">{analysis.whyItWorked}</p>
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="Hook pattern" tag="feeds hook" tone="input" />
+          <Field>
+            <SourceBlockHeading label="Hook pattern" tag="feeds hook" tone="input" />
             <div className="flex flex-wrap items-center gap-1.5 border-l-2 border-success/40 bg-muted/30 p-3">
-              <Badge variant="outline" className="rounded-none">
-                {analysis.hookType}
-              </Badge>
+              <Badge variant="outline">{analysis.hookType}</Badge>
               {tags.map((tag) => (
-                <Badge key={tag} variant="secondary" className="rounded-none">
+                <Badge key={tag} variant="secondary">
                   {tag}
                 </Badge>
               ))}
             </div>
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-1.5">
-            <FieldLabel label="Structure beats, note + transcript" tag="feeds hook, style, script" tone="input" />
+          <Field>
+            <SourceBlockHeading label="Structure beats, note + transcript" tag="feeds hook, style, script" tone="input" />
             <div className="border-l-2 border-success/40 bg-muted/30 px-3">
               {analysis.structureSegments.map((beat, i) => (
                 <Beat key={i} beat={beat} />
               ))}
             </div>
-          </div>
+          </Field>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -235,11 +235,9 @@ export function StageResearch({
         </p>
       )}
 
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="research-facts" className="font-mono text-2xs tracking-wide text-success uppercase">
-            Your additions (optional)
-          </Label>
+      <Field>
+        <div className="flex w-full items-center justify-between gap-2">
+          <FieldLabel htmlFor="research-facts">Your additions (optional)</FieldLabel>
           <FeedTag tone="input">feeds hook, style, script</FeedTag>
         </div>
         <Textarea
@@ -251,46 +249,59 @@ export function StageResearch({
           rows={4}
           className="border-l-2 border-l-success/40"
         />
-      </div>
+      </Field>
 
-      <details className="border border-dashed border-border p-2.5">
-        <summary className="cursor-pointer text-sm text-muted-foreground">
-          Full transcript fallback (only used when a beat has no per-beat transcript)
-        </summary>
-        <p className="mt-2 text-sm text-muted-foreground">
-          For videos analyzed before the per-beat transcript existed, some beats above carry only a note. This flat
-          transcript is what generation falls back to for the words in that case. Re-analyze the source post to fill
-          in the aligned per-beat version.
-        </p>
-        <p className="mt-2 border border-border p-3 text-sm text-muted-foreground">
-          {notes.transcriptExcerpt ?? "No transcript available."}
-        </p>
-      </details>
+      <Accordion>
+        <AccordionItem value="transcript-fallback">
+          <AccordionTrigger className="font-normal text-muted-foreground">
+            Full transcript fallback (only used when a beat has no per-beat transcript)
+          </AccordionTrigger>
+          <AccordionContent className="flex flex-col gap-2 text-muted-foreground">
+            <p>
+              For videos analyzed before the per-beat transcript existed, some beats above carry only a note. This flat
+              transcript is what generation falls back to for the words in that case. Re-analyze the source post to fill
+              in the aligned per-beat version.
+            </p>
+            <Card size="sm">
+              <CardContent className="text-muted-foreground">
+                {notes.transcriptExcerpt ?? "No transcript available."}
+              </CardContent>
+            </Card>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <SectionHeader tone="reference">Reference, not sent</SectionHeader>
 
       <div className="flex flex-col gap-1.5 opacity-80">
-        <FieldLabel label="Saved from your vault" tag="reference" tone="reference" />
+        <SourceBlockHeading label="Saved from your vault" tag="reference" tone="reference" />
         {vaultSavedPosts.length > 0 ? (
-          <ul className="flex flex-col gap-2">
+          <ItemGroup>
             {vaultSavedPosts.map((row) => {
               const tier = heatTier(row.item.outlierScore);
               return (
-                <li key={row.id} className="flex items-center justify-between gap-2 border border-border p-2 text-sm">
-                  <Link href={`/feed/${row.item.videoId}`} className="min-w-0 flex-1 truncate hover:underline">
-                    <span className="font-medium">{row.item.channel.handle}</span>
-                    {row.item.caption && <span className="text-muted-foreground"> · {row.item.caption}</span>}
-                  </Link>
-                  <span className="shrink-0 font-mono text-2xs text-muted-foreground">
-                    {formatCompact(row.item.viewCount)} views · vs {formatCompact(row.channelMedian)} median
-                  </span>
-                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
-                    {formatMultiplier(row.item.outlierScore)}
-                  </span>
-                </li>
+                <Item
+                  key={row.id}
+                  variant="outline"
+                  size="sm"
+                  render={<Link href={`/feed/${row.item.videoId}`} />}
+                >
+                  <ItemContent>
+                    <ItemTitle>{row.item.channel.handle}</ItemTitle>
+                    {row.item.caption && <ItemDescription>{row.item.caption}</ItemDescription>}
+                  </ItemContent>
+                  <ItemActions>
+                    <span className="font-mono text-2xs text-muted-foreground">
+                      {formatCompact(row.item.viewCount)} views · vs {formatCompact(row.channelMedian)} median
+                    </span>
+                    <span data-num className={cn("font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
+                      {formatMultiplier(row.item.outlierScore)}
+                    </span>
+                  </ItemActions>
+                </Item>
               );
             })}
-          </ul>
+          </ItemGroup>
         ) : (
           <p className="text-sm text-muted-foreground">
             Your vault is empty.{" "}
@@ -303,24 +314,26 @@ export function StageResearch({
       </div>
 
       <div className="flex flex-col gap-1.5 opacity-80">
-        <FieldLabel label="Similar tracked outliers" tag="reference" tone="reference" />
+        <SourceBlockHeading label="Similar tracked outliers" tag="reference" tone="reference" />
         {notes.similar.length > 0 ? (
-          <ul className="flex flex-col gap-2">
+          <ItemGroup>
             {notes.similar.map((item) => {
               const tier = heatTier(item.outlierScore);
               return (
-                <li key={item.videoId} className="flex items-center justify-between gap-2 border border-border p-2 text-sm">
-                  <Link href={`/feed/${item.videoId}`} className="min-w-0 flex-1 truncate hover:underline">
-                    <span className="font-medium">{item.channelHandle}</span>
-                    {item.caption && <span className="text-muted-foreground"> · {item.caption}</span>}
-                  </Link>
-                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
-                    {formatMultiplier(item.outlierScore)}
-                  </span>
-                </li>
+                <Item key={item.videoId} variant="outline" size="sm" render={<Link href={`/feed/${item.videoId}`} />}>
+                  <ItemContent>
+                    <ItemTitle>{item.channelHandle}</ItemTitle>
+                    {item.caption && <ItemDescription>{item.caption}</ItemDescription>}
+                  </ItemContent>
+                  <ItemActions>
+                    <span data-num className={cn("font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
+                      {formatMultiplier(item.outlierScore)}
+                    </span>
+                  </ItemActions>
+                </Item>
               );
             })}
-          </ul>
+          </ItemGroup>
         ) : (
           <p className="text-sm text-muted-foreground">Analyze more videos to see patterns here.</p>
         )}

@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Field, FieldContent, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { autosave } from "@/components/remix/autosave";
 import { updateStageAction } from "@/server/actions/remix-actions";
@@ -81,48 +81,50 @@ export function StagePrompt({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="remix-topic" className="text-base font-normal text-foreground">
-          What&rsquo;s this script about?
-        </Label>
-        <Input id="remix-topic" value={topic} onChange={(e) => commitTopic(e.target.value)} onBlur={persistTopic} />
-      </div>
+      <FieldGroup>
+        <Field>
+          <FieldLabel htmlFor="remix-topic">What&rsquo;s this script about?</FieldLabel>
+          <Input id="remix-topic" value={topic} onChange={(e) => commitTopic(e.target.value)} onBlur={persistTopic} />
+        </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Niche</Label>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="max-w-[320px] rounded-none">
-            <span className="truncate">{niche}</span>
-          </Badge>
-          <Link href="/settings" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase hover:text-foreground">
-            Edit in Settings
-          </Link>
-        </div>
-      </div>
+        {/* Read-only here: the niche lives in Settings, so this row names the value and
+            points at where it is edited rather than pretending to be an input. */}
+        <Field>
+          <FieldTitle>Niche</FieldTitle>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary" className="max-w-[320px]">
+              <span className="truncate">{niche}</span>
+            </Badge>
+            <Link href="/settings" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase hover:text-foreground">
+              Edit in Settings
+            </Link>
+          </div>
+        </Field>
 
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="remix-length" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
-          Target length
-        </Label>
-        <Select items={LENGTH_ITEMS} value={targetLengthSec} onValueChange={(v) => commitLength(v as string)}>
-          <SelectTrigger id="remix-length" className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LENGTH_ITEMS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+        <Field orientation="responsive">
+          <FieldContent>
+            <FieldLabel htmlFor="remix-length">Target length</FieldLabel>
+          </FieldContent>
+          <Select items={LENGTH_ITEMS} value={targetLengthSec} onValueChange={(v) => commitLength(v as string)}>
+            <SelectTrigger id="remix-length">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {LENGTH_ITEMS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </FieldGroup>
 
       {(!hasLlmKey || proxyDown) && (
         // Blocked, not broken — the generation path is just offline, same as every
         // other stage's key/proxy gate. Prompt itself still works without it, so this
         // stays an inline note rather than swallowing the whole stage.
-        <Alert className="rounded-none">
+        <Alert>
           <AlertTitle>{hasLlmKey ? "Local proxy unavailable" : "Add your Claude API key"}</AlertTitle>
           <AlertDescription>
             {hasLlmKey

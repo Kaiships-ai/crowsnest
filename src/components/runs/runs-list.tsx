@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { History } from "lucide-react";
 import { toast } from "sonner";
 
 import { cancelSyncAction, startSyncAction } from "@/server/actions/sync-actions";
 import { evaluateSla } from "@/server/runs/sla";
 import { SYNC_STALL_SECONDS } from "@/server/services/sync-types";
 import type { RunStatus, RunSummary } from "@/server/queries/runs";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -20,9 +24,9 @@ import { useRunStream } from "./use-run-stream";
  * split every other live view in this shell uses (sidebar's `useSyncProgress` for the
  * poll, this hook's SSE tick for the push).
  *
- * Dot colors are copied from sidebar.tsx's own `STATUS_DOT` map, not reinvented: amber
- * stays reserved for the score, "running" gets noticed by brightness plus motion, and
- * only success/failed get a live hue.
+ * A dot, not a badge: one of these leads every row of a long table, and a column of
+ * filled pills would out-shout the run titles beside them. "Running" is noticed by
+ * brightness plus motion; only success and failed get a hue of their own.
  */
 const STATUS_DOT: Record<RunStatus, string> = {
   running: "bg-foreground animate-pulse",
@@ -103,116 +107,123 @@ export function RunsList({ seedRuns, syncSlaMinutes, remixSlaMinutes }: RunsList
         <span>{connected ? "Live" : "Reconnecting…"}</span>
       </div>
 
-      <div className="border border-border bg-card">
-        <div className="w-full overflow-x-auto">
-          <Table>
-            <TableHeader>
+      {/* Table ships its own overflow-x-auto container, so the Card needs no scroller
+          of its own. */}
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Run</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Started</TableHead>
+              <TableHead>Duration</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead></TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {runs.length === 0 && (
               <TableRow>
-                <TableHead>Run</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Started</TableHead>
-                <TableHead>Duration</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead></TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableCell colSpan={7}>
+                  <Empty>
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <History />
+                      </EmptyMedia>
+                      <EmptyTitle>No runs yet.</EmptyTitle>
+                      <EmptyDescription>A sync or a remix shows up here the moment one starts.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {runs.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    No runs yet.
+            )}
+            {runs.map((run) => {
+              const verdict = evaluateSla({
+                status: run.status,
+                startedAt: run.startedAt,
+                heartbeatAt: run.heartbeatAt,
+                budgetMs: budgetMsFor(run.type, syncSlaMinutes, remixSlaMinutes),
+                staleMs: STALE_MS,
+                now,
+              });
+              const overMs = Math.max(0, now - new Date(run.startedAt).getTime() - budgetMsFor(run.type, syncSlaMinutes, remixSlaMinutes));
+              const showProgress = run.status === "running" && run.channelsTotal !== null && run.channelsDone !== null;
+              const progressPct = showProgress ? Math.min(100, Math.round(((run.channelsDone ?? 0) / (run.channelsTotal ?? 1)) * 100)) : 0;
+              const isPending = pendingId === run.runId;
+
+              return (
+                <TableRow
+                  key={run.runId}
+                  className="cursor-pointer"
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => router.push(`/runs/${run.runId}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      router.push(`/runs/${run.runId}`);
+                    }
+                  }}
+                >
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[run.status])} />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{run.title}</div>
+                        <div className="truncate text-2xs text-muted-foreground">{run.sub}</div>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-mono text-2xs text-muted-foreground">{run.type}</span>
+                  </TableCell>
+                  <TableCell className="font-mono text-muted-foreground">{relativeTime(run.startedAt)}</TableCell>
+                  <TableCell className="font-mono">{formatDuration(Math.floor(run.durationMs / 1000))}</TableCell>
+                  <TableCell>
+                    {/* A 5px sliver inside a table cell, not a labelled progress control:
+                        the Progress primitive is a 12px track with its own label row and
+                        would not fit this column. */}
+                    {showProgress && (
+                      <div className="h-[5px] w-28 overflow-hidden bg-muted">
+                        <div className="h-full bg-muted-foreground" style={{ width: `${progressPct}%` }} />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {run.status === "running" && verdict.stuck && <Badge variant="destructive">Stuck</Badge>}
+                    {run.status === "running" && !verdict.stuck && verdict.overBudget && (
+                      <Badge variant="destructive">SLA over by {formatDuration(Math.floor(overMs / 1000))}</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {/* Exactly one of these three ever renders, so this is a single
+                        control, not a button cluster. */}
+                    <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      {run.status === "running" && run.type === "sync" && (
+                        <Button variant="destructive" size="sm" disabled={isPending} onClick={() => void handleCancel(run.runId)}>
+                          Cancel
+                        </Button>
+                      )}
+                      {(run.status === "failed" || run.status === "partial") && run.type === "sync" && (
+                        <Button variant="outline" size="sm" disabled={isPending} onClick={() => void handleRetry(run.runId)}>
+                          Retry
+                        </Button>
+                      )}
+                      {!(run.status === "running" && run.type === "sync") &&
+                        !((run.status === "failed" || run.status === "partial") && run.type === "sync") && (
+                          <Button variant="outline" size="sm" onClick={() => router.push(`/runs/${run.runId}`)}>
+                            View
+                          </Button>
+                        )}
+                    </div>
                   </TableCell>
                 </TableRow>
-              )}
-              {runs.map((run) => {
-                const verdict = evaluateSla({
-                  status: run.status,
-                  startedAt: run.startedAt,
-                  heartbeatAt: run.heartbeatAt,
-                  budgetMs: budgetMsFor(run.type, syncSlaMinutes, remixSlaMinutes),
-                  staleMs: STALE_MS,
-                  now,
-                });
-                const overMs = Math.max(0, now - new Date(run.startedAt).getTime() - budgetMsFor(run.type, syncSlaMinutes, remixSlaMinutes));
-                const showProgress = run.status === "running" && run.channelsTotal !== null && run.channelsDone !== null;
-                const progressPct = showProgress ? Math.min(100, Math.round(((run.channelsDone ?? 0) / (run.channelsTotal ?? 1)) * 100)) : 0;
-                const isPending = pendingId === run.runId;
-
-                return (
-                  <TableRow
-                    key={run.runId}
-                    className="cursor-pointer"
-                    role="link"
-                    tabIndex={0}
-                    onClick={() => router.push(`/runs/${run.runId}`)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        router.push(`/runs/${run.runId}`);
-                      }
-                    }}
-                  >
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[run.status])} />
-                        <div className="min-w-0">
-                          <div className="truncate font-medium">{run.title}</div>
-                          <div className="truncate text-2xs text-muted-foreground">{run.sub}</div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono text-2xs text-muted-foreground">{run.type}</span>
-                    </TableCell>
-                    <TableCell className="font-mono text-muted-foreground">{relativeTime(run.startedAt)}</TableCell>
-                    <TableCell className="font-mono">{formatDuration(Math.floor(run.durationMs / 1000))}</TableCell>
-                    <TableCell>
-                      {showProgress && (
-                        <div className="h-[5px] w-28 overflow-hidden bg-muted">
-                          <div className="h-full bg-muted-foreground" style={{ width: `${progressPct}%` }} />
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {run.status === "running" && verdict.stuck && (
-                        <span className="inline-flex items-center gap-1 border border-destructive/45 px-2 py-0.5 font-mono text-2xs text-destructive">
-                          Stuck
-                        </span>
-                      )}
-                      {run.status === "running" && !verdict.stuck && verdict.overBudget && (
-                        <span className="inline-flex items-center gap-1 border border-destructive/45 bg-[color-mix(in srgb, var(--destructive) 12%, transparent)] px-2 py-0.5 font-mono text-2xs text-destructive">
-                          SLA over by {formatDuration(Math.floor(overMs / 1000))}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                        {run.status === "running" && run.type === "sync" && (
-                          <Button variant="destructive" size="sm" disabled={isPending} onClick={() => void handleCancel(run.runId)}>
-                            Cancel
-                          </Button>
-                        )}
-                        {(run.status === "failed" || run.status === "partial") && run.type === "sync" && (
-                          <Button variant="outline" size="sm" disabled={isPending} onClick={() => void handleRetry(run.runId)}>
-                            Retry
-                          </Button>
-                        )}
-                        {!(run.status === "running" && run.type === "sync") &&
-                          !((run.status === "failed" || run.status === "partial") && run.type === "sync") && (
-                            <Button variant="outline" size="sm" onClick={() => router.push(`/runs/${run.runId}`)}>
-                              View
-                            </Button>
-                          )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

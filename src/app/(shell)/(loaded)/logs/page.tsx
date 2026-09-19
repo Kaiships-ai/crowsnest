@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/layout/page-container";
 import { LogsView } from "@/components/logs/logs-view";
 import { queryLogEvents, type LogQueryFilter, type LogSource, type StoredLogLevel } from "@/server/logs/store";
 
@@ -42,8 +43,8 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const rows = queryLogEvents(filter);
 
   return (
-    <div className="mx-auto max-w-[1120px] p-6">
+    <PageContainer>
       <LogsView rows={rows} filter={filter} />
-    </div>
+    </PageContainer>
   );
 }

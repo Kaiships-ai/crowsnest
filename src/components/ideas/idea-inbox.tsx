@@ -16,7 +16,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { IdeaCommandMenu, type IdeaCommandAction } from "@/components/ideas/command-menu";
 import { formatCompact, formatEngagementRate, formatMultiplier, relativeTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
 import { createScriptFromIdeaAction, setIdeaNotesAction, setIdeaStatusAction } from "@/server/actions/idea-actions";
 import type { IdeaListItem, IdeaTab } from "@/server/queries/ideas";

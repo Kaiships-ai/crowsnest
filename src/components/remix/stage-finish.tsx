@@ -5,6 +5,8 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { finishRemixAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
@@ -43,45 +45,48 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
-          Hook
-        </span>
-        {session.chosenHook ? (
-          <p className="text-sm text-foreground">{session.chosenHook}</p>
-        ) : (
-          <p className="text-sm text-muted-foreground">(no hook chosen)</p>
-        )}
-      </div>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Hook</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {session.chosenHook ? (
+            <p className="text-sm text-foreground">{session.chosenHook}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground">(no hook chosen)</p>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
-          Chosen script
-        </span>
-        {chosenVariant !== null ? (
-          <>
-            <p className="text-xs text-muted-foreground">
-              Variant <span data-num>{(chosenIndex ?? 0) + 1}</span> of {variants.length}
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Chosen script</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chosenVariant !== null ? (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Variant <span data-num>{(chosenIndex ?? 0) + 1}</span> of {variants.length}
+              </p>
+              <p className="mt-1 border-l-2 border-border pl-3 text-sm whitespace-pre-wrap text-foreground">{chosenVariant}</p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              (no variant picked yet) Go back to the Script stage, open the variant you want, and save it.
             </p>
-            <p className="mt-1 border-l-2 border-border pl-3 text-sm whitespace-pre-wrap text-foreground">{chosenVariant}</p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            (no variant picked yet) Go back to the Script stage, open the variant you want, and save it.
-          </p>
-        )}
-      </div>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 border-t border-border pt-4">
+      <Separator />
+
+      <div className="flex flex-col gap-3">
         {postId ? (
           <>
             <p className="text-sm text-muted-foreground">This remix is on your plan.</p>
-            <Link
-              href="/mine"
-              className="w-fit border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted active:scale-[0.98]"
-            >
+            <Button variant="outline" className="w-fit" render={<Link href="/mine" />}>
               View in your plan
-            </Link>
+            </Button>
           </>
         ) : (
           <>

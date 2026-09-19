@@ -1,36 +1,39 @@
 "use client";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, XAxis, YAxis } from "recharts";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { formatCompact, formatMultiplier, relativeTime } from "@/lib/format";
 import { heatTier, type HeatTier } from "@/lib/heat";
 import type { ChannelDetail } from "@/server/queries/channels";
 
 type SeriesPoint = ChannelDetail["series"][number];
 
-const WIDTH_PER_POINT = 44;
-const MIN_WIDTH = 560;
-const HEIGHT = 200;
-const PAD_X = 24;
-const PAD_TOP = 28;
-const PAD_BOTTOM = 24;
-const GRIDLINES = 4;
+/** The score a point has to clear before it is worth picking out of the trend line. */
+const DOT_THRESHOLD = 2;
 
-// DESIGN.md §5 heat ramp — dot fills for outlier-threshold points (tier 4 uses the
-// same 135deg gradient as the badge, via the <defs> below).
+// The heat ramp, as dot fills for the points that cleared DOT_THRESHOLD. Tier 4 has no
+// flat colour of its own (the badge draws it as a gradient), so here it takes the hot
+// end of the theme ramp rather than carrying a gradient def into a chart library.
 const DOT_FILL: Record<Exclude<HeatTier, 0>, string> = {
-  1: "#C98A4A",
-  2: "#F5A524",
-  3: "#F5A524",
-  4: "url(#outlier-chart-tier4)",
+  1: "var(--chart-3)",
+  2: "var(--chart-2)",
+  3: "var(--chart-2)",
+  4: "var(--chart-1)",
+};
+
+const CHART_CONFIG: ChartConfig = {
+  viewCount: { label: "Views", color: "var(--muted-foreground)" },
 };
 
 /**
- * Channel Detail's outlier-history chart, DESIGN.md §5 "emphasis" dataviz form: one
- * muted line for the full view-count trend, outlier-threshold points picked out as
- * tier-colored dots, one direct label on the single highest spike. Deliberately no
- * chart lib and no mouse-following crosshair (a Tooltip anchored per-point covers the
- * "hover -> date/views/multiplier" requirement without hand-rolling pointer tracking) —
- * kept close to the plan's ~120-line budget for this component.
+ * Channel detail's outlier-history chart: one muted line for the full view-count trend,
+ * with the points that cleared the outlier threshold picked out as tier-coloured dots.
+ *
+ * Those dots are a custom `dot` renderer on the one Line rather than a second series,
+ * because a second series over the same x-axis would give the tooltip two rows for what
+ * the reader sees as one point.
  */
 export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"] }) {
   const points = [...series]
@@ -41,86 +44,70 @@ export function OutlierHistoryChart({ series }: { series: ChannelDetail["series"
     return <p className="text-sm text-muted-foreground">Not enough data yet to chart a trend.</p>;
   }
 
-  const width = Math.max(MIN_WIDTH, points.length * WIDTH_PER_POINT);
-  const times = points.map((p) => new Date(p.capturedAt).getTime());
-  const minTime = Math.min(...times);
-  const maxTime = Math.max(...times);
-  const maxView = Math.max(...points.map((p) => p.viewCount));
-
-  const xFor = (t: number) =>
-    PAD_X + (maxTime === minTime ? 0 : ((t - minTime) / (maxTime - minTime)) * (width - PAD_X * 2));
-  const yFor = (v: number) =>
-    HEIGHT - PAD_BOTTOM - (v / (maxView || 1)) * (HEIGHT - PAD_TOP - PAD_BOTTOM);
-
-  const coords = points.map((p, i) => ({ point: p, x: xFor(times[i]), y: yFor(p.viewCount) }));
-  const linePath = coords.map((c) => `${c.x},${c.y}`).join(" ");
-  const outlierCoords = coords.filter((c) => c.point.outlierScore !== null && c.point.outlierScore >= 2);
-  const peak = coords.reduce((max, c) => (c.point.viewCount > max.point.viewCount ? c : max), coords[0]);
-
   return (
-    <div className="overflow-x-auto border border-border bg-card p-4">
-      <svg width={width} height={HEIGHT} role="img" aria-label="Outlier history: view count over time">
-        <defs>
-          <linearGradient id="outlier-chart-tier4" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FF7A1A" />
-            <stop offset="100%" stopColor="#FF3D3D" />
-          </linearGradient>
-        </defs>
-
-        {Array.from({ length: GRIDLINES }).map((_, i) => {
-          const y = PAD_TOP + (i * (HEIGHT - PAD_TOP - PAD_BOTTOM)) / (GRIDLINES - 1);
-          return <line key={i} x1={PAD_X} x2={width - PAD_X} y1={y} y2={y} className="stroke-border" strokeWidth={1} />;
-        })}
-
-        <polyline points={linePath} fill="none" className="stroke-muted-foreground" strokeWidth={2} />
-
-        {coords.map((c) => (
-          <Tooltip key={c.point.videoId}>
-            <TooltipTrigger
-              render={<circle cx={c.x} cy={c.y} r={8} fill="transparent" className="cursor-pointer" />}
-            />
-            <TooltipContent>
-              {relativeTime(c.point.capturedAt)} · {formatCompact(c.point.viewCount)} views ·{" "}
-              {formatMultiplier(c.point.outlierScore)}
-            </TooltipContent>
-          </Tooltip>
-        ))}
-
-        {outlierCoords.map((c) => {
-          const tier = heatTier(c.point.outlierScore) as Exclude<HeatTier, 0>;
-          return (
-            <circle
-              key={`dot-${c.point.videoId}`}
-              cx={c.x}
-              cy={c.y}
-              r={5}
-              fill={DOT_FILL[tier]}
-              className="stroke-card"
-              strokeWidth={2}
-              pointerEvents="none"
-            />
-          );
-        })}
-
-        <text
-          x={peak.x}
-          y={Math.max(12, peak.y - 12)}
-          textAnchor="middle"
-          className="fill-foreground text-[11px] font-medium"
+    <Card>
+      <CardContent>
+        <ChartContainer
+          config={CHART_CONFIG}
+          className="aspect-auto h-[200px] w-full"
+          role="img"
+          aria-label="Outlier history: view count over time"
         >
-          {formatMultiplier(peak.point.outlierScore)}
-        </text>
-      </svg>
-    </div>
+          <LineChart data={points} margin={{ top: 16, right: 12, bottom: 0, left: 0 }}>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="capturedAt"
+              tickFormatter={(v: string) => relativeTime(v)}
+              tickLine={false}
+              axisLine={false}
+              minTickGap={32}
+              className="font-mono"
+            />
+            <YAxis
+              dataKey="viewCount"
+              tickFormatter={(v: number) => formatCompact(v)}
+              tickLine={false}
+              axisLine={false}
+              width={48}
+              className="font-mono"
+            />
+            <ChartTooltip
+              content={
+                <ChartTooltipContent
+                  hideLabel
+                  formatter={(_value, _name, item) =>
+                    `${relativeTime(item.payload.capturedAt)} · ${formatCompact(item.payload.viewCount)} views · ${formatMultiplier(item.payload.outlierScore)}`
+                  }
+                />
+              }
+            />
+            <Line
+              type="monotone"
+              dataKey="viewCount"
+              stroke="var(--color-viewCount)"
+              strokeWidth={2}
+              isAnimationActive={false}
+              activeDot={{ r: 5 }}
+              dot={(props) => {
+                const { cx, cy, key, payload } = props as { cx: number; cy: number; key: string; payload: SeriesPoint };
+                const score = payload.outlierScore;
+                if (score === null || score < DOT_THRESHOLD) return <g key={key} />;
+                const tier = heatTier(score) as Exclude<HeatTier, 0>;
+                return <circle key={key} cx={cx} cy={cy} r={5} fill={DOT_FILL[tier]} stroke="var(--card)" strokeWidth={2} />;
+              }}
+            />
+          </LineChart>
+        </ChartContainer>
+      </CardContent>
+    </Card>
   );
 }
 
 const VIEW_BAR_COUNT = 8;
 
 /**
- * "Views by post" bars (mine.html's `mineBars`), scoped to the last `VIEW_BAR_COUNT`
- * measured posts, oldest to newest left-to-right so the read direction matches the
- * calendar and post list below it.
+ * "Views by post" bars, scoped to the last `VIEW_BAR_COUNT` measured posts, oldest to
+ * newest left-to-right so the read direction matches the calendar and post list below.
  *
  * Named for what it plots. Every value here is `videos.view_count`, a public number this
  * app can read for any tracked channel. Reach is a different metric that exists only for
@@ -131,37 +118,61 @@ const VIEW_BAR_COUNT = 8;
  * are not interchangeable: they differ in metric, data shape, how many posts they show,
  * and what they do with a post that has no measurement.
  *
- * Bars stay a neutral fill on purpose: amber is reserved for the score (a baseline
- * ratio), and a raw view count is not that — see DESIGN.md's amber budget.
+ * Bars stay a neutral fill on purpose: the chart ramp marks a score, a ratio against a
+ * baseline, and a raw view count is not that.
  */
 type VideoItem = ChannelDetail["videos"][number];
 
+const VIEWS_CHART_CONFIG: ChartConfig = {
+  viewCount: { label: "Views", color: "var(--muted-foreground)" },
+};
+
 export function ViewsByPostBars({ videos }: { videos: ChannelDetail["videos"] }) {
   const measured = videos.filter((v): v is VideoItem & { viewCount: number } => v.viewCount !== null);
-  const posts = measured.slice(0, VIEW_BAR_COUNT).slice().reverse();
+  // `viewLabel` is precomputed because Recharts' label formatter type takes no null and
+  // this printed numeral is the point of the chart, not a tooltip-only detail.
+  const posts = measured
+    .slice(0, VIEW_BAR_COUNT)
+    .slice()
+    .reverse()
+    .map((p) => ({ ...p, viewLabel: formatCompact(p.viewCount) }));
 
   if (posts.length === 0) {
     return <p className="text-sm text-muted-foreground">No measured posts yet.</p>;
   }
-
-  const max = Math.max(...posts.map((p) => p.viewCount), 1);
 
   return (
     <div>
       <span data-lab className="font-mono text-2xs text-muted-foreground">
         Views by post · last {posts.length} post{posts.length === 1 ? "" : "s"}, rolling
       </span>
-      <div className="mt-6 flex h-[150px] items-end gap-3.5">
-        {posts.map((p) => (
-          <div key={p.videoId} className="flex h-full flex-1 flex-col justify-end gap-2.5" title={relativeTime(p.postedAt)}>
-            <span data-num className="font-mono text-xs">
-              {formatCompact(p.viewCount)}
-            </span>
-            <div className="bg-muted-foreground/40" style={{ height: `${Math.max(4, (p.viewCount / max) * 100)}%` }} />
-            <span className="font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt)}</span>
-          </div>
-        ))}
-      </div>
+      <ChartContainer config={VIEWS_CHART_CONFIG} className="mt-6 aspect-auto h-[150px] w-full">
+        <BarChart data={posts} margin={{ top: 16, right: 0, bottom: 0, left: 0 }}>
+          <XAxis
+            dataKey="postedAt"
+            tickFormatter={(v: string) => relativeTime(v)}
+            tickLine={false}
+            axisLine={false}
+            minTickGap={16}
+            className="font-mono"
+          />
+          <YAxis hide />
+          <ChartTooltip
+            cursor={false}
+            content={
+              <ChartTooltipContent
+                hideLabel
+                formatter={(_value, _name, item) =>
+                  `${formatCompact(item.payload.viewCount)} views · ${relativeTime(item.payload.postedAt)}`
+                }
+              />
+            }
+          />
+          <Bar dataKey="viewCount" fill="var(--color-viewCount)" fillOpacity={0.4} radius={2} isAnimationActive={false}>
+            <LabelList dataKey="viewLabel" position="top" className="fill-foreground font-mono text-xs" />
+          </Bar>
+        </BarChart>
+      </ChartContainer>
     </div>
   );
 }

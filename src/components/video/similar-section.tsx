@@ -1,5 +1,6 @@
 import { isNextRouterError } from "next/dist/client/components/is-next-router-error";
 
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getSimilarOutliers } from "@/server/services/similar";
 import { SimilarOutliers, SimilarSectionShell } from "./video-detail";
@@ -41,24 +42,28 @@ export async function SimilarSection({ videoId }: { videoId: string }) {
   return <SimilarOutliers items={similar} />;
 }
 
-/** One skeleton card, matching OutlierCard's compact-variant DOM exactly (outer
- *  `border border-border bg-card`, aspect-[9/16] thumbnail, `p-2` footer with two
- *  text lines) so swapping in the real row doesn't reflow the page. */
+/** One skeleton card, matching OutlierCard's compact-variant DOM exactly (a `size="sm"`
+ *  Card with a full-bleed aspect-[9/16] thumbnail above a CardContent holding two text
+ *  lines) so swapping in the real row doesn't reflow the page. */
 function SimilarCardSkeleton() {
   return (
-    <div className="flex flex-col border border-border bg-card">
+    // `pt-0` for the same reason OutlierCard carries it: the thumbnail is full-bleed to
+    // the card's top edge, and Card's own has-[>img:first-child]:pt-0 doesn't fire for a
+    // Skeleton standing in for one.
+    <Card size="sm" className="pt-0">
       <Skeleton className="aspect-[9/16] w-full" />
-      <div className="flex flex-1 flex-col gap-1.5 p-2">
+      <CardContent className="flex flex-1 flex-col gap-1.5">
         <Skeleton className="h-3 w-3/4" />
         <Skeleton className="h-3 w-1/2" />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 /** Matches SimilarOutliers' real shape (heading + a row of compact OutlierCards,
  *  aspect-[9/16] thumbnail plus a couple of footer lines) so the layout doesn't jump
- *  when the real section streams in. Neutral (bg-muted via Skeleton), no amber. */
+ *  when the real section streams in. Neutral throughout (bg-muted via Skeleton) so a
+ *  placeholder row can never be mistaken for a loaded one. */
 export function SimilarSkeleton() {
   return (
     <SimilarSectionShell>

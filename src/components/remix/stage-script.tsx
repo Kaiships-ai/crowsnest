@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Dialog,
   DialogContent,
@@ -16,8 +17,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
@@ -331,7 +334,7 @@ export function StageScript({
         {results.map((result, i) => (
           <TabsContent key={i} value={String(i)} className="flex flex-col gap-3 pt-3">
             {isError(result) ? (
-              <Alert variant="destructive" className="rounded-none">
+              <Alert variant="destructive">
                 <AlertTitle>Couldn&rsquo;t generate this variant</AlertTitle>
                 <AlertDescription>{result.error}</AlertDescription>
               </Alert>
@@ -344,9 +347,9 @@ export function StageScript({
                 className="font-mono text-sm"
               />
             )}
-            <div className="flex items-center gap-2">
+            <ButtonGroup>
               <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={regeneratingIndex === i}>
-                <RefreshCw className={regeneratingIndex === i ? "size-3.5 animate-spin" : "size-3.5"} />
+                {regeneratingIndex === i ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
                 {isError(result) ? "Retry" : "Regenerate"}
               </Button>
               {!isError(result) && (
@@ -354,7 +357,7 @@ export function StageScript({
                   <Copy className="size-3.5" /> Copy
                 </Button>
               )}
-            </div>
+            </ButtonGroup>
             <SteerBox
               placeholder="e.g. cut the setup, make beat 2 faster, warmer tone"
               pending={regeneratingIndex === i}
@@ -364,31 +367,35 @@ export function StageScript({
         ))}
       </Tabs>
 
-      <div className="flex items-center gap-2 border-t border-border pt-4">
-        <Button variant="outline" onClick={writeScript}>
-          Regenerate all
-        </Button>
-        <Button variant="outline" onClick={createPrompt}>
-          <Wand2 className="size-3.5" /> Create Prompt
-        </Button>
-        <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-          <DialogTrigger render={<Button disabled={typeof results[Number(activeTab)] !== "string"} />}>Save script</DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Save script</DialogTitle>
-              <DialogDescription>Saves the currently-open variant to your scripts.</DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="script-title">Title</Label>
-              <Input id="script-title" value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} />
-            </div>
-            <DialogFooter>
-              <Button onClick={saveScript} disabled={saving || !saveTitle}>
-                {saving ? "Saving…" : "Save"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+      <Separator />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <ButtonGroup>
+          <Button variant="outline" onClick={writeScript}>
+            Regenerate all
+          </Button>
+          <Button variant="outline" onClick={createPrompt}>
+            <Wand2 className="size-3.5" /> Create Prompt
+          </Button>
+          <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
+            <DialogTrigger render={<Button disabled={typeof results[Number(activeTab)] !== "string"} />}>Save script</DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Save script</DialogTitle>
+                <DialogDescription>Saves the currently-open variant to your scripts.</DialogDescription>
+              </DialogHeader>
+              <Field>
+                <FieldLabel htmlFor="script-title">Title</FieldLabel>
+                <Input id="script-title" value={saveTitle} onChange={(e) => setSaveTitle(e.target.value)} />
+              </Field>
+              <DialogFooter>
+                <Button onClick={saveScript} disabled={saving || !saveTitle}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </ButtonGroup>
         {savedScriptId && (
           <Link href="/vault?tab=scripts" className="text-xs text-muted-foreground hover:text-foreground">
             View in Vault →
@@ -397,31 +404,32 @@ export function StageScript({
       </div>
 
       {savedScriptId && (
-        <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Add to plan</Label>
-          {addedPlanDate ? (
-            <p className="text-sm text-muted-foreground">
-              On the plan for <span className="text-foreground">{addedPlanDate}</span>.
-            </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-end gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="script-plan-date" className="text-xs text-muted-foreground">
-                    Date
-                  </Label>
-                  <Input id="script-plan-date" type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} className="w-44" />
-                </div>
-                <Button onClick={addToPlan} disabled={!planDate || addingToPlan}>
-                  {addingToPlan ? "Adding…" : "Add to plan"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Optional — the script above is already saved either way. Skip this and it just stays in the Vault.
+        <>
+          <Separator />
+          <FieldSet>
+            <FieldLegend variant="label">Add to plan</FieldLegend>
+            {addedPlanDate ? (
+              <p className="text-sm text-muted-foreground">
+                On the plan for <span className="text-foreground">{addedPlanDate}</span>.
               </p>
-            </>
-          )}
-        </div>
+            ) : (
+              <FieldGroup>
+                <div className="flex flex-wrap items-end gap-3">
+                  <Field className="w-44">
+                    <FieldLabel htmlFor="script-plan-date">Date</FieldLabel>
+                    <Input id="script-plan-date" type="date" value={planDate} onChange={(e) => setPlanDate(e.target.value)} />
+                  </Field>
+                  <Button onClick={addToPlan} disabled={!planDate || addingToPlan}>
+                    {addingToPlan ? "Adding…" : "Add to plan"}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Optional — the script above is already saved either way. Skip this and it just stays in the Vault.
+                </p>
+              </FieldGroup>
+            )}
+          </FieldSet>
+        </>
       )}
     </div>
   );

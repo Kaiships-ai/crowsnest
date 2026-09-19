@@ -1,34 +1,32 @@
-import { describe, expect, test } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
+/**
+ * @vitest-environment jsdom
+ *
+ * The panel is props-driven, but it is now built out of shadcn compositions (Card, Item,
+ * ButtonGroup, Spinner) whose markup is not this file's business. So the assertions here
+ * go through the accessibility tree and the rendered text — `getByRole("progressbar")`
+ * and its aria values, buttons by accessible name — rather than through raw HTML
+ * substrings, which is what this file used to do and what made a re-composition of the
+ * panel look like a behaviour regression.
+ *
+ * Environment is declared per-file, the same convention `failure-strip.test.tsx` and
+ * `logs-view.test.tsx` follow: vitest defaults to node here and only the files that
+ * touch a DOM opt in.
+ *
+ * `@testing-library/jest-dom` isn't a dependency (see `package.json`), so assertions
+ * read straight off the node — `.textContent`, `.getAttribute`, `.hasAttribute`. And
+ * vitest runs without `globals: true`, so testing-library's auto-cleanup never
+ * registers: every test renders through `panel()` and `afterEach` calls `cleanup()`.
+ *
+ * Clicks are still out of scope: the handlers are one-liners forwarding to props, and
+ * the props' own logic is covered in `sync-progress-view.test.ts` and by the hook's
+ * callers.
+ */
+
+import { cleanup, render, type RenderResult } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vitest";
 
 import type { SyncGap, SyncProgress } from "@/server/services/sync-types";
 import { SyncProgressPanel } from "./sync-progress-panel";
-
-/**
- * This repo has no DOM test environment — vitest runs in node, and neither jsdom nor
- * testing-library is installed. Rather than bolt one on for a single component, the
- * panel is exercised through `react-dom/server`, which is already a dependency and needs
- * no configuration. That covers exactly what matters here: which of the eight states is
- * on screen, the numbers and words in it, and the aria wiring. It cannot cover clicks —
- * the handlers are one-liners that forward to props, and the props' own logic is covered
- * in `sync-progress-view.test.ts` and by the hook's callers.
- */
-
-function render(element: React.ReactElement): string {
-  return renderToStaticMarkup(element);
-}
-
-/** Visible text only, so assertions read like the panel does and never accidentally
- *  match a Tailwind class name inside an attribute. */
-function text(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&#x27;|&#39;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 const START = "2026-07-28T10:00:00.000Z";
 
@@ -68,173 +66,208 @@ function fakeGap(overrides: Partial<SyncGap> = {}): SyncGap {
 
 const noop = () => {};
 
-function panel(props: Partial<React.ComponentProps<typeof SyncProgressPanel>> = {}): string {
-  return render(<SyncProgressPanel progress={fakeProgress()} stalled={false} onCancel={noop} onRetry={noop} {...props} />);
+interface Panel extends RenderResult {
+  /** Visible text, whitespace-collapsed, so assertions read like the panel does. */
+  text: string;
+  progressBar: HTMLElement | null;
+  /** The filled part of the bar. Base UI gives it an inline `width` only when the
+   *  progress is determinate, which is exactly the distinction this panel cares about. */
+  indicatorWidth: string;
 }
 
-describe("idle — no sync_jobs row at all", () => {
-  const html = panel({ progress: null });
+function panel(props: Partial<React.ComponentProps<typeof SyncProgressPanel>> = {}): Panel {
+  const utils = render(
+    <SyncProgressPanel progress={fakeProgress()} stalled={false} onCancel={noop} onRetry={noop} {...props} />,
+  );
+  const indicator = utils.container.querySelector<HTMLElement>('[data-slot="progress-indicator"]');
+  return {
+    ...utils,
+    text: (utils.container.textContent ?? "").replace(/\s+/g, " ").trim(),
+    progressBar: utils.queryByRole("progressbar"),
+    indicatorWidth: indicator?.style.width ?? "",
+  };
+}
 
+afterEach(cleanup);
+
+describe("idle — no sync_jobs row at all", () => {
   test("says so plainly instead of showing a bar at zero", () => {
-    expect(text(html)).toContain("No sync has run yet");
-    expect(text(html)).toContain("Nothing in sync_jobs to report.");
+    const { text } = panel({ progress: null });
+    expect(text).toContain("No sync has run yet");
+    expect(text).toContain("Nothing in sync_jobs to report.");
   });
 
   test("draws no progressbar and no counters", () => {
-    expect(html).not.toContain('role="progressbar"');
-    expect(text(html)).not.toContain("assets saved");
+    const { progressBar, text } = panel({ progress: null });
+    expect(progressBar).toBeNull();
+    expect(text).not.toContain("assets saved");
   });
 
   test("offers no cancel for a run that isn't happening", () => {
-    expect(text(html)).not.toContain("Cancel");
+    const { queryByRole } = panel({ progress: null });
+    expect(queryByRole("button", { name: /cancel/i })).toBeNull();
   });
 });
 
 describe("running — determinate on channels", () => {
-  const html = panel();
-
   test("the bar's aria values are the real channel counts", () => {
-    expect(html).toContain('role="progressbar"');
-    expect(html).toContain('aria-valuemin="0"');
-    expect(html).toContain('aria-valuemax="4"');
-    expect(html).toContain('aria-valuenow="1"');
-    expect(html).toContain('aria-valuetext="1 of 4 channels"');
+    const { progressBar } = panel();
+    expect(progressBar).not.toBeNull();
+    expect(progressBar?.getAttribute("aria-valuemin")).toBe("0");
+    expect(progressBar?.getAttribute("aria-valuemax")).toBe("4");
+    expect(progressBar?.getAttribute("aria-valuenow")).toBe("1");
+    expect(progressBar?.getAttribute("aria-valuetext")).toBe("1 of 4 channels");
   });
 
   test("the drawn width is the same fraction, not an approximation of it", () => {
-    expect(html).toContain("width:25%");
-    expect(text(html)).toContain("1 / 4 · 25%");
+    const { indicatorWidth, text } = panel();
+    expect(indicatorWidth).toBe("25%");
+    expect(text).toContain("1 / 4 · 25%");
   });
 
   test("the headline is the phase plus the channel being worked", () => {
-    expect(text(html)).toContain("Fetching posts — @hormozi");
+    expect(panel().text).toContain("Fetching posts — @hormozi");
   });
 
   test("items are a count against the cap and are given no percentage", () => {
-    expect(text(html)).toContain("120 / 500 (cap)");
-    expect(text(html)).toMatch(/only denominator/);
+    const { text } = panel();
+    expect(text).toContain("120 / 500 (cap)");
+    expect(text).toMatch(/only denominator/);
     // 24% would be itemsSeen/maxItems dressed up as progress. It must not appear.
-    expect(text(html)).not.toContain("24%");
+    expect(text).not.toContain("24%");
   });
 
   test("every counter is on screen", () => {
-    const visible = text(html);
+    const { text } = panel();
     for (const label of ["created", "updated", "failed", "deleted", "assets saved", "assets failed"]) {
-      expect(visible).toContain(label);
+      expect(text).toContain(label);
     }
   });
 
   test("elapsed time comes from startedAt", () => {
-    const html65 = panel({ progress: fakeProgress({ startedAt: new Date(Date.now() - 65_000).toISOString() }) });
-    expect(text(html65)).toContain("running for 1:05");
+    const { text } = panel({ progress: fakeProgress({ startedAt: new Date(Date.now() - 65_000).toISOString() }) });
+    expect(text).toContain("running for 1:05");
   });
 
   test("cancel is offered and enabled", () => {
-    expect(text(html)).toContain("Cancel");
-    // `disabled:` also appears inside the button's Tailwind classes, so match the attribute.
-    expect(html).not.toMatch(/\sdisabled=""/);
+    const { getByRole } = panel();
+    // `ui/button.tsx` is Base UI's Button with the default `focusableWhenDisabled`, so
+    // an unpressable button carries the native `disabled` attribute, not aria-disabled.
+    expect(getByRole("button", { name: "Cancel" }).hasAttribute("disabled")).toBe(false);
   });
 
   test("status changes are announced", () => {
-    expect(html).toContain('role="status"');
-    expect(html).toContain('aria-live="polite"');
+    const { getByRole } = panel();
+    const status = getByRole("status");
+    expect(status.getAttribute("aria-live")).toBe("polite");
+  });
+
+  test("the panel is a named region, so a host screen can point at it", () => {
+    const { getByRole } = panel();
+    expect(getByRole("region", { name: "Sync progress" })).not.toBeNull();
   });
 
   test("zero retries says nothing at all", () => {
-    expect(text(html)).not.toContain("retried");
+    expect(panel().text).not.toContain("retried");
   });
 
   test("non-zero retries read as recovery, not as an error", () => {
-    expect(text(panel({ progress: fakeProgress({ retries: 3 }) }))).toContain("retried 3 times");
+    expect(panel({ progress: fakeProgress({ retries: 3 }) }).text).toContain("retried 3 times");
   });
 });
 
 describe("running — channel list not yet resolved", () => {
-  const html = panel({ progress: fakeProgress({ channelsTotal: null, channelsDone: 0, phase: "starting" }) });
+  const unresolved = () => panel({ progress: fakeProgress({ channelsTotal: null, channelsDone: 0, phase: "starting" }) });
 
   test("the bar is indeterminate rather than sitting at a made-up zero", () => {
-    expect(html).toContain("data-indeterminate");
-    expect(html).not.toContain("aria-valuenow");
+    const { progressBar } = unresolved();
+    expect(progressBar?.hasAttribute("data-indeterminate")).toBe(true);
+    expect(progressBar?.hasAttribute("aria-valuenow")).toBe(false);
   });
 
   test("and it says why", () => {
-    expect(text(html)).toContain("resolving channels");
-    expect(text(html)).toContain("hasn't enumerated its channel list yet");
-    expect(html).toContain('aria-valuetext="resolving the channel list"');
+    const { text, progressBar } = unresolved();
+    expect(text).toContain("resolving channels");
+    expect(text).toContain("hasn't enumerated its channel list yet");
+    expect(progressBar?.getAttribute("aria-valuetext")).toBe("resolving the channel list");
   });
 
   test("nothing is drawn: the indicator gets no width, so there is no bar pretending to fill", () => {
-    expect(html).not.toMatch(/width:\d+%/);
+    expect(unresolved().indicatorWidth).toBe("");
   });
 });
 
 describe("cancelling", () => {
-  const html = panel({ progress: fakeProgress({ cancelRequested: true }) });
+  const cancelling = () => panel({ progress: fakeProgress({ cancelRequested: true }) });
 
   test("the button reports the request, and can't be pressed twice", () => {
-    expect(text(html)).toContain("Cancelling…");
-    expect(html).toMatch(/\sdisabled=""/);
+    const { getByRole } = cancelling();
+    expect(getByRole("button", { name: "Cancelling…" }).hasAttribute("disabled")).toBe(true);
   });
 
   test("the headline explains that cancellation is co-operative", () => {
-    expect(text(html)).toContain("Cancelling — waiting for the request already in flight");
+    expect(cancelling().text).toContain("Cancelling — waiting for the request already in flight");
   });
 
   test("it does not promise the channel in progress will finish", () => {
     // The engine abandons the remaining retry budget on cancel, so saying the channel is
     // being "finished" would be a promise the engine does not keep.
-    const visible = text(html);
-    expect(visible).not.toContain("finishing the current channel");
-    expect(visible).toContain("won't complete");
-    expect(visible).toContain("Everything already saved is kept");
+    const { text } = cancelling();
+    expect(text).not.toContain("finishing the current channel");
+    expect(text).toContain("won't complete");
+    expect(text).toContain("Everything already saved is kept");
   });
 
   test("nor does it say where that channel will turn up — the run hasn't finalized", () => {
     // Mid-retry it becomes a gap; on a healthy in-flight request it becomes no gap at
     // all. Neither is known while the row is still `running`.
-    expect(text(html)).not.toContain("listed below");
+    expect(cancelling().text).not.toContain("listed below");
   });
 });
 
 describe("stalled", () => {
-  const html = panel({ stalled: true });
-
   test("says the run stopped reporting rather than pretending it is working", () => {
-    expect(text(html)).toContain("This sync stopped reporting");
-    expect(text(html)).toContain("died holding the sync lock");
+    const { text } = panel({ stalled: true });
+    expect(text).toContain("This sync stopped reporting");
+    expect(text).toContain("died holding the sync lock");
   });
 
   test("offers the recovery", () => {
-    expect(text(html)).toContain("Start a new sync");
+    const { getByRole } = panel({ stalled: true });
+    expect(getByRole("button", { name: "Start a new sync" })).not.toBeNull();
   });
 
   test("does not offer a cancel that a dead process can never honour", () => {
-    expect(text(html)).not.toContain("Cancel");
+    const { queryByRole } = panel({ stalled: true });
+    expect(queryByRole("button", { name: /cancel/i })).toBeNull();
   });
 
   test("outranks a cancel request that will never be serviced", () => {
-    const both = panel({ progress: fakeProgress({ cancelRequested: true }), stalled: true });
-    expect(text(both)).toContain("This sync stopped reporting");
-    expect(text(both)).not.toContain("Cancelling…");
+    const { text, queryByRole } = panel({ progress: fakeProgress({ cancelRequested: true }), stalled: true });
+    expect(text).toContain("This sync stopped reporting");
+    expect(queryByRole("button", { name: /cancelling/i })).toBeNull();
+    expect(text).not.toContain("Cancelling…");
   });
 });
 
 describe("terminal — success", () => {
-  const html = panel({
-    progress: fakeProgress({ status: "success", finishedAt: "2026-07-28T10:02:00.000Z", channelsDone: 4, stopReason: "lookback" }),
-  });
+  const success = () =>
+    panel({
+      progress: fakeProgress({ status: "success", finishedAt: "2026-07-28T10:02:00.000Z", channelsDone: 4, stopReason: "lookback" }),
+    });
 
   test("names the counts behind the verdict", () => {
-    expect(text(html)).toContain("Sync finished — 40 new, 8 updated");
+    expect(success().text).toContain("Sync finished — 40 new, 8 updated");
   });
 
   test("says why it stopped, and reports a settled duration", () => {
-    expect(text(html)).toContain("The run reached the lookback boundary.");
-    expect(text(html)).toContain("took 2:00");
+    const { text } = success();
+    expect(text).toContain("The run reached the lookback boundary.");
+    expect(text).toContain("took 2:00");
   });
 
   test("no cancel on a finished run", () => {
-    expect(text(html)).not.toContain("Cancel");
+    expect(success().queryByRole("button", { name: /cancel/i })).toBeNull();
   });
 });
 
@@ -243,27 +276,31 @@ describe("terminal — partial, with per-channel failures", () => {
     fakeGap({ channelId: "chan-1", handle: "@hormozi", code: "IG_AUTH_REQUIRED", error: "401" }),
     fakeGap({ channelId: "chan-2", handle: "@garyvee", code: "IG_PRIVATE", error: "private" }),
   ];
-  const html = panel({ progress: fakeProgress({ status: "partial", finishedAt: START, channelsDone: 2, gaps }) });
+  const partial = () => panel({ progress: fakeProgress({ status: "partial", finishedAt: START, channelsDone: 2, gaps }) });
 
   test("counts the unfinished channels in the headline", () => {
-    expect(text(html)).toContain("Sync finished with 2 channels unfinished");
-    expect(text(html)).toContain("2 channels didn't finish");
+    const { text } = partial();
+    expect(text).toContain("Sync finished with 2 channels unfinished");
+    expect(text).toContain("2 channels didn't finish");
   });
 
   test("each gap is named by handle, not by id", () => {
-    expect(text(html)).toContain("@hormozi");
-    expect(text(html)).toContain("@garyvee");
-    expect(text(html)).not.toContain("chan-1");
+    const { text } = partial();
+    expect(text).toContain("@hormozi");
+    expect(text).toContain("@garyvee");
+    expect(text).not.toContain("chan-1");
   });
 
   test("each code becomes an actionable sentence — never a bare code", () => {
-    expect(text(html)).toContain("The Instagram session has expired. Re-import it in Settings");
-    expect(text(html)).toContain("This account is private");
+    const { text } = partial();
+    expect(text).toContain("The Instagram session has expired. Re-import it in Settings");
+    expect(text).toContain("This account is private");
   });
 
   test("a hopeless retry is labelled as such", () => {
-    expect(html).toContain('aria-label="Retry @hormozi"');
-    expect(html).toContain('aria-label="Retry anyway @garyvee"');
+    const { getByRole } = partial();
+    expect(getByRole("button", { name: "Retry @hormozi" })).not.toBeNull();
+    expect(getByRole("button", { name: "Retry anyway @garyvee" })).not.toBeNull();
   });
 
   test("a gap with no handle is still named, and its retry button still labelled", () => {
@@ -272,38 +309,36 @@ describe("terminal — partial, with per-channel failures", () => {
     const legacy = panel({
       progress: fakeProgress({ status: "partial", finishedAt: START, gaps: [fakeGap({ handle: "", channelId: "chan-7" })] }),
     });
-    expect(text(legacy)).toContain("channel chan-7");
-    expect(legacy).toContain('aria-label="Retry channel chan-7"');
-    expect(legacy).not.toContain('aria-label="Retry "');
+    expect(legacy.text).toContain("channel chan-7");
+    expect(legacy.getByRole("button", { name: "Retry channel chan-7" })).not.toBeNull();
+    expect(legacy.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   test("a single retry-them-all button is offered too", () => {
-    expect(text(html)).toContain("Retry 2 failed");
+    expect(partial().getByRole("button", { name: "Retry 2 failed" })).not.toBeNull();
   });
 
   test("singular when only one channel failed", () => {
     const one = panel({ progress: fakeProgress({ status: "partial", finishedAt: START, gaps: [gaps[0]] }) });
-    expect(text(one)).toContain("Sync finished with 1 channel unfinished");
-    expect(text(one)).toContain("Retry 1 failed");
+    expect(one.text).toContain("Sync finished with 1 channel unfinished");
+    expect(one.getByRole("button", { name: "Retry 1 failed" })).not.toBeNull();
   });
 });
 
 describe("terminal — failed", () => {
-  const html = panel({
-    progress: fakeProgress({
-      status: "failed",
-      finishedAt: START,
-      stopReason: "error",
-      errorCode: "IG_SERVICE_DOWN",
-      errorMessage: "connection refused to http://127.0.0.1:8765",
-    }),
-  });
-
   test("the message is what the user reads; the code is only supporting evidence", () => {
-    const visible = text(html);
-    expect(visible).toContain("Sync failed");
-    expect(visible).toContain("connection refused to http://127.0.0.1:8765");
-    expect(visible.indexOf("connection refused")).toBeLessThan(visible.indexOf("IG_SERVICE_DOWN"));
+    const { text } = panel({
+      progress: fakeProgress({
+        status: "failed",
+        finishedAt: START,
+        stopReason: "error",
+        errorCode: "IG_SERVICE_DOWN",
+        errorMessage: "connection refused to http://127.0.0.1:8765",
+      }),
+    });
+    expect(text).toContain("Sync failed");
+    expect(text).toContain("connection refused to http://127.0.0.1:8765");
+    expect(text.indexOf("connection refused")).toBeLessThan(text.indexOf("IG_SERVICE_DOWN"));
   });
 });
 
@@ -314,62 +349,67 @@ describe("terminal — failed with every channel gapped", () => {
     fakeGap({ channelId: "chan-1", handle: "@hormozi", code: "IG_AUTH_REQUIRED", error: "session expired" }),
     fakeGap({ channelId: "chan-2", handle: "@garyvee", code: "IG_AUTH_REQUIRED", error: "session expired" }),
   ];
-  const html = panel({
-    progress: fakeProgress({
-      status: "failed",
-      finishedAt: START,
-      channelsDone: 0,
-      itemsCreated: 0,
-      itemsUpdated: 0,
-      stopReason: "error",
-      errorCode: "IG_AUTH_REQUIRED",
-      errorMessage: "session expired",
-      gaps,
-    }),
-  });
+  const allGapped = () =>
+    panel({
+      progress: fakeProgress({
+        status: "failed",
+        finishedAt: START,
+        channelsDone: 0,
+        itemsCreated: 0,
+        itemsUpdated: 0,
+        stopReason: "error",
+        errorCode: "IG_AUTH_REQUIRED",
+        errorMessage: "session expired",
+        gaps,
+      }),
+    });
 
   test("reads as failed, never as a partial success", () => {
-    expect(text(html)).toContain("Sync failed");
-    expect(text(html)).not.toContain("Sync finished");
+    const { text } = allGapped();
+    expect(text).toContain("Sync failed");
+    expect(text).not.toContain("Sync finished");
   });
 
   test("still lists every channel with its own actionable message and retry", () => {
-    expect(text(html)).toContain("2 channels didn't finish");
-    expect(text(html)).toContain("The Instagram session has expired. Re-import it in Settings");
-    expect(html).toContain('aria-label="Retry @hormozi"');
-    expect(text(html)).toContain("Retry 2 failed");
+    const { text, getByRole } = allGapped();
+    expect(text).toContain("2 channels didn't finish");
+    expect(text).toContain("The Instagram session has expired. Re-import it in Settings");
+    expect(getByRole("button", { name: "Retry @hormozi" })).not.toBeNull();
+    expect(getByRole("button", { name: "Retry 2 failed" })).not.toBeNull();
   });
 
   test("the bar honestly shows nothing got done", () => {
-    expect(html).toContain('aria-valuenow="0"');
-    expect(text(html)).toContain("0 / 4 · 0%");
+    const { progressBar, text } = allGapped();
+    expect(progressBar?.getAttribute("aria-valuenow")).toBe("0");
+    expect(text).toContain("0 / 4 · 0%");
   });
 });
 
 describe("terminal — cancelled", () => {
-  const html = panel({ progress: fakeProgress({ status: "partial", finishedAt: START, stopReason: "cancelled" }) });
+  const cancelled = () => panel({ progress: fakeProgress({ status: "partial", finishedAt: START, stopReason: "cancelled" }) });
 
   test("is not reported as a failure", () => {
-    expect(text(html)).toContain("Sync cancelled");
-    expect(text(html)).not.toContain("Sync failed");
+    const { text } = cancelled();
+    expect(text).toContain("Sync cancelled");
+    expect(text).not.toContain("Sync failed");
   });
 
   test("promises that saved work survives", () => {
-    expect(text(html)).toContain("Everything saved before the cancel is kept");
+    expect(cancelled().text).toContain("Everything saved before the cancel is kept");
   });
 
   test("stopped mid-healthy-request: no gap list, and the reader isn't sent hunting for one", () => {
     // The engine records no gap here and leaves the channel's sync_error untouched. The
     // only trace is the bar showing 1 of 4 done.
-    const visible = text(html);
-    expect(visible).toContain("left untouched");
-    expect(visible).not.toContain("didn't finish");
-    expect(visible).not.toContain("Retry 1 failed");
-    expect(html).toContain('aria-valuenow="1"');
+    const { text, queryByRole, progressBar } = cancelled();
+    expect(text).toContain("left untouched");
+    expect(text).not.toContain("didn't finish");
+    expect(queryByRole("button", { name: /Retry \d+ failed/ })).toBeNull();
+    expect(progressBar?.getAttribute("aria-valuenow")).toBe("1");
   });
 
   test("interrupted mid-retry: the gap is explained rather than left looking unrelated", () => {
-    const midRetry = panel({
+    const { text } = panel({
       progress: fakeProgress({
         status: "partial",
         finishedAt: START,
@@ -377,31 +417,30 @@ describe("terminal — cancelled", () => {
         gaps: [fakeGap({ handle: "@hormozi", code: "IG_RATE_LIMITED", error: "429" })],
       }),
     });
-    const visible = text(midRetry);
-    expect(visible).toContain("Sync cancelled");
-    expect(visible).toContain("interrupted mid-retry");
+    expect(text).toContain("Sync cancelled");
+    expect(text).toContain("interrupted mid-retry");
     // The gap still carries its real upstream reason, which is the whole confusion the
     // sentence above exists to defuse.
-    expect(visible).toContain("Instagram is throttling us");
+    expect(text).toContain("Instagram is throttling us");
   });
 });
 
 describe("a broken poll", () => {
-  const html = panel({ pollError: "fetch failed" });
-
   test("does not blank the numbers already on screen", () => {
-    expect(text(html)).toContain("Fetching posts — @hormozi");
-    expect(text(html)).toContain("120 / 500 (cap)");
+    const { text } = panel({ pollError: "fetch failed" });
+    expect(text).toContain("Fetching posts — @hormozi");
+    expect(text).toContain("120 / 500 (cap)");
   });
 
   test("and admits that they are stale", () => {
-    expect(text(html)).toContain("Progress updates are failing: fetch failed");
-    expect(text(html)).toContain("the last ones that arrived");
+    const { text } = panel({ pollError: "fetch failed" });
+    expect(text).toContain("Progress updates are failing: fetch failed");
+    expect(text).toContain("the last ones that arrived");
   });
 
   test("with nothing rendered yet it reports the error on its own", () => {
-    const empty = panel({ progress: null, pollError: "offline" });
-    expect(text(empty)).toContain("Progress updates are failing: offline");
-    expect(text(empty)).not.toContain("the last ones that arrived");
+    const { text } = panel({ progress: null, pollError: "offline" });
+    expect(text).toContain("Progress updates are failing: offline");
+    expect(text).not.toContain("the last ones that arrived");
   });
 });

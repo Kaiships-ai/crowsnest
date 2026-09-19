@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Play } from "lucide-react";
+import { Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { assetUrl } from "@/lib/media-url";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 
@@ -113,7 +114,7 @@ export function VideoPlayer({
       <div className={poster ? "relative flex flex-col items-center gap-3 bg-background/80 px-4 py-3" : "relative flex flex-col items-center gap-3"}>
       {pending ? (
         <>
-          <Loader2 className="size-8 animate-spin text-muted-foreground" aria-hidden />
+          <Spinner className="size-8 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">Downloading video…</p>
         </>
       ) : (

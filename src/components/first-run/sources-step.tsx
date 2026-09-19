@@ -37,7 +37,10 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Field, FieldDescription, FieldError } from "@/components/ui/field";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { SeedPicker } from "@/components/discover/seed-picker";
 import { normalizeHandle } from "@/lib/handle";
 import { addChannelAction } from "@/server/actions/sync-actions";
@@ -182,53 +185,64 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
       <span className="mt-11 block font-mono text-2xs tracking-wide text-muted-foreground">
         {seeds.length > 0 ? "OR ADD YOUR OWN" : ""}
       </span>
-      <div className="mt-3 flex max-w-[460px] items-center gap-2">
-        <Input
-          placeholder="@handle, or paste several separated by commas"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") addHandles();
-          }}
-          aria-label="Instagram handles"
-        />
-        <Button variant="outline" size="sm" onClick={addHandles} disabled={!draft.trim()}>
-          Add
-        </Button>
-      </div>
-      {addError !== null && <p className="mt-2 max-w-[460px] text-xs text-destructive">{addError}</p>}
-      <p className="mt-2 max-w-[460px] text-xs text-muted-foreground">
-        {canVerifyHandles
-          ? "Checked against Instagram when you press Continue — a real handle's name and follower count show up on the Channels page right after; one that doesn't exist shows up there as \"Sync failed\" instead."
-          : "Instagram isn't connected right now, so only the handle's format gets checked here — whether the account actually exists is sorted out once you connect and sync."}
-      </p>
+      <Field className="mt-3 max-w-[460px]">
+        <InputGroup>
+          <InputGroupInput
+            placeholder="@handle, or paste several separated by commas"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") addHandles();
+            }}
+            // No visible label: the eyebrow above already names this block, and adding a
+            // second heading over one input would say the same thing twice.
+            aria-label="Instagram handles"
+            aria-invalid={addError !== null || undefined}
+          />
+          <InputGroupAddon align="inline-end">
+            <InputGroupButton variant="outline" onClick={addHandles} disabled={!draft.trim()}>
+              Add
+            </InputGroupButton>
+          </InputGroupAddon>
+        </InputGroup>
+        {addError !== null && <FieldError>{addError}</FieldError>}
+        <FieldDescription>
+          {canVerifyHandles
+            ? "Checked against Instagram when you press Continue — a real handle's name and follower count show up on the Channels page right after; one that doesn't exist shows up there as \"Sync failed\" instead."
+            : "Instagram isn't connected right now, so only the handle's format gets checked here — whether the account actually exists is sorted out once you connect and sync."}
+        </FieldDescription>
+      </Field>
 
       {handles.length > 0 && (
-        <ul className="mt-6 flex max-w-[460px] flex-col">
+        <ItemGroup className="mt-6 max-w-[460px]">
           {handles.map((handle) => {
             const failure = failed.find((f) => f.handle === handle);
             return (
-              <li key={handle} className="flex items-center justify-between gap-3 border-b border-border py-3">
-                <div className="min-w-0">
-                  <span className="text-base whitespace-nowrap text-foreground">{handle}</span>
-                  {failure && <p className="mt-1 text-xs text-destructive">{failure.error}</p>}
-                </div>
-                <Button size="icon-xs" variant="ghost" aria-label={`Remove ${handle}`} onClick={() => removeHandle(handle)}>
-                  ×
-                </Button>
-              </li>
+              <Item key={handle} size="sm">
+                <ItemContent>
+                  <ItemTitle className="text-base whitespace-nowrap">{handle}</ItemTitle>
+                  {failure && <ItemDescription className="text-destructive">{failure.error}</ItemDescription>}
+                </ItemContent>
+                <ItemActions>
+                  <Button size="icon-xs" variant="ghost" aria-label={`Remove ${handle}`} onClick={() => removeHandle(handle)}>
+                    ×
+                  </Button>
+                </ItemActions>
+              </Item>
             );
           })}
-        </ul>
+        </ItemGroup>
       )}
 
       <div className="mt-10 flex flex-wrap items-center gap-7">
-        <Button variant="outline" onClick={onBack}>
-          ← Back
-        </Button>
-        <Button onClick={() => void handleContinue()} disabled={!canContinue}>
-          {pending ? "Adding…" : "Continue"}
-        </Button>
+        <ButtonGroup>
+          <Button variant="outline" onClick={onBack}>
+            ← Back
+          </Button>
+          <Button onClick={() => void handleContinue()} disabled={!canContinue}>
+            {pending ? "Adding…" : "Continue"}
+          </Button>
+        </ButtonGroup>
         <span className="font-mono text-xs text-muted-foreground">
           {totalSelected === 0 ? "Follow or add at least one channel to continue" : `${totalSelected} selected`}
         </span>

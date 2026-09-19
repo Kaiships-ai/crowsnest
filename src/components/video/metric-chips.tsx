@@ -1,9 +1,10 @@
+import { Badge } from "@/components/ui/badge";
 import { formatCompact } from "@/lib/format";
 
 /**
- * Prototype's detail screen doesn't badge these behind icons — it's a flat mono row
- * (value, unit-label). Kept as a single component (rather than inlined at the call
- * site) because it also derives the engagement rate, which nothing else needs.
+ * Likes, comments and the engagement rate, one badge each. Kept as a single component
+ * (rather than inlined at the call site) because it also derives the engagement rate,
+ * which nothing else needs.
  */
 export function MetricChips({
   viewCount,
@@ -29,14 +30,12 @@ export function MetricChips({
   ];
 
   return (
-    <div className="flex flex-wrap gap-x-6 gap-y-1.5 font-mono text-xs text-muted-foreground">
+    <div className="flex flex-wrap gap-2">
       {stats.map((s) => (
-        <span key={s.label} className="inline-flex items-baseline gap-1.5">
-          <span data-num className="text-foreground">
-            {s.value}
-          </span>
+        <Badge key={s.label} variant="secondary">
+          <span data-num>{s.value}</span>
           {s.label}
-        </span>
+        </Badge>
       ))}
     </div>
   );

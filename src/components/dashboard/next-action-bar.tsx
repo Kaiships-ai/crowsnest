@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface NextAction {
   /** The single most useful thing to do next, given the current state. */
@@ -14,9 +14,10 @@ export interface NextAction {
 /**
  * The dashboard's spine: the one next action, decided from state, plus a few standing
  * shortcuts. The goal's dashboard is a decision surface ("what do I do next"), not a KPI
- * wall, so this sits at the very top. The primary action is the only amber affordance on
- * the screen (the amber law: amber is scores and exactly one primary action). Purely
- * link-based, so it never duplicates the sidebar's own sync-trigger logic.
+ * wall, so this sits at the very top. It renders the screen's one primary button, which
+ * is why the shortcuts beside it stay plain links rather than a second cluster of
+ * buttons. Purely link-based, so it never duplicates the sidebar's own sync-trigger
+ * logic.
  */
 export function NextActionBar({ next }: { next: NextAction }) {
   const shortcuts: { label: string; href: string }[] = [
@@ -26,26 +27,26 @@ export function NextActionBar({ next }: { next: NextAction }) {
   ];
 
   return (
-    <section className="flex flex-col gap-4 border border-border p-5 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs text-muted-foreground">
-          Next
-        </span>
+    <Card>
+      <CardHeader>
+        <CardTitle>Next</CardTitle>
+        <CardAction>
+          <Button render={<Link href={next.href} />}>{next.label}</Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
         <p className="text-sm text-foreground">{next.reason}</p>
-      </div>
-      <div className="flex items-center gap-4">
-        <nav className="hidden items-center gap-4 sm:flex" aria-label="Quick links">
+      </CardContent>
+      <CardFooter>
+        <nav className="flex flex-wrap items-center gap-4" aria-label="Quick links">
           {shortcuts.map((s) => (
             <Link key={s.href} href={s.href} className="text-xs text-muted-foreground hover:text-foreground">
               {s.label}
             </Link>
           ))}
         </nav>
-        <Link href={next.href} className={cn(buttonVariants({ variant: "default" }), "rounded-none")}>
-          {next.label}
-        </Link>
-      </div>
-    </section>
+      </CardFooter>
+    </Card>
   );
 }
 

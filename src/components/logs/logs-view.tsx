@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, SearchX } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { isoToLocalInput, localInputToIso } from "@/lib/datetime-local";
@@ -27,15 +30,9 @@ const SOURCE_ITEMS: { value: LogSource | "all"; label: string }[] = [
   { value: "sidecar", label: "local service" },
 ];
 
-// Same read-as-state trigger treatment the feed's filter row uses (filter-bar.tsx) —
-// plain text with a chevron, not boxed input chrome, so this row matches every other
-// list screen instead of inventing its own control style.
-const FILTER_TRIGGER_CLASS =
-  "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
-
-// Amber is reserved for the outlier score elsewhere in this app (channel-table.tsx),
-// so a log's level leans on text weight and the destructive color alone rather than
-// borrowing it.
+// A log's level is read as text, not as a filled chip: three of these sit in every row
+// of a long table, and three badges per row would out-shout the event names the reader
+// is actually scanning. Only `error` gets a hue.
 const LEVEL_LABEL_CLASS: Record<StoredLogLevel, string> = {
   info: "text-muted-foreground",
   warn: "text-foreground",
@@ -125,98 +122,96 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 border-b border-border pb-4">
-        <div className="relative max-w-md">
-          <Input
-            type="search"
-            value={searchDraft}
-            onChange={(e) => setSearchDraft(e.target.value)}
-            onKeyDown={onDraftKeyDown}
-            placeholder="Search event and fields"
-            aria-label="Search event and fields"
-            className="h-8"
-          />
-        </div>
+      <div className="flex flex-col gap-3">
+        <Input
+          type="search"
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
+          onKeyDown={onDraftKeyDown}
+          placeholder="Search event and fields"
+          aria-label="Search event and fields"
+          className="max-w-md"
+        />
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-3">
-            {LEVELS.map((level) => (
-              <label key={level} className="flex items-center gap-1.5 text-sm">
-                <Checkbox
-                  checked={levels.includes(level)}
-                  onCheckedChange={(checked) => toggleLevel(level, checked === true)}
-                  aria-label={`Show ${level} level`}
-                />
-                <span className={LEVEL_LABEL_CLASS[level]}>{level}</span>
-              </label>
-            ))}
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {LEVELS.map((level) => (
+            <Field key={level} orientation="horizontal" className="w-auto">
+              <Checkbox
+                id={`logs-level-${level}`}
+                checked={levels.includes(level)}
+                onCheckedChange={(checked) => toggleLevel(level, checked === true)}
+              />
+              <FieldLabel htmlFor={`logs-level-${level}`} className={LEVEL_LABEL_CLASS[level]}>
+                {level}
+              </FieldLabel>
+            </Field>
+          ))}
 
-          <div className="flex items-center gap-1.5">
+          <Field orientation="horizontal" className="w-auto">
             <Switch
+              id="logs-show-everything"
               checked={showEverything}
               onCheckedChange={(checked) => setLevels(checked ? LEVELS : PROBLEMS_ONLY)}
-              aria-label="Show everything"
               size="sm"
             />
-            <span className="text-sm text-muted-foreground">Show everything</span>
-          </div>
+            <FieldLabel htmlFor="logs-show-everything" className="text-muted-foreground">
+              Show everything
+            </FieldLabel>
+          </Field>
 
-          <Select
-            items={SOURCE_ITEMS}
-            value={source}
-            onValueChange={(v) => setSource(v as string)}
-          >
-            <SelectTrigger size="sm" aria-label="Source" className={FILTER_TRIGGER_CLASS}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SOURCE_ITEMS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Source and event prefix narrow the same list, so they read as one control
+              rather than two loose ones. */}
+          <ButtonGroup>
+            <Select items={SOURCE_ITEMS} value={source} onValueChange={(v) => setSource(v as string)}>
+              <SelectTrigger size="sm" aria-label="Source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SOURCE_ITEMS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-          <Input
-            value={eventDraft}
-            onChange={(e) => setEventDraft(e.target.value)}
-            onKeyDown={onDraftKeyDown}
-            placeholder="Event prefix"
-            aria-label="Event"
-            className="h-7 w-40"
-          />
+            <Input
+              value={eventDraft}
+              onChange={(e) => setEventDraft(e.target.value)}
+              onKeyDown={onDraftKeyDown}
+              placeholder="Event prefix"
+              aria-label="Event"
+              className="w-40"
+            />
+          </ButtonGroup>
 
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="logs-since" className="text-2xs text-muted-foreground">
+          <Field orientation="horizontal" className="w-auto">
+            <FieldLabel htmlFor="logs-since" className="text-muted-foreground">
               Since
-            </Label>
+            </FieldLabel>
             <Input
               id="logs-since"
               type="datetime-local"
               value={sinceDraft}
               onChange={(e) => setSinceDraft(e.target.value)}
               onKeyDown={onDraftKeyDown}
-              aria-label="Since"
-              className="h-7 w-52"
+              className="w-52"
             />
-          </div>
+          </Field>
 
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="logs-until" className="text-2xs text-muted-foreground">
+          <Field orientation="horizontal" className="w-auto">
+            <FieldLabel htmlFor="logs-until" className="text-muted-foreground">
               Until
-            </Label>
+            </FieldLabel>
             <Input
               id="logs-until"
               type="datetime-local"
               value={untilDraft}
               onChange={(e) => setUntilDraft(e.target.value)}
               onKeyDown={onDraftKeyDown}
-              aria-label="Until"
-              className="h-7 w-52"
+              className="w-52"
             />
-          </div>
+          </Field>
 
           <Button variant="outline" size="sm" onClick={applyDraftFilters} className="ml-auto">
             <RefreshCw /> Refresh
@@ -224,59 +219,63 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
         </div>
       </div>
 
+      <Separator />
+
       {rows.length === 0 ? (
-        <p className="py-16 text-center text-sm text-muted-foreground">No log events match this filter.</p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <SearchX />
+            </EmptyMedia>
+            <EmptyTitle>No log events match this filter.</EmptyTitle>
+            <EmptyDescription>Widen the levels, clear the event prefix, or move the since and until bounds.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <div className="w-full overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="border-border hover:bg-transparent">
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Time</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Level</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Source</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Event</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((r) => {
-                const open = openId === r.id;
-                return (
-                  <TableRow
-                    key={r.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={open}
-                    aria-label={`${open ? "Collapse" : "Expand"} fields for ${r.event}`}
-                    onClick={() => setOpenId(open ? null : r.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setOpenId(open ? null : r.id);
-                      }
-                    }}
-                    className="cursor-pointer border-border align-top"
-                  >
-                    <TableCell className="whitespace-nowrap py-2 font-mono text-2xs text-muted-foreground">
-                      {formatTs(r.ts)}
-                    </TableCell>
-                    <TableCell className={cn("py-2 text-sm font-medium", LEVEL_LABEL_CLASS[r.level])}>
-                      {r.level}
-                    </TableCell>
-                    <TableCell className="py-2 text-sm text-muted-foreground">{r.source}</TableCell>
-                    <TableCell className="py-2 text-sm">
-                      {r.event}
-                      {open && (
-                        <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-card p-2 text-2xs text-muted-foreground">
-                          {JSON.stringify(r.fields, null, 2)}
-                        </pre>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead>Time</TableHead>
+              <TableHead>Level</TableHead>
+              <TableHead>Source</TableHead>
+              <TableHead>Event</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((r) => {
+              const open = openId === r.id;
+              return (
+                <TableRow
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={open}
+                  aria-label={`${open ? "Collapse" : "Expand"} fields for ${r.event}`}
+                  onClick={() => setOpenId(open ? null : r.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setOpenId(open ? null : r.id);
+                    }
+                  }}
+                  className="cursor-pointer align-top"
+                >
+                  <TableCell className="font-mono text-muted-foreground">{formatTs(r.ts)}</TableCell>
+                  <TableCell className={cn("font-medium", LEVEL_LABEL_CLASS[r.level])}>{r.level}</TableCell>
+                  <TableCell className="text-muted-foreground">{r.source}</TableCell>
+                  <TableCell>
+                    {r.event}
+                    {open && (
+                      <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-card p-2 text-2xs text-muted-foreground">
+                        {JSON.stringify(r.fields, null, 2)}
+                      </pre>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
     </div>
   );

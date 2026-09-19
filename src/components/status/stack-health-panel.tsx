@@ -17,6 +17,8 @@
 
 import Link from "next/link";
 
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
 import { relativeTime } from "@/lib/format";
 import { DependencyStatusPanel } from "./dependency-status-panel";
@@ -85,24 +87,24 @@ function silentFor(ms: number): string {
 
 function StuckRow({ jobs }: { jobs: StuckJob[] }) {
   return (
-    <div className="flex items-start gap-2.5">
-      <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", DOT_TONE.bad)} />
-      <div className="min-w-0">
-        <p className="text-sm text-foreground">
-          {jobs.length === 1 ? "One job is stuck." : `${jobs.length} jobs are stuck.`}
-        </p>
-        <ul className="mt-0.5 flex flex-col gap-0.5">
-          {jobs.map((job) => (
-            <li key={job.jobId} className="text-xs text-muted-foreground">
-              {job.label} has not reported for {silentFor(job.silentForMs)}.
-            </li>
-          ))}
-        </ul>
-        <Link href="/runs" className="mt-1.5 inline-block text-xs text-foreground underline underline-offset-2">
+    <Item size="sm">
+      <ItemMedia>
+        <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", DOT_TONE.bad)} />
+      </ItemMedia>
+      <ItemContent>
+        <ItemTitle>{jobs.length === 1 ? "One job is stuck." : `${jobs.length} jobs are stuck.`}</ItemTitle>
+        {jobs.map((job) => (
+          <ItemDescription key={job.jobId}>
+            {job.label} has not reported for {silentFor(job.silentForMs)}.
+          </ItemDescription>
+        ))}
+      </ItemContent>
+      <ItemActions>
+        <Link href="/runs" className="text-xs text-foreground underline underline-offset-2">
           Open Runs
         </Link>
-      </div>
-    </div>
+      </ItemActions>
+    </Item>
   );
 }
 
@@ -112,41 +114,58 @@ export function StackHealthPanel({ sidecar, llm, hasLlmKey, lastSync, running, c
   const tone = stackTone({ sidecar, llm, lastSync: summary, stuckCount: stuck.length });
 
   return (
-    <section
+    // Still a named region (Card renders a div, so the role is explicit): this block is
+    // the dashboard's landmark for "can the app do anything right now".
+    <Card
+      size="sm"
+      role="region"
       aria-label="Stack health"
       className={cn(
-        "flex flex-col gap-4 bg-card px-5 py-4",
-        tone === "ok" ? "border-l-2 border-border" : "border-l-2 border-destructive",
+        "border",
+        tone === "ok" ? "border-border" : "border-destructive",
         tone === "warn" && "border-destructive/50",
       )}
     >
-      <div className="flex items-center gap-2">
-        <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT_TONE[tone])} />
-        <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Stack health</p>
-      </div>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT_TONE[tone])} />
+          Stack health
+        </CardTitle>
+      </CardHeader>
 
-      <DependencyStatusPanel sidecar={sidecar} llm={llm} hasLlmKey={hasLlmKey} />
+      <CardContent className="flex flex-col gap-4">
+        <DependencyStatusPanel sidecar={sidecar} llm={llm} hasLlmKey={hasLlmKey} />
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-2.5">
-          <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", DOT_TONE[lastSyncTone(summary)])} />
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">{lastSyncHeadline(summary)}</p>
-            {summary.detail && <p className="mt-0.5 text-xs text-muted-foreground">{summary.detail}</p>}
-          </div>
-        </div>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemMedia>
+              <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", DOT_TONE[lastSyncTone(summary)])} />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{lastSyncHeadline(summary)}</ItemTitle>
+              {summary.detail && <ItemDescription>{summary.detail}</ItemDescription>}
+            </ItemContent>
+          </Item>
 
-        {stuck.length > 0 ? (
-          <StuckRow jobs={stuck} />
-        ) : (
-          <p className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span aria-hidden className={cn("size-1.5 rounded-full", DOT_TONE.ok)} />
-            {running.length === 0
-              ? "No jobs are running."
-              : `${running.length} job${running.length === 1 ? "" : "s"} running, all reporting in.`}
-          </p>
-        )}
-      </div>
-    </section>
+          {stuck.length > 0 ? (
+            <StuckRow jobs={stuck} />
+          ) : (
+            // Quiet when healthy: one muted line, not a row with a heading.
+            <Item size="xs">
+              <ItemMedia>
+                <span aria-hidden className={cn("size-1.5 rounded-full", DOT_TONE.ok)} />
+              </ItemMedia>
+              <ItemContent>
+                <ItemDescription>
+                  {running.length === 0
+                    ? "No jobs are running."
+                    : `${running.length} job${running.length === 1 ? "" : "s"} running, all reporting in.`}
+                </ItemDescription>
+              </ItemContent>
+            </Item>
+          )}
+        </ItemGroup>
+      </CardContent>
+    </Card>
   );
 }

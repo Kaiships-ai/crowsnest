@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 
 /** 2026-08-15 spec part 6: the "comment to regenerate" box on hook, style, and the
@@ -21,16 +22,30 @@ export function SteerBox({
   onRegenerate: (note: string) => void;
 }) {
   const [note, setNote] = useState("");
+  // The Script stage mounts one of these per variant tab, so the label/control pairing
+  // needs an id that is unique per instance rather than a hardcoded string.
+  const noteId = useId();
+
   return (
-    <div className="flex flex-col gap-2 border border-border bg-muted/20 p-3">
-      <Label className="font-mono text-2xs tracking-wide text-success uppercase">Comment to regenerate</Label>
-      <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder={placeholder} rows={2} />
-      <div className="flex flex-wrap items-center gap-3">
+    <Card size="sm">
+      <CardContent>
+        <Field>
+          <FieldLabel htmlFor={noteId}>Comment to regenerate</FieldLabel>
+          <Textarea
+            id={noteId}
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder={placeholder}
+            rows={2}
+          />
+        </Field>
+      </CardContent>
+      <CardFooter className="flex-wrap gap-3">
         <Button size="sm" variant="secondary" onClick={() => onRegenerate(note)} disabled={pending}>
           {pending ? "Regenerating…" : "Regenerate with note"}
         </Button>
         <p className="text-2xs text-muted-foreground">Your note is added to the same source inputs, then this step reruns.</p>
-      </div>
-    </div>
+      </CardFooter>
+    </Card>
   );
 }

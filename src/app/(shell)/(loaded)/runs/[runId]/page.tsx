@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, FileQuestion } from "lucide-react";
 
+import { PageContainer } from "@/components/layout/page-container";
 import { RunDetail } from "@/components/runs/run-detail";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { getRun } from "@/server/queries/runs";
 import { getSetting } from "@/server/settings";
 
@@ -24,20 +26,26 @@ export default async function RunDetailPage({ params }: { params: Promise<{ runI
   ]);
 
   return (
-    <div className="p-6">
+    <PageContainer>
       <Link href="/runs" className="flex w-fit items-center gap-1 text-2xs text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-3.5" /> Back to runs
       </Link>
 
       {run === null ? (
-        <p className="mt-10 text-center text-sm text-muted-foreground">
-          Run not found. It may be older than the retention window, or the id is wrong.
-        </p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <FileQuestion />
+            </EmptyMedia>
+            <EmptyTitle>Run not found.</EmptyTitle>
+            <EmptyDescription>It may be older than the retention window, or the id is wrong.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="mt-3">
           <RunDetail run={run} syncSlaMinutes={syncSlaMinutes} remixSlaMinutes={remixSlaMinutes} />
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

@@ -41,6 +41,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Item, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 import type { CreatorSeedRow } from "@/server/queries/discover";
 import {
@@ -99,17 +100,17 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
   }
 
   return (
-    <div className="grid min-h-screen grid-cols-1 md:grid-cols-[minmax(300px,400px)_minmax(0,1fr)]">
-      <aside className="relative flex flex-col overflow-hidden bg-card px-11 py-4 md:py-12">
+    <div className="flex min-h-screen flex-col lg:grid lg:grid-cols-[minmax(300px,400px)_minmax(0,1fr)]">
+      <aside className="relative flex flex-col overflow-hidden bg-card px-11 py-4 lg:py-12">
         {/* The current step as an oversized, near-invisible readout — it fills the rail's
             negative space with instrument character instead of dead air, and it is the one
-            place the step number gets to be large. Neutral, never amber (the score and one
-            action own amber). Tuned for the fixed rail, so it has no place in the compact
-            header below md. */}
+            place the step number gets to be large. It stays a near-invisible foreground
+            wash so it never competes with the step actually being worked on. Tuned for the
+            fixed rail, so it has no place in the compact header below lg. */}
         {currentStepMeta && (
           <span
             aria-hidden
-            className="pointer-events-none absolute right-3 bottom-28 hidden font-mono text-[11rem] leading-none font-semibold tracking-tighter tabular-nums text-foreground/[0.04] select-none md:block"
+            className="pointer-events-none absolute right-3 bottom-28 hidden font-mono text-[11rem] leading-none font-semibold tracking-tighter tabular-nums text-foreground/[0.04] select-none lg:block"
           >
             {currentStepMeta.n}
           </span>
@@ -117,18 +118,18 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
 
         <span className="relative z-10 text-lg font-semibold tracking-tight">Crowsnest</span>
 
-        {/* Narrow-only compact step indicator: below md the aside is a short header, not
+        {/* Narrow-only compact step indicator: below lg the aside is a short header, not
             the fixed rail, so the full tagline and progress spine (below) give way to one
             line naming where the visitor is. Only for the numbered steps - the welcome
             screen's own body already carries the "N steps, about a minute" line, so
             repeating it in the header here would double it up on narrow. */}
         {step !== "welcome" && (
-          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-muted-foreground md:hidden">
+          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-muted-foreground lg:hidden">
             {currentStepMeta?.label} · {currentStepMeta?.n} / {ONBOARDING_STEP_COUNT}
           </div>
         )}
 
-        <div className="relative z-10 mt-16 hidden md:block">
+        <div className="relative z-10 mt-16 hidden lg:block">
           <p className="max-w-[15ch] text-xl leading-tight font-bold tracking-tight text-balance">
             Watch the channels you compete with.
           </p>
@@ -142,52 +143,65 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
             middle breathes instead of the old justify-between chasm. */}
         <div className="relative z-10 mt-auto flex flex-col items-start gap-10 pt-16">
           {step === "welcome" ? (
-            <div className="hidden font-mono text-2xs tracking-wide text-muted-foreground md:block">
+            <div className="hidden font-mono text-2xs tracking-wide text-muted-foreground lg:block">
               {ONBOARDING_STEP_COUNT} steps · about a minute
             </div>
           ) : (
-            <nav className="relative hidden flex-col md:flex" aria-label="First-run steps">
+            <nav className="relative hidden lg:block" aria-label="First-run steps">
               {/* The rail: one hairline threading every tick, so the four steps read as a
                   single measured progression rather than four loose rows. */}
               <span aria-hidden className="absolute top-4 bottom-4 left-[7px] w-px bg-border" />
-              {ONBOARDING_STEPS.map((s) => {
-                const state = stepNavState(step, s.key);
-                return (
-                  <button
-                    key={s.key}
-                    type="button"
-                    disabled={state === "locked"}
-                    aria-current={state === "current" ? "step" : undefined}
-                    onClick={() => goTo(s.key)}
-                    className="group relative flex items-center gap-3.5 py-2.5 text-left disabled:cursor-not-allowed"
-                  >
-                    {/* Square ticks, not dots: filled foreground for the current step, a
-                        dimmer fill for a completed one, a hollow outline for what's ahead. */}
-                    <span className="relative z-10 flex size-4 flex-none items-center justify-center bg-card">
-                      <span
-                        aria-hidden
-                        className={
-                          state === "current"
-                            ? "size-2.5 bg-foreground"
-                            : state === "done"
-                              ? "size-2 bg-foreground/55"
-                              : "size-2 border border-border"
-                        }
-                      />
-                    </span>
-                    <span
-                      className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-muted-foreground"}`}
+              <ItemGroup>
+                {ONBOARDING_STEPS.map((s) => {
+                  const state = stepNavState(step, s.key);
+                  return (
+                    <Item
+                      key={s.key}
+                      size="xs"
+                      // px-0 keeps every tick centred on the hairline above, which is
+                      // positioned against the rail's left edge, not the row's padding.
+                      className="group relative w-auto px-0 disabled:cursor-not-allowed"
+                      render={
+                        <button
+                          type="button"
+                          disabled={state === "locked"}
+                          aria-current={state === "current" ? "step" : undefined}
+                          onClick={() => goTo(s.key)}
+                        />
+                      }
                     >
-                      {s.n}
-                    </span>
-                    <span
-                      className={`text-sm whitespace-nowrap transition-colors ${state === "current" ? "font-medium text-foreground" : state === "locked" ? "text-muted-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
-                    >
-                      {s.label}
-                    </span>
-                  </button>
-                );
-              })}
+                      <ItemMedia>
+                        {/* Square ticks, not dots: filled foreground for the current step, a
+                            dimmer fill for a completed one, a hollow outline for what's ahead. */}
+                        <span className="relative z-10 flex size-4 flex-none items-center justify-center bg-card">
+                          <span
+                            aria-hidden
+                            className={
+                              state === "current"
+                                ? "size-2.5 bg-foreground"
+                                : state === "done"
+                                  ? "size-2 bg-foreground/55"
+                                  : "size-2 border border-border"
+                            }
+                          />
+                        </span>
+                      </ItemMedia>
+                      <ItemContent className="flex-row items-center gap-3.5">
+                        <span
+                          className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-muted-foreground"}`}
+                        >
+                          {s.n}
+                        </span>
+                        <ItemTitle
+                          className={`whitespace-nowrap transition-colors ${state === "current" ? "font-medium text-foreground" : state === "locked" ? "font-normal text-muted-foreground" : "font-normal text-muted-foreground group-hover:text-foreground"}`}
+                        >
+                          {s.label}
+                        </ItemTitle>
+                      </ItemContent>
+                    </Item>
+                  );
+                })}
+              </ItemGroup>
             </nav>
           )}
 
@@ -204,7 +218,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
         </div>
       </aside>
 
-      <div className="flex min-w-0 items-start px-8 pt-20 pb-16 sm:px-12 md:pt-28">
+      <div className="flex min-w-0 items-start px-8 pt-20 pb-16 sm:px-12 lg:pt-28">
         {/* Keyed on the step so the panel replays one authored entrance — a short rise and
             fade from a visible resting state — each time the step changes. Reduced motion
             gets the content instantly, no movement. */}

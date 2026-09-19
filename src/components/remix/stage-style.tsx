@@ -4,8 +4,9 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
@@ -129,12 +130,12 @@ export function StageStyle({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="style-select" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
-            Structure
-          </Label>
+        <Field className="w-full sm:w-64">
+          <FieldContent>
+            <FieldLabel htmlFor="style-select">Structure</FieldLabel>
+          </FieldContent>
           <Select items={styleOptions} value={styleChoice} onValueChange={(v) => selectStyle(v as string)}>
-            <SelectTrigger id="style-select" className="w-64">
+            <SelectTrigger id="style-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -145,8 +146,8 @@ export function StageStyle({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        {/* Secondary, not primary — Continue in the footer stays the one amber action. */}
+        </Field>
+        {/* Secondary, not primary: Continue in the footer stays the one primary action. */}
         <Button variant="secondary" onClick={() => generate()} disabled={generating}>
           {generating ? "Generating…" : beats.length > 0 ? "Regenerate outline" : "Generate outline"}
         </Button>
@@ -160,30 +161,35 @@ export function StageStyle({
         <>
         <ol className="flex flex-col gap-3">
           {beats.map((beat, i) => (
-            <li key={i} className="flex gap-3 border border-border p-3">
-              <Input
-                value={String(beat.targetSec)}
-                onChange={(e) => updateBeat(i, { targetSec: Number(e.target.value) || 0 })}
-                onBlur={commitBeats}
-                className="w-16 shrink-0 text-center font-mono tabular-nums"
-                aria-label={`Beat ${i + 1} target seconds`}
-              />
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Input
-                  value={beat.label}
-                  onChange={(e) => updateBeat(i, { label: e.target.value })}
-                  onBlur={commitBeats}
-                  className="font-medium"
-                  aria-label={`Beat ${i + 1} label`}
-                />
-                <Textarea
-                  value={beat.content}
-                  onChange={(e) => updateBeat(i, { content: e.target.value })}
-                  onBlur={commitBeats}
-                  rows={2}
-                  className="text-sm"
-                />
-              </div>
+            <li key={i}>
+              <Card size="sm">
+                <CardContent className="flex gap-3">
+                  <Input
+                    value={String(beat.targetSec)}
+                    onChange={(e) => updateBeat(i, { targetSec: Number(e.target.value) || 0 })}
+                    onBlur={commitBeats}
+                    className="w-16 shrink-0 text-center font-mono tabular-nums"
+                    aria-label={`Beat ${i + 1} target seconds`}
+                  />
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <Input
+                      value={beat.label}
+                      onChange={(e) => updateBeat(i, { label: e.target.value })}
+                      onBlur={commitBeats}
+                      className="font-medium"
+                      aria-label={`Beat ${i + 1} label`}
+                    />
+                    <Textarea
+                      value={beat.content}
+                      onChange={(e) => updateBeat(i, { content: e.target.value })}
+                      onBlur={commitBeats}
+                      rows={2}
+                      className="text-sm"
+                      aria-label={`Beat ${i + 1} content`}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
             </li>
           ))}
         </ol>

@@ -22,6 +22,9 @@ import Link from "next/link";
 import { Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText } from "@/components/ui/input-group";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { isRoutedThroughProxyAction } from "@/server/actions/router-actions";
@@ -45,6 +48,8 @@ export interface DependencyStatusPanelProps {
   hasLlmKey: boolean;
 }
 
+/** The severity dot each row leads with. It sits in the row's `ItemMedia`, so the row
+ *  reads "signal, then sentence" without the sentence itself changing colour. */
 const ROW_TONE: Record<"ok" | "warn" | "bad", string> = {
   ok: "bg-muted-foreground/40",
   warn: "bg-muted-foreground",
@@ -114,13 +119,17 @@ function CopyCommand({ command }: { command: string }) {
   }
 
   return (
-    <div className="mt-1.5 flex items-center gap-2">
-      <code className="rounded bg-muted px-2 py-1 font-mono text-2xs text-foreground">{command}</code>
-      <Button size="icon-xs" variant="ghost" aria-label="Copy command" title="Copy command" onClick={() => void copy()}>
-        <Copy className="size-3.5" />
-      </Button>
-      {copied && <span className="text-2xs text-muted-foreground">Copied</span>}
-    </div>
+    <InputGroup className="mt-1.5 w-fit">
+      <InputGroupAddon align="inline-start">
+        <InputGroupText className="font-mono text-2xs text-foreground">{command}</InputGroupText>
+      </InputGroupAddon>
+      <InputGroupAddon align="inline-end">
+        {copied && <InputGroupText className="text-2xs">Copied</InputGroupText>}
+        <InputGroupButton size="icon-xs" aria-label="Copy command" title="Copy command" onClick={() => void copy()}>
+          <Copy className="size-3.5" />
+        </InputGroupButton>
+      </InputGroupAddon>
+    </InputGroup>
   );
 }
 
@@ -166,51 +175,59 @@ export function DependencyStatusPanel({ sidecar: initialSidecar, llm: initialLlm
   const tone = overallTone(sidecar, llm);
 
   return (
-    <div
+    // Severity is the panel's border, not a destructive wash: this sits at the top of
+    // the dashboard on every unhealthy load, so it has to read as a standing fact.
+    <Card
+      size="sm"
       role="status"
       aria-live="polite"
-      className={cn(
-        "flex flex-col gap-4 border-l-2 bg-card px-5 py-4",
-        tone === "bad" ? "border-destructive" : "border-destructive/50",
-      )}
+      className={cn(tone === "bad" ? "border border-destructive" : "border border-destructive/50")}
     >
-      <div className="flex items-start justify-between gap-4">
-        <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Dependencies</p>
-        <Button size="sm" variant="outline" onClick={recheck} disabled={isPending}>
-          {isPending ? "Checking…" : "Check again"}
-        </Button>
-      </div>
+      <CardHeader>
+        <CardTitle>Dependencies</CardTitle>
+        <CardAction>
+          <Button size="sm" variant="outline" onClick={recheck} disabled={isPending}>
+            {isPending ? "Checking…" : "Check again"}
+          </Button>
+        </CardAction>
+      </CardHeader>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex items-start gap-2.5">
-          <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[sidecarTone(sidecar.state)])} />
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">{sidecarHeadline(sidecar)}</p>
-            {sidecar.detail && <p className="mt-0.5 text-xs text-muted-foreground">{sidecar.detail}</p>}
-            {sidecar.state === "down" && <CopyCommand command={SIDECAR_START_COMMAND} />}
-          </div>
-        </div>
+      <CardContent>
+        <ItemGroup>
+          <Item size="sm">
+            <ItemMedia>
+              <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[sidecarTone(sidecar.state)])} />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{sidecarHeadline(sidecar)}</ItemTitle>
+              {sidecar.detail && <ItemDescription>{sidecar.detail}</ItemDescription>}
+              {sidecar.state === "down" && <CopyCommand command={SIDECAR_START_COMMAND} />}
+            </ItemContent>
+          </Item>
 
-        <div className="flex items-start gap-2.5">
-          <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[llmTone(llm.state)])} />
-          <div className="min-w-0">
-            <p className="text-sm text-foreground">{llmHeadline(llm)}</p>
-            {llm.detail && <p className="mt-0.5 text-xs text-muted-foreground">{llm.detail}</p>}
-            {llm.state === "reachable_unverified" && (
-              <p className="mt-0.5 max-w-[52ch] text-xs text-muted-foreground">
-                The proxy answered a token-count check, but that route doesn&rsquo;t call the model itself, so it is not proof Hook,
-                Style, or Script will actually generate. Try one in Remix to know for sure.
-              </p>
-            )}
-            <p className="mt-0.5 font-mono text-2xs text-muted-foreground">{proxyLocationLine(llm)}</p>
-            {llm.state === "not_configured" && (
-              <Link href="/settings" className="mt-1.5 inline-block text-xs text-foreground underline underline-offset-2">
-                Add API key in Settings
-              </Link>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+          <Item size="sm">
+            <ItemMedia>
+              <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[llmTone(llm.state)])} />
+            </ItemMedia>
+            <ItemContent>
+              <ItemTitle>{llmHeadline(llm)}</ItemTitle>
+              {llm.detail && <ItemDescription>{llm.detail}</ItemDescription>}
+              {llm.state === "reachable_unverified" && (
+                <ItemDescription className="max-w-[52ch]">
+                  The proxy answered a token-count check, but that route doesn&rsquo;t call the model itself, so it is not proof Hook,
+                  Style, or Script will actually generate. Try one in Remix to know for sure.
+                </ItemDescription>
+              )}
+              <ItemDescription className="font-mono text-2xs">{proxyLocationLine(llm)}</ItemDescription>
+              {llm.state === "not_configured" && (
+                <Link href="/settings" className="mt-1.5 inline-block text-xs text-foreground underline underline-offset-2">
+                  Add API key in Settings
+                </Link>
+              )}
+            </ItemContent>
+          </Item>
+        </ItemGroup>
+      </CardContent>
+    </Card>
   );
 }
