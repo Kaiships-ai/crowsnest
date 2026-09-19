@@ -1,9 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, CircleOff, Loader2 } from "lucide-react";
+import { CheckCircle2, CircleOff } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
 import type { getIgStatusAction } from "@/server/actions/ig-actions";
 import { sidecarProcessAliveAction, startSidecarAction, stopSidecarAction } from "@/server/actions/sidecar-actions";
 
@@ -65,32 +69,38 @@ export function SidecarControl({ health, onHealthChange }: { health: StatusResul
   const color = running ? "text-[var(--success)]" : "text-muted-foreground";
 
   return (
-    <div className="flex flex-col gap-2 border border-border bg-card p-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm">
-          <Icon className={`size-4 shrink-0 ${color}`} aria-hidden />
-          <span className="font-medium">Sidecar: {label}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void handleCheck()} disabled={busy !== null}>
-            {busy === "check" ? <Loader2 className="animate-spin" aria-hidden /> : null}
-            Check
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => void handleStart()} disabled={busy !== null || running}>
-            {busy === "start" ? "Starting…" : "Start"}
-          </Button>
-          {running && (
-            <Button size="sm" variant="outline" onClick={() => void handleStop()} disabled={busy !== null}>
-              {busy === "stop" ? "Stopping…" : "Stop"}
+    <Card size="sm">
+      <Item size="sm">
+        <ItemMedia variant="icon">
+          <Icon className={color} aria-hidden />
+        </ItemMedia>
+        <ItemContent>
+          <ItemTitle>Sidecar: {label}</ItemTitle>
+        </ItemContent>
+        <ItemActions>
+          <ButtonGroup>
+            <Button size="sm" variant="outline" onClick={() => void handleCheck()} disabled={busy !== null}>
+              {busy === "check" ? <Spinner aria-hidden /> : null}
+              Check
             </Button>
-          )}
-        </div>
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <p className="text-xs text-muted-foreground">
-        Spawns the sidecar the same way <code>npm run ig:service</code> does, with the shared service token and any configured Instagram
-        credentials injected. The process keeps running after this page reloads; Stop tears it down.
-      </p>
-    </div>
+            <Button size="sm" variant="secondary" onClick={() => void handleStart()} disabled={busy !== null || running}>
+              {busy === "start" ? "Starting…" : "Start"}
+            </Button>
+            {running && (
+              <Button size="sm" variant="outline" onClick={() => void handleStop()} disabled={busy !== null}>
+                {busy === "stop" ? "Stopping…" : "Stop"}
+              </Button>
+            )}
+          </ButtonGroup>
+        </ItemActions>
+      </Item>
+      <CardContent className="flex flex-col gap-2">
+        {error && <p className="text-xs text-destructive">{error}</p>}
+        <p className="text-xs text-muted-foreground">
+          Spawns the sidecar the same way <code>npm run ig:service</code> does, with the shared service token and any configured Instagram
+          credentials injected. The process keeps running after this page reloads; Stop tears it down.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

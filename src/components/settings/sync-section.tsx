@@ -23,6 +23,10 @@ import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { syncViewState } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { NumberField, SettingRow } from "./setting-field";
 import { numberFieldError } from "./number-validation";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
@@ -107,26 +111,28 @@ const STOP_REASON_LABEL: Record<string, string> = {
  *  believing the app enforces something it does not. */
 function ConfigRow({ label, value, note, warn }: { label: string; value: string; note?: string; warn?: boolean }) {
   return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd>
+    <TableRow>
+      <TableCell className="w-[12rem] align-top text-muted-foreground">{label}</TableCell>
+      <TableCell className="align-top">
         <span className={warn ? "font-mono text-destructive" : "font-mono"}>{value}</span>
         {note && <span className={`ml-2 text-xs ${warn ? "text-destructive/90" : "text-muted-foreground"}`}>{note}</span>}
-      </dd>
-    </>
+      </TableCell>
+    </TableRow>
   );
 }
 
 function Counter({ label, value, bad }: { label: string; value: number; bad?: boolean }) {
   return (
-    <div className="rounded-md border border-border px-3 py-2">
-      <div data-num className={`text-sm ${bad && value > 0 ? "text-destructive" : ""}`}>
-        {value}
-      </div>
-      <div data-lab className="font-mono text-2xs text-muted-foreground">
-        {label}
-      </div>
-    </div>
+    <Item variant="outline" size="xs">
+      <ItemContent>
+        <ItemTitle data-num className={bad && value > 0 ? "text-destructive" : undefined}>
+          {value}
+        </ItemTitle>
+        <ItemDescription data-lab className="font-mono text-2xs">
+          {label}
+        </ItemDescription>
+      </ItemContent>
+    </Item>
   );
 }
 
@@ -153,7 +159,7 @@ function LastJobSummary({ lastJob }: { lastJob: LastSyncJobResult }) {
         {job.finishedAt ? ` · finished ${job.finishedAt}` : " · still running"}
         {job.stopReason ? ` · ${STOP_REASON_LABEL[job.stopReason] ?? job.stopReason}` : ""}
       </p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+      <ItemGroup className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
         <Counter label="seen" value={job.itemsSeen} />
         <Counter label="created" value={job.itemsCreated} />
         <Counter label="updated" value={job.itemsUpdated} />
@@ -161,7 +167,7 @@ function LastJobSummary({ lastJob }: { lastJob: LastSyncJobResult }) {
         <Counter label="deleted" value={job.itemsDeleted} />
         <Counter label="assets saved" value={job.assetsDownloaded} />
         <Counter label="assets failed" value={job.assetsFailed} bad />
-      </div>
+      </ItemGroup>
       {job.errorCode && (
         <p className="text-xs text-destructive">
           <span className="font-mono">{job.errorCode}</span>
@@ -299,145 +305,126 @@ export function SyncSection({
   }, [progress, router]);
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Sync</h2>
-        <p className="text-sm text-muted-foreground">
-          The two rows just below are still <code>.env.local</code>-only, validated at boot. A bad value there stops the app starting
-          rather than surfacing later as an empty sync. Lookback, per-sync cap, cadence, and retention underneath those are stored in the
-          database and editable here.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Sync</CardTitle>
+          <CardDescription>
+            The two rows just below are still <code>.env.local</code>-only, validated at boot. A bad value there stops the app starting
+            rather than surfacing later as an empty sync. Lookback, per-sync cap, cadence, and retention underneath those are stored in the
+            database and editable here.
+          </CardDescription>
+        </CardHeader>
 
-      <dl className="grid grid-cols-[minmax(9rem,auto)_1fr] gap-x-4 gap-y-1.5 border border-border p-4 text-sm">
-        <ConfigRow
-          label="Video download"
-          value={config.eagerVideoDownload ? "eager" : "on demand"}
-          note={
-            config.eagerVideoDownload
-              ? "EAGER_VIDEO_DOWNLOAD=true: every video pulled during sync"
-              : "EAGER_VIDEO_DOWNLOAD=false: pulled on first play"
-          }
-        />
-        <ConfigRow label="Media root" value={config.mediaRoot} note="MEDIA_ROOT" />
-      </dl>
+        <CardContent className="flex flex-col gap-6">
+          <Table>
+            <TableBody>
+              <ConfigRow
+                label="Video download"
+                value={config.eagerVideoDownload ? "eager" : "on demand"}
+                note={
+                  config.eagerVideoDownload
+                    ? "EAGER_VIDEO_DOWNLOAD=true: every video pulled during sync"
+                    : "EAGER_VIDEO_DOWNLOAD=false: pulled on first play"
+                }
+              />
+              <ConfigRow label="Media root" value={config.mediaRoot} note="MEDIA_ROOT" />
+            </TableBody>
+          </Table>
 
-      <div className="flex flex-col gap-2">
-        <SettingRow label="Lookback window" hint="How far back a sync looks by default." infoNote={envNote("syncLookbackDays")}>
-          <NumberField
-            value={lookback}
-            onChange={setLookback}
-            min={1}
-            max={3650}
-            suffix="days"
-            ariaLabel="Sync lookback window"
-            error={lookbackError}
-          />
-        </SettingRow>
-        <SettingRow
-          label="Per-sync cap"
-          hint="Hard safety cap on items fetched across one sync run."
-          infoNote={envNote("maxItemsPerSync")}
-        >
-          <NumberField
-            value={maxItems}
-            onChange={setMaxItems}
-            min={1}
-            max={10_000}
-            suffix="posts"
-            ariaLabel="Per-sync cap"
-            error={maxItemsError}
-          />
-        </SettingRow>
-        <SettingRow
-          label="View counts per channel"
-          hint={`How many of each channel's newest posts a sync asks Instagram about individually, to recover the play count the listing endpoint withholds. 0 turns the pass off. ${enrichRecommendation(scoreBaselineWindow)}`}
-          infoNote={envNote("viewCountEnrichPerChannel")}
-        >
-          <NumberField
-            value={enrichPerChannel}
-            onChange={setEnrichPerChannel}
-            min={0}
-            max={200}
-            suffix="posts"
-            ariaLabel="View counts per channel"
-            error={enrichPerChannelError}
-          />
-        </SettingRow>
-        <SettingRow
-          label="Sync cadence"
-          hint="Minutes between automatic syncs."
-          warnNote={cadence.trim() !== "" && Number(cadence.trim()) === 0 ? "0 disables automatic sync; every sync then only starts from a click." : undefined}
-          infoNote={envNote("syncCadenceMinutes")}
-        >
-          <NumberField
-            value={cadence}
-            onChange={setCadence}
-            min={0}
-            max={10_080}
-            suffix="min"
-            ariaLabel="Sync cadence"
-            error={cadenceError}
-          />
-        </SettingRow>
-        <SettingRow
-          label="Asset retention"
-          hint="Days of downloaded media to keep."
-          warnNote="No reaper reads this. Disk use is unbounded regardless of this number."
-          infoNote={envNote("mediaRetentionDays")}
-        >
-          <NumberField
-            value={retention}
-            onChange={setRetention}
-            min={1}
-            max={3650}
-            suffix="days"
-            ariaLabel="Media retention"
-            error={retentionError}
-          />
-        </SettingRow>
-        <Button
-          onClick={saveSyncSettings}
-          disabled={!settingsDirty || settingsHasError || savingSettings}
-          className="w-fit"
-          size="sm"
-          variant="outline"
-        >
-          {savingSettings ? "Saving…" : "Save"}
-        </Button>
-      </div>
+          <FieldGroup>
+            <SettingRow
+              label="Lookback window"
+              hint="How far back a sync looks by default."
+              htmlFor="sync-lookback-days"
+              error={lookbackError}
+              infoNote={envNote("syncLookbackDays")}
+            >
+              <NumberField value={lookback} onChange={setLookback} min={1} max={3650} suffix="days" />
+            </SettingRow>
+            <SettingRow
+              label="Per-sync cap"
+              hint="Hard safety cap on items fetched across one sync run."
+              htmlFor="sync-max-items"
+              error={maxItemsError}
+              infoNote={envNote("maxItemsPerSync")}
+            >
+              <NumberField value={maxItems} onChange={setMaxItems} min={1} max={10_000} suffix="posts" />
+            </SettingRow>
+            <SettingRow
+              label="View counts per channel"
+              hint={`How many of each channel's newest posts a sync asks Instagram about individually, to recover the play count the listing endpoint withholds. 0 turns the pass off. ${enrichRecommendation(scoreBaselineWindow)}`}
+              htmlFor="sync-enrich-per-channel"
+              error={enrichPerChannelError}
+              infoNote={envNote("viewCountEnrichPerChannel")}
+            >
+              <NumberField value={enrichPerChannel} onChange={setEnrichPerChannel} min={0} max={200} suffix="posts" />
+            </SettingRow>
+            <SettingRow
+              label="Sync cadence"
+              hint="Minutes between automatic syncs."
+              htmlFor="sync-cadence-minutes"
+              error={cadenceError}
+              warnNote={cadence.trim() !== "" && Number(cadence.trim()) === 0 ? "0 disables automatic sync; every sync then only starts from a click." : undefined}
+              infoNote={envNote("syncCadenceMinutes")}
+            >
+              <NumberField value={cadence} onChange={setCadence} min={0} max={10_080} suffix="min" />
+            </SettingRow>
+            <SettingRow
+              label="Asset retention"
+              hint="Days of downloaded media to keep."
+              htmlFor="sync-media-retention-days"
+              error={retentionError}
+              warnNote="No reaper reads this. Disk use is unbounded regardless of this number."
+              infoNote={envNote("mediaRetentionDays")}
+            >
+              <NumberField value={retention} onChange={setRetention} min={1} max={3650} suffix="days" />
+            </SettingRow>
+          </FieldGroup>
+        </CardContent>
 
-      <div className="flex flex-col gap-2 border border-border p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="text-sm font-medium">Backfill blank view counts</h3>
-          <Button variant="outline" size="sm" onClick={startBackfill} disabled={backfilling || (isRunning && !stalled)}>
-            {backfilling ? "Starting…" : "Run backfill"}
+        <CardFooter>
+          <Button onClick={saveSyncSettings} disabled={!settingsDirty || settingsHasError || savingSettings} size="sm" variant="outline">
+            {savingSettings ? "Saving…" : "Save"}
           </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          A sync only enriches each channel&apos;s newest reels, so posts stored while the setting above was 0 still have no play count and
-          no outlier score. This asks Instagram about those, oldest debt included, paced and cancelable. It yields to a sync: it will not
-          start while one is running, and stops if one begins. Track it on the Runs screen.
-        </p>
-      </div>
+        </CardFooter>
+      </Card>
 
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-medium">{live ? "Sync in progress" : "Last sync"}</h3>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={syncNow}
-            // A stalled run is a dead process holding the lock; starting a new sync takes
-            // the lock back, so the button must stay live in that state.
-            disabled={starting || (isRunning && !stalled)}
-          >
-            {starting || (isRunning && !stalled) ? "Syncing…" : "Sync now"}
-          </Button>
-        </div>
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>Backfill blank view counts</CardTitle>
+          <CardDescription>
+            A sync only enriches each channel&apos;s newest reels, so posts stored while the setting above was 0 still have no play count
+            and no outlier score. This asks Instagram about those, oldest debt included, paced and cancelable. It yields to a sync: it will
+            not start while one is running, and stops if one begins. Track it on the Runs screen.
+          </CardDescription>
+          <CardAction>
+            <Button variant="outline" size="sm" onClick={startBackfill} disabled={backfilling || (isRunning && !stalled)}>
+              {backfilling ? "Starting…" : "Run backfill"}
+            </Button>
+          </CardAction>
+        </CardHeader>
+      </Card>
 
-        {showPanel ? (
-          <div className="mt-2">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle>{live ? "Sync in progress" : "Last sync"}</CardTitle>
+          <CardAction>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={syncNow}
+              // A stalled run is a dead process holding the lock; starting a new sync takes
+              // the lock back, so the button must stay live in that state.
+              disabled={starting || (isRunning && !stalled)}
+            >
+              {starting || (isRunning && !stalled) ? "Syncing…" : "Sync now"}
+            </Button>
+          </CardAction>
+        </CardHeader>
+
+        <CardContent>
+          {showPanel ? (
             <SyncProgressPanel
               progress={progress}
               stalled={stalled}
@@ -445,14 +432,14 @@ export function SyncSection({
               onCancel={() => void cancel()}
               onRetry={(channelIds) => void start(channelIds)}
             />
-          </div>
-        ) : (
-          <>
-            <LastJobSummary lastJob={lastJob} />
-            {error !== null && <p className="mt-2 text-xs text-destructive">{error}</p>}
-          </>
-        )}
-      </div>
-    </section>
+          ) : (
+            <>
+              <LastJobSummary lastJob={lastJob} />
+              {error !== null && <p className="mt-2 text-xs text-destructive">{error}</p>}
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

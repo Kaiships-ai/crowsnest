@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { updateAppSettingsAction } from "@/server/actions/settings-actions";
 
@@ -40,15 +41,16 @@ export function OnboardingSection() {
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Onboarding</h2>
-        <p className="text-sm text-muted-foreground">Replay the first-run setup: focus, connect, sources, first sync.</p>
-      </div>
-
-      <Button variant="outline" size="sm" className="w-fit" onClick={() => setOpen(true)}>
-        Replay first run
-      </Button>
+    <Card>
+      <CardHeader>
+        <CardTitle>Onboarding</CardTitle>
+        <CardDescription>Replay the first-run setup: focus, connect, sources, first sync.</CardDescription>
+        <CardAction>
+          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+            Replay first run
+          </Button>
+        </CardAction>
+      </CardHeader>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -69,6 +71,6 @@ export function OnboardingSection() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </Card>
   );
 }

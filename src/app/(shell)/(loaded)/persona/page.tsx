@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/layout/page-container";
 import { PersonaSection } from "@/components/settings/persona-section";
 import { getPersona } from "@/server/services/persona";
 
@@ -11,8 +12,8 @@ export const dynamic = "force-dynamic";
 export default async function PersonaPage() {
   const persona = await getPersona();
   return (
-    <div className="mx-auto max-w-[720px] p-6">
+    <PageContainer size="narrow">
       <PersonaSection initial={persona} />
-    </div>
+    </PageContainer>
   );
 }

@@ -7,18 +7,19 @@
  * Settings section, since the mockup and the nav both treat it as a first-class screen
  * under Setup, not one more collapsible panel.
  *
- * Structured like `secrets-section.tsx`: one bordered row per field, `useTransition`
- * around the save action, a toast on each outcome. `setting-field.tsx`'s `SettingRow` is
- * a poor fit here — it lays a label beside a compact single-line control, and all four
- * fields here are open-ended paragraphs — so this follows `secrets-section.tsx`'s own
- * row shape instead (a bordered box, label on top, control below).
+ * One `Card` holding a `FieldGroup` of four `Field`s, `useTransition` around the save
+ * action, a toast on each outcome. `setting-field.tsx`'s `SettingRow` is a poor fit
+ * here — it lays a label beside a compact single-line control, and all four fields here
+ * are open-ended paragraphs — so each row is a plain vertical `Field` instead: label on
+ * top, the "why" line under it, textarea below.
  */
 
 import { useEffect, useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { personaIsDirty } from "@/components/settings/persona-dirty";
 import { savePersonaAction } from "@/server/actions/persona-actions";
@@ -94,52 +95,58 @@ export function PersonaSection({ initial }: { initial: Persona }) {
   }
 
   return (
-    <section className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold">Persona</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>Persona</CardTitle>
+        <CardDescription>
           Optional, but it sharpens every remix. Each generation stage reads this alongside your niche profile; leave a
           field blank and it falls back to the niche.
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      <div className="flex flex-col gap-2">
-        {FIELDS.map((field) => {
-          const empty = !values[field.key].trim();
-          return (
-            <div key={field.key} className="flex flex-col gap-1.5 border border-border p-3">
-              <div className="flex items-baseline justify-between gap-3">
-                <Label htmlFor={`persona-${field.key}`}>{field.label}</Label>
-                {empty && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    data-testid={`persona-example-${field.key}`}
-                    onClick={() => insertExample(field)}
-                    disabled={pending}
-                  >
-                    Insert example
-                  </Button>
-                )}
-              </div>
-              <p className="text-2xs text-muted-foreground">{field.why}</p>
-              <Textarea
-                id={`persona-${field.key}`}
-                value={values[field.key]}
-                onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
-                placeholder={field.placeholder}
-                rows={3}
-                disabled={pending}
-              />
-            </div>
-          );
-        })}
-      </div>
+      <CardContent>
+        <FieldGroup>
+          {FIELDS.map((field) => {
+            const empty = !values[field.key].trim();
+            const id = `persona-${field.key}`;
+            return (
+              <Field key={field.key}>
+                {/* Label left, its example action right: a row rather than the Field's
+                    own stack, because the button belongs to this label, not to the
+                    textarea below it. */}
+                <div className="flex items-baseline justify-between gap-3">
+                  <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
+                  {empty && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      data-testid={`persona-example-${field.key}`}
+                      onClick={() => insertExample(field)}
+                      disabled={pending}
+                    >
+                      Insert example
+                    </Button>
+                  )}
+                </div>
+                <FieldDescription>{field.why}</FieldDescription>
+                <Textarea
+                  id={id}
+                  value={values[field.key]}
+                  onChange={(e) => setValues((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  rows={3}
+                  disabled={pending}
+                />
+              </Field>
+            );
+          })}
+        </FieldGroup>
+      </CardContent>
 
-      {/* The one amber primary on this screen (WAVE2-BRIEF's one-per-screen rule) —
+      {/* The one primary button on this screen (WAVE2-BRIEF's one-per-screen rule) —
        *  nothing else here competes for it. */}
-      <div className="flex items-center gap-3">
+      <CardFooter className="gap-3">
         <Button onClick={save} disabled={pending} className="w-fit">
           {pending ? "Saving…" : "Save persona"}
         </Button>
@@ -148,7 +155,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
             Unsaved changes
           </span>
         )}
-      </div>
-    </section>
+      </CardFooter>
+    </Card>
   );
 }

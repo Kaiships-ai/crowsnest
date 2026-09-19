@@ -1,8 +1,10 @@
 "use client";
 
 /**
- * Sticky sub-navigation down the left of the Settings page (prototype: settings.html's
- * `settingsNav` rail). The prototype swaps a single panel per tab; this page still
+ * Sub-navigation for the Settings page (prototype: settings.html's `settingsNav` rail):
+ * a sticky rail down the left from lg up, a sideways-scrolling strip above the content
+ * below it.
+ * The prototype swaps a single panel per tab; this page still
  * renders every section on one long scroll — see
  * docs/product/review-ui-gap-2026-07-31.md, Settings verdict PARTIAL, "Structure differs
  * a lot... the reviewer's noted cost is scrolling to find a setting." This closes that
@@ -99,10 +101,19 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
   }, [items]);
 
   return (
-    <nav aria-label="Settings sections" className="sticky top-6 flex w-44 shrink-0 flex-col gap-4 self-start">
+    // Phone: a single horizontal strip of section links that scrolls sideways above the
+    // sections themselves, group labels dropped (the strip is short enough to read in
+    // one pass, and stacked labels would cost a whole row of vertical space). From lg
+    // it becomes the sticky left rail again.
+    <nav
+      aria-label="Settings sections"
+      className="flex flex-row gap-1 overflow-x-auto lg:sticky lg:top-6 lg:w-44 lg:shrink-0 lg:flex-col lg:gap-4 lg:self-start"
+    >
       {groups.map((group) => (
-        <div key={group.label} className="flex flex-col gap-0.5">
-          <p className="px-3 pb-1 font-mono text-2xs tracking-wide text-muted-foreground uppercase">{group.label}</p>
+        <div key={group.label} className="flex flex-row gap-0.5 lg:flex-col">
+          <p className="hidden px-3 pb-1 font-mono text-2xs tracking-wide text-muted-foreground uppercase lg:block">
+            {group.label}
+          </p>
           {group.items.map((item) => {
             const isActive = item.id === activeId;
             return (
@@ -111,7 +122,7 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
                 href={`#${item.id}`}
                 aria-current={isActive ? "true" : undefined}
                 className={cn(
-                  "truncate rounded-sm px-3 py-2 text-sm transition-colors",
+                  "shrink-0 rounded-sm px-3 py-2 text-sm whitespace-nowrap transition-colors lg:truncate",
                   isActive
                     // Raised surface, never the amber `primary` token — same rule
                     // sidebar.tsx's own nav active state follows, and amber on this screen

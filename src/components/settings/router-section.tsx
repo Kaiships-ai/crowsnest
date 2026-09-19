@@ -14,10 +14,15 @@
  */
 
 import { useState } from "react";
-import { AlertTriangle, CheckCircle2, CircleOff, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CircleOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
+import { Item, ItemActions, ItemContent, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { SettingRow } from "./setting-field";
 import { getRouterStatusAction, startRouterAction, stopRouterAction, type RouterStatus } from "@/server/actions/router-actions";
@@ -112,57 +117,65 @@ export function RouterSection({
   }
 
   return (
-    <section id="router" className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">9router</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>9router</CardTitle>
+        <CardDescription>
           The local proxy that routes generation calls to your Claude API key. You need it running for the AI steps -
           video analysis, remix generation, and idea generation - to work. Leave it on auto-manage unless you run your
           own proxy.
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      <div className="flex flex-col gap-2 border border-border bg-card p-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-sm" data-testid="router-status-badge">
+      <CardContent className="flex flex-col gap-4">
+        <Item variant="outline">
+          <ItemMedia variant="icon">
             <StatusDot tone={view.tone} />
-            <span className="font-medium">9router: {view.label}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" data-testid="router-check-button" onClick={() => void handleCheck()} disabled={busy !== null}>
-              {busy === "check" ? <Loader2 className="animate-spin" aria-hidden /> : null}
-              Check
-            </Button>
-            <Button size="sm" variant="secondary" data-testid="router-start-button" onClick={() => void handleStart()} disabled={busy !== null}>
-              {busy === "start" ? "Starting…" : "Start"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => void handleRestart()} disabled={busy !== null}>
-              {busy === "restart" ? "Restarting…" : "Restart"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => void handleStop()} disabled={busy !== null}>
-              {busy === "stop" ? "Stopping…" : "Stop"}
-            </Button>
-          </div>
-        </div>
+          </ItemMedia>
+          {/* The testid stays on the node that holds exactly the dot's label line, so
+              `router-status-badge` still reads "9router: <state>" and nothing else. */}
+          <ItemContent data-testid="router-status-badge">
+            <ItemTitle>9router: {view.label}</ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <ButtonGroup>
+              <Button size="sm" variant="outline" data-testid="router-check-button" onClick={() => void handleCheck()} disabled={busy !== null}>
+                {busy === "check" ? <Spinner aria-hidden /> : null}
+                Check
+              </Button>
+              <Button size="sm" variant="secondary" data-testid="router-start-button" onClick={() => void handleStart()} disabled={busy !== null}>
+                {busy === "start" ? "Starting…" : "Start"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void handleRestart()} disabled={busy !== null}>
+                {busy === "restart" ? "Restarting…" : "Restart"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => void handleStop()} disabled={busy !== null}>
+                {busy === "stop" ? "Stopping…" : "Stop"}
+              </Button>
+            </ButtonGroup>
+          </ItemActions>
+        </Item>
         {error && <p className="text-xs text-destructive">{error}</p>}
         <p className="text-xs text-muted-foreground">
           Spawns <code>9router --tray --no-browser --skip-update</code>, logging to <code>~/.crowsnest/9router.log</code>. The process keeps
           running after this page reloads; Stop tears down only the process this app started, tracked by its own pid.
         </p>
-      </div>
 
-      <div className="flex flex-col gap-2">
-        <SettingRow
-          label="Auto-manage"
-          hint="When on, the app starts 9router if it isn't running and makes one guarded restart attempt (with a cooldown) each time this page's status is read. When off, the app only observes — it never spawns 9router on its own."
-        >
-          <Switch checked={autoManage} onCheckedChange={setAutoManage} aria-label="Auto-manage 9router" />
-        </SettingRow>
-      </div>
+        <FieldGroup>
+          <SettingRow
+            label="Auto-manage"
+            hint="When on, the app starts 9router if it isn't running and makes one guarded restart attempt (with a cooldown) each time this page's status is read. When off, the app only observes — it never spawns 9router on its own."
+          >
+            <Switch checked={autoManage} onCheckedChange={setAutoManage} aria-label="Auto-manage 9router" />
+          </SettingRow>
+        </FieldGroup>
+      </CardContent>
 
-      <Button onClick={() => void saveAutoManage()} disabled={!dirty || savingToggle} className="w-fit" size="sm" variant="outline">
-        {savingToggle ? "Saving…" : "Save"}
-      </Button>
-    </section>
+      <CardFooter>
+        <Button onClick={() => void saveAutoManage()} disabled={!dirty || savingToggle} size="sm" variant="outline">
+          {savingToggle ? "Saving…" : "Save"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

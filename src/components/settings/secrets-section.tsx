@@ -16,9 +16,13 @@ import { useState, useTransition } from "react";
 import { Eye, EyeOff, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldDescription, FieldLegend, FieldSet } from "@/components/ui/field";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { clearSecretAction, getSecretStatusAction, regenerateServiceTokenAction, setSecretAction } from "@/server/actions/secrets-actions";
 import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
@@ -137,69 +141,66 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
   const isServiceToken = status.name === "IG_SERVICE_TOKEN";
 
   return (
-    <div className="flex flex-col gap-2 border border-border p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-medium">{meta.label}</span>
+    <Item variant="outline">
+      <ItemContent>
+        <ItemTitle>
+          {meta.label}
           <Badge data-testid={`secrets-${testIdSlug(status.name)}-badge`} variant={status.configured ? "secondary" : "outline"}>
             {status.configured ? "Configured" : "Not set"}
           </Badge>
-          {status.configured && sourceLabel(status) && <span className="text-xs text-muted-foreground">{sourceLabel(status)}</span>}
-        </div>
-        <div className="flex items-center gap-2">
-          {status.name === "ANTHROPIC_API_KEY" && (
-            <Button
-              size="sm"
-              variant="outline"
-              data-testid={`secrets-${testIdSlug(status.name)}-test`}
-              onClick={() => void runTest()}
-              disabled={!status.configured || testing}
-            >
-              {testing ? "Testing…" : "Test"}
-            </Button>
-          )}
-          {isServiceToken ? (
-            <Button size="sm" variant="outline" onClick={regenerate} disabled={pending}>
-              {pending ? "Regenerating…" : "Regenerate"}
-            </Button>
-          ) : (
-            <>
-              {!editing && (
-                <Button size="sm" variant="outline" data-testid={`secrets-${testIdSlug(status.name)}-edit`} onClick={() => setEditing(true)}>
-                  {status.configured ? "Replace" : "Set"}
-                </Button>
-              )}
-              {status.source === "db" && (
-                <Button size="sm" variant="ghost" onClick={clear} disabled={pending}>
-                  Clear
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+        </ItemTitle>
+        {status.configured && sourceLabel(status) && <ItemDescription>{sourceLabel(status)}</ItemDescription>}
+      </ItemContent>
+      <ItemActions>
+        {status.name === "ANTHROPIC_API_KEY" && (
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid={`secrets-${testIdSlug(status.name)}-test`}
+            onClick={() => void runTest()}
+            disabled={!status.configured || testing}
+          >
+            {testing ? "Testing…" : "Test"}
+          </Button>
+        )}
+        {isServiceToken ? (
+          <Button size="sm" variant="outline" onClick={regenerate} disabled={pending}>
+            {pending ? "Regenerating…" : "Regenerate"}
+          </Button>
+        ) : (
+          <>
+            {!editing && (
+              <Button size="sm" variant="outline" data-testid={`secrets-${testIdSlug(status.name)}-edit`} onClick={() => setEditing(true)}>
+                {status.configured ? "Replace" : "Set"}
+              </Button>
+            )}
+            {status.source === "db" && (
+              <Button size="sm" variant="ghost" onClick={clear} disabled={pending}>
+                Clear
+              </Button>
+            )}
+          </>
+        )}
+      </ItemActions>
 
       {sidecarStale && (
-        <div className="flex gap-2 border border-border bg-card p-3">
-          <ShieldAlert className="size-4 shrink-0 text-destructive" aria-hidden />
-          <div className="text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">The running sidecar still has the old token.</p>
-            <p className="mt-1">
+        <ItemFooter>
+          <Alert variant="destructive">
+            <ShieldAlert aria-hidden />
+            <AlertTitle>The running sidecar still has the old token.</AlertTitle>
+            <AlertDescription>
               This app switched to the new one immediately, but the sidecar process read its token when it started and won&apos;t pick this
               up. Until it restarts, syncing fails with <code>IG_SERVICE_UNAUTHORIZED</code> and no channels come back. Restart it from{" "}
-              <a href="#instagram" className="underline underline-offset-2 hover:text-foreground">
-                Instagram
-              </a>{" "}
-              with Stop, then Start.
-            </p>
-          </div>
-        </div>
+              <a href="#instagram">Instagram</a> with Stop, then Start.
+            </AlertDescription>
+          </Alert>
+        </ItemFooter>
       )}
 
       {editing && !isServiceToken && (
-        <div className="flex items-center gap-2">
-          <div className="relative max-w-sm flex-1">
-            <Input
+        <ItemFooter className="justify-start">
+          <InputGroup className="max-w-sm">
+            <InputGroupInput
               type={revealed ? "text" : "password"}
               autoComplete="off"
               placeholder={`New ${meta.label} value`}
@@ -208,20 +209,20 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !pending) save();
               }}
-              className="pr-8"
               aria-label={`${meta.label} value`}
               data-testid={`secrets-${testIdSlug(status.name)}-input`}
             />
-            <button
-              type="button"
-              onClick={() => setRevealed((r) => !r)}
-              aria-label={revealed ? `Hide ${meta.label} value` : `Show ${meta.label} value`}
-              aria-pressed={revealed}
-              className="absolute inset-y-0 right-0 flex items-center px-2 text-muted-foreground hover:text-foreground"
-            >
-              {revealed ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
-            </button>
-          </div>
+            <InputGroupAddon align="inline-end">
+              <InputGroupButton
+                size="icon-xs"
+                onClick={() => setRevealed((r) => !r)}
+                aria-label={revealed ? `Hide ${meta.label} value` : `Show ${meta.label} value`}
+                aria-pressed={revealed}
+              >
+                {revealed ? <EyeOff aria-hidden /> : <Eye aria-hidden />}
+              </InputGroupButton>
+            </InputGroupAddon>
+          </InputGroup>
           <Button size="sm" variant="secondary" data-testid={`secrets-${testIdSlug(status.name)}-save`} onClick={save} disabled={pending}>
             {pending ? "Saving…" : "Save"}
           </Button>
@@ -237,9 +238,9 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
           >
             Cancel
           </Button>
-        </div>
+        </ItemFooter>
       )}
-    </div>
+    </Item>
   );
 }
 
@@ -247,34 +248,36 @@ export function SecretsSection({ initialStatus }: { initialStatus: SecretStatus[
   const [statuses, setStatuses] = useState<SecretStatus[]>(initialStatus);
 
   return (
-    <section className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-lg font-semibold">API keys &amp; secrets</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>API keys &amp; secrets</CardTitle>
+        <CardDescription>
           Values set here are stored in the local database. For the Anthropic and Groq keys this takes effect on the very next call, no app
           restart needed. A value from <code>.env.local</code> is used until something is set here. No value is ever shown once saved. The
           Instagram sidecar is the one exception: it reads its username, password, and service token once at startup, so a change here takes
           effect the next time the sidecar restarts, not immediately.
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      {GROUPS.map((group) => {
-        const rows = statuses.filter((s) => SECRET_META[s.name].group === group.id);
-        if (rows.length === 0) return null;
-        return (
-          <div key={group.id} className="flex flex-col gap-2">
-            <div>
-              <h3 className="text-sm font-semibold">{group.title}</h3>
-              <p className="text-xs text-muted-foreground">{group.description}</p>
-            </div>
-            <div className="flex flex-col gap-2">
-              {rows.map((status) => (
-                <SecretRow key={status.name} status={status} onChanged={setStatuses} />
-              ))}
-            </div>
-          </div>
-        );
-      })}
-    </section>
+      <CardContent className="flex flex-col gap-6">
+        {GROUPS.map((group) => {
+          const rows = statuses.filter((s) => SECRET_META[s.name].group === group.id);
+          if (rows.length === 0) return null;
+          return (
+            // gap-3 rather than the FieldSet default: the legend, its description and the
+            // rows are one group, and the stock 24px rhythm reads as three separate blocks.
+            <FieldSet key={group.id} className="gap-3">
+              <FieldLegend variant="label">{group.title}</FieldLegend>
+              <FieldDescription>{group.description}</FieldDescription>
+              <ItemGroup>
+                {rows.map((status) => (
+                  <SecretRow key={status.name} status={status} onChanged={setStatuses} />
+                ))}
+              </ItemGroup>
+            </FieldSet>
+          );
+        })}
+      </CardContent>
+    </Card>
   );
 }
