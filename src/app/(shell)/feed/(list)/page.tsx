@@ -2,10 +2,11 @@ import Link from "next/link";
 
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
-import { buttonVariants } from "@/components/ui/button";
+import { PageContainer } from "@/components/layout/page-container";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { bandOrAny, defaultViewCriteria, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
 import { plural } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { getChannelsList, getFleets } from "@/server/queries/channels";
 import { bumpFeedLastVisit } from "@/server/queries/dashboard";
 import { getFeedBandCounts, getOutlierFeed, getSavedFilters, type FeedFilters, type FeedSort } from "@/server/queries/feed";
@@ -107,90 +108,107 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
         applied={{ minScore: filters.minScore ?? null, minViews: filters.minViews ?? null, sinceDays: filters.sinceDays ?? null }}
       />
 
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        {trueEmpty ? (
-          <div className="max-w-[48ch] py-16">
-            <p className="text-lg text-foreground">Nothing to score yet.</p>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Add a channel and run a sync — posts appear here once they have a median to be measured against.
-            </p>
-            <Link href="/channels" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
-              Add a channel
-            </Link>
-          </div>
-        ) : neverSynced ? (
-          <div className="max-w-[48ch] py-16">
-            <p className="text-lg text-foreground">Nothing to score yet.</p>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {allChannels.length} channel{allChannels.length === 1 ? "" : "s"} added, none synced yet — run a sync
-              from Channels to pull posts and build a baseline.
-            </p>
-            <Link href="/channels" className={cn(buttonVariants({ variant: "default" }), "mt-8")}>
-              Go to channels
-            </Link>
-          </div>
-        ) : searchZero ? (
-          <div className="max-w-[52ch] py-16">
-            <p className="text-lg text-foreground">No post matches &ldquo;{filters.query}&rdquo;.</p>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Try different words, or clear the search to see the rest of this slice.
-            </p>
-            <Link
-              href={`/feed?${clearSearchParams.toString()}`}
-              className={cn(buttonVariants({ variant: "default" }), "mt-8")}
-            >
-              Clear search
-            </Link>
-          </div>
-        ) : filteredZero ? (
-          // With the default view on, the escape has to be /feed?all=1, not a bare /feed —
-          // a bare /feed re-applies High Conviction and lands the user right back on this
-          // same empty state, a loop with no way out.
-          <div className="max-w-[52ch] py-16">
-            <p className="text-lg text-foreground">
-              {applyDefault ? "No post clears the High Conviction bar yet." : "No post matches this slice."}
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {applyDefault
-                ? "Show all posts, or come back once more channels are synced."
-                : "Try widening the score threshold, timeframe, or follower band."}
-            </p>
-            <Link
-              href={applyDefault ? "/feed?all=1" : "/feed"}
-              className={cn(buttonVariants({ variant: "default" }), "mt-8")}
-            >
-              {applyDefault ? "Show all" : "Clear filters"}
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="mb-3 flex items-center gap-3 text-xs text-muted-foreground">
-              <span>
-                <span data-num="1">{total}</span> {plural("result", total)}
-              </span>
-              {applyDefault && (
-                <>
-                  <span className="text-muted-foreground">High Conviction view</span>
-                  <Link href="/feed?all=1" className="text-foreground underline underline-offset-2">
-                    Show all
-                  </Link>
-                </>
-              )}
-            </div>
-            <FeedGrid items={items} />
-            {hasMore && (
-              <div className="mt-6 flex justify-center">
-                <Link
-                  href={`/feed?${loadMoreParams.toString()}`}
-                  scroll={false}
-                  className={cn(buttonVariants({ variant: "outline" }))}
-                >
-                  Load more
-                </Link>
+      {/* The scroller stays on this route rather than the shell, so the sticky filter
+          bar above pins to the top of the feed and not the top of the page. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <PageContainer size="full">
+          {trueEmpty ? (
+            <Empty className="py-16">
+              <EmptyHeader>
+                <EmptyTitle>Nothing to score yet.</EmptyTitle>
+                <EmptyDescription>
+                  Add a channel and run a sync — posts appear here once they have a median to be measured against.
+                </EmptyDescription>
+              </EmptyHeader>
+              {/* `nativeButton={false}` on every Button that renders a <Link>: Base UI's
+                  Button assumes a real <button> otherwise and strips the anchor's own
+                  semantics. */}
+              <EmptyContent>
+                <Button render={<Link href="/channels" />} nativeButton={false}>
+                  Add a channel
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : neverSynced ? (
+            <Empty className="py-16">
+              <EmptyHeader>
+                <EmptyTitle>Nothing to score yet.</EmptyTitle>
+                <EmptyDescription>
+                  {allChannels.length} channel{allChannels.length === 1 ? "" : "s"} added, none synced yet — run a sync
+                  from Channels to pull posts and build a baseline.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button render={<Link href="/channels" />} nativeButton={false}>
+                  Go to channels
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : searchZero ? (
+            <Empty className="py-16">
+              <EmptyHeader>
+                <EmptyTitle>No post matches &ldquo;{filters.query}&rdquo;.</EmptyTitle>
+                <EmptyDescription>
+                  Try different words, or clear the search to see the rest of this slice.
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button render={<Link href={`/feed?${clearSearchParams.toString()}`} />} nativeButton={false}>
+                  Clear search
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : filteredZero ? (
+            // With the default view on, the escape has to be /feed?all=1, not a bare /feed —
+            // a bare /feed re-applies High Conviction and lands the user right back on this
+            // same empty state, a loop with no way out.
+            <Empty className="py-16">
+              <EmptyHeader>
+                <EmptyTitle>
+                  {applyDefault ? "No post clears the High Conviction bar yet." : "No post matches this slice."}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {applyDefault
+                    ? "Show all posts, or come back once more channels are synced."
+                    : "Try widening the score threshold, timeframe, or follower band."}
+                </EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button render={<Link href={applyDefault ? "/feed?all=1" : "/feed"} />} nativeButton={false}>
+                  {applyDefault ? "Show all" : "Clear filters"}
+                </Button>
+              </EmptyContent>
+            </Empty>
+          ) : (
+            <>
+              <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                <span>
+                  <span data-num="1">{total}</span> {plural("result", total)}
+                </span>
+                {applyDefault && (
+                  <>
+                    <span className="text-muted-foreground">High Conviction view</span>
+                    <Link href="/feed?all=1" className="text-foreground underline underline-offset-2">
+                      Show all
+                    </Link>
+                  </>
+                )}
               </div>
-            )}
-          </>
-        )}
+              <FeedGrid items={items} />
+              {hasMore && (
+                <div className="mt-6 flex justify-center">
+                  <Button
+                    render={<Link href={`/feed?${loadMoreParams.toString()}`} scroll={false} />}
+                    nativeButton={false}
+                    variant="outline"
+                  >
+                    Load more
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </PageContainer>
       </div>
     </div>
   );

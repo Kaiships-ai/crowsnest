@@ -15,8 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { looksLikeInstagramUrl } from "@/lib/handle";
 import { bridgeAddChannel, bridgeImportReel } from "./sync-bridge";
@@ -155,19 +155,19 @@ export function AddChannelDialog({
                 void submitHandle();
               }}
             >
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="channel-handle">Instagram handle</Label>
-                <Input
-                  id="channel-handle"
-                  data-testid="add-channel-handle-input"
-                  placeholder="@handle"
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                />
-                <p className="text-muted-foreground text-xs">
-                  Just the handle, not the full profile link.
-                </p>
-              </div>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="channel-handle">Instagram handle</FieldLabel>
+                  <Input
+                    id="channel-handle"
+                    data-testid="add-channel-handle-input"
+                    placeholder="@handle"
+                    value={handle}
+                    onChange={(e) => setHandle(e.target.value)}
+                  />
+                  <FieldDescription>Just the handle, not the full profile link.</FieldDescription>
+                </Field>
+              </FieldGroup>
               <Button type="submit" data-testid="add-channel-submit-handle" disabled={!handle || pending}>
                 {pending ? "Checking handle…" : "Track channel"}
               </Button>
@@ -182,15 +182,17 @@ export function AddChannelDialog({
                 void submitReel();
               }}
             >
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="reel-url">Post URL</Label>
-                <Input
-                  id="reel-url"
-                  placeholder="https://…"
-                  value={reelUrl}
-                  onChange={(e) => setReelUrl(e.target.value)}
-                />
-              </div>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="reel-url">Post URL</FieldLabel>
+                  <Input
+                    id="reel-url"
+                    placeholder="https://…"
+                    value={reelUrl}
+                    onChange={(e) => setReelUrl(e.target.value)}
+                  />
+                </Field>
+              </FieldGroup>
               <Button type="submit" disabled={!reelUrl || pending}>
                 {pending ? "Importing…" : "Import post"}
               </Button>

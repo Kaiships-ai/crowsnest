@@ -1,8 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Film } from "lucide-react";
 
 import { OutlierCard } from "@/components/feed/outlier-card";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import type { FeedItem } from "@/server/queries/feed";
 
 /**
@@ -25,7 +27,16 @@ export function ChannelVideoGrid({
   const router = useRouter();
 
   if (items.length === 0) {
-    return <p className="py-12 text-center text-sm text-muted-foreground">{emptyLabel}</p>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Film />
+          </EmptyMedia>
+          <EmptyTitle>{emptyLabel}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
   }
 
   return (

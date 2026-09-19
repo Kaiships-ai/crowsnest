@@ -16,8 +16,11 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup, ButtonGroupText } from "@/components/ui/button-group";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChannelDetail } from "@/server/queries/channels";
@@ -128,31 +131,31 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-6">
-        <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <ButtonGroup>
           <Button
             aria-label="Previous month"
-            variant="ghost"
+            variant="outline"
             size="icon-sm"
             onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
           >
             ‹
           </Button>
-          <h3 className="min-w-[11ch] text-lg font-semibold tracking-tight">
+          <ButtonGroupText render={<h3 />} className="min-w-[11ch] justify-center tracking-tight">
             {MONTH_LABELS[cursor.getMonth()]} {cursor.getFullYear()}
-          </h3>
+          </ButtonGroupText>
           <Button
             aria-label="Next month"
-            variant="ghost"
+            variant="outline"
             size="icon-sm"
             onClick={() => setCursor((c) => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
           >
             ›
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>
+          <Button variant="outline" size="sm" onClick={() => setCursor(startOfMonth(new Date()))}>
             Today
           </Button>
-        </div>
+        </ButtonGroup>
         <span className="font-mono text-2xs text-muted-foreground">
           {monthPosts} post{monthPosts === 1 ? "" : "s"} · <span data-num>{formatCompact(monthReach || null)}</span> views this
           month
@@ -213,7 +216,11 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
                           </span>
                         )}
                         {cell.posts[0] && (
-                          <span className="line-clamp-2 text-2xs text-muted-foreground">
+                          // Hidden on a phone: the caption is the cell's secondary text,
+                          // and at 7 columns inside a horizontal scroller it is the first
+                          // thing that has to go. `sm:line-clamp-2` carries the display
+                          // back, since the clamp sets its own display value.
+                          <span className="hidden text-2xs text-muted-foreground sm:line-clamp-2">
                             {cell.posts[0].caption ?? "Untitled post"}
                           </span>
                         )}
@@ -233,16 +240,16 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-muted-foreground">
-            <span className="flex items-center gap-2">
+          <div className="mt-5 flex flex-wrap items-center gap-2 font-mono text-2xs text-muted-foreground">
+            <Badge variant="outline">
               <i aria-hidden className="size-3 border-t-2 border-border bg-card" /> published · number is views
-            </span>
-            <span className="flex items-center gap-2">
+            </Badge>
+            <Badge variant="outline">
               <i aria-hidden className="size-3 border border-border bg-destructive/5" /> 3+ days dead air
-            </span>
-            <span className="flex items-center gap-2">
+            </Badge>
+            <Badge variant="outline">
               <i aria-hidden className="size-3 border border-border" /> open
-            </span>
+            </Badge>
           </div>
         </TabsContent>
 
@@ -250,47 +257,51 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
           {videos.length === 0 ? (
             <p className="text-sm text-muted-foreground">No posts synced yet.</p>
           ) : (
-            <div>
-              <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_110px] gap-4 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
-                <span data-lab>Post</span>
-                <span data-lab className="text-right">
-                  Views
-                </span>
-                <span data-lab className="text-right">
-                  Length
-                </span>
-                <span data-lab className="text-right">
-                  Published
-                </span>
-              </div>
-              {videos.map((p) => (
-                <div
-                  key={p.videoId}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => router.push(`/feed/${p.videoId}`)}
-                  onKeyDown={(e) => e.key === "Enter" && router.push(`/feed/${p.videoId}`)}
-                  className="grid min-h-14 cursor-pointer grid-cols-[minmax(0,1fr)_140px_88px_110px] items-center gap-4 border-b border-border py-2"
-                >
-                  <span className="truncate text-sm">{p.caption ?? "Untitled post"}</span>
-                  <div className="flex items-center justify-end gap-3">
-                    <div className="h-1.5 flex-1 bg-popover">
-                      <div
-                        className="h-1.5 bg-muted-foreground"
-                        style={{ width: `${p.viewCount === null ? 0 : Math.max(2, (p.viewCount / maxReach) * 100)}%` }}
-                      />
-                    </div>
-                    <span data-num className="w-14 shrink-0 text-right font-mono text-sm">
-                      {formatCompact(p.viewCount)}
-                    </span>
-                  </div>
-                  <span data-num className="text-right font-mono text-2xs text-muted-foreground">
-                    {p.durationSec === null ? "—" : formatDuration(p.durationSec)}
-                  </span>
-                  <span className="text-right font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt)}</span>
-                </div>
-              ))}
-            </div>
+            <Table className="min-w-[720px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Post</TableHead>
+                  <TableHead className="w-[140px] text-right">Views</TableHead>
+                  <TableHead className="w-[88px] text-right">Length</TableHead>
+                  <TableHead className="w-[110px] text-right">Published</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {videos.map((p) => (
+                  // The whole row is the target, as it was when this was a grid: the
+                  // caption alone is too small a hit area for a 14px-tall row.
+                  <TableRow
+                    key={p.videoId}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => router.push(`/feed/${p.videoId}`)}
+                    onKeyDown={(e) => e.key === "Enter" && router.push(`/feed/${p.videoId}`)}
+                    className="cursor-pointer"
+                  >
+                    <TableCell className="max-w-0 truncate">{p.caption ?? "Untitled post"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-3">
+                        <div className="h-1.5 flex-1 bg-popover">
+                          <div
+                            className="h-1.5 bg-muted-foreground"
+                            style={{ width: `${p.viewCount === null ? 0 : Math.max(2, (p.viewCount / maxReach) * 100)}%` }}
+                          />
+                        </div>
+                        <span data-num className="w-14 shrink-0 text-right font-mono text-sm">
+                          {formatCompact(p.viewCount)}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell data-num className="text-right font-mono text-2xs text-muted-foreground">
+                      {p.durationSec === null ? "—" : formatDuration(p.durationSec)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-2xs text-muted-foreground">
+                      {relativeTime(p.postedAt)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </TabsContent>
 

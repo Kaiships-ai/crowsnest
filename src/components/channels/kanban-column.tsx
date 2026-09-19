@@ -4,6 +4,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import type { ChannelRow } from "@/server/queries/channels";
 import { ChannelCard } from "./channel-card";
 import { FleetColumnMenu } from "./fleet-column-menu";
@@ -34,7 +35,7 @@ export function KanbanColumn({
   const someSelected = selecting && channelIds.some((id) => selectedIds.has(id));
 
   return (
-    <section className="flex min-h-0 w-[280px] flex-none flex-col border-r border-border px-4 last:border-r-0">
+    <section className="flex min-h-0 w-[280px] min-w-[280px] flex-none flex-col border-r border-border px-4 last:border-r-0">
       <div className="flex items-center gap-2 border-b border-border px-1 pb-3">
         {selecting && channelIds.length > 0 && (
           <Checkbox
@@ -79,9 +80,13 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {channelIds.length === 0 && (
-          <div className="grid flex-1 place-items-center border border-dashed border-border text-2xs tracking-wide text-muted-foreground [background-image:repeating-linear-gradient(135deg,color-mix(in srgb, var(--muted-foreground) 16%, transparent)_0,color-mix(in srgb, var(--muted-foreground) 16%, transparent)_1px,transparent_1px,transparent_11px)]">
-            Drop channels here
-          </div>
+          // Empty ships the dash style but no border width, so a drop target that has
+          // to read as an outlined well supplies its own `border`.
+          <Empty className="flex-1 border border-dashed p-6">
+            <EmptyHeader>
+              <EmptyDescription>Drop channels here</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </div>
     </section>

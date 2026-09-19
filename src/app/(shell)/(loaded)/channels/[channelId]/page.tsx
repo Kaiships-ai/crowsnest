@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { PageContainer } from "@/components/layout/page-container";
 import { ChannelHeader } from "@/components/channels/channel-header";
 import { ChannelPostCalendar } from "@/components/channels/channel-post-calendar";
 import { ChannelVideoGrid } from "@/components/channels/channel-video-grid";
@@ -76,14 +77,14 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
   const isThin = sampleSize > 0 && medianConfidence(sampleSize) === "low";
 
   return (
-    <div className="mx-auto flex max-w-[1120px] flex-col gap-6 p-6">
+    <PageContainer className="flex flex-col gap-6">
       <Link href="/channels" className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
         <ChevronLeft className="size-4" /> Channels
       </Link>
 
       <ChannelHeader channel={detail.channel} postCount={detail.stats.videoCount} />
 
-      <div className="mt-10 grid grid-cols-2 gap-x-14 gap-y-10 sm:grid-cols-4">
+      <div className="mt-10 grid grid-cols-2 gap-x-14 gap-y-10 lg:grid-cols-4">
         <StatTile
           value={formatCompact(detail.stats.medianViews)}
           label="Median views"
@@ -163,6 +164,6 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
           />
         </TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

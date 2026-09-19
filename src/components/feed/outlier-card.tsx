@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,10 +75,14 @@ export function OutlierCard({
   }
 
   return (
-    <div
+    <Card
       data-testid="outlier-card"
       data-id={item.videoId}
-      className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-lg"
+      size="sm"
+      // `pt-0` is layout, not tone: the thumbnail is full-bleed to the card's top
+      // edge. Card's own `has-[>img:first-child]:pt-0` would do this for us if the
+      // media were a bare <img>, but it is a hatched well with overlays on top.
+      className="pt-0 transition-all hover:-translate-y-0.5 hover:shadow-lg"
     >
       {/* Thumbnail — the primary, keyboard-accessible trigger for onOpen. */}
       <div
@@ -131,7 +136,7 @@ export function OutlierCard({
 
       {/* Score is the hero: biggest, plainest read on the card, first thing under the
           thumbnail (prototype feed.html line 80). */}
-      <div className={cn("flex flex-1 flex-col gap-1.5", isFull ? "p-3" : "p-2")}>
+      <CardContent className="flex flex-1 flex-col gap-1.5">
         <OutlierBadge score={item.outlierScore} size="hero" />
 
         {/* Supplementary mouse click-target (same action as the thumbnail above) — not
@@ -163,21 +168,25 @@ export function OutlierCard({
             </span>
           )}
         </div>
-      </div>
+      </CardContent>
 
       {isFull && (
-        <div className="flex items-center justify-between border-t border-border px-3 py-2">
+        <CardFooter className="justify-between border-t">
           {/* There is no save-from-feed path — saving to Vault requires an analysis,
               which only exists on the video detail page. The old bookmark button here
               was a "Save to Vault" tooltip on a link that saved nothing (truth pass,
               v1-gap-inventory.md). The thumbnail is already a link to that page, so
               removing this doesn't remove a way to get there. */}
-          <Link
-            href={`/feed/${item.videoId}/remix${hrefSuffix}`}
-            className={cn(buttonVariants({ variant: "secondary", size: "xs" }))}
+          {/* `nativeButton={false}` because this renders an <a>: Base UI's Button
+              assumes a real <button> otherwise and strips the anchor's own semantics. */}
+          <Button
+            render={<Link href={`/feed/${item.videoId}/remix${hrefSuffix}`} />}
+            nativeButton={false}
+            variant="secondary"
+            size="xs"
           >
             Remix
-          </Link>
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -196,8 +205,8 @@ export function OutlierCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </CardFooter>
       )}
-    </div>
+    </Card>
   );
 }

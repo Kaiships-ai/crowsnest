@@ -12,9 +12,12 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, MoreHorizontal } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { formatCompact, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
@@ -39,27 +42,33 @@ function syncLine(c: ChannelRow): { label: string; tone: HealthTone } {
   return { label: `Synced ${relativeTime(c.lastSyncedAt)}`, tone: "muted" };
 }
 
-const HEALTH_CLASS: Record<HealthTone, string> = {
+/** `stale` is the one tone that renders as a chip rather than tinted text, so it lives
+ *  in the render as a `Badge` and never gets a class here: aging data has to read as a
+ *  raised marker, because a channel that looks current but isn't is the worst of the
+ *  four states. */
+const HEALTH_CLASS: Record<Exclude<HealthTone, "stale">, string> = {
   faint: "text-muted-foreground",
   muted: "text-muted-foreground",
-  // Aging data is a raised-surface chip, never amber — amber is reserved for the score.
-  stale: "bg-popover px-1.5 py-0.5 text-muted-foreground",
   destructive: "text-destructive",
 };
 
 function ChannelCardBody({ channel }: { channel: ChannelRow }) {
   return (
     <>
-      <Avatar size="sm">
-        <AvatarImage src={assetUrl(channel.avatarAssetId) ?? undefined} alt="" />
-        <AvatarFallback>
-          {(channel.displayName ?? channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium text-foreground">{channel.handle}</span>
-        {channel.isOwn && <span className="font-mono text-2xs uppercase tracking-wide text-muted-foreground">My channel</span>}
-      </span>
+      <ItemMedia>
+        <Avatar size="sm">
+          <AvatarImage src={assetUrl(channel.avatarAssetId) ?? undefined} alt="" />
+          <AvatarFallback>
+            {(channel.displayName ?? channel.handle).replace("@", "").slice(0, 1).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </ItemMedia>
+      <ItemContent className="gap-0.5">
+        <ItemTitle className="w-full truncate">{channel.handle}</ItemTitle>
+        {channel.isOwn && (
+          <ItemDescription className="font-mono text-2xs uppercase tracking-wide">My channel</ItemDescription>
+        )}
+      </ItemContent>
     </>
   );
 }
@@ -72,7 +81,7 @@ function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sample
   const thin = channel.lastSyncedAt !== null && sampleSize > 0 && medianConfidence(sampleSize) === "low";
   return (
     <>
-      <div className="mt-3 flex gap-6">
+      <div className="flex gap-6">
         <span className="flex flex-col gap-0.5">
           <span data-num className="text-xs text-foreground">{formatCompact(channel.followerCount)}</span>
           <span className="text-2xs text-muted-foreground">followers</span>
@@ -86,7 +95,11 @@ function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sample
       {/* flex, so the stale chip's padding sits on its own box instead of bleeding over
           the lines above and below it the way an inline span's would. */}
       <div className="mt-3 flex items-center text-2xs">
-        <span className={HEALTH_CLASS[health.tone]}>{health.label}</span>
+        {health.tone === "stale" ? (
+          <Badge variant="secondary">{health.label}</Badge>
+        ) : (
+          <span className={HEALTH_CLASS[health.tone]}>{health.label}</span>
+        )}
       </div>
 
       {thin && (
@@ -104,14 +117,14 @@ function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sample
  * for that id and break drop targeting for the live card once the overlay unmounts. */
 function ChannelCardOverlay({ channel, sampleSize }: { channel: ChannelRow; sampleSize: number }) {
   return (
-    <article className="border border-border bg-card px-4 pt-3 pb-4 select-none">
-      <div className="flex items-center gap-2.5">
-        <span className="flex min-w-0 flex-1 items-center gap-2.5">
-          <ChannelCardBody channel={channel} />
-        </span>
-      </div>
-      <ChannelCardStats channel={channel} sampleSize={sampleSize} />
-    </article>
+    <Card size="sm" className="select-none">
+      <Item size="sm" className="gap-2.5 px-(--card-spacing) py-0">
+        <ChannelCardBody channel={channel} />
+      </Item>
+      <CardContent>
+        <ChannelCardStats channel={channel} sampleSize={sampleSize} />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -167,15 +180,16 @@ function ChannelCardLive({
 
   return (
     <>
-      <article
+      <Card
+        size="sm"
         ref={sortable.setNodeRef}
         style={style}
         data-testid="channel-card"
         data-id={channel.id}
         data-dragging={sortable.isDragging ? "" : undefined}
-        className="border border-border bg-card px-4 pt-3 pb-4 select-none data-[dragging]:opacity-40"
+        className="select-none data-[dragging]:opacity-40"
       >
-        <div className="flex items-center gap-2.5">
+        <Item size="sm" className="gap-2.5 px-(--card-spacing) py-0">
           {/* The selection checkbox is a fourth distinct target on the card, before the
               grip. dnd-kit's listeners live on the grip alone, so ticking never starts a
               drag, and it sits outside the body Link so it never opens the channel. */}
@@ -192,7 +206,7 @@ function ChannelCardLive({
               clicking the card to open it fought with dragging it and lost — the ...
               menu's View item was the only way in. The handle is a small dedicated
               grip now (a real button, so dnd-kit's attributes give it proper
-              keyboard/aria semantics), and setNodeRef stays on the article so the
+              keyboard/aria semantics), and setNodeRef stays on the card so the
               whole card is still the draggable/droppable node; only the listeners
               moved. */}
           <button
@@ -207,22 +221,26 @@ function ChannelCardLive({
           <Link href={href} className="flex min-w-0 flex-1 items-center gap-2.5">
             <ChannelCardBody channel={channel} />
           </Link>
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Channel actions" />}>
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => void start([channel.id])}>Sync now</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push(href)}>View</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}>Remove channel</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+          <ItemActions>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Channel actions" />}>
+                <MoreHorizontal className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => void start([channel.id])}>Sync now</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(href)}>View</DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}>Remove channel</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </ItemActions>
+        </Item>
 
-        <Link href={href} className="block">
-          <ChannelCardStats channel={channel} sampleSize={sampleSize} />
-        </Link>
-      </article>
+        <CardContent>
+          <Link href={href} className="block">
+            <ChannelCardStats channel={channel} sampleSize={sampleSize} />
+          </Link>
+        </CardContent>
+      </Card>
 
       {removing && (
         <RemoveChannelDialog

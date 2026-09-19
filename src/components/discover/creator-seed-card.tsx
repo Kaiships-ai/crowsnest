@@ -5,6 +5,8 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardFooter } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import { followCreatorAction } from "@/server/actions/discover-actions";
 import type { CreatorSeedRow } from "@/server/queries/discover";
 
@@ -51,28 +53,32 @@ export function CreatorSeedCard({
   }
 
   return (
-    <article data-testid="creator-seed-card" className="flex flex-col gap-3 border border-border bg-card px-4 pt-3 pb-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate font-mono text-sm text-foreground">@{seed.handle}</span>
-        {/* Neutral raised surface — the niche badge is never amber. `secondary` is the
-            badge variant's neutral option (bg-secondary), same as the stale chip pattern
-            channel-card.tsx uses elsewhere on this screen. */}
-        <Badge variant="secondary" className="shrink-0 font-mono text-2xs uppercase tracking-wide">
-          {seed.niche}
-        </Badge>
-      </div>
+    <Card size="sm" data-testid="creator-seed-card">
+      <Item size="sm" className="px-(--card-spacing) py-0">
+        <ItemContent>
+          <ItemTitle className="w-full truncate font-mono">@{seed.handle}</ItemTitle>
+          <ItemDescription>{seed.why}</ItemDescription>
+        </ItemContent>
+        <ItemActions>
+          {/* A neutral raised surface, not a signal colour: the niche is a fact about the
+              row, not a call to action. `secondary` is the badge variant's neutral
+              option, the same chip treatment channel-card.tsx uses on this screen. */}
+          <Badge variant="secondary" className="shrink-0 font-mono text-2xs uppercase tracking-wide">
+            {seed.niche}
+          </Badge>
+        </ItemActions>
+      </Item>
 
-      <p className="text-xs text-muted-foreground">{seed.why}</p>
-
-      <Button
-        type="button"
-        data-testid="creator-seed-follow"
-        disabled={state !== "idle"}
-        onClick={() => void onFollow()}
-        className="self-start"
-      >
-        {state === "tracked" ? "Tracked" : state === "pending" ? "Queuing…" : "Follow"}
-      </Button>
-    </article>
+      <CardFooter>
+        <Button
+          type="button"
+          data-testid="creator-seed-follow"
+          disabled={state !== "idle"}
+          onClick={() => void onFollow()}
+        >
+          {state === "tracked" ? "Tracked" : state === "pending" ? "Queuing…" : "Follow"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
