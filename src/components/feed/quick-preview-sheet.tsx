@@ -30,9 +30,9 @@ type FetchResult = { id: string; detail: VideoDetail | null; error: boolean };
 // agree on what an empty media slot looks like. A plain object so it isn't
 // reallocated on every render.
 const EMPTY_WELL_HATCH: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 export function QuickPreviewSheet({
@@ -97,7 +97,7 @@ export function QuickPreviewSheet({
               <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
                 <div aria-hidden className="absolute inset-0 opacity-40" style={EMPTY_WELL_HATCH} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
+                  <Play className="size-10 text-muted-foreground" fill="currentColor" aria-hidden />
                 </div>
                 <VideoThumb assetId={detail.item.thumbnailAssetId} />
                 {/* No platform chip. V1 is Instagram only, so a chip naming the platform

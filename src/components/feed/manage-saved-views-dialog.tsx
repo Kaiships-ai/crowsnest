@@ -199,14 +199,14 @@ export function ManageSavedViewsDialog({
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <span className="truncate text-sm">{view.name}</span>
-                      <span className="ml-2 text-2xs text-faint">{criteriaSummary(view.criteria)}</span>
+                      <span className="ml-2 text-2xs text-muted-foreground">{criteriaSummary(view.criteria)}</span>
                     </div>
                     {view.isSystem ? (
                       // System presets are product configuration, not something Kai
                       // made — every rename/delete call on one comes back
                       // SAVED_VIEW_IS_SYSTEM, so there's nothing to offer here beyond
                       // saying plainly that it's fixed.
-                      <span className="flex shrink-0 items-center gap-1 text-2xs text-faint" title="Built-in view, can't be changed">
+                      <span className="flex shrink-0 items-center gap-1 text-2xs text-muted-foreground" title="Built-in view, can't be changed">
                         <Lock className="size-3" /> Built-in
                       </span>
                     ) : (

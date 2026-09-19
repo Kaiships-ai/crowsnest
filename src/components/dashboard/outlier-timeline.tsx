@@ -16,7 +16,7 @@ export function OutlierTimeline({ items }: { items: FeedItem[] }) {
 
   return (
     <div>
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Last {TIMELINE_WINDOW_DAYS} days · rolling window
       </span>
       {hasAny ? (
@@ -29,12 +29,12 @@ export function OutlierTimeline({ items }: { items: FeedItem[] }) {
             {days.map((day) => (
               <span
                 key={day.index}
-                className="min-w-0 flex-1 bg-line-strong"
+                className="min-w-0 flex-1 bg-border"
                 style={{ height: day.bestScore !== null ? `${Math.max(4, scalePosition(day.bestScore) * 96)}px` : "1px" }}
               />
             ))}
           </div>
-          <div className="mt-5 flex justify-between font-mono text-2xs tracking-wide text-faint">
+          <div className="mt-5 flex justify-between font-mono text-2xs tracking-wide text-muted-foreground">
             <span>{TIMELINE_WINDOW_DAYS - 1}d ago</span>
             <span data-num>{hitDays} days produced a post that beat its channel</span>
             <span>today</span>

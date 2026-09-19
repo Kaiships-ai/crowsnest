@@ -139,7 +139,7 @@ describe("publish state cells (Goal 4)", () => {
     renderCalendar([{ ...base, id: "p", state: "published", publishedOwnPostId: "own-1" }]);
     const mark = screen.getByTestId("mine-calendar-published");
     expect(mark.textContent).toContain("published");
-    expect(mark.className).toContain("text-pos");
+    expect(mark.className).toContain("text-success");
     expect(mark.className).not.toMatch(/primary|amber/);
   });
 });

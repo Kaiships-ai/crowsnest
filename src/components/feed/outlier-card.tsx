@@ -22,9 +22,9 @@ import { VideoThumb } from "./video-thumb";
 // carousel-viewer.tsx's EMPTY_WELL so the feed and the detail screen agree on what an
 // empty media slot looks like. A plain object so it isn't reallocated on every render.
 const THUMBNAIL_HATCH: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 // Thumbnail sits desaturated at rest and only picks up color on hover/focus (prototype
@@ -77,7 +77,7 @@ export function OutlierCard({
     <div
       data-testid="outlier-card"
       data-id={item.videoId}
-      className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg"
+      className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-border hover:shadow-lg"
     >
       {/* Thumbnail — the primary, keyboard-accessible trigger for onOpen. */}
       <div
@@ -98,7 +98,7 @@ export function OutlierCard({
       >
         <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
+          <Play className="size-10 text-muted-foreground" fill="currentColor" aria-hidden />
         </div>
         <VideoThumb assetId={item.thumbnailAssetId} className={THUMB_FILTER} />
         {/* Hook headline overlay (prototype feed.html line 76) — the grid card's own
@@ -140,7 +140,7 @@ export function OutlierCard({
           <span className="text-2xs text-muted-foreground" data-num="1">
             {formatCompact(item.viewCount)} views · {formatEngagementRate(item.engagementRate)} eng
           </span>
-          <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-faint">
+          <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-muted-foreground">
             <Link
               href={`/channels/${item.channel.id}`}
               onClick={(e) => e.stopPropagation()}

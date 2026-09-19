@@ -123,7 +123,7 @@ function Counter({ label, value, bad }: { label: string; value: number; bad?: bo
       <div data-num className={`text-sm ${bad && value > 0 ? "text-destructive" : ""}`}>
         {value}
       </div>
-      <div data-lab className="font-mono text-2xs text-faint">
+      <div data-lab className="font-mono text-2xs text-muted-foreground">
         {label}
       </div>
     </div>

@@ -126,15 +126,15 @@ function DependencyStrip({ live }: { live: boolean }) {
     <div className="mt-8 max-w-[460px] overflow-hidden border border-border bg-card">
       {rows.map((r) => (
         <div key={r.n} className="flex items-center gap-3.5 border-b border-border px-4 py-3">
-          <Icon aria-hidden className={`size-4 flex-none ${live ? "text-pos" : "text-faint"}`} />
-          <span className="w-5 flex-none font-mono text-2xs tracking-wide text-faint">{r.n}</span>
+          <Icon aria-hidden className={`size-4 flex-none ${live ? "text-success" : "text-muted-foreground"}`} />
+          <span className="w-5 flex-none font-mono text-2xs tracking-wide text-muted-foreground">{r.n}</span>
           <span className={`flex-1 text-sm ${live ? "text-foreground" : "text-muted-foreground"}`}>{r.label}</span>
-          <span className={`font-mono text-2xs tracking-wide ${live ? "text-pos" : "text-faint"}`}>
+          <span className={`font-mono text-2xs tracking-wide ${live ? "text-success" : "text-muted-foreground"}`}>
             {live ? "READY" : "NEEDS KEY"}
           </span>
         </div>
       ))}
-      <p className={`px-4 py-2.5 text-xs ${live ? "text-pos" : "text-faint"}`}>
+      <p className={`px-4 py-2.5 text-xs ${live ? "text-success" : "text-muted-foreground"}`}>
         {live
           ? "The read key is live — both steps can read Instagram now."
           : "Both steps read Instagram through the read key, so they stay locked until it’s connected."}
@@ -331,7 +331,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">02 · INSTAGRAM ACCESS</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">02 · INSTAGRAM ACCESS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">Give Crowsnest a read key</h1>
       <p className="mt-5 max-w-[50ch] text-sm leading-relaxed text-muted-foreground text-balance">
         Crowsnest can&apos;t read Instagram on its own. Sign it in to a <span className="text-foreground">throwaway account</span>{" "}
@@ -388,17 +388,17 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       {phase === "connecting" && (
         <div className="mt-14 flex max-w-[460px] items-center gap-6">
           <span className="font-mono text-xs whitespace-nowrap">Reading the session</span>
-          <div className="h-px flex-1 animate-pulse bg-line-strong" />
+          <div className="h-px flex-1 animate-pulse bg-border" />
         </div>
       )}
 
       {phase === "idle" && status?.loggedIn && (
         <div className="mt-12">
-          <span className="inline-flex items-center gap-2 font-mono text-2xs tracking-wide text-pos">
+          <span className="inline-flex items-center gap-2 font-mono text-2xs tracking-wide text-success">
             <Check aria-hidden className="size-3.5" /> READ KEY LIVE
           </span>
           <p className="mt-4 text-lg leading-tight">{status.username ? `@${status.username}` : "—"}</p>
-          <p className="mt-1 font-mono text-2xs text-faint">read-only session · revoke anytime in Settings</p>
+          <p className="mt-1 font-mono text-2xs text-muted-foreground">read-only session · revoke anytime in Settings</p>
           <DependencyStrip live />
           <Button className="mt-10" onClick={() => onContinue(statusResult)}>
             Choose channels <ChevronRight aria-hidden className="size-4" />
@@ -418,7 +418,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
                     key={text}
                     className="inline-flex items-center gap-2 border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground"
                   >
-                    <Icon aria-hidden className="size-3.5 text-faint" />
+                    <Icon aria-hidden className="size-3.5 text-muted-foreground" />
                     {text}
                   </span>
                 ))}
@@ -427,7 +427,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
               {/* Primary path: paste a session ID. */}
               <div className="mt-6 max-w-[460px] overflow-hidden border border-border">
                 <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3.5">
-                  <span className="grid size-8 flex-none place-items-center border border-line-strong bg-muted text-muted-foreground">
+                  <span className="grid size-8 flex-none place-items-center border border-border bg-muted text-muted-foreground">
                     <KeyRound aria-hidden className="size-4" />
                   </span>
                   <div>

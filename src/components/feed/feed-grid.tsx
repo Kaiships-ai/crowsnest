@@ -56,7 +56,7 @@ export function FeedGrid({ items }: { items: FeedItem[] }) {
         <div className="flex flex-col">
           <div
             data-lab="1"
-            className={`${FEED_LIST_ROW_GRID} gap-4 border-b border-border pb-3 text-2xs text-faint`}
+            className={`${FEED_LIST_ROW_GRID} gap-4 border-b border-border pb-3 text-2xs text-muted-foreground`}
           >
             <span className="text-right">Score</span>
             <span className="pl-2">Post</span>

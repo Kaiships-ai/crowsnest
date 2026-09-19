@@ -76,7 +76,7 @@ export function Topbar({ strip }: TopbarProps) {
           >
             <Search className="size-3.5 shrink-0" />
             <span className="flex-1 text-left text-sm">Search…</span>
-            <kbd className="font-mono text-2xs text-faint">⌘K</kbd>
+            <kbd className="font-mono text-2xs text-muted-foreground">⌘K</kbd>
           </Button>
           <NotificationCenter />
           {/* Context action slot — later tasks inject a page-specific primary action here (e.g. "Add channel"). */}

@@ -170,7 +170,7 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
               </span>
               {applyDefault && (
                 <>
-                  <span className="text-faint">High Conviction view</span>
+                  <span className="text-muted-foreground">High Conviction view</span>
                   <Link href="/feed?all=1" className="text-foreground underline underline-offset-2">
                     Show all
                   </Link>

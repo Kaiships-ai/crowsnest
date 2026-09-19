@@ -123,7 +123,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
             screen's own body already carries the "N steps, about a minute" line, so
             repeating it in the header here would double it up on narrow. */}
         {step !== "welcome" && (
-          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-faint md:hidden">
+          <div className="relative z-10 mt-2 font-mono text-2xs tracking-wide text-muted-foreground md:hidden">
             {currentStepMeta?.label} · {currentStepMeta?.n} / {ONBOARDING_STEP_COUNT}
           </div>
         )}
@@ -142,7 +142,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
             middle breathes instead of the old justify-between chasm. */}
         <div className="relative z-10 mt-auto flex flex-col items-start gap-10 pt-16">
           {step === "welcome" ? (
-            <div className="hidden font-mono text-2xs tracking-wide text-faint md:block">
+            <div className="hidden font-mono text-2xs tracking-wide text-muted-foreground md:block">
               {ONBOARDING_STEP_COUNT} steps · about a minute
             </div>
           ) : (
@@ -171,17 +171,17 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
                             ? "size-2.5 bg-foreground"
                             : state === "done"
                               ? "size-2 bg-foreground/55"
-                              : "size-2 border border-line-strong"
+                              : "size-2 border border-border"
                         }
                       />
                     </span>
                     <span
-                      className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-faint"}`}
+                      className={`font-mono text-2xs tracking-wide ${state === "current" ? "text-foreground" : "text-muted-foreground"}`}
                     >
                       {s.n}
                     </span>
                     <span
-                      className={`text-sm whitespace-nowrap transition-colors ${state === "current" ? "font-medium text-foreground" : state === "locked" ? "text-faint" : "text-muted-foreground group-hover:text-foreground"}`}
+                      className={`text-sm whitespace-nowrap transition-colors ${state === "current" ? "font-medium text-foreground" : state === "locked" ? "text-muted-foreground" : "text-muted-foreground group-hover:text-foreground"}`}
                     >
                       {s.label}
                     </span>
@@ -197,7 +197,7 @@ export function OnboardingFlow({ initialNiche, initialKeywords, initialIgStatus,
             <Button variant="ghost" size="sm" className="-ml-2.5" onClick={() => void skipSetup()} disabled={skipping}>
               {skipping ? "Opening Crowsnest…" : "Skip setup for now"}
             </Button>
-            <p className="mt-2 max-w-[30ch] text-xs leading-relaxed text-faint">
+            <p className="mt-2 max-w-[30ch] text-xs leading-relaxed text-muted-foreground">
               Goes straight to the app. Anything you already answered is kept, and Settings can replay this.
             </p>
           </div>

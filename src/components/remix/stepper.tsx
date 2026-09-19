@@ -60,7 +60,7 @@ export function Stepper({
                 className={cn(
                   "flex size-5 shrink-0 items-center justify-center rounded-full border font-mono text-2xs tabular-nums",
                   isActive && "border-foreground/50",
-                  completed && "border-transparent bg-[var(--pos)] text-background",
+                  completed && "border-transparent bg-[var(--success)] text-background",
                   !isActive && !completed && "border-current"
                 )}
               >
@@ -76,7 +76,7 @@ export function Stepper({
                   // from the pos green (DESIGN.md Amber Law + Two-Hue Rule). A reached
                   // segment steps up to the strong rule weight; the rest stay hairline.
                   "mx-1 h-px flex-1 transition-colors duration-200 motion-reduce:transition-none",
-                  i < furthestIndex ? "bg-line-strong" : "bg-border"
+                  i < furthestIndex ? "bg-border" : "bg-border"
                 )}
               />
             )}

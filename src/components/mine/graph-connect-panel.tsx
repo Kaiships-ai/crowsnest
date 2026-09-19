@@ -97,7 +97,7 @@ export function GraphConnectPanel({
 
   return (
     <div className="mt-10 max-w-[62ch]">
-      <p className="font-mono text-2xs tracking-wide text-faint uppercase">Graph API</p>
+      <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Graph API</p>
       <p className="mt-3 text-lg font-medium text-foreground">{copy.title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
 
@@ -128,7 +128,7 @@ export function GraphConnectPanel({
         )}
       </div>
 
-      <p className="mt-6 font-mono text-2xs text-faint">
+      <p className="mt-6 font-mono text-2xs text-muted-foreground">
         last checked {new Date(status.checkedAt).toLocaleString("en-US")}
       </p>
     </div>

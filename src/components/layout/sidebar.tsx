@@ -33,8 +33,8 @@ function isNavItemActive(pathname: string, href: string) {
 // so it reads quieter than an active run and louder than never-synced. Only the two
 // states with an actual verdict get a live hue: success reads --pos, failed destructive.
 const STATUS_DOT: Record<SyncStatusValue, string> = {
-  never: "bg-dim",
-  success: "bg-[var(--pos)]",
+  never: "bg-muted-foreground",
+  success: "bg-[var(--success)]",
   running: "bg-foreground animate-pulse",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
@@ -266,7 +266,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                   {!collapsed && (
                     <span
                       data-lab
-                      className="block px-6 pt-2 pb-2 font-mono text-2xs text-faint"
+                      className="block px-6 pt-2 pb-2 font-mono text-2xs text-muted-foreground"
                     >
                       {item.group}
                     </span>
@@ -301,7 +301,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                   "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
                   collapsed && "justify-center px-0",
                   itemActive
-                    ? "border-[color:var(--line-strong)] bg-popover font-semibold text-foreground"
+                    ? "border-[color:var(--border)] bg-popover font-semibold text-foreground"
                     : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
                 )}
               >
@@ -331,7 +331,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                     {item.href === "/feed" && feedOutlierCount > 0 && (
                       <span
                         key={outlierSettleKey}
-                        className="rail-signal-settle shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary"
+                        className="rail-signal-settle shrink-0 rounded-none bg-primary/10 px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary"
                       >
                         {feedOutlierCount}
                       </span>

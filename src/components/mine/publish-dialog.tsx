@@ -137,7 +137,7 @@ export function PublishDialog({
         <div className="flex flex-col gap-4">
           {!configured && (
             <div className="border-l-2 border-border pl-4" data-testid="publish-dialog-not-configured">
-              <p className="font-mono text-2xs tracking-wide text-faint uppercase">Publish setup</p>
+              <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Publish setup</p>
               {!graphConfigured && (
                 <p className="mt-2 text-sm text-muted-foreground">
                   Connect Graph to publish: set <code className="font-mono text-2xs text-foreground">IG_GRAPH_TOKEN</code> and{" "}
@@ -159,7 +159,7 @@ export function PublishDialog({
           )}
 
           {configured && dryRun && (
-            <p className="border border-border bg-card px-3 py-2 font-mono text-2xs tracking-wide text-faint" data-testid="publish-dialog-dry-run">
+            <p className="border border-border bg-card px-3 py-2 font-mono text-2xs tracking-wide text-muted-foreground" data-testid="publish-dialog-dry-run">
               DRY RUN · the whole path runs but the final publish POST is skipped, so the live account is never touched.
             </p>
           )}
@@ -179,11 +179,11 @@ export function PublishDialog({
               if (file) void upload(file);
             }}
             className={cn(
-              "flex flex-col items-center gap-2 border border-dashed border-line-strong bg-ground px-4 py-6 text-center",
+              "flex flex-col items-center gap-2 border border-dashed border-border bg-ground px-4 py-6 text-center",
               dragOver && "border-foreground"
             )}
           >
-            <p className="font-mono text-2xs text-faint">
+            <p className="font-mono text-2xs text-muted-foreground">
               {uploading ? "Uploading…" : hasVideo ? (videoName ?? "Video attached") : "Drop an .mp4 here"}
             </p>
             <Button
@@ -213,7 +213,7 @@ export function PublishDialog({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <Label htmlFor="publish-caption">Caption</Label>
-              <span data-num className="font-mono text-2xs tabular-nums text-faint">
+              <span data-num className="font-mono text-2xs tabular-nums text-muted-foreground">
                 {caption.length} / {CAPTION_MAX}
               </span>
             </div>
@@ -253,7 +253,7 @@ export function PublishDialog({
               />
             </div>
           </div>
-          <p className="font-mono text-2xs text-faint">Leave the time blank to publish now instead of scheduling.</p>
+          <p className="font-mono text-2xs text-muted-foreground">Leave the time blank to publish now instead of scheduling.</p>
 
           {error && (
             <p className="text-sm text-destructive" data-testid="publish-dialog-error">

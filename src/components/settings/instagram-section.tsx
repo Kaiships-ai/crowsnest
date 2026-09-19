@@ -89,7 +89,7 @@ export function viewStateOf(phase: Phase, statusResult: StatusResult, failure: F
 function StatusRow({ tone, label, detail, testId }: { tone: "ok" | "warn" | "bad" | "busy"; label: string; detail?: string; testId?: string }) {
   const Icon = tone === "ok" ? CheckCircle2 : tone === "busy" ? Loader2 : tone === "bad" ? CircleOff : AlertTriangle;
   const color =
-    tone === "ok" ? "text-[var(--pos)]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-foreground";
+    tone === "ok" ? "text-[var(--success)]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-foreground";
   return (
     <div className="flex items-center gap-2 text-sm" data-testid={testId}>
       <Icon className={`size-4 shrink-0 ${color} ${tone === "busy" ? "animate-spin" : ""}`} aria-hidden />

@@ -52,7 +52,7 @@ export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: st
       <Link
         href={`/channels/${item.channel.id}`}
         onClick={(e) => e.stopPropagation()}
-        className="min-w-0 truncate text-xs text-faint hover:text-foreground hover:underline"
+        className="min-w-0 truncate text-xs text-muted-foreground hover:text-foreground hover:underline"
       >
         {item.channel.handle}
       </Link>
@@ -60,7 +60,7 @@ export function FeedListRow({ item, onOpen }: { item: FeedItem; onOpen?: (id: st
       <span className="text-right text-sm text-muted-foreground tabular-nums" data-num="1">
         {formatCompact(item.viewCount)}
       </span>
-      <span className="text-right text-2xs text-faint" data-num="1">
+      <span className="text-right text-2xs text-muted-foreground" data-num="1">
         {relativeTime(item.postedAt)}
       </span>
     </div>

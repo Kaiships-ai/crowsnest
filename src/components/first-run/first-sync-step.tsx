@@ -83,7 +83,7 @@ export function FirstSyncStep({ channelIds, started, onStarted, onOpenCrowsnest 
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">04 · FIRST SYNC</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">04 · FIRST SYNC</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">{headline(status)}</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         {status === null

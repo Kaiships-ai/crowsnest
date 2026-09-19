@@ -24,7 +24,7 @@ export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] })
         {binaries.map((bin) => (
           <div key={bin.label} className="flex items-center gap-2 border border-border p-3 text-sm">
             {bin.available ? (
-              <CheckCircle2 className="size-4 shrink-0 text-[var(--pos)]" aria-hidden />
+              <CheckCircle2 className="size-4 shrink-0 text-[var(--success)]" aria-hidden />
             ) : (
               <AlertTriangle className="size-4 shrink-0 text-muted-foreground" aria-hidden />
             )}

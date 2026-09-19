@@ -120,7 +120,7 @@ const FILTER_TRIGGER_CLASS =
 // timeframe, and follower-band lead; fleet/min-views/min-engagement/analyzed recede by
 // weight only — smaller and more muted, never hidden behind a popover or menu).
 const SECONDARY_FILTER_TRIGGER_CLASS =
-  "h-6 gap-1 rounded-none border-transparent bg-transparent px-1.5 text-xs text-faint hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
+  "h-6 gap-1 rounded-none border-transparent bg-transparent px-1.5 text-xs text-muted-foreground hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
 
 /** Chip text for the active-filter summary: reuses the option's own (already-normalized)
  *  label rather than inventing separate copy, so the chip always matches what the
@@ -299,7 +299,7 @@ export function FilterBar({
           treatment rather than looking like a form. Searches caption, handle, and
           display name server-side (queries/feed.ts). */}
       <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-faint" aria-hidden />
+        <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
         <Input
           type="search"
           value={queryDraft}
@@ -407,7 +407,7 @@ export function FilterBar({
                 onClick={() => set("analyzed", active ? "all" : o.value)}
                 className={cn(
                   "h-6 rounded-[min(var(--radius-md),10px)] px-1.5 text-xs transition-colors",
-                  active ? "bg-card text-foreground" : "text-faint hover:bg-card hover:text-muted-foreground",
+                  active ? "bg-card text-foreground" : "text-muted-foreground hover:bg-card hover:text-muted-foreground",
                 )}
               >
                 {o.label}
@@ -528,7 +528,7 @@ export function FilterBar({
       {/* Follower band stays a first-class visible control, never tucked in a menu
           (brief) — a persistent segmented row, not a Select. */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-2xs text-faint" data-lab="1">
+        <span className="text-2xs text-muted-foreground" data-lab="1">
           Followers
         </span>
         <ToggleGroup
@@ -545,7 +545,7 @@ export function FilterBar({
                   under none of them (getFeedBandCounts), which is why that sum can land
                   under the feed's own total and is still correct. */}
               {o.value !== "any" && (
-                <span className="ml-1.5 font-mono text-2xs tabular-nums text-faint" data-num="1">
+                <span className="ml-1.5 font-mono text-2xs tabular-nums text-muted-foreground" data-num="1">
                   {bandCounts[o.value as keyof FeedBandCounts]}
                 </span>
               )}
@@ -563,7 +563,7 @@ export function FilterBar({
           optional and the one-move Reset the required control. */}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="feed-active-filter-summary">
-          <span className="text-2xs text-faint">Active filters</span>
+          <span className="text-2xs text-muted-foreground">Active filters</span>
           {activeChips.map((chip) => (
             <span
               key={chip.key}

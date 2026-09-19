@@ -24,7 +24,7 @@ export default async function RunsPage() {
 
   return (
     <div className="mx-auto max-w-[1120px] p-6">
-      <p className="mb-4 font-mono text-2xs text-faint">{runs.length} runs</p>
+      <p className="mb-4 font-mono text-2xs text-muted-foreground">{runs.length} runs</p>
       <RunsList seedRuns={runs} syncSlaMinutes={syncSlaMinutes} remixSlaMinutes={remixSlaMinutes} />
     </div>
   );

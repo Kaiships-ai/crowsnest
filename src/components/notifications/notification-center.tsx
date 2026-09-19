@@ -36,7 +36,7 @@ const ALERT_KINDS = new Set<NotificationKind>(["run_failed", "sla_breach"]);
 const KIND_CHIP_CLASS: Record<NotificationKind, string> = {
   run_failed: "text-destructive border-destructive/45",
   sla_breach: "text-destructive border-destructive/45",
-  run_finished: "text-pos border-pos/40",
+  run_finished: "text-success border-success/40",
 };
 
 function fireBrowserNotification(n: NotificationRow): void {
@@ -139,7 +139,7 @@ export function NotificationCenter() {
         {unread > 0 && (
           <span
             aria-hidden
-            className="absolute -top-1.5 -right-1.5 grid h-[17px] min-w-[17px] place-items-center border border-line-strong bg-popover px-1 font-mono text-[11px] font-semibold text-foreground"
+            className="absolute -top-1.5 -right-1.5 grid h-[17px] min-w-[17px] place-items-center border border-border bg-popover px-1 font-mono text-[11px] font-semibold text-foreground"
           >
             {unread > 99 ? "99+" : unread}
           </span>
@@ -174,7 +174,7 @@ export function NotificationCenter() {
                       <span className={cn("shrink-0 border px-1.5 py-px font-mono text-2xs", KIND_CHIP_CLASS[n.kind])}>{n.kind}</span>
                     </div>
                     <p className="mt-0.5 text-sm text-muted-foreground">{n.body}</p>
-                    <p className="mt-1 font-mono text-2xs text-faint">{relativeTime(n.createdAt)}</p>
+                    <p className="mt-1 font-mono text-2xs text-muted-foreground">{relativeTime(n.createdAt)}</p>
                   </div>
                   <Button type="button" size="xs" variant="outline" className="h-fit shrink-0 self-start" onClick={() => handleOpen(n)}>
                     Open

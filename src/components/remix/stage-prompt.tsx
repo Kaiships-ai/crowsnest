@@ -89,19 +89,19 @@ export function StagePrompt({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Niche</Label>
+        <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Niche</Label>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="max-w-[320px] rounded-none">
             <span className="truncate">{niche}</span>
           </Badge>
-          <Link href="/settings" className="font-mono text-2xs tracking-wide text-faint uppercase hover:text-foreground">
+          <Link href="/settings" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase hover:text-foreground">
             Edit in Settings
           </Link>
         </div>
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="remix-length" className="font-mono text-2xs tracking-wide text-faint uppercase">
+        <Label htmlFor="remix-length" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
           Target length
         </Label>
         <Select items={LENGTH_ITEMS} value={targetLengthSec} onValueChange={(v) => commitLength(v as string)}>

@@ -50,9 +50,9 @@ function shortDate(iso: string): string {
 }
 
 const CONFIDENCE_COPY: Record<ReturnType<typeof medianConfidence>, { word: string; className: string }> = {
-  low: { word: "Low confidence", className: "text-faint" },
+  low: { word: "Low confidence", className: "text-muted-foreground" },
   medium: { word: "Medium confidence", className: "text-muted-foreground" },
-  high: { word: "High confidence", className: "text-pos" },
+  high: { word: "High confidence", className: "text-success" },
 };
 
 export function MedianBaseline({
@@ -75,7 +75,7 @@ export function MedianBaseline({
 
   return (
     <div className="flex flex-col gap-3">
-      <span data-num className={cn("block font-mono text-[52px] leading-none font-medium tracking-tight", beatBaseline ? "text-score" : "text-foreground")}>
+      <span data-num className={cn("block font-mono text-[52px] leading-none font-medium tracking-tight", beatBaseline ? "text-primary" : "text-foreground")}>
         {formatMultiplier(score)}
       </span>
 
@@ -101,16 +101,16 @@ export function MedianBaseline({
           <div className="mt-2 max-w-[32rem]">
             <div className="relative h-1.5 bg-secondary">
               <span
-                className={cn("absolute top-0 left-0 h-1.5", beatBaseline ? "bg-score" : "bg-line-strong")}
+                className={cn("absolute top-0 left-0 h-1.5", beatBaseline ? "bg-primary" : "bg-border")}
                 style={{ width: `${(score !== null ? scalePosition(score) : 0) * 100}%` }}
               />
               <span
                 aria-hidden
-                className="absolute top-[-5px] h-4 w-px bg-line-strong"
+                className="absolute top-[-5px] h-4 w-px bg-border"
                 style={{ left: `${scalePosition(1) * 100}%` }}
               />
             </div>
-            <div className="mt-2.5 flex justify-between font-mono text-2xs tracking-wide text-faint">
+            <div className="mt-2.5 flex justify-between font-mono text-2xs tracking-wide text-muted-foreground">
               <span>0.2×</span>
               <span data-num className="text-muted-foreground">
                 1.0× = {formatCompact(basis.median)}
@@ -133,7 +133,7 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
 
   return (
     <div className="mt-8">
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         What that {methodLabel(basis.method)} is made of · {basis.handle}
       </span>
 
@@ -143,7 +143,7 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
           aria-label={`${basis.sampleSize} posts sampled for ${basis.handle}'s baseline, ${conf.word.toLowerCase()}`}
           className="relative mt-5 flex h-[72px] items-end gap-1"
         >
-          <span aria-hidden className="absolute right-0 bottom-9 left-0 h-px bg-line-strong" />
+          <span aria-hidden className="absolute right-0 bottom-9 left-0 h-px bg-border" />
           {basis.bars.map((bar) => (
             <span
               key={bar.videoId}
@@ -151,7 +151,7 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
               className="relative flex h-full min-w-[3px] flex-1 items-end"
             >
               <span
-                className={cn("w-full", bar.isSelf ? "bg-score" : "bg-line-strong")}
+                className={cn("w-full", bar.isSelf ? "bg-primary" : "bg-border")}
                 style={{ height: `${Math.max(2, (bar.viewCount / maxViews) * 100)}%` }}
               />
             </span>
@@ -161,14 +161,14 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
         <p className="mt-3 text-sm text-muted-foreground">No posts in the current baseline window.</p>
       )}
 
-      <div className="mt-2.5 flex justify-between gap-4 font-mono text-2xs tracking-wide text-faint">
+      <div className="mt-2.5 flex justify-between gap-4 font-mono text-2xs tracking-wide text-muted-foreground">
         <span>
           {basis.spanFrom && basis.spanTo ? `${shortDate(basis.spanFrom)} to ${shortDate(basis.spanTo)}` : "—"}
           {" · "}
           <span data-num>{basis.sampleSize}</span> posts sampled
         </span>
         {selfBar && (
-          <span className="text-score" data-num>
+          <span className="text-primary" data-num>
             this post · {formatCompact(selfBar.viewCount)}
           </span>
         )}

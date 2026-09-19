@@ -153,7 +153,7 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
             Today
           </Button>
         </div>
-        <span className="font-mono text-2xs text-faint">
+        <span className="font-mono text-2xs text-muted-foreground">
           {monthPosts} post{monthPosts === 1 ? "" : "s"} · <span data-num>{formatCompact(monthReach || null)}</span> views this
           month
         </span>
@@ -175,7 +175,7 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
         <TabsContent value="month" className="mt-6">
           <div className="overflow-x-auto pb-2">
             <div className="min-w-[720px]">
-              <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] gap-2 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+              <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_88px] gap-2 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
                 {WEEKDAY_LABELS.map((d) => (
                   <span key={d} data-lab>
                     {d}
@@ -199,12 +199,12 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
                         className={cn(
                           "flex min-h-[76px] flex-col gap-1.5 border border-border p-2 text-left",
                           !cell.inMonth && "opacity-40",
-                          cell.posts.length > 0 && "border-line-strong bg-card",
+                          cell.posts.length > 0 && "border-border bg-card",
                           cell.deadAir && cell.inMonth && "bg-destructive/5",
                           cell.posts.length === 0 && "cursor-default"
                         )}
                       >
-                        <span data-num className="font-mono text-2xs text-faint">
+                        <span data-num className="font-mono text-2xs text-muted-foreground">
                           {cell.date.getUTCDate()}
                         </span>
                         {cell.posts.length > 0 && (
@@ -224,7 +224,7 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
                     <span data-num className="font-mono text-sm">
                       {row.reach > 0 ? formatCompact(row.reach) : "—"}
                     </span>
-                    <span className="font-mono text-2xs text-faint">
+                    <span className="font-mono text-2xs text-muted-foreground">
                       {row.postCount} post{row.postCount === 1 ? "" : "s"}
                     </span>
                   </div>
@@ -233,9 +233,9 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-faint">
+          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-muted-foreground">
             <span className="flex items-center gap-2">
-              <i aria-hidden className="size-3 border-t-2 border-line-strong bg-card" /> published · number is views
+              <i aria-hidden className="size-3 border-t-2 border-border bg-card" /> published · number is views
             </span>
             <span className="flex items-center gap-2">
               <i aria-hidden className="size-3 border border-border bg-destructive/5" /> 3+ days dead air
@@ -251,7 +251,7 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
             <p className="text-sm text-muted-foreground">No posts synced yet.</p>
           ) : (
             <div>
-              <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_110px] gap-4 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+              <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_110px] gap-4 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
                 <span data-lab>Post</span>
                 <span data-lab className="text-right">
                   Views
@@ -284,10 +284,10 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
                       {formatCompact(p.viewCount)}
                     </span>
                   </div>
-                  <span data-num className="text-right font-mono text-2xs text-faint">
+                  <span data-num className="text-right font-mono text-2xs text-muted-foreground">
                     {p.durationSec === null ? "—" : formatDuration(p.durationSec)}
                   </span>
-                  <span className="text-right font-mono text-2xs text-faint">{relativeTime(p.postedAt)}</span>
+                  <span className="text-right font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt)}</span>
                 </div>
               ))}
             </div>
@@ -295,7 +295,7 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
         </TabsContent>
 
         <TabsContent value="metrics" className="mt-6">
-          <span data-lab className="font-mono text-2xs text-faint">
+          <span data-lab className="font-mono text-2xs text-muted-foreground">
             Average views by weekday
           </span>
           <div className="mt-6 grid h-[180px] grid-cols-7 items-end gap-2">
@@ -308,10 +308,10 @@ export function ChannelPostCalendar({ videos }: { videos: ChannelDetail["videos"
                   className="bg-muted-foreground/40"
                   style={{ height: `${r.avg === null ? 2 : Math.max(4, (r.avg / maxRhythm) * 100)}%` }}
                 />
-                <span data-lab className="font-mono text-2xs text-faint">
+                <span data-lab className="font-mono text-2xs text-muted-foreground">
                   {r.label}
                 </span>
-                <span data-num className="font-mono text-2xs text-faint">
+                <span data-num className="font-mono text-2xs text-muted-foreground">
                   n={r.n}
                 </span>
               </div>

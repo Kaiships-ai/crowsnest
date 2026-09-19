@@ -60,7 +60,7 @@ export function OwnChannelPicker({ candidates }: { candidates: OwnChannelCandida
         </p>
       ) : (
         <div className="mt-6 flex flex-col">
-          <div className="grid grid-cols-[minmax(0,1fr)_120px_100px] gap-4 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+          <div className="grid grid-cols-[minmax(0,1fr)_120px_100px] gap-4 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
             <span data-lab>Channel</span>
             <span data-lab className="text-right">
               Followers

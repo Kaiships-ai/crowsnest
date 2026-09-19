@@ -29,12 +29,12 @@ export function ContextRail({ detail }: { detail: VideoDetail }) {
     <div className="flex w-[220px] shrink-0 flex-col gap-3 overflow-y-auto border-r border-border p-4">
       <Link
         href={`/feed/${item.videoId}`}
-        className="flex w-fit items-center gap-1 font-mono text-2xs tracking-wide text-faint uppercase hover:text-foreground"
+        className="flex w-fit items-center gap-1 font-mono text-2xs tracking-wide text-muted-foreground uppercase hover:text-foreground"
       >
         <ChevronLeft className="size-3.5" /> Post detail
       </Link>
 
-      <span data-lab className="font-mono text-2xs text-faint uppercase">
+      <span data-lab className="font-mono text-2xs text-muted-foreground uppercase">
         Reference
       </span>
 
@@ -49,8 +49,8 @@ export function ContextRail({ detail }: { detail: VideoDetail }) {
       </div>
 
       <div className="flex items-baseline justify-between gap-2 border-b border-border py-2 font-mono text-xs">
-        <span className="tracking-wide text-faint uppercase">Score</span>
-        <span data-num className={tier > 0 ? "text-score" : "text-muted-foreground"}>
+        <span className="tracking-wide text-muted-foreground uppercase">Score</span>
+        <span data-num className={tier > 0 ? "text-primary" : "text-muted-foreground"}>
           {formatMultiplier(item.outlierScore)}
         </span>
       </div>

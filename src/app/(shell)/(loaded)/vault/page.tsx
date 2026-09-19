@@ -150,7 +150,7 @@ export default async function VaultPage({
               channel is yours, which the topbar never says, and this one said nothing
               the topbar had not already said. The count line leads the page now, and
               its top margin goes with the heading it used to sit under. */}
-          <p className="font-mono text-2xs text-faint">
+          <p className="font-mono text-2xs text-muted-foreground">
             {vaultHeaderCopy(
               {
                 savedPosts: savedPosts.length,
@@ -176,16 +176,16 @@ export default async function VaultPage({
       <Tabs defaultValue={defaultTab}>
         <TabsList variant="line" className="border-b border-border">
           <TabsTrigger value="posts" data-lab className="font-mono text-2xs">
-            Saved posts <span className="ml-1.5 text-faint">{savedPosts.length}</span>
+            Saved posts <span className="ml-1.5 text-muted-foreground">{savedPosts.length}</span>
           </TabsTrigger>
           <TabsTrigger value="scripts" data-lab className="font-mono text-2xs">
-            Scripts <span className="ml-1.5 text-faint">{scripts.length}</span>
+            Scripts <span className="ml-1.5 text-muted-foreground">{scripts.length}</span>
           </TabsTrigger>
           <TabsTrigger value="hooks" data-lab className="font-mono text-2xs">
-            Hooks <span className="ml-1.5 text-faint">{hooks.length}</span>
+            Hooks <span className="ml-1.5 text-muted-foreground">{hooks.length}</span>
           </TabsTrigger>
           <TabsTrigger value="styles" data-lab className="font-mono text-2xs">
-            Styles <span className="ml-1.5 text-faint">{styles.length}</span>
+            Styles <span className="ml-1.5 text-muted-foreground">{styles.length}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -208,7 +208,7 @@ export default async function VaultPage({
               <div
                 className={cn(
                   VAULT_ROW_GRID,
-                  "gap-4 border-b border-border pb-3 font-mono text-2xs tracking-wide text-faint"
+                  "gap-4 border-b border-border pb-3 font-mono text-2xs tracking-wide text-muted-foreground"
                 )}
               >
                 <span />

@@ -28,7 +28,7 @@ const TABS: { value: IdeaTab; label: string }[] = [
  *  has a text label ... `10.1x score`"). */
 function ScoreBadge({ score }: { score: number | null }) {
   return (
-    <span className="inline-flex w-fit shrink-0 items-center border border-score-line bg-score-wash px-2 py-0.5 font-mono text-2xs font-medium tabular-nums text-score">
+    <span className="inline-flex w-fit shrink-0 items-center border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-2xs font-medium tabular-nums text-primary">
       {formatMultiplier(score)} score
     </span>
   );
@@ -66,7 +66,7 @@ function IdeaCard({
         // the left") — a list row being "open" is the same concept as a rail item being
         // "current", so it earns the same visual rather than inventing a second one.
         selected
-          ? "border-l-2 border-l-line-strong bg-card text-foreground"
+          ? "border-l-2 border-l-border bg-card text-foreground"
           : "border-l-2 border-l-transparent text-muted-foreground hover:bg-card/60 hover:text-foreground"
       )}
     >
@@ -75,7 +75,7 @@ function IdeaCard({
       <p className="line-clamp-2 text-[15px] font-medium text-foreground">{idea.concept}</p>
       <div className="flex flex-wrap items-center gap-2">
         <ScoreBadge score={idea.scoreAtCreation} />
-        <span className="truncate text-2xs text-faint">{idea.post.channel.handle}</span>
+        <span className="truncate text-2xs text-muted-foreground">{idea.post.channel.handle}</span>
       </div>
       <NeutralMetrics item={idea.post} />
     </button>
@@ -337,7 +337,7 @@ export function IdeaInbox({ items, tab }: { items: IdeaListItem[]; tab: IdeaTab 
                   <NeutralMetrics item={selected.post} />
                 </div>
                 <p className="line-clamp-3 text-sm text-foreground">{selected.post.caption ?? "—"}</p>
-                <div className="flex items-center gap-2 text-2xs text-faint">
+                <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                   <span>{selected.post.channel.handle}</span>
                   <span aria-hidden>·</span>
                   <span>{relativeTime(selected.post.postedAt)}</span>

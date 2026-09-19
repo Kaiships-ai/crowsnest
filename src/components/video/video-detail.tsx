@@ -94,7 +94,7 @@ function HookStructureTab({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Hook
         </span>
         <div className="mt-3 flex flex-wrap gap-4">
@@ -106,14 +106,14 @@ function HookStructureTab({
           ))}
           {analysis.styleTags.map((tag) => (
             <span key={`style-${tag}`} className="font-mono text-2xs text-muted-foreground">
-              {tag} <span className="text-faint">· unverified</span>
+              {tag} <span className="text-muted-foreground">· unverified</span>
             </span>
           ))}
         </div>
       </div>
 
       <div>
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Beats
         </span>
         {analysis.structureSegments.length > 0 ? (
@@ -125,7 +125,7 @@ function HookStructureTab({
               const widthPct = durationSec && durationSec > 0 ? Math.min((span / durationSec) * 100, 100) : null;
               return (
                 <div key={i} className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-6">
-                  <span data-num className="font-mono text-2xs text-faint">
+                  <span data-num className="font-mono text-2xs text-muted-foreground">
                     {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
                   </span>
                   <div>
@@ -135,7 +135,7 @@ function HookStructureTab({
                         field existed — those show a plain placeholder, never an invented
                         quote. */}
                     <div className="mt-3 border-l-2 border-border pl-3">
-                      <span data-lab className="font-mono text-2xs text-faint">
+                      <span data-lab className="font-mono text-2xs text-muted-foreground">
                         transcript
                       </span>
                       {segment.transcript !== undefined ? (
@@ -149,13 +149,13 @@ function HookStructureTab({
                       )}
                     </div>
                     <div className="mt-3">
-                      <span data-lab className="font-mono text-2xs text-faint">
+                      <span data-lab className="font-mono text-2xs text-muted-foreground">
                         summary
                       </span>
                       <p className="mt-1 text-sm text-muted-foreground">{segment.note}</p>
                     </div>
                     <div
-                      className="mt-3 h-0.5 bg-line-strong"
+                      className="mt-3 h-0.5 bg-border"
                       style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
                     />
                   </div>
@@ -348,7 +348,7 @@ export function VideoDetail({
     // the left card into their own tiny inner scrollers while Similar outliers ate the
     // rest. Letting the page grow past main means main scrolls the whole thing as one.
     <div className="flex min-h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-faint">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-muted-foreground">
         <Link href={feedNav.backHref} className="text-muted-foreground hover:text-foreground">
           ← Feed
         </Link>
@@ -409,7 +409,7 @@ export function VideoDetail({
             ) : (
               <>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <ImageIcon className="size-12 text-faint" aria-hidden />
+                  <ImageIcon className="size-12 text-muted-foreground" aria-hidden />
                 </div>
                 <VideoThumb assetId={item.thumbnailAssetId} />
               </>
@@ -482,7 +482,7 @@ export function VideoDetail({
         <div className="flex min-w-0 flex-1 flex-col">
           {detail.analysis?.summary ? (
             <section className="mb-4 border border-border bg-card p-4">
-              <h3 className="mb-1.5 font-mono text-[13px] uppercase tracking-[0.06em] text-faint">Summary</h3>
+              <h3 className="mb-1.5 font-mono text-[13px] uppercase tracking-[0.06em] text-muted-foreground">Summary</h3>
               <p className="text-[17px] text-foreground">{detail.analysis.summary}</p>
             </section>
           ) : null}
@@ -491,7 +491,7 @@ export function VideoDetail({
               <TabsTrigger value="transcript">
                 Transcript
                 {detail.transcript ? (
-                  <span className="ml-1.5 font-mono text-[12px] text-faint tabular-nums">
+                  <span className="ml-1.5 font-mono text-[12px] text-muted-foreground tabular-nums">
                     {detail.transcript.text.trim().split(/\s+/).filter(Boolean).length} words
                   </span>
                 ) : null}
@@ -505,7 +505,7 @@ export function VideoDetail({
               {detail.transcript ? (
                 <div className="flex flex-col">
                   <div className="flex items-center justify-between gap-6 pt-4">
-                    <span data-lab className="font-mono text-2xs text-faint">
+                    <span data-lab className="font-mono text-2xs text-muted-foreground">
                       Transcript · {detail.transcript.source}
                     </span>
                     <Button variant="outline" size="sm" onClick={copyTranscript}>
@@ -579,7 +579,7 @@ export function VideoDetail({
             <div className="flex items-start gap-3 border-l border-border pl-4">
               <div className="flex flex-col items-start gap-1.5">
                 <SavePostButton videoId={item.videoId} saved={savedPost} />
-                <span className="font-mono text-2xs text-faint">Vault → Saved posts</span>
+                <span className="font-mono text-2xs text-muted-foreground">Vault → Saved posts</span>
               </div>
 
               <div className="flex flex-col items-start gap-1.5">
@@ -593,7 +593,7 @@ export function VideoDetail({
                     <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
                   </Tooltip>
                 )}
-                <span className="font-mono text-2xs text-faint">Vault → Hooks &amp; styles</span>
+                <span className="font-mono text-2xs text-muted-foreground">Vault → Hooks &amp; styles</span>
               </div>
             </div>
 

@@ -102,7 +102,7 @@ export function SettingsNav({ groups }: { groups: SettingsNavGroup[] }) {
     <nav aria-label="Settings sections" className="sticky top-6 flex w-44 shrink-0 flex-col gap-4 self-start">
       {groups.map((group) => (
         <div key={group.label} className="flex flex-col gap-0.5">
-          <p className="px-3 pb-1 font-mono text-2xs tracking-wide text-faint uppercase">{group.label}</p>
+          <p className="px-3 pb-1 font-mono text-2xs tracking-wide text-muted-foreground uppercase">{group.label}</p>
           {group.items.map((item) => {
             const isActive = item.id === activeId;
             return (

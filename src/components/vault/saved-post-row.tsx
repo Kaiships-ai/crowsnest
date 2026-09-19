@@ -19,9 +19,9 @@ import type { SavedPostRow as SavedPostRowData } from "@/server/queries/saved-po
 // Same hatch treatment as the Feed's OutlierCard (globals.css "hatching for a well
 // with no data in it") so an undownloaded thumbnail reads the same way everywhere.
 const THUMBNAIL_HATCH: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 /** Column widths shared with the Vault list's header row so THUMB/SAVED POST/SCORE/
@@ -96,14 +96,14 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
         <div className="relative aspect-9/16 w-10 shrink-0 overflow-hidden bg-card grayscale">
           <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
           <div className="absolute inset-0 flex items-center justify-center">
-            <Play className="size-3 text-faint" fill="currentColor" aria-hidden />
+            <Play className="size-3 text-muted-foreground" fill="currentColor" aria-hidden />
           </div>
           <VideoThumb assetId={item.thumbnailAssetId} />
         </div>
 
         <div className="min-w-0">
           <p className="truncate text-[17px] text-foreground">{item.caption ?? "—"}</p>
-          <p className="mt-2 truncate font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
+          <p className="mt-2 truncate font-mono text-2xs text-muted-foreground">{metaParts.join(" · ")}</p>
           {row.videoDeleted && (
             <p className="mt-1 font-mono text-2xs text-destructive">
               No longer on {platformLabel(item.channel.platform)}
@@ -123,7 +123,7 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
         </p>
 
         <div className="text-right">
-          <span className="block font-mono text-2xs text-faint">{relativeTime(item.postedAt)}</span>
+          <span className="block font-mono text-2xs text-muted-foreground">{relativeTime(item.postedAt)}</span>
           <span
             className="mt-2 flex justify-end gap-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
             // Enter/Space on "remove" fires a native click that bubbles up as a keydown
@@ -157,7 +157,7 @@ export function SavedPostRow({ row }: { row: SavedPostRowData }) {
           </DialogHeader>
 
           <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-            <p className="font-mono text-2xs text-faint">{metaParts.join(" · ")}</p>
+            <p className="font-mono text-2xs text-muted-foreground">{metaParts.join(" · ")}</p>
 
             <div>
               <p className="text-xs font-medium text-muted-foreground">Why kept</p>

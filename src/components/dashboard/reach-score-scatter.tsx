@@ -25,7 +25,7 @@ export function ReachScoreScatter({ items }: { items: FeedItem[] }) {
   if (points.length === 0) {
     return (
       <div className="min-w-0">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Reach vs score
         </span>
         <p className="mt-6 max-w-[52ch] text-sm text-muted-foreground">
@@ -42,7 +42,7 @@ export function ReachScoreScatter({ items }: { items: FeedItem[] }) {
 
   return (
     <div className="min-w-0">
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Reach vs score
       </span>
       <svg
@@ -52,23 +52,23 @@ export function ReachScoreScatter({ items }: { items: FeedItem[] }) {
         className="mt-6 h-auto w-full overflow-visible"
       >
         <line x1={PAD_LEFT} y1={beatY} x2={WIDTH - PAD_RIGHT} y2={beatY} className="stroke-border" strokeWidth={1} />
-        <text x={PAD_LEFT - 6} y={beatY} textAnchor="end" dominantBaseline="middle" className="fill-faint font-mono text-2xs">
+        <text x={PAD_LEFT - 6} y={beatY} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground font-mono text-2xs">
           1×
         </text>
-        <text x={PAD_LEFT - 6} y={PAD_TOP + 4} textAnchor="end" dominantBaseline="middle" className="fill-faint font-mono text-2xs">
+        <text x={PAD_LEFT - 6} y={PAD_TOP + 4} textAnchor="end" dominantBaseline="middle" className="fill-muted-foreground font-mono text-2xs">
           12×
         </text>
-        <text x={PAD_LEFT} y={HEIGHT - 2} textAnchor="start" className="fill-faint font-mono text-2xs">
+        <text x={PAD_LEFT} y={HEIGHT - 2} textAnchor="start" className="fill-muted-foreground font-mono text-2xs">
           1K
         </text>
-        <text x={WIDTH / 2} y={HEIGHT - 2} textAnchor="middle" className="fill-faint font-mono text-2xs">
+        <text x={WIDTH / 2} y={HEIGHT - 2} textAnchor="middle" className="fill-muted-foreground font-mono text-2xs">
           100K
         </text>
-        <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 2} textAnchor="end" className="fill-faint font-mono text-2xs">
+        <text x={WIDTH - PAD_RIGHT} y={HEIGHT - 2} textAnchor="end" className="fill-muted-foreground font-mono text-2xs">
           10M
         </text>
         {points.map((p) => (
-          <circle key={p.videoId} cx={x(p.viewCount)} cy={y(p.score)} r={p.beat ? 5 : 3.5} style={{ fill: p.beat ? "var(--score)" : "var(--dim)" }}>
+          <circle key={p.videoId} cx={x(p.viewCount)} cy={y(p.score)} r={p.beat ? 5 : 3.5} style={{ fill: p.beat ? "var(--primary)" : "var(--muted-foreground)" }}>
             <title>{`${p.handle} · ${formatMultiplier(p.score)} · ${formatCompact(p.viewCount)} views`}</title>
           </circle>
         ))}

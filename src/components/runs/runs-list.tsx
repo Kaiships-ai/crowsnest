@@ -27,7 +27,7 @@ import { useRunStream } from "./use-run-stream";
 const STATUS_DOT: Record<RunStatus, string> = {
   running: "bg-foreground animate-pulse",
   waiting: "bg-foreground animate-pulse",
-  success: "bg-[var(--pos)]",
+  success: "bg-[var(--success)]",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
   canceled: "bg-muted-foreground",
@@ -98,8 +98,8 @@ export function RunsList({ seedRuns, syncSlaMinutes, remixSlaMinutes }: RunsList
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-1.5 font-mono text-2xs text-faint">
-        <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-dim")} />
+      <div className="mb-3 flex items-center gap-1.5 font-mono text-2xs text-muted-foreground">
+        <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-muted-foreground")} />
         <span>{connected ? "Live" : "Reconnecting…"}</span>
       </div>
 
@@ -163,7 +163,7 @@ export function RunsList({ seedRuns, syncSlaMinutes, remixSlaMinutes }: RunsList
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-2xs text-faint">{run.type}</span>
+                      <span className="font-mono text-2xs text-muted-foreground">{run.type}</span>
                     </TableCell>
                     <TableCell className="font-mono text-muted-foreground">{relativeTime(run.startedAt)}</TableCell>
                     <TableCell className="font-mono">{formatDuration(Math.floor(run.durationMs / 1000))}</TableCell>
@@ -181,7 +181,7 @@ export function RunsList({ seedRuns, syncSlaMinutes, remixSlaMinutes }: RunsList
                         </span>
                       )}
                       {run.status === "running" && !verdict.stuck && verdict.overBudget && (
-                        <span className="inline-flex items-center gap-1 border border-destructive/45 bg-[var(--destructive-wash)] px-2 py-0.5 font-mono text-2xs text-destructive">
+                        <span className="inline-flex items-center gap-1 border border-destructive/45 bg-[color-mix(in srgb, var(--destructive) 12%, transparent)] px-2 py-0.5 font-mono text-2xs text-destructive">
                           SLA over by {formatDuration(Math.floor(overMs / 1000))}
                         </span>
                       )}

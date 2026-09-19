@@ -398,7 +398,7 @@ export function StageScript({
 
       {savedScriptId && (
         <div className="flex flex-col gap-3 border-t border-border pt-4">
-          <Label className="font-mono text-2xs tracking-wide text-faint uppercase">Add to plan</Label>
+          <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Add to plan</Label>
           {addedPlanDate ? (
             <p className="text-sm text-muted-foreground">
               On the plan for <span className="text-foreground">{addedPlanDate}</span>.

@@ -92,7 +92,7 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
           <h2 className="text-lg font-semibold">{channel.handle}</h2>
           {/* One mono meta line (mine.html's header), not a badge chip plus a caption —
               platform, sync recency, followers and post count read as one fact together. */}
-          <p className="font-mono text-2xs tracking-[0.06em] text-faint">
+          <p className="font-mono text-2xs tracking-[0.06em] text-muted-foreground">
             {platformLabel(channel.platform)} · {channel.lastSyncedAt ? `synced ${relativeTime(channel.lastSyncedAt)}` : "never synced"} ·{" "}
             <span data-num>{formatCompact(channel.followerCount)}</span> followers
             {postCount !== undefined && (

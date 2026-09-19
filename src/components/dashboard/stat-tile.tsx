@@ -18,7 +18,7 @@ export interface StatTileDelta {
  * up is good — always paired with an up/down icon, never color alone — and an
  * optional 12-point sparkline.
  *
- * Color: a "good" delta uses `text-pos` (the prototype's `--pos`, `#6fad86`, now
+ * Color: a "good" delta uses `text-success` (the prototype's `--pos`, `#6fad86`, now
  * wired into `globals.css` as a shared token) alongside the ↑ icon — never color
  * alone. A "bad" delta gets `text-destructive`. Green over plain foreground reads
  * clearly on a KPI row where several tiles carry a delta at once; the ↑/↓ icon is
@@ -53,7 +53,7 @@ export function StatTile({
           {displayValue}
         </p>
         {caption && (
-          <p data-num className="font-mono text-2xs text-faint">
+          <p data-num className="font-mono text-2xs text-muted-foreground">
             {caption}
           </p>
         )}
@@ -66,7 +66,7 @@ export function StatTile({
               data-num
               className={cn(
                 "flex items-center gap-0.5 font-mono text-2xs font-medium",
-                isGood ? "text-pos" : "text-destructive"
+                isGood ? "text-success" : "text-destructive"
               )}
             >
               {delta.direction === "up" ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}

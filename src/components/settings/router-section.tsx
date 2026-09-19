@@ -37,7 +37,7 @@ function statusView(status: RouterStatus): { tone: Tone; label: string } {
 // not an alarm, just honest).
 function StatusDot({ tone }: { tone: Tone }) {
   const Icon = tone === "ok" ? CheckCircle2 : tone === "bad" ? CircleOff : AlertTriangle;
-  const color = tone === "ok" ? "text-[var(--pos)]" : tone === "bad" ? "text-destructive" : "text-foreground";
+  const color = tone === "ok" ? "text-[var(--success)]" : tone === "bad" ? "text-destructive" : "text-foreground";
   return <Icon className={`size-4 shrink-0 ${color}`} aria-hidden />;
 }
 

@@ -156,8 +156,8 @@ function buildGrid(month: string, calendar: CalendarMonth): DayCell[][] {
 }
 
 const CELL_STYLE: Record<CellKind, string> = {
-  published: "border-line-strong bg-card",
-  publishing: "border-line-strong bg-card",
+  published: "border-border bg-card",
+  publishing: "border-border bg-card",
   failed: "border-destructive/40 bg-destructive/10",
   scheduled: "border-border bg-transparent",
   missed: "border-destructive/40 bg-destructive/10",
@@ -315,7 +315,7 @@ export function MineCalendar({
 
       <div className="mt-7 overflow-x-auto pb-2">
         <div className="min-w-[720px]">
-          <div className="grid grid-cols-7 gap-2 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+          <div className="grid grid-cols-7 gap-2 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
             {WEEKDAY_LABELS.map((d) => (
               <span key={d} data-lab>
                 {d}
@@ -340,10 +340,10 @@ export function MineCalendar({
                   )}
                 >
                   {cell.plan?.publishedOwnPostId != null && (
-                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 bg-pos" />
+                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 bg-success" />
                   )}
                   <span className="flex w-full items-baseline gap-1.5">
-                    <span data-num className="font-mono text-2xs text-faint">
+                    <span data-num className="font-mono text-2xs text-muted-foreground">
                       {cell.day}
                     </span>
                     {cell.key === today && <span className="font-mono text-2xs text-muted-foreground">today</span>}
@@ -370,7 +370,7 @@ export function MineCalendar({
                     </span>
                   )}
                   {cell.plan?.state === "published" && (
-                    <span aria-hidden className="font-mono text-2xs text-pos" data-testid="mine-calendar-published">
+                    <span aria-hidden className="font-mono text-2xs text-success" data-testid="mine-calendar-published">
                       ✓ published
                     </span>
                   )}
@@ -384,11 +384,11 @@ export function MineCalendar({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-faint">
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-muted-foreground">
         {calendar.measuredAt !== null && (
           <>
             <span className="flex items-center gap-2">
-              <i aria-hidden className="size-3 border border-line-strong bg-card" /> published · number is reach
+              <i aria-hidden className="size-3 border border-border bg-card" /> published · number is reach
             </span>
             <span className="flex items-center gap-2">
               <i aria-hidden className="size-3 border border-border bg-destructive/5" /> dead air, 3+ days
@@ -402,13 +402,13 @@ export function MineCalendar({
           <i aria-hidden className="size-3 border border-destructive/40 bg-destructive/10" /> missed / failed
         </span>
         <span className="flex items-center gap-2">
-          <i aria-hidden className="size-3 border border-line-strong bg-card" /> publishing / published
+          <i aria-hidden className="size-3 border border-border bg-card" /> publishing / published
         </span>
         <span className="flex items-center gap-2">
           <i aria-hidden className="size-3 border border-border" /> open
         </span>
         <span className="flex items-center gap-2">
-          <i aria-hidden className="size-2 bg-pos" /> plan published
+          <i aria-hidden className="size-2 bg-success" /> plan published
         </span>
       </div>
 
@@ -427,7 +427,7 @@ export function MineCalendar({
           {selectedCell && (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
             <SheetHeader className="p-0">
-              <p className="font-mono text-2xs tracking-wide text-faint">{selectedCell.key}</p>
+              <p className="font-mono text-2xs tracking-wide text-muted-foreground">{selectedCell.key}</p>
               <SheetTitle className="mt-1 text-lg font-medium text-foreground">
                 {selectedCell.title ?? (selectedCell.kind === "open" ? "Nothing planned" : "—")}
               </SheetTitle>
@@ -441,10 +441,10 @@ export function MineCalendar({
 
             {selectedCell.plan && (
               <div className="flex flex-col gap-2 border-t border-border pt-3">
-                <p className="font-mono text-2xs tracking-wide text-faint uppercase">
+                <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
                   {selectedCell.plan.state}
                   {selectedCell.plan.scriptId === null && !selectedCell.plan.remixSessionId && " · no script yet"}
-                  {selectedCell.plan.publishedOwnPostId !== null && <span className="text-pos"> · published</span>}
+                  {selectedCell.plan.publishedOwnPostId !== null && <span className="text-success"> · published</span>}
                 </p>
                 {selectedCell.plan.scriptDetachedNote && (
                   <p className="text-xs text-destructive">{selectedCell.plan.scriptDetachedNote}</p>
@@ -514,7 +514,7 @@ export function MineCalendar({
                   )}
 
                   {selectedCell.plan.state === "published" && (
-                    <p className="font-mono text-2xs text-pos" data-testid="mine-plan-published">
+                    <p className="font-mono text-2xs text-success" data-testid="mine-plan-published">
                       ✓ published{selectedCell.plan.dryRun ? " (dry run)" : ""}
                       {selectedCell.plan.publishedOwnPostId && !selectedCell.plan.dryRun && (
                         <>
@@ -606,7 +606,7 @@ export function MineCalendar({
 
       {undatedDrafts.length > 0 && (
         <div className="mt-10 border-t border-border pt-6">
-          <p className="font-mono text-2xs tracking-wide text-faint uppercase">Undated drafts</p>
+          <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Undated drafts</p>
           <div className="mt-3 flex flex-col">
             {undatedDrafts.map((d) => (
               <div key={d.id} className="flex items-center justify-between gap-4 border-b border-border py-2.5">

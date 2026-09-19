@@ -62,7 +62,7 @@ export function SidecarControl({ health, onHealthChange }: { health: StatusResul
 
   const label = running ? "Running" : "Not running";
   const Icon = running ? CheckCircle2 : CircleOff;
-  const color = running ? "text-[var(--pos)]" : "text-muted-foreground";
+  const color = running ? "text-[var(--success)]" : "text-muted-foreground";
 
   return (
     <div className="flex flex-col gap-2 border border-border bg-card p-3">

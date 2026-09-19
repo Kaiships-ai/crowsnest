@@ -29,7 +29,7 @@ export function VaultSortControl({ sort }: { sort: SavedPostSort }) {
 
   return (
     <div className="flex flex-wrap items-center gap-5">
-      <span className="font-mono text-2xs tracking-wide text-faint">SORT</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">SORT</span>
       {SORT_OPTIONS.map((option) => (
         <button
           key={option.value}
@@ -38,7 +38,7 @@ export function VaultSortControl({ sort }: { sort: SavedPostSort }) {
           aria-pressed={sort === option.value}
           className={cn(
             "font-mono text-2xs tracking-wide",
-            sort === option.value ? "text-foreground" : "text-faint hover:text-foreground"
+            sort === option.value ? "text-foreground" : "text-muted-foreground hover:text-foreground"
           )}
         >
           {option.label}

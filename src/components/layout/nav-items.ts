@@ -67,3 +67,19 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/persona", label: "Persona", icon: Drama, group: "Setup" },
   { href: "/settings", label: "Settings", icon: Settings, group: "Setup" },
 ];
+
+/**
+ * `NAV_ITEMS` folded into consecutive runs of the same group, in the same
+ * order. The sidebar renders one `SidebarGroup` per entry; the ⌘K palette
+ * still reads the flat `NAV_ITEMS`. Derived rather than authored so the two
+ * cannot drift.
+ */
+export const NAV_GROUPS: { group: NavGroup; items: NavItem[] }[] = NAV_ITEMS.reduce(
+  (acc, item) => {
+    const last = acc[acc.length - 1];
+    if (last && last.group === item.group) last.items.push(item);
+    else acc.push({ group: item.group, items: [item] });
+    return acc;
+  },
+  [] as { group: NavGroup; items: NavItem[] }[],
+);

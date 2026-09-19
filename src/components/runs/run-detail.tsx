@@ -59,7 +59,7 @@ const GAP_CLASS_LABEL_CLASS: Record<IgErrorClass, string> = {
 const STATUS_DOT: Record<RunStatus, string> = {
   running: "bg-foreground animate-pulse",
   waiting: "bg-foreground animate-pulse",
-  success: "bg-[var(--pos)]",
+  success: "bg-[var(--success)]",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
   canceled: "bg-muted-foreground",
@@ -68,7 +68,7 @@ const STATUS_DOT: Record<RunStatus, string> = {
 const STATUS_WORD_CLASS: Record<RunStatus, string> = {
   running: "text-foreground",
   waiting: "text-foreground",
-  success: "text-[var(--pos)]",
+  success: "text-[var(--success)]",
   partial: "text-muted-foreground",
   failed: "text-destructive",
   canceled: "text-muted-foreground",
@@ -230,7 +230,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
         <div className="flex flex-wrap items-center gap-3">
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[liveRun.status])} />
           <span className={cn("font-semibold", STATUS_WORD_CLASS[liveRun.status])}>{STATUS_WORD_LABEL[liveRun.status]}</span>
-          <span className="font-mono text-2xs text-faint">
+          <span className="font-mono text-2xs text-muted-foreground">
             run_id {liveRun.runId} &middot; {liveRun.type}
           </span>
           {verdict.stuck && (
@@ -239,7 +239,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
             </span>
           )}
           {!verdict.stuck && verdict.overBudget && (
-            <span className="ml-auto inline-flex items-center gap-1 border border-destructive/45 bg-[var(--destructive-wash)] px-2 py-0.5 font-mono text-2xs text-destructive">
+            <span className="ml-auto inline-flex items-center gap-1 border border-destructive/45 bg-[color-mix(in srgb, var(--destructive) 12%, transparent)] px-2 py-0.5 font-mono text-2xs text-destructive">
               SLA over by {formatDuration(Math.floor(overMs / 1000))}
             </span>
           )}
@@ -268,7 +268,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
         <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">
           {tiles.map((tile) => (
             <div key={tile.key} className="bg-card px-4 py-3">
-              <div className="font-mono text-2xs tracking-wide text-faint uppercase">{tile.label}</div>
+              <div className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">{tile.label}</div>
               <div className={cn("mt-1.5 font-mono text-lg tabular-nums", tile.bad && "text-destructive")}>{tile.value}</div>
             </div>
           ))}
@@ -296,7 +296,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
         <button
           type="button"
           onClick={() => setOpenId(firstError.id)}
-          className="flex w-full items-start gap-2 border border-destructive/45 bg-[var(--destructive-wash)] px-4 py-3 text-left"
+          className="flex w-full items-start gap-2 border border-destructive/45 bg-[color-mix(in srgb, var(--destructive) 12%, transparent)] px-4 py-3 text-left"
         >
           <span className="mt-0.5 font-mono text-2xs text-destructive uppercase">First error</span>
           <span className="font-mono text-xs text-destructive">{firstError.event}</span>
@@ -305,7 +305,7 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
 
       {run.gaps.length > 0 && (
         <div>
-          <span className="font-mono text-2xs tracking-wide text-faint uppercase">
+          <span className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
             Gaps &middot; {run.gaps.length} channel{run.gaps.length === 1 ? "" : "s"} didn&apos;t finish
           </span>
           <div className="mt-3 border border-border bg-card">
@@ -320,9 +320,9 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
 
       <div>
         <div className="mb-3 flex items-center justify-between">
-          <span className="font-mono text-2xs tracking-wide text-faint uppercase">Trace &middot; log events for run_id {liveRun.runId}</span>
-          <div className="flex items-center gap-1.5 font-mono text-2xs text-faint">
-            <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-dim")} />
+          <span className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Trace &middot; log events for run_id {liveRun.runId}</span>
+          <div className="flex items-center gap-1.5 font-mono text-2xs text-muted-foreground">
+            <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-muted-foreground")} />
             <span>{connected ? "Live" : "Reconnecting…"}</span>
           </div>
         </div>
@@ -334,11 +334,11 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
             <div className="w-full overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="border-line-strong hover:bg-transparent">
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Time</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Level</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Source</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Event</TableHead>
+                  <TableRow className="border-border hover:bg-transparent">
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Time</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Level</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Source</TableHead>
+                    <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Event</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

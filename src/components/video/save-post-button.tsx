@@ -124,7 +124,7 @@ export function SavePostButton({
           />
           {/* Optional on purpose. A required field here would get filled with anything
               to get past it, and a note that says nothing is worse than no note. */}
-          <p className="text-2xs text-faint">Optional. The vault shows this next to the score.</p>
+          <p className="text-2xs text-muted-foreground">Optional. The vault shows this next to the score.</p>
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>

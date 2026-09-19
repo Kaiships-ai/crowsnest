@@ -148,7 +148,7 @@ export function ViewsByPostBars({ videos }: { videos: ChannelDetail["videos"] })
 
   return (
     <div>
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Views by post · last {posts.length} post{posts.length === 1 ? "" : "s"}, rolling
       </span>
       <div className="mt-6 flex h-[150px] items-end gap-3.5">
@@ -158,7 +158,7 @@ export function ViewsByPostBars({ videos }: { videos: ChannelDetail["videos"] })
               {formatCompact(p.viewCount)}
             </span>
             <div className="bg-muted-foreground/40" style={{ height: `${Math.max(4, (p.viewCount / max) * 100)}%` }} />
-            <span className="font-mono text-2xs text-faint">{relativeTime(p.postedAt)}</span>
+            <span className="font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt)}</span>
           </div>
         ))}
       </div>

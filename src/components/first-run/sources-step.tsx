@@ -159,7 +159,7 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">03 · CHANNELS</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">03 · CHANNELS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">Choose who to watch</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         Add the Instagram handles you compete with. You can add more later from Channels.
@@ -170,7 +170,7 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
 
       {seeds.length > 0 && (
         <section className="mt-10 max-w-[560px]" data-testid="first-run-seed-picker">
-          <span className="font-mono text-2xs tracking-wide text-faint">SUGGESTED CREATORS</span>
+          <span className="font-mono text-2xs tracking-wide text-muted-foreground">SUGGESTED CREATORS</span>
           <p className="mt-3 mb-4 text-sm text-muted-foreground">
             Curated accounts worth watching. Follow up to 10 to start tracking them now, or add
             your own handles below.
@@ -179,7 +179,7 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
         </section>
       )}
 
-      <span className="mt-11 block font-mono text-2xs tracking-wide text-faint">
+      <span className="mt-11 block font-mono text-2xs tracking-wide text-muted-foreground">
         {seeds.length > 0 ? "OR ADD YOUR OWN" : ""}
       </span>
       <div className="mt-3 flex max-w-[460px] items-center gap-2">
@@ -229,11 +229,11 @@ export function SourcesStep({ niche, seeds, canVerifyHandles, onBack, onContinue
         <Button onClick={() => void handleContinue()} disabled={!canContinue}>
           {pending ? "Adding…" : "Continue"}
         </Button>
-        <span className="font-mono text-xs text-faint">
+        <span className="font-mono text-xs text-muted-foreground">
           {totalSelected === 0 ? "Follow or add at least one channel to continue" : `${totalSelected} selected`}
         </span>
       </div>
-      <p className="mt-10 font-mono text-2xs tracking-wide text-faint">More can be added later from Channels.</p>
+      <p className="mt-10 font-mono text-2xs tracking-wide text-muted-foreground">More can be added later from Channels.</p>
     </div>
   );
 }

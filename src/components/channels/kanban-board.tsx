@@ -215,18 +215,18 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
       {/* No heading here: the topbar already renders the route title, and a second
           "Channels" one line below it is the duplicate the M6 rule bans. */}
       <div className="flex items-end justify-between gap-6 border-b border-border px-6 pt-6 pb-4">
-        <p className="font-mono text-2xs text-faint">
+        <p className="font-mono text-2xs text-muted-foreground">
           <span data-testid="channels-tracked-count" data-num className="text-muted-foreground">
             {board.channels.length}
           </span>{" "}
           tracked
           {neverSynced > 0 && (
             <>
-              <span className="mx-1.5 text-dim">&middot;</span>
+              <span className="mx-1.5 text-muted-foreground">&middot;</span>
               <span data-num className="text-muted-foreground">{neverSynced}</span> never synced
             </>
           )}
-          <span className="mx-1.5 text-dim">&middot;</span>
+          <span className="mx-1.5 text-muted-foreground">&middot;</span>
           <span data-num className="text-muted-foreground">{board.fleets.length}</span> fleets
         </p>
         <span className="flex items-center gap-2">
@@ -296,7 +296,7 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
         />
       )}
 
-      <div className="flex flex-none items-center justify-between gap-6 border-t border-line-strong bg-popover px-6 py-3">
+      <div className="flex flex-none items-center justify-between gap-6 border-t border-border bg-popover px-6 py-3">
         <span className="text-xs text-muted-foreground">
           {dirty
             ? <><span data-num className="text-foreground">{moveCount}</span> unsaved move{moveCount === 1 ? "" : "s"}</>

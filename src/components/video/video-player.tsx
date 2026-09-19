@@ -12,8 +12,8 @@ import { downloadVideoAction } from "@/server/actions/media-actions";
 // fill used by carousel-viewer.tsx's not-yet-downloaded slides, replacing the old
 // bg-[#1E2230] hex that predates the token system.
 const EMPTY_WELL: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
-  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
+  backgroundImage: "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 /**
@@ -118,7 +118,7 @@ export function VideoPlayer({
         </>
       ) : (
         <>
-          <Play className="size-8 text-faint" fill="currentColor" aria-hidden />
+          <Play className="size-8 text-muted-foreground" fill="currentColor" aria-hidden />
           <p className="text-sm text-muted-foreground">Video not downloaded yet</p>
           <Button type="button" variant="outline" size="sm" onClick={download}>
             Download video

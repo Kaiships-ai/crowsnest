@@ -46,11 +46,11 @@ export function KanbanColumn({
             className="shrink-0"
           />
         )}
-        <span className={`font-mono text-2xs uppercase tracking-wider ${pinned ? "text-faint" : "text-muted-foreground"}`}>{name}</span>
-        <span data-num className="text-2xs text-faint">{count}</span>
+        <span className={`font-mono text-2xs uppercase tracking-wider ${pinned ? "text-muted-foreground" : "text-muted-foreground"}`}>{name}</span>
+        <span data-num className="text-2xs text-muted-foreground">{count}</span>
         <span className="flex-1" />
         {pinned ? (
-          <span className="font-mono text-2xs tracking-wide text-dim">pinned</span>
+          <span className="font-mono text-2xs tracking-wide text-muted-foreground">pinned</span>
         ) : (
           fleetId && (
             <FleetColumnMenu
@@ -65,7 +65,7 @@ export function KanbanColumn({
       <div
         ref={setNodeRef}
         data-over={isOver ? "" : undefined}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pt-3 pb-4 data-[over]:bg-line-strong/5"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pt-3 pb-4 data-[over]:bg-border/5"
       >
         <SortableContext items={channelIds} strategy={verticalListSortingStrategy}>
           {channelIds.map((id) => (
@@ -79,7 +79,7 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {channelIds.length === 0 && (
-          <div className="grid flex-1 place-items-center border border-dashed border-border text-2xs tracking-wide text-faint [background-image:repeating-linear-gradient(135deg,var(--hatch-2)_0,var(--hatch-2)_1px,transparent_1px,transparent_11px)]">
+          <div className="grid flex-1 place-items-center border border-dashed border-border text-2xs tracking-wide text-muted-foreground [background-image:repeating-linear-gradient(135deg,color-mix(in srgb, var(--muted-foreground) 16%, transparent)_0,color-mix(in srgb, var(--muted-foreground) 16%, transparent)_1px,transparent_1px,transparent_11px)]">
             Drop channels here
           </div>
         )}

@@ -12,7 +12,7 @@ const STAGE_LABEL = new Map(STAGES.map((s) => [s.key, s.label]));
 // destructive treatment `sync/failure-strip.tsx` already uses for its own "warn" tone
 // (never amber — amber is capped at the score and one primary action per screen).
 const TONE_CLASS: Record<RunTone, string> = {
-  pos: "text-pos",
+  pos: "text-success",
   warn: "text-destructive/70",
   bad: "text-destructive",
 };
@@ -27,7 +27,7 @@ const TONE_CLASS: Record<RunTone, string> = {
 export function RunLog({ runs }: { runs: RemixRunRow[] | null }) {
   return (
     <div className="mt-16 border-t border-border pt-4">
-      <p className="font-mono text-2xs tracking-wide text-faint uppercase">Run log</p>
+      <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Run log</p>
       {runs === null ? null : runs.length === 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">No generation attempts yet.</p>
       ) : (
@@ -39,7 +39,7 @@ export function RunLog({ runs }: { runs: RemixRunRow[] | null }) {
                 key={run.id}
                 className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-baseline gap-4 border-b border-border py-2 last:border-b-0"
               >
-                <span className="font-mono text-2xs tracking-wide text-faint">{relativeTime(run.startedAt)}</span>
+                <span className="font-mono text-2xs tracking-wide text-muted-foreground">{relativeTime(run.startedAt)}</span>
                 <span className="min-w-0 truncate text-sm">
                   <span className="font-medium">{STAGE_LABEL.get(run.stage) ?? run.stage}</span>
                   <span className="text-muted-foreground"> — {run.detail}</span>

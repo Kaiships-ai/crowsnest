@@ -197,7 +197,7 @@ export default async function DashboardPage() {
       {/* 2. Selected research sources: the channels you plan from, and which fleets moved. */}
       <section className="flex flex-col gap-6">
         <div className="flex items-baseline justify-between gap-6">
-          <span data-lab className="font-mono text-2xs text-faint">
+          <span data-lab className="font-mono text-2xs text-muted-foreground">
             Research sources
           </span>
           <Link href="/channels" className="text-xs text-muted-foreground hover:text-foreground">
@@ -223,7 +223,7 @@ export default async function DashboardPage() {
       {/* 3. Highest-value outliers. */}
       <section className="flex flex-col gap-6">
         <div className="flex items-baseline justify-between gap-6">
-          <span data-lab className="font-mono text-2xs text-faint">
+          <span data-lab className="font-mono text-2xs text-muted-foreground">
             Highest-value outliers
           </span>
           <Link href="/feed" className="text-xs text-muted-foreground hover:text-foreground">
@@ -234,7 +234,7 @@ export default async function DashboardPage() {
             faked "movers" line. Hidden at zero. */}
         {newSinceVisit > 0 && (
           <Link href="/feed" className="flex items-center gap-2 text-sm text-foreground hover:underline">
-            <span className="font-mono text-score" data-num>
+            <span className="font-mono text-primary" data-num>
               {newSinceVisit}
             </span>
             new outlier{newSinceVisit === 1 ? "" : "s"} since your last visit
@@ -257,7 +257,7 @@ export default async function DashboardPage() {
       />
 
       <section className="flex flex-col gap-6">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Recently viewed
         </span>
         {recentlyViewed.length > 0 ? (
@@ -272,7 +272,7 @@ export default async function DashboardPage() {
           Each renders its own honest empty state, so only the all-channels "nothing has
           synced" case is handled here. */}
       <section className="flex flex-col gap-8 border-t border-border pt-10">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Analytics
         </span>
         {allItems.length > 0 ? (

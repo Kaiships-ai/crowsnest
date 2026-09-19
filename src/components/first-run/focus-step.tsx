@@ -65,7 +65,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">01 · FOCUS</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">01 · FOCUS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">What do you make?</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         This shapes the channels step right after this one, and every remix you generate. Changeable later in
@@ -73,7 +73,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
       </p>
 
       <div className="mt-11">
-        <span className="font-mono text-2xs tracking-wide text-faint">SUBJECT</span>
+        <span className="font-mono text-2xs tracking-wide text-muted-foreground">SUBJECT</span>
         <div className="mt-2 flex max-w-[460px] flex-col">
           {SUBJECTS.map((label) => {
             const isSelected = mode === "preset" && preset === label;
@@ -131,7 +131,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
         <Button onClick={() => void handleContinue()} disabled={!canContinue || saving}>
           {saving ? "Saving…" : "Continue"}
         </Button>
-        {!canContinue && <span className="font-mono text-xs text-faint">Pick a subject to continue</span>}
+        {!canContinue && <span className="font-mono text-xs text-muted-foreground">Pick a subject to continue</span>}
       </div>
     </div>
   );

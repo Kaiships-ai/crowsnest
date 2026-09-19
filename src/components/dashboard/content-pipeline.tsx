@@ -47,7 +47,7 @@ export function ContentPipeline({
   return (
     <section className="flex flex-col gap-6">
       <div className="flex items-baseline justify-between gap-6">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Content pipeline
         </span>
         <div className="flex items-center gap-4 font-mono text-2xs text-muted-foreground" data-num>
@@ -68,7 +68,7 @@ export function ContentPipeline({
               </Badge>
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.title}</span>
               <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">by {a.agent}</span>
-              <span data-num className="shrink-0 font-mono text-2xs text-faint">
+              <span data-num className="shrink-0 font-mono text-2xs text-muted-foreground">
                 {ago(a.updatedAt, nowMs)}
               </span>
             </div>

@@ -11,8 +11,8 @@ import { assetUrl } from "@/lib/media-url";
 // fill for a slide that has nothing to show yet, replacing the old bg-[#1E2230] hex
 // that predates the token system. A plain object so it isn't reallocated on render.
 const EMPTY_WELL: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
-  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
+  backgroundImage: "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 export interface CarouselChild {
@@ -58,7 +58,7 @@ function CarouselSlide({ child }: { child: CarouselChild }) {
   const photoSrc = assetUrl(child.thumbnailAssetId);
   if (!photoSrc) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-xs text-faint" style={EMPTY_WELL}>
+      <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground" style={EMPTY_WELL}>
         Image not downloaded yet
       </div>
     );
@@ -112,7 +112,7 @@ export function CarouselViewer({ items }: { items: CarouselChild[] }) {
 
   if (ordered.length === 0) {
     return (
-      <div className="flex h-full w-full items-center justify-center text-sm text-faint" style={EMPTY_WELL}>
+      <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground" style={EMPTY_WELL}>
         This carousel has no items.
       </div>
     );

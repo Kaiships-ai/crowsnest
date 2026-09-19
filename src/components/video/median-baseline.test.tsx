@@ -127,6 +127,6 @@ describe("MedianBaseline", () => {
     const below = render(<MedianBaseline score={0.8} handle="@creator" basis={basis()} />);
     const atOrAbove = render(<MedianBaseline score={1} handle="@creator" basis={basis()} />);
     expect(below).toContain('text-foreground">0.8×');
-    expect(atOrAbove).toContain('text-score">1.0×');
+    expect(atOrAbove).toContain('text-primary">1.0×');
   });
 });

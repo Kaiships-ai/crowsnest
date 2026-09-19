@@ -44,7 +44,7 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs tracking-wide text-faint uppercase">
+        <span data-lab className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
           Hook
         </span>
         {session.chosenHook ? (
@@ -55,7 +55,7 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
       </div>
 
       <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs tracking-wide text-faint uppercase">
+        <span data-lab className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
           Chosen script
         </span>
         {chosenVariant !== null ? (

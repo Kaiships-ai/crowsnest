@@ -7,8 +7,8 @@ import { buildCoverage } from "./dashboard-chart-data";
 // Same hatch treatment `channel-table.tsx` gives a never-synced row and `outlier-card.tsx`
 // gives an empty media well — one visual vocabulary for "nothing here yet" across the app.
 const HATCH_STYLE: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
-  backgroundImage: "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
+  backgroundImage: "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 /**
@@ -26,7 +26,7 @@ export function CoverageList({ channels, items }: { channels: ChannelRow[]; item
 
   return (
     <div>
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Coverage
       </span>
       <div className="mt-6 flex max-w-[720px] flex-col gap-4">
@@ -39,10 +39,10 @@ export function CoverageList({ channels, items }: { channels: ChannelRow[]; item
             <span className={row.neverSynced ? "truncate text-muted-foreground" : "truncate text-foreground"}>{row.handle}</span>
             <span aria-hidden className="h-1.5 bg-secondary" style={row.neverSynced ? HATCH_STYLE : undefined}>
               {!row.neverSynced && (
-                <span className="block h-1.5 bg-line-strong" style={{ width: `${Math.round((row.liveCount / max) * 100)}%` }} />
+                <span className="block h-1.5 bg-border" style={{ width: `${Math.round((row.liveCount / max) * 100)}%` }} />
               )}
             </span>
-            <span data-num className="text-right font-mono text-xs text-faint">
+            <span data-num className="text-right font-mono text-xs text-muted-foreground">
               {row.neverSynced ? "—" : `${row.liveCount} post${row.liveCount === 1 ? "" : "s"}`}
             </span>
           </Link>

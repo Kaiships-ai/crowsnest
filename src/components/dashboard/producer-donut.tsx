@@ -18,10 +18,10 @@ const CIRCUMFERENCE = 2 * Math.PI * 46;
 // next chart that needs to tell series apart has something to reach for by name.
 // See DESIGN-SYSTEM.md section 2.1.
 const SLICE_COLORS = [
-  "var(--chart-categorical-1)",
-  "var(--chart-categorical-2)",
-  "var(--chart-categorical-3)",
-  "var(--chart-categorical-4)",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
 ];
 
 /**
@@ -36,7 +36,7 @@ export function ProducerDonut({ items }: { items: FeedItem[] }) {
   if (outlierTotal === 0) {
     return (
       <div className="min-w-0">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Who produces them
         </span>
         <p className="mt-6 max-w-[52ch] text-sm text-muted-foreground">
@@ -69,7 +69,7 @@ export function ProducerDonut({ items }: { items: FeedItem[] }) {
 
   return (
     <div className="min-w-0">
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Who produces them
       </span>
       <div className="mt-6 flex items-center gap-10">

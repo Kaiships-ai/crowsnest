@@ -28,7 +28,7 @@ export function NextActionBar({ next }: { next: NextAction }) {
   return (
     <section className="flex flex-col gap-4 border border-border p-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex flex-col gap-1">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Next
         </span>
         <p className="text-sm text-foreground">{next.reason}</p>

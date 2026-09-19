@@ -33,7 +33,7 @@ export function OwnWeekdayRhythm({ posts }: { posts: OwnPostRow[] }) {
 
   return (
     <div>
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Average reach by weekday
       </span>
       <div className="mt-6 grid h-[180px] grid-cols-7 items-end gap-2">
@@ -46,10 +46,10 @@ export function OwnWeekdayRhythm({ posts }: { posts: OwnPostRow[] }) {
               className="bg-muted-foreground/40"
               style={{ height: `${r.avg === null ? 2 : Math.max(6, (r.avg / maxAvg) * 100)}%` }}
             />
-            <span data-lab className="font-mono text-2xs text-faint">
+            <span data-lab className="font-mono text-2xs text-muted-foreground">
               {r.label}
             </span>
-            <span data-num className="font-mono text-2xs text-faint">
+            <span data-num className="font-mono text-2xs text-muted-foreground">
               n={r.n}
             </span>
           </div>

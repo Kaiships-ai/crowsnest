@@ -77,14 +77,14 @@ export function GetStartedChecklist({ items }: { items: GetStartedItem[] }) {
   return (
     <div className="pb-5">
       <div className="flex items-baseline justify-between gap-3 px-6">
-        <span className="font-mono text-2xs tracking-wide text-faint">
+        <span className="font-mono text-2xs tracking-wide text-muted-foreground">
           GET STARTED <span className="tabular-nums">{doneCount}/{items.length}</span>
         </span>
         <button
           type="button"
           onClick={hide}
           aria-label="Hide the getting-started checklist"
-          className="-mr-1 font-mono text-2xs text-faint transition-colors hover:text-foreground"
+          className="-mr-1 font-mono text-2xs text-muted-foreground transition-colors hover:text-foreground"
         >
           hide
         </button>
@@ -98,7 +98,7 @@ export function GetStartedChecklist({ items }: { items: GetStartedItem[] }) {
             >
               {/* Positive, not amber — amber is reserved for the score and one
                   primary action per screen; a completed checklist row is neither. */}
-              <span aria-hidden className="size-[9px] shrink-0 rounded-full bg-[var(--pos)]" />
+              <span aria-hidden className="size-[9px] shrink-0 rounded-full bg-[var(--success)]" />
               <span className="min-w-0 flex-1 truncate line-through decoration-muted-foreground/40">
                 {item.label}
               </span>

@@ -20,3 +20,35 @@
 process.env.CROWSNEST_DB_PATH ??= ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
 process.env.LOG_LEVEL ??= "error"; // quiet info/warn in tests; a test can override to assert a log line
+
+/**
+ * jsdom shims, guarded so the ~128 node-environment test files are untouched.
+ *
+ * jsdom implements neither `matchMedia` nor `ResizeObserver`. `useIsMobile`
+ * (src/hooks/use-mobile.ts) calls `window.matchMedia` unguarded and
+ * `SidebarProvider` (src/components/ui/sidebar.tsx) calls `useIsMobile`, so
+ * without this no test can mount the app shell. Recharts measures with a
+ * `ResizeObserver`.
+ */
+if (typeof window !== "undefined") {
+  if (!window.matchMedia) {
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+  }
+
+  if (!globalThis.ResizeObserver) {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
+}

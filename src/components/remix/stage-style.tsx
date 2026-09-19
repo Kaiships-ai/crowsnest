@@ -130,7 +130,7 @@ export function StageStyle({
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="style-select" className="font-mono text-2xs tracking-wide text-faint uppercase">
+          <Label htmlFor="style-select" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
             Structure
           </Label>
           <Select items={styleOptions} value={styleChoice} onValueChange={(v) => selectStyle(v as string)}>

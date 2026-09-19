@@ -44,7 +44,7 @@ export function VaultSearch({ query }: { query: string }) {
 
   return (
     <div className="relative w-full max-w-64">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" aria-hidden />
+      <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
       <Input
         type="search"
         value={value}
@@ -58,7 +58,7 @@ export function VaultSearch({ query }: { query: string }) {
           type="button"
           onClick={() => setValue("")}
           aria-label="Clear search"
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-faint hover:text-foreground"
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
         >
           <X className="size-3.5" />
         </button>

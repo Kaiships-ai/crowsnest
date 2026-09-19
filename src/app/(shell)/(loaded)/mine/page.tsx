@@ -92,7 +92,7 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
             repeat of that title, it names WHICH channel is yours, so it stays on screen
             (same classes, same look) and stays a heading, one level down. */}
         <h2 className="text-2xl font-bold tracking-[-0.015em]">{ownChannel.handle}</h2>
-        <span className="font-mono text-2xs tracking-wide text-faint">
+        <span className="font-mono text-2xs tracking-wide text-muted-foreground">
           {everMeasured ? `Graph API · synced ${relativeTime(overview.account!.measuredAt!)}` : "Graph API · not yet measured"}
           {ownChannel.followerCount !== null && ` · ${ownChannel.followerCount.toLocaleString("en-US")} followers`}
         </span>
@@ -117,7 +117,7 @@ export default async function MinePage({ searchParams }: { searchParams: Promise
             <div className="h-px max-w-[460px] flex-1 bg-border">
               <div className="h-px bg-muted-foreground" style={{ width: `${progressPct}%` }} />
             </div>
-            <span className="whitespace-nowrap font-mono text-2xs text-faint">
+            <span className="whitespace-nowrap font-mono text-2xs text-muted-foreground">
               {overview.medianReach !== null
                 ? `median active, based on the last ${overview.medianSampleSize} measured posts`
                 : `${totalPosts} / ${minUsablePosts} posts before a median reach appears`}

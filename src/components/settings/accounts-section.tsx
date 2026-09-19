@@ -139,7 +139,7 @@ export function AccountsSection({ initialAccounts }: { initialAccounts: IgAccoun
       )}
 
       <div className="flex flex-col gap-3 border border-border p-4">
-        <span data-lab className="font-mono text-2xs text-faint">
+        <span data-lab className="font-mono text-2xs text-muted-foreground">
           Add an account
         </span>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

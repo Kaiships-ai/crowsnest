@@ -35,7 +35,7 @@ export function ReachByPostBars({ posts }: { posts: OwnPostRow[] }) {
 
   return (
     <div>
-      <p className="font-mono text-2xs tracking-wide text-faint">
+      <p className="font-mono text-2xs tracking-wide text-muted-foreground">
         REACH BY POST · ALL {chronological.length} POST{chronological.length === 1 ? "" : "S"}
       </p>
       <div role="img" aria-label={`Reach for ${measured.length} of ${chronological.length} posts`} className="mt-6 flex h-[150px] items-end gap-3.5">
@@ -52,7 +52,7 @@ export function ReachByPostBars({ posts }: { posts: OwnPostRow[] }) {
               ) : (
                 <div className="h-[4px] border-t border-dashed border-border" />
               )}
-              <span className="font-mono text-2xs text-faint">{relativeTime(p.postedAt).replace(" ago", "")}</span>
+              <span className="font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt).replace(" ago", "")}</span>
             </div>
           );
         })}
@@ -77,7 +77,7 @@ export function OwnPostList({ posts }: { posts: OwnPostRow[] }) {
 
   return (
     <div>
-      <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_110px] gap-4 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+      <div className="grid grid-cols-[minmax(0,1fr)_140px_88px_110px] gap-4 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
         <span data-lab>Post</span>
         <span data-lab className="text-right">
           Reach
@@ -109,10 +109,10 @@ export function OwnPostList({ posts }: { posts: OwnPostRow[] }) {
               {p.reach === null ? "—" : p.reach.toLocaleString("en-US")}
             </span>
           </div>
-          <span data-num className="text-right font-mono text-2xs text-faint">
+          <span data-num className="text-right font-mono text-2xs text-muted-foreground">
             {p.durationSec === null ? "—" : formatDuration(p.durationSec)}
           </span>
-          <span className="text-right font-mono text-2xs text-faint">{relativeTime(p.postedAt)}</span>
+          <span className="text-right font-mono text-2xs text-muted-foreground">{relativeTime(p.postedAt)}</span>
         </a>
       ))}
     </div>

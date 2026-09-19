@@ -22,7 +22,7 @@ export function SyncSelectionBar({
   onClear: () => void;
 }) {
   return (
-    <div className="flex flex-none items-center justify-between gap-6 border-t border-line-strong bg-popover px-6 py-3">
+    <div className="flex flex-none items-center justify-between gap-6 border-t border-border bg-popover px-6 py-3">
       <span className="text-xs text-muted-foreground">
         <span data-testid="channels-selection-count" data-num className="text-foreground">{count}</span>{" "}
         selected

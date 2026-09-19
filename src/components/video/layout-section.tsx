@@ -143,7 +143,7 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
     // No top margin: this is the whole of its own tab now, not a section trailing the
     // beats inside Hook & structure, so mt-16 would just be dead space under the tab row.
     <div>
-      <span data-lab className="font-mono text-2xs text-faint">
+      <span data-lab className="font-mono text-2xs text-muted-foreground">
         Layout
       </span>
 
@@ -154,9 +154,9 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
           <table className="w-full min-w-[880px] border-collapse text-left">
             <thead>
               <tr className="border-b border-border">
-                <th data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">Beat</th>
+                <th data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-muted-foreground">Beat</th>
                 {BEAT_LAYOUT_FIELDS.map((key) => (
-                  <th key={key} data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">
+                  <th key={key} data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-muted-foreground">
                     {FIELD_LABELS[key]}
                   </th>
                 ))}
@@ -167,7 +167,7 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
                 <tr key={i} className="border-b border-border last:border-b-0 align-top">
                   <td className="py-3 pr-6">
                     <div className="text-sm font-semibold text-foreground">{beat.label}</div>
-                    <div data-num className="font-mono text-2xs text-faint">
+                    <div data-num className="font-mono text-2xs text-muted-foreground">
                       {formatDuration(beat.startSec)}–{formatDuration(beat.endSec)}
                     </div>
                   </td>
@@ -176,7 +176,7 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
                     return (
                       <td
                         key={key}
-                        className={value !== null ? "py-3 pr-6 text-sm text-foreground" : "py-3 pr-6 text-sm text-faint"}
+                        className={value !== null ? "py-3 pr-6 text-sm text-foreground" : "py-3 pr-6 text-sm text-muted-foreground"}
                       >
                         {value ?? "—"}
                       </td>

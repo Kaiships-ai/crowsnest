@@ -40,7 +40,7 @@ function syncLine(c: ChannelRow): { label: string; tone: HealthTone } {
 }
 
 const HEALTH_CLASS: Record<HealthTone, string> = {
-  faint: "text-faint",
+  faint: "text-muted-foreground",
   muted: "text-muted-foreground",
   // Aging data is a raised-surface chip, never amber — amber is reserved for the score.
   stale: "bg-popover px-1.5 py-0.5 text-muted-foreground",
@@ -58,7 +58,7 @@ function ChannelCardBody({ channel }: { channel: ChannelRow }) {
       </Avatar>
       <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-sm font-medium text-foreground">{channel.handle}</span>
-        {channel.isOwn && <span className="font-mono text-2xs uppercase tracking-wide text-faint">My channel</span>}
+        {channel.isOwn && <span className="font-mono text-2xs uppercase tracking-wide text-muted-foreground">My channel</span>}
       </span>
     </>
   );
@@ -75,11 +75,11 @@ function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sample
       <div className="mt-3 flex gap-6">
         <span className="flex flex-col gap-0.5">
           <span data-num className="text-xs text-foreground">{formatCompact(channel.followerCount)}</span>
-          <span className="text-2xs text-faint">followers</span>
+          <span className="text-2xs text-muted-foreground">followers</span>
         </span>
         <span className="flex flex-col gap-0.5">
           <span data-num className="text-xs text-foreground">{channel.lastSyncedAt === null ? "—" : channel.outliers30d}</span>
-          <span className="text-2xs text-faint">outliers 30d</span>
+          <span className="text-2xs text-muted-foreground">outliers 30d</span>
         </span>
       </div>
 
@@ -90,7 +90,7 @@ function ChannelCardStats({ channel, sampleSize }: { channel: ChannelRow; sample
       </div>
 
       {thin && (
-        <span className="mt-1.5 block text-2xs text-faint">
+        <span className="mt-1.5 block text-2xs text-muted-foreground">
           Only {sampleSize} post{sampleSize === 1 ? "" : "s"}, a median needs about{" "}
           {MEDIAN_CONFIDENCE_THRESHOLDS.low} before its scores mean anything.
         </span>
@@ -200,7 +200,7 @@ function ChannelCardLive({
             {...sortable.attributes}
             {...sortable.listeners}
             aria-label={`Drag to reorder ${channel.handle}`}
-            className="shrink-0 cursor-grab p-1 text-faint hover:text-muted-foreground active:cursor-grabbing"
+            className="shrink-0 cursor-grab p-1 text-muted-foreground hover:text-muted-foreground active:cursor-grabbing"
           >
             <GripVertical className="size-4" aria-hidden />
           </button>

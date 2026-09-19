@@ -22,12 +22,12 @@ import type { RemixSessionRow } from "@/server/services/remix";
 /** A section divider matching the prototype's "source inputs, sent to every stage" /
  *  "reference, not sent" rows: a mono micro-label plus a rule filling the rest of the
  *  row. `tone` is purely a label color choice, not a repurposing of the score's amber
- *  (globals.css: amber is reserved for the score) — "input" reads as `text-pos`, the
+ *  (globals.css: amber is reserved for the score) — "input" reads as `text-success`, the
  *  same muted green this codebase already uses for a positive/confirmed state. */
 function SectionHeader({ children, tone }: { children: ReactNode; tone: "input" | "reference" }) {
   return (
     <div className="flex items-center gap-3">
-      <span className={cn("font-mono text-2xs tracking-wide uppercase", tone === "input" ? "text-pos" : "text-faint")}>{children}</span>
+      <span className={cn("font-mono text-2xs tracking-wide uppercase", tone === "input" ? "text-success" : "text-muted-foreground")}>{children}</span>
       <span className="h-px flex-1 bg-border" />
     </div>
   );
@@ -40,7 +40,7 @@ function FeedTag({ children, tone }: { children: ReactNode; tone: "input" | "ref
     <span
       className={cn(
         "shrink-0 rounded-sm border px-1.5 py-px font-mono text-2xs tracking-wide uppercase",
-        tone === "input" ? "border-pos/40 text-pos" : "border-border text-faint"
+        tone === "input" ? "border-success/40 text-success" : "border-border text-muted-foreground"
       )}
     >
       {children}
@@ -51,7 +51,7 @@ function FeedTag({ children, tone }: { children: ReactNode; tone: "input" | "ref
 function FieldLabel({ label, tag, tone }: { label: string; tag: string; tone: "input" | "reference" }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="font-mono text-2xs tracking-wide text-faint uppercase">{label}</Label>
+      <Label className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">{label}</Label>
       <FeedTag tone={tone}>{tag}</FeedTag>
     </div>
   );
@@ -67,18 +67,18 @@ function Beat({ beat }: { beat: StoredStructureSegment }) {
     <div className="border-b border-dashed border-border py-2 last:border-b-0">
       <div className="mb-1.5 flex items-baseline gap-2">
         <span className="text-sm font-medium">{beat.label}</span>
-        <span className="font-mono text-2xs text-faint">
+        <span className="font-mono text-2xs text-muted-foreground">
           {beat.startSec}s to {beat.endSec}s
         </span>
       </div>
       {beat.transcript ? (
         <div className="flex flex-col gap-1">
           <div className="flex gap-2 text-sm">
-            <span className="w-16 shrink-0 pt-0.5 font-mono text-2xs uppercase text-faint">Note</span>
+            <span className="w-16 shrink-0 pt-0.5 font-mono text-2xs uppercase text-muted-foreground">Note</span>
             <span>{beat.note}</span>
           </div>
           <div className="flex gap-2 text-sm">
-            <span className="w-16 shrink-0 pt-0.5 font-mono text-2xs uppercase text-pos">Said</span>
+            <span className="w-16 shrink-0 pt-0.5 font-mono text-2xs uppercase text-success">Said</span>
             <span>{beat.transcript}</span>
           </div>
         </div>
@@ -198,12 +198,12 @@ export function StageResearch({
         <>
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Why it worked" tag="feeds hook, style, script" tone="input" />
-            <p className="border-l-2 border-pos/40 bg-muted/30 p-3 text-sm">{analysis.whyItWorked}</p>
+            <p className="border-l-2 border-success/40 bg-muted/30 p-3 text-sm">{analysis.whyItWorked}</p>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Hook pattern" tag="feeds hook" tone="input" />
-            <div className="flex flex-wrap items-center gap-1.5 border-l-2 border-pos/40 bg-muted/30 p-3">
+            <div className="flex flex-wrap items-center gap-1.5 border-l-2 border-success/40 bg-muted/30 p-3">
               <Badge variant="outline" className="rounded-none">
                 {analysis.hookType}
               </Badge>
@@ -217,7 +217,7 @@ export function StageResearch({
 
           <div className="flex flex-col gap-1.5">
             <FieldLabel label="Structure beats, note + transcript" tag="feeds hook, style, script" tone="input" />
-            <div className="border-l-2 border-pos/40 bg-muted/30 px-3">
+            <div className="border-l-2 border-success/40 bg-muted/30 px-3">
               {analysis.structureSegments.map((beat, i) => (
                 <Beat key={i} beat={beat} />
               ))}
@@ -237,7 +237,7 @@ export function StageResearch({
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <Label htmlFor="research-facts" className="font-mono text-2xs tracking-wide text-pos uppercase">
+          <Label htmlFor="research-facts" className="font-mono text-2xs tracking-wide text-success uppercase">
             Your additions (optional)
           </Label>
           <FeedTag tone="input">feeds hook, style, script</FeedTag>
@@ -249,7 +249,7 @@ export function StageResearch({
           onBlur={commitFacts}
           placeholder="Add your own angle, stats, or opinion. The source above already flows through on its own."
           rows={4}
-          className="border-l-2 border-l-pos/40"
+          className="border-l-2 border-l-success/40"
         />
       </div>
 
@@ -284,7 +284,7 @@ export function StageResearch({
                   <span className="shrink-0 font-mono text-2xs text-muted-foreground">
                     {formatCompact(row.item.viewCount)} views · vs {formatCompact(row.channelMedian)} median
                   </span>
-                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-score" : "text-muted-foreground")}>
+                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
                     {formatMultiplier(row.item.outlierScore)}
                   </span>
                 </li>
@@ -314,7 +314,7 @@ export function StageResearch({
                     <span className="font-medium">{item.channelHandle}</span>
                     {item.caption && <span className="text-muted-foreground"> · {item.caption}</span>}
                   </Link>
-                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-score" : "text-muted-foreground")}>
+                  <span data-num className={cn("shrink-0 font-mono", tier > 0 ? "text-primary" : "text-muted-foreground")}>
                     {formatMultiplier(item.outlierScore)}
                   </span>
                 </li>

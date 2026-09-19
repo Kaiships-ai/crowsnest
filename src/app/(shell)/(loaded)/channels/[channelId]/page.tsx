@@ -31,12 +31,12 @@ function StatTile({
     <div>
       <span
         data-num
-        className={`block font-mono text-xl leading-none tracking-tight ${tone === "score" ? "text-score" : "text-foreground"}`}
+        className={`block font-mono text-xl leading-none tracking-tight ${tone === "score" ? "text-primary" : "text-foreground"}`}
       >
         {value}
       </span>
       <span className="mt-3 block max-w-[19ch] text-sm text-muted-foreground">{label}</span>
-      <span className="mt-1 block font-mono text-2xs text-faint">{sub}</span>
+      <span className="mt-1 block font-mono text-2xs text-muted-foreground">{sub}</span>
     </div>
   );
 }
@@ -122,7 +122,7 @@ export default async function ChannelDetailPage({ params }: { params: Promise<{ 
             style={{ width: scoreGateMet ? "100%" : `${Math.min(100, (usableForScore / minUsablePosts) * 100)}%` }}
           />
         </div>
-        <span className="whitespace-nowrap font-mono text-2xs text-faint">
+        <span className="whitespace-nowrap font-mono text-2xs text-muted-foreground">
           {scoreGateMet
             ? `score active, based on the last ${usableForScore} posts`
             : `${usableForScore} / ${minUsablePosts} posts before a score appears`}

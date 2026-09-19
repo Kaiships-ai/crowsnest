@@ -8,10 +8,10 @@ import { cn } from "@/lib/utils";
 // and a written doc disagree the prototype wins, so the ramp reads: wash and hairline
 // for a small beat, solid amber once the beat is loud enough to deserve the fill.
 const TIER_STYLES: Record<1 | 2 | 3 | 4, string> = {
-  1: "border border-score-line bg-score-wash text-[var(--score-2)]",
-  2: "border border-score-line bg-score-wash text-score",
-  3: "border-transparent bg-score text-[var(--score-on)]",
-  4: "border-transparent bg-score text-[var(--score-on)] font-bold",
+  1: "border border-primary/30 bg-primary/10 text-[var(--chart-2)]",
+  2: "border border-primary/30 bg-primary/10 text-primary",
+  3: "border-transparent bg-primary text-[var(--primary-foreground)]",
+  4: "border-transparent bg-primary text-[var(--primary-foreground)] font-bold",
 };
 const QUIET_STYLE = "border border-border bg-transparent text-muted-foreground";
 
@@ -30,10 +30,10 @@ export function heroTier(score: number | null): HeroTier {
 }
 
 const HERO_TIER_STYLES: Record<HeroTier, string> = {
-  quiet: "text-faint",
-  wash: "text-[var(--score-2)]",
-  solid: "text-score",
-  bold: "text-score font-bold",
+  quiet: "text-muted-foreground",
+  wash: "text-[var(--chart-2)]",
+  solid: "text-primary",
+  bold: "text-primary font-bold",
 };
 
 export function OutlierBadge({

@@ -132,15 +132,15 @@ export function StageHook({
   return (
     <div className="flex flex-col gap-6">
       {session.chosenHook && (
-        <div className="border border-score-line bg-score-wash p-3">
-          <p className="font-mono text-2xs tracking-wide text-score uppercase">Chosen hook</p>
+        <div className="border border-primary/30 bg-primary/10 p-3">
+          <p className="font-mono text-2xs tracking-wide text-primary uppercase">Chosen hook</p>
           <p className="text-sm">{session.chosenHook}</p>
         </div>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="hook-vault-select" className="font-mono text-2xs tracking-wide text-faint uppercase">
+          <Label htmlFor="hook-vault-select" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
             Seed from a Vault hook
           </Label>
           <Select items={vaultOptions} value={vaultItemId} onValueChange={(v) => setVaultItemId(v as string)}>
@@ -173,7 +173,7 @@ export function StageHook({
           {drafts.map((hook, i) => {
             const isChosen = session.chosenHook === hook;
             return (
-              <Card key={i} className={cn("rounded-none", isChosen && "bg-score-wash ring-2 ring-score-line")}>
+              <Card key={i} className={cn("rounded-none", isChosen && "bg-primary/10 ring-2 ring-primary/30")}>
                 <CardContent className="flex flex-col gap-2">
                   {/* Read-only presentation, not an editable field — edits here never
                       reached the server and were lost on reload (truth pass,

@@ -123,7 +123,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
                   </Button>
                 )}
               </div>
-              <p className="text-2xs text-faint">{field.why}</p>
+              <p className="text-2xs text-muted-foreground">{field.why}</p>
               <Textarea
                 id={`persona-${field.key}`}
                 value={values[field.key]}
@@ -144,7 +144,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
           {pending ? "Saving…" : "Save persona"}
         </Button>
         {dirty && !pending && (
-          <span data-testid="persona-dirty" className="font-mono text-2xs tracking-wide text-faint uppercase">
+          <span data-testid="persona-dirty" className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">
             Unsaved changes
           </span>
         )}

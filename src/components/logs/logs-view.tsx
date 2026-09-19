@@ -189,7 +189,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
           />
 
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="logs-since" className="text-2xs text-faint">
+            <Label htmlFor="logs-since" className="text-2xs text-muted-foreground">
               Since
             </Label>
             <Input
@@ -204,7 +204,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
           </div>
 
           <div className="flex items-center gap-1.5">
-            <Label htmlFor="logs-until" className="text-2xs text-faint">
+            <Label htmlFor="logs-until" className="text-2xs text-muted-foreground">
               Until
             </Label>
             <Input
@@ -230,11 +230,11 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
         <div className="w-full overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow className="border-line-strong hover:bg-transparent">
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Time</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Level</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Source</TableHead>
-                <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Event</TableHead>
+              <TableRow className="border-border hover:bg-transparent">
+                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Time</TableHead>
+                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Level</TableHead>
+                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Source</TableHead>
+                <TableHead className="h-auto pb-3 text-2xs font-normal text-muted-foreground">Event</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
