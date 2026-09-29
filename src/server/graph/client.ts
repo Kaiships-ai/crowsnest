@@ -52,8 +52,9 @@ export interface GraphPostInsights {
   comments: number | null;
   likes: number | null;
   views: number | null;
-  /** profile_visits and follows, requested in the reel and feed extended sets. watchTimeSec is
-   *  never requested (the reel watch time lands in avgWatchTimeMs/totalWatchTimeMs). */
+  /** profile_visits and follows, requested in the feed extended set only (Meta does not
+   *  report them for reels). watchTimeSec is never requested (the reel watch time lands in
+   *  avgWatchTimeMs/totalWatchTimeMs). */
   profileVisits: number | null;
   followsFromPost: number | null;
   watchTimeSec: number | null;
@@ -454,8 +455,11 @@ const CORE_METRICS = "reach,saved,shares,total_interactions,comments,likes";
 const REEL_CORE_METRICS = `${CORE_METRICS},views`;
 /** FEED media (image, carousel) also report follows and profile_visits. */
 const FEED_EXTENDED_METRICS = `${CORE_METRICS},follows,profile_visits`;
+/** No follows or profile_visits: Meta lists them for FEED and STORY only ("Other Available
+ *  Metrics (Non-Reels)"), and one refused name fails the whole call, which would drop
+ *  watch time, skip rate and reposts with it. profile_activity is asked separately. */
 const REEL_EXTENDED_METRICS =
-  "views,reach,likes,comments,shares,saved,total_interactions,reposts,follows,profile_visits,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
+  "views,reach,likes,comments,shares,saved,total_interactions,reposts,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
 
 /** Auth and rate-limit failures end a measurement run; everything else is per-post. */
 function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
@@ -515,7 +519,9 @@ export const graphClient: GraphClient = {
     if (stop) return { insights: null, callsUsed, stop };
     if (!r.ok) {
       // One unsupported metric name fails the whole call; retry once with the set that
-      // worked before the rework, so the post keeps its core numbers.
+      // worked before the rework, so the post keeps its core numbers. Logged with Graph's
+      // own message (token already redacted) so a refused metric is visible.
+      log.warn("graph.insights.extended_fallback", { mediaId: media.externalId, isReel, error: r.message });
       callsUsed += 1;
       r = await graphGet<unknown>(path, { metric: isReel ? REEL_CORE_METRICS : CORE_METRICS }, token);
       stop = fatalOf(r);

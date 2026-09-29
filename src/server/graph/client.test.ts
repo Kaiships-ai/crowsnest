@@ -191,6 +191,24 @@ describe("graphClient.fetchPostInsights", () => {
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,views");
   });
 
+  test("a reel's extended set skips follows and profile_visits (FEED and STORY only); a fallback logs the Graph error", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "(#100) reels_skip_rate not supported" } }) })
+      .mockResolvedValueOnce(ok(metrics({ views: 9 })))
+      .mockResolvedValueOnce(ok(activity(null)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { log } = await import("../lib/logger");
+    const warn = vi.spyOn(log, "warn");
+    await graphClient.fetchPostInsights(REEL);
+    const metric = new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("metric") ?? "";
+    expect(metric.split(",")).not.toContain("follows");
+    expect(metric.split(",")).not.toContain("profile_visits");
+    expect(metric).toContain("ig_reels_avg_watch_time");
+    const fallback = warn.mock.calls.find(([event]) => event === "graph.insights.extended_fallback");
+    expect(JSON.stringify(fallback?.[1])).toContain("reels_skip_rate not supported");
+  });
+
   test("a rate limit returns a stop so the run can end", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();

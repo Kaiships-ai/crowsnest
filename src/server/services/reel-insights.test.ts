@@ -23,6 +23,12 @@ describe("shapeReelInsights (ACTION-21)", () => {
     expect(s.impact.slice(1).every((i) => !i.estimated)).toBe(true);
     expect(s.actions.map((i) => i.label)).toEqual(["Follows", "Profile visits", "Bio link taps"]);
   });
+  test("follows and profile visits are marked not reported for reels, never a stored number", () => {
+    const s = shapeReelInsights(SNAP);
+    expect(s.summary[3]).toEqual({ label: "Follows", value: null, notReported: true });
+    expect(s.actions.slice(0, 2)).toEqual([{ label: "Follows", value: null, notReported: true }, { label: "Profile visits", value: null, notReported: true }]);
+    expect(s.actions[2]).toEqual({ label: "Bio link taps", value: 7 });
+  });
   test("reach 0 makes every derived rate null but keeps skip rate", () => {
     const s = shapeReelInsights({ ...SNAP, reach: 0 });
     expect(s.impact.slice(1).every((i) => i.value === null)).toBe(true);

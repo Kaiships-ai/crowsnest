@@ -39,7 +39,12 @@ export interface InsightItem {
   label: string;
   value: number | null;
   unit?: "seconds";
+  /** Instagram does not report this metric for reels; rendered as such, never as a number. */
+  notReported?: true;
 }
+
+/** Meta lists follows and profile_visits for FEED and STORY media only, so a reel never has them. */
+const NOT_REPORTED_FOR_REELS = { value: null, notReported: true } as const;
 export interface RateItem {
   label: string;
   value: number | null;
@@ -77,7 +82,7 @@ export function shapeReelInsights(s: OwnReelSnapshot): ShapedReelInsights {
       { label: "Views", value: s.views },
       { label: "Viewers", value: s.reach },
       { label: "Average watch time", value: s.avgWatchTimeMs === null ? null : s.avgWatchTimeMs / 1000, unit: "seconds" },
-      { label: "Follows", value: s.followsFromPost },
+      { label: "Follows", ...NOT_REPORTED_FOR_REELS },
     ],
     interactions: [
       { label: "Likes", value: s.likes },
@@ -97,8 +102,8 @@ export function shapeReelInsights(s: OwnReelSnapshot): ShapedReelInsights {
       { label: "Comment rate", value: perViewerRate(s.comments, s.reach), estimated: false },
     ],
     actions: [
-      { label: "Follows", value: s.followsFromPost },
-      { label: "Profile visits", value: s.profileVisits },
+      { label: "Follows", ...NOT_REPORTED_FOR_REELS },
+      { label: "Profile visits", ...NOT_REPORTED_FOR_REELS },
       { label: "Bio link taps", value: s.bioLinkTaps },
     ],
   };

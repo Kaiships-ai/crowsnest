@@ -58,6 +58,7 @@ describe("ReelInsightPanel", () => {
     const count = (id: string) => container.querySelectorAll(`[data-testid="${id}"]`).length;
     expect([count("reels-summary-tile"), count("reels-interaction"), count("reels-impact-row"), count("reels-action-row"), count("reels-unavailable"), count("reels-measured-at")]).toEqual([4, 5, 6, 3, 3, 1]);
     expect(getByText("1.4%")).toBeTruthy();
+    expect(container.querySelectorAll('[data-testid="reels-not-reported"]')).toHaveLength(3);
     expect(getByText("estimated")).toBeTruthy();
     expect(getByText("4.5s")).toBeTruthy();
   });

@@ -16,11 +16,14 @@ function skipRate(value: number | null): string {
   return value === null ? "—" : `${value.toFixed(1)}%`;
 }
 
-function Row({ testId, label, value, badge }: { testId: string; label: string; value: string; badge?: string }) {
+const NOT_REPORTED = "not reported for reels";
+
+function Row({ testId, label, value, badge, notReported }: { testId: string; label: string; value: string; badge?: string; notReported?: boolean }) {
   return (
     <div data-testid={testId} className="flex items-baseline justify-between gap-4 border-b border-border py-2 last:border-0">
       <span className="text-sm text-muted-foreground">
         {label} {badge && <Badge variant="outline">{badge}</Badge>}
+        {notReported && <span data-testid="reels-not-reported" className="font-mono text-2xs"> · {NOT_REPORTED}</span>}
       </span>
       <span data-num className="font-mono text-xs text-foreground">{value}</span>
     </div>
@@ -40,6 +43,7 @@ export function ReelInsightPanel({ insights, points }: { insights: ShapedReelIns
           <div key={i.label} data-testid="reels-summary-tile" className="flex flex-col gap-1">
             <span data-num className="font-mono text-2xl text-foreground">{itemValue(i)}</span>
             <span className="text-sm text-muted-foreground">{i.label}</span>
+            {i.notReported && <span data-testid="reels-not-reported" className="font-mono text-2xs text-muted-foreground">{NOT_REPORTED}</span>}
           </div>
         ))}
       </div>
@@ -65,7 +69,7 @@ export function ReelInsightPanel({ insights, points }: { insights: ShapedReelIns
       <Card>
         <CardHeader><CardTitle>Actions after viewing</CardTitle><CardDescription>{measured}</CardDescription></CardHeader>
         <CardContent>
-          {insights.actions.map((i) => <Row key={i.label} testId="reels-action-row" label={i.label} value={itemValue(i)} />)}
+          {insights.actions.map((i) => <Row key={i.label} testId="reels-action-row" label={i.label} value={itemValue(i)} notReported={i.notReported} />)}
         </CardContent>
       </Card>
       <ReelViewsOverTime points={points} />
