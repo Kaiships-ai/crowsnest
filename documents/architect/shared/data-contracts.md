@@ -194,7 +194,7 @@ export interface GraphTokenStatus {
   /** Resolved by calling the account fields edge, so the screen names the real
    *  account rather than trusting a label. Null when the call failed. */
   username: string | null;
-  state: "ok" | "not_configured" | "auth_failed" | "rate_limited" | "network" | "unknown";
+  state: "ok" | "not_configured" | "auth_failed" | "permission_denied" | "rate_limited" | "network" | "unknown";
   message: string | null;
   checkedAt: string;
 }
@@ -489,7 +489,8 @@ export async function checkGraphTokenAction(): Promise<ActionResult<{ status: Gr
 
 Error codes, matching the granularity `ig-actions.ts` already establishes:
 
-`GRAPH_NOT_CONFIGURED`, `GRAPH_AUTH_FAILED`, `GRAPH_RATE_LIMITED`,
+`GRAPH_NOT_CONFIGURED`, `GRAPH_AUTH_FAILED`, `GRAPH_PERMISSION_DENIED` (codes 10 and
+200 to 299 on the account call), `GRAPH_RATE_LIMITED`,
 `GRAPH_NETWORK`, `GRAPH_PARTIAL`, `GRAPH_UNKNOWN`.
 
 `measureOwnChannelAction` writes a new `own_account_snapshots` row, upserts

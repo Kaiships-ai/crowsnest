@@ -202,8 +202,8 @@ The connect panel, which renders automatically on My reels whenever the Graph to
 
 ### Business rules
 
-- The panel's copy is state-specific: not configured, rejected (`auth_failed`), rate limited, unreachable (`network`), unknown, or, when the token is ok but nothing has been measured, "Connected, nothing measured yet" with the one button that state offers, "Measure now".
-- Account and posts failing during a measurement is a hard failure with no partial write; comments failing after the account and posts succeeded returns success with `partial: true`, since posts measured with comments missing is still a useful result.
+- The panel's copy is state-specific: not configured, rejected (`auth_failed`), missing a permission (`permission_denied`, asking for a new token with the insights permissions), rate limited, unreachable (`network`), unknown, or, when the token is ok but nothing has been measured, "Connected, nothing measured yet" with the one button that state offers, "Measure now".
+- Account and posts failing during a measurement is a hard failure with no partial write. An auth refusal after some posts were measured is also a failure, and the rows already written stay. Every listed post is stored before insights are fetched, so a post the run never reached still appears; comments failing after the account and posts succeeded returns success with `partial: true`, since posts measured with comments missing is still a useful result.
 - A metric Instagram does not disclose, or that the client does not request, is stored as null, never as zero; every display downstream treats a null differently from a real zero.
 - Each button disables itself while its own call is in flight ("Checking", "Measuring"), so a second click cannot start a second run of the same action.
 - The token is read through the secrets store: a value set in Settings > API keys (`IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID`) wins over `.env.local` and takes effect without a restart.
@@ -371,6 +371,7 @@ It sits in the reel's insight panel (feature 11).
 
 - Each point is a real stored measurement. Nothing is interpolated between measurements, and the chart never draws a point at an hour where no measurement exists.
 - Hours since posting are counted from the reel's posted time to each snapshot's capture time, in whole hours.
+- The chart covers the first 168 hours (7 days) after posting, matching the Instagram app's views over time; later snapshots are not plotted.
 - The typical line uses only reels other than the selected one, and at each hour only reels that were measured at that hour. Where no other reel was measured, the typical line has a gap.
 
 ### Limitations
@@ -402,14 +403,14 @@ The My reels tab, below the reel's insight panel.
 ### Business rules
 
 - The account-wide label is always visible on both blocks, so no account number reads as a reel number.
-- Audience details uses engaged audience, not followers: `follower_demographics` needs 100 or more followers and `engaged_audience_demographics` needs 100 or more engagements. When a stored audience fetch error is set, the block shows that threshold explanation rather than an empty chart.
+- Audience details uses engaged audience, not followers: `follower_demographics` needs 100 or more followers and `engaged_audience_demographics` needs 100 or more engagements. When the stored audience fetch error is Instagram's "Not enough" refusal, the block shows that threshold explanation rather than an empty chart. Any other stored error keeps the last stored rows with a "Last refresh failed" note.
 - Both blocks carry their measured time.
 
 ### Limitations
 
 - Nothing here is per reel. The API offers no per-reel follower split or demographics.
 - Only the top results come back from the API, so the Country tab does not sum to 100%.
-- Any stored audience error shows the 100-engagements message, whatever the error was, and hides older stored audience rows while it is set.
+- The threshold message is recognized by Meta's "Not enough" wording, not a documented error code.
 
 ### User guide
 
@@ -433,9 +434,10 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 - The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one run makes at most 150 calls.
 - Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
-- When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing.
+- When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run ends the run as failed, and rows already written stay.
 - A rate-limited run stops and leaves the rest to the next run; it does not retry in a loop.
 - A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows.
+- Comments refresh at most once a day on scheduled runs; their calls are reserved before the posts, so a full account still gets them.
 
 ### Limitations
 
@@ -466,5 +468,6 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **`?reel=` points to a deleted or unknown reel**: the newest reel is selected instead.
 - **Reach of zero or missing**: every derived rate shows a dash.
 - **Account under 100 engagements**: Audience details explains the API threshold instead of showing an empty chart.
+- **Audience refresh fails for another reason**: the last stored rows stay, with a "Last refresh failed" note.
 - **Rate limit hit mid-run**: the run stops; stored numbers stay and keep their measured times.
 - **Month navigation on Calendar**: `tab=calendar` stays in the URL with `month=`.
