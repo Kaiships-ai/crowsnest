@@ -1,7 +1,7 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
-import type { OwnReel, ReelSnapshotPoint } from "@/server/services/reel-insights";
+import { REEL_CURVE_HOURS, type OwnReel, type ReelSnapshotPoint } from "@/server/services/reel-insights";
 import { computeOwnMedianReach, indexAgainstOwnMedian, type OwnPostForCalc } from "@/server/services/own-metrics";
 import { getSetting } from "@/server/settings";
 
@@ -372,13 +372,17 @@ export async function getOwnReels(): Promise<OwnReel[]> {
   });
 }
 
-/** Every reel snapshot as (ownPostId, postedAt, capturedAt, views): the input to typicalViewsCurve. */
+/** Reel snapshots taken within REEL_CURVE_HOURS of posting, as (ownPostId, postedAt,
+ *  capturedAt, views): the input to typicalViewsCurve. */
 export async function getReelViewHistory(): Promise<ReelSnapshotPoint[]> {
+  // substr(…, 1, 19) drops the zone: Graph sends "+0000", which julianday cannot parse,
+  // and our own captures are "Z". Both are UTC.
+  const ageDays = sql`julianday(substr(${tables.ownPostInsights.capturedAt}, 1, 19)) - julianday(substr(${tables.ownPosts.postedAt}, 1, 19))`;
   return db
     .select({ ownPostId: tables.ownPostInsights.ownPostId, postedAt: tables.ownPosts.postedAt, capturedAt: tables.ownPostInsights.capturedAt, views: tables.ownPostInsights.views })
     .from(tables.ownPostInsights)
     .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
-    .where(eq(tables.ownPosts.productType, "REELS"));
+    .where(and(eq(tables.ownPosts.productType, "REELS"), sql`${ageDays} < ${REEL_CURVE_HOURS / 24}`));
 }
 
 export interface BreakdownEntry {

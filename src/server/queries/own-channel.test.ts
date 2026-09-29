@@ -303,8 +303,15 @@ describe("getOwnReels (ACTION-19)", () => {
     expect(reels.map((r) => r.ownPostId)).toEqual(["r3", "r2", "r1"]);
     expect(reels.every((r) => r.latest?.views === 20)).toBe(true);
     expect(reels[0].thumbnailUrl).toBe("https://cdn/r3");
-    expect((await getReelViewHistory()).filter((h) => h.ownPostId === "r1")).toHaveLength(2);
     expect((await getReelViewHistory()).some((h) => h.ownPostId === "c1")).toBe(false);
+  });
+
+  test("view history keeps only snapshots inside the first 168 hours, Graph's +0000 timestamps included", async () => {
+    await db.insert(tables.ownPosts).values({ id: "r1", externalId: "x-r1", permalink: "https://i/r1", mediaType: "VIDEO", productType: "REELS", format: "Reel", postedAt: "2026-09-01T00:00:00+0000", firstSeenAt: "2026-09-01T00:00:00.000Z" });
+    for (const [capturedAt, views] of [["2026-09-01T02:00:00.000Z", 1], ["2026-09-07T23:59:00.000Z", 2], ["2026-09-08T00:00:00.000Z", 3], ["2026-09-20T00:00:00.000Z", 4]] as const) {
+      await db.insert(tables.ownPostInsights).values({ id: `r1-${capturedAt}`, ownPostId: "r1", capturedAt, views });
+    }
+    expect((await getReelViewHistory()).map((h) => h.views).sort()).toEqual([1, 2]);
   });
 });
 

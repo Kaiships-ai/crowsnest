@@ -6,6 +6,10 @@
 import { median } from "./outlier-calc";
 
 const HOUR_MS = 3_600_000;
+/** Views over time covers the first 7 days after posting, matching the Instagram app's
+ *  views-over-time view. ponytail: fixed window bounds the query and the payload (at most
+ *  168 points); widen it or add a daily bucket past day 7 if a longer curve is wanted. */
+export const REEL_CURVE_HOURS = 168;
 
 export interface OwnReelSnapshot {
   capturedAt: string;
@@ -112,14 +116,14 @@ export function hoursSincePosted(postedAt: string, capturedAt: string): number {
 /**
  * The selected reel's views by whole hour since posting, next to the median of every OTHER
  * reel measured at that same hour. Only real snapshots become points; hours run 0 to the
- * selected reel's newest measured hour, so the payload is bounded by that reel's age.
+ * selected reel's newest measured hour inside REEL_CURVE_HOURS, so at most 168 points.
  */
 export function typicalViewsCurve(selectedId: string, history: ReelSnapshotPoint[]): ViewsPoint[] {
   const byReel = new Map<string, Map<number, { capturedAt: string; views: number }>>();
   for (const s of history) {
     if (s.views === null) continue;
     const hour = hoursSincePosted(s.postedAt, s.capturedAt);
-    if (hour < 0) continue;
+    if (hour < 0 || hour >= REEL_CURVE_HOURS) continue;
     let buckets = byReel.get(s.ownPostId);
     if (!buckets) byReel.set(s.ownPostId, (buckets = new Map()));
     const prev = buckets.get(hour);

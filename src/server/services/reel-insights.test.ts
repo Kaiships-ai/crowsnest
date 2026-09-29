@@ -69,6 +69,18 @@ describe("typicalViewsCurve (ACTION-24)", () => {
   test("no snapshots for the selected reel yields no points", () => {
     expect(typicalViewsCurve("Z", history)).toEqual([]);
   });
+  test("hours stop at the 168-hour window", () => {
+    const long = [
+      { ownPostId: "A", postedAt: posted, capturedAt: at(H), views: 1 },
+      { ownPostId: "A", postedAt: posted, capturedAt: at(167 * H), views: 2 },
+      { ownPostId: "A", postedAt: posted, capturedAt: at(900 * H), views: 3 },
+      { ownPostId: "B", postedAt: posted, capturedAt: at(500 * H), views: 4 },
+    ];
+    expect(typicalViewsCurve("A", long)).toEqual([
+      { hour: 1, views: 1, typical: null },
+      { hour: 167, views: 2, typical: null },
+    ]);
+  });
   test("hoursSincePosted floors", () => {
     expect(hoursSincePosted(posted, at(H + 59 * 60_000))).toBe(1);
   });
