@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 const graphClient = vi.hoisted(() => ({ checkToken: vi.fn() }));
 vi.mock("./client", () => ({ graphClient }));
 
-const { cachedTokenStatus, invalidateTokenStatus } = await import("./token-status");
+const { cachedTokenStatus, invalidateTokenStatus, rememberTokenStatus } = await import("./token-status");
 
 const OK = { configured: true, username: "me", state: "ok", message: null, checkedAt: "2026-09-30T00:00:00.000Z" };
 
@@ -28,5 +28,27 @@ describe("cachedTokenStatus", () => {
     invalidateTokenStatus();
     await cachedTokenStatus(2);
     expect(graphClient.checkToken).toHaveBeenCalledTimes(2);
+  });
+
+  test.each(["rate_limited", "network", "unknown"])("a transient %s check is cached for 30 seconds, not five minutes", async (state) => {
+    graphClient.checkToken.mockResolvedValue({ ...OK, state, username: null });
+    await cachedTokenStatus(0);
+    await cachedTokenStatus(29_000);
+    expect(graphClient.checkToken).toHaveBeenCalledTimes(1);
+    await cachedTokenStatus(30_000);
+    expect(graphClient.checkToken).toHaveBeenCalledTimes(2);
+  });
+
+  test.each(["auth_failed", "permission_denied"])("a definitive %s state keeps the full TTL", async (state) => {
+    graphClient.checkToken.mockResolvedValue({ ...OK, state, username: null });
+    await cachedTokenStatus(0);
+    await cachedTokenStatus(4 * 60_000);
+    expect(graphClient.checkToken).toHaveBeenCalledTimes(1);
+  });
+
+  test("a remembered status (a measurement's outcome) is served without a live check", async () => {
+    rememberTokenStatus({ ...OK, state: "permission_denied", username: null, message: "no insights" }, 0);
+    expect((await cachedTokenStatus(60_000)).state).toBe("permission_denied");
+    expect(graphClient.checkToken).not.toHaveBeenCalled();
   });
 });

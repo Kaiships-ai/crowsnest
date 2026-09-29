@@ -8,7 +8,8 @@ const graphClient = vi.hoisted(() => ({
 }));
 vi.mock("@/server/graph/client", async (importOriginal) => ({ ...(await importOriginal<object>()), graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
 const invalidateTokenStatus = vi.hoisted(() => vi.fn());
-vi.mock("@/server/graph/token-status", () => ({ invalidateTokenStatus }));
+const rememberTokenStatus = vi.hoisted(() => vi.fn());
+vi.mock("@/server/graph/token-status", () => ({ invalidateTokenStatus, rememberTokenStatus }));
 
 process.env.CROWSNEST_DB_PATH = ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
@@ -54,6 +55,11 @@ describe("measureOwnChannel, scope all", () => {
     const rows = await db.select().from(tables.ownPostInsights);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({ reposts: 1, skipRate: 40, bioLinkTaps: 2, avgWatchTimeMs: 4500, totalWatchTimeMs: 90000, profileVisits: 4, followsFromPost: 1 });
+  });
+
+  test("a successful run refreshes the cached token status to ok with the account", async () => {
+    expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true });
+    expect(rememberTokenStatus).toHaveBeenCalledWith(expect.objectContaining({ configured: true, state: "ok", username: "kallaway" }));
   });
 
   test("ACTION-13: the account call failing is a hard failure with no rows", async () => {
