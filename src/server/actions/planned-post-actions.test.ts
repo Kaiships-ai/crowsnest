@@ -815,3 +815,15 @@ describe("retryFailedPublishAction", () => {
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_RETRY_EXHAUSTED" });
   });
 });
+
+describe("ACTION-18: publish lifecycle writes revalidate /", () => {
+  test("setPlanCaptionAction revalidates / and never /mine", async () => {
+    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
+    const created = await createPlannedPostAction({ title: "Plan", plannedDate: "2026-12-01" });
+    if (!created.ok) throw new Error(created.error);
+    revalidatePath.mockClear();
+    await setPlanCaptionAction(created.id, "caption");
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+    expect(revalidatePath).not.toHaveBeenCalledWith("/mine");
+  });
+});
