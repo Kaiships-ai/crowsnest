@@ -347,11 +347,14 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   if (stoppedEarly === null && used() + 4 <= budget && (await breakdownsStale(now))) {
     try {
       const b = await graphClient.fetchAccountBreakdowns();
-      // Only a finished batch is stored: the reader shows the newest batch per metric, so a
-      // run cut short after some dimensions (a stop, or any later dimension failing) would
-      // hide the last full one. It retries next tick.
-      if (!b.stop && !b.incomplete && b.rows.length > 0) {
-        await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
+      // The reader shows the newest batch per metric. The follower split is its own metric and
+      // its call finished, so it is always kept; the demographics are kept only as a finished
+      // batch, because one cut short (a stop, or a later dimension failing) would hide the last
+      // full one. It retries next tick.
+      const complete = !b.stop && !b.incomplete;
+      const keep = b.rows.filter((r) => complete || r.metric === "views");
+      if (keep.length > 0) {
+        await db.insert(tables.ownAccountBreakdowns).values(keep.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
       // Stored even when a later audience call stopped the run: the split call itself
       // finished. Undefined when the split call was the stop, so nothing is stored.

@@ -526,12 +526,13 @@ describe("fatal failures after the post loop", () => {
     expect(invalidateTokenStatus).toHaveBeenCalled();
   });
 
-  test("a rate limit on the breakdowns is stoppedEarly rate_limited, calls counted, and a partial batch is not stored", async () => {
+  test("a rate limit on the breakdowns is stoppedEarly rate_limited, calls counted, and only the finished split is stored", async () => {
     const split = { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" };
-    graphClient.fetchAccountBreakdowns.mockImplementation(spend(2, { rows: [split], audienceError: null, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
+    const age = { metric: "engaged_audience_demographics", dimension: "age", key: "18-24", value: 5, timeframe: "this_month" };
+    graphClient.fetchAccountBreakdowns.mockImplementation(spend(3, { rows: [split, age], audienceError: null, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
-    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 2 });
-    expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(0);
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 3 });
+    expect((await db.select().from(tables.ownAccountBreakdowns)).map((row) => row.metric)).toEqual(["views"]);
   });
 
   test("a batch cut short keeps the previous full batch as the newest one", async () => {
@@ -577,7 +578,11 @@ describe("account breakdowns", () => {
     graphClient.fetchAccountBreakdowns.mockImplementationOnce(spend(3, { rows, audienceError: "HTTP 500: down", splitError: null, stop: null, incomplete: true }));
     await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
     const stored = await db.select().from(tables.ownAccountBreakdowns);
-    expect(new Set(stored.map((r) => r.capturedAt))).toEqual(new Set([NOW.toISOString()]));
+    const later = new Date(NOW.getTime() + 25 * H).toISOString();
+    // The split call finished, so it refreshes; the half-done demographics batch does not.
+    expect(stored.filter((r) => r.capturedAt === later).every((r) => r.metric === "views")).toBe(true);
+    expect(stored.some((r) => r.capturedAt === later)).toBe(rows.some((r) => r.metric === "views"));
+    expect(stored.filter((r) => r.metric !== "views").every((r) => r.capturedAt === NOW.toISOString())).toBe(true);
     expect((await db.select().from(tables.appSettings)).find((s) => s.key === "own_audience_fetch_error")?.value).toBe("HTTP 500: down");
   });
 
