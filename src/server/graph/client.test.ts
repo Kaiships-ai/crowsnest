@@ -156,6 +156,58 @@ describe("graphClient.fetchMedia", () => {
   });
 });
 
+describe("graphClient.fetchPostInsights", () => {
+  const REEL = { externalId: "r1", permalink: "", mediaType: "VIDEO", productType: "REELS", format: "Reel", caption: null, postedAt: "2026-09-01T00:00:00+0000", likeCount: null, commentsCount: null, thumbnailUrl: null };
+  const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+  const metrics = (pairs: Record<string, number>) => ({ data: Object.entries(pairs).map(([name, value]) => ({ name, values: [{ value }] })) });
+  const activity = (value: number | null) => ({ data: [{ name: "profile_activity", total_value: { breakdowns: [{ results: value === null ? [] : [{ dimension_values: ["BIO_LINK_CLICKED"], value }] }] } }] });
+
+  beforeEach(() => { process.env.IG_GRAPH_TOKEN = "tok_secret"; process.env.IG_GRAPH_USER_ID = "17841400000000000"; });
+
+  test("ACTION-22: bio link taps from profile_activity by action_type, null when absent", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(7)))
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(null)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    expect((await graphClient.fetchPostInsights(REEL)).insights.bioLinkTaps).toBe(7);
+    expect((await graphClient.fetchPostInsights(REEL)).insights.bioLinkTaps).toBeNull();
+    const url = new URL(fetchMock.mock.calls[1][0] as string);
+    expect(url.searchParams.get("metric")).toBe("profile_activity");
+    expect(url.searchParams.get("breakdown")).toBe("action_type");
+  });
+
+  test("ACTION-23: a refused extended metric falls back to the core set without zeroing it", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "reels_skip_rate not supported" } }) })
+      .mockResolvedValueOnce(ok(metrics({ views: 120000, reach: 80997, shares: 1112, likes: 50 })))
+      .mockResolvedValueOnce(ok(activity(3)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { insights, callsUsed } = await graphClient.fetchPostInsights(REEL);
+    expect(insights).toMatchObject({ views: 120000, reach: 80997, shares: 1112, likes: 50, skipRate: null, reposts: null, bioLinkTaps: 3, error: null });
+    expect(callsUsed).toBe(3);
+    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("metric")).toContain("reels_skip_rate");
+    expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,views");
+  });
+
+  test("a rate limit throws so the run can stop", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
+    const { graphClient } = await loadClient();
+    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_RATE_LIMITED" });
+  });
+
+  test("a non-reel makes one core call", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(metrics({ reach: 5 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
+    expect(callsUsed).toBe(1);
+    expect(insights.reach).toBe(5);
+    expect(insights.views).toBeNull();
+  });
+});
+
 describe("classifyComment", () => {
   test("an ordinary stranger's comment is organic", async () => {
     const { classifyComment } = await loadClient();

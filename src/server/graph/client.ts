@@ -108,6 +108,9 @@ export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
   fetchPosts(limit?: number): Promise<GraphPost[]>;
   fetchMedia(limit?: number): Promise<GraphMedia[]>;
+  /** One post's insights. Throws GraphApiError only for auth and rate-limit failures
+   *  (the run must stop); any other failure lands in insights.error. */
+  fetchPostInsights(media: GraphMedia): Promise<{ insights: GraphPostInsights; callsUsed: number }>;
   fetchComments(accountUsername: string): Promise<GraphComment[]>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
@@ -396,6 +399,18 @@ function graphPost<T>(path: string, params: Record<string, string | number | und
   return graphRequest<T>("POST", path, params, token);
 }
 
+const CORE_METRICS = "reach,saved,shares,total_interactions,comments,likes";
+const REEL_CORE_METRICS = `${CORE_METRICS},views`;
+const REEL_EXTENDED_METRICS =
+  "views,reach,likes,comments,shares,saved,total_interactions,reposts,follows,profile_visits,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
+
+/** Auth and rate-limit failures end a measurement run; everything else is per-post. */
+function throwIfFatal(result: GraphGetResult<unknown>): void {
+  if (!result.ok && (result.kind === "auth" || result.kind === "rate_limit")) {
+    throw new GraphApiError(errorCodeFor(result.kind), result.message);
+  }
+}
+
 // ---------------------------------------------------------------- configuration gate
 
 /** Synchronous, network-free check used by the query layer: is there a token to read
@@ -470,6 +485,33 @@ export const graphClient: GraphClient = {
     );
     if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
     return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
+  },
+
+  async fetchPostInsights(media: GraphMedia): Promise<{ insights: GraphPostInsights; callsUsed: number }> {
+    const { token } = requireConfigured();
+    const path = `${media.externalId}/insights`;
+    if (media.productType !== "REELS") {
+      const r = await graphGet<unknown>(path, { metric: CORE_METRICS }, token);
+      throwIfFatal(r);
+      return { insights: r.ok ? mapInsights(r.data, false) : emptyInsights(r.message), callsUsed: 1 };
+    }
+    let callsUsed = 1;
+    let r = await graphGet<unknown>(path, { metric: REEL_EXTENDED_METRICS }, token);
+    throwIfFatal(r);
+    if (!r.ok) {
+      // One unsupported metric name fails the whole call; retry once with the set that
+      // worked before the rework, so the post keeps its core numbers.
+      callsUsed += 1;
+      r = await graphGet<unknown>(path, { metric: REEL_CORE_METRICS }, token);
+      throwIfFatal(r);
+    }
+    if (!r.ok) return { insights: emptyInsights(r.message), callsUsed };
+    const insights = mapInsights(r.data, true);
+    callsUsed += 1;
+    const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
+    throwIfFatal(activity);
+    insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
+    return { insights, callsUsed };
   },
 
   async fetchComments(accountUsername: string): Promise<GraphComment[]> {
