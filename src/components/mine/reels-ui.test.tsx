@@ -38,3 +38,35 @@ describe("ReelPicker", () => {
     expect(getByText(/No reels measured yet/)).toBeTruthy();
   });
 });
+
+const { ReelInsightPanel } = await import("./reel-insight-panel");
+const { shapeReelInsights } = await import("@/server/services/reel-insights");
+const SNAP = { capturedAt: "2026-09-29T10:00:00.000Z", views: 120000, reach: 80997, likes: 900, comments: 40, shares: 1112, saved: 300, reposts: 20, followsFromPost: 12, profileVisits: 50, bioLinkTaps: 7, avgWatchTimeMs: 4500, skipRate: 42.1, fetchError: null };
+describe("ReelInsightPanel", () => {
+  test("E2E-17 counts, 1.4% share rate, estimated skip rate", () => {
+    const { container, getByText } = render(<ReelInsightPanel insights={shapeReelInsights(SNAP)} points={[]} />);
+    const count = (id: string) => container.querySelectorAll(`[data-testid="${id}"]`).length;
+    expect([count("reels-summary-tile"), count("reels-interaction"), count("reels-impact-row"), count("reels-action-row"), count("reels-unavailable"), count("reels-measured-at")]).toEqual([4, 5, 6, 3, 3, 1]);
+    expect(getByText("1.4%")).toBeTruthy();
+    expect(getByText("estimated")).toBeTruthy();
+    expect(getByText("4.5s")).toBeTruthy();
+  });
+  test("E2E-23: reach 0 renders dashes, never 0%", () => {
+    const { container } = render(<ReelInsightPanel insights={shapeReelInsights({ ...SNAP, reach: 0 })} points={[]} />);
+    const rows = [...container.querySelectorAll('[data-testid="reels-impact-row"]')].slice(1);
+    expect(rows.every((r) => r.textContent?.includes("—") && !r.textContent.includes("0%"))).toBe(true);
+  });
+});
+
+const { ReelViewsOverTime } = await import("./reel-views-over-time");
+describe("ReelViewsOverTime", () => {
+  test("chart card with the typical-reel legend", () => {
+    const { container, getByText } = render(<ReelViewsOverTime points={[{ hour: 1, views: 100, typical: 70 }]} />);
+    expect(container.querySelector('[data-testid="reels-views-chart"]')).toBeTruthy();
+    expect(getByText("Your typical reel")).toBeTruthy();
+  });
+  test("no points: says so instead of an empty chart", () => {
+    const { getByText } = render(<ReelViewsOverTime points={[]} />);
+    expect(getByText(/Not enough measurements yet/)).toBeTruthy();
+  });
+});
