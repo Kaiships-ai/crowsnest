@@ -267,8 +267,10 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   const inScope = captures === null ? media : media.filter((m) => isDue(m.postedAt, captures.lastOk.get(m.externalId) ?? null, now, captures.failures.get(m.externalId) ?? null));
 
   // Comments cost 1 call per post with comments (they reuse this run's media list). Their
-  // share is reserved before the post loop so a full account still gets them.
+  // share is reserved before the post loop so a full account still gets them, but only when
+  // it fits: a reservation that can never be spent would starve the posts for nothing.
   const commentCalls = (await commentsDue(opts.scope, now)) ? media.filter((m) => (m.commentsCount ?? 0) > 0).length : 0;
+  const commentReserve = used() + commentCalls <= budget ? commentCalls : 0;
 
   let postsMeasured = 0;
   let postsFailed = 0;
@@ -276,7 +278,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   for (const m of inScope) {
     // Reserve the calls a post needs: one insights call, plus profile_activity for a reel.
     // A rare core-set fallback can add one more; the rate-limit stop guards that edge.
-    if (used() + (m.productType === "REELS" ? 2 : 1) + commentCalls > budget) {
+    if (used() + (m.productType === "REELS" ? 2 : 1) + commentReserve > budget) {
       stoppedEarly = "budget";
       break;
     }

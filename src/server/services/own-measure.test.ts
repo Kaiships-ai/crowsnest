@@ -390,6 +390,15 @@ describe("comments", () => {
     expect(skip).toMatch(/last hour/i);
   });
 
+  test("comments that cannot fit the budget reserve nothing: posts are measured first, comments skipped with the cause", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, Array.from({ length: 12 }, (_, i) => media(`r${i}`, { commentsCount: 1 }))));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW, budget: 10 });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 4, partial: true, stoppedEarly: "budget", callsUsed: 10 });
+    expect(graphClient.fetchComments).not.toHaveBeenCalled();
+    const skip = (await db.select().from(tables.appSettings)).find((s) => s.key === "own_comments_fetch_error")?.value;
+    expect(skip).toMatch(/budget was spent/);
+  });
+
   test("comments reuse the run's media list and reserve only one call per post with comments", async () => {
     // 72 reels, 2 with comments: 2 + 72 * 2 + 2 = 148 fits the 150 scheduled budget
     // only when no extra media list call is reserved.
