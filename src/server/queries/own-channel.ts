@@ -351,13 +351,21 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
 export async function getOwnReels(): Promise<OwnReel[]> {
   const reels = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.productType, "REELS")).orderBy(desc(tables.ownPosts.postedAt));
   if (reels.length === 0) return [];
-  const rows = await db
-    .select()
+  // Only the newest successful row per reel, picked in SQL. capturedAt is always our own
+  // toISOString() ("Z", fixed width), so the string max is the newest.
+  const good = and(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)), isNull(tables.ownPostInsights.fetchError));
+  const newest = db
+    .select({ ownPostId: tables.ownPostInsights.ownPostId, capturedAt: sql<string>`max(${tables.ownPostInsights.capturedAt})`.as("newest_captured_at") })
     .from(tables.ownPostInsights)
-    .where(and(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)), isNull(tables.ownPostInsights.fetchError)))
-    .orderBy(desc(tables.ownPostInsights.capturedAt));
-  const latest = new Map<string, OwnPostInsightsRow>();
-  for (const r of rows) if (!latest.has(r.ownPostId)) latest.set(r.ownPostId, r);
+    .where(good)
+    .groupBy(tables.ownPostInsights.ownPostId)
+    .as("newest");
+  const rows = await db
+    .select({ row: tables.ownPostInsights })
+    .from(tables.ownPostInsights)
+    .innerJoin(newest, and(eq(newest.ownPostId, tables.ownPostInsights.ownPostId), eq(newest.capturedAt, tables.ownPostInsights.capturedAt)))
+    .where(good);
+  const latest = new Map<string, OwnPostInsightsRow>(rows.map(({ row }) => [row.ownPostId, row]));
   return reels.map((p) => {
     const l = latest.get(p.id);
     return {

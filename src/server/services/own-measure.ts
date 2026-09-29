@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
@@ -61,17 +61,17 @@ export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date
 }
 
 async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<string, string>> {
-  const out = new Map<string, string>();
-  if (externalIds.length === 0) return out;
+  if (externalIds.length === 0) return new Map();
+  // One row per post: max() over our own capturedAt, which is always toISOString() ("Z",
+  // fixed width), so the string max is the newest. A failed capture (fetchError set) is
+  // not a measurement, so it never makes a post look fresh.
   const rows = await db
-    .select({ externalId: tables.ownPosts.externalId, capturedAt: tables.ownPostInsights.capturedAt })
+    .select({ externalId: tables.ownPosts.externalId, capturedAt: sql<string>`max(${tables.ownPostInsights.capturedAt})` })
     .from(tables.ownPostInsights)
     .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
-    // A failed capture (fetchError set) is not a measurement, so it never makes a post look fresh.
     .where(and(inArray(tables.ownPosts.externalId, externalIds), isNull(tables.ownPostInsights.fetchError)))
-    .orderBy(desc(tables.ownPostInsights.capturedAt));
-  for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r.capturedAt);
-  return out;
+    .groupBy(tables.ownPosts.externalId);
+  return new Map(rows.map((r) => [r.externalId, r.capturedAt]));
 }
 
 async function breakdownsStale(now: Date): Promise<boolean> {
