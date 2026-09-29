@@ -12,9 +12,15 @@ export const dynamic = "force-dynamic";
  * so Overview's sidecar and model pings never run on My reels, and Overview never reads
  * the own-channel tables. readAndBumpDashboardLastVisit lives in OverviewTab alone.
  */
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ tab?: string; month?: string; reel?: string }> }) {
-  const { tab: rawTab, month, reel } = await searchParams;
-  const tab = resolveDashboardTab(rawTab);
+type Param = string | string[] | undefined;
+/** A repeated key (?reel=a&reel=b) arrives as an array; the first value wins. */
+const first = (v: Param) => (Array.isArray(v) ? v[0] : v);
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ tab?: Param; month?: Param; reel?: Param }> }) {
+  const params = await searchParams;
+  const tab = resolveDashboardTab(first(params.tab));
+  const month = first(params.month);
+  const reel = first(params.reel);
   return (
     <PageContainer className="flex flex-col gap-8">
       <DashboardTabs active={tab} />
