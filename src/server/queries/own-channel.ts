@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
 import { REEL_CURVE_HOURS, type OwnReel, type ReelSnapshotPoint } from "@/server/services/reel-insights";
@@ -129,28 +129,38 @@ export interface JoinedOwnPost {
   insightsError: string | null;
 }
 
+/** The newest successful (or, with successful false, newest failed) own_post_insights row
+ *  per post, picked in SQL. capturedAt is always our own toISOString() ("Z", fixed width;
+ *  Graph's "+0000" only ever lands in postedAt), so the string max is the newest. */
+async function newestCaptureByPost(postIds: string[], successful: boolean): Promise<Map<string, OwnPostInsightsRow>> {
+  if (postIds.length === 0) return new Map();
+  const where = and(inArray(tables.ownPostInsights.ownPostId, postIds), successful ? isNull(tables.ownPostInsights.fetchError) : isNotNull(tables.ownPostInsights.fetchError));
+  const newest = db
+    .select({ ownPostId: tables.ownPostInsights.ownPostId, capturedAt: sql<string>`max(${tables.ownPostInsights.capturedAt})`.as("newest_captured_at") })
+    .from(tables.ownPostInsights)
+    .where(where)
+    .groupBy(tables.ownPostInsights.ownPostId)
+    .as("newest");
+  const rows = await db
+    .select({ row: tables.ownPostInsights })
+    .from(tables.ownPostInsights)
+    .innerJoin(newest, and(eq(newest.ownPostId, tables.ownPostInsights.ownPostId), eq(newest.capturedAt, tables.ownPostInsights.capturedAt)))
+    .where(where);
+  return new Map(rows.map(({ row }) => [row.ownPostId, row]));
+}
+
 /**
- * Every own_posts row (newest first) joined with its OWN latest own_post_insights row.
- * "Latest" is computed in application code rather than a SQL window function: the rest
- * of this codebase already does the equivalent select-then-reduce for a channel's
- * newest snapshot (see `queries/channels.ts`'s `getMedianViews`), and a single-user
- * account's post count never approaches a scale where that matters.
+ * Every own_posts row (newest first) joined with its newest SUCCESSFUL own_post_insights
+ * row, so a later failed capture never hides the last good numbers. A post with no
+ * successful capture falls back to its newest failed row, so the failed state still shows.
  */
 export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const posts = await db.select().from(tables.ownPosts).orderBy(desc(tables.ownPosts.postedAt));
   if (posts.length === 0) return [];
 
-  const postIds = posts.map((p) => p.id);
-  const insightRows = await db
-    .select()
-    .from(tables.ownPostInsights)
-    .where(inArray(tables.ownPostInsights.ownPostId, postIds))
-    .orderBy(desc(tables.ownPostInsights.capturedAt));
-
-  const latestByPost = new Map<string, OwnPostInsightsRow>();
-  for (const row of insightRows) {
-    if (!latestByPost.has(row.ownPostId)) latestByPost.set(row.ownPostId, row);
-  }
+  const latestByPost = await newestCaptureByPost(posts.map((p) => p.id), true);
+  const failedByPost = await newestCaptureByPost(posts.filter((p) => !latestByPost.has(p.id)).map((p) => p.id), false);
+  for (const [id, row] of failedByPost) latestByPost.set(id, row);
 
   return posts.map((p) => {
     const latest = latestByPost.get(p.id);
@@ -351,21 +361,7 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
 export async function getOwnReels(): Promise<OwnReel[]> {
   const reels = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.productType, "REELS")).orderBy(desc(tables.ownPosts.postedAt));
   if (reels.length === 0) return [];
-  // Only the newest successful row per reel, picked in SQL. capturedAt is always our own
-  // toISOString() ("Z", fixed width), so the string max is the newest.
-  const good = and(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)), isNull(tables.ownPostInsights.fetchError));
-  const newest = db
-    .select({ ownPostId: tables.ownPostInsights.ownPostId, capturedAt: sql<string>`max(${tables.ownPostInsights.capturedAt})`.as("newest_captured_at") })
-    .from(tables.ownPostInsights)
-    .where(good)
-    .groupBy(tables.ownPostInsights.ownPostId)
-    .as("newest");
-  const rows = await db
-    .select({ row: tables.ownPostInsights })
-    .from(tables.ownPostInsights)
-    .innerJoin(newest, and(eq(newest.ownPostId, tables.ownPostInsights.ownPostId), eq(newest.capturedAt, tables.ownPostInsights.capturedAt)))
-    .where(good);
-  const latest = new Map<string, OwnPostInsightsRow>(rows.map(({ row }) => [row.ownPostId, row]));
+  const latest = await newestCaptureByPost(reels.map((r) => r.id), true);
   return reels.map((p) => {
     const l = latest.get(p.id);
     return {

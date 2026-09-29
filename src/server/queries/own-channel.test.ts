@@ -14,13 +14,14 @@ let OWN_COMMENTS_FETCH_ERROR_KEY: typeof import("./own-channel")["OWN_COMMENTS_F
 let getOwnReels: typeof import("./own-channel")["getOwnReels"];
 let getReelViewHistory: typeof import("./own-channel")["getReelViewHistory"];
 let getAccountBreakdowns: typeof import("./own-channel")["getAccountBreakdowns"];
+let getPostsWithLatestInsights: typeof import("./own-channel")["getPostsWithLatestInsights"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   process.env.IG_SERVICE_TOKEN ??= "test-token";
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY, getOwnReels, getReelViewHistory, getAccountBreakdowns } = await import("./own-channel"));
+  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY, getOwnReels, getReelViewHistory, getAccountBreakdowns, getPostsWithLatestInsights } = await import("./own-channel"));
 });
 
 beforeEach(async () => {
@@ -328,6 +329,28 @@ describe("getOwnReels (ACTION-19)", () => {
       await db.insert(tables.ownPostInsights).values({ id: `r1-${capturedAt}`, ownPostId: "r1", capturedAt, views });
     }
     expect((await getReelViewHistory()).map((h) => h.views).sort()).toEqual([1, 2]);
+  });
+});
+
+describe("getPostsWithLatestInsights", () => {
+  test("a newer failed capture does not hide the newest good numbers (calendar, Overview, MCP)", async () => {
+    const id = await seedPost();
+    await seedInsights(id, { capturedAt: "2026-09-26T00:00:00.000Z", reach: 10 });
+    await seedInsights(id, { capturedAt: "2026-09-27T00:00:00.000Z", reach: 20 });
+    await seedInsights(id, { capturedAt: "2026-09-28T00:00:00.000Z", fetchError: "HTTP 500" });
+    await seedInsights(id, { capturedAt: "2026-09-29T00:00:00.000Z", fetchError: "HTTP 500 again" });
+    const [post] = await getPostsWithLatestInsights();
+    expect(post).toMatchObject({ reach: 20, measuredAt: "2026-09-27T00:00:00.000Z", insightsError: null });
+  });
+
+  test("a post with only failed captures shows its newest failure", async () => {
+    const id = await seedPost();
+    await seedInsights(id, { capturedAt: "2026-09-27T00:00:00.000Z", fetchError: "old" });
+    await seedInsights(id, { capturedAt: "2026-09-28T00:00:00.000Z", fetchError: "new" });
+    const never = await seedPost({ postedAt: isoDaysAgo(3) });
+    const posts = await getPostsWithLatestInsights();
+    expect(posts.find((p) => p.ownPostId === id)).toMatchObject({ reach: null, measuredAt: "2026-09-28T00:00:00.000Z", insightsError: "new" });
+    expect(posts.find((p) => p.ownPostId === never)).toMatchObject({ measuredAt: null, insightsError: null });
   });
 });
 
