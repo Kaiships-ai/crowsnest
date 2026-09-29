@@ -96,6 +96,19 @@ describe("getOwnChannelOverview — not connected / never measured", () => {
   });
 });
 
+describe("getOwnChannelOverview — partial coverage", () => {
+  test("a metric missing on some measured posts reports how many, instead of passing a subset off as the total", async () => {
+    const a = await seedPost();
+    const b = await seedPost();
+    await seedInsights(a, { reach: 10 });
+    await seedInsights(b, { reach: 20 });
+    await db.update(tables.ownPostInsights).set({ profileVisits: 5 }).where(eq(tables.ownPostInsights.ownPostId, a));
+    const overview = await getOwnChannelOverview();
+    expect(overview.metrics.profileVisits).toMatchObject({ value: 5, sampleSize: 1, missingSampleSize: 1 });
+    expect(overview.metrics.reach).toMatchObject({ value: 30, sampleSize: 2, missingSampleSize: 0 });
+  });
+});
+
 describe("getOwnChannelOverview — stored data", () => {
   test("reports the newest account snapshot with its measuredAt date", async () => {
     const latestCapturedAt = isoDaysAgo(0);

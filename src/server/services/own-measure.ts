@@ -207,8 +207,8 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   let postsFailed = 0;
   let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
   for (const m of inScope) {
-    // Reserve the worst case (extended + fallback + profile_activity for a reel).
-    if (callsUsed + (m.productType === "REELS" ? 3 : 1) + commentCalls > budget) {
+    // Reserve the worst case (extended + fallback, plus profile_activity for a reel).
+    if (callsUsed + (m.productType === "REELS" ? 3 : 2) + commentCalls > budget) {
       stoppedEarly = "budget";
       break;
     }

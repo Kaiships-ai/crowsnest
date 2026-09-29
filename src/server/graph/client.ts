@@ -52,7 +52,7 @@ export interface GraphPostInsights {
   comments: number | null;
   likes: number | null;
   views: number | null;
-  /** profile_visits and follows, requested in the reel extended set. watchTimeSec is
+  /** profile_visits and follows, requested in the reel and feed extended sets. watchTimeSec is
    *  never requested (the reel watch time lands in avgWatchTimeMs/totalWatchTimeMs). */
   profileVisits: number | null;
   followsFromPost: number | null;
@@ -432,6 +432,8 @@ function graphPost<T>(path: string, params: Record<string, string | number | und
 
 const CORE_METRICS = "reach,saved,shares,total_interactions,comments,likes";
 const REEL_CORE_METRICS = `${CORE_METRICS},views`;
+/** FEED media (image, carousel) also report follows and profile_visits. */
+const FEED_EXTENDED_METRICS = `${CORE_METRICS},follows,profile_visits`;
 const REEL_EXTENDED_METRICS =
   "views,reach,likes,comments,shares,saved,total_interactions,reposts,follows,profile_visits,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
 
@@ -491,26 +493,22 @@ export const graphClient: GraphClient = {
   async fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult> {
     const { token } = requireConfigured();
     const path = `${media.externalId}/insights`;
-    if (media.productType !== "REELS") {
-      const r = await graphGet<unknown>(path, { metric: CORE_METRICS }, token);
-      const stop = fatalOf(r);
-      if (stop) return { insights: null, callsUsed: 1, stop };
-      return { insights: r.ok ? mapInsights(r.data, false) : emptyInsights(r.message), callsUsed: 1, stop: null };
-    }
+    const isReel = media.productType === "REELS";
     let callsUsed = 1;
-    let r = await graphGet<unknown>(path, { metric: REEL_EXTENDED_METRICS }, token);
+    let r = await graphGet<unknown>(path, { metric: isReel ? REEL_EXTENDED_METRICS : FEED_EXTENDED_METRICS }, token);
     let stop = fatalOf(r);
     if (stop) return { insights: null, callsUsed, stop };
     if (!r.ok) {
       // One unsupported metric name fails the whole call; retry once with the set that
       // worked before the rework, so the post keeps its core numbers.
       callsUsed += 1;
-      r = await graphGet<unknown>(path, { metric: REEL_CORE_METRICS }, token);
+      r = await graphGet<unknown>(path, { metric: isReel ? REEL_CORE_METRICS : CORE_METRICS }, token);
       stop = fatalOf(r);
       if (stop) return { insights: null, callsUsed, stop };
     }
     if (!r.ok) return { insights: emptyInsights(r.message), callsUsed, stop: null };
-    const insights = mapInsights(r.data, true);
+    const insights = mapInsights(r.data, isReel);
+    if (!isReel) return { insights, callsUsed, stop: null };
     callsUsed += 1;
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
     // A fatal here still returns the insights already fetched, with bio link taps null.

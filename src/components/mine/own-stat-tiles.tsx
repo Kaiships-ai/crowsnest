@@ -5,10 +5,9 @@
  * produce, and every `OwnMetric` renders its own sample size in the same breath as its
  * value, never as a separate footnote that could go stale on its own.
  *
- * `profileVisits`, `followsFromPost` and `watchTimeSec` have no tile here at all — the
- * ported Graph client never requests them (own-channel.ts's `WIRED` map), and a tile for
- * a number the app cannot produce is the exact "control that does nothing" the brief
- * bans, just wearing a stat-tile costume instead of a button.
+ * `profileVisits`, `followsFromPost` and `watchTimeSec` have no tile here: watch time is
+ * never requested (own-channel.ts's `WIRED` map), and the other two live per reel on the
+ * My reels tab. A tile whose sum covers only some measured posts says so in its sample.
  */
 
 import type { OwnChannelOverview, OwnMetric } from "@/server/queries/own-channel";
@@ -36,7 +35,8 @@ function Tile({ value, label, sample, tone = "foreground" }: { value: string; la
 function metricSample(m: OwnMetric): string {
   if (!m.wired) return "not requested";
   if (m.sampleSize === 0) return m.failedSampleSize > 0 ? `0 of ${m.failedSampleSize} failed` : "no posts measured";
-  return `n=${m.sampleSize}${m.failedSampleSize > 0 ? `, ${m.failedSampleSize} failed` : ""}`;
+  const missing = m.missingSampleSize > 0 ? `, ${m.missingSampleSize} not reported` : "";
+  return `n=${m.sampleSize}${m.failedSampleSize > 0 ? `, ${m.failedSampleSize} failed` : ""}${missing}`;
 }
 
 export function OwnStatTiles({ overview }: { overview: OwnChannelOverview }) {

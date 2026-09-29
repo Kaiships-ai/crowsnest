@@ -29,6 +29,10 @@ export interface OwnMetric {
   sampleSize: number;
   /** Posts in the window whose insights call failed. */
   failedSampleSize: number;
+  /** Posts measured without error that still carry no value for this metric (for example
+   *  a reel whose extended set fell back to the core set). Non-zero means `value` sums a
+   *  subset: show it as "n of m", never as the whole window's total. */
+  missingSampleSize: number;
   /** False for a metric the client does not request yet. Renders as "not wired". */
   wired: boolean;
 }
@@ -198,10 +202,12 @@ const WIRED: Record<keyof OwnChannelOverview["metrics"], boolean> = {
 
 function aggregateMetric(posts: JoinedOwnPost[], key: "reach" | "saved" | "shares" | "profileVisits" | "followsFromPost" | "watchTimeSec", failedSampleSize: number): OwnMetric {
   const values = posts.map((p) => p[key]).filter((v): v is number => v !== null);
+  const measuredOk = posts.filter((p) => p.measuredAt !== null && p.insightsError === null).length;
   return {
     value: values.length > 0 ? values.reduce((a, b) => a + b, 0) : null,
     sampleSize: values.length,
     failedSampleSize,
+    missingSampleSize: Math.max(0, measuredOk - values.length),
     wired: WIRED[key],
   };
 }

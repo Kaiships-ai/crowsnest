@@ -240,14 +240,26 @@ describe("graphClient.fetchPostInsights", () => {
     expect((await graphClient.fetchPostInsights(REEL)).stop?.code).toBe("GRAPH_AUTH_FAILED");
   });
 
-  test("a non-reel makes one core call", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(ok(metrics({ reach: 5 })));
+  test("a non-reel asks for follows and profile visits in one call", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(ok(metrics({ reach: 5, follows: 2, profile_visits: 9 })));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
     const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
     expect(callsUsed).toBe(1);
-    expect(insights?.reach).toBe(5);
-    expect(insights?.views).toBeNull();
+    expect(insights).toMatchObject({ reach: 5, followsFromPost: 2, profileVisits: 9, views: null });
+    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,follows,profile_visits");
+  });
+
+  test("a non-reel whose extended set is refused falls back to the core set", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100 } }) })
+      .mockResolvedValueOnce(ok(metrics({ reach: 5 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
+    expect(callsUsed).toBe(2);
+    expect(insights).toMatchObject({ reach: 5, profileVisits: null, error: null });
+    expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes");
   });
 });
 
