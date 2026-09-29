@@ -2,13 +2,11 @@
 
 `documents/architect/core-components/mine/`
 
-Status: the planner, the publish dialog, and manual Graph measurement are shipped on `/mine` and in daily use. Moving them onto the Dashboard as the My reels and Calendar tabs, per-reel insights, account-wide audience, and scheduled measurement are planned and not built. There is no UI control to clear the own channel once set (B-15).
+Status: shipped. The planner, the publish dialog, manual and scheduled Graph measurement, per-reel insights, and account-wide audience live on the Dashboard as the My reels and Calendar tabs. The scheduled cadence and the newer reel metrics are unverified against a live Graph call (the configured token is rejected). There is no UI control to clear the own channel once set (B-15).
 
 ## 1. What it is
 
-mine is the user's own side of crowsnest: how their own Instagram account is doing, and what they mean to post next. It is designed to live on the Dashboard at `/` as two of its three tabs, held in the URL as `?tab=overview|reels|calendar`. Overview stays the research dashboard, owned by the dashboard component. My reels shows the own-account summary (followers, reach, saves, shares, median reach, posts measured), a reel picker, one reel's insights modeled on the Instagram app's Reel insights screen, that reel's views over time against the user's typical reel, and account-wide audience. Calendar is the planner: the month grid, the plan dialog, and the publish dialog that uploads a video, writes a caption, and publishes now or on a schedule. The old `/mine` route redirects to the Calendar tab and leaves the sidebar.
-
-Today, before the rework ships, all of this except the per-reel insights, audience, and scheduled measurement renders on `/mine` behind a Month, Posts, and Metrics tab strip.
+mine is the user's own side of crowsnest: how their own Instagram account is doing, and what they mean to post next. It lives on the Dashboard at `/` as two of its three tabs, held in the URL as `?tab=overview|reels|calendar`. Overview stays the research dashboard, owned by the dashboard component. My reels shows the own-account summary (followers, reach, saves, shares, median reach, posts measured), a reel picker, one reel's insights modeled on the Instagram app's Reel insights screen, that reel's views over time against the user's typical reel, and account-wide audience. Calendar is the planner: the month grid, the plan dialog, and the publish dialog that uploads a video, writes a caption, and publishes now or on a schedule. The old `/mine` route redirects to the Calendar tab and leaves the sidebar.
 
 Own posts are read-only in mine. The only writer of `own_account_snapshots`, `own_posts`, `own_post_insights`, and `own_comments` is a Graph measurement; the instagrapi sidecar that fills the feed never touches these tables.
 
@@ -27,7 +25,7 @@ The planner and the metrics still do not need each other. Planned posts need no 
 | Own channel | The one tracked channel flagged `channels.isOwn`, at most one row by the partial unique index `channels_single_own`. Set by `setOwnChannelAction`. |
 | Graph API measurement | One run that reads the account, the media list, and each post's insights from `graph.instagram.com`, and writes the own-channel tables. Reach, saves, and shares here never mix with a tracked channel's view count. |
 | Insight snapshot | One `own_post_insights` row per post per measurement, append-only. The latest row is the post's current numbers; all rows together are its views over time. |
-| Scheduled measurement | A planned in-process job, modeled on the sync and publish schedulers, that measures reels hourly for their first 72 hours and daily after, under Instagram's 200 calls per hour limit. |
+| Scheduled measurement | An in-process job (`own-measure-scheduler.ts`), modeled on the sync and publish schedulers, that measures reels hourly for their first 72 hours and daily after, under Instagram's 200 calls per hour limit. |
 | Typical reel | The median views, at the same whole hours since posting, across the user's other measured reels. Computed on the server in a pure function. |
 | Per-viewer rate | Share, like, save, repost, or comment count divided by `reach`. Shown as a dash when reach is missing or zero. |
 | Account-wide audience | Followers vs non-followers and age, country, gender breakdowns. The API gives these only for the whole account, so they are labelled as such, never as a reel's numbers. |
@@ -37,7 +35,7 @@ The planner and the metrics still do not need each other. Planned posts need no 
 
 ## 4. How it fits in the system
 
-mine's two tabs sit on the Dashboard route, which the dashboard component owns; the Dashboard page picks the tab from `?tab=` and runs only that tab's reads. mine reads the own channel flag and follower count from `channels` (owned by the channels board and ig-sync), reads scripts from the vault for the plan dialog, and reads the `scoreMinUsablePosts` setting for the median floor. It owns `planned_posts`, which the [publish](../publish/01-concept-brief.md) component also advances through its publish states. It owns the own-channel table set, the planned `own_account_breakdowns` table included, and the measurement that writes it, whether a user clicks "Measure now" or the planned scheduler fires. The MCP server's `crowsnest_metrics` tool reads the own-channel queries.
+mine's two tabs sit on the Dashboard route, which the dashboard component owns; the Dashboard page picks the tab from `?tab=` and runs only that tab's reads. mine reads the own channel flag and follower count from `channels` (owned by the channels board and ig-sync), reads scripts from the vault for the plan dialog, and reads the `scoreMinUsablePosts` setting for the median floor. It owns `planned_posts`, which the [publish](../publish/01-concept-brief.md) component also advances through its publish states. It owns the own-channel table set, `own_account_breakdowns` included, and the one measurement service (`src/server/services/own-measure.ts`) that writes it, whether a user clicks "Measure now" or the scheduler fires. The MCP server's `crowsnest_metrics` tool reads the own-channel queries.
 
 ## 5. Dependency map
 
@@ -45,13 +43,13 @@ mine's two tabs sit on the Dashboard route, which the dashboard component owns; 
 
 | Dependency | Why |
 | --- | --- |
-| SQLite database via drizzle (`src/server/db`) | `planned_posts`, `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, the planned `own_account_breakdowns`, `app_settings` for stored fetch errors, and a read of `channels`. |
+| SQLite database via drizzle (`src/server/db`) | `planned_posts`, `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns`, `app_settings` for stored fetch errors, and a read of `channels`. |
 | App settings (`scoreMinUsablePosts`, default 5) | The floor below which median reach stays null, shared with channel-side scoring. |
 | The vault (`src/server/queries/vault.ts`, `getScripts`) | Read-only, for the plan dialog's script select. |
 | The channels board and ig-sync (`src/server/queries/channels.ts`, `src/server/actions/channel-actions.ts`) | `getOwnChannel` and `getChannelsList` for the gate and picker; `setOwnChannelAction` for the flag. |
-| The dashboard (`src/app/(shell)/(loaded)/page.tsx`) | Planned host of the My reels and Calendar tabs and the tab strip. |
+| The dashboard (`src/app/(shell)/(loaded)/page.tsx`) | Host of the My reels and Calendar tabs and the tab strip. |
 | Secrets store (`IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`) | Read by the Graph client alone; Settings > API keys wins over `.env.local`. |
-| `server.ts` | Planned boot point of the measurement scheduler, beside the sync and publish schedulers. |
+| `server.ts` | Boot point of the measurement scheduler, beside the sync and publish schedulers. |
 
 ### Downstream (what depends on mine)
 
@@ -60,14 +58,14 @@ mine's two tabs sit on the Dashboard route, which the dashboard component owns; 
 | [publish](../publish/01-concept-brief.md) | The plan's `planned_posts` row, which it advances from `scheduled` through `publishing` to `published` or `failed`. |
 | MCP server (`crowsnest_metrics`) | `getOwnChannelOverview` and `getOwnPosts`. |
 | The dashboard's Overview | `getPlannedPosts` for the content pipeline's planned count. |
-| Remix finish step and vault script dialog | Link to `/mine`, which lands on the Calendar tab once the redirect ships. |
+| Remix finish step and vault script dialog | Link to `/mine`, which redirects to the Calendar tab. |
 
 ### External
 
 | Dependency | Role |
 | --- | --- |
-| Instagram Graph API (`graph.instagram.com`, Instagram Login) | The one external service mine calls, through `src/server/graph/client.ts`: account, media, per-media insights, comments, and planned account-level insights. Data can lag up to 48 hours; the limit is 200 calls per hour per user. |
-| recharts, through `src/components/ui/chart.tsx` | Planned views-over-time chart. |
+| Instagram Graph API (`graph.instagram.com`, Instagram Login) | The one external service mine calls, through `src/server/graph/client.ts`: account, media, per-media insights, comments, and account-level insights. Data can lag up to 48 hours; the limit is 200 calls per hour per user. |
+| recharts, through `src/components/ui/chart.tsx` | The views-over-time chart. |
 
 ## 6. Boundaries
 

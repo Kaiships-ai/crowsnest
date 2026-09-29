@@ -1,6 +1,6 @@
 # mine: feature description
 
-mine is the user's own side of crowsnest: how their own Instagram account is doing, and what they mean to post next. It lives on the Dashboard at `/`, which carries three tabs: Overview (the research dashboard, owned by the dashboard, unchanged), My reels (own-account insights, feature 10 onward), and Calendar (the planner and publisher, features 5, 6, and 8). The tab lives in the URL as `?tab=overview|reels|calendar`. The old `/mine` route redirects to the Dashboard and leaves the sidebar (feature 9). Until feature 9 ships, the built features below still render on `/mine`.
+mine is the user's own side of crowsnest: how their own Instagram account is doing, and what they mean to post next. It lives on the Dashboard at `/`, which carries three tabs: Overview (the research dashboard, owned by the dashboard, unchanged), My reels (own-account insights, feature 10 onward), and Calendar (the planner and publisher, features 5, 6, and 8). The tab lives in the URL as `?tab=overview|reels|calendar`. The old `/mine` route redirects to the Dashboard and leaves the sidebar (feature 9).
 
 The two halves deliberately do not depend on each other. The planner reads and writes `planned_posts` and needs no external service; publishing a plan (feature 8) is the one planner-side action that does, reaching the Instagram Graph API through the [publish](../publish/01-concept-brief.md) component. My reels reads the official Instagram Graph API at `graph.instagram.com`, kept in a table set (`own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`) entirely separate from the tracked-channel tables ig-sync writes.
 
@@ -13,18 +13,18 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
 | 2 | Choose your own channel | Marks one tracked channel as the user's own so the rest of the page has an identity to measure | ● | `src/components/mine/own-channel-picker.tsx`, `setOwnChannelAction` | B-15 |
-| 3 | View your own channel dashboard | The header, six stat tiles, progress bar, and reach-by-post bars, gated on the Graph token | ● | `src/app/(shell)/(loaded)/mine/page.tsx`, `own-stat-tiles.tsx`, `reach-by-post-bars.tsx` | Folds into My reels (feature 10), B-16 |
-| 4 | Browse own posts and weekday metrics | A flat post list and a weekday-average reach chart, both read-only | ● | `reach-by-post-bars.tsx` (`OwnPostList`), `own-weekday-rhythm.tsx` | Folds into My reels (feature 10), B-16 |
-| 5 | Plan a post | Create or edit a planned post: a dated intention to publish, optionally carrying a script | ● | `plan-dialog.tsx`, `planned-post-actions.ts` | B-16 |
-| 6 | Manage the month calendar | The seven-column grid, the day detail panel, marking a plan published, and deleting one | ● | `mine-calendar.tsx`, `markPlanPublishedAction`, `deletePlannedPostAction` | B-09, B-16 |
-| 7 | Connect and measure the Graph API | Check the token, and run a measurement that fills the own-channel tables | ● | `graph-connect-panel.tsx`, `graph-actions.ts` | B-16 |
+| 3 | View your own channel dashboard | The header, six stat tiles, progress bar, and reach-by-post bars at the top of My reels, gated on the Graph token | ● | `src/components/mine/my-reels-tab.tsx`, `own-stat-tiles.tsx`, `reach-by-post-bars.tsx` | none |
+| 4 | Browse own posts and weekday metrics | A flat post list and a weekday-average reach chart, both read-only sections of My reels | ● | `reach-by-post-bars.tsx` (`OwnPostList`), `own-weekday-rhythm.tsx` | none |
+| 5 | Plan a post | Create or edit a planned post: a dated intention to publish, optionally carrying a script | ● | `plan-dialog.tsx`, `planned-post-actions.ts` | none |
+| 6 | Manage the month calendar | The seven-column grid, the day detail panel, marking a plan published, and deleting one | ● | `mine-calendar.tsx`, `markPlanPublishedAction`, `deletePlannedPostAction` | B-09, B-17 |
+| 7 | Connect and measure the Graph API | Check the token, and run a measurement that fills the own-channel tables | ● | `graph-connect-panel.tsx`, `graph-actions.ts`, `src/server/services/own-measure.ts` | none |
 | 8 | Publish a planned post | Upload a video, write a caption, then publish now or schedule, cancel a schedule, or retry a failed publish | ● | `publish-dialog.tsx`, `mine-calendar.tsx`, `planned-post-actions.ts` | none |
-| 9 | Dashboard tabs and the `/mine` redirect | Overview, My reels, and Calendar tabs on `/`, tab held in `?tab=`, `/mine` redirecting there | ○ | `src/app/(shell)/(loaded)/page.tsx`, `src/app/(shell)/(loaded)/mine/page.tsx` (redirect), `src/components/layout/nav-items.ts` | Not built |
-| 10 | Pick a reel | The own-account summary plus a newest-first reel list; choosing a reel opens its insight panel, held in `?reel=` | ○ | `src/components/mine/my-reels-tab.tsx`, `src/components/mine/reel-picker.tsx` | Not built |
-| 11 | Read one reel's insights | Summary tiles, interaction strip, what impacts your views, actions after viewing, and labelled placeholders for what the API does not give | ○ | `src/components/mine/reel-insight-panel.tsx`, `src/server/graph/client.ts` | Not built |
-| 12 | Compare views over time | One reel's measured views by hours since posting, against the median of the other reels | ○ | `src/components/mine/reel-views-over-time.tsx` | Needs feature 14 |
-| 13 | See account-wide audience | Followers vs non-followers and Age, Country, Gender tabs, labelled as the whole account | ○ | `src/components/mine/account-audience.tsx`, `src/server/graph/client.ts` | Not built |
-| 14 | Scheduled measurement | A background job that measures the own channel hourly for new reels and daily for older ones | ○ | `src/server/services/own-measure-scheduler.ts` | Not built |
+| 9 | Dashboard tabs and the `/mine` redirect | Overview, My reels, and Calendar tabs on `/`, tab held in `?tab=`, `/mine` redirecting there | ● | `src/app/(shell)/(loaded)/page.tsx`, `src/components/dashboard/dashboard-tabs.tsx`, `src/app/(shell)/(loaded)/mine/page.tsx` (redirect), `src/components/layout/nav-items.ts` | none |
+| 10 | Pick a reel | The own-account summary plus a newest-first reel list; choosing a reel opens its insight panel, held in `?reel=` | ● | `src/components/mine/my-reels-tab.tsx`, `src/components/mine/reel-picker.tsx` | none |
+| 11 | Read one reel's insights | Summary tiles, interaction strip, what impacts your views, actions after viewing, and labelled placeholders for what the API does not give | ● | `src/components/mine/reel-insight-panel.tsx`, `src/server/services/reel-insights.ts`, `src/server/graph/client.ts` | Newer metrics unverified live |
+| 12 | Compare views over time | One reel's measured views by hours since posting, against the median of the other reels | ● | `src/components/mine/reel-views-over-time.tsx`, `src/server/services/reel-insights.ts` | Live cadence unverified, needs a valid Graph token |
+| 13 | See account-wide audience | Followers vs non-followers and Age, Country, Gender tabs, labelled as the whole account | ● | `src/components/mine/account-audience.tsx`, `src/server/graph/client.ts` | Unverified live |
+| 14 | Scheduled measurement | A background job that measures the own channel hourly for new reels and daily for older ones | ● | `src/server/services/own-measure-scheduler.ts`, `src/server/services/own-measure.ts` | Live cadence unverified, needs a valid Graph token |
 
 ## 2. Choose your own channel
 
@@ -38,7 +38,7 @@ The own-account tabs open as a picker instead of their content: a short explanat
 
 ### How to access it
 
-Automatic: it is what the My reels and Calendar tabs render when `getOwnChannel()` returns nothing. Today it is what `/mine` renders in the same case.
+Automatic: it is what the My reels and Calendar tabs render when `getOwnChannel()` returns nothing.
 
 ### Business rules
 
@@ -69,7 +69,7 @@ In the reworked design this whole block becomes the account summary at the top o
 
 ### How to access it
 
-Automatic: today it is what `/mine` renders once a channel is own, the Graph token is valid, and the account has been measured at least once. Once feature 9 ships, it is the top of the My reels tab.
+Automatic: the top of the My reels tab, once a channel is own and the account has been measured at least once.
 
 ### Business rules
 
@@ -90,17 +90,17 @@ Once your channel is connected and measured, My reels opens on your account summ
 
 ### Who uses it
 
-The user, from the Posts and Metrics tabs on `/mine` today, and from within the My reels tab once feature 9 ships.
+The user, on the My reels tab.
 
 ### What it does
 
 Posts is a flat list of every own post the Graph API has recorded, newest first, each row (`mine-post-row`) showing a caption, a reach number with a small bar, a length, and how long ago it went up; clicking a row opens that post's Instagram permalink in a new browser tab. Metrics is a bar chart of average reach by weekday, one bar per day (`mine-weekday-bar`), each with a post count beneath it. Both read the same one server load of the user's own posts (`getOwnPosts({ limit: 100 })`) that the page fetches once and hands to every display, including the reach-by-post strip in feature 3.
 
-In the reworked design both fold into the My reels tab. The reel picker (feature 10) lists reels only, so the flat post list stays available inside My reels for every own post, carousels included.
+The reel picker (feature 10) lists reels only, so the flat post list stays in My reels for every own post, carousels included.
 
 ### How to access it
 
-Today, the Posts and Metrics triggers in the tab strip below the `/mine` dashboard. Both render regardless of the Graph gate; when nothing has been measured they show their own empty state instead of an error.
+The Posts and Average reach by weekday sections at the bottom of the My reels tab. Both render regardless of the Graph gate; when nothing has been measured they show their own empty state instead of an error.
 
 ### Business rules
 
@@ -110,12 +110,12 @@ Today, the Posts and Metrics triggers in the tab strip below the `/mine` dashboa
 
 ### Limitations
 
-- These displays are read-only. Nothing on them writes a row, opens a dialog, or starts a generation; the only interactions are switching tabs and opening a post on Instagram.
+- These displays are read-only. Nothing on them writes a row, opens a dialog, or starts a generation; the only interaction is opening a post on Instagram.
 - With only a handful of measured posts spread across seven weekdays, most days carry one post or none; the weekday chart's own caption says to read it as a reading, not a rhythm, until there is more data.
 
 ### User guide
 
-Open the post list to see every one of your own posts the app has measured, most recent first, with its reach, length, and when it went up. Click a post to open it on Instagram in a new tab. Open the weekday chart to see your average reach by day of the week, which becomes more meaningful the more posts you have measured.
+On the My reels tab, scroll to Posts to see every one of your own posts the app has measured, most recent first, with its reach, length, and when it went up. Click a post to open it on Instagram in a new tab. Below it, the weekday chart shows your average reach by day of the week, which becomes more meaningful the more posts you have measured.
 
 ## 5. Plan a post
 
@@ -129,7 +129,7 @@ The plan dialog creates a new planned post or edits an existing one. A planned p
 
 ### How to access it
 
-The "New planned post" button and empty-day clicks on the month calendar, and clicking an existing plan's cell. The calendar lives on the Calendar tab once feature 9 ships, and on `/mine` until then.
+The "New planned post" button and empty-day clicks on the month calendar, and clicking an existing plan's cell. The calendar lives on the Calendar tab.
 
 ### Business rules
 
@@ -155,7 +155,7 @@ To plan a post, open the Calendar tab and click a day, or click New planned post
 
 ### Who uses it
 
-The user, on the Calendar tab of the Dashboard once feature 9 ships, and on the Month tab of `/mine` (its default tab) until then.
+The user, on the Calendar tab of the Dashboard.
 
 ### What it does
 
@@ -163,7 +163,7 @@ The calendar is a seven-column grid, Monday through Sunday, of the current month
 
 ### How to access it
 
-The Calendar tab (`?tab=calendar`). The previous, next, and Today controls change the `?month=` query parameter and reload the page for that month.
+The Calendar tab (`?tab=calendar`). The previous, next, and Today controls change the `?month=` query parameter, keeping `tab=calendar`, and reload the page for that month.
 
 ### Business rules
 
@@ -193,11 +193,11 @@ The user, from the connect panel that stands in for, or stacks above, the own-ac
 
 ### What it does
 
-The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments, and refresh on success.
+The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success.
 
 ### How to access it
 
-The connect panel, which renders automatically on My reels (today, on `/mine`) whenever the Graph token is not configured, is rejected, or the account has never been measured.
+The connect panel, which renders automatically on My reels whenever the Graph token is not configured, is rejected, or the account has never been measured.
 
 ### Business rules
 
@@ -206,7 +206,7 @@ The connect panel, which renders automatically on My reels (today, on `/mine`) w
 - A metric Instagram does not disclose, or that the client does not request, is stored as null, never as zero; every display downstream treats a null differently from a real zero.
 - Each button disables itself while its own call is in flight ("Checking", "Measuring"), so a second click cannot start a second run of the same action.
 - The token is read through the secrets store: a value set in Settings > API keys (`IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID`) wins over `.env.local` and takes effect without a restart.
-- Manual "Measure now" stays once scheduled measurement (feature 14) exists; the two write the same tables.
+- "Measure now" and scheduled measurement (feature 14) run the same service and write the same tables. When a scheduled measurement is running, "Measure now" waits for it to finish, then runs.
 
 ### Limitations
 
@@ -261,7 +261,7 @@ The user, every time they open the Dashboard.
 
 ### What it does
 
-The Dashboard at `/` gains a tab strip with three tabs: Overview (`dashboard-tab-overview`), My reels (`dashboard-tab-reels`), and Calendar (`dashboard-tab-calendar`). Overview is the existing research dashboard, unchanged. My reels holds features 3, 4, and 10 to 13. Calendar holds features 5, 6, and 8. The selected tab lives in the URL as `?tab=overview|reels|calendar`, so a reload, a back button, or a shared link lands on the same tab. The `/mine` route stops rendering a page of its own and redirects to the Dashboard, and its "My channel" entry leaves the sidebar.
+The Dashboard at `/` carries a tab strip with three tabs: Overview (`dashboard-tab-overview`), My reels (`dashboard-tab-reels`), and Calendar (`dashboard-tab-calendar`). Overview is the existing research dashboard, unchanged. My reels holds features 3, 4, and 10 to 13. Calendar holds features 5, 6, and 8. The selected tab lives in the URL as `?tab=overview|reels|calendar`, so a reload, a back button, or a shared link lands on the same tab. The `/mine` route renders no page of its own and redirects to the Dashboard; the sidebar has no "My channel" entry.
 
 ### How to access it
 
@@ -270,10 +270,10 @@ Open the Dashboard from the sidebar. Old links to `/mine` (the remix finish step
 ### Business rules
 
 - A missing or unknown `tab` value means Overview.
-- `/mine` redirects to `/?tab=calendar`, carrying any `month=` it was given, since every inbound `/mine` link today is about the plan.
+- `/mine` redirects to `/?tab=calendar`, carrying a valid `month=` (`YYYY-MM`) and nothing else, since every inbound `/mine` link is about the plan.
 - Each tab loads only its own data. Opening Overview does not call the Graph API, and opening My reels does not run the Overview's sidecar and model pings.
 - The tab strip renders above every state of every tab, including Overview's "no channels are being watched" empty state and the own-channel picker, so the user can always move between tabs.
-- Planner and measurement actions that revalidate `/mine` today revalidate `/` instead, so a write shows up on the tab the user is looking at.
+- Planner and measurement actions revalidate `/`, so a write shows up on the tab the user is looking at.
 
 ### Limitations
 
@@ -446,11 +446,11 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 
 ## 15. Interactions with other systems
 
-- **Instagram Graph API** (`graph.instagram.com`): the only source of own-account numbers, through `src/server/graph/client.ts`. Features 11 and 13 add requests beyond the metrics the client asks for today (`reach`, `saved`, `shares`, `total_interactions`, `comments`, `likes`, and `views` for reels).
+- **Instagram Graph API** (`graph.instagram.com`): the only source of own-account numbers, through `src/server/graph/client.ts`. Features 11 and 13 request metrics beyond the core set (`reach`, `saved`, `shares`, `total_interactions`, `comments`, `likes`, and `views` for reels): the extended reel set, `profile_activity`, and the account breakdowns.
 - **Secrets store**: `IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID` come from Settings > API keys first, `.env.local` second.
 - **Dashboard**: owns the Overview tab and the `/` route that now hosts My reels and Calendar.
 - **publish**: runs the upload, container, and scheduled publish that feature 8 drives.
-- **remix and vault**: link to the planner through `/mine`, which lands on the Calendar tab after feature 9.
+- **remix and vault**: link to the planner through `/mine`, which redirects to the Calendar tab.
 - **Settings**: `scoreMinUsablePosts` sets the median floor in feature 3.
 
 ## 16. Edge cases

@@ -20,7 +20,7 @@ Status: shipped. The instagrapi fallback path is a seam only, off by default and
 | `src/components/mine/publish-dialog.tsx` | `PublishDialog` | Upload an mp4, write a caption, pick a date and time, then Schedule (a date and time are set) or Publish now (they are not). Renders the not-configured and dry-run surfaces inline. |
 | `src/components/mine/confirm-dialog.tsx` | `ConfirmDialog` | A designed destructive confirm shared by "cancel scheduled publish" and "delete a plan carrying a video", replacing the browser's native confirm. |
 | `src/components/mine/mine-calendar.tsx` | `MineCalendar` (extended) | Renders the publish lifecycle on the calendar cell (scheduled/publishing/failed/published) and the day detail panel (scheduled-at line, publishing pulse, failed error plus Retry, published mark), and owns opening `PublishDialog` and `ConfirmDialog`. |
-| `src/app/(shell)/(loaded)/mine/page.tsx` | `MinePage` (extended) | Resolves `bucketConfigured`, `graphConfigured`, and the dry-run flag once per page load and passes them into `MineCalendar`, mirroring `envDefaultsDryRun()` in `publish-post.ts` so the dialog's dry-run banner and `publish-post.ts`'s own default agree without a second source of truth. |
+| `src/components/mine/calendar-tab.tsx` | `CalendarTab` | Resolves `bucketConfigured`, `graphConfigured`, and the dry-run flag once per page load and passes them into `MineCalendar`, mirroring `envDefaultsDryRun()` in `publish-post.ts` so the dialog's dry-run banner and `publish-post.ts`'s own default agree without a second source of truth. |
 
 ## 2. ER diagram
 
