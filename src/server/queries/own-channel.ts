@@ -91,6 +91,10 @@ export interface OwnCommentSummary {
  *  "no error" state, matching every other query's absent-means-empty rule. */
 export const OWN_COMMENTS_FETCH_ERROR_KEY = "own_comments_fetch_error";
 
+/** app_settings key holding the last engaged-audience refusal (for example under 100
+ *  engagements). Row absent means the last fetch succeeded or none has run. */
+export const OWN_AUDIENCE_FETCH_ERROR_KEY = "own_audience_fetch_error";
+
 const DEFAULT_WINDOW_DAYS = 30;
 
 type OwnPostInsightsRow = typeof tables.ownPostInsights.$inferSelect;
