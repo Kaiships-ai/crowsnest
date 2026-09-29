@@ -94,8 +94,9 @@ export interface GraphAccountBreakdowns {
   rows: GraphBreakdownRow[];
   /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
   audienceError: string | null;
-  /** Set when the follower split (views by follower_type) call failed without ending the run. */
-  splitError: string | null;
+  /** Set when the follower split (views by follower_type) call failed without ending the
+   *  run; undefined when the split call itself was the run-ending stop (nothing learned). */
+  splitError?: string | null;
   callsUsed: number;
   /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
   stop?: GraphApiError | null;
@@ -590,7 +591,7 @@ export const graphClient: GraphClient = {
     let audienceError: string | null = null;
     const splitError = split.ok ? null : split.message;
     let stop = fatalOf(split);
-    if (stop) return { rows, audienceError, splitError, callsUsed, stop };
+    if (stop) return { rows, audienceError, callsUsed, stop };
     if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
     else log.warn("graph.breakdowns.split_failed", { error: split.message });
     for (const dimension of ["age", "country", "gender"]) {

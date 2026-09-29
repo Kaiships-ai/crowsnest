@@ -328,7 +328,8 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       if (b.rows.length > 0) {
         await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
-      // Stored even when a later audience call stopped the run: the split call itself finished.
+      // Stored even when a later audience call stopped the run: the split call itself
+      // finished. Undefined when the split call was the stop, so nothing is stored.
       if (b.splitError !== undefined) await setAppSetting(OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY, b.splitError);
       if (b.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(b.stop);
       if (b.stop) stoppedEarly = "rate_limited";

@@ -356,6 +356,14 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     expect(warn.mock.calls.some(([event]) => event === "graph.breakdowns.split_failed")).toBe(true);
   });
 
+  test("a split call that is itself the run-ending rate limit reports no split error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out.stop).toMatchObject({ code: "GRAPH_RATE_LIMITED" });
+    expect(out.splitError).toBeUndefined();
+  });
+
   test("a lack-of-volume refusal returns a threshold state, not an empty audience", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))
