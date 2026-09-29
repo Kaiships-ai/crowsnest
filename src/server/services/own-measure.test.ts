@@ -143,6 +143,14 @@ describe("measureOwnChannel, scope due", () => {
     expect(measuredIds()).toContain("old5d");
   });
 
+  test("a failed capture does not count as measured: the post is retried next tick", async () => {
+    await seedCapture("young", ago(2 * H), ago(2 * H));
+    await db.insert(tables.ownPostInsights).values({ id: "ins-young-failed", ownPostId: "own-young", capturedAt: ago(10 * 60_000), fetchError: "HTTP 500" });
+    graphClient.fetchMedia.mockResolvedValue([media("young", { postedAt: ago(2 * H) })]);
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(measuredIds()).toEqual(["young"]);
+  });
+
   test("ACTION-29: 250 due reels stay within the 150-call budget; leftovers are still due next hour", async () => {
     const list = Array.from({ length: 250 }, (_, i) => media(`r${i}`, { postedAt: ago(10 * 24 * H) }));
     graphClient.fetchMedia.mockResolvedValue(list);

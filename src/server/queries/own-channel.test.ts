@@ -306,6 +306,22 @@ describe("getOwnReels (ACTION-19)", () => {
     expect((await getReelViewHistory()).some((h) => h.ownPostId === "c1")).toBe(false);
   });
 
+  test("a newer failed capture does not hide the newest good snapshot or its measured-at", async () => {
+    const id = await seedPost();
+    await seedInsights(id, { capturedAt: "2026-09-26T00:00:00.000Z", views: 10 });
+    await seedInsights(id, { capturedAt: "2026-09-27T00:00:00.000Z", views: 20 });
+    await seedInsights(id, { capturedAt: "2026-09-28T00:00:00.000Z", fetchError: "HTTP 500" });
+    const [reel] = await getOwnReels();
+    expect(reel.latest).toMatchObject({ views: 20, capturedAt: "2026-09-27T00:00:00.000Z", fetchError: null });
+  });
+
+  test("a reel with only failed captures reads as not measured", async () => {
+    const id = await seedPost();
+    await seedInsights(id, { fetchError: "HTTP 500" });
+    const [reel] = await getOwnReels();
+    expect(reel.latest).toBeNull();
+  });
+
   test("view history keeps only snapshots inside the first 168 hours, Graph's +0000 timestamps included", async () => {
     await db.insert(tables.ownPosts).values({ id: "r1", externalId: "x-r1", permalink: "https://i/r1", mediaType: "VIDEO", productType: "REELS", format: "Reel", postedAt: "2026-09-01T00:00:00+0000", firstSeenAt: "2026-09-01T00:00:00.000Z" });
     for (const [capturedAt, views] of [["2026-09-01T02:00:00.000Z", 1], ["2026-09-07T23:59:00.000Z", 2], ["2026-09-08T00:00:00.000Z", 3], ["2026-09-20T00:00:00.000Z", 4]] as const) {

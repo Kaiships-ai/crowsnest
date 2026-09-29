@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
@@ -50,7 +50,8 @@ const HOUR_MS = 3_600_000;
 const OWN_COMMENTS_FETCHED_AT_KEY = "own_comments_fetched_at";
 const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
 
-/** Hourly while a post is under 72 hours old, daily after, and always when never captured.
+/** Hourly while a post is under 72 hours old, daily after, and always when never captured
+ *  successfully (a failed capture is retried next tick).
  *  Derived from stored captures on every tick, so the scheduler keeps no state. */
 export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date): boolean {
   if (lastCapturedAt === null) return true;
@@ -66,7 +67,8 @@ async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<str
     .select({ externalId: tables.ownPosts.externalId, capturedAt: tables.ownPostInsights.capturedAt })
     .from(tables.ownPostInsights)
     .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
-    .where(inArray(tables.ownPosts.externalId, externalIds))
+    // A failed capture (fetchError set) is not a measurement, so it never makes a post look fresh.
+    .where(and(inArray(tables.ownPosts.externalId, externalIds), isNull(tables.ownPostInsights.fetchError)))
     .orderBy(desc(tables.ownPostInsights.capturedAt));
   for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r.capturedAt);
   return out;

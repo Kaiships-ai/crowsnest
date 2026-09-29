@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
 import { REEL_CURVE_HOURS, type OwnReel, type ReelSnapshotPoint } from "@/server/services/reel-insights";
@@ -346,14 +346,15 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
   };
 }
 
-/** Reels only, newest first, each with its latest snapshot (null when never measured). */
+/** Reels only, newest first, each with its newest successful snapshot (null when never
+ *  measured successfully): a failed capture never hides the last good numbers. */
 export async function getOwnReels(): Promise<OwnReel[]> {
   const reels = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.productType, "REELS")).orderBy(desc(tables.ownPosts.postedAt));
   if (reels.length === 0) return [];
   const rows = await db
     .select()
     .from(tables.ownPostInsights)
-    .where(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)))
+    .where(and(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)), isNull(tables.ownPostInsights.fetchError)))
     .orderBy(desc(tables.ownPostInsights.capturedAt));
   const latest = new Map<string, OwnPostInsightsRow>();
   for (const r of rows) if (!latest.has(r.ownPostId)) latest.set(r.ownPostId, r);
