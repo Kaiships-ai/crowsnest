@@ -198,6 +198,13 @@ describe("isDue", () => {
     expect(svc.isDue(ago(10 * H), ago(5 * H), NOW, fail(ago(30 * 60_000), 3))).toBe(false);
     expect(svc.isDue(ago(10 * H), null, NOW, fail(ago(2 * H), 1, true))).toBe(false);
   });
+
+  test("a post with an old successful capture that now fails backs off from its failures since then", () => {
+    const fail = (at: string, count: number) => ({ at, count, permanent: false });
+    expect(svc.isDue(ago(10 * 24 * H), ago(3 * 24 * H), NOW, fail(ago(2 * H), 2))).toBe(false);
+    expect(svc.isDue(ago(10 * 24 * H), ago(3 * 24 * H), NOW, fail(ago(25 * H), 2))).toBe(true);
+    expect(svc.isDue(ago(10 * 24 * H), ago(3 * 24 * H), NOW, fail(ago(61 * 60_000), 1))).toBe(true);
+  });
 });
 
 describe("measureOwnChannel, scope due", () => {
@@ -215,7 +222,7 @@ describe("measureOwnChannel, scope due", () => {
 
   test("a failed capture does not count as measured: the post is retried next tick", async () => {
     await seedCapture("young", ago(2 * H), ago(2 * H));
-    await db.insert(tables.ownPostInsights).values({ id: "ins-young-failed", ownPostId: "own-young", capturedAt: ago(10 * 60_000), fetchError: "HTTP 500" });
+    await db.insert(tables.ownPostInsights).values({ id: "ins-young-failed", ownPostId: "own-young", capturedAt: ago(61 * 60_000), fetchError: "HTTP 500" });
     graphClient.fetchMedia.mockImplementation(spend(1, [media("young", { postedAt: ago(2 * H) })]));
     await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(measuredIds()).toEqual(["young"]);
@@ -235,6 +242,19 @@ describe("measureOwnChannel, scope due", () => {
     graphClient.fetchMedia.mockImplementation(spend(1, ["once", "twice", "twiceOld", "recent"].map((id) => media(id, { postedAt: ago(5 * 24 * H) }))));
     await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(measuredIds().sort()).toEqual(["once", "twiceOld"]);
+  });
+
+  test("failures after a success back an old post off daily; a new reel failing on code 10 stays hourly", async () => {
+    const tooFew = 'HTTP 400: {"error":{"code":10,"message":"Not enough viewers for the media to show insights"}}';
+    await seedCapture("oldOk", ago(10 * 24 * H), ago(3 * 24 * H));
+    await db.insert(tables.ownPostInsights).values([
+      { id: "f1", ownPostId: "own-oldOk", capturedAt: ago(3 * H), fetchError: "HTTP 500: {}" },
+      { id: "f2", ownPostId: "own-oldOk", capturedAt: ago(2 * H), fetchError: "HTTP 500: {}" },
+    ]);
+    await seedFailures("fresh", ago(10 * H), [[ago(3 * H), tooFew], [ago(2 * H), tooFew], [ago(61 * 60_000), tooFew]]);
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("oldOk", { postedAt: ago(10 * 24 * H) }), media("fresh", { postedAt: ago(10 * H) })]));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(measuredIds()).toEqual(["fresh"]);
   });
 
   test("a post refused as an invalid request (code 100, pre-business post) waits a day from its first failure", async () => {

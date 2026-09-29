@@ -87,21 +87,23 @@ export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date
   return now.getTime() - Date.parse(lastCapturedAt) >= (young ? HOUR_MS : 24 * HOUR_MS) - DUE_SLACK_MS;
 }
 
-/** Newest successful capture per post (the same pick My reels reads), plus the failures
- *  of posts never measured successfully. Keyed by own_posts id. */
+/** Newest successful capture per post (the same pick My reels reads), plus each post's
+ *  failures since that capture (all of them when it has none). Keyed by own_posts id. */
 async function captureState(ownPostIds: string[]): Promise<{ lastOk: Map<string, string>; failures: Map<string, CaptureFailures> }> {
   const newestOk = await newestCaptureByPost(ownPostIds, true);
   const lastOk = new Map([...newestOk].map(([id, row]) => [id, row.capturedAt]));
   const failures = new Map<string, CaptureFailures>();
-  // Failed rows only matter for a post with no success; the backoff keeps them to about one a day.
-  const neverOk = ownPostIds.filter((id) => !lastOk.has(id));
-  if (neverOk.length === 0) return { lastOk, failures };
+  if (ownPostIds.length === 0) return { lastOk, failures };
+  // ponytail: reads every stored failure; the backoff keeps them to about one a day per
+  // failing post. Bound it by capturedAt in SQL if that ever shows.
   const failed = await db
     .select({ ownPostId: tables.ownPostInsights.ownPostId, capturedAt: tables.ownPostInsights.capturedAt, fetchError: tables.ownPostInsights.fetchError })
     .from(tables.ownPostInsights)
-    .where(and(inArray(tables.ownPostInsights.ownPostId, neverOk), isNotNull(tables.ownPostInsights.fetchError)))
+    .where(and(inArray(tables.ownPostInsights.ownPostId, ownPostIds), isNotNull(tables.ownPostInsights.fetchError)))
     .orderBy(desc(tables.ownPostInsights.capturedAt));
   for (const f of failed) {
+    const ok = lastOk.get(f.ownPostId);
+    if (ok !== undefined && f.capturedAt <= ok) continue;
     const seen = failures.get(f.ownPostId);
     if (seen) seen.count += 1;
     else failures.set(f.ownPostId, { at: f.capturedAt, count: 1, permanent: isPermanentFailure(f.fetchError ?? "") });
