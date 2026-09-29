@@ -94,6 +94,15 @@ export interface GraphAccountBreakdowns {
   /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
   audienceError: string | null;
   callsUsed: number;
+  /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
+  stop?: GraphApiError | null;
+}
+
+export interface GraphCommentsResult {
+  comments: GraphComment[];
+  callsUsed: number;
+  /** Auth or rate limit on a per-media call: the pull stopped there and the run must end. */
+  stop: GraphApiError | null;
 }
 
 export interface GraphComment {
@@ -129,7 +138,7 @@ export interface GraphClient {
    *  failure lands in insights.error. callsUsed counts every call made. */
   fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult>;
   fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
-  fetchComments(accountUsername: string): Promise<GraphComment[]>;
+  fetchComments(accountUsername: string): Promise<GraphCommentsResult>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
   checkToken(): Promise<GraphTokenStatus>;
@@ -453,11 +462,6 @@ function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
   return !result.ok && (result.kind === "auth" || result.kind === "rate_limit") ? new GraphApiError(errorCodeFor(result.kind), result.message) : null;
 }
 
-function throwIfFatal(result: GraphGetResult<unknown>): void {
-  const fatal = fatalOf(result);
-  if (fatal) throw fatal;
-}
-
 // ---------------------------------------------------------------- configuration gate
 
 /** Synchronous, network-free check used by the query layer: is there a token to read
@@ -533,10 +537,11 @@ export const graphClient: GraphClient = {
     // ponytail: the since/until window for the views split is open (02 section 9); period=day
     // without a range, recorded as timeframe "day".
     const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
-    throwIfFatal(split);
-    if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
     let callsUsed = 1;
     let audienceError: string | null = null;
+    let stop = fatalOf(split);
+    if (stop) return { rows, audienceError, callsUsed, stop };
+    if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
     for (const dimension of ["age", "country", "gender"]) {
       callsUsed += 1;
       const r = await graphGet<unknown>(
@@ -544,7 +549,8 @@ export const graphClient: GraphClient = {
         { metric: "engaged_audience_demographics", period: "lifetime", timeframe: "this_month", metric_type: "total_value", breakdown: dimension },
         token
       );
-      throwIfFatal(r);
+      stop = fatalOf(r);
+      if (stop) return { rows, audienceError, callsUsed, stop };
       if (!r.ok) {
         // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
         audienceError = r.message;
@@ -552,10 +558,10 @@ export const graphClient: GraphClient = {
       }
       rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
     }
-    return { rows, audienceError, callsUsed };
+    return { rows, audienceError, callsUsed, stop: null };
   },
 
-  async fetchComments(accountUsername: string): Promise<GraphComment[]> {
+  async fetchComments(accountUsername: string): Promise<GraphCommentsResult> {
     const { token, userId } = requireConfigured();
     const mediaResult = await graphGet<{ data?: unknown[] }>(
       `${userId}/media`,
@@ -566,6 +572,7 @@ export const graphClient: GraphClient = {
 
     const items = Array.isArray(mediaResult.data.data) ? mediaResult.data.data : [];
     const out: GraphComment[] = [];
+    let callsUsed = 1;
     for (const raw of items) {
       const m = rec(raw);
       const commentsCount = num(m.comments_count);
@@ -574,7 +581,11 @@ export const graphClient: GraphClient = {
       if (!mediaId) continue;
       const permalink = str(m.permalink) ?? "";
 
+      callsUsed += 1;
       const commentsResult = await graphGet<{ data?: unknown[] }>(`${mediaId}/comments`, { fields: "id,text,username,timestamp", limit: 100 }, token);
+      // A dead token or a rate limit ends the pull: every further call would fail too.
+      const stop = fatalOf(commentsResult);
+      if (stop) return { comments: out, callsUsed, stop };
       if (!commentsResult.ok) {
         // Unlike a post's insights, `GraphComment` has no per-item error slot (the
         // contract does not give it one), so a single media's comment pull failing
@@ -590,7 +601,7 @@ export const graphClient: GraphClient = {
         out.push(buildComment(permalink, rec(row), accountUsername));
       }
     }
-    return out;
+    return { comments: out, callsUsed, stop: null };
   },
 
   async checkToken(): Promise<GraphTokenStatus> {

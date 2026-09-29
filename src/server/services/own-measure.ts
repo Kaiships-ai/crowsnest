@@ -1,7 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
@@ -148,20 +148,36 @@ async function upsertOwnComment(comment: GraphComment, postIdByPermalink: Map<st
   return true;
 }
 
-async function measureComments(account: GraphAccount, measuredAt: string): Promise<{ commentsSeen: number; partial: boolean }> {
+/** Auth and rate-limit failures end a run; any other failure is per-item. */
+function fatalStop(err: unknown): GraphApiError | null {
+  return err instanceof GraphApiError && (err.code === "GRAPH_AUTH_FAILED" || err.code === "GRAPH_RATE_LIMITED") ? err : null;
+}
+
+async function measureComments(
+  account: GraphAccount,
+  measuredAt: string
+): Promise<{ commentsSeen: number; partial: boolean; callsUsed: number; stop: GraphApiError | null }> {
+  let fetched: GraphCommentsResult;
   try {
-    const comments = await graphClient.fetchComments(account.username);
-    const allOwnPosts = await db.select({ id: tables.ownPosts.id, permalink: tables.ownPosts.permalink }).from(tables.ownPosts);
-    const postIdByPermalink = new Map(allOwnPosts.map((p) => [p.permalink, p.id]));
-    for (const c of comments) await upsertOwnComment(c, postIdByPermalink);
-    await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, null);
-    await setAppSetting(OWN_COMMENTS_FETCHED_AT_KEY, measuredAt);
-    return { commentsSeen: comments.length, partial: false };
+    fetched = await graphClient.fetchComments(account.username);
   } catch (err) {
+    // The media list call itself failed: one call spent.
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(err));
     log.warn("graph.measure.comments_failed", { message: messageOf(err) });
-    return { commentsSeen: 0, partial: true };
+    return { commentsSeen: 0, partial: true, callsUsed: 1, stop: fatalStop(err) };
   }
+  const { comments, callsUsed, stop } = fetched;
+  const allOwnPosts = await db.select({ id: tables.ownPosts.id, permalink: tables.ownPosts.permalink }).from(tables.ownPosts);
+  const postIdByPermalink = new Map(allOwnPosts.map((p) => [p.permalink, p.id]));
+  for (const c of comments) await upsertOwnComment(c, postIdByPermalink);
+  if (stop) {
+    await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(stop));
+    log.warn("graph.measure.comments_failed", { message: messageOf(stop) });
+    return { commentsSeen: comments.length, partial: true, callsUsed, stop };
+  }
+  await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, null);
+  await setAppSetting(OWN_COMMENTS_FETCHED_AT_KEY, measuredAt);
+  return { commentsSeen: comments.length, partial: false, callsUsed, stop: null };
 }
 
 async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
@@ -216,14 +232,14 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     try {
       fetched = await graphClient.fetchPostInsights(m);
     } catch (err) {
-      const fatal = err instanceof GraphApiError && (err.code === "GRAPH_AUTH_FAILED" || err.code === "GRAPH_RATE_LIMITED");
+      const fatal = fatalStop(err);
       if (!fatal) {
         callsUsed += 1;
         log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
         postsFailed += 1;
         continue;
       }
-      fetched = { insights: null, callsUsed: 1, stop: err };
+      fetched = { insights: null, callsUsed: 1, stop: fatal };
     }
     callsUsed += fetched.callsUsed;
     if (fetched.insights) {
@@ -249,8 +265,11 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       partial = true;
       await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
     } else {
-      ({ commentsSeen, partial } = await measureComments(account, measuredAt));
-      callsUsed += commentCalls;
+      const c = await measureComments(account, measuredAt);
+      ({ commentsSeen, partial } = c);
+      callsUsed += c.callsUsed;
+      if (c.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(c.stop);
+      if (c.stop) stoppedEarly = "rate_limited";
     }
   }
 
@@ -263,10 +282,11 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       if (b.rows.length > 0) {
         await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
-      await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, b.audienceError);
+      if (b.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(b.stop);
+      if (b.stop) stoppedEarly = "rate_limited";
+      else await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, b.audienceError);
     } catch (err) {
-      callsUsed += 1;
-      if (err instanceof GraphApiError && err.code === "GRAPH_RATE_LIMITED") stoppedEarly = "rate_limited";
+      // Only a non-Graph failure lands here (the client returns auth and rate limit as stop).
       log.warn("own_measure.breakdowns_failed", { error: messageOf(err) });
     }
   }

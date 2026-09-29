@@ -478,12 +478,50 @@ describe("graphClient.fetchComments", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { graphClient } = await loadClient();
-    const comments = await graphClient.fetchComments("kallaway");
+    const { comments, callsUsed, stop } = await graphClient.fetchComments("kallaway");
 
+    expect(stop).toBeNull();
+    expect(callsUsed).toBe(3);
     expect(comments).toHaveLength(1);
     expect(comments[0]).toMatchObject({ externalId: "c1", kind: "organic", author: "a_fan" });
     // post_c had comments_count: 0 and was never queried at all.
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("graphClient.fetchComments, fatal per-media failure", () => {
+  test("a rate limit on one media's comments stops the pull, returns what it had and counts every call", async () => {
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [
+        { id: "post_a", permalink: "https://i/a", comments_count: 1 },
+        { id: "post_b", permalink: "https://i/b", comments_count: 1 },
+        { id: "post_c", permalink: "https://i/c", comments_count: 1 },
+      ] }) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: "c1", text: "hi", username: "fan" }] }) })
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchComments("kallaway");
+    expect(out.comments).toHaveLength(1);
+    expect(out.callsUsed).toBe(3);
+    expect(out.stop?.code).toBe("GRAPH_RATE_LIMITED");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("graphClient.fetchAccountBreakdowns, fatal", () => {
+  test("a rate limit on an audience call returns stop with the rows so far, not a throw", async () => {
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ total_value: { breakdowns: [{ results: [{ dimension_values: ["FOLLOWER"], value: 3 }] }] } }] }) })
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out).toMatchObject({ callsUsed: 2, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(out.rows).toHaveLength(1);
   });
 });
 

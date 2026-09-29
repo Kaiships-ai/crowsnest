@@ -38,7 +38,7 @@ beforeEach(async () => {
   graphClient.fetchMedia.mockResolvedValue([]);
   graphClient.fetchPostInsights.mockResolvedValue({ insights: insights(), callsUsed: 2 });
   graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows: [], audienceError: null, callsUsed: 4 });
-  graphClient.fetchComments.mockResolvedValue([]);
+  graphClient.fetchComments.mockResolvedValue({ comments: [], callsUsed: 1, stop: null });
 });
 
 describe("measureOwnChannel, scope all", () => {
@@ -245,6 +245,38 @@ describe("comments", () => {
     expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
     await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
     expect(graphClient.fetchComments).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("fatal failures after the post loop", () => {
+  test("an auth failure while pulling comments fails the run with its code; rows stay", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 1 })]);
+    graphClient.fetchComments.mockResolvedValue({ comments: [], callsUsed: 2, stop: new GraphApiError("GRAPH_AUTH_FAILED", "bad token") });
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(r).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+    expect(graphClient.fetchAccountBreakdowns).not.toHaveBeenCalled();
+  });
+
+  test("a rate limit while pulling comments stops the run: rate_limited, no breakdown calls, calls counted", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 1 }), media("b", { commentsCount: 1 })]);
+    graphClient.fetchComments.mockResolvedValue({ comments: [], callsUsed: 2, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") });
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(r).toMatchObject({ ok: true, partial: true, stoppedEarly: "rate_limited", callsUsed: 2 + 4 + 2 });
+    expect(graphClient.fetchAccountBreakdowns).not.toHaveBeenCalled();
+  });
+
+  test("an auth failure on the breakdowns fails the run with its code", async () => {
+    graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows: [], audienceError: null, callsUsed: 1, stop: new GraphApiError("GRAPH_AUTH_FAILED", "bad token") });
+    expect(await svc.measureOwnChannel({ scope: "due", now: NOW })).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
+  });
+
+  test("a rate limit on the breakdowns is stoppedEarly rate_limited, rows fetched so far kept, calls counted", async () => {
+    const split = { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" };
+    graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows: [split], audienceError: null, callsUsed: 2, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") });
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 1 + 2 });
+    expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(1);
   });
 });
 
