@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { invalidateTokenStatus } from "@/server/graph/token-status";
 import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
@@ -54,18 +54,34 @@ const HOUR_MS = 3_600_000;
 const OWN_COMMENTS_FETCHED_AT_KEY = "own_comments_fetched_at";
 const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
 
-/** Hourly while a post is under 72 hours old, daily after, and always when never captured
- *  successfully (a failed capture is retried next tick).
+/** A post's failed captures since it was last measured successfully (none measured yet). */
+export interface CaptureFailures {
+  /** Newest failed capturedAt. */
+  at: string;
+  count: number;
+  /** The newest failure is a non-transient invalid_request (for example code 100). */
+  permanent: boolean;
+}
+
+/** Hourly while a post is under 72 hours old, daily after. A post never captured
+ *  successfully is due at once, but backs off after a failure: one retry an hour later,
+ *  then daily, and daily from the first failure when Instagram refused the request itself.
  *  Derived from stored captures on every tick, so the scheduler keeps no state. */
-export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date): boolean {
-  if (lastCapturedAt === null) return true;
+export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date, failures: CaptureFailures | null = null): boolean {
+  if (lastCapturedAt === null) {
+    if (failures === null) return true;
+    const wait = failures.count === 1 && !failures.permanent ? HOUR_MS : 24 * HOUR_MS;
+    return now.getTime() - Date.parse(failures.at) >= wait;
+  }
   const age = now.getTime() - Date.parse(postedAt);
   const sinceCapture = now.getTime() - Date.parse(lastCapturedAt);
   return sinceCapture >= (age < NEW_REEL_WINDOW_MS ? HOUR_MS : 24 * HOUR_MS);
 }
 
-async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<string, string>> {
-  if (externalIds.length === 0) return new Map();
+async function captureStateByExternalId(externalIds: string[]): Promise<{ lastOk: Map<string, string>; failures: Map<string, CaptureFailures> }> {
+  const lastOk = new Map<string, string>();
+  const failures = new Map<string, CaptureFailures>();
+  if (externalIds.length === 0) return { lastOk, failures };
   // One row per post: max() over our own capturedAt, which is always toISOString() ("Z",
   // fixed width), so the string max is the newest. A failed capture (fetchError set) is
   // not a measurement, so it never makes a post look fresh.
@@ -75,7 +91,22 @@ async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<str
     .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
     .where(and(inArray(tables.ownPosts.externalId, externalIds), isNull(tables.ownPostInsights.fetchError)))
     .groupBy(tables.ownPosts.externalId);
-  return new Map(rows.map((r) => [r.externalId, r.capturedAt]));
+  for (const r of rows) lastOk.set(r.externalId, r.capturedAt);
+  // Failed rows only matter for a post with no success; the backoff keeps them to about one a day.
+  const neverOk = externalIds.filter((id) => !lastOk.has(id));
+  if (neverOk.length === 0) return { lastOk, failures };
+  const failed = await db
+    .select({ externalId: tables.ownPosts.externalId, capturedAt: tables.ownPostInsights.capturedAt, fetchError: tables.ownPostInsights.fetchError })
+    .from(tables.ownPostInsights)
+    .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
+    .where(and(inArray(tables.ownPosts.externalId, neverOk), isNotNull(tables.ownPostInsights.fetchError)))
+    .orderBy(desc(tables.ownPostInsights.capturedAt));
+  for (const f of failed) {
+    const seen = failures.get(f.externalId);
+    if (seen) seen.count += 1;
+    else failures.set(f.externalId, { at: f.capturedAt, count: 1, permanent: isPermanentFailure(f.fetchError ?? "") });
+  }
+  return { lastOk, failures };
 }
 
 async function breakdownsStale(now: Date): Promise<boolean> {
@@ -218,8 +249,8 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   for (const m of media) ownPostIdByExternalId.set(m.externalId, await upsertOwnPost(m, measuredAt));
 
   const budget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
-  const lastCaptured = opts.scope === "due" ? await latestCaptureByExternalId(media.map((m) => m.externalId)) : new Map<string, string>();
-  const inScope = opts.scope === "all" ? media : media.filter((m) => isDue(m.postedAt, lastCaptured.get(m.externalId) ?? null, now));
+  const captures = opts.scope === "due" ? await captureStateByExternalId(media.map((m) => m.externalId)) : null;
+  const inScope = captures === null ? media : media.filter((m) => isDue(m.postedAt, captures.lastOk.get(m.externalId) ?? null, now, captures.failures.get(m.externalId) ?? null));
 
   // Comments cost 1 media list + 1 call per post with comments. Their share is reserved
   // before the post loop so a full account still gets them.

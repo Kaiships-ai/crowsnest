@@ -377,6 +377,20 @@ function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
   return "unknown";
 }
 
+/** True when a stored per-post fetchError ("HTTP <status>: <body>", as graphRequest builds
+ *  it) is a non-transient invalid_request: Instagram will refuse it the same way again. */
+export function isPermanentFailure(message: string): boolean {
+  const m = /^HTTP (\d+): ([\s\S]*)$/.exec(message);
+  if (!m) return false;
+  let body: unknown = null;
+  try {
+    body = JSON.parse(m[2]);
+  } catch {
+    // Not JSON: classify on the status alone.
+  }
+  return classifyHttpFailure(Number(m[1]), body) === "invalid_request";
+}
+
 function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
   switch (kind) {
     case "auth":

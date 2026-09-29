@@ -6,7 +6,7 @@ const graphClient = vi.hoisted(() => ({
   fetchAccount: vi.fn(), fetchMedia: vi.fn(), fetchPostInsights: vi.fn(),
   fetchAccountBreakdowns: vi.fn(), fetchComments: vi.fn(), checkToken: vi.fn(),
 }));
-vi.mock("@/server/graph/client", () => ({ graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
+vi.mock("@/server/graph/client", async (importOriginal) => ({ ...(await importOriginal<object>()), graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
 const invalidateTokenStatus = vi.hoisted(() => vi.fn());
 vi.mock("@/server/graph/token-status", () => ({ invalidateTokenStatus }));
 
@@ -130,6 +130,15 @@ describe("isDue", () => {
     expect(svc.isDue(ago(5 * 24 * H), ago(23 * H), NOW)).toBe(false);
     expect(svc.isDue(ago(5 * 24 * H), null, NOW)).toBe(true);
   });
+
+  test("never measured with failures: an hour after the first transient failure, a day after a repeat or a permanent one", () => {
+    const fail = (at: string, count: number, permanent = false) => ({ at, count, permanent });
+    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(30 * 60_000), 1))).toBe(false);
+    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(61 * 60_000), 1))).toBe(true);
+    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(2 * H), 2))).toBe(false);
+    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(25 * H), 2))).toBe(true);
+    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(2 * H), 1, true))).toBe(false);
+  });
 });
 
 describe("measureOwnChannel, scope due", () => {
@@ -151,6 +160,31 @@ describe("measureOwnChannel, scope due", () => {
     graphClient.fetchMedia.mockResolvedValue([media("young", { postedAt: ago(2 * H) })]);
     await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(measuredIds()).toEqual(["young"]);
+  });
+
+  async function seedFailures(externalId: string, postedAt: string, failures: [string, string][]) {
+    const id = `own-${externalId}`;
+    await db.insert(tables.ownPosts).values({ id, externalId, permalink: `https://i/${externalId}`, mediaType: "VIDEO", productType: "REELS", format: "Reel", postedAt, firstSeenAt: postedAt });
+    for (const [capturedAt, fetchError] of failures) await db.insert(tables.ownPostInsights).values({ id: `ins-${externalId}-${capturedAt}`, ownPostId: id, capturedAt, fetchError });
+  }
+
+  test("a never-measured post backs off after a failure: once after an hour, then daily", async () => {
+    await seedFailures("once", ago(5 * 24 * H), [[ago(61 * 60_000), "HTTP 500: {}"]]);
+    await seedFailures("twice", ago(5 * 24 * H), [[ago(3 * H), "HTTP 500: {}"], [ago(2 * H), "HTTP 500: {}"]]);
+    await seedFailures("twiceOld", ago(5 * 24 * H), [[ago(26 * H), "HTTP 500: {}"], [ago(25 * H), "HTTP 500: {}"]]);
+    await seedFailures("recent", ago(5 * 24 * H), [[ago(20 * 60_000), "HTTP 500: {}"]]);
+    graphClient.fetchMedia.mockResolvedValue(["once", "twice", "twiceOld", "recent"].map((id) => media(id, { postedAt: ago(5 * 24 * H) })));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(measuredIds().sort()).toEqual(["once", "twiceOld"]);
+  });
+
+  test("a post refused as an invalid request (code 100, pre-business post) waits a day from its first failure", async () => {
+    const refused = 'HTTP 400: {"error":{"code":100,"message":"media posted before business account conversion"}}';
+    await seedFailures("pre", ago(400 * 24 * H), [[ago(2 * H), refused]]);
+    await seedFailures("preOld", ago(400 * 24 * H), [[ago(25 * H), refused]]);
+    graphClient.fetchMedia.mockResolvedValue(["pre", "preOld"].map((id) => media(id, { postedAt: ago(400 * 24 * H) })));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(measuredIds()).toEqual(["preOld"]);
   });
 
   test("ACTION-29: 250 due reels stay within the 150-call budget; leftovers are still due next hour", async () => {
