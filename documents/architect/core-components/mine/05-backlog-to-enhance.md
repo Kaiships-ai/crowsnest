@@ -13,6 +13,6 @@ Bugs and enhancements for mine. One row per item.
 | B-19 | My reels runs a live Graph token check (`checkGraphTokenAction`) on every render, one network call per page view | low | enhancement | code-review | done |
 | B-20 | With no token configured, My reels shows the connect panel alone and hides numbers measured earlier, unlike a rejected token, which stacks the panel over them | low | enhancement | code-review | open |
 | B-21 | A refused account breakdown writes no row, so every hourly tick retries it, about four Graph calls an hour; a stored refusal time would stop that | low | enhancement | code-review | open |
-| B-22 | `topbar.tsx` still maps `/mine` to the title "My channel", a row no request reaches now that `/mine` answers a 307 | low | enhancement | code-review | open |
+| B-22 | `topbar.tsx` still maps `/mine` to the title "My channel", a row no request reaches now that `/mine` answers a 307 | low | enhancement | code-review | done |
 | B-23 | How long a stored `thumbnail_url` (an Instagram CDN link) stays valid is not measured; the daily sweep refreshes it | low | enhancement | doc-sync | open |
 | B-24 | The calendar's "today" and the missed rule use the UTC date (`toISOString().slice(0, 10)` in `planned-posts.ts`), so east of UTC the grid marks yesterday as today after local midnight until UTC catches up | low | bug | phase-4b-test | open |

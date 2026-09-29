@@ -35,7 +35,6 @@ const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/channels\/discover$/, title: "Discover" },
   { pattern: /^\/channels\/[^/]+$/, title: "Channel detail" },
   { pattern: /^\/channels$/, title: "Channels" },
-  { pattern: /^\/mine$/, title: "My channel" },
   { pattern: /^\/vault$/, title: "Vault" },
   { pattern: /^\/runs\/[^/]+$/, title: "Run detail" },
   { pattern: /^\/runs$/, title: "Runs" },

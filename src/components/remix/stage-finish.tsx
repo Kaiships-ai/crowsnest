@@ -84,7 +84,7 @@ export function StageFinish({ session }: { session: RemixSessionRow }) {
         {postId ? (
           <>
             <p className="text-sm text-muted-foreground">This remix is on your plan.</p>
-            <Button variant="outline" className="w-fit" render={<Link href="/mine" />}>
+            <Button variant="outline" className="w-fit" render={<Link href="/?tab=calendar" />}>
               View in your plan
             </Button>
           </>
