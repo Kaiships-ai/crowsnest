@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { perViewerRate, selectReel, shapeReelInsights, type OwnReelSnapshot } from "./reel-insights";
+import { hoursSincePosted, perViewerRate, selectReel, shapeReelInsights, typicalViewsCurve, type OwnReelSnapshot } from "./reel-insights";
 
 const SNAP: OwnReelSnapshot = { capturedAt: "2026-09-29T10:00:00.000Z", views: 120000, reach: 80997, likes: 900, comments: 40, shares: 1112, saved: 300, reposts: 20, followsFromPost: 12, profileVisits: 50, bioLinkTaps: 7, avgWatchTimeMs: 4500, skipRate: 0.42, fetchError: null };
 
@@ -37,5 +37,39 @@ describe("selectReel (ACTION-19 fallback)", () => {
     expect(selectReel(reels, undefined)?.ownPostId).toBe("newest");
     expect(selectReel(reels, "does-not-exist")?.ownPostId).toBe("newest");
     expect(selectReel([], "x")).toBeNull();
+  });
+});
+
+describe("typicalViewsCurve (ACTION-24)", () => {
+  const T = Date.parse("2026-09-20T00:00:00.000Z");
+  const at = (ms: number) => new Date(T + ms).toISOString();
+  const H = 3_600_000;
+  const posted = at(0);
+  const history = [
+    { ownPostId: "A", postedAt: posted, capturedAt: at(H + 10 * 60_000), views: 100 },
+    { ownPostId: "A", postedAt: posted, capturedAt: at(2 * H), views: 180 },
+    { ownPostId: "A", postedAt: posted, capturedAt: at(5 * H), views: 400 },
+    { ownPostId: "B", postedAt: posted, capturedAt: at(H), views: 50 },
+    { ownPostId: "B", postedAt: posted, capturedAt: at(2 * H), views: 70 },
+    { ownPostId: "C", postedAt: posted, capturedAt: at(H + 30 * 60_000), views: 90 },
+    { ownPostId: "C", postedAt: posted, capturedAt: at(2 * H + 59 * 60_000), views: 110 },
+  ];
+  test("real points only, whole hours, median of the other reels, gap where none measured", () => {
+    expect(typicalViewsCurve("A", history)).toEqual([
+      { hour: 1, views: 100, typical: 70 },
+      { hour: 2, views: 180, typical: 90 },
+      { hour: 5, views: 400, typical: null },
+    ]);
+  });
+  test("the latest snapshot in an hour bucket wins; the selected reel never feeds its own line", () => {
+    const dup = [...history, { ownPostId: "B", postedAt: posted, capturedAt: at(H + 50 * 60_000), views: 60 }];
+    expect(typicalViewsCurve("A", dup)[0]).toEqual({ hour: 1, views: 100, typical: 75 });
+    expect(typicalViewsCurve("B", history).every((p) => p.views === null || [50, 70].includes(p.views))).toBe(true);
+  });
+  test("no snapshots for the selected reel yields no points", () => {
+    expect(typicalViewsCurve("Z", history)).toEqual([]);
+  });
+  test("hoursSincePosted floors", () => {
+    expect(hoursSincePosted(posted, at(H + 59 * 60_000))).toBe(1);
   });
 });
