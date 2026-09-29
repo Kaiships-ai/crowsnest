@@ -191,3 +191,27 @@ describe("measureOwnChannel, scope due", () => {
     expect(new Set(rows.map((r) => r.capturedAt)).size).toBe(3);
   });
 });
+
+describe("account breakdowns", () => {
+  const rows = [
+    { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" },
+    { metric: "engaged_audience_demographics", dimension: "age", key: "25-34", value: 40, timeframe: "this_month" },
+  ];
+  test("writes a batch once a day and stores a refusal in app_settings", async () => {
+    graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows, audienceError: "HTTP 400: not enough users", callsUsed: 2 });
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(2);
+    const settings = await db.select().from(tables.appSettings);
+    expect(settings.find((s) => s.key === "own_audience_fetch_error")?.value).toContain("not enough users");
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + H) });
+    expect(graphClient.fetchAccountBreakdowns).toHaveBeenCalledTimes(1);
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    expect(graphClient.fetchAccountBreakdowns).toHaveBeenCalledTimes(2);
+  });
+  test("a successful fetch clears a stored refusal", async () => {
+    graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows, audienceError: null, callsUsed: 4 });
+    await db.insert(tables.appSettings).values({ key: "own_audience_fetch_error", value: "old" });
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_audience_fetch_error")).toBe(false);
+  });
+});

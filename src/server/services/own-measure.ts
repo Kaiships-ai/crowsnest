@@ -3,7 +3,7 @@ import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphMedia, type GraphPostInsights } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
-import { OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
+import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
 /**
  * The one writer of the own-channel tables (own_account_snapshots, own_posts,
@@ -65,6 +65,11 @@ async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<str
     .orderBy(desc(tables.ownPostInsights.capturedAt));
   for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r.capturedAt);
   return out;
+}
+
+async function breakdownsStale(now: Date): Promise<boolean> {
+  const [newest] = await db.select({ capturedAt: tables.ownAccountBreakdowns.capturedAt }).from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)).limit(1);
+  return !newest || now.getTime() - Date.parse(newest.capturedAt) >= 24 * HOUR_MS;
 }
 
 async function setAppSetting(key: string, value: string | null): Promise<void> {
@@ -202,6 +207,23 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
     if (fetched.insights.error) postsFailed += 1;
     else postsMeasured += 1;
+  }
+
+  // ponytail: when every breakdown call is refused no row lands, so this retries each
+  // tick (4 calls an hour); store a refusal timestamp if that ever matters.
+  if (stoppedEarly === null && callsUsed + 4 <= budget && (await breakdownsStale(now))) {
+    try {
+      const b = await graphClient.fetchAccountBreakdowns();
+      callsUsed += b.callsUsed;
+      if (b.rows.length > 0) {
+        await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
+      }
+      await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, b.audienceError);
+    } catch (err) {
+      callsUsed += 1;
+      if (err instanceof GraphApiError && err.code === "GRAPH_RATE_LIMITED") stoppedEarly = "rate_limited";
+      log.warn("own_measure.breakdowns_failed", { error: messageOf(err) });
+    }
   }
 
   let commentsSeen = 0;
