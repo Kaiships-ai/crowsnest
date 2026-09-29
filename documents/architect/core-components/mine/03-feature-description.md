@@ -194,7 +194,7 @@ The user, from the connect panel that stands in for, or stacks above, the own-ac
 
 ### What it does
 
-The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success. The success toast reads how many posts were measured of how many were seen, and says when the run stopped early and why (the Instagram rate limit, or the hourly call budget). Measure now has a budget of 190 calls, close to Instagram's 200 an hour.
+The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success. The success toast reads how many posts were measured of how many were seen, and says when the run stopped early and why (the Instagram rate limit, the hourly call budget, or recent scheduled measurements having already spent most of this hour's calls). Measure now has a budget of 190 calls, close to Instagram's 200 an hour.
 
 ### How to access it
 
@@ -202,7 +202,7 @@ The connect panel, which renders automatically on My reels whenever the Graph to
 
 ### Business rules
 
-- The panel's copy is state-specific: not configured, rejected (`auth_failed`), missing a permission (`permission_denied`, asking for a new token with the insights permissions), rate limited, unreachable (`network`), unknown, or, when the token is ok but nothing has been measured, "Connected, nothing measured yet" with the one button that state offers, "Measure now".
+- The panel's copy is state-specific: not configured, rejected (`auth_failed`), missing a permission (`permission_denied`, asking for a new token with the insights permissions and saying Check connection cannot see this permission, so the next measurement re-verifies it), rate limited, unreachable (`network`), unknown, or, when the token is ok but nothing has been measured, "Connected, nothing measured yet" with the one button that state offers, "Measure now".
 - Account and posts failing during a measurement is a hard failure with no partial write. An auth refusal after some posts were measured is also a failure, and the rows already written stay. Every listed post is stored before insights are fetched, so a post the run never reached still appears; comments failing after the account and posts succeeded returns success with `partial: true`, since posts measured with comments missing is still a useful result.
 - A metric Instagram does not disclose, or that the client does not request, is stored as null, never as zero; every display downstream treats a null differently from a real zero.
 - Each button disables itself while its own call is in flight ("Checking", "Measuring"), so a second click cannot start a second run of the same action.
@@ -301,7 +301,7 @@ The My reels tab (`?tab=reels`).
 ### Business rules
 
 - Only own posts whose Graph product type is a reel appear in the picker.
-- With no `reel` in the URL, or an id that is not one of the user's reels, the newest reel is selected.
+- With no `reel` in the URL, the newest reel is selected. With an id that is not one of the user's reels yet (a reel just published and not measured), the panel says "This reel hasn't been measured yet" instead of showing another reel, and the picker still lists every reel.
 - Views shown in the picker are the latest stored measurement for that reel, never a live read.
 - The picker shows the connect panel (feature 7) above it when the token is rejected but the account was measured before, the same stacking rule as feature 3.
 
@@ -432,14 +432,14 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 ### Business rules
 
-- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one scheduled run makes at most 150 calls, and Measure now at most 190. Each post reserves only the calls it needs; the rate-limit stop is the final guard.
+- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one scheduled run makes at most 150 calls, and Measure now at most 190, both less whatever earlier measurements spent in the last hour beyond a 10-call headroom. Each post reserves only the calls it needs; the rate-limit stop is the final guard.
 - Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
 - When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run, including while pulling comments or audience, ends the run as failed, and rows already written stay.
 - A rate-limited run stops and makes no further calls, whether the limit hits on a reel, on comments, or on audience; it leaves the rest to the next run and does not retry in a loop.
 - A failed measurement does not count as measured. A reel that has been measured before is due on its normal hourly or daily rule. A reel that has never been measured successfully backs off after a failure: it is retried once an hour later, then daily; when Instagram refused the request itself (for example a post from before the account became a business account) it waits a day from the first failure. So a reel that keeps failing adds about one failed row a day.
 - Each due check allows five minutes of slack, so a run landing just before the hour still measures the reel. After the app starts, the first run happens about 30 seconds later rather than an hour later.
-- A token that lacks the insights permission (Instagram refuses the core metrics for permission) ends the run as failed with the permission error, keeping rows already written, and My reels shows the missing-permission state. An Instagram throttle, including the business use case limit Instagram sends as HTTP 400 (code 80002), stops the run as rate limited.
-- A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows.
+- A token that lacks the insights permission (Instagram refuses the core metrics with a scope code, 200 to 299, or a code 10 naming a permission) ends the run as failed with the permission error, keeping rows already written, and My reels shows the missing-permission state. An Instagram throttle, including the business use case limit Instagram sends as HTTP 400 (code 80002), stops the run as rate limited.
+- A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows. "Not enough viewers for the media to show insights" (code 10) is one such per-reel failure. A reel whose measurement errors unexpectedly is stored as a failed measurement, so it backs off like any other; a token removed mid-run ends the run.
 - Comments refresh at most once a day on scheduled runs; they reuse the run's post list, one call per post with comments, reserved before the posts so a full account still gets them.
 
 ### Limitations
@@ -468,12 +468,12 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **Token rejected after earlier measurements**: real stored numbers show with the connect panel on top, never hidden.
 - **Token set but never measured**: the connect panel offers Measure now; scheduled measurement fills the tab on its next run.
 - **Own channel has no reels, only carousels**: the picker is empty and says so; the post list still shows every post.
-- **`?reel=` points to a deleted or unknown reel**: the newest reel is selected instead.
+- **`?reel=` points to a deleted or unknown reel**: the panel says the reel has not been measured yet; no other reel is shown in its place.
 - **Reach of zero or missing**: every derived rate shows a dash.
 - **Account under 100 engagements**: Audience details explains the API threshold instead of showing an empty chart.
 - **Audience refresh fails for another reason**: the last stored rows stay, with a "Last refresh failed" note.
 - **Rate limit hit mid-run**: the run stops; stored numbers stay and keep their measured times.
 - **A reel's latest measurement failed**: the panel, the calendar's published reach, and Overview keep its last good numbers and measured time. A reel never measured successfully shows its newest failure and backs off (an hour, then daily).
-- **Token status on My reels**: the token check is cached for five minutes (30 seconds when it came back rate limited, unreachable, or unknown), so moving between reels does not call Instagram. Saving a token in Settings or a measurement hitting a rejected token clears it, a successful measurement sets it to connected, a measurement refused for permission sets it to missing a permission, and Check connection always checks live.
+- **Token status on My reels**: the token check is cached for five minutes (30 seconds when it came back rate limited, unreachable, or unknown), so moving between reels does not call Instagram. Saving a token in Settings or a measurement hitting a rejected token clears it, a successful measurement sets it to connected, a measurement refused for permission sets it to missing a permission, and Check connection always checks live but keeps a missing permission until a measurement succeeds or the token changes, since the live check cannot see the insights permission.
 - **Follower split refresh fails**: the Followers vs non-followers block says the last refresh failed instead of "Not measured yet".
 - **Month navigation on Calendar**: `tab=calendar` stays in the URL with `month=`.
