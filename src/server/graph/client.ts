@@ -99,6 +99,9 @@ export interface GraphAccountBreakdowns {
   splitError?: string | null;
   /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
   stop?: GraphApiError | null;
+  /** A later audience dimension failed after an earlier one landed: rows is a partial
+   *  batch, not to be stored. audienceError holds the failure. */
+  incomplete?: boolean;
 }
 
 export interface GraphCommentsResult {
@@ -613,13 +616,13 @@ export const graphClient: GraphClient = {
     // follower_type. since/until are optional; without them the API looks back 24 hours,
     // recorded as timeframe "day".
     const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
-    let audienceError: string | null = null;
+    const audienceError: string | null = null;
     const splitError = split.ok ? null : split.message;
     let stop = fatalOf(split);
     if (stop) return { rows, audienceError, stop };
     if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
     else log.warn("graph.breakdowns.split_failed", { error: split.message });
-    for (const dimension of ["age", "country", "gender"]) {
+    for (const [i, dimension] of ["age", "country", "gender"].entries()) {
       const r = await graphGet<unknown>(
         `${userId}/insights`,
         { metric: "engaged_audience_demographics", period: "lifetime", timeframe: "this_month", metric_type: "total_value", breakdown: dimension },
@@ -629,8 +632,8 @@ export const graphClient: GraphClient = {
       if (stop) return { rows, audienceError, splitError, stop };
       if (!r.ok) {
         // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
-        audienceError = r.message;
-        break;
+        // A later dimension failing leaves a partial batch, so the caller must not store it.
+        return { rows, audienceError: r.message, splitError, stop: null, incomplete: i > 0 };
       }
       rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
     }

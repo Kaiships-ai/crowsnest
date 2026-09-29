@@ -385,6 +385,26 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     expect(calls()).toBe(2);
   });
 
+  test("a failure on a later audience dimension marks the batch incomplete, with the error kept", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))
+      .mockResolvedValueOnce(ok(results([["25-34", 40]])))
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: { code: 2, message: "Service temporarily unavailable" } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out).toMatchObject({ incomplete: true, stop: null });
+    expect(out.audienceError).toContain("temporarily unavailable");
+    expect(calls()).toBe(3);
+  });
+
+  test("a refusal on the first audience dimension answers for all three, so the batch is complete", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 10, message: "Not enough users" } }) }));
+    const { graphClient } = await loadClient();
+    expect((await graphClient.fetchAccountBreakdowns()).incomplete).toBeFalsy();
+  });
+
   test("the refusal in Meta's real envelope (code 10, type OAuthException) is a threshold, not a thrown auth failure", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))

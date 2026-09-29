@@ -525,6 +525,16 @@ describe("account breakdowns", () => {
     expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_follower_split_fetch_error")).toBe(false);
   });
 
+  test("an incomplete batch (a later audience dimension failed) is not stored, and its error is recorded", async () => {
+    graphClient.fetchAccountBreakdowns.mockImplementationOnce(spend(4, { rows, audienceError: null, splitError: null }));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    graphClient.fetchAccountBreakdowns.mockImplementationOnce(spend(3, { rows, audienceError: "HTTP 500: down", splitError: null, stop: null, incomplete: true }));
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    const stored = await db.select().from(tables.ownAccountBreakdowns);
+    expect(new Set(stored.map((r) => r.capturedAt))).toEqual(new Set([NOW.toISOString()]));
+    expect((await db.select().from(tables.appSettings)).find((s) => s.key === "own_audience_fetch_error")?.value).toBe("HTTP 500: down");
+  });
+
   test("a successful fetch clears a stored refusal", async () => {
     graphClient.fetchAccountBreakdowns.mockImplementation(spend(4, { rows, audienceError: null }));
     await db.insert(tables.appSettings).values({ key: "own_audience_fetch_error", value: "old" });

@@ -339,8 +339,9 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
     try {
       const b = await graphClient.fetchAccountBreakdowns();
       // Only a finished batch is stored: the reader shows the newest batch per metric, so a
-      // run cut short after some dimensions would hide the last full one. It retries next tick.
-      if (!b.stop && b.rows.length > 0) {
+      // run cut short after some dimensions (a stop, or any later dimension failing) would
+      // hide the last full one. It retries next tick.
+      if (!b.stop && !b.incomplete && b.rows.length > 0) {
         await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
       // Stored even when a later audience call stopped the run: the split call itself
