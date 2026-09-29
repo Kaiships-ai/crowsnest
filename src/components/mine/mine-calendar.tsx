@@ -552,7 +552,7 @@ export function MineCalendar({
                       {selectedCell.plan.publishedOwnPostId && !selectedCell.plan.dryRun && (
                         <>
                           {" · "}
-                          <Link href={`/mine/${selectedCell.plan.publishedOwnPostId}`} className="underline hover:text-foreground">
+                          <Link href={`/?tab=reels&reel=${encodeURIComponent(selectedCell.plan.publishedOwnPostId)}`} className="underline hover:text-foreground">
                             view post
                           </Link>
                         </>

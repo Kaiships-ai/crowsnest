@@ -29,6 +29,8 @@ export interface OwnReelSnapshot {
 }
 export interface OwnReel {
   ownPostId: string;
+  /** Graph media id. Auto-publish stores this as a plan's publishedOwnPostId. */
+  externalId: string;
   permalink: string;
   caption: string | null;
   postedAt: string;
@@ -110,8 +112,10 @@ export function shapeReelInsights(s: OwnReelSnapshot): ShapedReelInsights {
 }
 
 /** The reel named by ?reel= when it exists, else the newest, else null. */
-export function selectReel<T extends { ownPostId: string }>(reels: T[], param: string | undefined): T | null {
-  return reels.find((r) => r.ownPostId === param) ?? reels[0] ?? null;
+/** Matches own_posts.id or the Graph media id: a calendar link carries whichever the plan
+ *  stored (a hand mark stores the first, auto-publish the second). */
+export function selectReel<T extends { ownPostId: string; externalId?: string }>(reels: T[], param: string | undefined): T | null {
+  return reels.find((r) => r.ownPostId === param || (param !== undefined && r.externalId === param)) ?? reels[0] ?? null;
 }
 
 export function hoursSincePosted(postedAt: string, capturedAt: string): number {

@@ -365,7 +365,7 @@ export async function getOwnReels(): Promise<OwnReel[]> {
   return reels.map((p) => {
     const l = latest.get(p.id);
     return {
-      ownPostId: p.id, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
+      ownPostId: p.id, externalId: p.externalId, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
       latest: l
         ? {
             capturedAt: l.capturedAt, views: l.views, reach: l.reach, likes: l.likes, comments: l.comments, shares: l.shares,

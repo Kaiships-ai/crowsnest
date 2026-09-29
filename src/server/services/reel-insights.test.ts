@@ -44,6 +44,11 @@ describe("selectReel (ACTION-19 fallback)", () => {
     expect(selectReel(reels, "does-not-exist")?.ownPostId).toBe("newest");
     expect(selectReel([], "x")).toBeNull();
   });
+
+  test("B-17: also matches the Graph media id, which auto-publish stores as publishedOwnPostId", () => {
+    const withIds = [{ ownPostId: "newest", externalId: "g1" }, { ownPostId: "second", externalId: "g2" }];
+    expect(selectReel(withIds, "g2")?.ownPostId).toBe("second");
+  });
 });
 
 describe("typicalViewsCurve (ACTION-24)", () => {
