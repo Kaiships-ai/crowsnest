@@ -239,9 +239,9 @@ describe("comments", () => {
     graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 50 }, (_, i) => media(`r${i}`, { commentsCount: 1 })));
     const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
     expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
-    expect(r).toMatchObject({ ok: true, partial: false });
+    expect(r).toMatchObject({ ok: true, partial: false, stoppedEarly: null, postsMeasured: 50 });
     if (!r.ok) throw new Error("unreachable");
-    expect(r.callsUsed).toBeLessThanOrEqual(150);
+    expect(r.callsUsed).toBeLessThanOrEqual(190);
     expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_comments_fetch_error")).toBe(false);
   });
 
@@ -253,6 +253,18 @@ describe("comments", () => {
     expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
     await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
     expect(graphClient.fetchComments).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("Measure now budget", () => {
+  test("uses the 190-call manual budget, reserving only the calls a post actually needs", async () => {
+    // 60 reels with comments: 2 + 60 * 2 + 61 = 183 calls, over the scheduled 150 but under 190.
+    graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 60 }, (_, i) => media(`r${i}`, { commentsCount: 1 })));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 60, stoppedEarly: null, partial: false });
+    if (!r.ok) throw new Error("unreachable");
+    expect(r.callsUsed).toBeLessThanOrEqual(svc.OWN_MEASURE_MANUAL_CALL_BUDGET);
+    expect(svc.OWN_MEASURE_MANUAL_CALL_BUDGET).toBeLessThan(200);
   });
 });
 

@@ -18,7 +18,10 @@ import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/se
  * failing after posts succeeded is ok with partial: true.
  */
 
+/** Scheduled runs leave headroom under Instagram's 200 calls an hour for Measure now. */
 export const OWN_MEASURE_CALL_BUDGET = 150;
+/** Measure now: close to the 200-an-hour Graph limit. The rate-limit stop is the real guard. */
+export const OWN_MEASURE_MANUAL_CALL_BUDGET = 190;
 
 export type MeasureScope = "all" | "due";
 export interface MeasureSummary {
@@ -213,7 +216,7 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   const ownPostIdByExternalId = new Map<string, string>();
   for (const m of media) ownPostIdByExternalId.set(m.externalId, await upsertOwnPost(m, measuredAt));
 
-  const budget = opts.budget ?? OWN_MEASURE_CALL_BUDGET;
+  const budget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
   const lastCaptured = opts.scope === "due" ? await latestCaptureByExternalId(media.map((m) => m.externalId)) : new Map<string, string>();
   const inScope = opts.scope === "all" ? media : media.filter((m) => isDue(m.postedAt, lastCaptured.get(m.externalId) ?? null, now));
 
@@ -225,8 +228,9 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   let postsFailed = 0;
   let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
   for (const m of inScope) {
-    // Reserve the worst case (extended + fallback, plus profile_activity for a reel).
-    if (callsUsed + (m.productType === "REELS" ? 3 : 2) + commentCalls > budget) {
+    // Reserve the calls a post needs: one insights call, plus profile_activity for a reel.
+    // A rare core-set fallback can add one more; the rate-limit stop guards that edge.
+    if (callsUsed + (m.productType === "REELS" ? 2 : 1) + commentCalls > budget) {
       stoppedEarly = "budget";
       break;
     }

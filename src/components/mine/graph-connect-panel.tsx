@@ -88,7 +88,8 @@ export function GraphConnectPanel({
         toast.error(result.error);
         return;
       }
-      toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts`);
+      const stopped = result.stoppedEarly === "rate_limited" ? " (stopped early: Instagram rate limit)" : result.stoppedEarly === "budget" ? " (stopped early: hourly call budget)" : "";
+      toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
       router.refresh();
     });
   }
