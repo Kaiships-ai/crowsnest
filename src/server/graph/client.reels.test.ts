@@ -102,6 +102,19 @@ describe("Reels publish (container -> poll -> publish)", () => {
     });
   });
 
+  test("a permanent Graph rejection (HTTP 400, code 100) is invalid_request, which publish never retries", async () => {
+    configureToken();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 100, type: "OAuthException", message: "(#100) invalid video_url" } }) })
+    );
+    const { createReelContainer } = await loadClient();
+    const { RETRYABLE_ERROR_CLASSES } = await import("@/server/services/publish-scheduler");
+    const err = await createReelContainer({ videoUrl: "https://example.com/reel.mp4" }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ errorClass: "invalid_request", code: "GRAPH_INVALID_REQUEST", retryable: false });
+    expect(RETRYABLE_ERROR_CLASSES as readonly string[]).not.toContain((err as { errorClass: string }).errorClass);
+  });
+
   test("poll never finishes within the attempt cap -> throws with errorClass timeout", async () => {
     configureToken();
     vi.stubGlobal(

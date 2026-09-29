@@ -335,7 +335,7 @@ export function redactToken(text: string, token: string): string {
 
 // ---------------------------------------------------------------- transport
 
-type GraphFailureKind = "auth" | "permission" | "rate_limit" | "network" | "unknown";
+type GraphFailureKind = "auth" | "permission" | "rate_limit" | "invalid_request" | "network" | "unknown";
 
 type GraphGetResult<T> = { ok: true; data: T } | { ok: false; message: string; kind: GraphFailureKind };
 
@@ -354,6 +354,10 @@ function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
   // A permission or scope refusal (code 10, 200-299): the token works but lacks a grant.
   // Needs reauthorization for the account call; stays non-fatal for a per-metric call.
   if (code !== null && (code === 10 || (code >= 200 && code <= 299))) return "permission";
+  // Any other 4xx (code 100 invalid parameter, a bad video_url or caption): Instagram
+  // rejected the request itself, so repeating it cannot succeed. Publish treats this as
+  // terminal; a per-metric insights call still treats it as non-fatal.
+  if (status >= 400 && status < 500) return "invalid_request";
   return "unknown";
 }
 
@@ -365,6 +369,8 @@ function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
       return "GRAPH_PERMISSION_DENIED";
     case "rate_limit":
       return "GRAPH_RATE_LIMITED";
+    case "invalid_request":
+      return "GRAPH_INVALID_REQUEST";
     case "network":
       return "GRAPH_NETWORK";
     default:
