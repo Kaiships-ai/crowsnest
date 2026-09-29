@@ -12,6 +12,9 @@ const DIMENSIONS = [
   { id: "gender", label: "Gender", testId: "reels-audience-tab-gender" },
 ] as const;
 const THRESHOLD = "Instagram shares audience details only once an account has 100 or more engagements this month, so there is nothing to show yet.";
+/** ponytail: matched on Meta's "Not enough ..." wording, not a documented code (code 10
+ *  also means a permission refusal); any other error keeps the stored rows. */
+const isThresholdRefusal = (error: string | null) => error !== null && /not enough/i.test(error);
 
 function Shares({ entries, label = (k: string) => k }: { entries: BreakdownEntry[]; label?: (k: string) => string }) {
   const total = entries.reduce((a, b) => a + b.value, 0);
@@ -31,6 +34,7 @@ function Shares({ entries, label = (k: string) => k }: { entries: BreakdownEntry
 /** Account-level numbers the API does not give per reel, always labelled as whole-account
  *  so none reads as this reel's. Country shows the API's top results only. */
 export function AccountAudience({ data }: { data: AccountBreakdowns }) {
+  const belowThreshold = isThresholdRefusal(data.audienceError);
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card data-testid="reels-follower-split">
@@ -48,6 +52,7 @@ export function AccountAudience({ data }: { data: AccountBreakdowns }) {
           <CardAction><Badge variant="outline">{WHOLE_ACCOUNT}</Badge></CardAction>
         </CardHeader>
         <CardContent>
+          {data.audienceError && !belowThreshold && <p className="mb-3 text-xs text-muted-foreground">Last refresh failed, showing the previous numbers.</p>}
           <Tabs defaultValue="age">
             <TabsList>
               {DIMENSIONS.map((d) => (
@@ -56,7 +61,7 @@ export function AccountAudience({ data }: { data: AccountBreakdowns }) {
             </TabsList>
             {DIMENSIONS.map((d) => (
               <TabsContent key={d.id} value={d.id} className="pt-4">
-                {data.audienceError ? <p className="text-sm text-muted-foreground">{THRESHOLD}</p> : <Shares entries={data.audience[d.id]} />}
+                {belowThreshold ? <p className="text-sm text-muted-foreground">{THRESHOLD}</p> : <Shares entries={data.audience[d.id]} />}
               </TabsContent>
             ))}
           </Tabs>

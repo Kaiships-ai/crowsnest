@@ -82,8 +82,14 @@ describe("AccountAudience", () => {
     expect(getAllByText("Whole account, not this reel")).toHaveLength(2);
     for (const d of ["age", "country", "gender"]) expect(container.querySelector(`[data-testid="reels-audience-tab-${d}"]`)).toBeTruthy();
   });
-  test("E2E-24: a refusal explains the 100-engagement threshold", () => {
-    const { getByText } = render(<AccountAudience data={{ ...DATA, audienceError: "HTTP 400" }} />);
+  test("E2E-24: a volume refusal explains the 100-engagement threshold", () => {
+    const { getByText } = render(<AccountAudience data={{ ...DATA, audienceError: 'HTTP 400: {"error":{"code":10,"message":"Not enough users"}}' }} />);
     expect(getByText(/100 or more engagements/)).toBeTruthy();
+  });
+  test("any other refusal keeps the stored rows and notes the failed refresh", () => {
+    const { getByText, queryByText } = render(<AccountAudience data={{ ...DATA, audienceError: "HTTP 500: {}" }} />);
+    expect(queryByText(/100 or more engagements/)).toBeNull();
+    expect(getByText("25-34")).toBeTruthy();
+    expect(getByText(/Last refresh failed/)).toBeTruthy();
   });
 });
