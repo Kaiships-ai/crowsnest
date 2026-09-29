@@ -18,6 +18,10 @@
  *   - One analyzed video (a `video_analyses` row).
  *   - One soft-removed video (`deletedAt` set).
  *   - One carousel post (`mediaType: "carousel"` plus `video_children` rows).
+ *   - A junk Graph token in the `secrets` table: configured, but every check fails, so
+ *     My reels renders stored rows under the connect panel. The e2e server answers
+ *     graph.instagram.com offline (scripts/e2e/graph-offline.mjs).
+ * The My reels journeys reset the own-channel rows per journey (scripts/e2e/mine-seed.ts).
  * mine-e2e-02 needs no further seeding: the calendar with no `planned_posts` and no
  * `own_posts` rows renders every day as "open", which is exactly the empty day the
  * journey plans against. ig-sync-e2e-01 needs no seeded video data at all -- it runs
@@ -70,6 +74,13 @@ async function main(): Promise<void> {
     // panel and calendar, never the "This is me" picker.
     isOwn: true,
   });
+
+  // Junk Graph token (mine journeys): configured, but every live check fails, so My reels
+  // renders stored rows under the connect panel. A secrets row wins over .env.local, so a
+  // real token on the machine cannot leak into the fixture run.
+  for (const [name, value] of [["IG_GRAPH_TOKEN", "e2e-junk-graph-token"], ["IG_GRAPH_USER_ID", "0"]] as const) {
+    await db.insert(tables.secrets).values({ name, value, updatedAt: now });
+  }
 
   const TOTAL_VIDEOS = 30; // > 24, so the feed's default page size is exercised.
   let outlierVideoId = "";
