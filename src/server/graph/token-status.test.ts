@@ -62,3 +62,25 @@ describe("one cache per process", () => {
     expect(graphClient.checkToken).not.toHaveBeenCalled();
   });
 });
+
+describe("a remembered permission refusal", () => {
+  const DENIED = { ...OK, state: "permission_denied", username: null, message: "no insights" };
+  test("outlives the TTL and a live check: /me cannot see the insights permission", async () => {
+    rememberTokenStatus(DENIED, 0);
+    expect((await cachedTokenStatus(10 * 60_000)).state).toBe("permission_denied");
+    expect((await cachedTokenStatus(10 * 60_000, { live: true })).state).toBe("permission_denied");
+    expect(graphClient.checkToken).toHaveBeenCalledTimes(2);
+  });
+
+  test("clears when a measurement succeeds", async () => {
+    rememberTokenStatus(DENIED, 0);
+    rememberTokenStatus(OK, 1);
+    expect((await cachedTokenStatus(10 * 60_000, { live: true })).state).toBe("ok");
+  });
+
+  test("clears when the token secret changes", async () => {
+    rememberTokenStatus(DENIED, 0);
+    invalidateTokenStatus();
+    expect((await cachedTokenStatus(1)).state).toBe("ok");
+  });
+});

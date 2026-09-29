@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
-import { cachedTokenStatus, invalidateTokenStatus } from "../graph/token-status";
+import { cachedTokenStatus } from "../graph/token-status";
 import { measureOwnChannel, toFailure, type MeasureResult } from "../services/own-measure";
 
 /**
@@ -35,9 +35,9 @@ export async function measureOwnChannelAction(): Promise<MeasureResult> {
  */
 export async function checkGraphTokenAction(): Promise<ActionResult<{ status: GraphTokenStatus }>> {
   try {
-    // Always live (Check connection, Test token); the result refreshes the cache.
-    invalidateTokenStatus();
-    const status = await cachedTokenStatus();
+    // Always live (Check connection, Test token); the result refreshes the cache. A
+    // remembered permission refusal is kept: /me cannot see the insights permission.
+    const status = await cachedTokenStatus(Date.now(), { live: true });
     return { ok: true, status };
   } catch (err) {
     return toFailure(err);

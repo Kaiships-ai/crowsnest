@@ -32,7 +32,7 @@ const STATE_COPY: Record<GraphTokenStatus["state"], { title: string; body: strin
   },
   permission_denied: {
     title: "The token is missing a permission",
-    body: "Instagram accepted the token but refused this call. Generate a new token with the insights permissions and reconnect.",
+    body: "Instagram accepted the token but refused its insights. Generate a new token with the insights permissions and reconnect. Check connection cannot see this permission; the next measurement re-verifies it.",
   },
   rate_limited: {
     title: "Instagram is rate limiting this token",

@@ -63,4 +63,14 @@ describe("checkGraphTokenAction", () => {
     const result = await checkGraphTokenAction();
     expect(result).toEqual({ ok: true, status });
   });
+
+  test("a permission refusal a measurement saw is not overwritten by an ok /me check", async () => {
+    const { rememberTokenStatus, invalidateTokenStatus } = await import("../graph/token-status");
+    rememberTokenStatus({ configured: true, username: null, state: "permission_denied", message: "no insights", checkedAt: "t" });
+    graphClient.checkToken.mockResolvedValue({ configured: true, username: "me", state: "ok", message: null, checkedAt: "t2" });
+    const result = await checkGraphTokenAction();
+    expect(graphClient.checkToken).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ ok: true, status: { state: "permission_denied", message: "no insights" } });
+    invalidateTokenStatus();
+  });
 });
