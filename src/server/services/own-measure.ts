@@ -4,7 +4,7 @@ import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { invalidateTokenStatus, rememberTokenStatus } from "@/server/graph/token-status";
-import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
+import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
 /**
  * The one writer of the own-channel tables (own_account_snapshots, own_posts,
@@ -321,6 +321,8 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       if (b.rows.length > 0) {
         await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
+      // Stored even when a later audience call stopped the run: the split call itself finished.
+      if (b.splitError !== undefined) await setAppSetting(OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY, b.splitError);
       if (b.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(b.stop);
       if (b.stop) stoppedEarly = "rate_limited";
       else await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, b.audienceError);

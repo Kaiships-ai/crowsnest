@@ -43,7 +43,16 @@ export function AccountAudience({ data }: { data: AccountBreakdowns }) {
           <CardDescription>{data.followerSplitAt ? `Views, measured ${relativeTime(data.followerSplitAt)}` : "Views"}</CardDescription>
           <CardAction><Badge variant="outline">{WHOLE_ACCOUNT}</Badge></CardAction>
         </CardHeader>
-        <CardContent><Shares entries={data.followerSplit} label={(k) => SPLIT_LABEL[k] ?? k} /></CardContent>
+        <CardContent>
+          {data.followerSplitError && data.followerSplit.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Last refresh failed, nothing measured yet.</p>
+          ) : (
+            <>
+              {data.followerSplitError && <p className="mb-3 text-xs text-muted-foreground">Last refresh failed, showing the previous numbers.</p>}
+              <Shares entries={data.followerSplit} label={(k) => SPLIT_LABEL[k] ?? k} />
+            </>
+          )}
+        </CardContent>
       </Card>
       <Card>
         <CardHeader>

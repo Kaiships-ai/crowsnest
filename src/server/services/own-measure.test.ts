@@ -381,6 +381,15 @@ describe("account breakdowns", () => {
     await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
     expect(graphClient.fetchAccountBreakdowns).toHaveBeenCalledTimes(2);
   });
+  test("a follower split failure is stored, and cleared by the next good split", async () => {
+    graphClient.fetchAccountBreakdowns.mockResolvedValueOnce({ rows: [], audienceError: null, splitError: "HTTP 400: bad", callsUsed: 4 });
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect((await db.select().from(tables.appSettings)).find((s) => s.key === "own_follower_split_fetch_error")?.value).toBe("HTTP 400: bad");
+    graphClient.fetchAccountBreakdowns.mockResolvedValueOnce({ rows, audienceError: null, splitError: null, callsUsed: 4 });
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_follower_split_fetch_error")).toBe(false);
+  });
+
   test("a successful fetch clears a stored refusal", async () => {
     graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows, audienceError: null, callsUsed: 4 });
     await db.insert(tables.appSettings).values({ key: "own_audience_fetch_error", value: "old" });

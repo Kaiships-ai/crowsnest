@@ -94,6 +94,8 @@ export interface GraphAccountBreakdowns {
   rows: GraphBreakdownRow[];
   /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
   audienceError: string | null;
+  /** Set when the follower split (views by follower_type) call failed without ending the run. */
+  splitError: string | null;
   callsUsed: number;
   /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
   stop?: GraphApiError | null;
@@ -564,14 +566,17 @@ export const graphClient: GraphClient = {
   async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
     const { token, userId } = requireConfigured();
     const rows: GraphBreakdownRow[] = [];
-    // ponytail: the since/until window for the views split is open (02 section 9); period=day
-    // without a range, recorded as timeframe "day".
+    // Meta's documented shape for views: period=day, metric_type=total_value, breakdown
+    // follower_type. since/until are optional; without them the API looks back 24 hours,
+    // recorded as timeframe "day".
     const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
     let callsUsed = 1;
     let audienceError: string | null = null;
+    const splitError = split.ok ? null : split.message;
     let stop = fatalOf(split);
-    if (stop) return { rows, audienceError, callsUsed, stop };
+    if (stop) return { rows, audienceError, splitError, callsUsed, stop };
     if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
+    else log.warn("graph.breakdowns.split_failed", { error: split.message });
     for (const dimension of ["age", "country", "gender"]) {
       callsUsed += 1;
       const r = await graphGet<unknown>(
@@ -580,7 +585,7 @@ export const graphClient: GraphClient = {
         token
       );
       stop = fatalOf(r);
-      if (stop) return { rows, audienceError, callsUsed, stop };
+      if (stop) return { rows, audienceError, splitError, callsUsed, stop };
       if (!r.ok) {
         // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
         audienceError = r.message;
@@ -588,7 +593,7 @@ export const graphClient: GraphClient = {
       }
       rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
     }
-    return { rows, audienceError, callsUsed, stop: null };
+    return { rows, audienceError, splitError, callsUsed, stop: null };
   },
 
   async fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult> {

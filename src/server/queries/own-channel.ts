@@ -100,6 +100,10 @@ export const OWN_COMMENTS_FETCH_ERROR_KEY = "own_comments_fetch_error";
  *  engagements). Row absent means the last fetch succeeded or none has run. */
 export const OWN_AUDIENCE_FETCH_ERROR_KEY = "own_audience_fetch_error";
 
+/** app_settings key holding the last follower split (views by follower_type) failure.
+ *  Row absent means the last split fetch succeeded or none has run. */
+export const OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY = "own_follower_split_fetch_error";
+
 const DEFAULT_WINDOW_DAYS = 30;
 
 type OwnPostInsightsRow = typeof tables.ownPostInsights.$inferSelect;
@@ -397,6 +401,7 @@ export interface BreakdownEntry {
 export interface AccountBreakdowns {
   followerSplit: BreakdownEntry[];
   followerSplitAt: string | null;
+  followerSplitError: string | null;
   audience: { age: BreakdownEntry[]; country: BreakdownEntry[]; gender: BreakdownEntry[] };
   audienceAt: string | null;
   audienceError: string | null;
@@ -406,9 +411,10 @@ export interface AccountBreakdowns {
 export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
   // ponytail: reads every stored batch and keeps the newest per metric in memory; a
   // single-user account adds a few dozen rows a day. Filter in SQL if that ever shows.
-  const [rows, errorRow] = await Promise.all([
+  const [rows, errorRow, splitErrorRow] = await Promise.all([
     db.select().from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)),
     db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_AUDIENCE_FETCH_ERROR_KEY)).limit(1),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY)).limit(1),
   ]);
   const newest = (metric: string) => {
     const first = rows.find((r) => r.metric === metric);
@@ -421,6 +427,7 @@ export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
   return {
     followerSplit: entries(split),
     followerSplitAt: split[0]?.capturedAt ?? null,
+    followerSplitError: splitErrorRow[0]?.value ?? null,
     audience: { age: dim("age"), country: dim("country"), gender: dim("gender") },
     audienceAt: audience[0]?.capturedAt ?? null,
     audienceError: errorRow[0]?.value ?? null,

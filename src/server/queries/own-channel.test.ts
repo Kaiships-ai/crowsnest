@@ -371,5 +371,11 @@ describe("getAccountBreakdowns", () => {
     expect(b.audience.country).toEqual([]);
     expect(b.audienceError).toBe("not enough users");
     expect(b.followerSplitAt).toBe("2026-09-28T00:00:00.000Z");
+    expect(b.followerSplitError).toBeNull();
+  });
+
+  test("returns the stored follower split failure", async () => {
+    await db.insert(tables.appSettings).values({ key: "own_follower_split_fetch_error", value: "HTTP 400: bad" });
+    expect((await getAccountBreakdowns()).followerSplitError).toBe("HTTP 400: bad");
   });
 });

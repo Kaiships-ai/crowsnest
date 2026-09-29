@@ -329,6 +329,21 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("engaged_audience_demographics");
   });
 
+  test("a non-fatal follower split failure is reported and logged, the audience calls still run", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "(#100) bad breakdown" } }) })
+      .mockResolvedValueOnce(ok(results([["25-34", 40]])))
+      .mockResolvedValueOnce(ok(results([["US", 50]])))
+      .mockResolvedValueOnce(ok(results([["F", 60]]))));
+    const { graphClient } = await loadClient();
+    const { log } = await import("../lib/logger");
+    const warn = vi.spyOn(log, "warn");
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out.splitError).toContain("bad breakdown");
+    expect(out.rows).toHaveLength(3);
+    expect(warn.mock.calls.some(([event]) => event === "graph.breakdowns.split_failed")).toBe(true);
+  });
+
   test("a lack-of-volume refusal returns a threshold state, not an empty audience", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))

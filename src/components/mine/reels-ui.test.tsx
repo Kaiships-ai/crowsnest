@@ -89,7 +89,7 @@ describe("ReelViewsOverTime", () => {
 });
 
 const { AccountAudience } = await import("./account-audience");
-const DATA = { followerSplit: [{ key: "NON_FOLLOWER", value: 70 }, { key: "FOLLOWER", value: 30 }], followerSplitAt: "2026-09-28T00:00:00.000Z", audience: { age: [{ key: "25-34", value: 40 }], country: [{ key: "US", value: 50 }], gender: [{ key: "F", value: 60 }] }, audienceAt: "2026-09-28T00:00:00.000Z", audienceError: null };
+const DATA = { followerSplit: [{ key: "NON_FOLLOWER", value: 70 }, { key: "FOLLOWER", value: 30 }], followerSplitAt: "2026-09-28T00:00:00.000Z", audience: { age: [{ key: "25-34", value: 40 }], country: [{ key: "US", value: 50 }], gender: [{ key: "F", value: 60 }] }, audienceAt: "2026-09-28T00:00:00.000Z", audienceError: null, followerSplitError: null };
 describe("AccountAudience", () => {
   test("E2E-19: whole-account label on both blocks, three tabs", () => {
     const { container, getAllByText } = render(<AccountAudience data={DATA} />);
@@ -106,5 +106,11 @@ describe("AccountAudience", () => {
     expect(queryByText(/100 or more engagements/)).toBeNull();
     expect(getByText("25-34")).toBeTruthy();
     expect(getByText(/Last refresh failed/)).toBeTruthy();
+  });
+  test("a failed follower split refresh says so instead of 'Not measured yet' forever", () => {
+    const { getByTestId } = render(<AccountAudience data={{ ...DATA, followerSplit: [], followerSplitAt: null, followerSplitError: "HTTP 400: {}" }} />);
+    const card = getByTestId("reels-follower-split");
+    expect(card.textContent).toMatch(/Last refresh failed/);
+    expect(card.textContent).not.toMatch(/Not measured yet/);
   });
 });
