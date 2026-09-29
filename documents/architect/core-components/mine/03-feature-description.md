@@ -194,7 +194,7 @@ The user, from the connect panel that stands in for, or stacks above, the own-ac
 
 ### What it does
 
-The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success. The success toast reads how many posts were measured of how many were seen, and says when the run stopped early and why (the Instagram rate limit, the hourly call budget, or recent scheduled measurements having already spent most of this hour's calls). Measure now has a budget of 190 calls, close to Instagram's 200 an hour.
+The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh the page whatever the outcome, so rows written before a failure still show. The success toast reads how many posts were measured of how many were seen, and says when the run stopped early and why (the Instagram rate limit, the hourly call budget, or recent scheduled measurements having already spent most of this hour's calls). Measure now has a budget of 190 calls, close to Instagram's 200 an hour.
 
 ### How to access it
 
@@ -274,7 +274,7 @@ Open the Dashboard from the sidebar. The remix finish step's "View in your plan"
 - `/mine` redirects to `/?tab=calendar`, carrying a valid `month=` (`YYYY-MM`) and nothing else, since `/mine` was the planner.
 - Each tab loads only its own data. Opening Overview does not call the Graph API, and opening My reels does not run the Overview's sidecar and model pings.
 - The tab strip renders above every state of every tab, including Overview's "no channels are being watched" empty state and the own-channel picker, so the user can always move between tabs.
-- Planner and measurement actions revalidate `/`, so a write shows up on the tab the user is looking at.
+- Planner and measurement actions revalidate `/`, so a write shows up on the tab the user is looking at. Measure now revalidates even when the run fails, since rows written before the failure stay.
 
 ### Limitations
 
@@ -301,7 +301,7 @@ The My reels tab (`?tab=reels`).
 ### Business rules
 
 - Only own posts whose Graph product type is a reel appear in the picker.
-- With no `reel` in the URL, the newest reel is selected. With an id that is not one of the user's reels yet (a reel just published and not measured), the panel says "This reel hasn't been measured yet" instead of showing another reel, and the picker still lists every reel.
+- With no `reel` in the URL, the newest reel is selected. With an id that is not one of the user's reels yet (a reel just published and not measured), the panel says "This reel hasn't been measured yet" instead of showing another reel, and the picker still lists every reel. With the id of one of the user's posts that is not a reel (a calendar "view post" on a plan marked published against a carousel), the panel says which format the post is, that it has no reel insights, and links to it on Instagram. If `tab`, `reel`, or `month` appears twice in the URL, the first value is used.
 - Views shown in the picker are the latest stored measurement for that reel, never a live read.
 - The picker shows the connect panel (feature 7) above it when the token is rejected but the account was measured before, the same stacking rule as feature 3.
 
@@ -432,7 +432,7 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 ### Business rules
 
-- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one scheduled run makes at most 150 calls, and Measure now at most 190, both less whatever earlier measurements spent in the last hour beyond a 10-call headroom. Each post reserves only the calls it needs; the rate-limit stop is the final guard.
+- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one scheduled run makes at most 150 calls, and Measure now at most 190, both less every Graph call the app made in the last hour (earlier measurements, Check connection, publishes) beyond a 10-call headroom. The count is kept in memory, so it starts fresh after the app restarts. Each post reserves only the calls it needs; the rate-limit stop is the final guard.
 - Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
 - When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run, including while pulling comments or audience, ends the run as failed, and rows already written stay.
 - A rate-limited run stops and makes no further calls, whether the limit hits on a reel, on comments, or on audience; it leaves the rest to the next run and does not retry in a loop.
@@ -440,7 +440,9 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 - Each due check allows five minutes of slack, so a run landing just before the hour still measures the reel. After the app starts, the first run happens about 30 seconds later rather than an hour later.
 - A token that lacks the insights permission (Instagram refuses the core metrics with a scope code, 200 to 299, or a code 10 naming a permission) ends the run as failed with the permission error, keeping rows already written, and My reels shows the missing-permission state. An Instagram throttle, including the business use case limit Instagram sends as HTTP 400 (code 80002), stops the run as rate limited.
 - A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows. "Not enough viewers for the media to show insights" (code 10) is one such per-reel failure. A reel whose measurement errors unexpectedly is stored as a failed measurement, so it backs off like any other; a token removed mid-run ends the run.
-- Comments refresh at most once a day on scheduled runs; they reuse the run's post list, one call per post with comments, reserved before the posts so a full account still gets them.
+- Comments refresh at most once a day on scheduled runs; they reuse the run's post list, one call per post with comments, reserved before the posts so a full account still gets them. When the comments cannot fit the budget at all, nothing is reserved: the posts are measured first and the comments are skipped with the budget named as the cause.
+- The audience and follower-split numbers are stored only when that whole daily read finished; a read cut short by a rate limit keeps showing the last complete one and retries next run.
+- A run that measured no post's insights (none due, or every one failed) does not clear a missing-permission state, since the account read works without the insights permission.
 
 ### Limitations
 
@@ -469,6 +471,7 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **Token set but never measured**: the connect panel offers Measure now; scheduled measurement fills the tab on its next run.
 - **Own channel has no reels, only carousels**: the picker is empty and says so; the post list still shows every post.
 - **`?reel=` points to a deleted or unknown reel**: the panel says the reel has not been measured yet; no other reel is shown in its place.
+- **`?reel=` points to an own post that is not a reel**: the panel names its format and links to it on Instagram instead of waiting for a reel measurement that never comes.
 - **Reach of zero or missing**: every derived rate shows a dash.
 - **Account under 100 engagements**: Audience details explains the API threshold instead of showing an empty chart.
 - **Audience refresh fails for another reason**: the last stored rows stay, with a "Last refresh failed" note.
