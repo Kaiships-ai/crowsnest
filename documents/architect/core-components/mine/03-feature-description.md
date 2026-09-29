@@ -194,7 +194,7 @@ The user, from the connect panel that stands in for, or stacks above, the own-ac
 
 ### What it does
 
-The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success.
+The connect panel (`mine-connect-panel`) names the token state. "Check connection" (`mine-connect-check`) calls `checkGraphTokenAction`, the cheapest authenticated call, and updates the panel's status text in place; when the token reads `ok`, the page refreshes so the metrics can appear. "Measure now" (`mine-connect-measure`, shown only when the token is `ok` but nothing has been measured yet) calls `measureOwnChannelAction`, a full run through the shared measurement service: fetch the account and write a snapshot, upsert every post with a fresh insights row, then fetch and upsert comments when the call budget allows, and refresh on success. The success toast reads how many posts were measured of how many were seen, and says when the run stopped early and why (the Instagram rate limit, or the hourly call budget). Measure now has a budget of 190 calls, close to Instagram's 200 an hour.
 
 ### How to access it
 
@@ -266,12 +266,12 @@ The Dashboard at `/` carries a tab strip with three tabs: Overview (`dashboard-t
 
 ### How to access it
 
-Open the Dashboard from the sidebar. Old links to `/mine` (the remix finish step's "View in your plan", the vault script dialog's "Open the planner") land on the Calendar tab through the redirect.
+Open the Dashboard from the sidebar. The remix finish step's "View in your plan" and the vault script dialog's "Open the planner" link straight to the Calendar tab; old links and bookmarks to `/mine` land there through the redirect.
 
 ### Business rules
 
 - A missing or unknown `tab` value means Overview.
-- `/mine` redirects to `/?tab=calendar`, carrying a valid `month=` (`YYYY-MM`) and nothing else, since every inbound `/mine` link is about the plan.
+- `/mine` redirects to `/?tab=calendar`, carrying a valid `month=` (`YYYY-MM`) and nothing else, since `/mine` was the planner.
 - Each tab loads only its own data. Opening Overview does not call the Graph API, and opening My reels does not run the Overview's sidecar and model pings.
 - The tab strip renders above every state of every tab, including Overview's "no channels are being watched" empty state and the own-channel picker, so the user can always move between tabs.
 - Planner and measurement actions revalidate `/`, so a write shows up on the tab the user is looking at.
@@ -323,13 +323,13 @@ The user, after picking a reel in feature 10.
 
 The insight panel is modeled on the Instagram app's Reel insights screen, and every number in it comes from the official Graph API. It has five blocks.
 
-- **Summary tiles** (`reels-summary-tile`): Views (`views`), Viewers (`reach`), Average watch time (`ig_reels_avg_watch_time`, which the API returns in milliseconds and the panel shows in seconds), and Follows (`follows`).
+- **Summary tiles** (`reels-summary-tile`): Views (`views`), Viewers (`reach`), Average watch time (`ig_reels_avg_watch_time`, which the API returns in milliseconds and the panel shows in seconds), and Follows, marked "not reported for reels" (`reels-not-reported`): Meta lists `follows` and `profile_visits` for feed and story media only, so crowsnest does not ask for them on a reel.
 - **Interaction strip** (`reels-interaction`): Likes, Comments, Reposts (`reposts`), Shares, Saves (`saved`).
 - **What impacts your views** (`reels-impact-row`), in the Instagram app's order of importance to reach: Skip rate (`reels_skip_rate`), Share rate, Like rate, Save rate, Repost rate, Comment rate.
-- **Actions after viewing** (`reels-action-row`): Follows, Profile visits (`profile_visits`), and Bio link taps, read from `profile_activity` with `breakdown=action_type`, taking the bio link action.
+- **Actions after viewing** (`reels-action-row`): Follows and Profile visits, both marked "not reported for reels", and Bio link taps, read from `profile_activity` with `breakdown=action_type`, taking the bio link action. Instagram leaves out an action nobody took, so a measured reel with no bio link action reads 0; only a failed call shows a dash.
 - **Not available from the Instagram API** (`reels-unavailable`): labelled placeholders for "How long people watched" (the retention curve), "When people liked your reel", and "Top sources of views". Each says plainly that the API does not provide it.
 
-Every block shows when it was measured (`reels-measured-at`).
+Every block shows when it was measured (`reels-measured-at`). The panel reads the reel's newest successful measurement: a later failed measurement never replaces the last good numbers or their measured time, and a reel whose measurements all failed reads as not measured yet.
 
 ### How to access it
 
@@ -369,10 +369,10 @@ It sits in the reel's insight panel (feature 11).
 
 ### Business rules
 
-- Each point is a real stored measurement. Nothing is interpolated between measurements, and the chart never draws a point at an hour where no measurement exists.
+- Each point is a real stored measurement, and the chart never draws a point at an hour where no measurement exists. Each line runs straight from one measured hour to the next, so a gap in measurement shows as a segment between two real points, never as an invented point.
 - Hours since posting are counted from the reel's posted time to each snapshot's capture time, in whole hours.
 - The chart covers the first 168 hours (7 days) after posting, matching the Instagram app's views over time; later snapshots are not plotted.
-- The typical line uses only reels other than the selected one, and at each hour only reels that were measured at that hour. Where no other reel was measured, the typical line has a gap.
+- The typical line uses only reels other than the selected one, and at each hour only reels that were measured at that hour. Where no other reel was measured, the typical line runs straight on to the next hour that has one.
 
 ### Limitations
 
@@ -432,10 +432,11 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 ### Business rules
 
-- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one run makes at most 150 calls.
+- The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one scheduled run makes at most 150 calls, and Measure now at most 190. Each post reserves only the calls it needs; the rate-limit stop is the final guard.
 - Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
-- When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run ends the run as failed, and rows already written stay.
-- A rate-limited run stops and leaves the rest to the next run; it does not retry in a loop.
+- When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run, including while pulling comments or audience, ends the run as failed, and rows already written stay.
+- A rate-limited run stops and makes no further calls, whether the limit hits on a reel, on comments, or on audience; it leaves the rest to the next run and does not retry in a loop.
+- A reel whose last measurement failed is due again on the next run; a failed measurement does not count as measured.
 - A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows.
 - Comments refresh at most once a day on scheduled runs; their calls are reserved before the posts, so a full account still gets them.
 
@@ -455,7 +456,7 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **Secrets store**: `IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID` come from Settings > API keys first, `.env.local` second.
 - **Dashboard**: owns the Overview tab and the `/` route that now hosts My reels and Calendar.
 - **publish**: runs the upload, container, and scheduled publish that feature 8 drives.
-- **remix and vault**: link to the planner through `/mine`, which redirects to the Calendar tab.
+- **remix and vault**: link to the planner at `/?tab=calendar`.
 - **Settings**: `scoreMinUsablePosts` sets the median floor in feature 3.
 
 ## 16. Edge cases
@@ -470,4 +471,6 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **Account under 100 engagements**: Audience details explains the API threshold instead of showing an empty chart.
 - **Audience refresh fails for another reason**: the last stored rows stay, with a "Last refresh failed" note.
 - **Rate limit hit mid-run**: the run stops; stored numbers stay and keep their measured times.
+- **A reel's latest measurement failed**: the panel keeps its last good numbers and measured time, and the reel is retried on the next run.
+- **Token status on My reels**: the token check is cached for five minutes, so moving between reels does not call Instagram; saving a token in Settings or a measurement hitting a rejected token clears it, and Check connection always checks live.
 - **Month navigation on Calendar**: `tab=calendar` stays in the URL with `month=`.
