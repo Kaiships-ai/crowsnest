@@ -186,9 +186,17 @@ describe("isDue", () => {
     const fail = (at: string, count: number, permanent = false) => ({ at, count, permanent });
     expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(30 * 60_000), 1))).toBe(false);
     expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(61 * 60_000), 1))).toBe(true);
-    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(2 * H), 2))).toBe(false);
-    expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(25 * H), 2))).toBe(true);
+    expect(svc.isDue(ago(5 * 24 * H), null, NOW, fail(ago(2 * H), 2))).toBe(false);
+    expect(svc.isDue(ago(5 * 24 * H), null, NOW, fail(ago(25 * H), 2))).toBe(true);
     expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(2 * H), 1, true))).toBe(false);
+  });
+
+  test("a reel inside 72 hours never backs off below hourly on transient failures, only on a permanent one", () => {
+    const fail = (at: string, count: number, permanent = false) => ({ at, count, permanent });
+    expect(svc.isDue(ago(10 * H), null, NOW, fail(ago(61 * 60_000), 5))).toBe(true);
+    expect(svc.isDue(ago(10 * H), ago(5 * H), NOW, fail(ago(61 * 60_000), 3))).toBe(true);
+    expect(svc.isDue(ago(10 * H), ago(5 * H), NOW, fail(ago(30 * 60_000), 3))).toBe(false);
+    expect(svc.isDue(ago(10 * H), null, NOW, fail(ago(2 * H), 1, true))).toBe(false);
   });
 });
 

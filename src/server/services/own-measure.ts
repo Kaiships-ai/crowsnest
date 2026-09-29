@@ -62,7 +62,7 @@ const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
  *  that post would slip a whole hour (or day). */
 const DUE_SLACK_MS = 5 * 60_000;
 
-/** A post's failed captures since it was last measured successfully (none measured yet). */
+/** A post's failed captures since its last successful capture (all of them when it has none). */
 export interface CaptureFailures {
   /** Newest failed capturedAt. */
   at: string;
@@ -71,19 +71,20 @@ export interface CaptureFailures {
   permanent: boolean;
 }
 
-/** Hourly while a post is under 72 hours old, daily after, each with five minutes of slack. A post never captured
- *  successfully is due at once, but backs off after a failure: one retry an hour later,
- *  then daily, and daily from the first failure when Instagram refused the request itself.
- *  Derived from stored captures on every tick, so the scheduler keeps no state. */
+/** Hourly while a post is under 72 hours old, daily after, each with five minutes of slack.
+ *  A post never captured successfully is due at once. After a failure since its last
+ *  success, the wait runs from the newest failure: a day when Instagram refused the request
+ *  itself (invalid_request); otherwise an hour for a post under 72 hours old (not enough
+ *  viewers, network, 5xx all clear), and for an older post one retry an hour later, then
+ *  daily. Derived from stored captures on every tick, so the scheduler keeps no state. */
 export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date, failures: CaptureFailures | null = null): boolean {
-  if (lastCapturedAt === null) {
-    if (failures === null) return true;
-    const wait = failures.count === 1 && !failures.permanent ? HOUR_MS : 24 * HOUR_MS;
+  const young = now.getTime() - Date.parse(postedAt) < NEW_REEL_WINDOW_MS;
+  if (failures !== null) {
+    const wait = !failures.permanent && (young || failures.count === 1) ? HOUR_MS : 24 * HOUR_MS;
     return now.getTime() - Date.parse(failures.at) >= wait - DUE_SLACK_MS;
   }
-  const age = now.getTime() - Date.parse(postedAt);
-  const sinceCapture = now.getTime() - Date.parse(lastCapturedAt);
-  return sinceCapture >= (age < NEW_REEL_WINDOW_MS ? HOUR_MS : 24 * HOUR_MS) - DUE_SLACK_MS;
+  if (lastCapturedAt === null) return true;
+  return now.getTime() - Date.parse(lastCapturedAt) >= (young ? HOUR_MS : 24 * HOUR_MS) - DUE_SLACK_MS;
 }
 
 /** Newest successful capture per post (the same pick My reels reads), plus the failures
