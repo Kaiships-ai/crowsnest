@@ -164,7 +164,7 @@ export function PlanDialog({
 
           <Field>
             <FieldLabel htmlFor="plan-date">Date</FieldLabel>
-            <Input id="plan-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <Input id="plan-date" data-testid="plan-dialog-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             <FieldDescription>Leave blank to keep it as an undated draft.</FieldDescription>
           </Field>
 
@@ -183,7 +183,7 @@ export function PlanDialog({
               <Field>
                 <FieldLabel htmlFor="plan-script">Script</FieldLabel>
                 <Select value={scriptId || "none"} onValueChange={(v) => setScriptId(!v || v === "none" ? "" : v)}>
-                  <SelectTrigger id="plan-script">
+                  <SelectTrigger id="plan-script" data-testid="plan-dialog-script">
                     <SelectValue placeholder="No script" />
                   </SelectTrigger>
                   <SelectContent>
@@ -200,6 +200,7 @@ export function PlanDialog({
                 <Field orientation="horizontal">
                   <Checkbox
                     id="plan-no-script-ack"
+                    data-testid="plan-dialog-no-script-ack"
                     checked={noScriptAck}
                     onCheckedChange={(v) => setNoScriptAck(v === true)}
                   />
@@ -215,7 +216,7 @@ export function PlanDialog({
           <Field>
             <FieldLabel htmlFor="plan-video-kind">Video kind</FieldLabel>
             <Select value={videoKind || "none"} onValueChange={(v) => setVideoKind(!v || v === "none" ? "" : v)}>
-              <SelectTrigger id="plan-video-kind">
+              <SelectTrigger id="plan-video-kind" data-testid="plan-dialog-video-kind">
                 <SelectValue placeholder="Not set" />
               </SelectTrigger>
               <SelectContent>

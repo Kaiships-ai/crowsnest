@@ -20,7 +20,7 @@ function formatInt(n: number | null): string {
 
 function Tile({ value, label, sample, tone = "foreground" }: { value: string; label: string; sample: string; tone?: "foreground" | "score" }) {
   return (
-    <div>
+    <div data-testid="mine-stat-tile">
       <span
         data-num
         className={`block font-mono text-[52px] leading-none tracking-tight tabular-nums ${tone === "score" ? "text-primary" : "text-foreground"}`}

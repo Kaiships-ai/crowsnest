@@ -96,7 +96,7 @@ export function GraphConnectPanel({
     : STATE_COPY[status.state];
 
   return (
-    <div className="mt-10 max-w-[62ch]">
+    <div className="mt-10 max-w-[62ch]" data-testid="mine-connect-panel">
       <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Graph API</p>
       <p className="mt-3 text-lg font-medium text-foreground">{copy.title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
@@ -118,11 +118,11 @@ export function GraphConnectPanel({
       )}
 
       <div className="mt-6 flex items-center gap-3">
-        <Button size="sm" variant="outline" onClick={recheck} disabled={checking}>
+        <Button size="sm" variant="outline" onClick={recheck} disabled={checking} data-testid="mine-connect-check">
           {checking ? "Checking…" : "Check connection"}
         </Button>
         {status.state === "ok" && !everMeasured && (
-          <Button size="sm" onClick={measure} disabled={measuring}>
+          <Button size="sm" onClick={measure} disabled={measuring} data-testid="mine-connect-measure">
             {measuring ? "Measuring…" : "Measure now"}
           </Button>
         )}

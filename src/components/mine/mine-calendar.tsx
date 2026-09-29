@@ -258,7 +258,7 @@ export function MineCalendar({
     router.refresh();
     toast.success("Planned post deleted", {
       action: {
-        label: "Undo",
+        label: <span data-testid="mine-delete-undo">Undo</span>,
         onClick: async () => {
           // Carry the whole row snapshot back through re-create so Undo is lossless
           // (B-09): restore the original id, time, target length, kind, and remix/source

@@ -57,7 +57,7 @@ export function ReachByPostBars({ posts }: { posts: OwnPostRow[] }) {
   const maxReach = Math.max(1, ...measured.map((p) => p.reach as number));
 
   return (
-    <Card>
+    <Card data-testid="mine-reach-bars">
       <CardHeader>
         <CardTitle>
           Reach by post · all {chronological.length} post{chronological.length === 1 ? "" : "s"}
@@ -146,7 +146,7 @@ export function OwnPostList({ posts }: { posts: OwnPostRow[] }) {
           // The whole row is the link, same as before this row was a table: the anchor
           // lives in the first cell and stretches over the row, since an <a> may not wrap
           // a <tr>.
-          <TableRow key={p.ownPostId} className="relative">
+          <TableRow key={p.ownPostId} className="relative" data-testid="mine-post-row">
             <TableCell>
               <a
                 href={p.permalink}
