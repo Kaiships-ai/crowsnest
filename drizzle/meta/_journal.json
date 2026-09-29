@@ -211,6 +211,13 @@
       "when": 1788805767093,
       "tag": "0029_tiresome_vivisector",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "6",
+      "when": 1790698591103,
+      "tag": "0030_pale_kabuki",
+      "breakpoints": true
     }
   ]
 }

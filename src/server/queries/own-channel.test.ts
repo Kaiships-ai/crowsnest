@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, test } from "vitest";
 
 // Same test-DB pattern as channels.test.ts / feed.test.ts.
@@ -25,6 +26,7 @@ beforeEach(async () => {
   await db.delete(tables.ownPostInsights);
   await db.delete(tables.ownPosts);
   await db.delete(tables.ownAccountSnapshots);
+  await db.delete(tables.ownAccountBreakdowns);
   await db.delete(tables.appSettings);
 });
 
@@ -250,5 +252,24 @@ describe("getOwnComments", () => {
     await db.insert(tables.appSettings).values({ key: OWN_COMMENTS_FETCH_ERROR_KEY, value: "Instagram is rate-limiting the Graph API." });
     const summary = await getOwnComments();
     expect(summary.fetchError).toBe("Instagram is rate-limiting the Graph API.");
+  });
+});
+
+describe("reel columns and own_account_breakdowns (migration 0030)", () => {
+  test("new nullable columns and the breakdowns table accept a write", async () => {
+    await db.insert(tables.ownPosts).values({
+      id: "p-mig", externalId: "x-mig", permalink: "https://i/x", mediaType: "VIDEO", productType: "REELS",
+      format: "Reel", postedAt: "2026-09-01T00:00:00.000Z", firstSeenAt: "2026-09-01T00:00:00.000Z",
+      thumbnailUrl: "https://cdn/x.jpg",
+    });
+    await db.insert(tables.ownPostInsights).values({
+      id: "i-mig", ownPostId: "p-mig", capturedAt: "2026-09-01T01:00:00.000Z",
+      reposts: 3, skipRate: 41.5, bioLinkTaps: 7, avgWatchTimeMs: 4500, totalWatchTimeMs: 900000,
+    });
+    await db.insert(tables.ownAccountBreakdowns).values({
+      id: "b-mig", capturedAt: "2026-09-01T01:00:00.000Z", metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 10, timeframe: "day",
+    });
+    const [row] = await db.select().from(tables.ownPostInsights).where(eq(tables.ownPostInsights.id, "i-mig"));
+    expect(row).toMatchObject({ reposts: 3, skipRate: 41.5, bioLinkTaps: 7, avgWatchTimeMs: 4500, totalWatchTimeMs: 900000 });
   });
 });

@@ -675,6 +675,8 @@ export const ownPosts = sqliteTable("own_posts", {
   durationSec: real("duration_sec"),
   firstSeenAt: text("first_seen_at").notNull(),
   lastMeasuredAt: text("last_measured_at"),
+  /** Instagram CDN link from the media list; refreshed on every measurement, may expire. */
+  thumbnailUrl: text("thumbnail_url"),
   rawPayload: text("raw_payload", { mode: "json" }).$type<Record<string, unknown>>(),
 }, (t) => [
   uniqueIndex("own_posts_external").on(t.externalId),
@@ -697,6 +699,16 @@ export const ownPostInsights = sqliteTable("own_post_insights", {
   profileVisits: integer("profile_visits"),
   followsFromPost: integer("follows_from_post"),
   watchTimeSec: real("watch_time_sec"),
+  /** Reel metrics added with the Dashboard rework. Null until a measurement returns them. */
+  reposts: integer("reposts"),
+  /** reels_skip_rate, straight from the API (marked in development by Meta). */
+  skipRate: real("skip_rate"),
+  /** profile_activity with breakdown=action_type, the bio link action. */
+  bioLinkTaps: integer("bio_link_taps"),
+  /** ig_reels_avg_watch_time, milliseconds as returned. */
+  avgWatchTimeMs: real("avg_watch_time_ms"),
+  /** ig_reels_video_view_total_time, milliseconds; stored though no block shows it (a past hour cannot be re-fetched). */
+  totalWatchTimeMs: real("total_watch_time_ms"),
   /** Set when this post's insights call failed while the run as a whole succeeded. */
   fetchError: text("fetch_error"),
 }, (t) => [index("own_post_insights_post_captured").on(t.ownPostId, t.capturedAt)]);
@@ -712,6 +724,19 @@ export const ownComments = sqliteTable("own_comments", {
   classifierVersion: text("classifier_version").notNull(),
   capturedAt: text("captured_at").notNull(),
 }, (t) => [uniqueIndex("own_comments_external").on(t.externalId)]);
+
+/** Account-wide breakdowns (follower split, engaged audience). One row per key per
+ *  measurement batch; read as "newest batch per metric". A refusal for lack of volume is
+ *  not a row: it lives in app_settings under own_audience_fetch_error. */
+export const ownAccountBreakdowns = sqliteTable("own_account_breakdowns", {
+  id: text("id").primaryKey(),
+  capturedAt: text("captured_at").notNull(),
+  metric: text("metric").notNull(), // "views" | "engaged_audience_demographics"
+  dimension: text("dimension").notNull(), // "follower_type" | "age" | "country" | "gender"
+  key: text("key").notNull(),
+  value: integer("value").notNull(),
+  timeframe: text("timeframe"),
+}, (t) => [index("own_account_breakdowns_metric_captured").on(t.metric, t.capturedAt)]);
 
 export const secrets = sqliteTable("secrets", {
   name: text("name").primaryKey(),
