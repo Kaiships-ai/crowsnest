@@ -1,12 +1,16 @@
+import { AccountAudience } from "./account-audience";
 import { GraphConnectPanel } from "./graph-connect-panel";
 import { OwnPostList, ReachByPostBars } from "./reach-by-post-bars";
 import { OwnStatTiles } from "./own-stat-tiles";
 import { OwnWeekdayRhythm } from "./own-weekday-rhythm";
+import { ReelInsightPanel } from "./reel-insight-panel";
+import { ReelPicker } from "./reel-picker";
 import { ownChannelPicker } from "./calendar-tab";
 import { relativeTime } from "@/lib/format";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getOwnChannel } from "@/server/queries/channels";
-import { getOwnChannelOverview, getOwnPosts } from "@/server/queries/own-channel";
+import { getAccountBreakdowns, getOwnChannelOverview, getOwnPosts, getOwnReels, getReelViewHistory } from "@/server/queries/own-channel";
+import { selectReel, shapeReelInsights, typicalViewsCurve } from "@/server/services/reel-insights";
 import { getSetting } from "@/server/settings";
 
 /**
@@ -14,16 +18,23 @@ import { getSetting } from "@/server/settings";
  * missing or failing shows the connect panel, stacked over real historical numbers when
  * the account was measured before.
  */
-export async function MyReelsTab() {
+export async function MyReelsTab({ reel }: { reel?: string }) {
   const ownChannel = await getOwnChannel();
   if (!ownChannel) return ownChannelPicker();
 
-  const [tokenResult, overview, ownPosts, minUsablePosts] = await Promise.all([
+  const [tokenResult, overview, ownPosts, minUsablePosts, reels, history, breakdowns] = await Promise.all([
     checkGraphTokenAction(),
     getOwnChannelOverview(),
     getOwnPosts({ limit: 100 }),
     getSetting("scoreMinUsablePosts"),
+    getOwnReels(),
+    getReelViewHistory(),
+    getAccountBreakdowns(),
   ]);
+  const selected = selectReel(reels, reel);
+  const insights = selected?.latest ? shapeReelInsights(selected.latest) : null;
+  // Shape on the server; only the selected reel's points cross to the client chart.
+  const points = selected ? typicalViewsCurve(selected.ownPostId, history) : [];
   const tokenStatus = tokenResult.ok
     ? tokenResult.status
     : { configured: false, username: null, state: "unknown" as const, message: tokenResult.error, checkedAt: new Date().toISOString() };
@@ -61,6 +72,18 @@ export async function MyReelsTab() {
             </span>
           </div>
           <ReachByPostBars posts={ownPosts.items} />
+          <section className="grid gap-8 lg:grid-cols-[minmax(260px,320px)_1fr]">
+            <ReelPicker
+              reels={reels.map((r) => ({ ownPostId: r.ownPostId, postedAt: r.postedAt, views: r.latest?.views ?? null, thumbnailUrl: r.thumbnailUrl, caption: r.caption }))}
+              selectedId={selected?.ownPostId ?? null}
+            />
+            {selected && (insights ? (
+              <ReelInsightPanel insights={insights} points={points} />
+            ) : (
+              <p className="text-sm text-muted-foreground">This reel has not been measured yet.</p>
+            ))}
+          </section>
+          <AccountAudience data={breakdowns} />
         </div>
       )}
       <section className="flex flex-col gap-4">

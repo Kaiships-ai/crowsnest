@@ -13,13 +13,13 @@ export const dynamic = "force-dynamic";
  * the own-channel tables. readAndBumpDashboardLastVisit lives in OverviewTab alone.
  */
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ tab?: string; month?: string; reel?: string }> }) {
-  const { tab: rawTab, month } = await searchParams;
+  const { tab: rawTab, month, reel } = await searchParams;
   const tab = resolveDashboardTab(rawTab);
   return (
     <PageContainer className="flex flex-col gap-8">
       <DashboardTabs active={tab} />
       {tab === "overview" && <OverviewTab />}
-      {tab === "reels" && <MyReelsTab />}
+      {tab === "reels" && <MyReelsTab reel={reel} />}
       {tab === "calendar" && <CalendarTab month={month} />}
     </PageContainer>
   );
