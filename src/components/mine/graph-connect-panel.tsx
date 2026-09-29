@@ -30,6 +30,10 @@ const STATE_COPY: Record<GraphTokenStatus["state"], { title: string; body: strin
     title: "Instagram rejected the token",
     body: "The configured Graph API token was rejected. It may have expired or been revoked.",
   },
+  permission_denied: {
+    title: "The token is missing a permission",
+    body: "Instagram accepted the token but refused this call. Generate a new token with the insights permissions and reconnect.",
+  },
   rate_limited: {
     title: "Instagram is rate limiting this token",
     body: "The Graph API is temporarily refusing calls for this token. This usually clears on its own.",

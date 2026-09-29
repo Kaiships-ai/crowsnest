@@ -110,7 +110,7 @@ export interface GraphTokenStatus {
   /** Resolved by calling the account fields edge, so the screen names the real account
    *  rather than trusting a label. Null when the call failed. */
   username: string | null;
-  state: "ok" | "not_configured" | "auth_failed" | "rate_limited" | "network" | "unknown";
+  state: "ok" | "not_configured" | "auth_failed" | "permission_denied" | "rate_limited" | "network" | "unknown";
   message: string | null;
   checkedAt: string;
 }
@@ -335,7 +335,7 @@ export function redactToken(text: string, token: string): string {
 
 // ---------------------------------------------------------------- transport
 
-type GraphFailureKind = "auth" | "rate_limit" | "network" | "unknown";
+type GraphFailureKind = "auth" | "permission" | "rate_limit" | "network" | "unknown";
 
 type GraphGetResult<T> = { ok: true; data: T } | { ok: false; message: string; kind: GraphFailureKind };
 
@@ -351,6 +351,9 @@ function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
   // unsupported metric (code 100) and a permission refusal (code 10), which must stay
   // per-post failures rather than end the run.
   if (status === 401 || code === 190 || code === 102) return "auth";
+  // A permission or scope refusal (code 10, 200-299): the token works but lacks a grant.
+  // Needs reauthorization for the account call; stays non-fatal for a per-metric call.
+  if (code !== null && (code === 10 || (code >= 200 && code <= 299))) return "permission";
   return "unknown";
 }
 
@@ -358,6 +361,8 @@ function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
   switch (kind) {
     case "auth":
       return "GRAPH_AUTH_FAILED";
+    case "permission":
+      return "GRAPH_PERMISSION_DENIED";
     case "rate_limit":
       return "GRAPH_RATE_LIMITED";
     case "network":
@@ -593,7 +598,7 @@ export const graphClient: GraphClient = {
       return { configured: true, username: str(acct.username), state: "ok", message: null, checkedAt };
     }
     const state: GraphTokenStatus["state"] =
-      result.kind === "auth" ? "auth_failed" : result.kind === "rate_limit" ? "rate_limited" : result.kind === "network" ? "network" : "unknown";
+      result.kind === "auth" ? "auth_failed" : result.kind === "permission" ? "permission_denied" : result.kind === "rate_limit" ? "rate_limited" : result.kind === "network" ? "network" : "unknown";
     return { configured: true, username: null, state, message: result.message, checkedAt };
   },
 };

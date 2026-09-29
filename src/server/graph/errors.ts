@@ -15,6 +15,8 @@ export const GRAPH_ERROR_CODES = [
    *  was never attempted. */
   "GRAPH_NOT_CONFIGURED",
   "GRAPH_AUTH_FAILED",
+  /** The token works but lacks a permission or scope (Graph codes 10, 200-299). */
+  "GRAPH_PERMISSION_DENIED",
   "GRAPH_RATE_LIMITED",
   "GRAPH_NETWORK",
   /** Reel container creation/publish failed, or a container's status_code went
@@ -36,6 +38,7 @@ export type GraphErrorClass = "auth" | "container" | "timeout" | "rate_limit" | 
 const ERROR_CLASS_BY_CODE: Record<GraphErrorCode, GraphErrorClass> = {
   GRAPH_NOT_CONFIGURED: "auth",
   GRAPH_AUTH_FAILED: "auth",
+  GRAPH_PERMISSION_DENIED: "auth",
   GRAPH_RATE_LIMITED: "rate_limit",
   GRAPH_NETWORK: "unknown",
   GRAPH_CONTAINER_FAILED: "container",
@@ -68,6 +71,8 @@ export class GraphApiError extends Error {
         return "No Graph API token configured. Add IG_GRAPH_TOKEN in .env.local and restart the dev server.";
       case "GRAPH_AUTH_FAILED":
         return "Instagram rejected the Graph API token. It may be expired or revoked — refresh it in .env.local.";
+      case "GRAPH_PERMISSION_DENIED":
+        return "The Graph API token is missing a permission this app needs. Generate a new token with the insights permissions and update it.";
       case "GRAPH_RATE_LIMITED":
         return "Instagram is rate-limiting the Graph API. Try again later.";
       case "GRAPH_NETWORK":

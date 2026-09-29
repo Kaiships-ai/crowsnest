@@ -228,6 +228,17 @@ describe("graphClient.fetchPostInsights", () => {
     expect(callsUsed).toBe(3);
   });
 
+  test("a permission refusal on one metric set is not fatal: the core-set fallback still runs", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { code: 10 } }) })
+      .mockResolvedValueOnce(ok(metrics({ views: 9, reach: 7 })))
+      .mockResolvedValueOnce(ok(activity(null)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchPostInsights(REEL);
+    expect(out).toMatchObject({ insights: { views: 9, reach: 7, error: null }, callsUsed: 3, stop: null });
+  });
+
   test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 4, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
@@ -507,6 +518,24 @@ describe("graphClient.checkToken", () => {
     expect(status.configured).toBe(true);
     expect(status.state).toBe("auth_failed");
     expect(status.message).not.toContain("tok_secret");
+  });
+
+  test("a permission refusal (code 10 or 200-299) reports permission_denied, never unknown", async () => {
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    for (const code of [10, 200, 299]) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: { code, type: "OAuthException" } }) }));
+      const { graphClient } = await loadClient();
+      expect((await graphClient.checkToken()).state).toBe("permission_denied");
+    }
+  });
+
+  test("fetchAccount surfaces a permission refusal as GRAPH_PERMISSION_DENIED", async () => {
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: { code: 200 } }) }));
+    const { graphClient } = await loadClient();
+    await expect(graphClient.fetchAccount()).rejects.toMatchObject({ code: "GRAPH_PERMISSION_DENIED", errorClass: "auth" });
   });
 
   test("reports rate_limited on HTTP 429", async () => {
