@@ -139,8 +139,9 @@ export interface JoinedOwnPost {
 
 /** The newest successful (or, with successful false, newest failed) own_post_insights row
  *  per post, picked in SQL. capturedAt is always our own toISOString() ("Z", fixed width;
- *  Graph's "+0000" only ever lands in postedAt), so the string max is the newest. */
-async function newestCaptureByPost(postIds: string[], successful: boolean): Promise<Map<string, OwnPostInsightsRow>> {
+ *  Graph's "+0000" only ever lands in postedAt), so the string max is the newest. Also
+ *  the scheduler's "last measured" read in own-measure.ts, so the two cannot drift. */
+export async function newestCaptureByPost(postIds: string[], successful: boolean): Promise<Map<string, OwnPostInsightsRow>> {
   if (postIds.length === 0) return new Map();
   const where = and(inArray(tables.ownPostInsights.ownPostId, postIds), successful ? isNull(tables.ownPostInsights.fetchError) : isNotNull(tables.ownPostInsights.fetchError));
   const newest = db
