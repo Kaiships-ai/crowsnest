@@ -227,7 +227,7 @@ The user, from a plan's day detail panel on the month calendar, once a plan is r
 
 ### What it does
 
-The publish dialog (`publish-dialog`) takes one planned post from a draft to a published Instagram Reel. It uploads an mp4, writes the Reel's caption, and then either publishes it now or schedules it for a chosen date and time. It opens from the day panel of a plan in a `draft`, `scheduled`, `missed`, or `failed` state, through an "Upload and schedule" button (`mine-plan-open-publish`, which reads "Edit publish" once a video is attached). The same day panel also renders the rest of the lifecycle without the dialog: a scheduled plan shows when it will publish, a plan being published shows a "publishing" pulse, a failed plan shows its error class and message with a Retry button (`mine-plan-retry`), and a published plan shows a check with a link to the post. A scheduled plan can be cancelled from the panel (`mine-plan-cancel-publish`), which returns it to an undated draft while keeping its video and caption. The pipeline that actually uploads, builds the Reel, and fires a scheduled publish belongs to the [publish](../publish/01-concept-brief.md) component; this feature is the mine-side surface that drives it.
+The publish dialog (`publish-dialog`) takes one planned post from a draft to a published Instagram Reel. It uploads an mp4, writes the Reel's caption, and then either publishes it now or schedules it for a chosen date and time. It opens from the day panel of a plan in a `draft`, `scheduled`, `missed`, or `failed` state, through an "Upload and schedule" button (`mine-plan-open-publish`, which reads "Edit publish" once a video is attached). The same day panel also renders the rest of the lifecycle without the dialog: a scheduled plan shows when it will publish, a plan being published shows a "publishing" pulse, a failed plan shows its error class and message with a Retry button (`mine-plan-retry`), and a published plan shows a check with a "view post" link that opens that reel on My reels (`/?tab=reels&reel=<id>`). A scheduled plan can be cancelled from the panel (`mine-plan-cancel-publish`), which returns it to an undated draft while keeping its video and caption. The pipeline that actually uploads, builds the Reel, and fires a scheduled publish belongs to the [publish](../publish/01-concept-brief.md) component; this feature is the mine-side surface that drives it.
 
 ### How to access it
 
@@ -292,7 +292,7 @@ The user, on the My reels tab, once a channel is own and the account has been me
 
 ### What it does
 
-My reels opens with the account summary from feature 3, then a list of the user's reels, newest first. Each item (`reels-picker-item`) shows the reel's thumbnail, the date it was posted, and its latest measured views. Choosing a reel shows its insight panel (feature 11) and writes the choice to the URL as `?reel=<id>`. The post list and weekday chart from feature 4 sit inside the tab too, for posts that are not reels.
+My reels opens with the account summary from feature 3, then a list of the user's reels, newest first. Each item (`reels-picker-item`) shows the reel's thumbnail, the date it was posted, and its latest measured views. Choosing a reel shows its insight panel (feature 11) and writes the choice to the URL as `?reel=<id>`. The id can also be the reel's Instagram media id, which is what the calendar's "view post" link carries for a plan crowsnest published itself. The post list and weekday chart from feature 4 sit inside the tab too, for posts that are not reels.
 
 ### How to access it
 
@@ -393,7 +393,7 @@ The user, on the My reels tab.
 
 Two blocks stand in for insights the Instagram app shows per reel but the Graph API only gives for the whole account. Each is labelled "Whole account, not this reel".
 
-- **Followers vs non-followers** (`reels-follower-split`): the account's `views` with `breakdown=follower_type`.
+- **Followers vs non-followers** (`reels-follower-split`): the account's `views` with `breakdown=follower_type`, over the last 24 hours (the API's default window). When the last refresh of the split failed, the block says "Last refresh failed" (over the previous numbers when there are any) instead of "Not measured yet".
 - **Audience details**, with tabs Age (`reels-audience-tab-age`), Country (`reels-audience-tab-country`), and Gender (`reels-audience-tab-gender`): from `engaged_audience_demographics`, showing the top results the API returns.
 
 ### How to access it
@@ -436,9 +436,11 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 - Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
 - When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing. A token rejected mid-run, including while pulling comments or audience, ends the run as failed, and rows already written stay.
 - A rate-limited run stops and makes no further calls, whether the limit hits on a reel, on comments, or on audience; it leaves the rest to the next run and does not retry in a loop.
-- A reel whose last measurement failed is due again on the next run; a failed measurement does not count as measured.
+- A failed measurement does not count as measured. A reel that has been measured before is due on its normal hourly or daily rule. A reel that has never been measured successfully backs off after a failure: it is retried once an hour later, then daily; when Instagram refused the request itself (for example a post from before the account became a business account) it waits a day from the first failure. So a reel that keeps failing adds about one failed row a day.
+- Each due check allows five minutes of slack, so a run landing just before the hour still measures the reel. After the app starts, the first run happens about 30 seconds later rather than an hour later.
+- A token that lacks the insights permission (Instagram refuses the core metrics for permission) ends the run as failed with the permission error, keeping rows already written, and My reels shows the missing-permission state. An Instagram throttle, including the business use case limit Instagram sends as HTTP 400 (code 80002), stops the run as rate limited.
 - A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows.
-- Comments refresh at most once a day on scheduled runs; their calls are reserved before the posts, so a full account still gets them.
+- Comments refresh at most once a day on scheduled runs; they reuse the run's post list, one call per post with comments, reserved before the posts so a full account still gets them.
 
 ### Limitations
 
@@ -471,6 +473,7 @@ Once your token is connected, crowsnest measures your reels on its own: every ho
 - **Account under 100 engagements**: Audience details explains the API threshold instead of showing an empty chart.
 - **Audience refresh fails for another reason**: the last stored rows stay, with a "Last refresh failed" note.
 - **Rate limit hit mid-run**: the run stops; stored numbers stay and keep their measured times.
-- **A reel's latest measurement failed**: the panel keeps its last good numbers and measured time, and the reel is retried on the next run.
-- **Token status on My reels**: the token check is cached for five minutes, so moving between reels does not call Instagram; saving a token in Settings or a measurement hitting a rejected token clears it, and Check connection always checks live.
+- **A reel's latest measurement failed**: the panel, the calendar's published reach, and Overview keep its last good numbers and measured time. A reel never measured successfully shows its newest failure and backs off (an hour, then daily).
+- **Token status on My reels**: the token check is cached for five minutes (30 seconds when it came back rate limited, unreachable, or unknown), so moving between reels does not call Instagram. Saving a token in Settings or a measurement hitting a rejected token clears it, a successful measurement sets it to connected, a measurement refused for permission sets it to missing a permission, and Check connection always checks live.
+- **Follower split refresh fails**: the Followers vs non-followers block says the last refresh failed instead of "Not measured yet".
 - **Month navigation on Calendar**: `tab=calendar` stays in the URL with `month=`.
