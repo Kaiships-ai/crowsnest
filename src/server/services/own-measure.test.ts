@@ -299,6 +299,16 @@ describe("comments", () => {
     expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_comments_fetch_error")).toBe(false);
   });
 
+  test("comments reuse the run's media list and reserve only one call per post with comments", async () => {
+    // 72 reels, 2 with comments: 2 + 72 * 2 + 2 = 148 fits the 150 scheduled budget
+    // only when no extra media list call is reserved.
+    const list = Array.from({ length: 72 }, (_, i) => media(`r${i}`, { commentsCount: i < 2 ? 1 : 0 }));
+    graphClient.fetchMedia.mockResolvedValue(list);
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: null, postsMeasured: 72 });
+    expect(graphClient.fetchComments).toHaveBeenCalledWith("kallaway", list);
+  });
+
   test("scheduled runs refresh comments at most once a day", async () => {
     graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 2 })]);
     await svc.measureOwnChannel({ scope: "due", now: NOW });
@@ -312,7 +322,7 @@ describe("comments", () => {
 
 describe("Measure now budget", () => {
   test("uses the 190-call manual budget, reserving only the calls a post actually needs", async () => {
-    // 60 reels with comments: 2 + 60 * 2 + 61 = 183 calls, over the scheduled 150 but under 190.
+    // 60 reels with comments: 2 + 60 * 2 + 60 = 182 calls, over the scheduled 150 but under 190.
     graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 60 }, (_, i) => media(`r${i}`, { commentsCount: 1 })));
     const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
     expect(r).toMatchObject({ ok: true, postsMeasured: 60, stoppedEarly: null, partial: false });
@@ -350,7 +360,7 @@ describe("fatal failures after the post loop", () => {
     const split = { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" };
     graphClient.fetchAccountBreakdowns.mockResolvedValue({ rows: [split], audienceError: null, callsUsed: 2, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") });
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
-    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 1 + 2 });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 2 });
     expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(1);
   });
 });

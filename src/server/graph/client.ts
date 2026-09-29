@@ -139,7 +139,8 @@ export interface GraphClient {
    *  failure lands in insights.error. callsUsed counts every call made. */
   fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult>;
   fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
-  fetchComments(accountUsername: string): Promise<GraphCommentsResult>;
+  /** Comments for the given media (the run's own media list), one call per post with comments. */
+  fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
   checkToken(): Promise<GraphTokenStatus>;
@@ -590,25 +591,14 @@ export const graphClient: GraphClient = {
     return { rows, audienceError, callsUsed, stop: null };
   },
 
-  async fetchComments(accountUsername: string): Promise<GraphCommentsResult> {
-    const { token, userId } = requireConfigured();
-    const mediaResult = await graphGet<{ data?: unknown[] }>(
-      `${userId}/media`,
-      { fields: "id,permalink,timestamp,comments_count", limit: 50 },
-      token
-    );
-    if (!mediaResult.ok) throw new GraphApiError(errorCodeFor(mediaResult.kind), mediaResult.message);
-
-    const items = Array.isArray(mediaResult.data.data) ? mediaResult.data.data : [];
+  async fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult> {
+    const { token } = requireConfigured();
     const out: GraphComment[] = [];
-    let callsUsed = 1;
-    for (const raw of items) {
-      const m = rec(raw);
-      const commentsCount = num(m.comments_count);
-      if (!commentsCount) continue;
-      const mediaId = str(m.id);
-      if (!mediaId) continue;
-      const permalink = str(m.permalink) ?? "";
+    let callsUsed = 0;
+    for (const m of media) {
+      if (!m.commentsCount) continue;
+      const mediaId = m.externalId;
+      const permalink = m.permalink;
 
       callsUsed += 1;
       const commentsResult = await graphGet<{ data?: unknown[] }>(`${mediaId}/comments`, { fields: "id,text,username,timestamp", limit: 100 }, token);

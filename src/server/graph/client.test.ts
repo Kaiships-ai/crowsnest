@@ -487,21 +487,13 @@ describe("graphClient.fetchAccount", () => {
 });
 
 describe("graphClient.fetchComments", () => {
-  test("classifies organic comments and skips a media whose own comments call fails", async () => {
+  const MEDIA = (id: string, commentsCount: number) => ({ externalId: id, permalink: `https://www.instagram.com/p/${id}/`, commentsCount });
+
+  test("uses the media list it is given (no second media call), classifies comments and skips a media whose comments call fails", async () => {
     process.env.IG_GRAPH_TOKEN = "tok_secret";
     process.env.IG_GRAPH_USER_ID = "17841400000000000";
 
     const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({
-        data: [
-          { id: "post_a", permalink: "https://www.instagram.com/p/a/", timestamp: "2026-07-01T00:00:00+0000", comments_count: 1 },
-          { id: "post_b", permalink: "https://www.instagram.com/p/b/", timestamp: "2026-07-02T00:00:00+0000", comments_count: 1 },
-          { id: "post_c", permalink: "https://www.instagram.com/p/c/", timestamp: "2026-07-03T00:00:00+0000", comments_count: 0 },
-        ],
-      }),
-    });
     fetchMock.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: [{ id: "c1", text: "so good", username: "a_fan", timestamp: "2026-07-01T01:00:00+0000" }] }),
@@ -510,14 +502,15 @@ describe("graphClient.fetchComments", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { graphClient } = await loadClient();
-    const { comments, callsUsed, stop } = await graphClient.fetchComments("kallaway");
+    const { comments, callsUsed, stop } = await graphClient.fetchComments("kallaway", [MEDIA("post_a", 1), MEDIA("post_b", 1), MEDIA("post_c", 0)]);
 
     expect(stop).toBeNull();
-    expect(callsUsed).toBe(3);
+    expect(callsUsed).toBe(2);
     expect(comments).toHaveLength(1);
-    expect(comments[0]).toMatchObject({ externalId: "c1", kind: "organic", author: "a_fan" });
-    // post_c had comments_count: 0 and was never queried at all.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(comments[0]).toMatchObject({ externalId: "c1", kind: "organic", author: "a_fan", permalink: "https://www.instagram.com/p/post_a/" });
+    // post_c had commentsCount 0 and was never queried; no media list call was made.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(fetchMock.mock.calls[0][0] as string).pathname).toMatch(/\/post_a\/comments$/);
   });
 });
 
@@ -526,20 +519,16 @@ describe("graphClient.fetchComments, fatal per-media failure", () => {
     process.env.IG_GRAPH_TOKEN = "tok_secret";
     process.env.IG_GRAPH_USER_ID = "17841400000000000";
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [
-        { id: "post_a", permalink: "https://i/a", comments_count: 1 },
-        { id: "post_b", permalink: "https://i/b", comments_count: 1 },
-        { id: "post_c", permalink: "https://i/c", comments_count: 1 },
-      ] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: [{ id: "c1", text: "hi", username: "fan" }] }) })
       .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) });
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    const out = await graphClient.fetchComments("kallaway");
+    const media = ["a", "b", "c"].map((id) => ({ externalId: `post_${id}`, permalink: `https://i/${id}`, commentsCount: 1 }));
+    const out = await graphClient.fetchComments("kallaway", media);
     expect(out.comments).toHaveLength(1);
-    expect(out.callsUsed).toBe(3);
+    expect(out.callsUsed).toBe(2);
     expect(out.stop?.code).toBe("GRAPH_RATE_LIMITED");
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
 

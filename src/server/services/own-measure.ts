@@ -158,8 +158,7 @@ function insightColumns(i: GraphPostInsights) {
 /** Upserts one own_comments row keyed on externalId (the Graph comment id). A comment
  *  whose post permalink does not match any known own_posts row is skipped rather than
  *  failing the whole run: own_comments.own_post_id is NOT NULL, so a comment that
- *  cannot be linked cannot be stored, and `fetchComments`'s own media page (limit 50)
- *  is not guaranteed to be the exact same set `fetchMedia` returned. */
+ *  cannot be linked cannot be stored. */
 async function upsertOwnComment(comment: GraphComment, postIdByPermalink: Map<string, string>): Promise<boolean> {
   const ownPostId = postIdByPermalink.get(comment.permalink);
   if (!ownPostId) {
@@ -192,13 +191,14 @@ function fatalStop(err: unknown): GraphApiError | null {
 
 async function measureComments(
   account: GraphAccount,
+  media: GraphMedia[],
   measuredAt: string
 ): Promise<{ commentsSeen: number; partial: boolean; callsUsed: number; stop: GraphApiError | null }> {
   let fetched: GraphCommentsResult;
   try {
-    fetched = await graphClient.fetchComments(account.username);
+    fetched = await graphClient.fetchComments(account.username, media);
   } catch (err) {
-    // The media list call itself failed: one call spent.
+    // Not configured, or a malformed comment mid-pull: count one call.
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(err));
     log.warn("graph.measure.comments_failed", { message: messageOf(err) });
     return { commentsSeen: 0, partial: true, callsUsed: 1, stop: fatalStop(err) };
@@ -252,9 +252,9 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   const captures = opts.scope === "due" ? await captureStateByExternalId(media.map((m) => m.externalId)) : null;
   const inScope = captures === null ? media : media.filter((m) => isDue(m.postedAt, captures.lastOk.get(m.externalId) ?? null, now, captures.failures.get(m.externalId) ?? null));
 
-  // Comments cost 1 media list + 1 call per post with comments. Their share is reserved
-  // before the post loop so a full account still gets them.
-  const commentCalls = (await commentsDue(opts.scope, now)) ? 1 + media.filter((m) => (m.commentsCount ?? 0) > 0).length : 0;
+  // Comments cost 1 call per post with comments (they reuse this run's media list). Their
+  // share is reserved before the post loop so a full account still gets them.
+  const commentCalls = (await commentsDue(opts.scope, now)) ? media.filter((m) => (m.commentsCount ?? 0) > 0).length : 0;
 
   let postsMeasured = 0;
   let postsFailed = 0;
@@ -304,7 +304,7 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       partial = true;
       await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
     } else {
-      const c = await measureComments(account, measuredAt);
+      const c = await measureComments(account, media, measuredAt);
       ({ commentsSeen, partial } = c);
       callsUsed += c.callsUsed;
       if (c.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(c.stop);
