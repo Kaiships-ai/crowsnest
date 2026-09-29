@@ -49,7 +49,7 @@ Automatic: it is what the My reels and Calendar tabs render when `getOwnChannel(
 
 ### Limitations
 
-- There is no control to clear the own-channel flag once set. `unsetOwnChannelAction` exists in `channel-actions.ts` and is exercised by tests, but no button calls it (B-15). Switching to a different channel is possible (choosing another candidate reassigns the flag); returning to "no channel marked" is not.
+- There is no control to clear the own-channel flag once set. `unsetOwnChannelAction` exists in `channel-actions.ts` and is exercised by tests, but no button calls it. Switching to a different channel is possible (choosing another candidate reassigns the flag); returning to "no channel marked" is not.
 
 ### User guide
 
@@ -74,7 +74,7 @@ Automatic: the top of the My reels tab, once a channel is own and the account ha
 ### Business rules
 
 - The two gates stack rather than replace: a token that fails right now, but a channel measured before, shows the real historical tiles, progress, and bars with the connect panel on top naming the problem, never hiding real numbers because a live check just failed.
-- With no token configured at all, the connect panel shows alone, even over an account measured before (B-20).
+- With no token configured at all, the connect panel shows alone, even over an account measured before.
 - Followers on the tile come from the Graph account snapshot (`own_account_snapshots`); the follower count in the header line comes from the tracked channel's own row (`channels.followerCount`), a different source that can disagree with the tile when one is more recent than the other.
 - The median reach caption changes with the data: below the usable-post floor it counts posts remaining ("N / 5 posts before a median reach appears"); once a median exists it names the sample it was built from.
 
@@ -171,7 +171,7 @@ The Calendar tab (`?tab=calendar`). The previous, next, and Today controls chang
 - "Missed" is never stored. `getCalendarMonth` computes it on every read from today against a `scheduled` plan's `plannedDate`; there is no code path in this component that writes it.
 - A plan marked published (even on a past date) reads as published, not missed, because published is checked ahead of missed in the cell precedence.
 - Marking a plan published writes `publishedOwnPostId` and the plan's `state`, then re-reads the month; the toast reads "Marked published" when reconciled against a matching own post, or "Marked published, no post linked" otherwise.
-- Deleting a plan removes the row, closes the panel, re-reads, and shows a "Planned post deleted" toast with an Undo action (`mine-delete-undo`). A plan that carries an uploaded video asks for confirmation first, through a designed confirm dialog rather than the browser's native prompt. The Undo re-creates the plan from its title, note, date, and script only; it does not restore the original row's id, remix session link, source video link, video kind, planned time, target length, or published mark (B-09).
+- Deleting a plan removes the row, closes the panel, re-reads, and shows a "Planned post deleted" toast with an Undo action (`mine-delete-undo`). A plan that carries an uploaded video asks for confirmation first, through a designed confirm dialog rather than the browser's native prompt. The Undo re-creates the plan from its title, note, date, and script only; it does not restore the original row's id, remix session link, source video link, video kind, planned time, target length, or published mark.
 - Dead-air shading (three or more elapsed days with nothing published) and the reconciliation prompt both depend on the channel having been measured at least once; with no measurement, the grid still renders every plan, and a line above it explains that the rest is unavailable.
 - The reconciliation prompt (a plan and an own post sharing a date) is a suggestion the user must click to accept; it is never applied automatically, and it stops appearing once the plan is marked published by hand.
 - There is no drag anywhere on this grid. Rescheduling a plan is a date-field edit in the plan dialog; day cells are plain buttons.
@@ -409,7 +409,7 @@ The My reels tab, below the reel's insight panel.
 
 - Nothing here is per reel. The API offers no per-reel follower split or demographics.
 - Only the top results come back from the API, so the Country tab does not sum to 100%.
-- Any stored audience error shows the 100-engagements message, whatever the error was, and hides older stored audience rows while it is set (B-18).
+- Any stored audience error shows the 100-engagements message, whatever the error was, and hides older stored audience rows while it is set.
 
 ### User guide
 
@@ -441,7 +441,7 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 - The job only runs while the app is running. A machine that is asleep or has crowsnest closed makes no measurements, and the views over time chart shows the gap.
 - It has no on-screen status of its own; the measured times on My reels are how the user sees it is working.
-- When Instagram refuses the account-wide breakdowns, nothing is stored, so each hourly tick asks again, about four calls an hour (B-21).
+- When Instagram refuses the account-wide breakdowns, nothing is stored, so each hourly tick asks again, about four calls an hour.
 
 ### User guide
 
