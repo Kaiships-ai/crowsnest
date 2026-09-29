@@ -347,6 +347,25 @@ describe("comments", () => {
     expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_comments_fetch_error")).toBe(false);
   });
 
+  test("comments skipped by a rate limit say so, not that the budget was spent", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 1 })]);
+    graphClient.fetchPostInsights.mockResolvedValue({ insights: insights(), callsUsed: 2, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") });
+    await svc.measureOwnChannel({ scope: "all", now: NOW });
+    const skip = (await db.select().from(tables.appSettings)).find((s) => s.key === "own_comments_fetch_error")?.value;
+    expect(skip).toMatch(/rate limit/i);
+    expect(skip).not.toMatch(/budget/i);
+  });
+
+  test("comments skipped by earlier runs' calls this hour name that cause", async () => {
+    // 2 + 91 * 2 + 4 = 188 calls leaves 200 - 188 - 10 = 2: account and media only.
+    graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 91 }, (_, i) => media(`r${i}`)));
+    await svc.measureOwnChannel({ scope: "all", now: NOW });
+    graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 1 })]);
+    await svc.measureOwnChannel({ scope: "all", now: new Date(NOW.getTime() + 10 * 60_000) });
+    const skip = (await db.select().from(tables.appSettings)).find((s) => s.key === "own_comments_fetch_error")?.value;
+    expect(skip).toMatch(/last hour/i);
+  });
+
   test("comments reuse the run's media list and reserve only one call per post with comments", async () => {
     // 72 reels, 2 with comments: 2 + 72 * 2 + 2 = 148 fits the 150 scheduled budget
     // only when no extra media list call is reserved.

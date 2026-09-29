@@ -316,7 +316,14 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   if (commentCalls > 0) {
     if (stoppedEarly === "rate_limited" || callsUsed + commentCalls > budget) {
       partial = true;
-      await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
+      // An auth or permission stop already ended the run above, so only these two remain.
+      const cause =
+        stoppedEarly === "rate_limited"
+          ? "Instagram rate limited this run."
+          : limitedByRecentCalls
+            ? "earlier measurements spent most of the last hour's Graph calls."
+            : "this run's Graph call budget was spent.";
+      await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, `Comments skipped: ${cause}`);
     } else {
       const c = await measureComments(account, media, measuredAt);
       ({ commentsSeen, partial } = c);
