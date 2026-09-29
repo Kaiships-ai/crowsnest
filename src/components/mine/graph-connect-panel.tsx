@@ -97,6 +97,10 @@ export function GraphConnectPanel({
         toast.error(result.error);
         return;
       }
+      if (result.stoppedEarly === "budget" && result.callsUsed === 0) {
+        toast.error("Measure now skipped: this hour's Graph calls are already spent. Try again later.");
+        return;
+      }
       const stopped =
         result.stoppedEarly === "rate_limited"
           ? " (stopped early: Instagram rate limit)"

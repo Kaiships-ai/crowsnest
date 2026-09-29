@@ -18,11 +18,14 @@ let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let svc: typeof import("./own-measure");
+// Captured once: a later test resets modules, and a fresh import would be a different logger.
+let log: typeof import("@/server/lib/logger")["log"];
 
 beforeAll(async () => {
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   svc = await import("./own-measure");
+  ({ log } = await import("@/server/lib/logger"));
 });
 
 const ACCOUNT = { id: "acct1", username: "kallaway", followersCount: 1000, followsCount: 50, mediaCount: 10 };
@@ -409,10 +412,11 @@ describe("comments", () => {
   });
 
   test("comments skipped by earlier runs' calls this hour name that cause", async () => {
-    // 2 + 91 * 2 + 4 = 188 calls leaves 200 - 188 - 10 = 2: account and media only.
-    graphClient.fetchMedia.mockImplementation(spend(1, Array.from({ length: 91 }, (_, i) => media(`r${i}`))));
+    // 2 + 90 * 2 + 1 + 4 = 187 calls leaves 200 - 187 - 10 = 3: account, media and one feed post.
+    graphClient.fetchMedia.mockImplementation(spend(1, [...Array.from({ length: 90 }, (_, i) => media(`r${i}`)), media("f", { productType: "FEED" })]));
+    graphClient.fetchPostInsights.mockImplementation(async (m: GraphMedia) => spend(m.productType === "REELS" ? 2 : 1, { insights: insights() })());
     await svc.measureOwnChannel({ scope: "all", now: NOW });
-    graphClient.fetchMedia.mockImplementation(spend(1, [media("a", { commentsCount: 1 })]));
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("a", { commentsCount: 1 }), media("b", { commentsCount: 1 })]));
     await svc.measureOwnChannel({ scope: "all", now: new Date(NOW.getTime() + 10 * 60_000) });
     const skip = (await db.select().from(tables.appSettings)).find((s) => s.key === "own_comments_fetch_error")?.value;
     expect(skip).toMatch(/last hour/i);
@@ -481,6 +485,20 @@ describe("calls outside a measurement", () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("a")]));
     const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
     expect(r).toMatchObject({ ok: true, stoppedEarly: "budget", limitedByRecentCalls: true, postsMeasured: 0, callsUsed: 2 });
+  });
+});
+
+describe("a spent hour", () => {
+  test("a budget that cannot cover account, media and one post makes no Graph call and writes no snapshot", async () => {
+    const info = vi.spyOn(log, "info");
+    await spend(188, null)();
+    for (const scope of ["all", "due"] as const) {
+      const r = await svc.measureOwnChannel({ scope, now: NOW });
+      expect(r).toMatchObject({ ok: true, stoppedEarly: "budget", limitedByRecentCalls: true, postsSeen: 0, callsUsed: 0 });
+    }
+    expect(graphClient.fetchAccount).not.toHaveBeenCalled();
+    expect(await db.select().from(tables.ownAccountSnapshots)).toHaveLength(0);
+    expect(info.mock.calls.filter(([event]) => event === "graph.measure.skipped_budget")).toHaveLength(2);
   });
 });
 

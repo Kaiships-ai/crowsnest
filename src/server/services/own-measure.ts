@@ -231,6 +231,12 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   const runBudget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
   const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - graphCallsInLastHour(now.getTime()) - GRAPH_CALL_HEADROOM);
   const limitedByRecentCalls = budget < runBudget;
+  // Account and media plus one post, before any Graph call: below that the run could only
+  // write a snapshot and spend calls the hour no longer has.
+  if (budget < 3) {
+    log.info("graph.measure.skipped_budget", { scope: opts.scope, budget });
+    return { ok: true, measuredAt: now.toISOString(), postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 0, stoppedEarly: "budget", limitedByRecentCalls };
+  }
 
   let account: GraphAccount;
   try {

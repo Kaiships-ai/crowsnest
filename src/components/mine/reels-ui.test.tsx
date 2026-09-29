@@ -2,9 +2,13 @@
  * @vitest-environment jsdom
  */
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
+const measureOwnChannelAction = vi.hoisted(() => vi.fn());
+vi.mock("@/server/actions/graph-actions", () => ({ measureOwnChannelAction, checkGraphTokenAction: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 // Records each chart line's props; jsdom has no layout, so the real chart never draws.
 const lineProps = vi.hoisted(() => [] as Record<string, unknown>[]);
 vi.mock("recharts", async (importOriginal) => ({
@@ -39,6 +43,13 @@ describe("GraphConnectPanel", () => {
     expect(getByText("Connected, nothing measured yet")).toBeTruthy();
     rerender(<GraphConnectPanel ownHandle="@me" everMeasured={false} initialStatus={{ configured: true, username: null, state: "permission_denied", message: "no insights", checkedAt: at }} />);
     expect(getByText("The token is missing a permission")).toBeTruthy();
+  });
+  test("a Measure now skipped for a spent hour says so, not 'Measured 0 of 0'", async () => {
+    measureOwnChannelAction.mockResolvedValue({ ok: true, measuredAt: "t", postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 0, stoppedEarly: "budget", limitedByRecentCalls: true });
+    const { getByTestId } = render(<GraphConnectPanel ownHandle="@me" everMeasured={false} initialStatus={{ configured: true, username: "me", state: "ok", message: null, checkedAt: "2026-09-01T00:00:00.000Z" }} />);
+    fireEvent.click(getByTestId("mine-connect-measure"));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Graph calls/)));
+    expect(toast.success).not.toHaveBeenCalled();
   });
 });
 
