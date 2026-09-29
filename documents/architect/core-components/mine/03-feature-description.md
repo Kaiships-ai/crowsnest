@@ -74,12 +74,13 @@ Automatic: the top of the My reels tab, once a channel is own and the account ha
 ### Business rules
 
 - The two gates stack rather than replace: a token that fails right now, but a channel measured before, shows the real historical tiles, progress, and bars with the connect panel on top naming the problem, never hiding real numbers because a live check just failed.
+- With no token configured at all, the connect panel shows alone, even over an account measured before (B-20).
 - Followers on the tile come from the Graph account snapshot (`own_account_snapshots`); the follower count in the header line comes from the tracked channel's own row (`channels.followerCount`), a different source that can disagree with the tile when one is more recent than the other.
 - The median reach caption changes with the data: below the usable-post floor it counts posts remaining ("N / 5 posts before a median reach appears"); once a median exists it names the sample it was built from.
 
 ### Limitations
 
-- The dashboard reflects the last measurement, not a live read of Instagram; numbers update only after a measurement runs (feature 7, or feature 14 once built) and the page reloads or refreshes.
+- The dashboard reflects the last measurement, not a live read of Instagram; numbers update only after a measurement runs (feature 7 or feature 14) and the page reloads or refreshes.
 - A missing reach is never shown as zero. A post with no measured reach draws a dashed baseline and a dash for its number, both in the reach-by-post strip and, per feature 4, in the post list and weekday averages.
 
 ### User guide
@@ -261,7 +262,7 @@ The user, every time they open the Dashboard.
 
 ### What it does
 
-The Dashboard at `/` carries a tab strip with three tabs: Overview (`dashboard-tab-overview`), My reels (`dashboard-tab-reels`), and Calendar (`dashboard-tab-calendar`). Overview is the existing research dashboard, unchanged. My reels holds features 3, 4, and 10 to 13. Calendar holds features 5, 6, and 8. The selected tab lives in the URL as `?tab=overview|reels|calendar`, so a reload, a back button, or a shared link lands on the same tab. The `/mine` route renders no page of its own and redirects to the Dashboard; the sidebar has no "My channel" entry.
+The Dashboard at `/` carries a tab strip with three tabs: Overview (`dashboard-tab-overview`), My reels (`dashboard-tab-reels`), and Calendar (`dashboard-tab-calendar`). Overview is the existing research dashboard, unchanged. My reels holds features 3, 4, and 10 to 13. Calendar holds features 5, 6, and 8. The selected tab lives in the URL as `?tab=overview|reels|calendar`, so a reload, a back button, or a shared link lands on the same tab. The `/mine` route renders no page of its own; it answers a real 307 redirect to the Dashboard; the sidebar has no "My channel" entry.
 
 ### How to access it
 
@@ -401,13 +402,14 @@ The My reels tab, below the reel's insight panel.
 ### Business rules
 
 - The account-wide label is always visible on both blocks, so no account number reads as a reel number.
-- Audience details uses engaged audience, not followers: `follower_demographics` needs 100 or more followers and `engaged_audience_demographics` needs 100 or more engagements. When the API refuses for lack of volume, the block says so rather than showing an empty chart.
+- Audience details uses engaged audience, not followers: `follower_demographics` needs 100 or more followers and `engaged_audience_demographics` needs 100 or more engagements. When a stored audience fetch error is set, the block shows that threshold explanation rather than an empty chart.
 - Both blocks carry their measured time.
 
 ### Limitations
 
 - Nothing here is per reel. The API offers no per-reel follower split or demographics.
 - Only the top results come back from the API, so the Country tab does not sum to 100%.
+- Any stored audience error shows the 100-engagements message, whatever the error was, and hides older stored audience rows while it is set (B-18).
 
 ### User guide
 
@@ -430,7 +432,7 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 ### Business rules
 
 - The job stays under the Graph API limit of 200 calls per hour, counting every call it makes, including account-wide ones; one run makes at most 150 calls.
-- Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock, and the second one waits its turn rather than doubling the calls.
+- Only one measurement runs at a time: a scheduled tick and "Measure now" share one lock. A tick that finds a run in progress skips that hour; "Measure now" waits its turn. Neither doubles the calls.
 - When there is no own channel, no token, or the token is rejected, a run does nothing and writes nothing.
 - A rate-limited run stops and leaves the rest to the next run; it does not retry in a loop.
 - A failure on one reel does not stop the others, the same per-post rule the manual measurement already follows.
@@ -439,6 +441,7 @@ It starts with the app. It is modeled on the existing in-process schedulers (`sy
 
 - The job only runs while the app is running. A machine that is asleep or has crowsnest closed makes no measurements, and the views over time chart shows the gap.
 - It has no on-screen status of its own; the measured times on My reels are how the user sees it is working.
+- When Instagram refuses the account-wide breakdowns, nothing is stored, so each hourly tick asks again, about four calls an hour (B-21).
 
 ### User guide
 
