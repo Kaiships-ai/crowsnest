@@ -108,3 +108,86 @@ describe("single-flight lock", () => {
     expect(graphClient.fetchAccount).toHaveBeenCalledTimes(2);
   });
 });
+
+const H = 3_600_000;
+const NOW = new Date("2026-09-29T12:00:00.000Z");
+const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
+
+async function seedCapture(externalId: string, postedAt: string, capturedAt: string) {
+  const id = `own-${externalId}`;
+  await db.insert(tables.ownPosts).values({ id, externalId, permalink: `https://i/${externalId}`, mediaType: "VIDEO", productType: "REELS", format: "Reel", postedAt, firstSeenAt: postedAt });
+  await db.insert(tables.ownPostInsights).values({ id: `ins-${externalId}-${capturedAt}`, ownPostId: id, capturedAt, views: 1 });
+}
+const measuredIds = () => graphClient.fetchPostInsights.mock.calls.map(([m]) => (m as GraphMedia).externalId);
+
+describe("isDue", () => {
+  test("hourly inside 72 hours, daily after, always when never captured", () => {
+    expect(svc.isDue(ago(2 * H), ago(61 * 60_000), NOW)).toBe(true);
+    expect(svc.isDue(ago(71 * H), ago(61 * 60_000), NOW)).toBe(true);
+    expect(svc.isDue(ago(2 * H), ago(30 * 60_000), NOW)).toBe(false);
+    expect(svc.isDue(ago(5 * 24 * H), ago(23 * H), NOW)).toBe(false);
+    expect(svc.isDue(ago(5 * 24 * H), null, NOW)).toBe(true);
+  });
+});
+
+describe("measureOwnChannel, scope due", () => {
+  test("ACTION-26: new reels hourly, the 5 day old reel only after a day", async () => {
+    await seedCapture("new2h", ago(2 * H), ago(61 * 60_000));
+    await seedCapture("new71h", ago(71 * H), ago(61 * 60_000));
+    await seedCapture("old5d", ago(5 * 24 * H), ago(23 * H));
+    graphClient.fetchMedia.mockResolvedValue([media("new2h", { postedAt: ago(2 * H) }), media("new71h", { postedAt: ago(71 * H) }), media("old5d", { postedAt: ago(5 * 24 * H) })]);
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(measuredIds().sort()).toEqual(["new2h", "new71h"]);
+    graphClient.fetchPostInsights.mockClear();
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    expect(measuredIds()).toContain("old5d");
+  });
+
+  test("ACTION-29: 250 due reels stay within the 150-call budget; leftovers are still due next hour", async () => {
+    const list = Array.from({ length: 250 }, (_, i) => media(`r${i}`, { postedAt: ago(10 * 24 * H) }));
+    graphClient.fetchMedia.mockResolvedValue(list);
+    const first = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(first).toMatchObject({ ok: true, stoppedEarly: "budget" });
+    if (!first.ok) throw new Error("unreachable");
+    expect(first.callsUsed).toBeLessThanOrEqual(150);
+    const measuredFirst = new Set(measuredIds());
+    graphClient.fetchPostInsights.mockClear();
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + H) });
+    const measuredSecond = measuredIds();
+    expect(measuredSecond.length).toBeGreaterThan(0);
+    expect(measuredSecond.some((id) => measuredFirst.has(id))).toBe(false);
+  });
+
+  test("ACTION-30: a rate limit stops the run at once; earlier rows stay", async () => {
+    graphClient.fetchMedia.mockResolvedValue(["a", "b", "c", "d", "e", "f"].map((id) => media(id)));
+    graphClient.fetchPostInsights
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 }).mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 }).mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockRejectedValueOnce(new GraphApiError("GRAPH_RATE_LIMITED", "slow down"));
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 4 });
+    expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(5);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(4);
+  });
+
+  test("ACTION-31: one reel throwing does not stop the others", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a"), media("b"), media("c")]);
+    graphClient.fetchPostInsights
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 });
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    const rows = await db.select({ ownPostId: tables.ownPostInsights.ownPostId }).from(tables.ownPostInsights);
+    expect(rows).toHaveLength(2);
+  });
+
+  test("ACTION-32: each run appends a snapshot row, never overwrites", async () => {
+    await seedCapture("a", ago(2 * H), ago(2 * H));
+    graphClient.fetchMedia.mockResolvedValue([media("a", { postedAt: ago(2 * H) })]);
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + H) });
+    const rows = await db.select().from(tables.ownPostInsights);
+    expect(rows).toHaveLength(3);
+    expect(new Set(rows.map((r) => r.capturedAt)).size).toBe(3);
+  });
+});

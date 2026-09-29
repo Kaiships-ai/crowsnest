@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphMedia, type GraphPostInsights } from "@/server/graph/client";
@@ -40,6 +40,31 @@ export function toFailure(err: unknown): { ok: false; error: string; code: Graph
   if (err instanceof GraphApiError) return { ok: false, error: err.userMessage, code: err.code };
   log.error("graph.action.unexpected", { error: messageOf(err) });
   return { ok: false, error: messageOf(err), code: "GRAPH_UNKNOWN" };
+}
+
+const HOUR_MS = 3_600_000;
+const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
+
+/** Hourly while a post is under 72 hours old, daily after, and always when never captured.
+ *  Derived from stored captures on every tick, so the scheduler keeps no state. */
+export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date): boolean {
+  if (lastCapturedAt === null) return true;
+  const age = now.getTime() - Date.parse(postedAt);
+  const sinceCapture = now.getTime() - Date.parse(lastCapturedAt);
+  return sinceCapture >= (age < NEW_REEL_WINDOW_MS ? HOUR_MS : 24 * HOUR_MS);
+}
+
+async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (externalIds.length === 0) return out;
+  const rows = await db
+    .select({ externalId: tables.ownPosts.externalId, capturedAt: tables.ownPostInsights.capturedAt })
+    .from(tables.ownPostInsights)
+    .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
+    .where(inArray(tables.ownPosts.externalId, externalIds))
+    .orderBy(desc(tables.ownPostInsights.capturedAt));
+  for (const r of rows) if (!out.has(r.externalId)) out.set(r.externalId, r.capturedAt);
+  return out;
 }
 
 async function setAppSetting(key: string, value: string | null): Promise<void> {
@@ -147,11 +172,31 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     return toFailure(err);
   }
 
+  const budget = opts.budget ?? OWN_MEASURE_CALL_BUDGET;
+  const lastCaptured = opts.scope === "due" ? await latestCaptureByExternalId(media.map((m) => m.externalId)) : new Map<string, string>();
+  const inScope = opts.scope === "all" ? media : media.filter((m) => isDue(m.postedAt, lastCaptured.get(m.externalId) ?? null, now));
+
   let postsMeasured = 0;
   let postsFailed = 0;
-  const stoppedEarly: MeasureSummary["stoppedEarly"] = null;
-  for (const m of media) {
-    const fetched = await graphClient.fetchPostInsights(m);
+  let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
+  for (const m of inScope) {
+    // Reserve the worst case (extended + fallback + profile_activity for a reel).
+    if (callsUsed + (m.productType === "REELS" ? 3 : 1) > budget) {
+      stoppedEarly = "budget";
+      break;
+    }
+    let fetched: { insights: GraphPostInsights; callsUsed: number };
+    try {
+      fetched = await graphClient.fetchPostInsights(m);
+    } catch (err) {
+      callsUsed += 1;
+      if (err instanceof GraphApiError && (err.code === "GRAPH_RATE_LIMITED" || err.code === "GRAPH_AUTH_FAILED")) {
+        stoppedEarly = err.code === "GRAPH_RATE_LIMITED" ? "rate_limited" : "auth_failed";
+        break;
+      }
+      log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
+      continue;
+    }
     callsUsed += fetched.callsUsed;
     const ownPostId = await upsertOwnPost(m, measuredAt);
     await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
@@ -161,7 +206,17 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
 
   let commentsSeen = 0;
   let partial = false;
-  if (opts.scope === "all") ({ commentsSeen, partial } = await measureComments(account));
+  if (opts.scope === "all") {
+    // Comments cost 1 media list + 1 call per post with comments.
+    const commentCalls = 1 + media.filter((m) => (m.commentsCount ?? 0) > 0).length;
+    if (stoppedEarly !== null || callsUsed + commentCalls > budget) {
+      partial = true;
+      await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
+    } else {
+      ({ commentsSeen, partial } = await measureComments(account));
+      callsUsed += commentCalls;
+    }
+  }
 
   log.info("graph.measure.done", { scope: opts.scope, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed });
   return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly };
