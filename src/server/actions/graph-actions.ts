@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { graphClient, type GraphTokenStatus } from "../graph/client";
+import type { GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
+import { cachedTokenStatus, invalidateTokenStatus } from "../graph/token-status";
 import { measureOwnChannel, toFailure, type MeasureResult } from "../services/own-measure";
 
 /**
@@ -34,7 +35,9 @@ export async function measureOwnChannelAction(): Promise<MeasureResult> {
  */
 export async function checkGraphTokenAction(): Promise<ActionResult<{ status: GraphTokenStatus }>> {
   try {
-    const status = await graphClient.checkToken();
+    // Always live (Check connection, Test token); the result refreshes the cache.
+    invalidateTokenStatus();
+    const status = await cachedTokenStatus();
     return { ok: true, status };
   } catch (err) {
     return toFailure(err);

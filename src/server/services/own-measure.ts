@@ -3,6 +3,7 @@ import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
+import { invalidateTokenStatus } from "@/server/graph/token-status";
 import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
 /**
@@ -309,7 +310,10 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
   const run = runMeasure(opts);
   inFlight = run;
   try {
-    return await run;
+    const result = await run;
+    // A dead token must not keep reading as connected from the cached status.
+    if (!result.ok && result.code === "GRAPH_AUTH_FAILED") invalidateTokenStatus();
+    return result;
   } finally {
     if (inFlight === run) inFlight = null;
   }
