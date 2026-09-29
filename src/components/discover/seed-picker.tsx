@@ -148,7 +148,7 @@ export function SeedPicker({
                   />
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle className="w-full truncate font-mono">@{seed.handle}</ItemTitle>
+                  <ItemTitle className="block w-full truncate font-mono">@{seed.handle}</ItemTitle>
                   <ItemDescription>{seed.why}</ItemDescription>
                 </ItemContent>
                 <ItemActions>

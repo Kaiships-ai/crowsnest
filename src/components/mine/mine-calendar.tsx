@@ -647,7 +647,7 @@ export function MineCalendar({
               {undatedDrafts.map((d) => (
                 <Item key={d.id} size="sm">
                   <ItemContent>
-                    <ItemTitle className="truncate">{d.title}</ItemTitle>
+                    <ItemTitle className="block truncate">{d.title}</ItemTitle>
                   </ItemContent>
                   <ItemActions>
                     <Button size="sm" variant="ghost" onClick={() => setDialogState({ mode: "edit", plan: d })}>

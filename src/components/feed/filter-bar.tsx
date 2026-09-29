@@ -22,7 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { currentViewCriteria as buildViewCriteria, FILTER_PARAM_KEYS, resolveChipValue } from "@/lib/feed-filters";
-import { cn } from "@/lib/utils";
 import type { FeedBandCounts, SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
@@ -116,13 +115,13 @@ const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band", "minE
 // filterBtn treatment (feed.html line 17: color var(--t3), hover bg var(--s1) color
 // var(--t1)) — dark: overrides neutralize the shadcn Select's own default input chrome.
 const FILTER_TRIGGER_CLASS =
-  "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
+  "h-7 gap-1.5 rounded-full border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
 
 // Same read-as-state treatment as FILTER_TRIGGER_CLASS, sized down (task-2 brief: score,
 // timeframe, and follower-band lead; fleet/min-views/min-engagement/analyzed recede by
 // weight only — smaller and more muted, never hidden behind a popover or menu).
 const SECONDARY_FILTER_TRIGGER_CLASS =
-  "h-6 gap-1 rounded-none border-transparent bg-transparent px-1.5 text-xs text-muted-foreground hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
+  "h-6 gap-1 rounded-full border-transparent bg-transparent px-1.5 text-xs text-muted-foreground hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
 
 /** Chip text for the active-filter summary: reuses the option's own (already-normalized)
  *  label rather than inventing separate copy, so the chip always matches what the
@@ -298,7 +297,7 @@ export function FilterBar({
     <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
       {/* Free-text search (v1-scope.md P0: "a conspicuous hole in a research tool").
           Searches caption, handle, and display name server-side (queries/feed.ts). */}
-      <InputGroup className="w-full sm:w-64">
+      <InputGroup className="w-full sm:w-80">
         <InputGroupAddon align="inline-start">
           <Search aria-hidden />
         </InputGroupAddon>
@@ -315,10 +314,8 @@ export function FilterBar({
         {/* Filters cluster: score and timeframe lead at full weight (task-2 brief) — they
             drive the core "what over-performed, when" question, alongside the
             follower-band row below. Fleet, min-views, min-engagement, and the analyzed
-            toggle recede to a smaller, more muted second row: still fully visible and
+            toggle recede to smaller, more muted triggers: still fully visible and
             functional, never hidden behind a popover/dropdown/drawer/`<details>`. */}
-        <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1">
         <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
           <SelectTrigger
             size="sm"
@@ -349,9 +346,7 @@ export function FilterBar({
             ))}
           </SelectContent>
         </Select>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1">
         <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
           <SelectTrigger size="sm" aria-label="Fleet" className={SECONDARY_FILTER_TRIGGER_CLASS}>
             <SelectValue />
@@ -408,16 +403,13 @@ export function FilterBar({
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
-        </div>
-        </div>
 
         {/* Actions cluster: saving a view, clearing, and importing a URL are actions,
             not filters — separated from the filter group above so the row reads as
             "what I'm filtering by" then "what I can do". */}
-        <div className="flex flex-wrap items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="sm" className={cn(FILTER_TRIGGER_CLASS, "rounded-full")} />}
+            render={<Button variant="ghost" size="sm" className={FILTER_TRIGGER_CLASS} />}
           >
             Saved views
           </DropdownMenuTrigger>
@@ -462,7 +454,6 @@ export function FilterBar({
         >
           <Plus /> Add post URL
         </Button>
-        </div>
 
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>

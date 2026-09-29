@@ -35,8 +35,8 @@ export function KanbanColumn({
   const someSelected = selecting && channelIds.some((id) => selectedIds.has(id));
 
   return (
-    <section className="flex min-h-0 w-[280px] min-w-[280px] flex-none flex-col border-r border-border px-4 last:border-r-0">
-      <div className="flex items-center gap-2 border-b border-border px-1 pb-3">
+    <section className="flex min-h-0 w-[300px] min-w-[300px] flex-none flex-col border-r border-border px-4 last:border-r-0">
+      <div className="flex h-11 items-center gap-2 border-b border-border px-1 pb-3">
         {selecting && channelIds.length > 0 && (
           <Checkbox
             data-testid="channels-column-select-all"
@@ -63,10 +63,13 @@ export function KanbanColumn({
         )}
       </div>
 
+      {/* `*:shrink-0`: Card is overflow-hidden, which drops its flex min-height to 0, so
+          in this height-bounded scroller the cards would shrink and clip their stats
+          instead of the column scrolling. */}
       <div
         ref={setNodeRef}
         data-over={isOver ? "" : undefined}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pt-3 pb-4 data-[over]:bg-border/5"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto *:shrink-0 px-1 pt-3 pb-4 data-[over]:bg-border/5"
       >
         <SortableContext items={channelIds} strategy={verticalListSortingStrategy}>
           {channelIds.map((id) => (

@@ -46,7 +46,7 @@ export function StatTile({
   const displayValue = value.trim() === "" ? "—" : value;
 
   return (
-    <Card className="rounded-none">
+    <Card>
       <CardContent className="flex flex-col gap-1.5">
         <p className="text-sm text-muted-foreground">{label}</p>
         <p data-num className="font-mono text-lg font-semibold text-foreground">

@@ -93,6 +93,17 @@ Take the primitives at their defaults. `Card` and `Item` are `rounded-2xl`,
 `InputGroup` and `ButtonGroup` are `rounded-4xl`. Do not add a `className` to undo a
 default for tone or radius; override only when a layout would otherwise break.
 
+Primitive behaviors that callers rely on:
+
+| Case | What to write | Why |
+| --- | --- | --- |
+| A link that looks like a button | `<Button render={<Link href="..." />}>` | `Button` renders the link itself with button styling, so it keeps anchor semantics and Base UI never warns. Passing `nativeButton` opts back into Base UI's button. |
+| A one-line `ItemTitle` that must ellipsize | `className="block truncate"` | `ItemTitle` is `display: flex`, which clips text but never draws the ellipsis. `ItemContent` is `min-w-0`, so the title can shrink. |
+| A stack of `Card`s in a height-bounded scroller | `*:shrink-0` on the scroller | `Card` is `overflow-hidden`, which drops its flex minimum height to 0, so the cards shrink and clip instead of the list scrolling. |
+| A client chart fed from a big list | Shape the data on the server and pass only the result | A client prop is serialized into the page, so a whole library passed as `items` ships every row on every load. |
+| A `ToggleGroup` whose labels can outgrow a phone | `className="flex-wrap"` | `ToggleGroup` is single-line by default and clips past the edge. |
+| `DndContext` in a server-rendered page | A fixed `id` | dnd-kit numbers its aria ids from a counter that differs between server and client, which breaks hydration. |
+
 ## Fixing UI without a design skill
 
 1. Find the component under `src/components/<feature>/`.

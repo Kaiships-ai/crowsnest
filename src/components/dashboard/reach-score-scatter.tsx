@@ -7,8 +7,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { scalePosition } from "@/components/video/median-baseline";
 import { formatCompact, formatMultiplier } from "@/lib/format";
-import type { FeedItem } from "@/server/queries/feed";
-import { buildScatterPoints, viewScalePosition } from "./dashboard-chart-data";
+import { type buildScatterPoints, viewScalePosition } from "./dashboard-chart-data";
 
 const CHART_CONFIG: ChartConfig = {
   score: { label: "Score", color: "var(--chart-1)" },
@@ -36,8 +35,7 @@ const Y_TICKS = [
  * Dot color is the binary "beat its channel or not" read: this dot's y-position already
  * IS the score, so colouring it off the score asserts nothing the data does not contain.
  */
-export function ReachScoreScatter({ items }: { items: FeedItem[] }) {
-  const { points, omitted } = buildScatterPoints(items);
+export function ReachScoreScatter({ points, omitted }: ReturnType<typeof buildScatterPoints>) {
 
   if (points.length === 0) {
     return (

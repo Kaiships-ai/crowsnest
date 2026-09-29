@@ -161,7 +161,7 @@ export function FailureStrip({ strip }: FailureStripProps) {
             {strip.gaps.map((gap) => (
               <Item key={gap.channelId} size="xs">
                 <ItemContent>
-                  <ItemTitle className="truncate">{gapDisplayName(gap)}</ItemTitle>
+                  <ItemTitle className="block truncate">{gapDisplayName(gap)}</ItemTitle>
                 </ItemContent>
                 <ItemDescription className="shrink-0 text-right font-mono text-2xs">{gapMessage(gap)}</ItemDescription>
               </Item>

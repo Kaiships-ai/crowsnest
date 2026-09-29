@@ -6,8 +6,7 @@ import { Cell, Pie, PieChart } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import type { FeedItem } from "@/server/queries/feed";
-import { buildProducerDonut } from "./dashboard-chart-data";
+import type { buildProducerDonut } from "./dashboard-chart-data";
 
 // Categorical, not a magnitude ramp: these four tell channels apart, they do not grade
 // "which is more", which a producer's identity does not carry. The `--chart-1..5` tokens
@@ -24,8 +23,7 @@ const SLICE_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var
  * `buildProducerDonut` owns the folding of the long tail into one "Other" slice and the
  * percentage math; this file only draws what it returns.
  */
-export function ProducerDonut({ items }: { items: FeedItem[] }) {
-  const { slices, outlierTotal, postTotal } = buildProducerDonut(items);
+export function ProducerDonut({ slices, outlierTotal, postTotal }: ReturnType<typeof buildProducerDonut>) {
 
   if (outlierTotal === 0) {
     return (

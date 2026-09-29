@@ -120,11 +120,7 @@ export function StackHealthPanel({ sidecar, llm, hasLlmKey, lastSync, running, c
       size="sm"
       role="region"
       aria-label="Stack health"
-      className={cn(
-        "border",
-        tone === "ok" ? "border-border" : "border-destructive",
-        tone === "warn" && "border-destructive/50",
-      )}
+      className={cn(tone === "bad" && "ring-destructive", tone === "warn" && "ring-destructive/50")}
     >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">

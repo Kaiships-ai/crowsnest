@@ -1,3 +1,4 @@
+import { cloneElement, isValidElement, type ReactElement } from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
@@ -41,12 +42,27 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  render,
+  nativeButton,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+  // `render={<Link />}` is a link styled as a button, so it keeps the anchor's own
+  // semantics: Base UI's Button would either warn about the non-<button> element or,
+  // with nativeButton={false}, stamp role="button" onto the link.
+  if (isValidElement(render) && nativeButton === undefined) {
+    return cloneElement(render as ReactElement<Record<string, unknown>>, {
+      "data-slot": "button",
+      className: classes,
+      ...props,
+    })
+  }
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={classes}
+      render={render}
+      nativeButton={nativeButton}
       {...props}
     />
   )

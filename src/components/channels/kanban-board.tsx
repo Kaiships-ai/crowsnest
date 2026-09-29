@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragOverEvent, type DragStartEvent, type DropAnimation,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
-import { Users } from "lucide-react";
+import { Compass, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -217,7 +218,7 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
     <div className="flex h-full flex-col">
       {/* No heading here: the topbar already renders the route title, and a second
           "Channels" one line below it is the duplicate the M6 rule bans. */}
-      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border px-4 pt-6 pb-4 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
         <p className="font-mono text-2xs text-muted-foreground">
           <span data-testid="channels-tracked-count" data-num className="text-muted-foreground">
             {board.channels.length}
@@ -233,6 +234,14 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
           <span data-num className="text-muted-foreground">{board.fleets.length}</span> fleets
         </p>
         <span className="flex items-center gap-2">
+          {/* Neutral text link, not a Button, so it never reads as the board's primary action. */}
+          <Link
+            href="/channels/discover"
+            className="mr-2 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Compass className="size-4" />
+            Discover creators
+          </Link>
           <NewFleetDialog />
           <AddChannelDialog />
         </span>
@@ -256,6 +265,9 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
         </Empty>
       ) : (
       <DndContext
+        // A fixed id: dnd-kit otherwise numbers its aria-describedby ids from a module
+        // counter that keeps climbing on the server, so SSR and hydration disagree.
+        id="channels-board"
         sensors={sensors}
         onDragStart={onDragStart}
         onDragOver={onDragOver}

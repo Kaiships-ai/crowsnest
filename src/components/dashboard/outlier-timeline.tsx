@@ -7,8 +7,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { scalePosition } from "@/components/video/median-baseline";
 import { formatMultiplier } from "@/lib/format";
-import type { FeedItem } from "@/server/queries/feed";
-import { buildOutlierTimeline, TIMELINE_WINDOW_DAYS } from "./dashboard-chart-data";
+import { type buildOutlierTimeline, TIMELINE_WINDOW_DAYS } from "./dashboard-chart-data";
 
 const CHART_CONFIG: ChartConfig = {
   height: { label: "Best score", color: "var(--chart-1)" },
@@ -27,8 +26,7 @@ const CHART_CONFIG: ChartConfig = {
  * position on that scale, not a score, and labelling it would invite the wrong read. The
  * real score reaches the reader through the tooltip.
  */
-export function OutlierTimeline({ items }: { items: FeedItem[] }) {
-  const { days, hitDays } = buildOutlierTimeline(items);
+export function OutlierTimeline({ days, hitDays }: ReturnType<typeof buildOutlierTimeline>) {
   const hasAny = days.some((d) => d.bestScore !== null);
 
   // A day with no post keeps a hairline bar rather than disappearing: the window is a

@@ -66,12 +66,6 @@ function llmTone(state: LlmStatus["state"]): "ok" | "warn" | "bad" {
   return "bad";
 }
 
-function overallTone(sidecar: SidecarStatus, llm: LlmStatus): "warn" | "bad" {
-  const sTone = sidecarTone(sidecar.state);
-  const lTone = llmTone(llm.state);
-  return sTone === "bad" || lTone === "bad" ? "bad" : "warn";
-}
-
 function proxyLocationLine(llm: LlmStatus): string {
   return llm.proxyUrl
     ? `Looked at ${llm.proxyUrl}${llm.routedThroughProxy ? " (LLM_BASE_URL)" : ""}.`
@@ -172,17 +166,10 @@ export function DependencyStatusPanel({ sidecar: initialSidecar, llm: initialLlm
     );
   }
 
-  const tone = overallTone(sidecar, llm);
-
   return (
-    // Severity is the panel's border, not a destructive wash: this sits at the top of
-    // the dashboard on every unhealthy load, so it has to read as a standing fact.
-    <Card
-      size="sm"
-      role="status"
-      aria-live="polite"
-      className={cn(tone === "bad" ? "border border-destructive" : "border border-destructive/50")}
-    >
+    // A flat inset well: it only renders inside StackHealthPanel, whose ring already
+    // carries the severity, so a second tinted outline here would just double it.
+    <Card size="sm" role="status" aria-live="polite" className="bg-muted/50 ring-0">
       <CardHeader>
         <CardTitle>Dependencies</CardTitle>
         <CardAction>

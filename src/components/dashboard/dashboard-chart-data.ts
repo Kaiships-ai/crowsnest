@@ -92,7 +92,6 @@ export function buildProducerDonut(items: FeedItem[]): ProducerDonut {
 export interface ScatterPoint {
   videoId: string;
   handle: string;
-  caption: string | null;
   viewCount: number;
   score: number;
   beat: boolean;
@@ -114,7 +113,6 @@ export function buildScatterPoints(items: FeedItem[]): { points: ScatterPoint[];
     points.push({
       videoId: item.videoId,
       handle: item.channel.handle,
-      caption: item.caption,
       viewCount: item.viewCount,
       score: item.outlierScore,
       beat: beatsBaseline(item.outlierScore),
@@ -213,7 +211,9 @@ export function rankingRows(items: FeedItem[]): { rows: RankingRow[]; unranked: 
     rows.push({
       videoId: item.videoId,
       score: item.outlierScore,
-      caption: item.caption,
+      // The row shows one truncated line; capping here keeps a whole library of long
+      // captions out of the dashboard's RSC payload.
+      caption: item.caption?.slice(0, 140) ?? null,
       handle: item.channel.handle,
       platform: item.channel.platform,
       deleted: item.deleted,

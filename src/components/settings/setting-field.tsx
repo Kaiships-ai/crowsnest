@@ -89,6 +89,7 @@ export function EnumField<T extends string>({
       }}
       disabled={disabled}
       aria-label={ariaLabel}
+      className="flex-wrap"
     >
       {options.map((o) => (
         <ToggleGroupItem key={o.value} value={o.value} size="sm">

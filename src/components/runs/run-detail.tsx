@@ -410,7 +410,7 @@ function GapRow({ gap }: { gap: SyncGap }) {
   return (
     <Item variant="outline" size="sm">
       <ItemContent>
-        <ItemTitle className="truncate">{gapDisplayName(gap)}</ItemTitle>
+        <ItemTitle className="block truncate">{gapDisplayName(gap)}</ItemTitle>
         <ItemDescription className="font-mono text-2xs">{gapMessage(gap)}</ItemDescription>
       </ItemContent>
       {errorClass && (

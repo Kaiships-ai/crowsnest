@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { ContentPipeline } from "@/components/dashboard/content-pipeline";
 import { CoverageList } from "@/components/dashboard/coverage-list";
-import { rankingRows } from "@/components/dashboard/dashboard-chart-data";
+import { buildOutlierTimeline, buildProducerDonut, buildScatterPoints, rankingRows } from "@/components/dashboard/dashboard-chart-data";
 import { FleetSpikeRow } from "@/components/dashboard/fleet-spike-row";
 import { NextActionBar, decideNextAction } from "@/components/dashboard/next-action-bar";
 import { OutlierScrollRow } from "@/components/dashboard/outlier-scroll-row";
@@ -288,10 +288,10 @@ export default async function DashboardPage() {
         {allItems.length > 0 ? (
           <>
             <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-2">
-              <ProducerDonut items={allItems} />
-              <ReachScoreScatter items={allItems} />
+              <ProducerDonut {...buildProducerDonut(allItems)} />
+              <ReachScoreScatter {...buildScatterPoints(allItems)} />
             </div>
-            <OutlierTimeline items={allItems} />
+            <OutlierTimeline {...buildOutlierTimeline(allItems)} />
             <ScoreRankingList {...rankingRows(allItems)} />
             <CoverageList channels={channels} items={allItems} />
           </>

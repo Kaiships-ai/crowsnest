@@ -80,7 +80,7 @@ export function ContextRail({ detail }: { detail: VideoDetail }) {
                   </Avatar>
                 </ItemMedia>
                 <ItemContent>
-                  <ItemTitle className="truncate">{item.channel.handle}</ItemTitle>
+                  <ItemTitle className="block truncate">{item.channel.handle}</ItemTitle>
                 </ItemContent>
               </Item>
             </ItemGroup>

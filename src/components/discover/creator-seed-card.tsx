@@ -56,7 +56,7 @@ export function CreatorSeedCard({
     <Card size="sm" data-testid="creator-seed-card">
       <Item size="sm" className="px-(--card-spacing) py-0">
         <ItemContent>
-          <ItemTitle className="w-full truncate font-mono">@{seed.handle}</ItemTitle>
+          <ItemTitle className="block w-full truncate font-mono">@{seed.handle}</ItemTitle>
           <ItemDescription>{seed.why}</ItemDescription>
         </ItemContent>
         <ItemActions>

@@ -64,7 +64,7 @@ function ChannelCardBody({ channel }: { channel: ChannelRow }) {
         </Avatar>
       </ItemMedia>
       <ItemContent className="gap-0.5">
-        <ItemTitle className="w-full truncate">{channel.handle}</ItemTitle>
+        <ItemTitle className="block w-full truncate">{channel.handle}</ItemTitle>
         {channel.isOwn && (
           <ItemDescription className="font-mono text-2xs uppercase tracking-wide">My channel</ItemDescription>
         )}
