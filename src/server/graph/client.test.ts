@@ -135,9 +135,9 @@ describe("mapBioLinkTaps", () => {
     const { mapBioLinkTaps } = await loadClient();
     expect(mapBioLinkTaps(withActions([{ dimension_values: ["CALL"], value: 2 }, { dimension_values: ["BIO_LINK_CLICKED"], value: 7 }]))).toBe(7);
   });
-  test("is null when the bio link action is absent", async () => {
+  test("is 0 when the call succeeded without a bio link action (Graph omits zero-valued types)", async () => {
     const { mapBioLinkTaps } = await loadClient();
-    expect(mapBioLinkTaps(withActions([{ dimension_values: ["CALL"], value: 2 }]))).toBeNull();
+    expect(mapBioLinkTaps(withActions([{ dimension_values: ["CALL"], value: 2 }]))).toBe(0);
   });
 });
 
@@ -164,14 +164,14 @@ describe("graphClient.fetchPostInsights", () => {
 
   beforeEach(() => { process.env.IG_GRAPH_TOKEN = "tok_secret"; process.env.IG_GRAPH_USER_ID = "17841400000000000"; });
 
-  test("ACTION-22: bio link taps from profile_activity by action_type, null when absent", async () => {
+  test("ACTION-22: bio link taps from profile_activity by action_type, 0 when absent, null when the call failed", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(7)))
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(null)));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
     expect((await graphClient.fetchPostInsights(REEL)).insights?.bioLinkTaps).toBe(7);
-    expect((await graphClient.fetchPostInsights(REEL)).insights?.bioLinkTaps).toBeNull();
+    expect((await graphClient.fetchPostInsights(REEL)).insights?.bioLinkTaps).toBe(0);
     const url = new URL(fetchMock.mock.calls[1][0] as string);
     expect(url.searchParams.get("metric")).toBe("profile_activity");
     expect(url.searchParams.get("breakdown")).toBe("action_type");

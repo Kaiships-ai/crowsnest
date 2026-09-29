@@ -258,9 +258,11 @@ export function mapInsights(raw: unknown, isReel: boolean): GraphPostInsights {
 }
 
 /** Action type name for a bio link tap in profile_activity. ponytail: taken from Meta's
- *  docs, not a live response (02 section 9); a wrong name yields null, never a wrong number. */
+ *  docs, not a live response (02 section 9); a wrong name would read as 0 taps. */
 export const BIO_LINK_ACTION = "BIO_LINK_CLICKED";
 
+/** Called only on a successful profile_activity response (a failed call leaves bioLinkTaps
+ *  null). Graph omits zero-valued action types, so an absent bio link action means 0 taps. */
 export function mapBioLinkTaps(raw: unknown): number | null {
   for (const row of arr(rec(raw).data)) {
     for (const b of arr(rec(rec(row).total_value).breakdowns)) {
@@ -269,7 +271,7 @@ export function mapBioLinkTaps(raw: unknown): number | null {
       }
     }
   }
-  return null;
+  return 0;
 }
 
 function mapBreakdown(raw: unknown, metric: string, dimension: string, timeframe: string): GraphBreakdownRow[] {
