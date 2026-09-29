@@ -38,10 +38,11 @@ describe("shapeReelInsights (ACTION-21)", () => {
 
 describe("selectReel (ACTION-19 fallback)", () => {
   const reels = [{ ownPostId: "newest" }, { ownPostId: "second" }];
-  test("the param when it matches, else the newest, else null", () => {
+  test("the param when it matches, the newest when there is no param, else null", () => {
     expect(selectReel(reels, "second")?.ownPostId).toBe("second");
     expect(selectReel(reels, undefined)?.ownPostId).toBe("newest");
-    expect(selectReel(reels, "does-not-exist")?.ownPostId).toBe("newest");
+    // A calendar link to a reel not in own_posts yet must not silently show another reel.
+    expect(selectReel(reels, "does-not-exist")).toBeNull();
     expect(selectReel([], "x")).toBeNull();
   });
 

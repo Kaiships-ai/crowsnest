@@ -77,11 +77,15 @@ export async function MyReelsTab({ reel }: { reel?: string }) {
               reels={reels.map((r) => ({ ownPostId: r.ownPostId, postedAt: r.postedAt, views: r.latest?.views ?? null, thumbnailUrl: r.thumbnailUrl, caption: r.caption }))}
               selectedId={selected?.ownPostId ?? null}
             />
-            {selected && (insights ? (
+            {selected ? (insights ? (
               <ReelInsightPanel insights={insights} points={points} />
             ) : (
               <p className="text-sm text-muted-foreground">This reel has not been measured yet.</p>
-            ))}
+            )) : reel !== undefined && (
+              <p className="text-sm text-muted-foreground" data-testid="reels-unmeasured-link">
+                This reel hasn&apos;t been measured yet. It appears here after the next measurement.
+              </p>
+            )}
           </section>
           <AccountAudience data={breakdowns} />
         </div>

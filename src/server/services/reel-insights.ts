@@ -111,11 +111,13 @@ export function shapeReelInsights(s: OwnReelSnapshot): ShapedReelInsights {
   };
 }
 
-/** The reel named by ?reel= when it exists, else the newest, else null. */
-/** Matches own_posts.id or the Graph media id: a calendar link carries whichever the plan
- *  stored (a hand mark stores the first, auto-publish the second). */
+/** The reel named by ?reel=, or the newest when there is no ?reel=. Null when ?reel= names
+ *  a reel not in own_posts yet (a just-published reel), so the page says so instead of
+ *  showing another reel. Matches own_posts.id or the Graph media id: a calendar link
+ *  carries whichever the plan stored (a hand mark stores the first, auto-publish the second). */
 export function selectReel<T extends { ownPostId: string; externalId?: string }>(reels: T[], param: string | undefined): T | null {
-  return reels.find((r) => r.ownPostId === param || (param !== undefined && r.externalId === param)) ?? reels[0] ?? null;
+  if (param === undefined) return reels[0] ?? null;
+  return reels.find((r) => r.ownPostId === param || r.externalId === param) ?? null;
 }
 
 export function hoursSincePosted(postedAt: string, capturedAt: string): number {
