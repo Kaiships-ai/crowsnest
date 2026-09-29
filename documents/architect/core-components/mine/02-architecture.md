@@ -2,31 +2,59 @@
 
 `documents/architect/core-components/mine/`
 
-Status: shipped and in daily use. The delete undo is lossless, re-creating the plan under its original id with its time, target length, kind, remix/source links, and state intact. There is no UI control to clear the own channel once set; that does not block the page from working and is tracked in the backlog.
+Status: the planner, the publish dialog, and manual Graph measurement are shipped and in daily use on `/mine`. The rework is planned and not built: Dashboard tabs with `/mine` redirecting (feature 9), My reels (features 10 to 13), and scheduled measurement (feature 14). Every row, table, and step below marked planned describes that approved design, not running code.
 
 ## 1. Module structure
 
+### 1.1 Shipped
+
 | File | Export | Role |
 | --- | --- | --- |
-| `src/app/(shell)/(loaded)/mine/page.tsx` | `MinePage` (default) | The page frame. Reads the own channel first (the first gate), then fires six reads at once and decides what to render. Resolves the publish config flags (`bucketConfigured`, `graphConfigured`, dry run) once and passes them into the calendar; those flags are the [publish](../publish/02-architecture.md#1-module-structure) component's concern. |
+| `src/app/(shell)/(loaded)/mine/page.tsx` | `MinePage` (default) | The page frame. Reads the own channel first (the first gate), then fires six reads at once and decides what to render. Resolves the publish config flags (`bucketConfigured`, `graphConfigured`, dry run) once and passes them into the calendar; those flags are the [publish](../publish/02-architecture.md#1-module-structure) component's concern. Planned: becomes a redirect (section 1.2). |
+| `src/app/(shell)/(loaded)/page.tsx` | `DashboardPage` (default) | The Dashboard, owned by the dashboard component. Today it has no `searchParams`, runs twelve reads in one `Promise.all`, then calls `readAndBumpDashboardLastVisit`, which writes. Planned: hosts the three tabs (section 1.2). |
 | `src/components/mine/own-channel-picker.tsx` | `OwnChannelPicker` | The no-own-channel gate: lists tracked channels not already own, with a "This is me" button per row. |
-| `src/components/mine/graph-connect-panel.tsx` | `GraphConnectPanel` | The Graph token gate: states what is missing, or offers "Check connection" and "Measure now". |
+| `src/components/mine/graph-connect-panel.tsx` | `GraphConnectPanel` | The Graph token gate: states what is missing, or offers "Check connection" and "Measure now" (calls `checkGraphTokenAction` and `measureOwnChannelAction`). |
 | `src/components/mine/own-stat-tiles.tsx` | `OwnStatTiles` | The six metrics tiles (followers, reach, saves, shares, median reach, posts measured), each carrying its own sample size. |
-| `src/components/mine/reach-by-post-bars.tsx` | `ReachByPostBars`, `OwnPostList` | The overview strip's reach bars (oldest first) and the Posts tab's flat list (newest first); both read the same `OwnPostRow[]`. |
-| `src/components/mine/own-weekday-rhythm.tsx` | `OwnWeekdayRhythm` | The Metrics tab: average reach by weekday, with a post count per bar. |
-| `src/components/mine/mine-calendar.tsx` | `MineCalendar` | The Month tab: the grid, the day detail panel, the publish lifecycle on the cell and panel (scheduled, publishing, failed with Retry, published), and the writes it fires directly (mark published, delete, cancel scheduled publish, retry failed publish). Opens `plan-dialog.tsx`, `publish-dialog.tsx`, and `confirm-dialog.tsx`. |
+| `src/components/mine/reach-by-post-bars.tsx` | `ReachByPostBars`, `OwnPostList` | The reach bars (oldest first) and the flat post list (newest first); both read the same `OwnPostRow[]`. |
+| `src/components/mine/own-weekday-rhythm.tsx` | `OwnWeekdayRhythm` | Average reach by weekday, with a post count per bar. |
+| `src/components/mine/mine-calendar.tsx` | `MineCalendar` | The month grid, the day detail panel, the publish lifecycle on the cell and panel, and the writes it fires directly (mark published, delete, cancel scheduled publish, retry failed publish). Month links are `?month=` only today. Opens `plan-dialog.tsx`, `publish-dialog.tsx`, and `confirm-dialog.tsx`. |
 | `src/components/mine/plan-dialog.tsx` | `PlanDialog` | Create or edit one planned post; a saved edit goes through the single `savePlanEditAction`. |
-| `src/components/mine/publish-dialog.tsx` | `PublishDialog` | The mine-side publish UI: upload an mp4, write a caption, then publish now or schedule, calling `uploadPlanVideoAction`, `setPlanCaptionAction`, `publishNowAction`, and `schedulePublishAction`. Renders the not-configured and dry-run surfaces inline. The pipeline it feeds is the [publish](../publish/02-architecture.md#1-module-structure) component. |
-| `src/components/mine/confirm-dialog.tsx` | `ConfirmDialog` | A designed destructive confirm shared by "cancel scheduled publish" and "delete a plan carrying a video", replacing the browser's native confirm. |
-| `src/server/queries/own-channel.ts` | `getOwnChannelOverview`, `getOwnPosts`, `getPostsWithLatestInsights`, `getOwnPostInsightHistory`, `getOwnComments` | Pure reads over the own-channel table set. `getPostsWithLatestInsights` joins each `own_posts` row to its latest `own_post_insights` row in application code, and is reused by `planned-posts.ts` for reconciliation and published cells so there is exactly one join implementation. |
-| `src/server/queries/planned-posts.ts` | `getPlannedPosts`, `getPlannedPostById`, `getCalendarMonth`, `scriptExists`, `getPlansCarryingScript` | Planned-post reads. `getCalendarMonth` is the one call the page's Month tab needs: plans in range, undated drafts, published cells, and dead-air runs, all in one round trip. `missed` and `reconciledOwnPostId` are computed here on every read, never stored. |
-| `src/server/queries/channels.ts` | `getOwnChannel`, `getChannelsList` | `getOwnChannel` is the first gate; `getChannelsList` supplies the picker's candidate rows. Owned jointly with the channels board and ig-sync, not by mine alone. |
+| `src/components/mine/publish-dialog.tsx` | `PublishDialog` | Upload an mp4, write a caption, then publish now or schedule, calling `uploadPlanVideoAction`, `setPlanCaptionAction`, `publishNowAction`, and `schedulePublishAction`. The pipeline it feeds is the [publish](../publish/02-architecture.md#1-module-structure) component. |
+| `src/components/mine/confirm-dialog.tsx` | `ConfirmDialog` | A designed destructive confirm shared by "cancel scheduled publish" and "delete a plan carrying a video". |
+| `src/server/queries/own-channel.ts` | `getOwnChannelOverview`, `getOwnPosts`, `getPostsWithLatestInsights`, `getOwnPostInsightHistory`, `getOwnComments` | Pure database reads over the own-channel table set; none calls the Graph API. `getPostsWithLatestInsights` joins each `own_posts` row to its latest `own_post_insights` row in application code and is the one join implementation, reused by `planned-posts.ts`. `getOwnPostInsightHistory` returns one post's measurements newest first; no page calls it yet. |
+| `src/server/queries/planned-posts.ts` | `getPlannedPosts`, `getPlannedPostById`, `getCalendarMonth`, `scriptExists`, `getPlansCarryingScript` | Planned-post reads. `getCalendarMonth` returns plans in range, undated drafts, published cells, and dead-air runs in one call. `missed` and `reconciledOwnPostId` are computed on every read, never stored. |
+| `src/server/queries/channels.ts` | `getOwnChannel`, `getChannelsList` | `getOwnChannel` is the first gate; `getChannelsList` supplies the picker's candidates. Shared with the channels board and ig-sync. |
 | `src/server/queries/vault.ts` | `getScripts` | Read-only, to populate the plan dialog's script select. |
-| `src/server/actions/planned-post-actions.ts` | `createPlannedPostAction`, `updatePlannedPostAction`, `savePlanEditAction`, `schedulePlannedPostAction`, `unschedulePlannedPostAction`, `attachScriptToPlanAction`, `detachScriptFromPlanAction`, `markPlanPublishedAction`, `deletePlannedPostAction`, `uploadPlanVideoAction`, `setPlanCaptionAction`, `schedulePublishAction`, `cancelScheduledPublishAction`, `publishNowAction`, `retryFailedPublishAction` | The fifteen writes against `planned_posts`. `savePlanEditAction` applies a whole plan edit in one validated transaction. `markPlanPublishedAction` is the only place a hand-marked `published` state is set. The six publish lifecycle writes (`uploadPlanVideoAction`, `setPlanCaptionAction`, `schedulePublishAction`, `cancelScheduledPublishAction`, `publishNowAction`, `retryFailedPublishAction`) back the publish dialog and its calendar controls; their preconditions and runtime belong to the [publish](../publish/02-architecture.md#1-module-structure) component. |
-| `src/server/actions/channel-actions.ts` | `setOwnChannelAction`, `unsetOwnChannelAction`, `removeChannelAction` | `setOwnChannelAction` backs the picker; `unsetOwnChannelAction` exists but no control on this page calls it. Shared with the channels board, not owned by mine alone. |
-| `src/server/actions/graph-actions.ts` | `checkGraphTokenAction`, `measureOwnChannelAction` | The two Graph actions the connect panel calls. `measureOwnChannelAction` is the only writer of `own_account_snapshots`, `own_posts`, `own_post_insights`, and `own_comments`. |
-| `src/server/services/own-metrics.ts` | `computeOwnMedianReach`, `indexAgainstOwnMedian` | The own-channel median math: a trailing 20-post window, gated on `scoreMinUsablePosts` (default 5, shared with channel-side scoring), computed over reach, never a view count. |
-| `src/server/services/video-kind.ts` | `VIDEO_KINDS`, `isVideoKind` | The fixed eight-item allow-list a planned post's `videoKind` is validated against. |
+| `src/server/actions/planned-post-actions.ts` | `createPlannedPostAction`, `updatePlannedPostAction`, `savePlanEditAction`, `schedulePlannedPostAction`, `unschedulePlannedPostAction`, `attachScriptToPlanAction`, `detachScriptFromPlanAction`, `markPlanPublishedAction`, `deletePlannedPostAction`, `uploadPlanVideoAction`, `setPlanCaptionAction`, `schedulePublishAction`, `cancelScheduledPublishAction`, `publishNowAction`, `retryFailedPublishAction` | The fifteen writes against `planned_posts`. The six publish lifecycle writes call `revalidatePath("/mine")`; planned: they revalidate `/` instead. |
+| `src/server/actions/channel-actions.ts` | `setOwnChannelAction`, `unsetOwnChannelAction`, `removeChannelAction` | `setOwnChannelAction` backs the picker; `unsetOwnChannelAction` exists but no control calls it (B-15). Shared with the channels board. |
+| `src/server/actions/graph-actions.ts` | `checkGraphTokenAction`, `measureOwnChannelAction` | `measureOwnChannelAction` is the only writer of `own_account_snapshots`, `own_posts`, `own_post_insights`, and `own_comments`. Planned: becomes a thin wrapper over the measurement service (section 1.2). |
+| `src/server/graph/client.ts` | `graphClient`, `isGraphConfigured`, `mapInsights`, `mapAccount`, `redactToken` | Stateless Graph API client against `graph.instagram.com`, version from `IG_GRAPH_API_VERSION` (default `v21.0`). `fetchPosts` lists up to 50 media, then makes one insights call per post with `reach,saved,shares,total_interactions,comments,likes` plus `views` for reels. A failed insights call becomes that post's `insights.error`, never a thrown error for the run. |
+| `src/server/services/own-metrics.ts` | `computeOwnMedianReach`, `indexAgainstOwnMedian` | Own-channel median reach over a trailing 20-post window, gated on `scoreMinUsablePosts`. |
+| `src/server/services/sync-scheduler.ts`, `src/server/services/publish-scheduler.ts` | `startSyncScheduler`, `startPublishScheduler` | Not mine's; the in-process scheduler pattern the planned measurement scheduler copies: one `setInterval`, a `let running` reentrancy guard, a tick that never throws, started from `server.ts` inside a try/catch. |
+| `src/server/mcp/mcp-server.ts` | `crowsnest_metrics` tool | Not mine's; reads `getOwnChannelOverview` and `getOwnPosts`, so it is a downstream reader of the own-channel queries. |
+
+### 1.2 Planned
+
+| File | Export | Role |
+| --- | --- | --- |
+| `src/app/(shell)/(loaded)/page.tsx` | `DashboardPage` (default), changed | Reads `searchParams` (`tab`, `month`, `reel`). Renders the tab strip, then only the active tab's server component, so each tab's reads run only when that tab is open. A missing or unknown `tab` means Overview. |
+| `src/components/dashboard/dashboard-tabs.tsx` | `DashboardTabs` | The tab strip as three links (`dashboard-tab-overview`, `dashboard-tab-reels`, `dashboard-tab-calendar`) that set `?tab=`. Rendered above every state of every tab. |
+| `src/components/dashboard/overview-tab.tsx` | `OverviewTab` | Today's Dashboard body moved as-is, including its twelve reads and the `readAndBumpDashboardLastVisit` write, which must stay on Overview only. |
+| `src/components/mine/calendar-tab.tsx` | `CalendarTab` | The own-channel gate plus `MinePage`'s calendar reads (`getCalendarMonth`, `getScripts`, the publish config flags), rendering `MineCalendar`. |
+| `src/components/mine/mine-calendar.tsx` | `MineCalendar`, changed | Month links carry `tab=calendar` alongside `month=`. |
+| `src/app/(shell)/(loaded)/mine/page.tsx` | `MinePage` (default), changed | Calls `redirect("/?tab=calendar")`, appending `&month=` when a valid `YYYY-MM` was given. No reads. |
+| `src/components/layout/nav-items.ts` | `NAV_ITEMS`, changed | Drops the "My channel" entry (`/mine`). |
+| `src/components/mine/my-reels-tab.tsx` | `MyReelsTab` | The My reels server component: own-channel gate, token gate, the account summary (header, `OwnStatTiles`, progress, `ReachByPostBars`), `ReelPicker`, `ReelInsightPanel`, `AccountAudience`, then `OwnPostList` and `OwnWeekdayRhythm` as sections. |
+| `src/components/mine/reel-picker.tsx` | `ReelPicker` | Newest-first reel list as links setting `?reel=<ownPostId>` (`reels-picker-item`): thumbnail, posted date, latest views. |
+| `src/components/mine/reel-insight-panel.tsx` | `ReelInsightPanel` | Summary tiles, interaction strip, what impacts your views, actions after viewing, the not-available placeholders, and measured-at lines, from one server-shaped object. |
+| `src/components/mine/reel-views-over-time.tsx` | `ReelViewsOverTime` | Client chart on `src/components/ui/chart.tsx` (recharts): the reel's views and "Your typical reel" by hours since posting (`reels-views-chart`). Receives only the already-shaped point list for the selected reel. |
+| `src/components/mine/account-audience.tsx` | `AccountAudience` | Followers vs non-followers and the Age, Country, Gender tabs, labelled whole account, or the API-threshold message. |
+| `src/server/services/reel-insights.ts` | `shapeReelInsights`, `perViewerRate`, `hoursSincePosted`, `typicalViewsCurve` | Pure functions, no database, no network: per-viewer rates (null when reach or the metric is null, or reach is zero), whole-hour buckets, and the median-of-other-reels curve. |
+| `src/server/queries/own-channel.ts` | `getOwnReels`, `getReelViewHistory`, `getAccountBreakdowns`, added | `getOwnReels`: reels only (`productType` is `REELS`), each with its latest insight row and `thumbnailUrl`. `getReelViewHistory`: `(ownPostId, postedAt, capturedAt, views)` for every reel, the input to the curve. `getAccountBreakdowns`: the newest captured batch per metric from `own_account_breakdowns`, plus the stored audience error. |
+| `src/server/graph/client.ts` | `fetchMedia`, `fetchPostInsights`, `fetchAccountBreakdowns`, added | `fetchMedia` is today's media list call with `thumbnail_url` added. `fetchPostInsights` requests the extended reel metric set and falls back once to today's core set when the extended call fails for any reason other than auth or rate limit. It makes a second call for `profile_activity` with `breakdown=action_type`. `fetchPosts` stays, composed from the two. |
+| `src/server/services/own-measure.ts` | `measureOwnChannel` | The measurement moved out of `measureOwnChannelAction`: one function that writes all four existing tables plus `own_account_breakdowns`, takes a scope (`all`, or `due` posts only), counts every Graph call against a per-run budget, and holds a module-level single-flight lock shared by the manual and scheduled paths. |
+| `src/server/services/own-measure-scheduler.ts` | `runDueOwnMeasure`, `startOwnMeasureScheduler` | The scheduled tick, same shape as `sync-scheduler.ts`: hourly interval (`OWN_MEASURE_SCHEDULER_INTERVAL_MS` override), `let running` guard, never throws. Skips with no own channel, no configured token, or the lock held. Calls `measureOwnChannel({ scope: "due" })`. |
+| `server.ts` | boot, changed | Starts `startOwnMeasureScheduler()` beside the other two, in its own try/catch. |
 
 ## 2. ER diagram
 
@@ -35,18 +63,14 @@ erDiagram
     SCRIPTS |o--o{ PLANNED_POSTS : "script_id"
     REMIX_SESSIONS |o--o{ PLANNED_POSTS : "remix_session_id"
     VIDEOS |o--o{ PLANNED_POSTS : "source_video_id"
-    VIDEOS |o--o{ SCRIPTS : "source_video_id"
-    REMIX_SESSIONS |o--o{ SCRIPTS : "remix_session_id"
     OWN_POSTS ||--o{ OWN_POST_INSIGHTS : "own_post_id"
     OWN_POSTS ||--o{ OWN_COMMENTS : "own_post_id"
 
     CHANNELS {
         string id PK
-        string platform UK "composite with handle"
-        string handle UK "composite with platform"
+        string handle
         integer follower_count
         boolean is_own UK "partial, unique where is_own = true"
-        string account_id FK "to ig_accounts, owned by ig-sync, out of mine's scope"
     }
     PLANNED_POSTS {
         string id PK
@@ -56,15 +80,11 @@ erDiagram
         string script_id FK
         string remix_session_id FK
         string source_video_id FK
-        string published_own_post_id "not a declared FK, checked against own_posts at the action layer"
-        string script_detached_note
+        string published_own_post_id "not a declared FK, checked at the action layer"
     }
     SCRIPTS {
         string id PK
         string title
-        string source_video_id FK
-        string remix_session_id FK
-        string status
     }
     REMIX_SESSIONS {
         string id PK
@@ -82,17 +102,32 @@ erDiagram
     OWN_POSTS {
         string id PK
         string external_id UK
-        string permalink
-        string posted_at
+        string product_type "REELS for a reel"
         string format
+        string posted_at
+        string last_measured_at
+        string thumbnail_url "planned"
     }
     OWN_POST_INSIGHTS {
         string id PK
         string own_post_id FK
-        string captured_at
+        string captured_at "one row per measurement, append-only"
+        integer views
         integer reach
-        integer saved
+        integer likes
+        integer comments
         integer shares
+        integer saved
+        integer total_interactions
+        integer profile_visits "written from profile_visits, planned"
+        integer follows_from_post "written from follows, planned"
+        real watch_time_sec "legacy, never written"
+        integer reposts "planned"
+        real skip_rate "planned, reels_skip_rate"
+        integer bio_link_taps "planned, profile_activity bio link"
+        real avg_watch_time_ms "planned, ig_reels_avg_watch_time"
+        real total_watch_time_ms "planned, ig_reels_video_view_total_time"
+        string fetch_error
     }
     OWN_COMMENTS {
         string id PK
@@ -100,35 +135,63 @@ erDiagram
         string external_id UK
         string kind
     }
+    OWN_ACCOUNT_BREAKDOWNS {
+        string id PK
+        string captured_at "planned table"
+        string metric "views or engaged_audience_demographics"
+        string dimension "follower_type, age, country, or gender"
+        string key "for example FOLLOWER, 25-34, US, F"
+        integer value
+        string timeframe "for example this_month"
+    }
 ```
 
-`CHANNELS` and `OWN_ACCOUNT_SNAPSHOTS` carry no declared foreign key to any table drawn above; mine joins them to the rest of its data in application code (`getOwnChannel`'s `isOwn` read, and `getOwnChannelOverview`'s "latest snapshot" read), not through a schema relation. `CHANNELS.account_id` is a real foreign key, but it points to `ig_accounts` (ig-sync's multi-account table, not shown here) and is never read by mine; it appears in the block only to keep the table faithful to `schema.ts`. `REMIX_SESSIONS` and `VIDEOS` are shown as stub entities, columns owned and detailed by the remix and feed components respectively; mine only holds a nullable reference to each. `channel_snapshots`, the tracked-channel history table ig-sync writes, is a different table from `own_account_snapshots` above and is not read by any file in this module; the [ig-sync](../ig-sync/02-architecture.md#2-er-diagram) ER diagram covers it. `persona`, the single-row audience and voice settings table, is likewise outside this diagram: it is read only by `/persona` and by idea and script generation, never by mine's own queries or actions.
+`CHANNELS`, `OWN_ACCOUNT_SNAPSHOTS`, and `OWN_ACCOUNT_BREAKDOWNS` carry no declared foreign key; mine joins them in application code. The own-channel tables hold no reference to `channels`: there is one Graph token, so there is one own account. `REMIX_SESSIONS` and `VIDEOS` are stubs owned by the remix and feed components. `published_own_post_id` is a plain text column that `markPlanPublishedAction` checks against `own_posts` by hand.
 
-`published_own_post_id` on `planned_posts` is a plain text column, not a `.references()` foreign key in `schema.ts`. `markPlanPublishedAction` validates it against `own_posts` by hand when it is non-null, which is why the diagram marks it as an application-level check rather than drawing it as a relationship.
+### 2.1 Planned migration
+
+One drizzle migration, generated with `drizzle-kit generate` from `schema.ts`, all additive, no data rewritten:
+
+- `own_posts`: add nullable `thumbnail_url` text.
+- `own_post_insights`: add nullable `reposts` integer, `skip_rate` real, `bio_link_taps` integer, `avg_watch_time_ms` real, `total_watch_time_ms` real.
+- New table `own_account_breakdowns` with index `own_account_breakdowns_metric_captured` on `(metric, captured_at)`.
+
+Column choices:
+
+- **Reuse `profile_visits` and `follows_from_post`.** Both exist, are nullable, and have never been written (the client returns null for them today), so no stored value changes meaning. They start receiving the `profile_visits` and `follows` metrics. Renaming `follows_from_post` would cost a table rebuild in SQLite for no reader benefit.
+- **New `avg_watch_time_ms` instead of reusing `watch_time_sec`.** The API returns milliseconds, and `watch_time_sec` does not say average or total. Storing the raw unit avoids a lossy conversion. `watch_time_sec` stays, always null, and nothing reads a value from it.
+- **Store `total_watch_time_ms` though no block shows it.** A snapshot cannot be re-fetched for a past hour, so a metric not stored at capture time is lost for good; one nullable column is the cheap side of that trade.
+- **One generic `own_account_breakdowns` table instead of an audience table plus a views-split table.** Both account-level reads return the same shape (metric, breakdown dimension, key, value) and are read the same way (newest batch per metric). One table, one writer, one reader. A "refused for lack of volume" result is not a row; it is stored as an `app_settings` key (`own_audience_fetch_error`), the same pattern `own_comments_fetch_error` already uses.
+- **No new table for the views-over-time series.** `own_post_insights` already keeps one row per post per measurement, so the series is a read over it.
 
 ## 3. Indexes
 
 | Table | Index | Notes |
 | --- | --- | --- |
 | planned_posts | planned_posts_date | Plain index on `plannedDate`; backs the calendar's month-range read and the undated-drafts filter. |
-| own_posts | own_posts_external | Unique on `externalId`; the idempotent upsert key `measureOwnChannelAction` writes through. |
-| own_posts | own_posts_posted | Plain index on `postedAt`; backs the newest-first post list and the reach-by-post ordering. |
-| own_post_insights | own_post_insights_post_captured | Plain composite index on `(ownPostId, capturedAt)`; backs "latest insight per post" and the per-post insight history. |
-| own_account_snapshots | own_account_snapshots_captured | Plain index on `capturedAt`; backs the "most recent snapshot" read the header and stat tiles use. |
+| own_posts | own_posts_external | Unique on `externalId`; the idempotent upsert key the measurement writes through. |
+| own_posts | own_posts_posted | Plain index on `postedAt`; backs newest-first lists, the reel picker included. |
+| own_post_insights | own_post_insights_post_captured | Plain composite on `(ownPostId, capturedAt)`; backs "latest insight per post", one reel's history, and the views-over-time read. |
+| own_account_snapshots | own_account_snapshots_captured | Plain index on `capturedAt`; backs the "most recent snapshot" read. |
 | own_comments | own_comments_external | Unique on `externalId`; the idempotent comment upsert key. |
-| channels | channels_single_own | Partial unique on `isOwn` where `isOwn = true`; the structural guarantee behind `getOwnChannel` that at most one channel is ever "mine". |
+| channels | channels_single_own | Partial unique on `isOwn` where `isOwn = true`; at most one channel is ever own. |
+| own_account_breakdowns | own_account_breakdowns_metric_captured | Planned. Plain composite on `(metric, capturedAt)`; backs "newest batch per metric" for the audience blocks. |
 
-`scripts` and `channels_platform_handle` (the unique index on `channels`' `(platform, handle)`) are covered in the [ig-sync](../ig-sync/02-architecture.md#3-indexes) architecture doc, since ig-sync writes both `channels` and `scripts`' source video path; mine only reads through them.
+`channels_platform_handle` and the `scripts` indexes are covered in the [ig-sync](../ig-sync/02-architecture.md#3-indexes) doc.
 
 ## 4. Data flow
 
-**Arrive.** `MinePage` reads `getOwnChannel()` first. If there is none, it renders `OwnChannelPicker` over the tracked channels not already own and stops there, no other work. If there is one, it runs six reads in one `Promise.all`: `checkGraphTokenAction`, `getOwnChannelOverview`, `getOwnPosts({ limit: 100 })`, `getScripts` (for the plan dialog), the `scoreMinUsablePosts` setting, and `getCalendarMonth(month)` for the `?month=YYYY-MM` in the URL. From those it derives three facts: `everMeasured` (an `own_account_snapshots` row exists), `connected` (token state `ok` and ever measured), and the progress percent (`totalPosts / scoreMinUsablePosts`, capped at 100).
+**Dashboard tabs (planned).** `DashboardPage` awaits `searchParams`, picks the tab, renders `DashboardTabs`, then exactly one of `OverviewTab`, `MyReelsTab`, or `CalendarTab`. Each is an async server component that runs its own reads, so opening My reels never runs Overview's sidecar and model pings, and opening Overview never touches the own-channel tables. `/mine` redirects to `/?tab=calendar`, carrying a valid `month`. The planner and graph writes revalidate `/`.
 
-**The two gates.** The metrics band is gated so real numbers are never faked and never hidden. Token not configured, or invalid and never measured: only `GraphConnectPanel` renders where the metrics would be. Token invalid but measured before: the panel stacks above the real historical tiles, progress, and reach bars, rather than hiding them. Token ok and measured: the full band renders, no panel. The tab strip (Month, Posts, Metrics) renders below a divider in every case, opening on Month, which is client-only state, not a deep link, and resets on reload.
+**Calendar tab.** `getOwnChannel` gates it (picker when none). Then `getCalendarMonth(month)` and `getScripts()` run together and `MineCalendar` renders with the publish flags. Plan and publish writes behave exactly as shipped.
 
-**Planner.** `getCalendarMonth` returns the month's plans, undated drafts, published cells (from `own_posts`), and dead-air runs (three or more elapsed days with nothing published, truncated at today). The calendar's day panel fires `markPlanPublishedAction`, `deletePlannedPostAction`, `cancelScheduledPublishAction`, and `retryFailedPublishAction` directly, and opens `publish-dialog.tsx` for the upload, caption, and schedule flow; every one calls a router refresh so the grid re-reads. The pipeline those publish actions feed belongs to the [publish](../publish/02-architecture.md) component. Creating or editing a plan opens `plan-dialog.tsx`. A create is one write. An edit is one write too: `savePlanEditAction` sends only the changed fields, validates all of them up front, then applies them in a single transaction, so a failed edit never lands partially.
+**My reels tab (planned).** `getOwnChannel` gates it. `checkGraphTokenAction` decides the connect panel with the same stacking rule as today. Reads: `getOwnChannelOverview`, `getOwnPosts({ limit: 100 })`, `getOwnReels`, `getReelViewHistory`, `getAccountBreakdowns`, and `scoreMinUsablePosts`. The selected reel is `?reel=` when it matches a reel id, else the newest reel. `shapeReelInsights` builds the panel object and `typicalViewsCurve` builds the chart points on the server; only the selected reel's shaped points cross to the client chart.
 
-**Own-channel measurement.** `measureOwnChannelAction` runs one full measurement on demand: fetch the account, write an `own_account_snapshots` row, then upsert every post (`own_posts`, keyed on `externalId`) with one `own_post_insights` row per post measured, then fetch and upsert comments (`own_comments`, keyed on `externalId`). Account or posts failing is a hard failure; comments failing after posts succeeded returns `ok: true, partial: true`, since "posts measured, comments did not" is a real, useful partial result, not a run that failed.
+**Typical reel curve.** For every reel other than the selected one, each snapshot is bucketed at whole hours since `postedAt` (floor). Where one reel has several snapshots in one bucket, the latest counts. The typical value at hour `h` is the median of those reels' views at `h`, and is null where no other reel has a snapshot at `h`. Hours run from zero to the selected reel's newest measured hour, so the payload is bounded by that reel's age.
+
+**Measurement (planned service, shipped writes).** `measureOwnChannel(scope)` takes the lock, fetches the account and inserts an `own_account_snapshots` row, lists media, upserts `own_posts` (now with `thumbnail_url`), and for each post in scope inserts one `own_post_insights` row. For reels in scope it requests `views, reach, likes, comments, shares, saved, total_interactions, reposts, follows, profile_visits, ig_reels_avg_watch_time, ig_reels_video_view_total_time, reels_skip_rate`. If that call fails for a reason other than auth or rate limit, it retries once with today's core set, so one unsupported metric never blanks the post. A second call reads `profile_activity` with `breakdown=action_type` for bio link taps; its failure leaves `bio_link_taps` null. Non-reels keep today's single core call. Once a day it also reads `views` with `breakdown=follower_type, metric_type=total_value, period=day` and `engaged_audience_demographics` with `breakdown` age, country, and gender and `timeframe=this_month`, writing `own_account_breakdowns`. Comments run only on the `all` scope, as today.
+
+**Scope and budget.** `all` is "Measure now": every listed post. `due` is the scheduled tick: a reel is due when posted within the last 72 hours and its latest capture is an hour old or more, or when older and its latest capture is 24 hours old or more. A post with no capture is due. Due-ness is derived from `own_post_insights` on every tick, so no scheduler state is stored and a post skipped for budget is simply still due next tick. Every Graph call counts against a per-run budget of 150, under Instagram's 200 calls per hour per user; the run stops cleanly when the budget is spent or a call is rate limited.
 
 ## 5. Sequence: planning a post
 
@@ -167,47 +230,121 @@ sequenceDiagram
     Action-->>UI: Return success response that the plan was created<br/>params:{ id }
 ```
 
-## 6. Sequence: opening the my channel page
+## 6. Sequence: scheduled measurement tick (planned)
+
+```mermaid
+sequenceDiagram
+    actor Timer as Hourly interval
+    participant Tick as runDueOwnMeasure
+    participant Svc as measureOwnChannel
+    participant Graph as Graph API
+    participant DB
+
+    Timer->>Tick: tick, skipped when the previous tick is still running
+    activate Tick
+    Tick->>DB: **Check for the own channel** (channels)<br/>params:{ isOwn: true }
+    DB-->>Tick: Return {Channel} or null<br/>params:{ id }
+    alt no own channel, or no token configured, or lock held
+        Tick-->>Timer: Return skipped, nothing written<br/>params:{ reason }
+    end
+    Tick->>Svc: measureOwnChannel(scope due)
+    activate Svc
+    Svc->>Svc: **Take the single-flight lock**<br/>start the call budget at 150
+    Svc->>Graph: GET me, account fields
+    alt auth failed or rate limited
+        Svc-->>Tick: Return failure, nothing written<br/>params:{ code }
+    end
+    Svc->>DB: **Insert the account snapshot** (ownAccountSnapshots)<br/>params:{ id, capturedAt, followerCount }
+    Svc->>Graph: GET user media list with thumbnail_url
+    Svc->>DB: **Read each post's latest capture time** (ownPostInsights)<br/>params:{ ownPostIds }
+    DB-->>Svc: Return {latest capturedAt per post}<br/>params:{ count }
+    Svc->>Svc: **Pick due posts**<br/>posted within 72h and captured an hour ago or more, or older and captured a day ago or more
+    loop each due post while budget remains
+        Svc->>DB: **Upsert the post** (ownPosts)<br/>params:{ externalId, thumbnailUrl, lastMeasuredAt }
+        Svc->>Graph: GET media insights, extended reel metric set
+        opt extended call failed, not auth, not rate limit
+            Svc->>Graph: GET media insights, core metric set
+        end
+        Svc->>Graph: GET media insights, profile_activity by action_type
+        alt rate limited
+            Svc->>Svc: **Stop the loop**<br/>remaining posts stay due for the next tick
+        end
+        Svc->>DB: **Insert one insight snapshot** (ownPostInsights)<br/>params:{ ownPostId: OwnPost.id, capturedAt, views, reach, reposts, skipRate, bioLinkTaps, avgWatchTimeMs, fetchError }
+    end
+    opt newest account breakdown is a day old or more, and budget remains
+        Svc->>Graph: GET account insights, views by follower_type, and engaged audience by age, country, gender
+        Svc->>DB: **Insert the breakdown batch** (ownAccountBreakdowns)<br/>params:{ capturedAt, metric, dimension, key, value, timeframe }
+        Svc->>DB: **Set or clear the audience error** (appSettings)<br/>params:{ key: "own_audience_fetch_error" }
+    end
+    Svc->>Svc: **Release the lock**
+    deactivate Svc
+    Svc-->>Tick: Return summary<br/>params:{ postsMeasured, postsFailed, callsUsed }
+    deactivate Tick
+    Tick-->>Timer: Return done, logged, never thrown<br/>params:{ callsUsed }
+```
+
+"Measure now" runs the same service with scope `all`: every listed post is due, and comments are fetched and upserted after the posts, exactly as `measureOwnChannelAction` does today.
+
+## 7. Sequence: reading My reels (planned)
 
 ```mermaid
 sequenceDiagram
     actor UI as Browser
-    participant Page as MinePage
+    participant Page as DashboardPage and MyReelsTab
     participant DB
 
-    UI->>Page: GET /mine?month=YYYY-MM
+    UI->>Page: GET /?tab=reels&reel=ownPostId
     activate Page
     Page->>DB: **Check for the own channel** (channels)<br/>params:{ isOwn: true }
-    DB-->>Page: Return {Channel} or null<br/>params:{ id, isOwn }
+    DB-->>Page: Return {Channel} or null<br/>params:{ id }
     alt no own channel
-        Page-->>UI: Return the own channel picker<br/>params:{ candidates }
+        Page-->>UI: Return the tab strip and the own channel picker<br/>params:{ candidates }
     end
-    par six reads at once
-        Page->>DB: **Read the latest measured account** (ownAccountSnapshots)<br/>params:{}
+    par reads at once
+        Page->>DB: **Read the latest account snapshot** (ownAccountSnapshots)<br/>params:{}
         DB-->>Page: Return {OwnAccountSnapshot} or null<br/>params:{ capturedAt }
     and
-        Page->>DB: **Read every own post with its latest insight** (ownPosts)<br/>params:{ limit: 100 }
-        DB-->>Page: Return {OwnPostRow}[]<br/>params:{ count }
+        Page->>DB: **Read reels only, newest first** (ownPosts)<br/>params:{ productType: "REELS" }
+        DB-->>Page: Return {OwnPost}[]<br/>params:{ count }
     and
-        Page->>DB: **Read the month's plans, published cells, and dead air** (plannedPosts)<br/>params:{ month }
-        DB-->>Page: Return {CalendarMonth}<br/>params:{ plans, published, deadAir }
+        Page->>DB: **Read every reel snapshot for latest values and the curve** (ownPostInsights)<br/>params:{ ownPostIds: OwnPost.id }
+        DB-->>Page: Return {capturedAt, views, reach, and the rest}[]<br/>params:{ count }
+    and
+        Page->>DB: **Read the newest breakdown batch per metric** (ownAccountBreakdowns)<br/>params:{}
+        DB-->>Page: Return {OwnAccountBreakdown}[]<br/>params:{ capturedAt }
+    and
+        Page->>DB: **Read the stored audience error** (appSettings)<br/>params:{ key: "own_audience_fetch_error" }
+        DB-->>Page: Return {value} or null<br/>params:{}
     end
+    Page->>Page: **Resolve the selected reel**<br/>the reel param when it is one of the reels, else the newest
+    Page->>Page: **Shape on the server**<br/>per-viewer rates, whole-hour buckets, typical median per hour
     deactivate Page
-    Page-->>UI: Return the dashboard or the connect panel, plus the tab strip<br/>params:{ connected, everMeasured, progressPct }
+    Page-->>UI: Return the tab strip, summary, picker, insight panel, chart points, and audience<br/>params:{ selectedReelId, points }
 ```
 
-The three parallel branches above stand in for the page's full `Promise.all`, which also checks the Graph token, loads the vault's scripts for the plan dialog, and reads the `scoreMinUsablePosts` setting; those three do not touch the tables this diagram is about and are omitted here for readability.
+The parallel block omits the token check, `getOwnPosts({ limit: 100 })` for the post list and weekday chart, and the `scoreMinUsablePosts` setting, which work as they do on `/mine` today.
 
-## 7. Key decisions
+## 8. Key decisions
 
-- **Two independent gates, neither faked.** The own channel flag and the Graph token are checked separately; a missing token renders `GraphConnectPanel`, a plain statement of what is missing, never a spinner or zeros. A token that fails now and a channel measured before are different facts, so the panel stacks over real numbers rather than replacing them.
-- **Missed is derived on read, never stored.** The stored `state` column is one of `draft`, `scheduled`, `publishing`, `published`, or `failed`; `getCalendarMonth`/`getPlannedPosts` compute `missed` from today's date and never store it, so a reschedule cannot leave a stale missed cell behind. A plan in any published or publish-in-flight state (`published`, `publishing`, `failed`) reads back as that state, never missed, because all three are checked ahead of missed in the cell-kind precedence.
-- **A plan edit is one atomic action.** `savePlanEditAction` takes only the changed fields, validates every one of them up front, then writes them inside a single transaction, so a bad input is refused before any write and a failure never leaves a partial edit (this closed B-04). It still sends only the fields that changed, favoring a minimal write over re-sending the whole row.
-- **Own-channel insights are a separate table set by design, not a flag on channels.** A flag on `channels` would put own posts inside the outlier feed and channel scoring by default, and every consumer would need an exclusion clause someone would eventually forget. Separation makes "own posts never appear in the outlier feed" a structural fact instead of a convention.
-- **Own posts are read-only; the Graph measurement is the only writer of them.** The instagrapi sidecar writes tracked videos, never own posts, so a sync never changes this page. A plan reaches `published` two ways: the user marks it by hand, or the publish pipeline publishes it and writes the state back onto the plan's `planned_posts` row (see the [publish](../publish/02-architecture.md) component); either way the own-post tables stay a read-only, measurement-fed record.
-- **Planning and publishing are separate dialogs.** The plan dialog stays a dated intention with no time or target-length field even though the record can hold both; publishing a plan (upload, caption, publish now or schedule) is the distinct `publish-dialog.tsx` flow, opened from the calendar. The scheduler that fires a scheduled publish belongs to the [publish](../publish/02-architecture.md) component; mine itself sends no reminders.
-- **No UI to clear the own channel.** `unsetOwnChannelAction` exists but no control on the page calls it (B-15). The delete Undo re-creates the plan losslessly: `createPlannedPostAction` takes an optional `id` so Undo restores the original row identity along with its time, target length, kind, and remix/source links. It also takes an optional `state`, restored from the deleted plan's own snapshot, so a "published" or "missed" plan comes back as it was instead of the create-default (`plannedDate ? "scheduled" : "draft"`). Only "draft", "scheduled", and "published" are ever actually written this way: "missed" is never a stored value (derived on read from a "scheduled" row whose date has passed) so it lands on "scheduled" and re-derives itself, and "publishing"/"failed" both depend on publish-lifecycle evidence (video, caption, schedule claim, attempt history) this action never restores, so passing either one falls back to the same create-default rather than reviving a half-armed row. See [05-backlog-to-enhance](05-backlog-to-enhance.md).
+- **Tabs in the URL, one tab's reads per request.** `?tab=` on a server component means a reload, back button, or shared link lands on the same tab, and the page runs only the active tab's queries, so Overview's load cost does not grow. `readAndBumpDashboardLastVisit` stays inside `OverviewTab`; running it on another tab would reset "new since your last visit" without the user seeing Overview.
+- **`/mine` redirects rather than rendering.** Every inbound `/mine` link today (remix finish, vault script dialog) is about the plan, so it lands on the Calendar tab. The route stays as a redirect so old links keep working.
+- **Chart data shaped on the server.** Per the design-system rule, the client chart receives only the selected reel's point list, never the snapshot rows. The curve and rates live in the pure `reel-insights.ts`, testable without a database.
+- **One measurement service, two triggers.** The scheduled tick and "Measure now" call the same `measureOwnChannel`, so there is one writer of the own-channel tables and one place the metric set and fallback live. The single-flight lock covers both, so a manual click during a tick cannot double the Graph calls.
+- **Due-ness derived, not stored.** The hourly-then-daily rule reads each post's latest `capturedAt`, so the scheduler keeps no state, survives a restart unchanged, and a manual measurement also defers the next scheduled one for those posts.
+- **A per-run call budget, not a retry loop.** 150 calls per run leaves headroom under the 200 per hour limit. A rate-limited run stops; posts left over stay due.
+- **Extended metrics with a one-step fallback.** Requesting newer metrics (`reposts`, `reels_skip_rate`) in the same call as the core set risks one unsupported name failing the whole call. One retry with the core set keeps the numbers that worked before, costing at most one extra call per post, where per-metric calls would cost thirteen.
+- **Account-wide numbers never read as per-reel.** Follower split and demographics exist only at the account level in the API, so they live in their own table and their own block with a whole-account label.
+- **Two gates, neither faked.** Unchanged: no own channel shows the picker, a bad token shows the connect panel, and a token failing now stacks over real historical numbers instead of hiding them.
+- **Own-channel tables stay separate from `channels`/`videos`.** Unchanged: own posts can never enter the outlier feed or channel scoring.
+- **Missed is derived on read, a plan edit is one atomic action, and the delete Undo is lossless.** Unchanged from the shipped planner: `createPlannedPostAction` accepts the deleted plan's `id` and `state` so Undo restores the row as it was, with "missed" re-deriving and "publishing" or "failed" falling back to the create default.
+- **B-16 closes with the rework.** The new components ship with the testids 03 names (`dashboard-tab-*`, `reels-*`), and the shipped ones gain theirs (`mine-stat-tile`, `mine-reach-bars`, `mine-post-row`, `mine-weekday-bar`, `mine-connect-*`, `mine-delete-undo`, `plan-dialog-*`). The old Month, Posts, Metrics strip is removed, so `mine-tab-*` are superseded by `dashboard-tab-*`.
 
-## 8. Open, not verified
+## 9. Open, not verified
 
-- **Whether the Graph API's rate limit or comment classifier behavior matches this document under real production load.** The measurement flow, its partial-comments-failure path, and the classifier version stamping are read from code; none have been exercised against a live account at scale as part of this rewrite.
+- **Metric availability on this account and API version.** `IG_GRAPH_API_VERSION` defaults to `v21.0`; whether `reposts`, `reels_skip_rate`, `profile_activity` with `breakdown=action_type`, and the account `views` follower split are returned at that version, or need a version bump, is not proven against a live call. The fallback keeps the core set either way.
+- **Units and shape of the new metrics.** That `ig_reels_avg_watch_time` and `ig_reels_video_view_total_time` are milliseconds, that `reels_skip_rate` is a percentage, and the exact action type name for a bio link tap in `profile_activity`, are taken from Meta's documentation, not a live response.
+- **Account views split window.** The `since` and `until` range sent with `metric_type=total_value, period=day` is not settled; the stored `timeframe` records whatever range is sent.
+- **Call budget in practice.** The 150-call budget assumes about 50 listed posts at up to three calls each on a daily sweep. A manual "Measure now" in the same hour as a daily sweep can together pass 200; the rate-limit stop is the only guard, and it has not been exercised live.
+- **Thumbnail lifetime.** `thumbnail_url` is an Instagram CDN link that may expire; the daily sweep refreshes it, but how long a stored link stays valid is not measured.
+- **Dead published link.** `MineCalendar` links a published plan to `/mine/<publishedOwnPostId>`, a route that does not exist; after the redirect ships it still does not resolve. Not yet tracked in the backlog.
+- **Graph rate limit and comment classifier under load.** The measurement flow, its partial-comments path, and classifier version stamping are read from code, not exercised against a live account at scale.
