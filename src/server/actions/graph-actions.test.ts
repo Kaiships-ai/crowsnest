@@ -45,6 +45,15 @@ describe("measureOwnChannelAction", () => {
     expect(await measureOwnChannelAction()).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
     expect(revalidatePath).toHaveBeenCalledWith("/");
   });
+  test("a non-Graph throw (a DB error) is logged and returned as MEASURE_FAILED, never thrown, and / is still revalidated", async () => {
+    measureOwnChannel.mockRejectedValue(new Error("SQLITE_BUSY: database is locked"));
+    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
+    const { log } = await import("../lib/logger");
+    const error = vi.spyOn(log, "error");
+    expect(await measureOwnChannelAction()).toEqual({ ok: false, code: "MEASURE_FAILED", error: "SQLITE_BUSY: database is locked" });
+    expect(error.mock.calls.some(([event]) => event === "graph.measure.unexpected")).toBe(true);
+    expect(revalidatePath).toHaveBeenCalledWith("/");
+  });
 });
 
 describe("checkGraphTokenAction", () => {

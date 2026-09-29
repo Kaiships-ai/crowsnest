@@ -40,7 +40,7 @@ export interface MeasureSummary {
   /** This run's budget was cut by Graph calls earlier runs spent in the last hour. */
   limitedByRecentCalls: boolean;
 }
-export type MeasureResult = ({ ok: true } & MeasureSummary) | { ok: false; error: string; code: GraphErrorCode | "MEASURE_BUSY" };
+export type MeasureResult = ({ ok: true } & MeasureSummary) | { ok: false; error: string; code: GraphErrorCode | "MEASURE_BUSY" | "MEASURE_FAILED" };
 
 export function messageOf(err: unknown): string {
   if (err instanceof GraphApiError) return err.userMessage;

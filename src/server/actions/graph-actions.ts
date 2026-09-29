@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import type { GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
 import { cachedTokenStatus } from "../graph/token-status";
-import { measureOwnChannel, toFailure, type MeasureResult } from "../services/own-measure";
+import { log } from "../lib/logger";
+import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../services/own-measure";
 
 /**
  * Server actions backing own-channel Instagram Insights (V1 data contracts §1).
@@ -19,11 +20,17 @@ type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: s
 
 /** "Measure now": every listed post, plus comments, through the one measurement service.
  *  Waits its turn when a scheduled run holds the lock. Revalidates even on a failure: rows
- *  written before it stay, and the token state may have changed. */
+ *  written before it stay, and the token state may have changed. A non-Graph throw (a DB
+ *  error) is logged and returned as MEASURE_FAILED so the panel can toast it. */
 export async function measureOwnChannelAction(): Promise<MeasureResult> {
-  const result = await measureOwnChannel({ scope: "all" });
-  revalidatePath("/");
-  return result;
+  try {
+    return await measureOwnChannel({ scope: "all" });
+  } catch (err) {
+    log.error("graph.measure.unexpected", { error: messageOf(err) });
+    return { ok: false, error: messageOf(err), code: "MEASURE_FAILED" };
+  } finally {
+    revalidatePath("/");
+  }
 }
 
 /**
