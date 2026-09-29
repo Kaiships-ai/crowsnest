@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
+import type { OwnReel, ReelSnapshotPoint } from "@/server/services/reel-insights";
 import { computeOwnMedianReach, indexAgainstOwnMedian, type OwnPostForCalc } from "@/server/services/own-metrics";
 import { getSetting } from "@/server/settings";
 
@@ -190,8 +191,8 @@ const WIRED: Record<keyof OwnChannelOverview["metrics"], boolean> = {
   reach: true,
   saved: true,
   shares: true,
-  profileVisits: false,
-  followsFromPost: false,
+  profileVisits: true,
+  followsFromPost: true,
   watchTimeSec: false,
 };
 
@@ -336,5 +337,77 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
     // string, and the current one is what a fresh reading would use.
     classifierVersion: CLASSIFIER_VERSION,
     fetchError: errorSetting[0]?.value ?? null,
+  };
+}
+
+/** Reels only, newest first, each with its latest snapshot (null when never measured). */
+export async function getOwnReels(): Promise<OwnReel[]> {
+  const reels = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.productType, "REELS")).orderBy(desc(tables.ownPosts.postedAt));
+  if (reels.length === 0) return [];
+  const rows = await db
+    .select()
+    .from(tables.ownPostInsights)
+    .where(inArray(tables.ownPostInsights.ownPostId, reels.map((r) => r.id)))
+    .orderBy(desc(tables.ownPostInsights.capturedAt));
+  const latest = new Map<string, OwnPostInsightsRow>();
+  for (const r of rows) if (!latest.has(r.ownPostId)) latest.set(r.ownPostId, r);
+  return reels.map((p) => {
+    const l = latest.get(p.id);
+    return {
+      ownPostId: p.id, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
+      latest: l
+        ? {
+            capturedAt: l.capturedAt, views: l.views, reach: l.reach, likes: l.likes, comments: l.comments, shares: l.shares,
+            saved: l.saved, reposts: l.reposts, followsFromPost: l.followsFromPost, profileVisits: l.profileVisits,
+            bioLinkTaps: l.bioLinkTaps, avgWatchTimeMs: l.avgWatchTimeMs, skipRate: l.skipRate, fetchError: l.fetchError,
+          }
+        : null,
+    };
+  });
+}
+
+/** Every reel snapshot as (ownPostId, postedAt, capturedAt, views): the input to typicalViewsCurve. */
+export async function getReelViewHistory(): Promise<ReelSnapshotPoint[]> {
+  return db
+    .select({ ownPostId: tables.ownPostInsights.ownPostId, postedAt: tables.ownPosts.postedAt, capturedAt: tables.ownPostInsights.capturedAt, views: tables.ownPostInsights.views })
+    .from(tables.ownPostInsights)
+    .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
+    .where(eq(tables.ownPosts.productType, "REELS"));
+}
+
+export interface BreakdownEntry {
+  key: string;
+  value: number;
+}
+export interface AccountBreakdowns {
+  followerSplit: BreakdownEntry[];
+  followerSplitAt: string | null;
+  audience: { age: BreakdownEntry[]; country: BreakdownEntry[]; gender: BreakdownEntry[] };
+  audienceAt: string | null;
+  audienceError: string | null;
+}
+
+/** Newest batch per metric, entries sorted by value, plus the stored audience refusal. */
+export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
+  // ponytail: reads every stored batch and keeps the newest per metric in memory; a
+  // single-user account adds a few dozen rows a day. Filter in SQL if that ever shows.
+  const [rows, errorRow] = await Promise.all([
+    db.select().from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_AUDIENCE_FETCH_ERROR_KEY)).limit(1),
+  ]);
+  const newest = (metric: string) => {
+    const first = rows.find((r) => r.metric === metric);
+    return first ? rows.filter((r) => r.metric === metric && r.capturedAt === first.capturedAt) : [];
+  };
+  const entries = (list: typeof rows) => list.map((r) => ({ key: r.key, value: r.value })).sort((a, b) => b.value - a.value);
+  const split = newest("views");
+  const audience = newest("engaged_audience_demographics");
+  const dim = (d: string) => entries(audience.filter((r) => r.dimension === d));
+  return {
+    followerSplit: entries(split),
+    followerSplitAt: split[0]?.capturedAt ?? null,
+    audience: { age: dim("age"), country: dim("country"), gender: dim("gender") },
+    audienceAt: audience[0]?.capturedAt ?? null,
+    audienceError: errorRow[0]?.value ?? null,
   };
 }

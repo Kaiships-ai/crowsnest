@@ -11,13 +11,16 @@ let getOwnPosts: typeof import("./own-channel")["getOwnPosts"];
 let getOwnPostInsightHistory: typeof import("./own-channel")["getOwnPostInsightHistory"];
 let getOwnComments: typeof import("./own-channel")["getOwnComments"];
 let OWN_COMMENTS_FETCH_ERROR_KEY: typeof import("./own-channel")["OWN_COMMENTS_FETCH_ERROR_KEY"];
+let getOwnReels: typeof import("./own-channel")["getOwnReels"];
+let getReelViewHistory: typeof import("./own-channel")["getReelViewHistory"];
+let getAccountBreakdowns: typeof import("./own-channel")["getAccountBreakdowns"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   process.env.IG_SERVICE_TOKEN ??= "test-token";
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY } = await import("./own-channel"));
+  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY, getOwnReels, getReelViewHistory, getAccountBreakdowns } = await import("./own-channel"));
 });
 
 beforeEach(async () => {
@@ -82,10 +85,10 @@ describe("getOwnChannelOverview — not connected / never measured", () => {
     }
   });
 
-  test("unwired metrics (profileVisits, followsFromPost, watchTimeSec) always report wired: false", async () => {
+  test("ACTION-15: profileVisits and followsFromPost are wired; watchTimeSec is not", async () => {
     const overview = await getOwnChannelOverview();
-    expect(overview.metrics.profileVisits.wired).toBe(false);
-    expect(overview.metrics.followsFromPost.wired).toBe(false);
+    expect(overview.metrics.profileVisits.wired).toBe(true);
+    expect(overview.metrics.followsFromPost.wired).toBe(true);
     expect(overview.metrics.watchTimeSec.wired).toBe(false);
     expect(overview.metrics.reach.wired).toBe(true);
     expect(overview.metrics.saved.wired).toBe(true);
@@ -271,5 +274,43 @@ describe("reel columns and own_account_breakdowns (migration 0030)", () => {
     });
     const [row] = await db.select().from(tables.ownPostInsights).where(eq(tables.ownPostInsights.id, "i-mig"));
     expect(row).toMatchObject({ reposts: 3, skipRate: 41.5, bioLinkTaps: 7, avgWatchTimeMs: 4500, totalWatchTimeMs: 900000 });
+  });
+});
+
+describe("getOwnReels (ACTION-19)", () => {
+  test("reels only, newest first, views from the latest snapshot", async () => {
+    const post = (id: string, productType: string, postedAt: string) => db.insert(tables.ownPosts).values({ id, externalId: `x-${id}`, permalink: `https://i/${id}`, mediaType: "VIDEO", productType, format: "Reel", postedAt, firstSeenAt: postedAt, thumbnailUrl: `https://cdn/${id}` });
+    const snap = (ownPostId: string, capturedAt: string, views: number) => db.insert(tables.ownPostInsights).values({ id: `${ownPostId}-${capturedAt}`, ownPostId, capturedAt, views });
+    await post("r1", "REELS", "2026-09-01T00:00:00.000Z");
+    await post("r2", "REELS", "2026-09-10T00:00:00.000Z");
+    await post("r3", "REELS", "2026-09-20T00:00:00.000Z");
+    await post("c1", "FEED", "2026-09-25T00:00:00.000Z");
+    for (const id of ["r1", "r2", "r3"]) { await snap(id, "2026-09-26T00:00:00.000Z", 10); await snap(id, "2026-09-27T00:00:00.000Z", 20); }
+    const reels = await getOwnReels();
+    expect(reels.map((r) => r.ownPostId)).toEqual(["r3", "r2", "r1"]);
+    expect(reels.every((r) => r.latest?.views === 20)).toBe(true);
+    expect(reels[0].thumbnailUrl).toBe("https://cdn/r3");
+    expect((await getReelViewHistory()).filter((h) => h.ownPostId === "r1")).toHaveLength(2);
+    expect((await getReelViewHistory()).some((h) => h.ownPostId === "c1")).toBe(false);
+  });
+});
+
+describe("getAccountBreakdowns", () => {
+  test("newest batch per metric, sorted by value, with the stored refusal", async () => {
+    const row = (id: string, capturedAt: string, metric: string, dimension: string, key: string, value: number) => ({ id, capturedAt, metric, dimension, key, value, timeframe: null });
+    await db.insert(tables.ownAccountBreakdowns).values([
+      row("1", "2026-09-27T00:00:00.000Z", "views", "follower_type", "FOLLOWER", 1),
+      row("2", "2026-09-28T00:00:00.000Z", "views", "follower_type", "FOLLOWER", 30),
+      row("3", "2026-09-28T00:00:00.000Z", "views", "follower_type", "NON_FOLLOWER", 70),
+      row("4", "2026-09-28T00:00:00.000Z", "engaged_audience_demographics", "age", "18-24", 20),
+      row("5", "2026-09-28T00:00:00.000Z", "engaged_audience_demographics", "age", "25-34", 40),
+    ]);
+    await db.insert(tables.appSettings).values({ key: "own_audience_fetch_error", value: "not enough users" });
+    const b = await getAccountBreakdowns();
+    expect(b.followerSplit).toEqual([{ key: "NON_FOLLOWER", value: 70 }, { key: "FOLLOWER", value: 30 }]);
+    expect(b.audience.age.map((a) => a.key)).toEqual(["25-34", "18-24"]);
+    expect(b.audience.country).toEqual([]);
+    expect(b.audienceError).toBe("not enough users");
+    expect(b.followerSplitAt).toBe("2026-09-28T00:00:00.000Z");
   });
 });
