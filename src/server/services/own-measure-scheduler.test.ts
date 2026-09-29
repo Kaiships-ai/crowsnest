@@ -10,11 +10,12 @@ let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let runDueOwnMeasure: typeof import("./own-measure-scheduler")["runDueOwnMeasure"];
+let startOwnMeasureScheduler: typeof import("./own-measure-scheduler")["startOwnMeasureScheduler"];
 
 beforeAll(async () => {
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ runDueOwnMeasure } = await import("./own-measure-scheduler"));
+  ({ runDueOwnMeasure, startOwnMeasureScheduler } = await import("./own-measure-scheduler"));
 });
 beforeEach(async () => {
   migrate();
@@ -44,5 +45,38 @@ describe("runDueOwnMeasure (ACTION-27)", () => {
     expect(await runDueOwnMeasure(new Date(), { configured: () => true })).toMatchObject({ ran: true, reason: "failed" });
     expect(graphClient.fetchAccount).toHaveBeenCalledTimes(1);
     expect(await ownRows()).toBe(0);
+  });
+});
+
+describe("startOwnMeasureScheduler", () => {
+  test("runs one tick 30 seconds after boot, then hourly; stop clears both timers", async () => {
+    vi.useFakeTimers();
+    try {
+      const measure = vi.fn().mockResolvedValue({ ok: true, measuredAt: "", postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 0, stoppedEarly: null });
+      const stop = startOwnMeasureScheduler({ hasOwnChannel: async () => true, configured: () => true, measure, intervalMs: 3_600_000 });
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(measure).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(measure).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(3_600_000);
+      expect(measure).toHaveBeenCalledTimes(2);
+      stop();
+      await vi.advanceTimersByTimeAsync(3 * 3_600_000);
+      expect(measure).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("stopped before the boot tick: it never runs", async () => {
+    vi.useFakeTimers();
+    try {
+      const measure = vi.fn();
+      startOwnMeasureScheduler({ hasOwnChannel: async () => true, configured: () => true, measure })();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(measure).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

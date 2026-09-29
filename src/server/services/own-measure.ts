@@ -53,6 +53,9 @@ const HOUR_MS = 3_600_000;
  *  refreshes them once this is a day old (Measure now always does). */
 const OWN_COMMENTS_FETCHED_AT_KEY = "own_comments_fetched_at";
 const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
+/** An hourly tick can land a little before the hour since the last capture; without slack
+ *  that post would slip a whole hour (or day). */
+const DUE_SLACK_MS = 5 * 60_000;
 
 /** A post's failed captures since it was last measured successfully (none measured yet). */
 export interface CaptureFailures {
@@ -63,7 +66,7 @@ export interface CaptureFailures {
   permanent: boolean;
 }
 
-/** Hourly while a post is under 72 hours old, daily after. A post never captured
+/** Hourly while a post is under 72 hours old, daily after, each with five minutes of slack. A post never captured
  *  successfully is due at once, but backs off after a failure: one retry an hour later,
  *  then daily, and daily from the first failure when Instagram refused the request itself.
  *  Derived from stored captures on every tick, so the scheduler keeps no state. */
@@ -71,11 +74,11 @@ export function isDue(postedAt: string, lastCapturedAt: string | null, now: Date
   if (lastCapturedAt === null) {
     if (failures === null) return true;
     const wait = failures.count === 1 && !failures.permanent ? HOUR_MS : 24 * HOUR_MS;
-    return now.getTime() - Date.parse(failures.at) >= wait;
+    return now.getTime() - Date.parse(failures.at) >= wait - DUE_SLACK_MS;
   }
   const age = now.getTime() - Date.parse(postedAt);
   const sinceCapture = now.getTime() - Date.parse(lastCapturedAt);
-  return sinceCapture >= (age < NEW_REEL_WINDOW_MS ? HOUR_MS : 24 * HOUR_MS);
+  return sinceCapture >= (age < NEW_REEL_WINDOW_MS ? HOUR_MS : 24 * HOUR_MS) - DUE_SLACK_MS;
 }
 
 async function captureStateByExternalId(externalIds: string[]): Promise<{ lastOk: Map<string, string>; failures: Map<string, CaptureFailures> }> {

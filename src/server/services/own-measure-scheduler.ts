@@ -53,15 +53,23 @@ function resolveTickIntervalMs(): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_TICK_INTERVAL_MS;
 }
 
+/** A restart should not leave due posts waiting a full interval for the first tick. */
+const BOOT_TICK_DELAY_MS = 30_000;
+
 export function startOwnMeasureScheduler(deps: Partial<OwnMeasureSchedulerDeps> & { intervalMs?: number } = {}): () => void {
   const { intervalMs, ...schedulerDeps } = deps;
   let running = false;
-  const timer = setInterval(() => {
+  const tick = () => {
     if (running) return;
     running = true;
     runDueOwnMeasure(new Date(), schedulerDeps).finally(() => {
       running = false;
     });
-  }, intervalMs ?? resolveTickIntervalMs());
-  return () => clearInterval(timer);
+  };
+  const boot = setTimeout(tick, BOOT_TICK_DELAY_MS);
+  const timer = setInterval(tick, intervalMs ?? resolveTickIntervalMs());
+  return () => {
+    clearTimeout(boot);
+    clearInterval(timer);
+  };
 }

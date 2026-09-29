@@ -137,6 +137,13 @@ describe("isDue", () => {
     expect(svc.isDue(ago(5 * 24 * H), null, NOW)).toBe(true);
   });
 
+  test("five minutes of slack, so an hourly tick that lands a little early still measures", () => {
+    expect(svc.isDue(ago(2 * H), ago(56 * 60_000), NOW)).toBe(true);
+    expect(svc.isDue(ago(2 * H), ago(54 * 60_000), NOW)).toBe(false);
+    expect(svc.isDue(ago(5 * 24 * H), ago(24 * H - 4 * 60_000), NOW)).toBe(true);
+    expect(svc.isDue(ago(2 * H), null, NOW, { at: ago(56 * 60_000), count: 1, permanent: false })).toBe(true);
+  });
+
   test("never measured with failures: an hour after the first transient failure, a day after a repeat or a permanent one", () => {
     const fail = (at: string, count: number, permanent = false) => ({ at, count, permanent });
     expect(svc.isDue(ago(2 * H), null, NOW, fail(ago(30 * 60_000), 1))).toBe(false);
