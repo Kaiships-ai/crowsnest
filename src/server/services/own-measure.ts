@@ -9,7 +9,7 @@ import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWE
 /**
  * The one writer of the own-channel tables (own_account_snapshots, own_posts,
  * own_post_insights, own_comments, own_account_breakdowns). "Measure now" calls it with
- * scope "all"; the scheduler with scope "due". A module-level single-flight lock covers
+ * scope "all"; the scheduler with scope "due". A process-wide single-flight lock covers
  * both: a due run finding the lock held returns MEASURE_BUSY, a manual run waits.
  * Comments ride Measure now every time and a due run once a day, with their call share
  * reserved ahead of the posts.
@@ -340,13 +340,24 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly };
 }
 
-let inFlight: Promise<MeasureResult> | null = null;
+/** Process-wide state on globalThis: tsx server.ts (the scheduler) and Next's bundle
+ *  (Measure now) each load their own copy of this module in the same process, so a
+ *  module-level lock would let both run at once. Read through a function so a test can
+ *  drop it. */
+interface OwnMeasureState {
+  inFlight: Promise<MeasureResult> | null;
+}
+function shared(): OwnMeasureState {
+  const g = globalThis as { __crowsnestOwnMeasure?: OwnMeasureState };
+  return (g.__crowsnestOwnMeasure ??= { inFlight: null });
+}
 
 export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
-  if (inFlight && opts.scope === "due") return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
-  while (inFlight) await inFlight.catch(() => undefined);
+  const state = shared();
+  if (state.inFlight && opts.scope === "due") return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
+  while (state.inFlight) await state.inFlight.catch(() => undefined);
   const run = runMeasure(opts);
-  inFlight = run;
+  state.inFlight = run;
   try {
     const result = await run;
     // A dead token must not keep reading as connected from the cached status.
@@ -358,6 +369,6 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
     }
     return result;
   } finally {
-    if (inFlight === run) inFlight = null;
+    if (state.inFlight === run) state.inFlight = null;
   }
 }

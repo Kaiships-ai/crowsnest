@@ -52,3 +52,13 @@ describe("cachedTokenStatus", () => {
     expect(graphClient.checkToken).not.toHaveBeenCalled();
   });
 });
+
+describe("one cache per process", () => {
+  test("a second copy of the module (tsx scheduler vs the Next bundle) sees the same cache", async () => {
+    rememberTokenStatus({ ...OK, state: "permission_denied", username: null, message: "no insights" }, 0);
+    vi.resetModules();
+    const other = await import("./token-status");
+    expect((await other.cachedTokenStatus(60_000)).state).toBe("permission_denied");
+    expect(graphClient.checkToken).not.toHaveBeenCalled();
+  });
+});

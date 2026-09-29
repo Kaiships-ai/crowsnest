@@ -117,6 +117,19 @@ describe("single-flight lock", () => {
   });
 });
 
+describe("one lock per process", () => {
+  test("a second copy of the module (tsx scheduler vs the Next bundle) sees the in-flight run", async () => {
+    let release!: () => void;
+    graphClient.fetchAccount.mockImplementationOnce(() => new Promise((res) => { release = () => res(ACCOUNT); }));
+    const first = svc.measureOwnChannel({ scope: "due" });
+    vi.resetModules();
+    const other = await import("./own-measure");
+    expect(await other.measureOwnChannel({ scope: "due" })).toMatchObject({ ok: false, code: "MEASURE_BUSY" });
+    release();
+    expect(await first).toMatchObject({ ok: true });
+  });
+});
+
 const H = 3_600_000;
 const NOW = new Date("2026-09-29T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString();
