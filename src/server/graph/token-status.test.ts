@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { GraphTokenStatus } from "./client";
 
 const graphClient = vi.hoisted(() => ({ checkToken: vi.fn() }));
 vi.mock("./client", () => ({ graphClient }));
 
 const { cachedTokenStatus, invalidateTokenStatus, rememberTokenStatus } = await import("./token-status");
 
-const OK = { configured: true, username: "me", state: "ok", message: null, checkedAt: "2026-09-30T00:00:00.000Z" };
+const OK: GraphTokenStatus = { configured: true, username: "me", state: "ok", message: null, checkedAt: "2026-09-30T00:00:00.000Z" };
 
 beforeEach(() => {
   invalidateTokenStatus();
@@ -64,7 +65,7 @@ describe("one cache per process", () => {
 });
 
 describe("a remembered permission refusal", () => {
-  const DENIED = { ...OK, state: "permission_denied", username: null, message: "no insights" };
+  const DENIED: GraphTokenStatus = { ...OK, state: "permission_denied", username: null, message: "no insights" };
   test("outlives the TTL and a live check: /me cannot see the insights permission", async () => {
     rememberTokenStatus(DENIED, 0);
     expect((await cachedTokenStatus(10 * 60_000)).state).toBe("permission_denied");
