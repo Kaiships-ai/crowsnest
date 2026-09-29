@@ -21,8 +21,8 @@ import { GraphApiError, type GraphErrorCode } from "./errors";
  *  1. The token never leaves this module in any error, string, log line or thrown
  *     value. Every message that can reach a caller or a log line is passed through
  *     `redactToken` first.
- *  2. A per-post insights failure is a field on that post (`GraphPost.insights.error`),
- *     never an exception that takes the whole pull down with it.
+ *  2. A per-post insights failure is a field on that post (`GraphPostInsights.error`),
+ *     never an exception, except auth and rate-limit failures, which must end the run.
  *  3. This client never touches the instagrapi sidecar's credentials or transport
  *     (`src/server/ig/`), and the sidecar never touches this token. Separate transports,
  *     separate tables, separate code paths — including a separate error hierarchy
@@ -81,10 +81,6 @@ export interface GraphMedia {
   thumbnailUrl: string | null;
 }
 
-export interface GraphPost extends GraphMedia {
-  insights: GraphPostInsights;
-}
-
 export interface GraphBreakdownRow {
   metric: string;
   dimension: string;
@@ -121,7 +117,6 @@ export interface GraphTokenStatus {
 
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
-  fetchPosts(limit?: number): Promise<GraphPost[]>;
   fetchMedia(limit?: number): Promise<GraphMedia[]>;
   /** One post's insights. Throws GraphApiError only for auth and rate-limit failures
    *  (the run must stop); any other failure lands in insights.error. */
@@ -471,39 +466,6 @@ export const graphClient: GraphClient = {
     const result = await graphGet<unknown>("me", { fields: "id,username,followers_count,follows_count,media_count" }, token);
     if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
     return mapAccount(result.data);
-  },
-
-  async fetchPosts(limit = 50): Promise<GraphPost[]> {
-    const { token, userId } = requireConfigured();
-    const mediaResult = await graphGet<{ data?: unknown[] }>(
-      `${userId}/media`,
-      { fields: "id,media_type,media_product_type,permalink,timestamp,like_count,comments_count,caption", limit },
-      token
-    );
-    if (!mediaResult.ok) throw new GraphApiError(errorCodeFor(mediaResult.kind), mediaResult.message);
-
-    const items = Array.isArray(mediaResult.data.data) ? mediaResult.data.data : [];
-    const posts: GraphPost[] = [];
-    for (const raw of items) {
-      const m = rec(raw);
-      const isReel = m.media_product_type === "REELS";
-      let metrics = "reach,saved,shares,total_interactions,comments,likes";
-      if (isReel) metrics += ",views";
-
-      const mediaId = str(m.id);
-      let insights: GraphPostInsights;
-      if (!mediaId) {
-        // Rule 2: a per-post failure never aborts the run. A post with no id at all
-        // cannot be measured, so it gets the same treatment as an insights call that
-        // failed, not a thrown error for the whole batch.
-        insights = emptyInsights("post has no id, cannot fetch insights");
-      } else {
-        const insightsResult = await graphGet<unknown>(`${mediaId}/insights`, { metric: metrics }, token);
-        insights = insightsResult.ok ? mapInsights(insightsResult.data, isReel) : emptyInsights(insightsResult.message);
-      }
-      posts.push({ ...buildMedia(m), insights });
-    }
-    return posts;
   },
 
   async fetchMedia(limit = 50): Promise<GraphMedia[]> {
