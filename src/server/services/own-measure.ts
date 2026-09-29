@@ -354,7 +354,9 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
     }
   }
 
-  rememberTokenStatus({ configured: true, username: account.username, state: "ok", message: null, checkedAt: measuredAt });
+  // Only a post's insights landing proves the insights grant: the account and media calls
+  // work without it, so a run with none must not clear a remembered permission refusal.
+  if (postsMeasured > 0) rememberTokenStatus({ configured: true, username: account.username, state: "ok", message: null, checkedAt: measuredAt });
   const callsUsed = used();
   log.info("graph.measure.done", { scope: opts.scope, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed });
   return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly, limitedByRecentCalls };

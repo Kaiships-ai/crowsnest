@@ -73,9 +73,18 @@ describe("measureOwnChannel, scope all", () => {
     expect(rows[0]).toMatchObject({ reposts: 1, skipRate: 40, bioLinkTaps: 2, avgWatchTimeMs: 4500, totalWatchTimeMs: 90000, profileVisits: 4, followsFromPost: 1 });
   });
 
-  test("a successful run refreshes the cached token status to ok with the account", async () => {
+  test("a run that measured a post's insights refreshes the cached token status to ok with the account", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
     expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true });
     expect(rememberTokenStatus).toHaveBeenCalledWith(expect.objectContaining({ configured: true, state: "ok", username: "kallaway" }));
+  });
+
+  test("a run with no successful insights call keeps a remembered permission refusal", async () => {
+    expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true, postsMeasured: 0 });
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, { insights: insights({ reach: null, error: "HTTP 400: nope" }) }));
+    expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true, postsMeasured: 0 });
+    expect(rememberTokenStatus).not.toHaveBeenCalled();
   });
 
   test("ACTION-13: the account call failing is a hard failure with no rows", async () => {
