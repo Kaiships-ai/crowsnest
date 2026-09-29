@@ -30,7 +30,7 @@ The design is built around one honesty rule: nothing here ever fakes a publish. 
 
 ## 4. How it fits in the system
 
-publish does not have its own route. It lives inside `/mine`: the calendar's day panel and the publish dialog are new UI on top of the existing planner, and every write goes through `planned_posts`, the same table mine already owned. `/mine/page.tsx` computes whether the bucket and the Graph token are configured once per page load and passes both flags, plus the resolved dry-run flag, down into `MineCalendar`.
+publish does not have its own route. It lives on the Dashboard's Calendar tab (`/?tab=calendar`): the calendar's day panel and the publish dialog are new UI on top of the existing planner, and every write goes through `planned_posts`, the same table mine already owned. `CalendarTab` (`src/components/mine/calendar-tab.tsx`) computes whether the bucket and the Graph token are configured once per page load and passes both flags, plus the resolved dry-run flag, down into `MineCalendar`.
 
 An in-process scheduler, booted once in `server.ts` alongside the existing MCP HTTP wiring, ticks on an interval (default 30 seconds, `PUBLISH_SCHEDULER_INTERVAL_MS` to override) and is the only thing in crowsnest that calls Instagram's Graph publish edges on a timer rather than in response to a click. It shares the Graph client, the token, and the error hierarchy that mine's read-only Insights panel already uses; it shares nothing with the instagrapi sidecar ig-sync depends on.
 
