@@ -10,6 +10,8 @@ import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/se
  * own_post_insights, own_comments, own_account_breakdowns). "Measure now" calls it with
  * scope "all"; the scheduler with scope "due". A module-level single-flight lock covers
  * both: a due run finding the lock held returns MEASURE_BUSY, a manual run waits.
+ * Comments ride Measure now every time and a due run once a day, with their call share
+ * reserved ahead of the posts.
  *
  * Never deletes: a post that disappears from the account stays in own_posts with its
  * history intact. The account call failing is a hard failure (nothing to show); comments
@@ -43,6 +45,9 @@ export function toFailure(err: unknown): { ok: false; error: string; code: Graph
 }
 
 const HOUR_MS = 3_600_000;
+/** app_settings key holding when comments last pulled successfully; a scheduled run
+ *  refreshes them once this is a day old (Measure now always does). */
+const OWN_COMMENTS_FETCHED_AT_KEY = "own_comments_fetched_at";
 const NEW_REEL_WINDOW_MS = 72 * HOUR_MS;
 
 /** Hourly while a post is under 72 hours old, daily after, and always when never captured.
@@ -70,6 +75,12 @@ async function latestCaptureByExternalId(externalIds: string[]): Promise<Map<str
 async function breakdownsStale(now: Date): Promise<boolean> {
   const [newest] = await db.select({ capturedAt: tables.ownAccountBreakdowns.capturedAt }).from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)).limit(1);
   return !newest || now.getTime() - Date.parse(newest.capturedAt) >= 24 * HOUR_MS;
+}
+
+async function commentsDue(scope: MeasureScope, now: Date): Promise<boolean> {
+  if (scope === "all") return true;
+  const [row] = await db.select({ value: tables.appSettings.value }).from(tables.appSettings).where(eq(tables.appSettings.key, OWN_COMMENTS_FETCHED_AT_KEY)).limit(1);
+  return !row || now.getTime() - Date.parse(row.value) >= 24 * HOUR_MS;
 }
 
 async function setAppSetting(key: string, value: string | null): Promise<void> {
@@ -137,13 +148,14 @@ async function upsertOwnComment(comment: GraphComment, postIdByPermalink: Map<st
   return true;
 }
 
-async function measureComments(account: GraphAccount): Promise<{ commentsSeen: number; partial: boolean }> {
+async function measureComments(account: GraphAccount, measuredAt: string): Promise<{ commentsSeen: number; partial: boolean }> {
   try {
     const comments = await graphClient.fetchComments(account.username);
     const allOwnPosts = await db.select({ id: tables.ownPosts.id, permalink: tables.ownPosts.permalink }).from(tables.ownPosts);
     const postIdByPermalink = new Map(allOwnPosts.map((p) => [p.permalink, p.id]));
     for (const c of comments) await upsertOwnComment(c, postIdByPermalink);
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, null);
+    await setAppSetting(OWN_COMMENTS_FETCHED_AT_KEY, measuredAt);
     return { commentsSeen: comments.length, partial: false };
   } catch (err) {
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(err));
@@ -187,12 +199,16 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   const lastCaptured = opts.scope === "due" ? await latestCaptureByExternalId(media.map((m) => m.externalId)) : new Map<string, string>();
   const inScope = opts.scope === "all" ? media : media.filter((m) => isDue(m.postedAt, lastCaptured.get(m.externalId) ?? null, now));
 
+  // Comments cost 1 media list + 1 call per post with comments. Their share is reserved
+  // before the post loop so a full account still gets them.
+  const commentCalls = (await commentsDue(opts.scope, now)) ? 1 + media.filter((m) => (m.commentsCount ?? 0) > 0).length : 0;
+
   let postsMeasured = 0;
   let postsFailed = 0;
   let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
   for (const m of inScope) {
     // Reserve the worst case (extended + fallback + profile_activity for a reel).
-    if (callsUsed + (m.productType === "REELS" ? 3 : 1) > budget) {
+    if (callsUsed + (m.productType === "REELS" ? 3 : 1) + commentCalls > budget) {
       stoppedEarly = "budget";
       break;
     }
@@ -220,6 +236,18 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     else postsMeasured += 1;
   }
 
+  let commentsSeen = 0;
+  let partial = false;
+  if (commentCalls > 0) {
+    if (stoppedEarly === "rate_limited" || callsUsed + commentCalls > budget) {
+      partial = true;
+      await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
+    } else {
+      ({ commentsSeen, partial } = await measureComments(account, measuredAt));
+      callsUsed += commentCalls;
+    }
+  }
+
   // ponytail: when every breakdown call is refused no row lands, so this retries each
   // tick (4 calls an hour); store a refusal timestamp if that ever matters.
   if (stoppedEarly === null && callsUsed + 4 <= budget && (await breakdownsStale(now))) {
@@ -234,20 +262,6 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       callsUsed += 1;
       if (err instanceof GraphApiError && err.code === "GRAPH_RATE_LIMITED") stoppedEarly = "rate_limited";
       log.warn("own_measure.breakdowns_failed", { error: messageOf(err) });
-    }
-  }
-
-  let commentsSeen = 0;
-  let partial = false;
-  if (opts.scope === "all") {
-    // Comments cost 1 media list + 1 call per post with comments.
-    const commentCalls = 1 + media.filter((m) => (m.commentsCount ?? 0) > 0).length;
-    if (stoppedEarly !== null || callsUsed + commentCalls > budget) {
-      partial = true;
-      await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, "Comments skipped: this run's Graph call budget was spent.");
-    } else {
-      ({ commentsSeen, partial } = await measureComments(account));
-      callsUsed += commentCalls;
     }
   }
 

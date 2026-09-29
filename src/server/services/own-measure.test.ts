@@ -216,6 +216,29 @@ describe("measureOwnChannel, scope due", () => {
   });
 });
 
+describe("comments", () => {
+  test("Measure now on 50 reels with comments still fetches comments and clears a stored skip", async () => {
+    await db.insert(tables.appSettings).values({ key: "own_comments_fetch_error", value: "Comments skipped" });
+    graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 50 }, (_, i) => media(`r${i}`, { commentsCount: 1 })));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ ok: true, partial: false });
+    if (!r.ok) throw new Error("unreachable");
+    expect(r.callsUsed).toBeLessThanOrEqual(150);
+    expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_comments_fetch_error")).toBe(false);
+  });
+
+  test("scheduled runs refresh comments at most once a day", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a", { commentsCount: 2 })]);
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + H) });
+    expect(graphClient.fetchComments).toHaveBeenCalledTimes(1);
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    expect(graphClient.fetchComments).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("account breakdowns", () => {
   const rows = [
     { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" },
