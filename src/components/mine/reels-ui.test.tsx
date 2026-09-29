@@ -32,6 +32,16 @@ describe("B-16 testids", () => {
   });
 });
 
+describe("GraphConnectPanel", () => {
+  test("follows a new initialStatus after a refresh, so a failed Measure now shows the new state", () => {
+    const at = "2026-09-01T00:00:00.000Z";
+    const { getByText, rerender } = render(<GraphConnectPanel ownHandle="@me" everMeasured={false} initialStatus={{ configured: true, username: "me", state: "ok", message: null, checkedAt: at }} />);
+    expect(getByText("Connected, nothing measured yet")).toBeTruthy();
+    rerender(<GraphConnectPanel ownHandle="@me" everMeasured={false} initialStatus={{ configured: true, username: null, state: "permission_denied", message: "no insights", checkedAt: at }} />);
+    expect(getByText("The token is missing a permission")).toBeTruthy();
+  });
+});
+
 const { ReelPicker } = await import("./reel-picker");
 describe("ReelPicker", () => {
   test("one link per reel setting ?reel=, the selected one marked current", () => {

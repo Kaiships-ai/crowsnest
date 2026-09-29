@@ -66,6 +66,13 @@ export function GraphConnectPanel({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
+  // router.refresh() (after Measure now, even a failed one) hands a new server status:
+  // take it over the local one, or the panel keeps showing the state before the run.
+  const [seenInitial, setSeenInitial] = useState(initialStatus);
+  if (initialStatus !== seenInitial) {
+    setSeenInitial(initialStatus);
+    setStatus(initialStatus);
+  }
   const [checking, startChecking] = useTransition();
   const [measuring, startMeasuring] = useTransition();
 
