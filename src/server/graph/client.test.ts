@@ -208,6 +208,41 @@ describe("graphClient.fetchPostInsights", () => {
   });
 });
 
+describe("graphClient.fetchAccountBreakdowns", () => {
+  const ok = (body: unknown) => ({ ok: true, status: 200, json: async () => body });
+  const results = (pairs: [string, number][]) => ({ data: [{ total_value: { breakdowns: [{ results: pairs.map(([k, value]) => ({ dimension_values: [k], value })) }] } }] });
+  beforeEach(() => { process.env.IG_GRAPH_TOKEN = "tok_secret"; process.env.IG_GRAPH_USER_ID = "17841400000000000"; });
+
+  test("follower split from views by follower_type, audience from engaged_audience_demographics", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(ok(results([["FOLLOWER", 300], ["NON_FOLLOWER", 700]])))
+      .mockResolvedValueOnce(ok(results([["25-34", 40], ["18-24", 30]])))
+      .mockResolvedValueOnce(ok(results([["US", 50]])))
+      .mockResolvedValueOnce(ok(results([["F", 60], ["M", 40]])));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out.audienceError).toBeNull();
+    expect(out.callsUsed).toBe(4);
+    expect(out.rows).toContainEqual({ metric: "views", dimension: "follower_type", key: "NON_FOLLOWER", value: 700, timeframe: "day" });
+    expect(out.rows).toContainEqual({ metric: "engaged_audience_demographics", dimension: "country", key: "US", value: 50, timeframe: "this_month" });
+    const first = new URL(fetchMock.mock.calls[0][0] as string);
+    expect(first.searchParams.get("breakdown")).toBe("follower_type");
+    expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("engaged_audience_demographics");
+  });
+
+  test("a lack-of-volume refusal returns a threshold state, not an empty audience", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 10, message: "Not enough users" } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out.audienceError).toContain("Not enough users");
+    expect(out.rows.every((r) => r.metric === "views")).toBe(true);
+    expect(out.callsUsed).toBe(2);
+  });
+});
+
 describe("classifyComment", () => {
   test("an ordinary stranger's comment is organic", async () => {
     const { classifyComment } = await loadClient();

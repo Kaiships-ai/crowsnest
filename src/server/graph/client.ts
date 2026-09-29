@@ -85,6 +85,21 @@ export interface GraphPost extends GraphMedia {
   insights: GraphPostInsights;
 }
 
+export interface GraphBreakdownRow {
+  metric: string;
+  dimension: string;
+  key: string;
+  value: number;
+  timeframe: string | null;
+}
+
+export interface GraphAccountBreakdowns {
+  rows: GraphBreakdownRow[];
+  /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
+  audienceError: string | null;
+  callsUsed: number;
+}
+
 export interface GraphComment {
   externalId: string;
   permalink: string;
@@ -111,6 +126,7 @@ export interface GraphClient {
   /** One post's insights. Throws GraphApiError only for auth and rate-limit failures
    *  (the run must stop); any other failure lands in insights.error. */
   fetchPostInsights(media: GraphMedia): Promise<{ insights: GraphPostInsights; callsUsed: number }>;
+  fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
   fetchComments(accountUsername: string): Promise<GraphComment[]>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
@@ -242,6 +258,20 @@ export function mapBioLinkTaps(raw: unknown): number | null {
     }
   }
   return null;
+}
+
+function mapBreakdown(raw: unknown, metric: string, dimension: string, timeframe: string): GraphBreakdownRow[] {
+  const out: GraphBreakdownRow[] = [];
+  for (const row of arr(rec(raw).data)) {
+    for (const b of arr(rec(rec(row).total_value).breakdowns)) {
+      for (const r of arr(rec(b).results)) {
+        const key = str(arr(rec(r).dimension_values)[0]);
+        const value = num(rec(r).value);
+        if (key !== null && value !== null) out.push({ metric, dimension, key, value, timeframe });
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -512,6 +542,34 @@ export const graphClient: GraphClient = {
     throwIfFatal(activity);
     insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
     return { insights, callsUsed };
+  },
+
+  async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
+    const { token, userId } = requireConfigured();
+    const rows: GraphBreakdownRow[] = [];
+    // ponytail: the since/until window for the views split is open (02 section 9); period=day
+    // without a range, recorded as timeframe "day".
+    const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
+    throwIfFatal(split);
+    if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
+    let callsUsed = 1;
+    let audienceError: string | null = null;
+    for (const dimension of ["age", "country", "gender"]) {
+      callsUsed += 1;
+      const r = await graphGet<unknown>(
+        `${userId}/insights`,
+        { metric: "engaged_audience_demographics", period: "lifetime", timeframe: "this_month", metric_type: "total_value", breakdown: dimension },
+        token
+      );
+      throwIfFatal(r);
+      if (!r.ok) {
+        // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
+        audienceError = r.message;
+        break;
+      }
+      rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
+    }
+    return { rows, audienceError, callsUsed };
   },
 
   async fetchComments(accountUsername: string): Promise<GraphComment[]> {
