@@ -289,7 +289,7 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     callsUsed += fetched.callsUsed;
     if (fetched.insights) {
       const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
-      await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
+      if (!fetched.insights.error) await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
       await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
       if (fetched.insights.error) postsFailed += 1;
       else postsMeasured += 1;

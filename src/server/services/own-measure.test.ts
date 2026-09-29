@@ -279,6 +279,14 @@ describe("measureOwnChannel, scope due", () => {
     expect(await db.select().from(tables.ownPostInsights)).toHaveLength(0);
   });
 
+  test("a per-post insights error does not bump own_posts.last_measured_at", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a")]);
+    graphClient.fetchPostInsights.mockResolvedValue({ insights: insights({ reach: null, error: "HTTP 400: nope" }), callsUsed: 2 });
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    const [post] = await db.select().from(tables.ownPosts);
+    expect(post.lastMeasuredAt).toBeNull();
+  });
+
   test("every listed post is stored even when the run stops early; a thrown post counts failed", async () => {
     graphClient.fetchMedia.mockResolvedValue(["a", "b", "c", "d"].map((id) => media(id)));
     graphClient.fetchPostInsights
