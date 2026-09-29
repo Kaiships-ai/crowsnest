@@ -81,19 +81,20 @@ async function setAppSetting(key: string, value: string | null): Promise<void> {
 }
 
 /** Upserts one own_posts row keyed on externalId (the Graph media id). Returns the
- *  internal row id so the caller can attach an insights row to it. */
-async function upsertOwnPost(m: GraphMedia, measuredAt: string): Promise<string> {
+ *  internal row id so the caller can attach an insights row to it. lastMeasuredAt is
+ *  set separately, only once the post's insights land. */
+async function upsertOwnPost(m: GraphMedia, seenAt: string): Promise<string> {
   const [existing] = await db.select({ id: tables.ownPosts.id }).from(tables.ownPosts).where(eq(tables.ownPosts.externalId, m.externalId)).limit(1);
   const common = {
     permalink: m.permalink, mediaType: m.mediaType, productType: m.productType, format: m.format,
-    caption: m.caption, postedAt: m.postedAt, thumbnailUrl: m.thumbnailUrl, lastMeasuredAt: measuredAt,
+    caption: m.caption, postedAt: m.postedAt, thumbnailUrl: m.thumbnailUrl,
   };
   if (existing) {
     await db.update(tables.ownPosts).set(common).where(eq(tables.ownPosts.id, existing.id));
     return existing.id;
   }
   const id = newId();
-  await db.insert(tables.ownPosts).values({ id, externalId: m.externalId, ...common, firstSeenAt: measuredAt });
+  await db.insert(tables.ownPosts).values({ id, externalId: m.externalId, ...common, firstSeenAt: seenAt });
   return id;
 }
 
@@ -177,6 +178,11 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     return toFailure(err);
   }
 
+  // Every listed post is stored up front, so a post the run never reaches (budget, rate
+  // limit, a thrown call) still exists in own_posts and is due next tick.
+  const ownPostIdByExternalId = new Map<string, string>();
+  for (const m of media) ownPostIdByExternalId.set(m.externalId, await upsertOwnPost(m, measuredAt));
+
   const budget = opts.budget ?? OWN_MEASURE_CALL_BUDGET;
   const lastCaptured = opts.scope === "due" ? await latestCaptureByExternalId(media.map((m) => m.externalId)) : new Map<string, string>();
   const inScope = opts.scope === "all" ? media : media.filter((m) => isDue(m.postedAt, lastCaptured.get(m.externalId) ?? null, now));
@@ -200,10 +206,12 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
         break;
       }
       log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
+      postsFailed += 1;
       continue;
     }
     callsUsed += fetched.callsUsed;
-    const ownPostId = await upsertOwnPost(m, measuredAt);
+    const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
+    await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
     await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
     if (fetched.insights.error) postsFailed += 1;
     else postsMeasured += 1;

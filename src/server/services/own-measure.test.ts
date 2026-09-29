@@ -181,6 +181,18 @@ describe("measureOwnChannel, scope due", () => {
     expect(rows).toHaveLength(2);
   });
 
+  test("every listed post is stored even when the run stops early; a thrown post counts failed", async () => {
+    graphClient.fetchMedia.mockResolvedValue(["a", "b", "c", "d"].map((id) => media(id)));
+    graphClient.fetchPostInsights
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockRejectedValueOnce(new GraphApiError("GRAPH_RATE_LIMITED", "slow down"));
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 1, postsFailed: 1 });
+    expect((await db.select().from(tables.ownPosts)).map((p) => p.externalId).sort()).toEqual(["a", "b", "c", "d"]);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+  });
+
   test("ACTION-32: each run appends a snapshot row, never overwrites", async () => {
     await seedCapture("a", ago(2 * H), ago(2 * H));
     graphClient.fetchMedia.mockResolvedValue([media("a", { postedAt: ago(2 * H) })]);
