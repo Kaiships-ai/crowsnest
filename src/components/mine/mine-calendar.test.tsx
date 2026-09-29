@@ -143,3 +143,11 @@ describe("publish state cells (Goal 4)", () => {
     expect(mark.className).not.toMatch(/primary|amber/);
   });
 });
+
+describe("month controls", () => {
+  test("MINE-19: month controls keep tab=calendar", () => {
+    renderCalendar();
+    expect(screen.getByLabelText("Previous month").getAttribute("href")).toBe("?tab=calendar&month=2026-07");
+    expect(screen.getByLabelText("Next month").getAttribute("href")).toBe("?tab=calendar&month=2026-09");
+  });
+});

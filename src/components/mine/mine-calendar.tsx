@@ -301,7 +301,7 @@ export function MineCalendar({
             variant="ghost"
             size="icon-sm"
             nativeButton={false}
-            render={<Link href={`?month=${shiftMonth(month, -1)}`} aria-label="Previous month" />}
+            render={<Link href={`?tab=calendar&month=${shiftMonth(month, -1)}`} aria-label="Previous month" />}
           >
             ‹
           </Button>
@@ -312,11 +312,11 @@ export function MineCalendar({
             variant="ghost"
             size="icon-sm"
             nativeButton={false}
-            render={<Link href={`?month=${shiftMonth(month, 1)}`} aria-label="Next month" />}
+            render={<Link href={`?tab=calendar&month=${shiftMonth(month, 1)}`} aria-label="Next month" />}
           >
             ›
           </Button>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`?month=${today.slice(0, 7)}`} />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`?tab=calendar&month=${today.slice(0, 7)}`} />}>
             Today
           </Button>
         </div>
