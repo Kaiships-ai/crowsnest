@@ -287,9 +287,10 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       if (fetched.insights.error) postsFailed += 1;
       else postsMeasured += 1;
     }
-    // A dead token ends the run as a failure (rows already written stay), so the action
-    // surfaces it and the scheduler logs failed. A rate limit stops the run early.
-    if (fetched.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(fetched.stop);
+    // A dead token, or one without the insights permission, ends the run as a failure
+    // (rows already written stay), so the action surfaces it and the scheduler logs
+    // failed. A rate limit stops the run early.
+    if (fetched.stop && fetched.stop.code !== "GRAPH_RATE_LIMITED") return toFailure(fetched.stop);
     if (fetched.stop) {
       stoppedEarly = "rate_limited";
       break;
@@ -345,6 +346,11 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
     const result = await run;
     // A dead token must not keep reading as connected from the cached status.
     if (!result.ok && result.code === "GRAPH_AUTH_FAILED") invalidateTokenStatus();
+    // The account call still works without insights, so a live check would read ok:
+    // remember the refusal instead so the screen shows the permission state.
+    if (!result.ok && result.code === "GRAPH_PERMISSION_DENIED") {
+      rememberTokenStatus({ configured: true, username: null, state: "permission_denied", message: result.error, checkedAt: new Date().toISOString() });
+    }
     return result;
   } finally {
     if (inFlight === run) inFlight = null;

@@ -481,7 +481,8 @@ const FEED_EXTENDED_METRICS = `${CORE_METRICS},follows,profile_visits`;
 const REEL_EXTENDED_METRICS =
   "views,reach,likes,comments,shares,saved,total_interactions,reposts,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
 
-/** Auth and rate-limit failures end a measurement run; everything else is per-post. */
+/** Auth and rate-limit failures end a measurement run; everything else is per-post
+ *  (fetchPostInsights also ends it on a permission refusal of the core metric set). */
 function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
   return !result.ok && (result.kind === "auth" || result.kind === "rate_limit") ? new GraphApiError(errorCodeFor(result.kind), result.message) : null;
 }
@@ -544,7 +545,9 @@ export const graphClient: GraphClient = {
       log.warn("graph.insights.extended_fallback", { mediaId: media.externalId, isReel, error: r.message });
       callsUsed += 1;
       r = await graphGet<unknown>(path, { metric: isReel ? REEL_CORE_METRICS : CORE_METRICS }, token);
-      stop = fatalOf(r);
+      // The core set refused for permission too: the token lacks the insights grant, so
+      // every other post would fail the same way. A refused extended set alone is not fatal.
+      stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
       if (stop) return { insights: null, callsUsed, stop };
     }
     if (!r.ok) return { insights: emptyInsights(r.message), callsUsed, stop: null };

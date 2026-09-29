@@ -264,6 +264,18 @@ describe("measureOwnChannel, scope due", () => {
     expect(graphClient.fetchAccountBreakdowns).not.toHaveBeenCalled();
   });
 
+  test("a permission refusal on a post's core insights fails the run as GRAPH_PERMISSION_DENIED, keeps rows, and caches the permission state", async () => {
+    graphClient.fetchMedia.mockResolvedValue(["a", "b", "c"].map((id) => media(id)));
+    graphClient.fetchPostInsights
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockResolvedValueOnce({ insights: null, callsUsed: 2, stop: new GraphApiError("GRAPH_PERMISSION_DENIED", "HTTP 403") });
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: false, code: "GRAPH_PERMISSION_DENIED" });
+    expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(2);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+    expect(rememberTokenStatus).toHaveBeenCalledWith(expect.objectContaining({ configured: true, state: "permission_denied" }));
+  });
+
   test("ACTION-32: each run appends a snapshot row, never overwrites", async () => {
     await seedCapture("a", ago(2 * H), ago(2 * H));
     graphClient.fetchMedia.mockResolvedValue([media("a", { postedAt: ago(2 * H) })]);

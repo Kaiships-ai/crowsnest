@@ -257,6 +257,14 @@ describe("graphClient.fetchPostInsights", () => {
     expect(out).toMatchObject({ insights: { views: 9, reach: 7, error: null }, callsUsed: 3, stop: null });
   });
 
+  test("a permission refusal on the core set too means the token lacks insights: the run stops with GRAPH_PERMISSION_DENIED", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { code: 10, type: "OAuthException" } }) })
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { code: 10, type: "OAuthException" } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 2, stop: { code: "GRAPH_PERMISSION_DENIED" } });
+  });
+
   test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 4, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
