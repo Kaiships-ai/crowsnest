@@ -23,6 +23,9 @@ import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWE
 export const OWN_MEASURE_CALL_BUDGET = 150;
 /** Measure now: close to the 200-an-hour Graph limit. The rate-limit stop is the real guard. */
 export const OWN_MEASURE_MANUAL_CALL_BUDGET = 190;
+/** Instagram's per-account Graph limit, and the calls kept free under it for anything else. */
+const GRAPH_CALLS_PER_HOUR = 200;
+const GRAPH_CALL_HEADROOM = 10;
 
 export type MeasureScope = "all" | "due";
 export interface MeasureSummary {
@@ -34,6 +37,8 @@ export interface MeasureSummary {
   partial: boolean;
   callsUsed: number;
   stoppedEarly: "budget" | "rate_limited" | null;
+  /** This run's budget was cut by Graph calls earlier runs spent in the last hour. */
+  limitedByRecentCalls: boolean;
 }
 export type MeasureResult = ({ ok: true } & MeasureSummary) | { ok: false; error: string; code: GraphErrorCode | "MEASURE_BUSY" };
 
@@ -220,9 +225,12 @@ async function measureComments(
   return { commentsSeen: comments.length, partial: false, callsUsed, stop: null };
 }
 
-async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
-  const now = opts.now ?? new Date();
+async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: number }): Promise<MeasureResult> {
+  const now = opts.now;
   let callsUsed = 0;
+  const runBudget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
+  const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - callsInLastHour(now) - GRAPH_CALL_HEADROOM);
+  const limitedByRecentCalls = budget < runBudget;
 
   let account: GraphAccount;
   try {
@@ -251,7 +259,6 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
   const ownPostIdByExternalId = new Map<string, string>();
   for (const m of media) ownPostIdByExternalId.set(m.externalId, await upsertOwnPost(m, measuredAt));
 
-  const budget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
   const captures = opts.scope === "due" ? await captureStateByExternalId(media.map((m) => m.externalId)) : null;
   const inScope = captures === null ? media : media.filter((m) => isDue(m.postedAt, captures.lastOk.get(m.externalId) ?? null, now, captures.failures.get(m.externalId) ?? null));
 
@@ -342,7 +349,7 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
 
   rememberTokenStatus({ configured: true, username: account.username, state: "ok", message: null, checkedAt: measuredAt });
   log.info("graph.measure.done", { scope: opts.scope, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed });
-  return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly };
+  return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly, limitedByRecentCalls };
 }
 
 /** Process-wide state on globalThis: tsx server.ts (the scheduler) and Next's bundle
@@ -351,20 +358,33 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
  *  drop it. */
 interface OwnMeasureState {
   inFlight: Promise<MeasureResult> | null;
+  /** Graph calls each finished run spent, by run start: the shared hourly ledger. */
+  calls: { at: number; n: number }[];
 }
 function shared(): OwnMeasureState {
   const g = globalThis as { __crowsnestOwnMeasure?: OwnMeasureState };
-  return (g.__crowsnestOwnMeasure ??= { inFlight: null });
+  return (g.__crowsnestOwnMeasure ??= { inFlight: null, calls: [] });
+}
+
+function callsInLastHour(now: Date): number {
+  const t = now.getTime();
+  const s = shared();
+  s.calls = s.calls.filter((c) => c.at > t - HOUR_MS);
+  return s.calls.filter((c) => c.at <= t).reduce((sum, c) => sum + c.n, 0);
 }
 
 export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
   const state = shared();
   if (state.inFlight && opts.scope === "due") return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
   while (state.inFlight) await state.inFlight.catch(() => undefined);
-  const run = runMeasure(opts);
+  const now = opts.now ?? new Date();
+  const run = runMeasure({ ...opts, now });
   state.inFlight = run;
   try {
     const result = await run;
+    // ponytail: a failed run's calls are not counted (it ended on its first auth or
+    // permission refusal, a few calls); thread callsUsed through failures if that matters.
+    if (result.ok) state.calls.push({ at: now.getTime(), n: result.callsUsed });
     // A dead token must not keep reading as connected from the cached status.
     if (!result.ok && result.code === "GRAPH_AUTH_FAILED") invalidateTokenStatus();
     // The account call still works without insights, so a live check would read ok:

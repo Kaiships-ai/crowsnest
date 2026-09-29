@@ -34,6 +34,7 @@ function insights(o: Partial<GraphPostInsights> = {}): GraphPostInsights {
 }
 
 beforeEach(async () => {
+  delete (globalThis as { __crowsnestOwnMeasure?: unknown }).__crowsnestOwnMeasure;
   migrate();
   for (const t of [tables.ownComments, tables.ownPostInsights, tables.ownPosts, tables.ownAccountSnapshots, tables.ownAccountBreakdowns, tables.appSettings]) await db.delete(t);
   vi.clearAllMocks();
@@ -376,6 +377,21 @@ describe("Measure now budget", () => {
     if (!r.ok) throw new Error("unreachable");
     expect(r.callsUsed).toBeLessThanOrEqual(svc.OWN_MEASURE_MANUAL_CALL_BUDGET);
     expect(svc.OWN_MEASURE_MANUAL_CALL_BUDGET).toBeLessThan(200);
+  });
+});
+
+describe("shared hourly call ledger", () => {
+  test("a run's budget shrinks by the Graph calls already spent this hour, and says so", async () => {
+    graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 90 }, (_, i) => media(`r${i}`)));
+    const first = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    if (!first.ok) throw new Error("unreachable");
+    graphClient.fetchMedia.mockResolvedValue(Array.from({ length: 10 }, (_, i) => media(`s${i}`)));
+    const second = await svc.measureOwnChannel({ scope: "all", now: new Date(NOW.getTime() + 10 * 60_000) });
+    expect(second).toMatchObject({ ok: true, stoppedEarly: "budget", limitedByRecentCalls: true });
+    if (!second.ok) throw new Error("unreachable");
+    expect(first.callsUsed + second.callsUsed).toBeLessThanOrEqual(200 - 10);
+    const third = await svc.measureOwnChannel({ scope: "all", now: new Date(NOW.getTime() + 71 * 60_000) });
+    expect(third).toMatchObject({ ok: true, stoppedEarly: null, limitedByRecentCalls: false });
   });
 });
 

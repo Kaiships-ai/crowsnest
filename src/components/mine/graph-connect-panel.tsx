@@ -88,7 +88,14 @@ export function GraphConnectPanel({
         toast.error(result.error);
         return;
       }
-      const stopped = result.stoppedEarly === "rate_limited" ? " (stopped early: Instagram rate limit)" : result.stoppedEarly === "budget" ? " (stopped early: hourly call budget)" : "";
+      const stopped =
+        result.stoppedEarly === "rate_limited"
+          ? " (stopped early: Instagram rate limit)"
+          : result.stoppedEarly === "budget"
+            ? result.limitedByRecentCalls
+              ? " (stopped early: recent scheduled measurements already spent most of this hour's Graph calls)"
+              : " (stopped early: hourly call budget)"
+            : "";
       toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
       router.refresh();
     });
