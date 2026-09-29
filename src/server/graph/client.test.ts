@@ -257,12 +257,24 @@ describe("graphClient.fetchPostInsights", () => {
     expect(out).toMatchObject({ insights: { views: 9, reach: 7, error: null }, callsUsed: 3, stop: null });
   });
 
-  test("a permission refusal on the core set too means the token lacks insights: the run stops with GRAPH_PERMISSION_DENIED", async () => {
+  test.each([
+    { code: 200, message: "(#200) Requires instagram_manage_insights permission" },
+    { code: 10, message: "(#10) Application does not have permission for this action" },
+  ])("a scope refusal (code $code) on the core set too means the token lacks insights: the run stops with GRAPH_PERMISSION_DENIED", async (error) => {
     vi.stubGlobal("fetch", vi.fn()
-      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { code: 10, type: "OAuthException" } }) })
-      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { code: 10, type: "OAuthException" } }) }));
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) })
+      .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
     expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 2, stop: { code: "GRAPH_PERMISSION_DENIED" } });
+  });
+
+  test("code 10 'Not enough viewers' on the core set is one post's failure, not a token-wide stop", async () => {
+    const notEnough = { ok: false, status: 400, json: async () => ({ error: { code: 10, type: "OAuthException", message: "(#10) Not enough viewers for the media to show insights" } }) };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(notEnough).mockResolvedValueOnce(notEnough));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchPostInsights(REEL);
+    expect(out).toMatchObject({ callsUsed: 2, stop: null, insights: { reach: null } });
+    expect(out.insights?.error).toContain("Not enough viewers");
   });
 
   test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {

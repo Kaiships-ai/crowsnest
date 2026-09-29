@@ -383,15 +383,31 @@ function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
 /** True when a stored per-post fetchError ("HTTP <status>: <body>", as graphRequest builds
  *  it) is a non-transient invalid_request: Instagram will refuse it the same way again. */
 export function isPermanentFailure(message: string): boolean {
+  const f = parseFailure(message);
+  return f !== null && classifyHttpFailure(f.status, f.body) === "invalid_request";
+}
+
+function parseFailure(message: string): { status: number; body: unknown } | null {
   const m = /^HTTP (\d+): ([\s\S]*)$/.exec(message);
-  if (!m) return false;
+  if (!m) return null;
   let body: unknown = null;
   try {
     body = JSON.parse(m[2]);
   } catch {
     // Not JSON: classify on the status alone.
   }
-  return classifyHttpFailure(Number(m[1]), body) === "invalid_request";
+  return { status: Number(m[1]), body };
+}
+
+/** Code 10 on one media's insights is usually "(#10) Not enough viewers for the media to
+ *  show insights", a per-post refusal. Only a scope code (200-299), or a code 10 that names
+ *  a permission, means the token itself lacks the insights grant. */
+function tokenWidePermission(message: string): boolean {
+  const error = rec(rec(parseFailure(message)?.body).error);
+  const code = num(error.code);
+  if (code !== null && code >= 200 && code <= 299) return true;
+  const text = str(error.message) ?? "";
+  return code === 10 && /permission|scope/i.test(text) && !/not enough/i.test(text);
 }
 
 function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
@@ -548,9 +564,9 @@ export const graphClient: GraphClient = {
       log.warn("graph.insights.extended_fallback", { mediaId: media.externalId, isReel, error: r.message });
       callsUsed += 1;
       r = await graphGet<unknown>(path, { metric: isReel ? REEL_CORE_METRICS : CORE_METRICS }, token);
-      // The core set refused for permission too: the token lacks the insights grant, so
+      // The core set refused for a missing scope too: the token lacks the insights grant, so
       // every other post would fail the same way. A refused extended set alone is not fatal.
-      stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
+      stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" && tokenWidePermission(r.message) ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
       if (stop) return { insights: null, callsUsed, stop };
     }
     if (!r.ok) return { insights: emptyInsights(r.message), callsUsed, stop: null };
