@@ -333,18 +333,17 @@ type GraphFailureKind = "auth" | "rate_limit" | "network" | "unknown";
 type GraphGetResult<T> = { ok: true; data: T } | { ok: false; message: string; kind: GraphFailureKind };
 
 /** Distinguishes an expired/revoked token from a throttled call from an unrecognized
- *  failure, using the HTTP status first and the Graph API's own error envelope
- *  (`{error: {code, type}}`) second. Meta documents code 190 / type "OAuthException"
- *  for a dead token, and codes 4/17/32/613 for various rate-limit conditions; the exact
- *  set is unverified against a live call (see the "no live token" caveat in the
+ *  failure, using the HTTP status and the Graph API's own error envelope
+ *  (`{error: {code}}`). Meta documents code 190 (and 102) for a dead token, and codes
+ *  4/17/32/613 for various rate-limit conditions; the exact set is unverified against a live call (see the "no live token" caveat in the
  *  report), so `unknown` is the deliberately honest fallback rather than a guess. */
 function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
-  if (status === 401) return "auth";
-  const err = rec(rec(body).error);
-  const code = typeof err.code === "number" ? err.code : null;
-  const type = typeof err.type === "string" ? err.type : null;
-  if (type === "OAuthException" || code === 190) return "auth";
+  const code = num(rec(rec(body).error).code);
   if (status === 429 || code === 4 || code === 17 || code === 32 || code === 613) return "rate_limit";
+  // Not type "OAuthException": Meta sends that type on nearly every error, including an
+  // unsupported metric (code 100) and a permission refusal (code 10), which must stay
+  // per-post failures rather than end the run.
+  if (status === 401 || code === 190 || code === 102) return "auth";
   return "unknown";
 }
 

@@ -197,6 +197,30 @@ describe("graphClient.fetchPostInsights", () => {
     await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_RATE_LIMITED" });
   });
 
+  test("Meta's real envelope: a refused metric (code 100, type OAuthException) still falls back", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, type: "OAuthException", message: "(#100) metric not supported" } }) })
+      .mockResolvedValueOnce(ok(metrics({ views: 9, reach: 7 })))
+      .mockResolvedValueOnce(ok(activity(null)));
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { insights, callsUsed } = await graphClient.fetchPostInsights(REEL);
+    expect(insights).toMatchObject({ views: 9, reach: 7, error: null });
+    expect(callsUsed).toBe(3);
+  });
+
+  test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 4, type: "OAuthException" } }) }));
+    const { graphClient } = await loadClient();
+    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_RATE_LIMITED" });
+  });
+
+  test("a dead token (code 190) still ends the run as auth", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 190, type: "OAuthException" } }) }));
+    const { graphClient } = await loadClient();
+    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_AUTH_FAILED" });
+  });
+
   test("a non-reel makes one core call", async () => {
     const fetchMock = vi.fn().mockResolvedValue(ok(metrics({ reach: 5 })));
     vi.stubGlobal("fetch", fetchMock);
@@ -240,6 +264,16 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     expect(out.audienceError).toContain("Not enough users");
     expect(out.rows.every((r) => r.metric === "views")).toBe(true);
     expect(out.callsUsed).toBe(2);
+  });
+
+  test("the refusal in Meta's real envelope (code 10, type OAuthException) is a threshold, not a thrown auth failure", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(results([["FOLLOWER", 3]])))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 10, type: "OAuthException", message: "Not enough users" } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchAccountBreakdowns();
+    expect(out.audienceError).toContain("Not enough users");
+    expect(out.rows).toHaveLength(1);
   });
 });
 
