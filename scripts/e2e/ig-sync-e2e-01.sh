@@ -18,7 +18,10 @@ source scripts/e2e/lib.sh
 
 HANDLE="e2e_ig_sync_probe_$$"
 
-if curl -fs -o /dev/null --max-time 1 "http://127.0.0.1:8765/health" 2>/dev/null; then
+# Any HTTP answer means it is up: /health returns 401 without the service token, which
+# `curl -f` would read as down. Point the server's IG_SERVICE_URL at a dead port to run
+# this beside a live sidecar.
+if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 1 "http://127.0.0.1:8765/health" 2>/dev/null)" != "000" ]; then
   echo "ig-sync-e2e-01: the sidecar answered on :8765 -- this journey needs it stopped" >&2
   echo "  (stop it, then re-run: this is the 'sidecar down' inline-error journey, not the live add-channel one)" >&2
 fi
