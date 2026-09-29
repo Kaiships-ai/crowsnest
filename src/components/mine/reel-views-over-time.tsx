@@ -11,8 +11,9 @@ const CONFIG: ChartConfig = {
   typical: { label: "Your typical reel", color: "var(--chart-3)" },
 };
 
-/** Real measurements only, by whole hour since posting. Lines join adjacent measured hours;
- *  no point is drawn at an hour nobody measured. */
+/** Real measurements only, by whole hour since posting. Each line joins one measured hour
+ *  to the next (connectNulls), so a gap in measurement is a straight segment between two
+ *  real points; no dot is drawn at an hour nobody measured. */
 export function ReelViewsOverTime({ points }: { points: ViewsPoint[] }) {
   return (
     <Card data-testid="reels-views-chart">
@@ -30,8 +31,8 @@ export function ReelViewsOverTime({ points }: { points: ViewsPoint[] }) {
               <XAxis dataKey="hour" type="number" domain={[0, "dataMax"]} tickFormatter={(h: number) => `${h}h`} />
               <YAxis width={48} tickFormatter={(v: number) => formatCompact(v)} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Line dataKey="views" stroke="var(--color-views)" dot isAnimationActive={false} />
-              <Line dataKey="typical" stroke="var(--color-typical)" strokeDasharray="4 4" dot isAnimationActive={false} />
+              <Line dataKey="views" stroke="var(--color-views)" dot connectNulls isAnimationActive={false} />
+              <Line dataKey="typical" stroke="var(--color-typical)" strokeDasharray="4 4" dot connectNulls isAnimationActive={false} />
             </LineChart>
           </ChartContainer>
         )}

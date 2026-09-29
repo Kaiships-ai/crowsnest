@@ -5,6 +5,14 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
+// Records each chart line's props; jsdom has no layout, so the real chart never draws.
+const lineProps = vi.hoisted(() => [] as Record<string, unknown>[]);
+vi.mock("recharts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("recharts")>()),
+  LineChart: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  Line: (p: Record<string, unknown>) => { lineProps.push(p); return null; },
+  CartesianGrid: () => null, XAxis: () => null, YAxis: () => null,
+}));
 afterEach(cleanup);
 
 const { OwnStatTiles } = await import("./own-stat-tiles");
@@ -66,6 +74,12 @@ describe("ReelViewsOverTime", () => {
     const { container, getByText } = render(<ReelViewsOverTime points={[{ hour: 1, views: 100, typical: 70 }]} />);
     expect(container.querySelector('[data-testid="reels-views-chart"]')).toBeTruthy();
     expect(getByText("Your typical reel")).toBeTruthy();
+  });
+  test("both lines connect across unmeasured hours instead of breaking into dots", () => {
+    lineProps.length = 0;
+    render(<ReelViewsOverTime points={[{ hour: 1, views: 100, typical: null }, { hour: 5, views: null, typical: 70 }, { hour: 9, views: 300, typical: 90 }]} />);
+    expect(lineProps.map((p) => p.dataKey)).toEqual(["views", "typical"]);
+    expect(lineProps.every((p) => p.connectNulls === true)).toBe(true);
   });
   test("no points: says so instead of an empty chart", () => {
     const { getByText } = render(<ReelViewsOverTime points={[]} />);
