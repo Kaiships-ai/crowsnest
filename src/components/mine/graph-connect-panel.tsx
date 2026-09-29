@@ -84,6 +84,8 @@ export function GraphConnectPanel({
   function measure() {
     startMeasuring(async () => {
       const result = await measureOwnChannelAction();
+      // A failed run can still have written rows (and changed the token state): show them.
+      router.refresh();
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -97,7 +99,6 @@ export function GraphConnectPanel({
               : " (stopped early: hourly call budget)"
             : "";
       toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
-      router.refresh();
     });
   }
 

@@ -38,12 +38,12 @@ describe("measureOwnChannelAction", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/");
     expect(revalidatePath).not.toHaveBeenCalledWith("/mine");
   });
-  test("a failure is returned and nothing is revalidated", async () => {
+  test("a failure is returned and / is still revalidated: rows written before it stay and the token state changed", async () => {
     measureOwnChannel.mockResolvedValue({ ok: false, error: "bad token", code: "GRAPH_AUTH_FAILED" });
     const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
     (revalidatePath as ReturnType<typeof vi.fn>).mockClear();
     expect(await measureOwnChannelAction()).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
-    expect(revalidatePath).not.toHaveBeenCalled();
+    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 });
 

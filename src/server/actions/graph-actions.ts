@@ -18,10 +18,11 @@ import { measureOwnChannel, toFailure, type MeasureResult } from "../services/ow
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: GraphErrorCode | "GRAPH_UNKNOWN" };
 
 /** "Measure now": every listed post, plus comments, through the one measurement service.
- *  Waits its turn when a scheduled run holds the lock. */
+ *  Waits its turn when a scheduled run holds the lock. Revalidates even on a failure: rows
+ *  written before it stay, and the token state may have changed. */
 export async function measureOwnChannelAction(): Promise<MeasureResult> {
   const result = await measureOwnChannel({ scope: "all" });
-  if (result.ok) revalidatePath("/");
+  revalidatePath("/");
   return result;
 }
 
