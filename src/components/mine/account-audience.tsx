@@ -7,9 +7,9 @@ import type { AccountBreakdowns, BreakdownEntry } from "@/server/queries/own-cha
 const WHOLE_ACCOUNT = "Whole account, not this reel";
 const SPLIT_LABEL: Record<string, string> = { FOLLOWER: "Followers", NON_FOLLOWER: "Non-followers" };
 const DIMENSIONS = [
-  { id: "age", label: "Age" },
-  { id: "country", label: "Country" },
-  { id: "gender", label: "Gender" },
+  { id: "age", label: "Age", testId: "reels-audience-tab-age" },
+  { id: "country", label: "Country", testId: "reels-audience-tab-country" },
+  { id: "gender", label: "Gender", testId: "reels-audience-tab-gender" },
 ] as const;
 const THRESHOLD = "Instagram shares audience details only once an account has 100 or more engagements this month, so there is nothing to show yet.";
 
@@ -51,7 +51,7 @@ export function AccountAudience({ data }: { data: AccountBreakdowns }) {
           <Tabs defaultValue="age">
             <TabsList>
               {DIMENSIONS.map((d) => (
-                <TabsTrigger key={d.id} value={d.id} data-testid={`reels-audience-tab-${d.id}`}>{d.label}</TabsTrigger>
+                <TabsTrigger key={d.id} value={d.id} data-testid={d.testId}>{d.label}</TabsTrigger>
               ))}
             </TabsList>
             {DIMENSIONS.map((d) => (

@@ -7,10 +7,10 @@ export function resolveDashboardTab(raw: string | string[] | undefined): Dashboa
   return raw === "reels" || raw === "calendar" ? raw : "overview";
 }
 
-const TABS: { id: DashboardTab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "reels", label: "My reels" },
-  { id: "calendar", label: "Calendar" },
+const TABS: { id: DashboardTab; label: string; testId: string }[] = [
+  { id: "overview", label: "Overview", testId: "dashboard-tab-overview" },
+  { id: "reels", label: "My reels", testId: "dashboard-tab-reels" },
+  { id: "calendar", label: "Calendar", testId: "dashboard-tab-calendar" },
 ];
 
 /** Links, not client tabs: the tab lives in ?tab= so a reload or shared link lands on it,
@@ -24,7 +24,7 @@ export function DashboardTabs({ active }: { active: DashboardTab }) {
           size="sm"
           variant={t.id === active ? "secondary" : "ghost"}
           aria-current={t.id === active ? "page" : undefined}
-          data-testid={`dashboard-tab-${t.id}`}
+          data-testid={t.testId}
           render={<Link href={`/?tab=${t.id}`} />}
         >
           {t.label}
