@@ -471,12 +471,23 @@ describe("fatal failures after the post loop", () => {
     expect(invalidateTokenStatus).toHaveBeenCalled();
   });
 
-  test("a rate limit on the breakdowns is stoppedEarly rate_limited, rows fetched so far kept, calls counted", async () => {
+  test("a rate limit on the breakdowns is stoppedEarly rate_limited, calls counted, and a partial batch is not stored", async () => {
     const split = { metric: "views", dimension: "follower_type", key: "FOLLOWER", value: 30, timeframe: "day" };
     graphClient.fetchAccountBreakdowns.mockImplementation(spend(2, { rows: [split], audienceError: null, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", callsUsed: 2 + 2 });
-    expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(1);
+    expect(await db.select().from(tables.ownAccountBreakdowns)).toHaveLength(0);
+  });
+
+  test("a batch cut short keeps the previous full batch as the newest one", async () => {
+    const full = ["age", "country", "gender"].map((dimension) => ({ metric: "engaged_audience_demographics", dimension, key: "k", value: 1, timeframe: "this_month" }));
+    graphClient.fetchAccountBreakdowns.mockImplementationOnce(spend(4, { rows: full, audienceError: null, splitError: null }));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    graphClient.fetchAccountBreakdowns.mockImplementationOnce(spend(2, { rows: [full[0]], audienceError: null, splitError: null, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 25 * H) });
+    const stored = await db.select().from(tables.ownAccountBreakdowns);
+    expect(stored).toHaveLength(3);
+    expect(new Set(stored.map((r) => r.capturedAt))).toEqual(new Set([NOW.toISOString()]));
   });
 });
 
