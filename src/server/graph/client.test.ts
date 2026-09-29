@@ -462,3 +462,18 @@ describe("graphClient.checkToken", () => {
     expect(status.state).toBe("network");
   });
 });
+
+describe("SEC-05: the Settings token wins over .env.local", () => {
+  test("fetchAccount and checkToken send the db secret, not the env value", async () => {
+    process.env.IG_GRAPH_TOKEN = "env_token_A";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ id: "1", username: "me" }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const { setSecret } = await import("@/server/secrets/store");
+    setSecret("IG_GRAPH_TOKEN", "settings_token_B");
+    await graphClient.fetchAccount();
+    await graphClient.checkToken();
+    for (const [url] of fetchMock.mock.calls) expect(new URL(url as string).searchParams.get("access_token")).toBe("settings_token_B");
+  });
+});
