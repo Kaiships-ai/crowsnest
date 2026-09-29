@@ -115,6 +115,23 @@ describe("Reels publish (container -> poll -> publish)", () => {
     expect(RETRYABLE_ERROR_CLASSES as readonly string[]).not.toContain((err as { errorClass: string }).errorClass);
   });
 
+  test.each([
+    ["is_transient true on a 400", { code: 100, is_transient: true }, "unknown"],
+    ["code 9007 (media not ready)", { code: 9007, error_subcode: 2207027 }, "unknown"],
+    ["code 2 (service unavailable)", { code: 2 }, "unknown"],
+    ["code 1 (unknown error)", { code: 1 }, "unknown"],
+    ["code 80002 (IG business use case throttle)", { code: 80002 }, "rate_limit"],
+    ["code 613", { code: 613 }, "rate_limit"],
+  ])("a transient 400 (%s) is a retryable publish class, not invalid_request", async (_label, error, errorClass) => {
+    configureToken();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error }) }));
+    const { publishReel } = await loadClient();
+    const { RETRYABLE_ERROR_CLASSES } = await import("@/server/services/publish-scheduler");
+    const err = await publishReel("container_1").catch((e: unknown) => e);
+    expect(err).toMatchObject({ errorClass });
+    expect(RETRYABLE_ERROR_CLASSES as readonly string[]).toContain(errorClass);
+  });
+
   test("poll never finishes within the attempt cap -> throws with errorClass timeout", async () => {
     configureToken();
     vi.stubGlobal(

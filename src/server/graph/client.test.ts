@@ -263,6 +263,12 @@ describe("graphClient.fetchPostInsights", () => {
     expect((await graphClient.fetchPostInsights(REEL)).stop?.code).toBe("GRAPH_RATE_LIMITED");
   });
 
+  test("an IG business use case throttle (HTTP 400, code 80002) stops the run as rate_limited", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 80002, type: "OAuthException", is_transient: true } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 1, stop: { code: "GRAPH_RATE_LIMITED" } });
+  });
+
   test("a dead token (code 190) still ends the run as auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 190, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
