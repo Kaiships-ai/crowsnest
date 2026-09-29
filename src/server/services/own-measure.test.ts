@@ -193,6 +193,18 @@ describe("measureOwnChannel, scope due", () => {
     expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
   });
 
+  test("an auth failure mid-run is a failure with its code; rows already written stay", async () => {
+    graphClient.fetchMedia.mockResolvedValue(["a", "b", "c"].map((id) => media(id, { commentsCount: 1 })));
+    graphClient.fetchPostInsights
+      .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 })
+      .mockRejectedValueOnce(new GraphApiError("GRAPH_AUTH_FAILED", "bad token"));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(r).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+    expect(graphClient.fetchComments).not.toHaveBeenCalled();
+    expect(graphClient.fetchAccountBreakdowns).not.toHaveBeenCalled();
+  });
+
   test("ACTION-32: each run appends a snapshot row, never overwrites", async () => {
     await seedCapture("a", ago(2 * H), ago(2 * H));
     graphClient.fetchMedia.mockResolvedValue([media("a", { postedAt: ago(2 * H) })]);

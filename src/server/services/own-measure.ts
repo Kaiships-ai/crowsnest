@@ -27,7 +27,7 @@ export interface MeasureSummary {
   commentsSeen: number;
   partial: boolean;
   callsUsed: number;
-  stoppedEarly: "budget" | "rate_limited" | "auth_failed" | null;
+  stoppedEarly: "budget" | "rate_limited" | null;
 }
 export type MeasureResult = ({ ok: true } & MeasureSummary) | { ok: false; error: string; code: GraphErrorCode | "MEASURE_BUSY" };
 
@@ -201,8 +201,11 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       fetched = await graphClient.fetchPostInsights(m);
     } catch (err) {
       callsUsed += 1;
-      if (err instanceof GraphApiError && (err.code === "GRAPH_RATE_LIMITED" || err.code === "GRAPH_AUTH_FAILED")) {
-        stoppedEarly = err.code === "GRAPH_RATE_LIMITED" ? "rate_limited" : "auth_failed";
+      // A dead token ends the run as a failure (rows already written stay), so the action
+      // surfaces it and the scheduler logs failed.
+      if (err instanceof GraphApiError && err.code === "GRAPH_AUTH_FAILED") return toFailure(err);
+      if (err instanceof GraphApiError && err.code === "GRAPH_RATE_LIMITED") {
+        stoppedEarly = "rate_limited";
         break;
       }
       log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
