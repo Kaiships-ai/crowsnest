@@ -52,17 +52,23 @@ export interface GraphPostInsights {
   comments: number | null;
   likes: number | null;
   views: number | null;
-  /** Requested only when the metric name has been verified against a live call.
-   *  ig_stats.py never requests these, so this port never can either — see the
-   *  contract's "no tile ships for a metric until one real API call has returned it". */
+  /** profile_visits and follows, requested in the reel extended set. watchTimeSec is
+   *  never requested (the reel watch time lands in avgWatchTimeMs/totalWatchTimeMs). */
   profileVisits: number | null;
   followsFromPost: number | null;
   watchTimeSec: number | null;
+  reposts: number | null;
+  /** reels_skip_rate, passed through untouched (Meta marks it in development). */
+  skipRate: number | null;
+  /** Milliseconds, as the API returns them. */
+  avgWatchTimeMs: number | null;
+  totalWatchTimeMs: number | null;
+  bioLinkTaps: number | null;
   /** Non-null when this one post's insights call failed while others succeeded. */
   error: string | null;
 }
 
-export interface GraphPost {
+export interface GraphMedia {
   externalId: string;
   permalink: string;
   mediaType: string;
@@ -72,6 +78,10 @@ export interface GraphPost {
   postedAt: string;
   likeCount: number | null;
   commentsCount: number | null;
+  thumbnailUrl: string | null;
+}
+
+export interface GraphPost extends GraphMedia {
   insights: GraphPostInsights;
 }
 
@@ -97,6 +107,7 @@ export interface GraphTokenStatus {
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
   fetchPosts(limit?: number): Promise<GraphPost[]>;
+  fetchMedia(limit?: number): Promise<GraphMedia[]>;
   fetchComments(accountUsername: string): Promise<GraphComment[]>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
@@ -113,6 +124,9 @@ function str(v: unknown): string | null {
 }
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function arr(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
 }
 function required(value: string | null, field: string, payload: unknown): string {
   if (value === null) {
@@ -134,13 +148,13 @@ export function mapAccount(raw: unknown): GraphAccount {
   };
 }
 
-function formatOf(mediaType: string, productType: string | null): GraphPost["format"] {
+function formatOf(mediaType: string, productType: string | null): GraphMedia["format"] {
   if (productType === "REELS") return "Reel";
   if (mediaType === "CAROUSEL_ALBUM") return "Carousel";
   return mediaType || "?";
 }
 
-function buildPost(raw: Record<string, unknown>, insights: GraphPostInsights): GraphPost {
+function buildMedia(raw: Record<string, unknown>): GraphMedia {
   const mediaType = str(raw.media_type) ?? "";
   const productType = str(raw.media_product_type);
   return {
@@ -153,7 +167,7 @@ function buildPost(raw: Record<string, unknown>, insights: GraphPostInsights): G
     postedAt: required(str(raw.timestamp), "timestamp", raw),
     likeCount: num(raw.like_count),
     commentsCount: num(raw.comments_count),
-    insights,
+    thumbnailUrl: str(raw.thumbnail_url),
   };
 }
 
@@ -169,6 +183,11 @@ function emptyInsights(error: string): GraphPostInsights {
     profileVisits: null,
     followsFromPost: null,
     watchTimeSec: null,
+    reposts: null,
+    skipRate: null,
+    avgWatchTimeMs: null,
+    totalWatchTimeMs: null,
+    bioLinkTaps: null,
     error,
   };
 }
@@ -195,11 +214,31 @@ export function mapInsights(raw: unknown, isReel: boolean): GraphPostInsights {
     comments: stats.comments ?? null,
     likes: stats.likes ?? null,
     views: isReel ? (stats.views ?? null) : null,
-    profileVisits: null,
-    followsFromPost: null,
+    profileVisits: stats.profile_visits ?? null,
+    followsFromPost: stats.follows ?? null,
     watchTimeSec: null,
+    reposts: stats.reposts ?? null,
+    skipRate: stats.reels_skip_rate ?? null,
+    avgWatchTimeMs: stats.ig_reels_avg_watch_time ?? null,
+    totalWatchTimeMs: stats.ig_reels_video_view_total_time ?? null,
+    bioLinkTaps: null,
     error: null,
   };
+}
+
+/** Action type name for a bio link tap in profile_activity. ponytail: taken from Meta's
+ *  docs, not a live response (02 section 9); a wrong name yields null, never a wrong number. */
+export const BIO_LINK_ACTION = "BIO_LINK_CLICKED";
+
+export function mapBioLinkTaps(raw: unknown): number | null {
+  for (const row of arr(rec(raw).data)) {
+    for (const b of arr(rec(rec(row).total_value).breakdowns)) {
+      for (const r of arr(rec(b).results)) {
+        if (arr(rec(r).dimension_values).includes(BIO_LINK_ACTION)) return num(rec(r).value);
+      }
+    }
+  }
+  return null;
 }
 
 /**
@@ -417,9 +456,20 @@ export const graphClient: GraphClient = {
         const insightsResult = await graphGet<unknown>(`${mediaId}/insights`, { metric: metrics }, token);
         insights = insightsResult.ok ? mapInsights(insightsResult.data, isReel) : emptyInsights(insightsResult.message);
       }
-      posts.push(buildPost(m, insights));
+      posts.push({ ...buildMedia(m), insights });
     }
     return posts;
+  },
+
+  async fetchMedia(limit = 50): Promise<GraphMedia[]> {
+    const { token, userId } = requireConfigured();
+    const result = await graphGet<{ data?: unknown[] }>(
+      `${userId}/media`,
+      { fields: "id,media_type,media_product_type,permalink,timestamp,like_count,comments_count,caption,thumbnail_url", limit },
+      token
+    );
+    if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
+    return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
   },
 
   async fetchComments(accountUsername: string): Promise<GraphComment[]> {

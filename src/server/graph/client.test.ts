@@ -94,6 +94,11 @@ describe("mapInsights", () => {
       profileVisits: null,
       followsFromPost: null,
       watchTimeSec: null,
+      reposts: null,
+      skipRate: null,
+      avgWatchTimeMs: null,
+      totalWatchTimeMs: null,
+      bioLinkTaps: null,
       error: null,
     });
   });
@@ -102,14 +107,52 @@ describe("mapInsights", () => {
     const { mapInsights } = await loadClient();
     expect(mapInsights(RAW, false).views).toBeNull();
   });
+});
 
-  test("unrequested metrics (profileVisits, followsFromPost, watchTimeSec) are always null", async () => {
+describe("mapInsights, extended reel set", () => {
+  test("maps follows, profile_visits and the new reel metrics; watchTimeSec stays null", async () => {
     const { mapInsights } = await loadClient();
-    const withExtra = { data: [...RAW.data, { name: "profile_visits", values: [{ value: 99 }] }] };
-    // Even if a future API version started sending profile_visits, this port does not
-    // read it — the contract's rule is that no tile ships until a metric name has been
-    // verified against a live call, and this client has never made that call.
-    expect(mapInsights(withExtra, true).profileVisits).toBeNull();
+    const raw = { data: [
+      { name: "views", values: [{ value: 120000 }] },
+      { name: "reach", values: [{ value: 80997 }] },
+      { name: "follows", values: [{ value: 12 }] },
+      { name: "profile_visits", values: [{ value: 40 }] },
+      { name: "reposts", values: [{ value: 9 }] },
+      { name: "reels_skip_rate", values: [{ value: 41.5 }] },
+      { name: "ig_reels_avg_watch_time", values: [{ value: 4500 }] },
+      { name: "ig_reels_video_view_total_time", values: [{ value: 900000 }] },
+    ] };
+    expect(mapInsights(raw, true)).toMatchObject({
+      views: 120000, reach: 80997, followsFromPost: 12, profileVisits: 40, reposts: 9,
+      skipRate: 41.5, avgWatchTimeMs: 4500, totalWatchTimeMs: 900000, watchTimeSec: null, bioLinkTaps: null, error: null,
+    });
+  });
+});
+
+describe("mapBioLinkTaps", () => {
+  const withActions = (results: unknown[]) => ({ data: [{ name: "profile_activity", total_value: { value: 0, breakdowns: [{ dimension_keys: ["action_type"], results }] } }] });
+  test("takes the bio link action value", async () => {
+    const { mapBioLinkTaps } = await loadClient();
+    expect(mapBioLinkTaps(withActions([{ dimension_values: ["CALL"], value: 2 }, { dimension_values: ["BIO_LINK_CLICKED"], value: 7 }]))).toBe(7);
+  });
+  test("is null when the bio link action is absent", async () => {
+    const { mapBioLinkTaps } = await loadClient();
+    expect(mapBioLinkTaps(withActions([{ dimension_values: ["CALL"], value: 2 }]))).toBeNull();
+  });
+});
+
+describe("graphClient.fetchMedia", () => {
+  test("lists media with thumbnail_url and maps it", async () => {
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data: [
+      { id: "r1", media_type: "VIDEO", media_product_type: "REELS", permalink: "https://i/r1", timestamp: "2026-09-01T00:00:00+0000", like_count: 5, comments_count: 2, caption: "c", thumbnail_url: "https://cdn/r1.jpg" },
+    ] }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { graphClient } = await loadClient();
+    const media = await graphClient.fetchMedia();
+    expect(media).toEqual([{ externalId: "r1", permalink: "https://i/r1", mediaType: "VIDEO", productType: "REELS", format: "Reel", caption: "c", postedAt: "2026-09-01T00:00:00+0000", likeCount: 5, commentsCount: 2, thumbnailUrl: "https://cdn/r1.jpg" }]);
+    expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("fields")).toContain("thumbnail_url");
   });
 });
 
