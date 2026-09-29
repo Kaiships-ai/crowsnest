@@ -2,7 +2,7 @@ import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import { GraphApiError } from "@/server/graph/errors";
 
 const graphClient = vi.hoisted(() => ({ fetchAccount: vi.fn(), fetchMedia: vi.fn(), fetchPostInsights: vi.fn(), fetchAccountBreakdowns: vi.fn(), fetchComments: vi.fn(), checkToken: vi.fn() }));
-vi.mock("@/server/graph/client", () => ({ graphClient, CLASSIFIER_VERSION: "t", isGraphConfigured: () => false }));
+vi.mock("@/server/graph/client", async (importOriginal) => ({ ...(await importOriginal<object>()), graphClient, CLASSIFIER_VERSION: "t", isGraphConfigured: () => false }));
 process.env.CROWSNEST_DB_PATH = ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
 

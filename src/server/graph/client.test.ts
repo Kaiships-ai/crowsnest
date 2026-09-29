@@ -16,7 +16,11 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
  * query against instead of throwing, and so the real on-disk db is never touched.
  */
 
+/** Graph calls the transport counted since this test began (the ledger is on globalThis). */
+const calls = () => (globalThis as { __crowsnestOwnMeasure?: { graphCalls?: { total: number } } }).__crowsnestOwnMeasure?.graphCalls?.total ?? 0;
+
 beforeEach(() => {
+  delete (globalThis as { __crowsnestOwnMeasure?: unknown }).__crowsnestOwnMeasure;
   vi.resetModules();
   vi.unstubAllGlobals();
   process.env.IG_SERVICE_TOKEN ??= "test-token-long-enough";
@@ -184,9 +188,9 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce(ok(activity(3)));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    const { insights, callsUsed } = await graphClient.fetchPostInsights(REEL);
+    const { insights } = await graphClient.fetchPostInsights(REEL);
     expect(insights).toMatchObject({ views: 120000, reach: 80997, shares: 1112, likes: 50, skipRate: null, reposts: null, bioLinkTaps: 3, error: null });
-    expect(callsUsed).toBe(3);
+    expect(calls()).toBe(3);
     expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("metric")).toContain("reels_skip_rate");
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,views");
   });
@@ -212,7 +216,8 @@ describe("graphClient.fetchPostInsights", () => {
   test("a rate limit returns a stop so the run can end", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 1, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(calls()).toBe(1);
   });
 
   test("a fatal on profile_activity keeps the reel's insights and counts every call", async () => {
@@ -222,7 +227,7 @@ describe("graphClient.fetchPostInsights", () => {
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchPostInsights(REEL);
     expect(out.insights).toMatchObject({ views: 10, reach: 8, bioLinkTaps: null, error: null });
-    expect(out.callsUsed).toBe(2);
+    expect(calls()).toBe(2);
     expect(out.stop?.code).toBe("GRAPH_RATE_LIMITED");
   });
 
@@ -231,7 +236,8 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100 } }) })
       .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 190 } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 2, stop: { code: "GRAPH_AUTH_FAILED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, stop: { code: "GRAPH_AUTH_FAILED" } });
+    expect(calls()).toBe(2);
   });
 
   test("Meta's real envelope: a refused metric (code 100, type OAuthException) still falls back", async () => {
@@ -241,9 +247,9 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce(ok(activity(null)));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    const { insights, callsUsed } = await graphClient.fetchPostInsights(REEL);
+    const { insights } = await graphClient.fetchPostInsights(REEL);
     expect(insights).toMatchObject({ views: 9, reach: 7, error: null });
-    expect(callsUsed).toBe(3);
+    expect(calls()).toBe(3);
   });
 
   test("a permission refusal on one metric set is not fatal: the core-set fallback still runs", async () => {
@@ -254,7 +260,8 @@ describe("graphClient.fetchPostInsights", () => {
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchPostInsights(REEL);
-    expect(out).toMatchObject({ insights: { views: 9, reach: 7, error: null }, callsUsed: 3, stop: null });
+    expect(out).toMatchObject({ insights: { views: 9, reach: 7, error: null }, stop: null });
+    expect(calls()).toBe(3);
   });
 
   test.each([
@@ -265,7 +272,8 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) })
       .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 2, stop: { code: "GRAPH_PERMISSION_DENIED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, stop: { code: "GRAPH_PERMISSION_DENIED" } });
+    expect(calls()).toBe(2);
   });
 
   test("code 10 'Not enough viewers' on the core set is one post's failure, not a token-wide stop", async () => {
@@ -273,7 +281,8 @@ describe("graphClient.fetchPostInsights", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(notEnough).mockResolvedValueOnce(notEnough));
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchPostInsights(REEL);
-    expect(out).toMatchObject({ callsUsed: 2, stop: null, insights: { reach: null } });
+    expect(out).toMatchObject({ stop: null, insights: { reach: null } });
+    expect(calls()).toBe(2);
     expect(out.insights?.error).toContain("Not enough viewers");
   });
 
@@ -286,7 +295,8 @@ describe("graphClient.fetchPostInsights", () => {
   test("an IG business use case throttle (HTTP 400, code 80002) stops the run as rate_limited", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 80002, type: "OAuthException", is_transient: true } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 1, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(calls()).toBe(1);
   });
 
   test("a dead token (code 190) still ends the run as auth", async () => {
@@ -299,8 +309,8 @@ describe("graphClient.fetchPostInsights", () => {
     const fetchMock = vi.fn().mockResolvedValue(ok(metrics({ reach: 5, follows: 2, profile_visits: 9 })));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
-    expect(callsUsed).toBe(1);
+    const { insights } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
+    expect(calls()).toBe(1);
     expect(insights).toMatchObject({ reach: 5, followsFromPost: 2, profileVisits: 9, views: null });
     expect(new URL(fetchMock.mock.calls[0][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,follows,profile_visits");
   });
@@ -311,8 +321,8 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce(ok(metrics({ reach: 5 })));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
-    expect(callsUsed).toBe(2);
+    const { insights } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
+    expect(calls()).toBe(2);
     expect(insights).toMatchObject({ reach: 5, profileVisits: null, error: null });
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes");
   });
@@ -333,7 +343,7 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchAccountBreakdowns();
     expect(out.audienceError).toBeNull();
-    expect(out.callsUsed).toBe(4);
+    expect(calls()).toBe(4);
     expect(out.rows).toContainEqual({ metric: "views", dimension: "follower_type", key: "NON_FOLLOWER", value: 700, timeframe: "day" });
     expect(out.rows).toContainEqual({ metric: "engaged_audience_demographics", dimension: "country", key: "US", value: 50, timeframe: "this_month" });
     const first = new URL(fetchMock.mock.calls[0][0] as string);
@@ -372,7 +382,7 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     const out = await graphClient.fetchAccountBreakdowns();
     expect(out.audienceError).toContain("Not enough users");
     expect(out.rows.every((r) => r.metric === "views")).toBe(true);
-    expect(out.callsUsed).toBe(2);
+    expect(calls()).toBe(2);
   });
 
   test("the refusal in Meta's real envelope (code 10, type OAuthException) is a threshold, not a thrown auth failure", async () => {
@@ -537,10 +547,10 @@ describe("graphClient.fetchComments", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { graphClient } = await loadClient();
-    const { comments, callsUsed, stop } = await graphClient.fetchComments("kallaway", [MEDIA("post_a", 1), MEDIA("post_b", 1), MEDIA("post_c", 0)]);
+    const { comments, stop } = await graphClient.fetchComments("kallaway", [MEDIA("post_a", 1), MEDIA("post_b", 1), MEDIA("post_c", 0)]);
 
     expect(stop).toBeNull();
-    expect(callsUsed).toBe(2);
+    expect(calls()).toBe(2);
     expect(comments).toHaveLength(1);
     expect(comments[0]).toMatchObject({ externalId: "c1", kind: "organic", author: "a_fan", permalink: "https://www.instagram.com/p/post_a/" });
     // post_c had commentsCount 0 and was never queried; no media list call was made.
@@ -561,7 +571,7 @@ describe("graphClient.fetchComments, fatal per-media failure", () => {
     const media = ["a", "b", "c"].map((id) => ({ externalId: `post_${id}`, permalink: `https://i/${id}`, commentsCount: 1 }));
     const out = await graphClient.fetchComments("kallaway", media);
     expect(out.comments).toHaveLength(1);
-    expect(out.callsUsed).toBe(2);
+    expect(calls()).toBe(2);
     expect(out.stop?.code).toBe("GRAPH_RATE_LIMITED");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -576,7 +586,8 @@ describe("graphClient.fetchAccountBreakdowns, fatal", () => {
       .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchAccountBreakdowns();
-    expect(out).toMatchObject({ callsUsed: 2, stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(out).toMatchObject({ stop: { code: "GRAPH_RATE_LIMITED" } });
+    expect(calls()).toBe(2);
     expect(out.rows).toHaveLength(1);
   });
 });
@@ -663,5 +674,27 @@ describe("SEC-05: the Settings token wins over .env.local", () => {
     await graphClient.fetchAccount();
     await graphClient.checkToken();
     for (const [url] of fetchMock.mock.calls) expect(new URL(url as string).searchParams.get("access_token")).toBe("settings_token_B");
+  });
+});
+
+describe("shared Graph call ledger", () => {
+  test("every HTTP call to Graph lands in one globalThis ledger: token check, account, publish poll, failures too", async () => {
+    delete (globalThis as { __crowsnestOwnMeasure?: unknown }).__crowsnestOwnMeasure;
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ id: "1", username: "k" }) })
+      .mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ status_code: "FINISHED" }) }));
+    const { graphClient, graphCallLedger, graphCallsInLastHour, pollReelContainer } = await loadClient();
+    await graphClient.checkToken();
+    await expect(graphClient.fetchAccount()).rejects.toThrow();
+    await pollReelContainer("c1", { sleep: async () => {} });
+    expect(graphCallLedger().total).toBe(3);
+    expect(graphCallsInLastHour()).toBe(3);
+    // A second copy of the module (tsx scheduler vs the Next bundle) reads the same ledger.
+    vi.resetModules();
+    expect((await import("./client")).graphCallLedger().total).toBe(3);
+    expect(graphCallsInLastHour(Date.now() + 3_600_001)).toBe(0);
   });
 });

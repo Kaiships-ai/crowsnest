@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { invalidateTokenStatus, rememberTokenStatus } from "@/server/graph/token-status";
 import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
@@ -201,40 +201,45 @@ async function measureComments(
   account: GraphAccount,
   media: GraphMedia[],
   measuredAt: string
-): Promise<{ commentsSeen: number; partial: boolean; callsUsed: number; stop: GraphApiError | null }> {
+): Promise<{ commentsSeen: number; partial: boolean; stop: GraphApiError | null }> {
   let fetched: GraphCommentsResult;
   try {
     fetched = await graphClient.fetchComments(account.username, media);
   } catch (err) {
-    // Not configured, or a malformed comment mid-pull: count one call.
+    // Not configured, or a malformed comment mid-pull.
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(err));
     log.warn("graph.measure.comments_failed", { message: messageOf(err) });
-    return { commentsSeen: 0, partial: true, callsUsed: 1, stop: fatalStop(err) };
+    return { commentsSeen: 0, partial: true, stop: fatalStop(err) };
   }
-  const { comments, callsUsed, stop } = fetched;
+  const { comments, stop } = fetched;
   const allOwnPosts = await db.select({ id: tables.ownPosts.id, permalink: tables.ownPosts.permalink }).from(tables.ownPosts);
   const postIdByPermalink = new Map(allOwnPosts.map((p) => [p.permalink, p.id]));
   for (const c of comments) await upsertOwnComment(c, postIdByPermalink);
   if (stop) {
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(stop));
     log.warn("graph.measure.comments_failed", { message: messageOf(stop) });
-    return { commentsSeen: comments.length, partial: true, callsUsed, stop };
+    return { commentsSeen: comments.length, partial: true, stop };
   }
   await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, null);
   await setAppSetting(OWN_COMMENTS_FETCHED_AT_KEY, measuredAt);
-  return { commentsSeen: comments.length, partial: false, callsUsed, stop: null };
+  return { commentsSeen: comments.length, partial: false, stop: null };
 }
 
 async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: number }): Promise<MeasureResult> {
   const now = opts.now;
-  let callsUsed = 0;
+  // The transport counts every Graph call, so this run's spend is the ledger's growth
+  // since it started, and the hour's spend includes token checks and publishes too.
+  // ponytail: a publish or token check running alongside lands in this run's count too;
+  // it spends the same hourly limit, so the budget stays honest.
+  const ledger = graphCallLedger();
+  const start = ledger.total;
+  const used = () => ledger.total - start;
   const runBudget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
-  const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - callsInLastHour(now) - GRAPH_CALL_HEADROOM);
+  const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - graphCallsInLastHour(now.getTime()) - GRAPH_CALL_HEADROOM);
   const limitedByRecentCalls = budget < runBudget;
 
   let account: GraphAccount;
   try {
-    callsUsed += 1;
     account = await graphClient.fetchAccount();
   } catch (err) {
     return toFailure(err);
@@ -248,7 +253,6 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
 
   let media: GraphMedia[];
   try {
-    callsUsed += 1;
     media = await graphClient.fetchMedia();
   } catch (err) {
     return toFailure(err);
@@ -272,7 +276,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   for (const m of inScope) {
     // Reserve the calls a post needs: one insights call, plus profile_activity for a reel.
     // A rare core-set fallback can add one more; the rate-limit stop guards that edge.
-    if (callsUsed + (m.productType === "REELS" ? 2 : 1) + commentCalls > budget) {
+    if (used() + (m.productType === "REELS" ? 2 : 1) + commentCalls > budget) {
       stoppedEarly = "budget";
       break;
     }
@@ -284,16 +288,14 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
       if (err instanceof GraphApiError && err.code === "GRAPH_NOT_CONFIGURED") return toFailure(err);
       const fatal = fatalStop(err);
       if (!fatal) {
-        callsUsed += 1;
         log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
         // Stored as a failed capture so isDue backs this post off like any other failure.
         await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId: ownPostIdByExternalId.get(m.externalId) as string, capturedAt: measuredAt, fetchError: messageOf(err) });
         postsFailed += 1;
         continue;
       }
-      fetched = { insights: null, callsUsed: 1, stop: fatal };
+      fetched = { insights: null, stop: fatal };
     }
-    callsUsed += fetched.callsUsed;
     if (fetched.insights) {
       const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
       if (!fetched.insights.error) await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
@@ -314,7 +316,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   let commentsSeen = 0;
   let partial = false;
   if (commentCalls > 0) {
-    if (stoppedEarly === "rate_limited" || callsUsed + commentCalls > budget) {
+    if (stoppedEarly === "rate_limited" || used() + commentCalls > budget) {
       partial = true;
       // An auth or permission stop already ended the run above, so only these two remain.
       const cause =
@@ -327,7 +329,6 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
     } else {
       const c = await measureComments(account, media, measuredAt);
       ({ commentsSeen, partial } = c);
-      callsUsed += c.callsUsed;
       if (c.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(c.stop);
       if (c.stop) stoppedEarly = "rate_limited";
     }
@@ -335,10 +336,9 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
 
   // ponytail: when every breakdown call is refused no row lands, so this retries each
   // tick (4 calls an hour); store a refusal timestamp if that ever matters.
-  if (stoppedEarly === null && callsUsed + 4 <= budget && (await breakdownsStale(now))) {
+  if (stoppedEarly === null && used() + 4 <= budget && (await breakdownsStale(now))) {
     try {
       const b = await graphClient.fetchAccountBreakdowns();
-      callsUsed += b.callsUsed;
       if (b.rows.length > 0) {
         await db.insert(tables.ownAccountBreakdowns).values(b.rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
       }
@@ -355,29 +355,21 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   }
 
   rememberTokenStatus({ configured: true, username: account.username, state: "ok", message: null, checkedAt: measuredAt });
+  const callsUsed = used();
   log.info("graph.measure.done", { scope: opts.scope, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed });
   return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly, limitedByRecentCalls };
 }
 
 /** Process-wide state on globalThis: tsx server.ts (the scheduler) and Next's bundle
  *  (Measure now) each load their own copy of this module in the same process, so a
- *  module-level lock would let both run at once. Read through a function so a test can
- *  drop it. */
+ *  module-level lock would let both run at once. The Graph call ledger (graphCallLedger)
+ *  lives on the same object. Read through a function so a test can drop it. */
 interface OwnMeasureState {
-  inFlight: Promise<MeasureResult> | null;
-  /** Graph calls each finished run spent, by run start: the shared hourly ledger. */
-  calls: { at: number; n: number }[];
+  inFlight?: Promise<MeasureResult> | null;
 }
 function shared(): OwnMeasureState {
   const g = globalThis as { __crowsnestOwnMeasure?: OwnMeasureState };
-  return (g.__crowsnestOwnMeasure ??= { inFlight: null, calls: [] });
-}
-
-function callsInLastHour(now: Date): number {
-  const t = now.getTime();
-  const s = shared();
-  s.calls = s.calls.filter((c) => c.at > t - HOUR_MS);
-  return s.calls.filter((c) => c.at <= t).reduce((sum, c) => sum + c.n, 0);
+  return (g.__crowsnestOwnMeasure ??= {});
 }
 
 export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
@@ -389,9 +381,6 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
   state.inFlight = run;
   try {
     const result = await run;
-    // ponytail: a failed run's calls are not counted (it ended on its first auth or
-    // permission refusal, a few calls); thread callsUsed through failures if that matters.
-    if (result.ok) state.calls.push({ at: now.getTime(), n: result.callsUsed });
     // A dead token must not keep reading as connected from the cached status.
     if (!result.ok && result.code === "GRAPH_AUTH_FAILED") invalidateTokenStatus();
     // The account call still works without insights, so a live check would read ok:
