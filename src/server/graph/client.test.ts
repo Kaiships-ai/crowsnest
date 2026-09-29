@@ -170,8 +170,8 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(null)));
     vi.stubGlobal("fetch", fetchMock);
     const { graphClient } = await loadClient();
-    expect((await graphClient.fetchPostInsights(REEL)).insights.bioLinkTaps).toBe(7);
-    expect((await graphClient.fetchPostInsights(REEL)).insights.bioLinkTaps).toBeNull();
+    expect((await graphClient.fetchPostInsights(REEL)).insights?.bioLinkTaps).toBe(7);
+    expect((await graphClient.fetchPostInsights(REEL)).insights?.bioLinkTaps).toBeNull();
     const url = new URL(fetchMock.mock.calls[1][0] as string);
     expect(url.searchParams.get("metric")).toBe("profile_activity");
     expect(url.searchParams.get("breakdown")).toBe("action_type");
@@ -191,10 +191,29 @@ describe("graphClient.fetchPostInsights", () => {
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("reach,saved,shares,total_interactions,comments,likes,views");
   });
 
-  test("a rate limit throws so the run can stop", async () => {
+  test("a rate limit returns a stop so the run can end", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();
-    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_RATE_LIMITED" });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 1, stop: { code: "GRAPH_RATE_LIMITED" } });
+  });
+
+  test("a fatal on profile_activity keeps the reel's insights and counts every call", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
+      .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
+    const { graphClient } = await loadClient();
+    const out = await graphClient.fetchPostInsights(REEL);
+    expect(out.insights).toMatchObject({ views: 10, reach: 8, bioLinkTaps: null, error: null });
+    expect(out.callsUsed).toBe(2);
+    expect(out.stop?.code).toBe("GRAPH_RATE_LIMITED");
+  });
+
+  test("a fatal on the fallback call counts both calls", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100 } }) })
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 190 } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ insights: null, callsUsed: 2, stop: { code: "GRAPH_AUTH_FAILED" } });
   });
 
   test("Meta's real envelope: a refused metric (code 100, type OAuthException) still falls back", async () => {
@@ -212,13 +231,13 @@ describe("graphClient.fetchPostInsights", () => {
   test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 4, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_RATE_LIMITED" });
+    expect((await graphClient.fetchPostInsights(REEL)).stop?.code).toBe("GRAPH_RATE_LIMITED");
   });
 
   test("a dead token (code 190) still ends the run as auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 190, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    await expect(graphClient.fetchPostInsights(REEL)).rejects.toMatchObject({ code: "GRAPH_AUTH_FAILED" });
+    expect((await graphClient.fetchPostInsights(REEL)).stop?.code).toBe("GRAPH_AUTH_FAILED");
   });
 
   test("a non-reel makes one core call", async () => {
@@ -227,8 +246,8 @@ describe("graphClient.fetchPostInsights", () => {
     const { graphClient } = await loadClient();
     const { insights, callsUsed } = await graphClient.fetchPostInsights({ ...REEL, productType: "FEED", format: "Carousel" });
     expect(callsUsed).toBe(1);
-    expect(insights.reach).toBe(5);
-    expect(insights.views).toBeNull();
+    expect(insights?.reach).toBe(5);
+    expect(insights?.views).toBeNull();
   });
 });
 

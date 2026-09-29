@@ -170,6 +170,15 @@ describe("measureOwnChannel, scope due", () => {
     expect(await db.select().from(tables.ownPostInsights)).toHaveLength(4);
   });
 
+  test("a rate limit on a reel's last call keeps that reel's row and stops the run", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a"), media("b")]);
+    graphClient.fetchPostInsights.mockResolvedValueOnce({ insights: insights({ bioLinkTaps: null }), callsUsed: 2, stop: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") });
+    const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 1, callsUsed: 4 });
+    expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(1);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+  });
+
   test("ACTION-31: one reel throwing does not stop the others", async () => {
     graphClient.fetchMedia.mockResolvedValue([media("a"), media("b"), media("c")]);
     graphClient.fetchPostInsights

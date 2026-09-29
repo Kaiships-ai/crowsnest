@@ -1,7 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphMedia, type GraphPostInsights } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, graphClient, type GraphAccount, type GraphComment, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
@@ -212,28 +212,34 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
       stoppedEarly = "budget";
       break;
     }
-    let fetched: { insights: GraphPostInsights; callsUsed: number };
+    let fetched: PostInsightsResult;
     try {
       fetched = await graphClient.fetchPostInsights(m);
     } catch (err) {
-      callsUsed += 1;
-      // A dead token ends the run as a failure (rows already written stay), so the action
-      // surfaces it and the scheduler logs failed.
-      if (err instanceof GraphApiError && err.code === "GRAPH_AUTH_FAILED") return toFailure(err);
-      if (err instanceof GraphApiError && err.code === "GRAPH_RATE_LIMITED") {
-        stoppedEarly = "rate_limited";
-        break;
+      const fatal = err instanceof GraphApiError && (err.code === "GRAPH_AUTH_FAILED" || err.code === "GRAPH_RATE_LIMITED");
+      if (!fatal) {
+        callsUsed += 1;
+        log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
+        postsFailed += 1;
+        continue;
       }
-      log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
-      postsFailed += 1;
-      continue;
+      fetched = { insights: null, callsUsed: 1, stop: err };
     }
     callsUsed += fetched.callsUsed;
-    const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
-    await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
-    await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
-    if (fetched.insights.error) postsFailed += 1;
-    else postsMeasured += 1;
+    if (fetched.insights) {
+      const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
+      await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
+      await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
+      if (fetched.insights.error) postsFailed += 1;
+      else postsMeasured += 1;
+    }
+    // A dead token ends the run as a failure (rows already written stay), so the action
+    // surfaces it and the scheduler logs failed. A rate limit stops the run early.
+    if (fetched.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(fetched.stop);
+    if (fetched.stop) {
+      stoppedEarly = "rate_limited";
+      break;
+    }
   }
 
   let commentsSeen = 0;

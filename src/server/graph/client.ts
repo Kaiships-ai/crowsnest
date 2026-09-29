@@ -115,12 +115,19 @@ export interface GraphTokenStatus {
   checkedAt: string;
 }
 
+export interface PostInsightsResult {
+  insights: GraphPostInsights | null;
+  callsUsed: number;
+  stop?: GraphApiError | null;
+}
+
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
   fetchMedia(limit?: number): Promise<GraphMedia[]>;
-  /** One post's insights. Throws GraphApiError only for auth and rate-limit failures
-   *  (the run must stop); any other failure lands in insights.error. */
-  fetchPostInsights(media: GraphMedia): Promise<{ insights: GraphPostInsights; callsUsed: number }>;
+  /** One post's insights. An auth or rate-limit failure comes back as `stop` (the run
+   *  must end) next to whatever insights were already fetched (null when none); any other
+   *  failure lands in insights.error. callsUsed counts every call made. */
+  fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult>;
   fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
   fetchComments(accountUsername: string): Promise<GraphComment[]>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
@@ -429,10 +436,13 @@ const REEL_EXTENDED_METRICS =
   "views,reach,likes,comments,shares,saved,total_interactions,reposts,follows,profile_visits,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
 
 /** Auth and rate-limit failures end a measurement run; everything else is per-post. */
+function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
+  return !result.ok && (result.kind === "auth" || result.kind === "rate_limit") ? new GraphApiError(errorCodeFor(result.kind), result.message) : null;
+}
+
 function throwIfFatal(result: GraphGetResult<unknown>): void {
-  if (!result.ok && (result.kind === "auth" || result.kind === "rate_limit")) {
-    throw new GraphApiError(errorCodeFor(result.kind), result.message);
-  }
+  const fatal = fatalOf(result);
+  if (fatal) throw fatal;
 }
 
 // ---------------------------------------------------------------- configuration gate
@@ -478,31 +488,34 @@ export const graphClient: GraphClient = {
     return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
   },
 
-  async fetchPostInsights(media: GraphMedia): Promise<{ insights: GraphPostInsights; callsUsed: number }> {
+  async fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult> {
     const { token } = requireConfigured();
     const path = `${media.externalId}/insights`;
     if (media.productType !== "REELS") {
       const r = await graphGet<unknown>(path, { metric: CORE_METRICS }, token);
-      throwIfFatal(r);
-      return { insights: r.ok ? mapInsights(r.data, false) : emptyInsights(r.message), callsUsed: 1 };
+      const stop = fatalOf(r);
+      if (stop) return { insights: null, callsUsed: 1, stop };
+      return { insights: r.ok ? mapInsights(r.data, false) : emptyInsights(r.message), callsUsed: 1, stop: null };
     }
     let callsUsed = 1;
     let r = await graphGet<unknown>(path, { metric: REEL_EXTENDED_METRICS }, token);
-    throwIfFatal(r);
+    let stop = fatalOf(r);
+    if (stop) return { insights: null, callsUsed, stop };
     if (!r.ok) {
       // One unsupported metric name fails the whole call; retry once with the set that
       // worked before the rework, so the post keeps its core numbers.
       callsUsed += 1;
       r = await graphGet<unknown>(path, { metric: REEL_CORE_METRICS }, token);
-      throwIfFatal(r);
+      stop = fatalOf(r);
+      if (stop) return { insights: null, callsUsed, stop };
     }
-    if (!r.ok) return { insights: emptyInsights(r.message), callsUsed };
+    if (!r.ok) return { insights: emptyInsights(r.message), callsUsed, stop: null };
     const insights = mapInsights(r.data, true);
     callsUsed += 1;
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
-    throwIfFatal(activity);
+    // A fatal here still returns the insights already fetched, with bio link taps null.
     insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
-    return { insights, callsUsed };
+    return { insights, callsUsed, stop: fatalOf(activity) };
   },
 
   async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
