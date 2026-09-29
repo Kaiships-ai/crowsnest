@@ -273,10 +273,14 @@ async function runMeasure(opts: { scope: MeasureScope; now?: Date; budget?: numb
     try {
       fetched = await graphClient.fetchPostInsights(m);
     } catch (err) {
+      // The token vanished mid-run: every other post would throw the same way.
+      if (err instanceof GraphApiError && err.code === "GRAPH_NOT_CONFIGURED") return toFailure(err);
       const fatal = fatalStop(err);
       if (!fatal) {
         callsUsed += 1;
         log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
+        // Stored as a failed capture so isDue backs this post off like any other failure.
+        await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId: ownPostIdByExternalId.get(m.externalId) as string, capturedAt: measuredAt, fetchError: messageOf(err) });
         postsFailed += 1;
         continue;
       }

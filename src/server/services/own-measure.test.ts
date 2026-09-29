@@ -256,8 +256,27 @@ describe("measureOwnChannel, scope due", () => {
       .mockRejectedValueOnce(new Error("boom"))
       .mockResolvedValueOnce({ insights: insights(), callsUsed: 2 });
     await svc.measureOwnChannel({ scope: "due", now: NOW });
-    const rows = await db.select({ ownPostId: tables.ownPostInsights.ownPostId }).from(tables.ownPostInsights);
-    expect(rows).toHaveLength(2);
+    const rows = await db.select({ fetchError: tables.ownPostInsights.fetchError }).from(tables.ownPostInsights);
+    expect(rows).toHaveLength(3);
+    expect(rows.filter((r) => r.fetchError === "boom")).toHaveLength(1);
+  });
+
+  test("a thrown post stores a failed row, so it backs off instead of retrying every tick", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a")]);
+    graphClient.fetchPostInsights.mockRejectedValueOnce(new Error("boom"));
+    await svc.measureOwnChannel({ scope: "due", now: NOW });
+    await svc.measureOwnChannel({ scope: "due", now: new Date(NOW.getTime() + 30 * 60_000) });
+    expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(1);
+    const [post] = await db.select().from(tables.ownPosts);
+    expect(post.lastMeasuredAt).toBeNull();
+  });
+
+  test("the token disappearing mid-run stops the run cleanly instead of failing every post", async () => {
+    graphClient.fetchMedia.mockResolvedValue([media("a"), media("b"), media("c")]);
+    graphClient.fetchPostInsights.mockRejectedValue(new GraphApiError("GRAPH_NOT_CONFIGURED", "no token"));
+    expect(await svc.measureOwnChannel({ scope: "due", now: NOW })).toMatchObject({ ok: false, code: "GRAPH_NOT_CONFIGURED" });
+    expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(1);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(0);
   });
 
   test("every listed post is stored even when the run stops early; a thrown post counts failed", async () => {
@@ -269,7 +288,7 @@ describe("measureOwnChannel, scope due", () => {
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 1, postsFailed: 1 });
     expect((await db.select().from(tables.ownPosts)).map((p) => p.externalId).sort()).toEqual(["a", "b", "c", "d"]);
-    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(1);
+    expect(await db.select().from(tables.ownPostInsights)).toHaveLength(2);
   });
 
   test("an auth failure mid-run is a failure with its code; rows already written stay", async () => {
