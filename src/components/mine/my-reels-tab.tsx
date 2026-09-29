@@ -35,6 +35,9 @@ export async function MyReelsTab({ reel }: { reel?: string }) {
   // One joined load; overview, posts and reels are derived from it.
   const [overview, ownPosts, reels] = await Promise.all([getOwnChannelOverview(undefined, { posts }), getOwnPosts({ limit: 100, posts }), getOwnReels(posts)]);
   const selected = selectReel(reels, reel);
+  // A calendar "view post" can point at any own post; a non-reel has no reel panel, so it
+  // gets its Instagram link instead of a "not measured yet" that would never change.
+  const linkedPost = reel !== undefined && !selected ? selectReel(posts, reel) : null;
   const insights = selected?.latest ? shapeReelInsights(selected.latest) : null;
   // Shape on the server; only the selected reel's points cross to the client chart.
   const points = selected ? typicalViewsCurve(selected.ownPostId, history) : [];
@@ -81,7 +84,14 @@ export async function MyReelsTab({ reel }: { reel?: string }) {
               <ReelInsightPanel insights={insights} points={points} />
             ) : (
               <p className="text-sm text-muted-foreground">This reel has not been measured yet.</p>
-            )) : reel !== undefined && (
+            )) : linkedPost ? (
+              <p className="text-sm text-muted-foreground" data-testid="reels-not-a-reel">
+                This post is a {linkedPost.format.toLowerCase()}, not a reel, so it has no reel insights. Its reach is in the post list below.{" "}
+                <a href={linkedPost.permalink} target="_blank" rel="noreferrer" className="underline hover:text-foreground">
+                  Open it on Instagram
+                </a>
+              </p>
+            ) : reel !== undefined && (
               <p className="text-sm text-muted-foreground" data-testid="reels-unmeasured-link">
                 This reel hasn&apos;t been measured yet. It appears here after the next measurement.
               </p>

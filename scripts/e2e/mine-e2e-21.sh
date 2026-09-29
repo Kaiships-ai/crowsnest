@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # mine-e2e-21 -- documents/architect/core-components/mine/04-test-cases.md, E2E-21.
 #
-# A bad ?tab= falls back to Overview; a bad ?reel= falls back to the newest reel.
+# A bad ?tab= falls back to Overview; a ?reel= that is no reel says so instead of erroring:
+# an unknown id reads as not measured yet, a non-reel own post links to Instagram.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source scripts/e2e/lib.sh
@@ -24,8 +25,17 @@ goto_and_settle "$BASE_URL/?tab=nonsense"
 expect_count '[data-testid="reels-picker-item"]' 0
 step "arrive: /?tab=reels&reel=does-not-exist"
 goto_and_settle "$BASE_URL/?tab=reels&reel=does-not-exist"
-"$BROWSE" wait '[data-testid="reels-picker-item"][data-id="reelA"][aria-current="true"]'
-wait_any '[data-testid="reels-summary-tile"]'
-snap "fallback-newest"
+wait_any '[data-testid="reels-unmeasured-link"]'
+expect_count '[data-testid="reels-picker-item"]' 3
+expect_count '[data-testid="reels-summary-tile"]' 0
+"$BROWSE" js "document.querySelector('[data-testid=\"reels-unmeasured-link\"]').scrollIntoView({block:'center'})" >/dev/null
+snap "unmeasured-link"
+step "arrive: /?tab=reels&reel=carousel (a calendar link to a non-reel post)"
+goto_and_settle "$BASE_URL/?tab=reels&reel=carousel"
+wait_any '[data-testid="reels-not-a-reel"]'
+expect_count '[data-testid="reels-unmeasured-link"]' 0
+assert_text "Open it on Instagram"
+"$BROWSE" js "document.querySelector('[data-testid=\"reels-not-a-reel\"]').scrollIntoView({block:'center'})" >/dev/null
+snap "not-a-reel"
 
 echo "mine-e2e-21: PASS"
