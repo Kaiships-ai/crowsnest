@@ -16,3 +16,7 @@ Bugs and enhancements for mine. One row per item.
 | B-22 | `topbar.tsx` still maps `/mine` to the title "My channel", a row no request reaches now that `/mine` answers a 307 | low | enhancement | code-review | done |
 | B-23 | How long a stored `thumbnail_url` (an Instagram CDN link) stays valid is not measured; the daily sweep refreshes it | low | enhancement | doc-sync | open |
 | B-24 | The calendar's "today" and the missed rule use the UTC date (`toISOString().slice(0, 10)` in `planned-posts.ts`), so east of UTC the grid marks yesterday as today after local midnight until UTC catches up | low | bug | phase-4b-test | open |
+| B-25 | Changing any secret invalidates the token status cache, which also wipes a remembered permission refusal when the changed secret is unrelated to the Graph token (`secrets-actions.ts`) | low | bug | code-review | open |
+| B-26 | The remembered `permission_denied` overlay drops the username the live check resolved (`token-status.ts`) | low | bug | code-review | open |
+| B-27 | My reels re-reads `scoreMinUsablePosts` and computes the median twice, and loads reel history even when only the connect panel renders (`my-reels-tab.tsx`) | low | enhancement | code-review | open |
+| B-28 | `getPostsWithLatestInsights` binds every post id twice per load (`own-channel.ts`) | low | enhancement | code-review | open |
