@@ -21,3 +21,20 @@ describe("B-16 testids", () => {
     expect(panel.container.querySelector('[data-testid="mine-connect-check"]')).toBeTruthy();
   });
 });
+
+const { ReelPicker } = await import("./reel-picker");
+describe("ReelPicker", () => {
+  test("one link per reel setting ?reel=, the selected one marked current", () => {
+    const reels = ["r3", "r2", "r1"].map((id) => ({ ownPostId: id, postedAt: "2026-09-20T00:00:00.000Z", views: 1200, thumbnailUrl: null, caption: id }));
+    const { container } = render(<ReelPicker reels={reels} selectedId="r2" />);
+    const items = container.querySelectorAll('[data-testid="reels-picker-item"]');
+    expect(items).toHaveLength(3);
+    expect(items[1].getAttribute("href")).toBe("/?tab=reels&reel=r2");
+    expect(items[1].getAttribute("aria-current")).toBe("true");
+    expect(items[0].getAttribute("data-id")).toBe("r3");
+  });
+  test("empty state says so", () => {
+    const { getByText } = render(<ReelPicker reels={[]} selectedId={null} />);
+    expect(getByText(/No reels measured yet/)).toBeTruthy();
+  });
+});
