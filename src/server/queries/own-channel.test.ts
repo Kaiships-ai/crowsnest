@@ -354,6 +354,26 @@ describe("getPostsWithLatestInsights", () => {
   });
 });
 
+describe("one load for My reels", () => {
+  test("overview, posts and reels derive from one getPostsWithLatestInsights result, same as loading each", async () => {
+    const reel = await seedPost();
+    await seedInsights(reel, { capturedAt: "2026-09-27T00:00:00.000Z", reach: 20, views: 30 });
+    await seedInsights(reel, { capturedAt: "2026-09-28T00:00:00.000Z", fetchError: "HTTP 500" });
+    const failedOnly = await seedPost({ postedAt: isoDaysAgo(2) });
+    await seedInsights(failedOnly, { fetchError: "HTTP 500" });
+    await db.update(tables.ownPosts).set({ productType: "FEED" }).where(eq(tables.ownPosts.id, failedOnly));
+    const separately = { overview: await getOwnChannelOverview(), posts: await getOwnPosts({ limit: 100 }), reels: await getOwnReels() };
+
+    const posts = await getPostsWithLatestInsights();
+    // Rows gone: anything still returned came from the one load, not a second query.
+    await db.delete(tables.ownPostInsights);
+    await db.delete(tables.ownPosts);
+    expect(await getOwnChannelOverview(undefined, { posts })).toEqual(separately.overview);
+    expect(await getOwnPosts({ limit: 100, posts })).toEqual(separately.posts);
+    expect(await getOwnReels(posts)).toEqual(separately.reels);
+  });
+});
+
 describe("getAccountBreakdowns", () => {
   test("newest batch per metric, sorted by value, with the stored refusal", async () => {
     const row = (id: string, capturedAt: string, metric: string, dimension: string, key: string, value: number) => ({ id, capturedAt, metric, dimension, key, value, timeframe: null });

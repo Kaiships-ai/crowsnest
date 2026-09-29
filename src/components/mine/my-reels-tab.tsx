@@ -9,7 +9,7 @@ import { ownChannelPicker } from "./calendar-tab";
 import { relativeTime } from "@/lib/format";
 import { cachedTokenStatus } from "@/server/graph/token-status";
 import { getOwnChannel } from "@/server/queries/channels";
-import { getAccountBreakdowns, getOwnChannelOverview, getOwnPosts, getOwnReels, getReelViewHistory } from "@/server/queries/own-channel";
+import { getAccountBreakdowns, getOwnChannelOverview, getOwnPosts, getOwnReels, getPostsWithLatestInsights, getReelViewHistory } from "@/server/queries/own-channel";
 import { selectReel, shapeReelInsights, typicalViewsCurve } from "@/server/services/reel-insights";
 import { getSetting } from "@/server/settings";
 
@@ -22,18 +22,18 @@ export async function MyReelsTab({ reel }: { reel?: string }) {
   const ownChannel = await getOwnChannel();
   if (!ownChannel) return ownChannelPicker();
 
-  const [tokenStatus, overview, ownPosts, minUsablePosts, reels, history, breakdowns] = await Promise.all([
+  const [tokenStatus, posts, minUsablePosts, history, breakdowns] = await Promise.all([
     // Cached for five minutes so a reel picker click does not call Graph.
     cachedTokenStatus().catch((err: unknown) => ({
       configured: false, username: null, state: "unknown" as const, message: err instanceof Error ? err.message : String(err), checkedAt: new Date().toISOString(),
     })),
-    getOwnChannelOverview(),
-    getOwnPosts({ limit: 100 }),
+    getPostsWithLatestInsights(),
     getSetting("scoreMinUsablePosts"),
-    getOwnReels(),
     getReelViewHistory(),
     getAccountBreakdowns(),
   ]);
+  // One joined load; overview, posts and reels are derived from it.
+  const [overview, ownPosts, reels] = await Promise.all([getOwnChannelOverview(undefined, { posts }), getOwnPosts({ limit: 100, posts }), getOwnReels(posts)]);
   const selected = selectReel(reels, reel);
   const insights = selected?.latest ? shapeReelInsights(selected.latest) : null;
   // Shape on the server; only the selected reel's points cross to the client chart.

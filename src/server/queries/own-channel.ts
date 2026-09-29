@@ -116,9 +116,13 @@ export interface JoinedOwnPost {
   externalId: string;
   permalink: string;
   format: string;
+  productType: string | null;
+  thumbnailUrl: string | null;
   caption: string | null;
   postedAt: string;
   durationSec: number | null;
+  /** The newest successful capture, whole: what getOwnReels shapes a reel's snapshot from. */
+  latestOk: OwnPostInsightsRow | null;
   reach: number | null;
   saved: number | null;
   shares: number | null;
@@ -162,20 +166,22 @@ export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const posts = await db.select().from(tables.ownPosts).orderBy(desc(tables.ownPosts.postedAt));
   if (posts.length === 0) return [];
 
-  const latestByPost = await newestCaptureByPost(posts.map((p) => p.id), true);
-  const failedByPost = await newestCaptureByPost(posts.filter((p) => !latestByPost.has(p.id)).map((p) => p.id), false);
-  for (const [id, row] of failedByPost) latestByPost.set(id, row);
+  const okByPost = await newestCaptureByPost(posts.map((p) => p.id), true);
+  const failedByPost = await newestCaptureByPost(posts.filter((p) => !okByPost.has(p.id)).map((p) => p.id), false);
 
   return posts.map((p) => {
-    const latest = latestByPost.get(p.id);
+    const latest = okByPost.get(p.id) ?? failedByPost.get(p.id);
     return {
       ownPostId: p.id,
       externalId: p.externalId,
       permalink: p.permalink,
       format: p.format,
+      productType: p.productType,
+      thumbnailUrl: p.thumbnailUrl,
       caption: p.caption,
       postedAt: p.postedAt,
       durationSec: p.durationSec,
+      latestOk: okByPost.get(p.id) ?? null,
       reach: latest?.reach ?? null,
       saved: latest?.saved ?? null,
       shares: latest?.shares ?? null,
@@ -226,9 +232,10 @@ function aggregateMetric(posts: JoinedOwnPost[], key: "reach" | "saved" | "share
   };
 }
 
+/** `posts` lets a caller that already loaded getPostsWithLatestInsights (My reels) reuse it. */
 export async function getOwnChannelOverview(
   windowDays: number = DEFAULT_WINDOW_DAYS,
-  opts: { offsetDays?: number } = {},
+  opts: { offsetDays?: number; posts?: JoinedOwnPost[] } = {},
 ): Promise<OwnChannelOverview> {
   const [snapshot] = await db.select().from(tables.ownAccountSnapshots).orderBy(desc(tables.ownAccountSnapshots.capturedAt)).limit(1);
   const account = snapshot
@@ -241,7 +248,7 @@ export async function getOwnChannelOverview(
       }
     : null;
 
-  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
+  const [allPosts, minUsable] = await Promise.all([opts.posts ?? getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
   // offsetDays shifts the day-range window back for a prior-period comparison (month over
   // month). It applies ONLY to this inWindow filter; the median below stays a trailing
   // post-count window over allPosts, unchanged, so a prior-period read is still scored
@@ -279,11 +286,11 @@ export async function getOwnChannelOverview(
   };
 }
 
-export async function getOwnPosts(opts: { limit?: number; offset?: number } = {}): Promise<{ items: OwnPostRow[]; total: number }> {
+export async function getOwnPosts(opts: { limit?: number; offset?: number; posts?: JoinedOwnPost[] } = {}): Promise<{ items: OwnPostRow[]; total: number }> {
   const limit = opts.limit ?? 24;
   const offset = opts.offset ?? 0;
 
-  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
+  const [allPosts, minUsable] = await Promise.all([opts.posts ?? getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
   const medianReach = computeOwnMedianReach(toCalcInput(allPosts), { minUsable });
 
   const items: OwnPostRow[] = allPosts.slice(offset, offset + limit).map((p) => ({
@@ -362,14 +369,12 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
 
 /** Reels only, newest first, each with its newest successful snapshot (null when never
  *  measured successfully): a failed capture never hides the last good numbers. */
-export async function getOwnReels(): Promise<OwnReel[]> {
-  const reels = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.productType, "REELS")).orderBy(desc(tables.ownPosts.postedAt));
-  if (reels.length === 0) return [];
-  const latest = await newestCaptureByPost(reels.map((r) => r.id), true);
+export async function getOwnReels(posts?: JoinedOwnPost[]): Promise<OwnReel[]> {
+  const reels = (posts ?? (await getPostsWithLatestInsights())).filter((p) => p.productType === "REELS");
   return reels.map((p) => {
-    const l = latest.get(p.id);
+    const l = p.latestOk;
     return {
-      ownPostId: p.id, externalId: p.externalId, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
+      ownPostId: p.ownPostId, externalId: p.externalId, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
       latest: l
         ? {
             capturedAt: l.capturedAt, views: l.views, reach: l.reach, likes: l.likes, comments: l.comments, shares: l.shares,
