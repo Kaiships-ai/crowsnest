@@ -70,3 +70,18 @@ describe("ReelViewsOverTime", () => {
     expect(getByText(/Not enough measurements yet/)).toBeTruthy();
   });
 });
+
+const { AccountAudience } = await import("./account-audience");
+const DATA = { followerSplit: [{ key: "NON_FOLLOWER", value: 70 }, { key: "FOLLOWER", value: 30 }], followerSplitAt: "2026-09-28T00:00:00.000Z", audience: { age: [{ key: "25-34", value: 40 }], country: [{ key: "US", value: 50 }], gender: [{ key: "F", value: 60 }] }, audienceAt: "2026-09-28T00:00:00.000Z", audienceError: null };
+describe("AccountAudience", () => {
+  test("E2E-19: whole-account label on both blocks, three tabs", () => {
+    const { container, getAllByText } = render(<AccountAudience data={DATA} />);
+    expect(container.querySelector('[data-testid="reels-follower-split"]')).toBeTruthy();
+    expect(getAllByText("Whole account, not this reel")).toHaveLength(2);
+    for (const d of ["age", "country", "gender"]) expect(container.querySelector(`[data-testid="reels-audience-tab-${d}"]`)).toBeTruthy();
+  });
+  test("E2E-24: a refusal explains the 100-engagement threshold", () => {
+    const { getByText } = render(<AccountAudience data={{ ...DATA, audienceError: "HTTP 400" }} />);
+    expect(getByText(/100 or more engagements/)).toBeTruthy();
+  });
+});
