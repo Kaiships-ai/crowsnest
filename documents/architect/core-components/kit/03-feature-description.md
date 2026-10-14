@@ -131,7 +131,7 @@ Prompts are read through one readline interface's async iterator, not `question(
 
 ### Open items: KIT-1 and KIT-2, the secret prompt defects on a real terminal
 
-Confirmed on a real, live credential install (`documents/archive/evidence/10-onboarding-bugs.md`). Both defects live in the `ask({ secret: true })` path in `src/cli/kai.ts`, not in the app or the sidecar.
+Confirmed on a real, live credential install (`evidence/10-onboarding-bugs.md`). Both defects live in the `ask({ secret: true })` path in `src/cli/kai.ts`, not in the app or the sidecar.
 
 - **KIT-1, blocker: `IG_PASSWORD` saved empty.** The masked `IG_PASSWORD (not echoed):` prompt returns an empty string on a real terminal, so the password branch that only writes `IG_PASSWORD` when a value came back never fires; `.env.local` is left with `IG_PASSWORD=`, length 0. `IG_USERNAME`, the non secret prompt just before it, saves fine; only the secret read after it comes back empty. The Instagram sidecar then refuses to start, "IG_USERNAME and IG_PASSWORD must be set together", exit 78, and launchd's KeepAlive crash loops it, so port 8765 never comes up. This kills Instagram sync for every buyer who runs `kit init` interactively. The piped path (`kit init < answers`) is unaffected, which is why this is a real terminal specific defect, not a general one.
 - **KIT-2, secondary: `ANTHROPIC_API_KEY` echoed in plaintext.** The same secret path fails to suppress the echo on this terminal, so the Anthropic key is printed as typed and lands in terminal scrollback. The key is still saved correctly, so this is a security and UX defect, not a functional blocker.

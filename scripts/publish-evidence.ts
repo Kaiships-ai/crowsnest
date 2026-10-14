@@ -1,5 +1,5 @@
 /**
- * Produces the publish component's evidence under evidence/publish/.
+ * Produces the publish component's evidence under data/evidence/publish/ (gitignored).
  *
  * Two proofs, both grounded in the real publish code path, never a bespoke one:
  *  1. dry-run-fake.md: runs the real `publishPlannedPost` in dry-run against fake
@@ -19,7 +19,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { publishPlannedPost } from "@/server/services/publish-post";
 
-const OUT = "evidence/publish";
+const OUT = "data/evidence/publish";
 
 function write(name: string, body: string): void {
   mkdirSync(OUT, { recursive: true });
