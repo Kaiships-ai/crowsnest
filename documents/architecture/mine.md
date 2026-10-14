@@ -30,6 +30,11 @@ It reads `channels` (the `isOwn` flag, at most one row, by the partial unique in
 - The read picks each post's newest successful insight row, falling back to the newest failed row only when none succeeded (`getPostsWithLatestInsights`), so a later failed capture never hides the last good numbers.
 - A metric the API does not return is null, never zero. Per-viewer rates are null when `reach` is missing or zero. Bio link taps read 0 on a successful call without the action and null only on a failed call.
 - The reel metric set leaves out `follows` and `profile_visits` (Meta reports them for feed and story media only). A failed extended call retries once with the core set, except on auth or rate-limit failures. A permission refusal (HTTP code 200 to 299, or code 10 naming a permission) ends the run with `GRAPH_PERMISSION_DENIED`.
+- Delete Undo is lossless (full row snapshot, `mine-calendar.tsx`). A `publishing` or `failed` plan comes back as `scheduled` or `draft`, since the publish evidence is not restored.
+- Every own-channel metric carries `sampleSize` and `failedSampleSize` (rendered "n of N measured"), and no tile shows until a real Graph call returned the metric (`src/server/queries/own-channel.ts`).
+- `total_watch_time_ms` is stored although no block shows it, because a past snapshot cannot be re-fetched.
+- Account breakdowns run only when no run was cut short, 4 calls of budget remain, and the newest stored batch is 24 hours old (`breakdownsStale`).
+- The scheduler ticks hourly (override `OWN_MEASURE_SCHEDULER_INTERVAL_MS`) and 30 seconds after boot. It skips a tick with no own channel, no configured token, or the lock held (`own-measure-scheduler.ts`).
 - Failures are classified by HTTP status and code, never by error `type`, because Meta sends `OAuthException` on nearly every error (`src/server/graph/client.ts`, tested in `client.test.ts`).
 - Account-wide audience and follower split are labelled whole account and never shown as a reel's numbers. Demographics are stored only when the whole daily batch finished; the follower split is its own metric and refreshes regardless.
 - The typical-reel curve is the median of other reels' views at the same whole hour since posting, over the first `REEL_CURVE_HOURS` (168), computed on the server in the pure `reel-insights.ts`. Only the selected reel's shaped points reach the client chart.

@@ -327,7 +327,7 @@ Not checkable by hand:
 
 Not checkable by hand:
 
-- Whether a truly concurrent double `finishRemix` on a session with no plan yet can both insert, since there is no unique constraint on `plannedPosts.remixSessionId` backing the read-then-write (open questions, see [02-architecture.md](../../../documents/architecture/remix.md)).
+- Whether a truly concurrent double `finishRemix` on a session with no plan yet can both insert, since there is no unique constraint on `plannedPosts.remixSessionId` backing the read-then-write (open questions, see [architecture](../../../documents/architecture/remix.md)).
 - Any live model behavior beyond what an offline test double can exercise: a real Anthropic response's shape, a genuine rate limit, or a real proxy outage. `ACTION-15` (Quick Remix end to end) needs a live key and proxy.
 
 ## 3. browse-e2e

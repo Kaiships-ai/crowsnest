@@ -19,6 +19,8 @@ Onboarding owns no table of its own; schemas are in `src/server/db/schema.ts`.
 
 ## Invariants
 
+- The burner Instagram login (sidecar session) and the Graph token never share code or an env prefix. No Graph path exists in onboarding.
+- Skip is on every step because the sources step only continues once a real handle is added, and someone without one must still be able to leave. `/first-run` sits outside the app shell so a fresh install shows no sidebar or topbar over an empty database.
 - The gate is compound: `!firstRunCompleted && !hasChannels` (`shouldRedirectToFirstRun`). A database that already has a channel is never sent back into the wizard, and once the flag is true it decides alone, even if every channel is later removed. `/first-run` itself redirects to `/` when the flag is set.
 - `first_run_completed` ends first run. Both "Open Crowsnest" and "Skip setup for now" write it through `updateAppSettingsAction`, because a plain link would bounce back through the gate on a zero channel install. Settings' "Replay first run" clears it without deleting any data.
 - Step state is in memory (`useState`), not the URL. Each step persists through an existing action as it is passed, so a reload loses nothing saved. Onboarding adds no action of its own.

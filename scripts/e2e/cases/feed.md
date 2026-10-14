@@ -55,7 +55,6 @@ How to run this file: start the dev server and open `http://localhost:3001` (nev
 
 Not checkable by hand:
 
-- Whether a database read error renders a server error boundary or something gentler, since there is no action boundary to force it from the UI. See [architecture](../../../documents/architecture/feed.md).
 - The exact Load more scroll behavior (the link is set not to scroll to top), which reads as a feel question.
 
 ### The filter bar and saved views

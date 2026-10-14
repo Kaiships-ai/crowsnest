@@ -37,6 +37,8 @@ Tables are defined in `src/server/db/schema.ts`.
 - Add post URL is a foreground call to `importReelByUrl`, upserting on `(platform, external_id)` like a sync, so re-importing updates in place. A reload during it loses the in-page result, and a failure shows as an inline alert in the dialog, not a toast.
 - Saved view names are not deduplicated except the two reserved built-in names.
 
+- A throw from a feed page query is caught by the shell error boundary (`src/app/(shell)/error.tsx`), which renders the recoverable `ErrorState`. Only the similar-videos section catches its own failure.
+
 ## Where to look
 
 - `src/lib/feed-filters.ts`

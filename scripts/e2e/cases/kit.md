@@ -51,7 +51,7 @@ A single `curl -fsSL https://crowsnest-gate.kaiships.workers.dev/install.sh | sh
 - The disk preflight refuses to start downloading when free space is below the baked requirement (tarball plus extraction plus the venv).
 - A wrong byte size or a sha256 mismatch deletes the downloaded file and refuses to extract it, since the size and sha256 are baked into the script at release time and a tampered R2 object or worker cannot serve a build that still passes this check.
 - Extraction is atomic: it builds the new version in a `.partial` directory, removes any older same version directory, then moves the partial into place, so a killed run never leaves a half extracted version as `current`; it also clears the quarantine extended attribute for a buyer who downloaded by browser rather than curl.
-- Buyer state is linked in, not copied: `~/.kai/state/data` is created and symlinked to the new version's data directory, and a prior install's `state/env.local` is symlinked into the new version's `.env.local` slot. This is what lets an update swap versions without touching the buyer's database or config.
+- Buyer state is linked in, not copied: `~/.kai/state/data` is created and symlinked to the new version's data directory, and a prior install's `state/env.local`, if present (see #153), is symlinked into the new version's `.env.local` slot. This is what lets an update swap versions without touching the buyer's database or config.
 - The install and the update share one script; the only branch between them is whether `current` already exists. An update reuses the cached key, runs the post update migration and restart hook, and skips the first install's next steps print.
 
 #### Limitations

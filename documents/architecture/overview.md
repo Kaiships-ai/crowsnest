@@ -78,7 +78,7 @@ flowchart LR
 - **Actions never throw across the boundary.** Server actions return `ActionResult` (`src/server/lib/action-result.ts`), so the client lands on a success or an error toast.
 - **Secrets stay server-side.** They live in the `secrets` table or the environment, are never returned to the browser, and are redacted from logs (`src/server/secrets/store.ts`, `src/server/lib/logger.ts`).
 - **Only forward migrations.** There is no down migration, and `db:migrate` backs up first. See [data](data.md).
-- **Config has one reader.** `src/server/config.ts` is the only place that reads `process.env`; user-editable settings are read through `src/server/settings/index.ts` (database over environment over default).
+- **Settings have one reader.** User-editable settings are read through `src/server/settings/index.ts` (database over environment over default). Fixed startup config lives in `src/server/config.ts`, and some modules read their own env overrides directly.
 
 ## Platform
 
