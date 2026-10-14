@@ -8,8 +8,7 @@
 #   4. Run every scripts/e2e/*-e2e-*.sh journey in turn.
 #   5. Stop the server, and exit non-zero if any journey failed.
 #
-# See references/browse-e2e-qa.md (.claude/skills/crowsnest-component/references/) for
-# what a journey script is and is not: this is the browse skill driven from a script, not
+# A journey script is the browse skill driven from a script, not
 # a Playwright suite -- there is no spec file format here beyond "one shell script per
 # case, using the browse CLI".
 set -uo pipefail

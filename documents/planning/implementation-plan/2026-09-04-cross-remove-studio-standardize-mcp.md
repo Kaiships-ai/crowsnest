@@ -8,7 +8,7 @@ shipped: null
 
 # Remove cook/serve/studio, standardize the MCP server — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development
+> **For agentic workers:** REQUIRED: run with `/poteto-mode`
 > (recommended), or execute the plan directly in this session, phase by phase, verifying
 > each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 

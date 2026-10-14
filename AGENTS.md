@@ -8,29 +8,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 # Skills
 
-All skills live flat under `.claude/skills/`, one directory per skill, invoked by their
-bare name (no plugin, no `ship:` / `taste:` prefix). Product skills carry a `crowsnest-`
-prefix; generic and vendor skills keep plain names (the `gitnexus-*` family stays as is).
+General workflow (plan, build, debug, verify, review, PR) runs on pstack: start with
+`/poteto-mode`. `.claude/skills/` holds only what pstack does not cover, flat, one directory
+per skill, invoked by bare name:
 
-- Build-and-ship lifecycle: `brainstorming`, `writing-plans`,
-  `subagent-driven-development`, `systematic-debugging`, `using-git-worktrees`,
-  `verification-before-completion`, `finishing-a-development-branch`, `writing-skills`.
-- Design lane (whenever work touches UI): `hallmark`, `apple-design`, `prototype`,
-  `pick-ui-library`, `find-animation-opportunities`, `improve-animations`,
-  `review-animations`, `animation-vocabulary`, `emil-design-eng`.
-
-# Component workflow
-
-New or reworked components go through the `/crowsnest-component` skill
-(`.claude/skills/crowsnest-component/SKILL.md`): a 5-phase, 4-gate orchestrator that
-delegates plan to `writing-plans`, build to `subagent-driven-development`,
-and verification to `verification-before-completion`, then wires the five-doc set
-into the docs site via `crowsnest-document-component`. Its quality bar is
-`.claude/skills/crowsnest-component/house-style.md`.
-
-Bug backlog auto-fix: `scripts/next-bug.sh` pulls the top open `05-backlog` row and the
-`/crowsnest-fix-backlog-item` skill fixes it in a worktree (systematic debugging, failing test
-first, verification, opens a PR, never self-merges).
+- Code graph: the `gitnexus-*` family.
+- Design lane (whenever work touches UI): `hallmark`, `apple-design`, `emil-design-eng`,
+  `pick-ui-library`, `shadcn`, `find-animation-opportunities`, `improve-animations`,
+  `review-animations`, `animation-vocabulary`.
+- `proof-video` (UI proof recordings) and `product-description`.
 
 # Documentation
 
@@ -43,8 +29,7 @@ the index. Preview with `mkdocs serve`.
 
 ## Writing rule (docs)
 
-Enforced by the doc skills (`house-style.md`, `crowsnest-document-component`), not by hooks:
-no em or en dashes, straight quotes only, sentence-case headings, grounded to code with
+Enforced in review, not by hooks: no em or en dashes, straight quotes only, sentence-case headings, grounded to code with
 no invented facts. Docs are evergreen: state the current system as fact, no `Date:`
 field, no dated "verified on" framing, no ticket IDs as inline citations. Each component
 carries exactly five docs (`01`..`05`); plans live under `documents/planning/`, never a

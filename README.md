@@ -337,35 +337,15 @@ error you see is one you introduced.
 
 ### The build workflow
 
-```text
-Idea
- ↓
-Brainstorm
- ↓
-Plan
- ↓
-Worktree
- ↓
-Build
- ↓
-Verify
- ↓
-PR
-```
-
-Crowsnest is built and maintained through a set of skills, all flat under `.claude/skills/`
-and invoked by bare name (no plugins, no `ship:` / `taste:` prefixes). The build spine above
-is the default flow; a `[GATE]` is a point where a human signs off before the flow continues.
-New or reworked components go through the dedicated `/crowsnest-component` skill (5 phases, 4
-gates), which delegates plan, build, and verify to the build-and-ship skills and keeps each
-component's five-doc block and mkdocs nav in sync.
+General workflow (plan, build, debug, verify, review, PR) runs on
+[pstack](https://github.com/michael-denyer/pstack-claude): start a task with `/poteto-mode`
+and it picks the playbook. The repo keeps only the skills pstack does not cover, flat under
+`.claude/skills/`: the `gitnexus-*` code-graph skills, the design lane, `proof-video`, and
+`product-description`.
 
 ### Running locally
 
-If you work in Claude Code, `/crowsnest-up` brings the stack up in one step and leaves it
-running: the 9router LLM proxy on port 20128, the dev server on port 3000 in a cmux pane,
-and a connected browser already pointed at the app. Each step checks before it starts, so
-running it against a stack that is already up does nothing.
+Run the 9router LLM proxy on port 20128 and the dev server (`npm run dev`) on port 3000.
 
 The dev server has to run in a cmux pane. A `npm run dev` backgrounded from a sandboxed tool
 call gets reaped after a minute or two, and its log simply ends mid-request with no crash
@@ -398,175 +378,44 @@ from the wrong origin, and it does it silently.
 </details>
 
 <details>
-<summary>Development skills and workflow cases</summary>
+<summary>Development skills and release</summary>
 
-All skills live flat under `.claude/skills/`, invoked by bare name (`/<name>`). Product skills
-carry a `crowsnest-` prefix; the build-and-ship lifecycle and design-lane skills keep plain
-names; the `gitnexus-*` family stays as is. `[GATE]` marks a human sign-off.
-
-**Workflow cases**
-
-Pick the case that matches the work, then follow its numbered steps. `[GATE]` marks a human
-sign-off.
-
-```text
-                        What are you doing?
-                                │
-   ┌─────────────┬──────────────┼───────────────┬──────────────┐
-   │             │              │               │              │
- new/rework    fix a bug     ad-hoc          design a      plan content
- a component   from backlog  feature/build   UI change     for the channel
-   │             │              │               │              │
-   ▼             ▼              ▼               ▼              ▼
- A. /crowsnest  B. next-bug   C. brain-      D. pick a      G. /crowsnest-weekly
-    -component     .sh →          storming       design         → /crowsnest-remix
-    (5 phases,     fix row →      → plan →        skill →
-    4 gates)       PR             build →         back to
-                                  verify → PR     A or C
-
-   Supporting cases:  E. docs (crowsnest-document-component)   H. new skill (writing-skills)
-                      F. release (release-prep.sh)   I. every PR (ci.yml)
-```
-
-**A. New or reworked component** — `/crowsnest-component` (5 phases, 4 gates). Quality bar:
-`.claude/skills/crowsnest-component/house-style.md`.
-
-1. P1 research and concept `[GATE]`
-2. P2 design, features-first `[GATE]`
-3. P3 plan via `writing-plans` `[GATE]`
-4. P4 build via `subagent-driven-development`
-5. P5 verify via `verification-before-completion` + doc-sync via `crowsnest-document-component` `[GATE]`
-
-**B. Bug fix from the backlog** — `/crowsnest-fix-backlog-item`. Never self-merges. Risky surfaces
-(`src/cli`, `packaging`, `src/server/db`, `services/ig`, `.env`, launchd) open a
-draft/needs-human PR and set the row `in-review`. Nightly unattended variant:
-`.github/workflows/nightly-autofix.yml` (cron inert until enabled).
-
-1. `scripts/next-bug.sh` picks the top open bug row
-2. `using-git-worktrees` isolates the work
-3. `systematic-debugging` writes the failing test first, then the fix
-4. `verification-before-completion`
-5. Open PR `[GATE: human merges]`
-
-**C. Ad-hoc feature or build** (no component doc).
-
-1. `brainstorming` `[GATE]`
-2. `writing-plans` `[GATE]`
-3. `using-git-worktrees`
-4. `subagent-driven-development`
-5. `verification-before-completion`
-6. `finishing-a-development-branch` `[GATE]`
-
-**D. UI / design.**
-
-1. Pick the design skill that matches: `hallmark` (new page or redesign), `prototype`
-   (divergent variants), `apple-design` / `emil-design-eng` (craft and motion),
-   `pick-ui-library` (dependency choice), or the animation skills
-   (`find-animation-opportunities`, `improve-animations`, `review-animations`)
-2. Do the design work with that skill
-3. Re-enter case A or C to ship
-
-**E. Docs.**
-
-1. `crowsnest-document-component` scaffolds or edits the five-doc block to `house-style.md`
-2. Specs go to `documents/planning/spec/`, plans to `documents/planning/implementation-plan/`
-3. Check status with `/crowsnest-status`; manage rows with `/crowsnest-backlog-board`
-
-**F. Release.**
-
-1. `scripts/release-prep.sh <ver>` refuses a dirty tree or non-main, bumps `package.json`,
-   prepends `packaging/CHANGELOG.md`, runs tests, commits and tags, and prints the push line
-   (does not push)
-2. Human pushes the tag `[GATE]`
-3. `.github/workflows/release.yml` runs the test gate + a fresh-HOME Kit smoke, then uploads
-4. The Kit ships: `kai` CLI in `src/cli/`, `packaging/install.sh.template` + a Cloudflare
-   Worker license gate + Polar
-5. Rollback if needed: `kai rollback` / `packaging/rollback.sh`
-
-**G. Content / marketing.** Both steps use the `crowsnest` MCP server.
-
-1. `/crowsnest-weekly` builds the weekly funnel plan (2 gates)
-2. `/crowsnest-remix` analyzes a video into a saved script + planned post (5 gates)
-
-**Connect the MCP.** The running app exposes an MCP server over HTTP, the surface where a
-finished remix leaves crowsnest and reaches the tool that produces the reel. Register it with
-Claude Code once:
-
-```bash
-claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
-```
-
-`/crowsnest-weekly` and `/crowsnest-remix` (case G) consume this MCP to read the feed and drive the remix
-handoff.
-
-**H. Author a new skill.**
-
-1. `writing-skills`
-
-**I. Every PR.**
-
-1. `.github/workflows/ci.yml` runs typecheck + lint + vitest + `scripts/testid-audit.sh` + `scripts/skill-lint.sh`
-
-**Build-and-ship skills** (bare name, model- and `/`-triggerable)
+**Repo skills** (`.claude/skills/`, validated in CI by `scripts/skill-lint.sh`)
 
 | Skill | Purpose |
 |-------|---------|
-| `brainstorming` | Shape a problem, classify it (spike / bounded / architectural) |
-| `writing-plans` | Write a phase-by-phase implementation plan to `documents/planning/` |
-| `using-git-worktrees` | Isolate the work in a dedicated branch or worktree |
-| `subagent-driven-development` | Dispatch the build across sub-agents, then review the diff |
-| `systematic-debugging` | Root-cause a bug, failing test first (red, green, refactor) |
-| `verification-before-completion` | Prove it works before claiming done |
-| `finishing-a-development-branch` | Commit, push, PR, merge decision |
-| `writing-skills` | Author a new skill for either plugin |
-
-**Design-lane skills** (bare name). `*` = user-invoked only (`disable-model-invocation`)
-
-| Skill | Purpose |
-|-------|---------|
+| `gitnexus-*` | Code-graph exploring, impact analysis, debugging, refactoring, CLI |
 | `hallmark` | Anti-slop design for greenfield pages, audits, redesigns |
 | `emil-design-eng` | Design-engineering polish and component craft |
 | `apple-design` | Apple-grade gesture and motion feel |
 | `find-animation-opportunities` | Spot where motion would help |
 | `improve-animations` | Plan and apply animation improvements |
+| `review-animations` | Review animation quality against standards |
 | `animation-vocabulary` | Name and specify a motion effect |
-| `review-animations` * | Review animation quality against standards |
-| `pick-ui-library` * | Choose a UI dependency |
-| `prototype` * | Throwaway UI mock |
+| `pick-ui-library` | Choose a UI dependency |
+| `shadcn` | Add, fix, and style shadcn components |
+| `proof-video` | Caption and annotate a UI proof recording |
+| `product-description` | Build an outside-in product-description doc repo |
 
-**Repo-local skills** (`.claude/skills/`). `/` = user-invoked only
+**Release.** `scripts/release-prep.sh <ver>` refuses a dirty tree or non-main, bumps
+`package.json`, prepends `packaging/CHANGELOG.md`, runs tests, commits and tags, and prints the
+push line. A human pushes the tag, then `.github/workflows/release.yml` runs the test gate and a
+fresh-HOME Kit smoke and uploads. Roll back with `kai rollback` or `packaging/rollback.sh`.
 
-| Skill | Invoke | Purpose |
-|-------|--------|---------|
-| `crowsnest-component` | `/` | Component concept-to-shipped, 5 phases / 4 gates (case A) |
-| `crowsnest-fix-backlog-item` | `/` | Take one backlog bug row through fix to PR (case B) |
-| `crowsnest-document-component` | `/` | Scaffold/edit the five-doc block and mkdocs nav (case E) |
-| `crowsnest-status` | `/` + model | Lego status: open-backlog counts and active plans |
-| `crowsnest-backlog-board` | `/` + model | Add, close, or review backlog rows |
-| `crowsnest-weekly` | `/` + model | Weekly content funnel plan, hands off to `crowsnest-remix` (case G) |
-| `crowsnest-remix` | `/` + model | Analyze a video into a script + planned post (case G) |
-| `crowsnest-up` | `/` | Boot the local stack (9router, dev server, browser) |
-| `product-description` | `/` + model | Build an outside-in product-description doc repo |
+**Connect the MCP.** The running app exposes an MCP server over HTTP. Register it with Claude
+Code once:
 
-**Ported skill groups** (openclaw-derived, flat under `.claude/skills/`, 63 skills total). Open
-a group menu with `/cn-<group>`, or `/cn` to list every group.
+```bash
+claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
+```
 
-| Group | Command | Skills |
-|-------|---------|--------|
-| Ops and routing | `/cn-ops` | `crowsnest-route` (FAST/CAREFUL router, owns the TDD track), `crowsnest-update`, `crowsnest-live-updater` |
-| Testing and QA | `/cn-testing` | `crowsnest-testing`, `test-audit`, `crowsnest-e2e` (Playwright + mock-backend), `crowsnest-auto-qa`, `crowsnest-qa-testing`, `crowsnest-test-performance`, `proof-video` |
-| Review and land | `/cn-review` | `autoreview`, `crowsnest-pr`, `crowsnest-repair-sweep`, `crowsnest-score` |
-| Release | `/cn-release` | seven `crowsnest-release-*` skills plus `crowsnest-changelog-update` |
-| Docs | `/cn-docs` | `technical-documentation`, `crowsnest-refactor-docs` |
-| Code graph | `/cn-code` | `gitnexus-*`, `shadcn` |
+**Every PR.** `.github/workflows/ci.yml` runs typecheck, lint, vitest,
+`scripts/testid-audit.sh`, and `scripts/skill-lint.sh`.
 
-Each skill validated in CI by `scripts/skill-lint.sh` (name matches folder, closed
-frontmatter, a description, no duplicate names).
-
-**Key scripts and entry points**: `scripts/next-bug.sh` (bug queue), `scripts/release-prep.sh`
-(one-command release), `scripts/testid-audit.sh` (testid coverage), `scripts/plan-status.sh`
-(backlog and plan counts), `scripts/seed-e2e.ts` + `scripts/e2e/run.sh` (`npm run e2e`), `scripts/skill-lint.sh`
-(skill validation, in CI), `packaging/rollback.sh`. Workflows: `.github/workflows/{ci,release,nightly-autofix}.yml`.
+**Key scripts**: `scripts/next-bug.sh` (bug queue), `scripts/release-prep.sh`,
+`scripts/testid-audit.sh`, `scripts/plan-status.sh` (backlog and plan counts),
+`scripts/seed-e2e.ts` + `scripts/e2e/run.sh` (`npm run e2e`), `scripts/skill-lint.sh`,
+`packaging/rollback.sh`. Workflows: `.github/workflows/{ci,release}.yml`.
 Kit and gate: `packaging/{install.sh.template,gen-install.sh,release.sh,worker/}`,
 `src/cli/{kai,license,service-darwin,runtime}.ts`.
 

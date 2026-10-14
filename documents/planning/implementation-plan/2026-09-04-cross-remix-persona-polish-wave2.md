@@ -8,7 +8,7 @@ shipped: null
 
 # Remix + Persona polish (UI Wave 2) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: run with `/poteto-mode`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Apply the improvement board's Wave 2 items for the two Create-lane surfaces that survived the scope cut: the six-stage Remix studio (`animate` stage transitions + stepper connector; `polish` unify the generating states into one calm rhythm) and the Persona screen (`onboard` example fills + why-each-field; `clarify` enriched placeholders + a dirty-edit guard).
 
