@@ -21,7 +21,7 @@ goto_and_settle "$BASE_URL/feed"
 step "act: pick 5x+ from the score control"
 "$BROWSE" click '[data-testid="feed-filter-min-score"]'
 sleep 0.3
-select_option_by_text "5×+"
+select_option_by_text "5×+ score"
 "$BROWSE" wait --networkidle
 assert_url_contains "minScore=5"
 
