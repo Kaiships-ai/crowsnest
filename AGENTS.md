@@ -22,19 +22,26 @@ per skill, invoked by bare name:
 # Documentation
 
 Docs live in `documents/` and render as an mkdocs-material site (`mkdocs.yml`,
-`docs_dir: documents`). Root `PRODUCT.md` (what crowsnest is and must do) and `DESIGN.md` (visual
-system, interaction model, shell) sit above `documents/architecture/` (how it is built: `overview.md` and one page per part). Each
-component's built-feature list and browse-e2e test cases live in `scripts/e2e/cases/<component>.md`. Plans still being worked on go under `documents/plans/`;
-shipped plans are deleted (git history keeps them). `documents/index.md` is
-the index. Preview with `mkdocs serve`.
+`docs_dir: documents`). Where things live:
+
+- `PRODUCT.md` and `DESIGN.md` at the repo root: what crowsnest is and must do; the visual
+  system, interaction model, and shell.
+- `documents/architecture/`: how it is built. `overview.md` plus one page per part, each with
+  the data it holds, its boundaries, and its invariants.
+- `documents/decisions/`: big decisions still in force.
+- `documents/plans/`: running plans only. Delete a plan when it ships; git history keeps it.
+- `scripts/e2e/cases/<part>.md`: each part's built-feature list and browse-e2e test cases.
+- Backlog: GitHub issues labelled `backlog` and `area:<part>`, never files.
+- `test-shots/` are local and gitignored.
+
+`documents/index.md` is the index. Preview with `mkdocs serve`.
 
 ## Writing rule (docs)
 
 Enforced in review, not by hooks: no em or en dashes, straight quotes only, sentence-case headings, grounded to code with
 no invented facts. Docs are evergreen: state the current system as fact, no `Date:`
-field, no dated "verified on" framing, no ticket IDs as inline citations. Each component
-carries exactly five docs (`01`..`05`); plans live under `documents/plans/`, never a
-sixth doc. (The prior humanizer hooks that enforced this are removed; do not re-add them.)
+field, no dated "verified on" framing, no ticket IDs as inline citations. Each part gets one
+architecture page and one cases file; no extra per-part docs. Plans live under `documents/plans/`. (The prior humanizer hooks that enforced this are removed; do not re-add them.)
 
 # Build and CI
 
