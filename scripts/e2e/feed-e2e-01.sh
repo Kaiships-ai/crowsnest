@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# feed-e2e-01 -- documents/architect/core-components/feed/04-test-cases.md, E2E-01.
+# feed-e2e-01 -- scripts/e2e/cases/feed.md, E2E-01.
 #
 # Filter the feed to 5x+, open a card, move to the full detail page, keep the post --
 # all through the real UI, checking the same filter slice carries end to end.

@@ -8,7 +8,7 @@ import { backupDatabase } from "../../../scripts/backup-db";
  * Backs up the database first (see scripts/backup-db.ts / E1 in
  * docs/product/v1-to-product-backlog.html). If the backup throws, migrations do
  * NOT run: a migration that proceeds after a failed backup is exactly the scenario
- * this exists to prevent. See docs/product/db-recovery.md for what to do if a
+ * this exists to prevent. See documents/architecture/data.md (Database recovery runbook) for what to do if a
  * migration turns out to be the bad one.
  */
 export async function main(): Promise<void> {

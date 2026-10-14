@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * Bulk select + Sync selected (ig-sync 03-feature-description, "Sync several channels at
+ * Bulk select + Sync selected (scripts/e2e/cases/ig-sync.md, "Sync several channels at
  * once"). Renders the real board, ticks two cards, and asserts Sync selected starts one
  * run scoped to exactly those two channel ids through the existing `startSyncAction`
  * seam. `@testing-library/jest-dom` isn't wired up here, so assertions read straight off

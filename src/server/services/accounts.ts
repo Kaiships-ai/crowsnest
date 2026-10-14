@@ -9,7 +9,7 @@ import { clearSecret, getSecret, setSecret } from "@/server/secrets/store";
  * one account's cooldown or failure from stopping the others. It deliberately does NOT
  * launch live sidecars or route real IG traffic per account: that needs live per-account
  * credentials to verify and is the documented next step (see
- * documents/architect/shared/multi-account.md). Everything here is additive and back
+ * documents/architecture/data.md, Multi-account sync). Everything here is additive and back
  * compatible: with a single (default) account, planAccountSync returns one group with every
  * channel, so the existing single-account sync path is byte-for-byte unchanged.
  *

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-13 -- documents/architect/core-components/mine/04-test-cases.md, E2E-13.
+# mine-e2e-13 -- scripts/e2e/cases/mine.md, E2E-13.
 #
 # Publish with no token or bucket names what is missing and keeps the caption (seed: mine-seed.ts no-graph).
 set -euo pipefail

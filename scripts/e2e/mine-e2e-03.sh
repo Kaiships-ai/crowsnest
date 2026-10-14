@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-03 -- documents/architect/core-components/mine/04-test-cases.md, E2E-03.
+# mine-e2e-03 -- scripts/e2e/cases/mine.md, E2E-03.
 #
 # Mark a plan published from the day panel, then the cell shows it (seed: mine-seed.ts plan).
 set -euo pipefail

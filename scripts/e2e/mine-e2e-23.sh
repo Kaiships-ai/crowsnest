@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-23 -- documents/architect/core-components/mine/04-test-cases.md, E2E-23.
+# mine-e2e-23 -- scripts/e2e/cases/mine.md, E2E-23.
 #
 # Reach 0 renders every derived rate as a dash, never 0%.
 set -euo pipefail

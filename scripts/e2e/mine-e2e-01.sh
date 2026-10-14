@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-01 -- documents/architect/core-components/mine/04-test-cases.md, E2E-01.
+# mine-e2e-01 -- scripts/e2e/cases/mine.md, E2E-01.
 #
 # Mark a tracked channel as your own from the picker (seed: mine-seed.ts no-own).
 set -euo pipefail

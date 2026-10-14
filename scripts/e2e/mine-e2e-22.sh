@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-22 -- documents/architect/core-components/mine/04-test-cases.md, E2E-22.
+# mine-e2e-22 -- scripts/e2e/cases/mine.md, E2E-22.
 #
 # No reels: the picker says so, and the post list still shows the carousel.
 set -euo pipefail

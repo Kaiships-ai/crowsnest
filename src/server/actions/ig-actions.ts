@@ -177,7 +177,7 @@ export async function igLoginBySessionAction(sessionid: string): Promise<LoginRe
 
 /**
  * Signs in with a typed username and password, validating against the sidecar BEFORE
- * persisting anything (03-feature-description.md section 5, ENH-1) - the opposite order
+ * persisting anything (scripts/e2e/cases/ig-sync.md, Built features) - the opposite order
  * from `igLoginBySessionAction` above. `IG_USERNAME`/`IG_PASSWORD` are only written to
  * the secrets store when the sidecar's own `/login` reports `"ok"` for THIS call; a
  * rejected login changes nothing. A `two_factor_required`/`challenge_required` status is

@@ -23,8 +23,8 @@ per skill, invoked by bare name:
 
 Docs live in `documents/` and render as an mkdocs-material site (`mkdocs.yml`,
 `docs_dir: documents`). Root `PRODUCT.md` (what crowsnest is and must do) and `DESIGN.md` (visual
-system, interaction model, shell) sit above `documents/architect/` (how it is built, one folder per component under `core-components/`
-plus cross-cutting `shared/`). Plans still being worked on go under `documents/plans/`;
+system, interaction model, shell) sit above `documents/architecture/` (how it is built: `overview.md` and one page per part). Each
+component's built-feature list and browse-e2e test cases live in `scripts/e2e/cases/<component>.md`. Plans still being worked on go under `documents/plans/`;
 shipped plans are deleted (git history keeps them). `documents/index.md` is
 the index. Preview with `mkdocs serve`.
 

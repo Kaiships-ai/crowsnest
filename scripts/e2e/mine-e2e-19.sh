@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-19 -- documents/architect/core-components/mine/04-test-cases.md, E2E-19.
+# mine-e2e-19 -- scripts/e2e/cases/mine.md, E2E-19.
 #
 # Follower split and audience blocks are labelled whole-account; each audience tab opens.
 set -euo pipefail

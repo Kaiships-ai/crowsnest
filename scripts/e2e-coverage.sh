@@ -3,8 +3,8 @@
 # browse-e2e coverage gate, so the "grep-able facts, not judgment calls"
 # in that gate are actually grepped instead of eyeballed.
 #
-# Reads a component's 03-feature-description.md (the built-feature list) and
-# 04-test-cases.md (its browse-e2e table) and prints the coverage record the 4b
+# Reads a component's scripts/e2e/cases/<c>.md: its built-feature table and
+# its browse-e2e table and prints the coverage record the 4b
 # gate asks for. Two tiers, deliberately:
 #
 #   HARD FAIL (exit 1) -- the unambiguous, mechanical shortfalls that are always
@@ -26,7 +26,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-COMPS="documents/architect/core-components"
+CASES="scripts/e2e/cases"
 CORNER_MIN="${E2E_COV_CORNER_MIN:-5}"
 
 usage() { echo "usage: $0 <component-name> | --all" >&2; exit 2; }
@@ -34,12 +34,11 @@ usage() { echo "usage: $0 <component-name> | --all" >&2; exit 2; }
 # check_one <component> -- prints the coverage record, returns 1 on a hard fail.
 check_one() {
   local comp="$1"
-  local dir="$COMPS/$comp"
-  local f03="$dir/03-feature-description.md"
-  local f04="$dir/04-test-cases.md"
+  local f03="$CASES/$comp.md"
+  local f04="$f03"
 
   if [ ! -f "$f04" ]; then
-    echo "[$comp] no 04-test-cases.md -- skipped"
+    echo "[$comp] no $f04 -- skipped"
     return 0
   fi
 
@@ -138,9 +137,10 @@ check_one() {
 
 if [ "$1" = "--all" ]; then
   rc=0
-  for d in "$COMPS"/*/; do
-    [ -d "$d" ] || continue
-    check_one "$(basename "$d")" || rc=1
+  for d in "$CASES"/*.md; do
+    [ -f "$d" ] || continue
+    [ "$(basename "$d" .md)" = shared ] && continue
+    check_one "$(basename "$d" .md)" || rc=1
   done
   exit "$rc"
 fi

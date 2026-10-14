@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-05 -- documents/architect/core-components/mine/04-test-cases.md, E2E-05.
+# mine-e2e-05 -- scripts/e2e/cases/mine.md, E2E-05.
 #
 # Browse own posts, then the weekday chart (seed: mine-seed.ts reels).
 set -euo pipefail

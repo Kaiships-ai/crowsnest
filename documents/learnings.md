@@ -9,7 +9,7 @@ one row when a fix PR opens or a component ships, and grep it for the component 
 about to touch before a fix, so a repeated root cause is seen before the fix, not after.
 
 Keep each row to one line. If a learning needs a paragraph, it is a doc change (fold it
-into the component's `02-architecture.md`), not a learning. A learning is the short,
+into the part's architecture page), not a learning. A learning is the short,
 cross-cutting thing no single doc owns: "this seam keeps breaking for this reason", "the
 guardrail mis-routed this class", "this test shape kept passing against broken code".
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-07 -- documents/architect/core-components/mine/04-test-cases.md, E2E-07.
+# mine-e2e-07 -- scripts/e2e/cases/mine.md, E2E-07.
 #
 # Zero-data state across posts, metrics, and the calendar (seed: mine-seed.ts empty).
 set -euo pipefail

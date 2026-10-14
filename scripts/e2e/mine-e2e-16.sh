@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-16 -- documents/architect/core-components/mine/04-test-cases.md, E2E-16.
+# mine-e2e-16 -- scripts/e2e/cases/mine.md, E2E-16.
 #
 # Picking a reel puts it in ?reel=, and a reload keeps it selected.
 set -euo pipefail

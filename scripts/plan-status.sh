@@ -9,16 +9,16 @@ cd "$(dirname "$0")/.."
 
 DOCS="documents"
 PLANS="$DOCS/plans"
-COMPS="$DOCS/architect/core-components"
+COMPS="scripts/e2e/cases"
 
 hr() { printf '\n%s\n' "----------------------------------------------------------------"; }
 
 hr; printf 'crowsnest lego board  (generated %s)\n' "$(date +%Y-%m-%d)"; hr
 
 printf '%-14s %-14s %s\n' "COMPONENT" "OPEN BACKLOG" "ACTIVE PLANS"
-for d in "$COMPS"/*/; do
-  [ -d "$d" ] || continue
-  c="$(basename "$d")"
+for d in "$COMPS"/*.md; do
+  c="$(basename "$d" .md)"
+  [ "$c" = shared ] && continue
   open="$(gh issue list --label backlog --label "area:$c" --json number --jq length 2>/dev/null || echo "?")"
   # active plans naming this component in frontmatter components: [...]
   plans=0

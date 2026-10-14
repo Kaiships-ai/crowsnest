@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-25 -- documents/architect/core-components/mine/04-test-cases.md, E2E-25.
+# mine-e2e-25 -- scripts/e2e/cases/mine.md, E2E-25.
 #
 # A rejected token shows the connect panel above the stored reels, which still open.
 set -euo pipefail

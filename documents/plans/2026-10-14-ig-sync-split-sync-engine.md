@@ -72,7 +72,7 @@ Every phase ends with: `npm run typecheck`, `npm run test`, plus the named files
 - [ ] **Phase 4, enrichment.** Create `sync-enrich.ts` (692-929, `__test`). Add `server/services/sync-enrich.ts` to the allowed write files in `src/server/services/score-recompute-guard.test.ts:51` and move the `enrichViewCounts` write-site expectation at `:108` to it. Migrate `backfill-view-counts.ts:27` and the `__test` imports in `sync-engine.test.ts` (2038 to 2528). Check: `sync-engine.test.ts` (view count enrichment blocks), `backfill-view-counts.test.ts`.
 - [ ] **Phase 5, persistence.** Create `sync-persist.ts` (675-690, 931-1057, 1124-1170). Engine-internal only, no external callers. Add `server/services/sync-persist.ts` to the allowed write files in `score-recompute-guard.test.ts:51` and move the `upsertVideo` and `softDeleteMissing` write-site expectations at `:108` to it. Check: `score-recompute-guard.test.ts`, `sync-engine.test.ts` (idempotence, carousels, soft delete, resume from cursor, snapshot batching).
 - [ ] **Phase 6, channel import and handle.** Create `channel-import.ts` (1901-2066). Migrate `sync-actions.ts:11`, `scripts/live-sync.ts:13` (`addChannel`), `discover-actions.ts:5` (`normalizeHandle` to `src/lib/handle`), `sync-engine.test.ts:1962` to `:2010`. Delete the 169 re-export. Check: `sync-engine.test.ts` (normalizeHandle, addChannel), `sync-actions.test.ts`, `discover.test.ts`.
-- [ ] **Phase 7, docs.** Update `documents/architect/core-components/ig-sync/02-architecture.md` with the module table above. Check: `mkdocs build` and `npm run lint`.
+- [ ] **Phase 7, docs.** Update `documents/architecture/ig-sync.md` with the module table above. Check: `mkdocs build` and `npm run lint`.
 
 ## Out of scope
 

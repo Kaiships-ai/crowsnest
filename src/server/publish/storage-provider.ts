@@ -4,7 +4,7 @@ import { extname } from "node:path";
 
 /**
  * Pluggable public-URL storage for the Reels publish path (see
- * documents/architect/core-components/publish/02-architecture.md).
+ * documents/architecture/publish.md).
  *
  * The Instagram Graph API publishes a Reel by fetching the video from a PUBLIC https
  * URL — it does not accept a binary upload. This module uploads a local mp4 to an

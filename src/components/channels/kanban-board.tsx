@@ -58,8 +58,8 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
   const [pending, startTransition] = useTransition();
   const [reduceMotion] = useState(prefersReducedMotion);
 
-  // Bulk-select state, board-local and in memory only: a reload drops it (ig-sync
-  // 03-feature-description, "Sync several channels at once"). Independent of the move
+  // Bulk-select state, board-local and in memory only: a reload drops it (see
+  // scripts/e2e/cases/ig-sync.md, "Sync several channels at once"). Independent of the move
   // overlay above, so selecting never touches a staged fleet move.
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const { start: startSync, isRunning: syncRunning } = useSyncProgress();
