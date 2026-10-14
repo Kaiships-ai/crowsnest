@@ -22,5 +22,6 @@ code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://localhost:$P
 
 BROWSE="$HOME/.claude/skills/gstack/browse/dist/browse"
 [ -x "$BROWSE" ] && pass "browse CLI at $BROWSE" || fail "browse CLI missing at $BROWSE"
-curl -fs -o /dev/null --max-time 1 http://127.0.0.1:8765/health && echo "note  IG sidecar is UP on :8765 (ig-sync journey expects it down)"
+# /health answers 401 without the service token, so check the listener, not the status.
+lsof -nP -iTCP:8765 -sTCP:LISTEN >/dev/null 2>&1 && echo "note  IG sidecar is UP on :8765: ig-sync-e2e-01 would hit real Instagram, drive.sh refuses it"
 [ "$ok" = 1 ]

@@ -6,11 +6,12 @@ Over-performing posts from tracked channels, scored against each creator's media
 
 - Filter bar: score, views, engagement, analyzed, timeframe, followers (`src/components/feed/filter-bar.tsx`), reflected in the URL (`minScore=5`).
 - Card preview panel with "Open full page".
-- Detail page `/feed/<id>`: keep the post (saved_posts), save to vault, remix, copy as prompt.
+- Saved views ("Balanced", "High Conviction" presets, `manage-saved-views-dialog.tsx`) and a list-row layout (`feed-list-row.tsx`).
+- Detail page `/feed/<id>`: keep the post (`saved_posts`), un-keep with an undo toast ("Removed from the vault"), save to vault (`save-to-vault-trigger`), remix, copy as prompt.
 
 ## How to get to it (user POV)
 
-Sidebar, Create, Feed. A bare `/feed` applies the High Conviction default (minScore 10). The seed's one outlier is 6.4x, so the first view can be the empty "clears no bar yet" state.
+Sidebar, Create, Feed. A bare `/feed` applies the High Conviction preset (minScore 10, last 14 days, 500K+ views). The seed's one outlier is 6.4x, so the first view is the empty state "No post clears the High Conviction bar yet."
 
 ## Driving it with browse
 
