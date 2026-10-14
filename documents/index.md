@@ -37,7 +37,7 @@ boundaries, and its invariants.
   status and components. Shipped plans are deleted.
 - Decisions still in force: [0001](decisions/0001-personal-tool-first.md), [0002](decisions/0002-data-and-action-brain.md).
 - Running plans: `plans/2026-10-14-ig-sync-split-sync-engine.md` (plans are not rendered in the site).
-- Backlog items are GitHub issues labeled `backlog`.
+- Backlog items are GitHub issues labeled `backlog` and `area:<part>`.
 - Lessons that no single doc owns: [learnings](learnings.md).
 
 ## The bug board is generated, not committed
