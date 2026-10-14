@@ -29,8 +29,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
   cancelScheduledPublishAction,
@@ -156,8 +163,8 @@ function buildGrid(month: string, calendar: CalendarMonth): DayCell[][] {
 }
 
 const CELL_STYLE: Record<CellKind, string> = {
-  published: "border-line-strong bg-card",
-  publishing: "border-line-strong bg-card",
+  published: "border-border bg-card",
+  publishing: "border-border bg-card",
   failed: "border-destructive/40 bg-destructive/10",
   scheduled: "border-border bg-transparent",
   missed: "border-destructive/40 bg-destructive/10",
@@ -287,19 +294,31 @@ export function MineCalendar({
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link href={`?month=${shiftMonth(month, -1)}`} aria-label="Previous month" className="rounded p-1.5 text-muted-foreground hover:bg-popover hover:text-foreground">
+        <div className="flex min-w-0 flex-wrap items-center gap-3">
+          {/* `nativeButton={false}` because these render an <a>: Base UI's Button assumes
+              a real <button> otherwise and strips the anchor's own semantics. */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            nativeButton={false}
+            render={<Link href={`?month=${shiftMonth(month, -1)}`} aria-label="Previous month" />}
+          >
             ‹
-          </Link>
+          </Button>
           <h3 className="min-w-[11ch] text-lg font-semibold tracking-tight">
             {MONTH_LABELS[parseMonth(month).mon]} {parseMonth(month).year}
           </h3>
-          <Link href={`?month=${shiftMonth(month, 1)}`} aria-label="Next month" className="rounded p-1.5 text-muted-foreground hover:bg-popover hover:text-foreground">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            nativeButton={false}
+            render={<Link href={`?month=${shiftMonth(month, 1)}`} aria-label="Next month" />}
+          >
             ›
-          </Link>
-          <Link href={`?month=${today.slice(0, 7)}`} className="text-sm text-muted-foreground hover:text-foreground">
+          </Button>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`?month=${today.slice(0, 7)}`} />}>
             Today
-          </Link>
+          </Button>
         </div>
         <Button size="sm" onClick={() => setDialogState({ mode: "create" })}>
           New planned post
@@ -314,8 +333,8 @@ export function MineCalendar({
       )}
 
       <div className="mt-7 overflow-x-auto pb-2">
-        <div className="min-w-[720px]">
-          <div className="grid grid-cols-7 gap-2 border-b border-line-strong pb-3 font-mono text-2xs text-faint">
+        <div className="min-w-[640px]">
+          <div className="grid grid-cols-7 gap-2 border-b border-border pb-3 font-mono text-2xs text-muted-foreground">
             {WEEKDAY_LABELS.map((d) => (
               <span key={d} data-lab>
                 {d}
@@ -325,6 +344,9 @@ export function MineCalendar({
           {grid.map((row, i) => (
             <div key={i} className="mt-2 grid grid-cols-7 gap-2">
               {row.map((cell) => (
+                // A day cell is a whole clickable surface rather than an action, so it
+                // stays a raw button: Button's pill shape and fixed height would fight
+                // the square grid this month view is built on.
                 <button
                   key={cell.key}
                   type="button"
@@ -333,46 +355,51 @@ export function MineCalendar({
                   onClick={() => setSelectedKey(cell.key)}
                   aria-pressed={selectedKey === cell.key}
                   className={cn(
-                    "relative flex min-h-[76px] flex-col gap-1.5 border p-2 text-left",
+                    "relative flex min-h-[76px] flex-col items-start gap-1.5 border p-2 text-left",
                     CELL_STYLE[cell.kind],
                     !cell.inMonth && "opacity-40",
                     selectedKey === cell.key && "ring-1 ring-foreground/40"
                   )}
                 >
                   {cell.plan?.publishedOwnPostId != null && (
-                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 bg-pos" />
+                    <span aria-hidden className="absolute right-1.5 top-1.5 size-2 bg-success" />
                   )}
                   <span className="flex w-full items-baseline gap-1.5">
-                    <span data-num className="font-mono text-2xs text-faint">
+                    <span data-num className="font-mono text-2xs text-muted-foreground">
                       {cell.day}
                     </span>
-                    {cell.key === today && <span className="font-mono text-2xs text-muted-foreground">today</span>}
+                    {cell.key === today && (
+                      <span className="hidden font-mono text-2xs text-muted-foreground sm:inline">today</span>
+                    )}
                   </span>
                   {cell.kind === "published" && (
                     <span data-num className="font-mono text-sm text-foreground">
                       {cell.reach === null ? "—" : cell.reach.toLocaleString("en-US")}
                     </span>
                   )}
-                  {cell.kind === "missed" && <span className="font-mono text-2xs text-destructive">missed</span>}
+                  {cell.kind === "missed" && <Badge variant="destructive">missed</Badge>}
                   {cell.kind === "scheduled" && (
-                    <span className="font-mono text-2xs text-muted-foreground" data-testid="mine-calendar-scheduled">
+                    <Badge variant="outline" data-testid="mine-calendar-scheduled">
                       scheduled
-                    </span>
+                    </Badge>
                   )}
+                  {/* PUBLISHING is a status label, not a loading placeholder, so the word
+                      stays put and the Spinner carries the motion the pulse used to. */}
                   {cell.kind === "publishing" && (
-                    <span className="animate-pulse font-mono text-2xs text-muted-foreground" data-testid="mine-calendar-publishing">
+                    <Badge variant="secondary" className="text-muted-foreground" data-testid="mine-calendar-publishing">
+                      <Spinner />
                       PUBLISHING
-                    </span>
+                    </Badge>
                   )}
                   {cell.kind === "failed" && (
-                    <span className="font-mono text-2xs text-destructive" data-testid="mine-calendar-failed">
+                    <Badge variant="destructive" className="max-w-full" data-testid="mine-calendar-failed">
                       failed{cell.plan?.errorClass ? ` · ${cell.plan.errorClass}` : ""}
-                    </span>
+                    </Badge>
                   )}
                   {cell.plan?.state === "published" && (
-                    <span aria-hidden className="font-mono text-2xs text-pos" data-testid="mine-calendar-published">
+                    <Badge aria-hidden variant="secondary" className="text-success" data-testid="mine-calendar-published">
                       ✓ published
-                    </span>
+                    </Badge>
                   )}
                   {cell.title && cell.kind !== "published" && (
                     <span className="line-clamp-2 text-2xs text-muted-foreground">{cell.title}</span>
@@ -384,11 +411,11 @@ export function MineCalendar({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-faint">
+      <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 font-mono text-2xs text-muted-foreground">
         {calendar.measuredAt !== null && (
           <>
             <span className="flex items-center gap-2">
-              <i aria-hidden className="size-3 border border-line-strong bg-card" /> published · number is reach
+              <i aria-hidden className="size-3 border border-border bg-card" /> published · number is reach
             </span>
             <span className="flex items-center gap-2">
               <i aria-hidden className="size-3 border border-border bg-destructive/5" /> dead air, 3+ days
@@ -402,13 +429,13 @@ export function MineCalendar({
           <i aria-hidden className="size-3 border border-destructive/40 bg-destructive/10" /> missed / failed
         </span>
         <span className="flex items-center gap-2">
-          <i aria-hidden className="size-3 border border-line-strong bg-card" /> publishing / published
+          <i aria-hidden className="size-3 border border-border bg-card" /> publishing / published
         </span>
         <span className="flex items-center gap-2">
           <i aria-hidden className="size-3 border border-border" /> open
         </span>
         <span className="flex items-center gap-2">
-          <i aria-hidden className="size-2 bg-pos" /> plan published
+          <i aria-hidden className="size-2 bg-success" /> plan published
         </span>
       </div>
 
@@ -427,7 +454,7 @@ export function MineCalendar({
           {selectedCell && (
             <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5">
             <SheetHeader className="p-0">
-              <p className="font-mono text-2xs tracking-wide text-faint">{selectedCell.key}</p>
+              <p className="font-mono text-2xs tracking-wide text-muted-foreground">{selectedCell.key}</p>
               <SheetTitle className="mt-1 text-lg font-medium text-foreground">
                 {selectedCell.title ?? (selectedCell.kind === "open" ? "Nothing planned" : "—")}
               </SheetTitle>
@@ -440,12 +467,13 @@ export function MineCalendar({
             )}
 
             {selectedCell.plan && (
-              <div className="flex flex-col gap-2 border-t border-border pt-3">
-                <p className="font-mono text-2xs tracking-wide text-faint uppercase">
+              <div className="flex flex-col gap-2">
+                <Separator />
+                <Badge variant="outline" className="max-w-full">
                   {selectedCell.plan.state}
                   {selectedCell.plan.scriptId === null && !selectedCell.plan.remixSessionId && " · no script yet"}
-                  {selectedCell.plan.publishedOwnPostId !== null && <span className="text-pos"> · published</span>}
-                </p>
+                  {selectedCell.plan.publishedOwnPostId !== null && <span className="text-success"> · published</span>}
+                </Badge>
                 {selectedCell.plan.scriptDetachedNote && (
                   <p className="text-xs text-destructive">{selectedCell.plan.scriptDetachedNote}</p>
                 )}
@@ -477,44 +505,49 @@ export function MineCalendar({
                   </div>
                 )}
 
-                {/* Publish lifecycle — none of this uses amber (The Amber Law): the
-                    in-progress mark is neutral, the verdict is green, failure is a red
-                    wash. The one amber action lives inside the publish dialog. */}
-                <div className="flex flex-col gap-2 border-t border-border pt-3">
+                {/* Publish lifecycle: the in-progress mark is neutral, the verdict is
+                    green and failure is a red wash, so no two of the three states can be
+                    mistaken for each other. The one primary action for the whole publish
+                    path lives inside the publish dialog, not here. */}
+                <div className="flex flex-col gap-2">
+                  <Separator />
                   {selectedCell.plan.scheduledAt && selectedCell.plan.state !== "published" && (
                     <p className="font-mono text-2xs tabular-nums text-muted-foreground" data-testid="mine-plan-scheduled-at">
                       publishes {new Date(selectedCell.plan.scheduledAt).toLocaleString("en-US")}
                     </p>
                   )}
 
+                  {/* PUBLISHING… is a status label, not a loading placeholder: the word
+                      stays and the Spinner carries the motion the pulse used to. */}
                   {selectedCell.plan.state === "publishing" && (
-                    <p className="animate-pulse font-mono text-2xs tracking-wide text-muted-foreground" data-testid="mine-plan-publishing">
+                    <Badge variant="secondary" className="max-w-full text-muted-foreground" data-testid="mine-plan-publishing">
+                      <Spinner />
                       PUBLISHING…
-                    </p>
+                    </Badge>
                   )}
 
                   {selectedCell.plan.state === "failed" && (
-                    <div className="border-l-2 border-destructive/40 bg-destructive/10 px-3 py-2" data-testid="mine-plan-failed">
-                      <p className="font-mono text-2xs tracking-wide text-destructive">
+                    <Alert variant="destructive" data-testid="mine-plan-failed">
+                      <AlertTitle>
                         publish failed{selectedCell.plan.errorClass ? ` · ${selectedCell.plan.errorClass}` : ""}
-                      </p>
-                      {selectedCell.plan.lastError && <p className="mt-1 text-xs text-muted-foreground">{selectedCell.plan.lastError}</p>}
+                      </AlertTitle>
+                      {selectedCell.plan.lastError && <AlertDescription>{selectedCell.plan.lastError}</AlertDescription>}
                       {selectedCell.plan.attemptCount < MAX_PUBLISH_ATTEMPTS && (
                         <Button
                           size="sm"
                           variant="outline"
-                          className="mt-2"
+                          className="mt-2 w-fit"
                           data-testid="mine-plan-retry"
                           onClick={() => retry(selectedCell.plan!)}
                         >
                           Retry
                         </Button>
                       )}
-                    </div>
+                    </Alert>
                   )}
 
                   {selectedCell.plan.state === "published" && (
-                    <p className="font-mono text-2xs text-pos" data-testid="mine-plan-published">
+                    <p className="font-mono text-2xs text-success" data-testid="mine-plan-published">
                       ✓ published{selectedCell.plan.dryRun ? " (dry run)" : ""}
                       {selectedCell.plan.publishedOwnPostId && !selectedCell.plan.dryRun && (
                         <>
@@ -531,7 +564,7 @@ export function MineCalendar({
                     selectedCell.plan.state === "scheduled" ||
                     selectedCell.plan.state === "missed" ||
                     selectedCell.plan.state === "failed") && (
-                    <div className="flex flex-wrap items-center gap-4">
+                    <ButtonGroup className="max-w-full flex-wrap">
                       <Button
                         size="sm"
                         variant="outline"
@@ -541,41 +574,41 @@ export function MineCalendar({
                         {selectedCell.plan.videoAssetId ? "Edit publish" : "Upload & schedule"}
                       </Button>
                       {selectedCell.plan.scheduledAt && (
-                        <button
-                          type="button"
+                        <Button
+                          size="sm"
+                          variant="outline"
                           data-testid="mine-plan-cancel-publish"
-                          className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline active:translate-y-px"
                           onClick={() => setConfirm({ kind: "cancel", plan: selectedCell.plan! })}
                         >
                           cancel scheduled publish
-                        </button>
+                        </Button>
                       )}
-                    </div>
+                    </ButtonGroup>
                   )}
                 </div>
 
-                <div className="mt-1 flex flex-wrap gap-4">
-                  <button
-                    type="button"
-                    className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline active:translate-y-px"
+                <ButtonGroup className="mt-1 max-w-full flex-wrap">
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => setDialogState({ mode: "edit", plan: selectedCell.plan! })}
                   >
                     edit / reschedule
-                  </button>
+                  </Button>
                   {selectedCell.plan.publishedOwnPostId === null && (
-                    <button
-                      type="button"
+                    <Button
+                      size="sm"
+                      variant="ghost"
                       data-testid="mine-calendar-mark-published"
-                      className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline active:translate-y-px"
                       onClick={() => markPublishedNoLink(selectedCell.plan!)}
                     >
                       mark published, no post linked
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    type="button"
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     data-testid="mine-plan-delete"
-                    className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline active:translate-y-px"
                     onClick={() =>
                       selectedCell.plan!.videoAssetId
                         ? setConfirm({ kind: "delete", plan: selectedCell.plan! })
@@ -583,8 +616,8 @@ export function MineCalendar({
                     }
                   >
                     delete
-                  </button>
-                </div>
+                  </Button>
+                </ButtonGroup>
               </div>
             )}
 
@@ -605,33 +638,35 @@ export function MineCalendar({
       </Sheet>
 
       {undatedDrafts.length > 0 && (
-        <div className="mt-10 border-t border-border pt-6">
-          <p className="font-mono text-2xs tracking-wide text-faint uppercase">Undated drafts</p>
-          <div className="mt-3 flex flex-col">
-            {undatedDrafts.map((d) => (
-              <div key={d.id} className="flex items-center justify-between gap-4 border-b border-border py-2.5">
-                <span className="truncate text-sm text-foreground">{d.title}</span>
-                <div className="flex shrink-0 items-center gap-4">
-                  <button
-                    type="button"
-                    className="font-mono text-2xs text-muted-foreground hover:text-foreground hover:underline"
-                    onClick={() => setDialogState({ mode: "edit", plan: d })}
-                  >
-                    give it a date
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="mine-undated-delete"
-                    className="font-mono text-2xs text-muted-foreground hover:text-destructive hover:underline"
-                    onClick={() => (d.videoAssetId ? setConfirm({ kind: "delete", plan: d }) : remove(d))}
-                  >
-                    delete
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <Card className="mt-10">
+          <CardHeader>
+            <CardTitle>Undated drafts</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ItemGroup>
+              {undatedDrafts.map((d) => (
+                <Item key={d.id} size="sm">
+                  <ItemContent>
+                    <ItemTitle className="block truncate">{d.title}</ItemTitle>
+                  </ItemContent>
+                  <ItemActions>
+                    <Button size="sm" variant="ghost" onClick={() => setDialogState({ mode: "edit", plan: d })}>
+                      give it a date
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      data-testid="mine-undated-delete"
+                      onClick={() => (d.videoAssetId ? setConfirm({ kind: "delete", plan: d }) : remove(d))}
+                    >
+                      delete
+                    </Button>
+                  </ItemActions>
+                </Item>
+              ))}
+            </ItemGroup>
+          </CardContent>
+        </Card>
       )}
 
       {dialogState && (

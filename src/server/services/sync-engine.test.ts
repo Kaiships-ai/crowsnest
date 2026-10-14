@@ -788,6 +788,27 @@ describe("runSync — job bookkeeping", () => {
     expect(job.assetsDownloaded).toBeGreaterThan(0);
   });
 
+  test("a re-sync downloads only the thumbnails we do not hold yet", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@rethumb");
+
+    const child = (n: number) => ({ externalId: `rt3-c${n}`, position: n, mediaType: "photo" as const, thumbnailUrl: `https://cdn.example/rt3-c${n}.jpg`, videoUrl: null, raw: {} });
+    const items = [makeMedia("rt1", 1), makeMedia("rt2", 2), makeMedia("rt3", 3, { mediaType: "carousel", children: [child(0), child(1)] })];
+    const page = (): Page[] => [{ items, nextCursor: null, stopReason: "lookback" }];
+
+    // First sync: rt2's thumbnail fails, everything else lands.
+    await runSync({ channelIds: [channelId], client: stubClient({ pages: page(), failDownloadsMatching: /rt2/ }).client, sleep: noopSleep, enrichPerChannel: 0 });
+
+    const second = stubClient({ pages: page() });
+    const result = await runSync({ channelIds: [channelId], client: second.client, sleep: noopSleep, enrichPerChannel: 0 });
+
+    // Only the avatar and the thumbnail that failed last time are fetched again.
+    expect(second.downloadCalls.filter((u) => !u.includes("avatar"))).toEqual(["https://cdn.example/rt2/thumb.jpg"]);
+    expect(result.itemsUpdated).toBe(3);
+  });
+
   test("a withheld metric never erases one we already have", async () => {
     const { db, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
@@ -1695,15 +1716,19 @@ describe("runSync — stale-lock safety (audit F3)", () => {
     // One item can burn IG_DOWNLOAD_TIMEOUT_MS on the video and again on the thumbnail, so
     // a single page can be silent for tens of minutes. Flushing per page is not a
     // wall-clock guarantee; this drives that exact pathology with a clock that only moves
-    // when a download happens.
+    // when a download happens. The page's thumbnails download in parallel before its
+    // items are counted, so the signal is the "saving" phase a mid-page heartbeat writes
+    // (the page itself starts at "fetching"); the yield lets a sibling download's
+    // heartbeat land before this one looks.
     let clockMs = Date.now();
-    const observed: number[] = [];
+    const observed: (string | null)[] = [];
     const assetDeps: EnsureAssetDeps = {
       client: {
         async download(input: { url: string; kind: "thumbnail" | "video" | "avatar" }) {
           clockMs += 40_000;
+          await new Promise((resolve) => setTimeout(resolve, 0));
           const running = await runningJob(channelId);
-          if (running) observed.push(running.itemsSeen);
+          if (running) observed.push(running.phase);
           const sha = Buffer.from(input.url).toString("hex").padEnd(64, "0").slice(0, 64);
           return { path: `${sha.slice(0, 2)}/${sha}.jpg`, bytes: 2048, contentType: "image/jpeg", sha256: sha, width: 10, height: 10, durationSec: null };
         },
@@ -1721,8 +1746,8 @@ describe("runSync — stale-lock safety (audit F3)", () => {
       assetDeps,
     });
 
-    // Progress advanced WHILE the page was still being processed.
-    expect(observed.at(-1)).toBeGreaterThan(0);
+    // The row heartbeated WHILE the page was still being processed.
+    expect(observed.at(-1)).toBe("saving");
   });
 
   test("a fast page does not write progress per item", async () => {

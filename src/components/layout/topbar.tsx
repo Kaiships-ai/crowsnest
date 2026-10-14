@@ -7,6 +7,9 @@ import { useCommandMenu } from "@/components/layout/command-menu";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { FailureStrip } from "@/components/sync/failure-strip";
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
 
 /**
@@ -62,21 +65,29 @@ export function Topbar({ strip }: TopbarProps) {
 
   return (
     <div className="flex shrink-0 flex-col border-b border-border">
-      <header className="flex h-14 shrink-0 items-center justify-between px-6">
-        <h1 className="text-lg font-semibold">{title}</h1>
+      <header className="flex h-14 shrink-0 items-center justify-between gap-2 px-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="h-4" />
+          {/* 16px, the stock `text-base`: this is shell chrome naming the page, not the
+              page's own lead heading. */}
+          <h1 className="min-w-0 truncate text-base font-medium">{title}</h1>
+        </div>
 
-        <div className="flex items-center gap-3">
-          {/* Reuses the shared pill Button rather than a hand-rolled square trigger — every
-              clickable control in this app is a pill, this one included. */}
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          {/* A dialog trigger, not a real input, so it stays a Button. It collapses to the
+              bare icon below `sm`, where a 256px search affordance would crowd out the
+              title it sits beside. */}
           <Button
             type="button"
             variant="outline"
             onClick={() => setOpen(true)}
-            className="h-8 w-64 justify-start gap-2 px-3 font-normal text-muted-foreground"
+            aria-label="Search"
+            className="h-8 w-8 justify-center gap-2 px-0 font-normal text-muted-foreground sm:w-64 sm:justify-start sm:px-3"
           >
             <Search className="size-3.5 shrink-0" />
-            <span className="flex-1 text-left text-sm">Search…</span>
-            <kbd className="font-mono text-2xs text-faint">⌘K</kbd>
+            <span className="hidden flex-1 text-left text-sm sm:inline">Search…</span>
+            <Kbd className="hidden sm:inline-flex">⌘K</Kbd>
           </Button>
           <NotificationCenter />
           {/* Context action slot — later tasks inject a page-specific primary action here (e.g. "Add channel"). */}

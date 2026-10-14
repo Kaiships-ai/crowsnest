@@ -1,4 +1,5 @@
-import { and, desc, eq, gte, inArray, isNull, lt, ne, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, ne, or } from "drizzle-orm";
+import PQueue from "p-queue";
 import { db, newId, nowIso, tables } from "../db";
 import { config } from "../config";
 import { log } from "../lib/logger";
@@ -125,6 +126,14 @@ export const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
  *  already at the edge of what a user will sit through; beyond that, failing the channel
  *  and letting them retry is the honest outcome. */
 const MAX_BACKOFF_MS = 300_000;
+
+/**
+ * Thumbnail downloads are CDN fetches through the sidecar's `/download`, which does not
+ * take the Instagram session lock, so they may overlap. One queue for the whole process,
+ * shared by every channel worker, so a library run never has more than this many in flight.
+ */
+// ponytail: fixed global width of 4 CDN fetches; make it a setting if a slow link needs tuning.
+const thumbQueue = new PQueue({ concurrency: 4 });
 
 function jitterMs(): number {
   return PAGE_JITTER_MIN_MS + Math.random() * PAGE_JITTER_SPAN_MS;
@@ -1003,6 +1012,29 @@ async function upsertVideo(
   return { id, created: true, viewCount: m.viewCount, likeCount: m.likeCount, commentCount: m.commentCount };
 }
 
+/**
+ * Which thumbnails on a page we already hold: a post's `externalId`, or
+ * `${postExternalId}/${childExternalId}` for a carousel slide. A re-sync used to fetch
+ * every one of them again only for the sidecar to hash the bytes and report a dedupe;
+ * on the live 358-post library run that was 523 of 646 downloads and about half the
+ * wall clock. Posts whose thumbnail never landed are left out, so a failed download
+ * is retried on the next sync.
+ */
+async function storedThumbs(externalIds: string[]): Promise<Set<string>> {
+  if (externalIds.length === 0) return new Set();
+  const inPage = and(eq(tables.videos.platform, "instagram"), inArray(tables.videos.externalId, externalIds));
+  const posts = await db
+    .select({ externalId: tables.videos.externalId })
+    .from(tables.videos)
+    .where(and(inPage, isNotNull(tables.videos.thumbnailAssetId)));
+  const slides = await db
+    .select({ post: tables.videos.externalId, externalId: tables.videoChildren.externalId })
+    .from(tables.videoChildren)
+    .innerJoin(tables.videos, eq(tables.videoChildren.videoId, tables.videos.id))
+    .where(and(inPage, isNotNull(tables.videoChildren.thumbnailAssetId)));
+  return new Set([...posts.map((p) => p.externalId), ...slides.map((s) => `${s.post}/${s.externalId}`)]);
+}
+
 /** Carousel children: one row per slide, keyed on (video_id, position). */
 async function upsertChildren(
   videoId: string,
@@ -1332,6 +1364,32 @@ async function syncOneChannel(
       // signal that the incremental walk has caught up (Round 1).
       const createdBeforePage = counters.itemsCreated;
 
+      // Fetch the page's missing thumbnails up front, in parallel on `thumbQueue`, then run
+      // the item loop below serially against the results. Only items under the cap: the loop
+      // stops there, so a thumbnail past it would be downloaded for nothing. A URL with no
+      // entry (already stored, or none given) reads as "not fetched", which upsertVideo and
+      // upsertChildren already treat as "keep the asset the row has".
+      const inCap = page.items.slice(0, Math.max(0, opts.maxItems - counters.itemsSeen));
+      const stored = await storedThumbs(inCap.map((i) => i.externalId));
+      const missing = new Set<string>();
+      for (const item of inCap) {
+        if (item.thumbnailUrl && !stored.has(item.externalId)) missing.add(item.thumbnailUrl);
+        for (const c of item.children) {
+          if (c.thumbnailUrl && !stored.has(`${item.externalId}/${c.externalId}`)) missing.add(c.thumbnailUrl);
+        }
+      }
+      const fetched = new Map(
+        await thumbQueue.addAll(
+          [...missing].map((url) => async () => {
+            const result = await downloadThumb(url);
+            // A download can take up to IG_DOWNLOAD_TIMEOUT_MS; keep the row alive meanwhile.
+            await tracker.flushIfDue({ phase: "saving", counters });
+            return [url, result] as const;
+          })
+        )
+      );
+      const pageThumb = async (url: string | null) => (url && fetched.get(url)) || { assetId: null, failed: false };
+
       for (const item of page.items) {
         if (counters.itemsSeen >= opts.maxItems) {
           stopReason = "cap";
@@ -1339,7 +1397,7 @@ async function syncOneChannel(
         }
         await tracker.flushIfDue({ phase: "saving", counters });
         try {
-          const thumb = await downloadThumb(item.thumbnailUrl);
+          const thumb = await pageThumb(item.thumbnailUrl);
           if (thumb.assetId) counters.assetsDownloaded += 1;
           if (thumb.failed) counters.assetsFailed += 1;
 
@@ -1359,7 +1417,7 @@ async function syncOneChannel(
           else counters.itemsUpdated += 1;
 
           if (item.children.length > 0) {
-            const childAssets = await upsertChildren(up.id, item, downloadThumb);
+            const childAssets = await upsertChildren(up.id, item, pageThumb);
             counters.assetsDownloaded += childAssets.assetsDownloaded;
             counters.assetsFailed += childAssets.assetsFailed;
           }

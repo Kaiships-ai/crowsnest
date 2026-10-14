@@ -4,6 +4,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
 import type { ChannelRow } from "@/server/queries/channels";
 import { ChannelCard } from "./channel-card";
 import { FleetColumnMenu } from "./fleet-column-menu";
@@ -34,8 +35,8 @@ export function KanbanColumn({
   const someSelected = selecting && channelIds.some((id) => selectedIds.has(id));
 
   return (
-    <section className="flex min-h-0 w-[280px] flex-none flex-col border-r border-border px-4 last:border-r-0">
-      <div className="flex items-center gap-2 border-b border-border px-1 pb-3">
+    <section className="flex min-h-0 w-[300px] min-w-[300px] flex-none flex-col border-r border-border px-4 last:border-r-0">
+      <div className="flex h-11 items-center gap-2 border-b border-border px-1 pb-3">
         {selecting && channelIds.length > 0 && (
           <Checkbox
             data-testid="channels-column-select-all"
@@ -46,11 +47,11 @@ export function KanbanColumn({
             className="shrink-0"
           />
         )}
-        <span className={`font-mono text-2xs uppercase tracking-wider ${pinned ? "text-faint" : "text-muted-foreground"}`}>{name}</span>
-        <span data-num className="text-2xs text-faint">{count}</span>
+        <span className={`font-mono text-2xs uppercase tracking-wider ${pinned ? "text-muted-foreground" : "text-muted-foreground"}`}>{name}</span>
+        <span data-num className="text-2xs text-muted-foreground">{count}</span>
         <span className="flex-1" />
         {pinned ? (
-          <span className="font-mono text-2xs tracking-wide text-dim">pinned</span>
+          <span className="font-mono text-2xs tracking-wide text-muted-foreground">pinned</span>
         ) : (
           fleetId && (
             <FleetColumnMenu
@@ -62,10 +63,13 @@ export function KanbanColumn({
         )}
       </div>
 
+      {/* `*:shrink-0`: Card is overflow-hidden, which drops its flex min-height to 0, so
+          in this height-bounded scroller the cards would shrink and clip their stats
+          instead of the column scrolling. */}
       <div
         ref={setNodeRef}
         data-over={isOver ? "" : undefined}
-        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-1 pt-3 pb-4 data-[over]:bg-line-strong/5"
+        className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto *:shrink-0 px-1 pt-3 pb-4 data-[over]:bg-border/5"
       >
         <SortableContext items={channelIds} strategy={verticalListSortingStrategy}>
           {channelIds.map((id) => (
@@ -79,9 +83,13 @@ export function KanbanColumn({
           ))}
         </SortableContext>
         {channelIds.length === 0 && (
-          <div className="grid flex-1 place-items-center border border-dashed border-border text-2xs tracking-wide text-faint [background-image:repeating-linear-gradient(135deg,var(--hatch-2)_0,var(--hatch-2)_1px,transparent_1px,transparent_11px)]">
-            Drop channels here
-          </div>
+          // Empty ships the dash style but no border width, so a drop target that has
+          // to read as an outlined well supplies its own `border`.
+          <Empty className="flex-1 border border-dashed p-6">
+            <EmptyHeader>
+              <EmptyDescription>Drop channels here</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         )}
       </div>
     </section>

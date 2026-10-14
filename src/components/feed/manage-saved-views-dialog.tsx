@@ -22,9 +22,14 @@ import { useRouter } from "next/navigation";
 import { Check, Lock, Pencil, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import {
   createSavedViewAction,
   deleteSavedViewAction,
@@ -130,114 +135,143 @@ export function ManageSavedViewsDialog({
           <DialogDescription>Save the feed&rsquo;s current filters as a view, or manage the ones you already have.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
-          <p className="text-xs text-muted-foreground">
-            Current filters: <span className="text-foreground">{criteriaSummary(currentCriteria)}</span>
-          </p>
-          <div className="flex items-center gap-2">
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name this view"
-              aria-label="New view name"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreate();
-              }}
-            />
-            <Button size="sm" onClick={() => void handleCreate()} disabled={creating || !newName.trim()}>
-              {creating ? "Saving…" : "Save view"}
-            </Button>
-          </div>
-        </div>
+        <Card size="sm">
+          <CardContent className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              Current filters: <span className="text-foreground">{criteriaSummary(currentCriteria)}</span>
+            </p>
+            <InputGroup>
+              <InputGroupInput
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="Name this view"
+                aria-label="New view name"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleCreate();
+                }}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  variant="default"
+                  onClick={() => void handleCreate()}
+                  disabled={creating || !newName.trim()}
+                >
+                  {creating ? "Saving…" : "Save view"}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+          </CardContent>
+        </Card>
 
-        <div className="flex flex-col gap-1">
-          {savedFilters.length === 0 && <p className="py-2 text-sm text-muted-foreground">No saved views yet.</p>}
+        <ItemGroup>
+          {savedFilters.length === 0 && (
+            <Empty className="py-6">
+              <EmptyHeader>
+                <EmptyTitle>No saved views yet.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          )}
           {savedFilters.map((view) => {
             const isEditing = editingId === view.id;
             const isPendingDelete = pendingDeleteId === view.id;
 
-            return (
-              <div key={view.id} className="flex flex-col gap-1 rounded-md px-2 py-1.5 hover:bg-muted/50">
-                {isEditing ? (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={editingName}
-                      onChange={(e) => setEditingName(e.target.value)}
-                      autoFocus
-                      aria-label={`Rename ${view.name}`}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void handleRename(view.id);
-                        if (e.key === "Escape") resetRowState();
-                      }}
-                    />
-                    <Button
-                      size="icon-sm"
-                      variant="ghost"
-                      aria-label="Confirm rename"
-                      onClick={() => void handleRename(view.id)}
-                      disabled={renaming || !editingName.trim()}
-                    >
-                      <Check />
-                    </Button>
-                    <Button size="icon-sm" variant="ghost" aria-label="Cancel rename" onClick={resetRowState} disabled={renaming}>
-                      <X />
-                    </Button>
-                  </div>
-                ) : isPendingDelete ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm text-muted-foreground">Delete &ldquo;{view.name}&rdquo;?</span>
-                    <div className="flex items-center gap-2">
+            if (isEditing) {
+              return (
+                <Item key={view.id} size="sm">
+                  <ItemContent>
+                    <InputGroup>
+                      <InputGroupInput
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        autoFocus
+                        aria-label={`Rename ${view.name}`}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleRename(view.id);
+                          if (e.key === "Escape") resetRowState();
+                        }}
+                      />
+                      <InputGroupAddon align="inline-end">
+                        <InputGroupButton
+                          size="icon-xs"
+                          aria-label="Confirm rename"
+                          onClick={() => void handleRename(view.id)}
+                          disabled={renaming || !editingName.trim()}
+                        >
+                          <Check />
+                        </InputGroupButton>
+                        <InputGroupButton size="icon-xs" aria-label="Cancel rename" onClick={resetRowState} disabled={renaming}>
+                          <X />
+                        </InputGroupButton>
+                      </InputGroupAddon>
+                    </InputGroup>
+                  </ItemContent>
+                </Item>
+              );
+            }
+
+            if (isPendingDelete) {
+              return (
+                <Item key={view.id} size="sm">
+                  <ItemContent>
+                    <ItemTitle className="text-muted-foreground">Delete &ldquo;{view.name}&rdquo;?</ItemTitle>
+                  </ItemContent>
+                  <ItemActions>
+                    <ButtonGroup>
                       <Button size="xs" variant="outline" onClick={resetRowState} disabled={deleting}>
                         Cancel
                       </Button>
                       <Button size="xs" variant="destructive" onClick={() => void handleDelete(view.id)} disabled={deleting}>
                         {deleting ? "Deleting…" : "Delete"}
                       </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="truncate text-sm">{view.name}</span>
-                      <span className="ml-2 text-2xs text-faint">{criteriaSummary(view.criteria)}</span>
-                    </div>
-                    {view.isSystem ? (
-                      // System presets are product configuration, not something Kai
-                      // made — every rename/delete call on one comes back
-                      // SAVED_VIEW_IS_SYSTEM, so there's nothing to offer here beyond
-                      // saying plainly that it's fixed.
-                      <span className="flex shrink-0 items-center gap-1 text-2xs text-faint" title="Built-in view, can't be changed">
-                        <Lock className="size-3" /> Built-in
-                      </span>
-                    ) : (
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`Rename ${view.name}`}
-                          onClick={() => {
-                            setEditingId(view.id);
-                            setEditingName(view.name);
-                          }}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          aria-label={`Delete ${view.name}`}
-                          onClick={() => setPendingDeleteId(view.id)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </ButtonGroup>
+                  </ItemActions>
+                </Item>
+              );
+            }
+
+            return (
+              <Item key={view.id} size="sm">
+                <ItemContent>
+                  <ItemTitle>{view.name}</ItemTitle>
+                  <ItemDescription>{criteriaSummary(view.criteria)}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  {view.isSystem ? (
+                    // System presets are product configuration, not something Kai
+                    // made — every rename/delete call on one comes back
+                    // SAVED_VIEW_IS_SYSTEM, so there's nothing to offer here beyond
+                    // saying plainly that it's fixed.
+                    <Badge variant="outline" title="Built-in view, can't be changed">
+                      <Lock /> Built-in
+                    </Badge>
+                  ) : (
+                    <ButtonGroup>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Rename ${view.name}`}
+                        onClick={() => {
+                          setEditingId(view.id);
+                          setEditingName(view.name);
+                        }}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label={`Delete ${view.name}`}
+                        onClick={() => setPendingDeleteId(view.id)}
+                      >
+                        <Trash2 />
+                      </Button>
+                    </ButtonGroup>
+                  )}
+                </ItemActions>
+              </Item>
             );
           })}
-        </div>
+        </ItemGroup>
       </DialogContent>
     </Dialog>
   );

@@ -18,8 +18,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CircleAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { removeChannelAction } from "@/server/actions/channel-actions";
@@ -102,23 +104,26 @@ export function RemoveChannelDialog({
         </DialogHeader>
 
         {refusal && refusal.items && (
-          // min-w-0 on every level from the grid item down: DialogContent is a CSS grid,
-          // and a grid/flex item's default automatic min-width is its content's
-          // min-content size — for a long, unbroken caption that's the whole line, wide
-          // enough to blow past the dialog's max-width and spill out of the card
-          // entirely rather than wrap or truncate inside it (caught in browser
+          // min-w-0 on every level from the grid item down: both DialogContent and Alert
+          // are CSS grids, and a grid/flex item's default automatic min-width is its
+          // content's min-content size — for a long, unbroken caption that's the whole
+          // line, wide enough to blow past the dialog's max-width and spill out of the
+          // card entirely rather than wrap or truncate inside it (caught in browser
           // verification: a real saved-post caption pushed the refusal box past the
           // dialog's right edge). min-w-0 breaks that propagation at the source.
-          <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
-            <p className="text-sm text-destructive">{refusal.message}</p>
-            <ul className="flex min-w-0 max-h-40 flex-col gap-1 overflow-y-auto text-xs text-muted-foreground">
-              {refusal.items.map((item) => (
-                <li key={item.id} className="min-w-0 truncate">
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <Alert variant="destructive" className="min-w-0">
+            <CircleAlert />
+            <AlertTitle className="min-w-0">{refusal.message}</AlertTitle>
+            <AlertDescription>
+              <ul className="flex min-w-0 max-h-40 flex-col gap-1 overflow-y-auto">
+                {refusal.items.map((item) => (
+                  <li key={item.id} className="min-w-0 truncate">
+                    {item.label}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
         )}
 
         <DialogFooter>

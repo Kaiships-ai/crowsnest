@@ -9,13 +9,18 @@
  * sequentially with isolated per-account state today, not yet live-parallel.
  */
 
+import { Users } from "lucide-react";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import {
   addAccountAction,
   removeAccountAction,
@@ -80,80 +85,131 @@ export function AccountsSection({ initialAccounts }: { initialAccounts: IgAccoun
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-medium text-foreground">Instagram accounts</h2>
-        <p className="max-w-[64ch] text-xs text-muted-foreground">
-          Each account syncs under its own session, cooldown, and proxy or device identity. Assign channels to an account
-          on the Channels screen. Today sync runs accounts one at a time with isolated per-account state; a cooldown or
-          failure on one account never stops the others.
-        </p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Instagram accounts</CardTitle>
+          <CardDescription>
+            Each account syncs under its own session, cooldown, and proxy or device identity. Assign channels to an account
+            on the Channels screen. Today sync runs accounts one at a time with isolated per-account state; a cooldown or
+            failure on one account never stops the others.
+          </CardDescription>
+        </CardHeader>
 
-      {initialAccounts.length > 0 ? (
-        <div className="flex flex-col divide-y divide-border border border-border">
-          {initialAccounts.map((a) => {
-            const cd = cooldownLabel(a.cooldownUntil);
-            return (
-              <div key={a.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm text-foreground">{a.label}</span>
-                    {a.isDefault && (
-                      <Badge variant="outline" className="rounded-none">
-                        Default
-                      </Badge>
-                    )}
-                    {a.status === "paused" && (
-                      <Badge variant="secondary" className="rounded-none">
-                        Paused
-                      </Badge>
-                    )}
-                    {cd && (
-                      <Badge variant="destructive" className="rounded-none">
-                        {cd}
-                      </Badge>
-                    )}
-                  </div>
-                  <span className="truncate font-mono text-2xs text-muted-foreground">
-                    @{a.username}
-                    {a.proxy ? " · proxy set" : ""}
-                  </span>
-                </div>
-                <Button variant="ghost" size="sm" className="rounded-none" disabled={pending} onClick={() => toggle(a)}>
-                  {a.status === "active" ? "Pause" : "Resume"}
-                </Button>
-                {!a.isDefault && (
-                  <Button variant="ghost" size="sm" className="rounded-none text-destructive" disabled={pending} onClick={() => remove(a)}>
-                    Remove
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="max-w-[60ch] text-sm text-muted-foreground">
-          No accounts yet. Add your first Instagram account below; it becomes the default that every channel syncs under
-          until you assign channels to other accounts.
-        </p>
-      )}
+        <CardContent>
+          {initialAccounts.length > 0 ? (
+            <ItemGroup>
+              {initialAccounts.map((a) => {
+                const cd = cooldownLabel(a.cooldownUntil);
+                return (
+                  <Item key={a.id} size="sm">
+                    <ItemContent>
+                      <ItemTitle>
+                        {a.label}
+                        {a.isDefault && <Badge variant="outline">Default</Badge>}
+                        {a.status === "paused" && <Badge variant="secondary">Paused</Badge>}
+                        {cd && <Badge variant="destructive">{cd}</Badge>}
+                      </ItemTitle>
+                      <ItemDescription>
+                        @{a.username}
+                        {a.proxy ? " · proxy set" : ""}
+                      </ItemDescription>
+                    </ItemContent>
+                    <ItemActions>
+                      <Button variant="ghost" size="sm" disabled={pending} onClick={() => toggle(a)}>
+                        {a.status === "active" ? "Pause" : "Resume"}
+                      </Button>
+                      {!a.isDefault && (
+                        <Button variant="destructive" size="sm" disabled={pending} onClick={() => remove(a)}>
+                          Remove
+                        </Button>
+                      )}
+                    </ItemActions>
+                  </Item>
+                );
+              })}
+            </ItemGroup>
+          ) : (
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Users />
+                </EmptyMedia>
+                <EmptyTitle>No accounts yet.</EmptyTitle>
+                <EmptyDescription>
+                  Add your first Instagram account below; it becomes the default that every channel syncs under until you
+                  assign channels to other accounts.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 border border-border p-4">
-        <span data-lab className="font-mono text-2xs text-faint">
-          Add an account
-        </span>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input placeholder="Label (e.g. Burner A)" value={label} onChange={(e) => setLabel(e.target.value)} />
-          <Input placeholder="IG username" value={username} onChange={(e) => setUsername(e.target.value)} />
-          <Input type="password" placeholder="IG password (optional)" value={password} onChange={(e) => setPassword(e.target.value)} />
-          <Input placeholder="Proxy URL (optional)" value={proxy} onChange={(e) => setProxy(e.target.value)} />
-        </div>
-        <div>
-          <Button className="rounded-none" disabled={!canAdd} onClick={add}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Add an account</CardTitle>
+        </CardHeader>
+
+        <CardContent>
+          {/* The labels are visually hidden, not absent: every input already carries its
+              wording in the placeholder, and a real `<label for>` is what actually names
+              the control for a screen reader. Duplicating the text on screen would be new
+              copy this form never had. */}
+          <FieldGroup className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="account-label" className="sr-only">
+                Label (e.g. Burner A)
+              </FieldLabel>
+              <Input
+                id="account-label"
+                placeholder="Label (e.g. Burner A)"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="account-username" className="sr-only">
+                IG username
+              </FieldLabel>
+              <Input
+                id="account-username"
+                placeholder="IG username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="account-password" className="sr-only">
+                IG password (optional)
+              </FieldLabel>
+              <Input
+                id="account-password"
+                type="password"
+                placeholder="IG password (optional)"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="account-proxy" className="sr-only">
+                Proxy URL (optional)
+              </FieldLabel>
+              <Input
+                id="account-proxy"
+                placeholder="Proxy URL (optional)"
+                value={proxy}
+                onChange={(e) => setProxy(e.target.value)}
+              />
+            </Field>
+          </FieldGroup>
+        </CardContent>
+
+        <CardFooter>
+          <Button disabled={!canAdd} onClick={add}>
             {pending ? "Adding..." : "Add account"}
           </Button>
-        </div>
-      </div>
+        </CardFooter>
+      </Card>
     </div>
   );
 }

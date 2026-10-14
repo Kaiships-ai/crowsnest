@@ -14,7 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { createSavedPostAction, deleteSavedPostAction } from "@/server/actions/saved-post-actions";
 
@@ -113,8 +113,8 @@ export function SavePostButton({
         <DialogHeader>
           <DialogTitle>Keep this post</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="saved-post-note">Why it is worth keeping</Label>
+        <Field>
+          <FieldLabel htmlFor="saved-post-note">Why it is worth keeping</FieldLabel>
           <Textarea
             id="saved-post-note"
             value={note}
@@ -124,8 +124,8 @@ export function SavePostButton({
           />
           {/* Optional on purpose. A required field here would get filled with anything
               to get past it, and a note that says nothing is worse than no note. */}
-          <p className="text-2xs text-faint">Optional. The vault shows this next to the score.</p>
-        </div>
+          <FieldDescription>Optional. The vault shows this next to the score.</FieldDescription>
+        </Field>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>
             Cancel

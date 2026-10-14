@@ -77,7 +77,7 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         {/* Avatar's size variants top out at "lg" (40px) — nearest system tier to
             DESIGN.md's 48px; not worth fighting the component's data-attribute-scoped
             size classes with a className override for an 8px difference. */}
@@ -92,7 +92,7 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
           <h2 className="text-lg font-semibold">{channel.handle}</h2>
           {/* One mono meta line (mine.html's header), not a badge chip plus a caption —
               platform, sync recency, followers and post count read as one fact together. */}
-          <p className="font-mono text-2xs tracking-[0.06em] text-faint">
+          <p className="font-mono text-2xs tracking-[0.06em] text-muted-foreground">
             {platformLabel(channel.platform)} · {channel.lastSyncedAt ? `synced ${relativeTime(channel.lastSyncedAt)}` : "never synced"} ·{" "}
             <span data-num>{formatCompact(channel.followerCount)}</span> followers
             {postCount !== undefined && (
@@ -114,7 +114,7 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
           <ExternalLink className="size-4" />
         </a>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           {covered && progress !== null && (
             <span className="max-w-[22rem] truncate text-xs text-muted-foreground tabular-nums" aria-live="polite">
               {/* Worded off `coverage`, not off which handle the run happens to be naming
@@ -148,10 +148,10 @@ export function ChannelHeader({ channel, postCount }: { channel: ChannelRow; pos
             </Button>
           )}
 
-          {/* Kept separate from "Sync now" rather than folded into a menu — this is the
-              only other action on the page, and the amber budget's "one primary action"
-              rule is about competing calls to action, not about hiding every secondary
-              one. Ghost + destructive-on-hover keeps it from reading as a second primary
+          {/* Kept separate from "Sync now" rather than folded into a menu: this is the
+              only other action on the page, and the "one primary action per screen" rule
+              is about competing calls to action, not about hiding every secondary one.
+              Ghost + destructive-on-hover keeps it from reading as a second primary
               button next to Sync now. */}
           <Button
             variant="ghost"

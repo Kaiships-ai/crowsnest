@@ -15,7 +15,10 @@ import { StageFinish } from "@/components/remix/stage-finish";
 import { StageScript } from "@/components/remix/stage-script";
 import { StageStyle } from "@/components/remix/stage-style";
 import { STAGE_ORDER, Stepper } from "@/components/remix/stepper";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { CardFooter } from "@/components/ui/card";
 import {
   getOrCreateSessionAction,
   getRemixRunLogAction,
@@ -188,22 +191,26 @@ export function RemixStudio({
   }
 
   return (
-    <div className="flex h-full">
+    // Below lg the rail stacks above the stage and the whole studio is one scroller;
+    // at lg the rail and the stage scroll independently inside a fixed viewport.
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
       <ContextRail detail={detail} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="border-b border-border px-6 py-4">
+      <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+        <div className="border-b border-border px-4 py-4 sm:px-6">
           <Stepper activeStage={activeStage} furthestStage={session.stage} onSelect={goToStage} />
         </div>
 
         {/* 2026-08-15 spec part 7: one line naming what this whole studio is doing,
             so the stepper's six labels read as a sequence rather than six unrelated
             screens. */}
-        <div className="border-b border-border bg-muted/30 px-6 py-2 text-sm text-muted-foreground">
-          Turning this post into your script.
+        <div className="px-4 pt-4 sm:px-6">
+          <Alert>
+            <AlertDescription>Turning this post into your script.</AlertDescription>
+          </Alert>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+        <div className="flex-1 p-4 sm:p-6 lg:min-h-0 lg:overflow-y-auto">
           <div
             key={activeStage}
             className="animate-in fade-in slide-in-from-bottom-1 duration-150 motion-reduce:animate-none"
@@ -267,11 +274,11 @@ export function RemixStudio({
           {activeStage !== "prompt" && <RunLog runs={runs} />}
         </div>
 
-        <div className="flex items-center justify-between border-t border-border px-6 py-4">
+        <CardFooter className="flex-wrap justify-between gap-2 border-t border-border pb-4 [--card-spacing:--spacing(4)] sm:pb-6 sm:[--card-spacing:--spacing(6)]">
           <Button variant="outline" onClick={handleBack} disabled={activeIndex === 0}>
             ← Back
           </Button>
-          <div className="flex items-center gap-2">
+          <ButtonGroup>
             <Button variant="ghost" onClick={handleRestart} disabled={session.stage === "prompt"}>
               Restart
             </Button>
@@ -280,8 +287,8 @@ export function RemixStudio({
                 Continue →
               </Button>
             )}
-          </div>
-        </div>
+          </ButtonGroup>
+        </CardFooter>
       </div>
     </div>
   );

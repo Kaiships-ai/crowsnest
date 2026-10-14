@@ -2,8 +2,17 @@
 
 import { useSyncExternalStore } from "react";
 import Link from "next/link";
+import { Check } from "lucide-react";
 
-import { cn } from "@/lib/utils";
+import {
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+} from "@/components/ui/sidebar";
 
 /**
  * The prototype's sidebar checklist tracked four session flags — `seenDetail`,
@@ -75,49 +84,48 @@ export function GetStartedChecklist({ items }: { items: GetStartedItem[] }) {
   }
 
   return (
-    <div className="pb-5">
-      <div className="flex items-baseline justify-between gap-3 px-6">
-        <span className="font-mono text-2xs tracking-wide text-faint">
-          GET STARTED <span className="tabular-nums">{doneCount}/{items.length}</span>
+    <SidebarGroup>
+      <SidebarGroupLabel data-lab className="font-mono text-2xs">
+        Get started{" "}
+        <span className="ml-1 tabular-nums">
+          {doneCount}/{items.length}
         </span>
-        <button
-          type="button"
-          onClick={hide}
-          aria-label="Hide the getting-started checklist"
-          className="-mr-1 font-mono text-2xs text-faint transition-colors hover:text-foreground"
-        >
-          hide
-        </button>
-      </div>
-      <div className="mt-2.5 flex flex-col">
-        {items.map((item) =>
-          item.done ? (
-            <div
-              key={item.key}
-              className="mx-3 flex items-center gap-2.5 px-3 py-1.5 text-sm text-muted-foreground"
-            >
-              {/* Positive, not amber — amber is reserved for the score and one
-                  primary action per screen; a completed checklist row is neither. */}
-              <span aria-hidden className="size-[9px] shrink-0 rounded-full bg-[var(--pos)]" />
-              <span className="min-w-0 flex-1 truncate line-through decoration-muted-foreground/40">
-                {item.label}
-              </span>
-            </div>
-          ) : (
-            <Link
-              key={item.key}
-              href={item.href}
-              className={cn(
-                "mx-3 flex items-center gap-2.5 px-3 py-1.5 text-sm text-foreground/90 transition-colors",
-                "hover:bg-popover/60 hover:text-foreground"
-              )}
-            >
-              <span aria-hidden className="size-[9px] shrink-0 rounded-full ring-1 ring-inset ring-border" />
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-            </Link>
-          )
-        )}
-      </div>
-    </div>
+      </SidebarGroupLabel>
+      <SidebarGroupAction
+        onClick={hide}
+        aria-label="Hide the getting-started checklist"
+        className="w-auto px-1 font-mono text-2xs text-muted-foreground"
+      >
+        hide
+      </SidebarGroupAction>
+      <SidebarGroupContent>
+        <SidebarMenu>
+          {items.map((item) =>
+            item.done ? (
+              <SidebarMenuItem key={item.key}>
+                {/* Not a link: a finished step has nowhere left to send you. */}
+                <SidebarMenuButton
+                  size="sm"
+                  render={<div />}
+                  className="pointer-events-none text-muted-foreground"
+                >
+                  {/* Positive, not primary — `primary` is the rail's single outlier signal
+                      and one primary action per screen; a ticked checklist row is neither. */}
+                  <Check className="text-[var(--success)]" />
+                  <span className="line-through decoration-muted-foreground/40">{item.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ) : (
+              <SidebarMenuItem key={item.key}>
+                <SidebarMenuButton size="sm" tooltip={item.label} render={<Link href={item.href} />}>
+                  <span aria-hidden className="size-[9px] shrink-0 rounded-full ring-1 ring-border ring-inset" />
+                  <span>{item.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )
+          )}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }

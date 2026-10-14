@@ -2,14 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Eye, Heart, MessageCircle, Play } from "lucide-react";
+import { Eye, Heart, MessageCircle, Play, TriangleAlert } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { VideoThumb } from "./video-thumb";
 import { formatCompact, relativeTime } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import { getVideoPreviewAction } from "@/server/queries/preview-action";
 import type { VideoDetail } from "@/server/queries/video";
 import { OutlierBadge } from "./outlier-badge";
@@ -30,9 +30,9 @@ type FetchResult = { id: string; detail: VideoDetail | null; error: boolean };
 // agree on what an empty media slot looks like. A plain object so it isn't
 // reallocated on every render.
 const EMPTY_WELL_HATCH: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 export function QuickPreviewSheet({
@@ -87,17 +87,26 @@ export function QuickPreviewSheet({
               <Skeleton className="h-4 w-1/3" />
             </>
           ) : errored ? (
-            <p className="text-sm text-muted-foreground">
-              This post couldn&rsquo;t be loaded. Please try again.
-            </p>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TriangleAlert />
+                </EmptyMedia>
+                <EmptyTitle>This post couldn&rsquo;t be loaded. Please try again.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           ) : !detail ? (
-            <p className="text-sm text-muted-foreground">This post couldn&rsquo;t be found.</p>
+            <Empty className="py-12">
+              <EmptyHeader>
+                <EmptyTitle>This post couldn&rsquo;t be found.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           ) : (
             <>
               <div className="relative aspect-[9/16] w-full shrink-0 overflow-hidden bg-card">
                 <div aria-hidden className="absolute inset-0 opacity-40" style={EMPTY_WELL_HATCH} />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
+                  <Play className="size-10 text-muted-foreground" fill="currentColor" aria-hidden />
                 </div>
                 <VideoThumb assetId={detail.item.thumbnailAssetId} />
                 {/* No platform chip. V1 is Instagram only, so a chip naming the platform
@@ -143,24 +152,34 @@ export function QuickPreviewSheet({
                 )}
               </div>
 
-              <div className="mt-auto flex gap-2 pt-2">
-                <Link
-                  href={`/feed/${detail.item.videoId}${hrefSuffix}`}
-                  data-testid="preview-open-full-page"
-                  className={cn(buttonVariants({ variant: "outline" }), "flex-1")}
-                >
-                  Open full page
-                </Link>
-                <Link
-                  href={`/feed/${detail.item.videoId}/remix${hrefSuffix}`}
-                  className={cn(buttonVariants({ variant: "default" }), "flex-1")}
-                >
-                  Remix
-                </Link>
-              </div>
+              {/* No footer here: the two actions live in the sheet's own SheetFooter
+                  below, so they stay put while a long transcript scrolls under them. */}
             </>
           )}
         </div>
+
+        {detail && (
+          <SheetFooter className="flex-row gap-2 px-4 pt-0">
+            {/* `nativeButton={false}` on both: these render <a>, and Base UI's Button
+                assumes a real <button> otherwise and strips the anchor's semantics. */}
+            <Button
+              render={<Link href={`/feed/${detail.item.videoId}${hrefSuffix}`} />}
+              nativeButton={false}
+              data-testid="preview-open-full-page"
+              variant="outline"
+              className="flex-1"
+            >
+              Open full page
+            </Button>
+            <Button
+              render={<Link href={`/feed/${detail.item.videoId}/remix${hrefSuffix}`} />}
+              nativeButton={false}
+              className="flex-1"
+            >
+              Remix
+            </Button>
+          </SheetFooter>
+        )}
       </SheetContent>
     </Sheet>
   );

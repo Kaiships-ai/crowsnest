@@ -40,7 +40,7 @@ export function Sparkline({ values }: { values: number[] }) {
         strokeLinejoin="round"
         strokeLinecap="round"
       />
-      <circle cx={last.x} cy={last.y} r={2} fill="var(--score)" />
+      <circle cx={last.x} cy={last.y} r={2} fill="var(--primary)" />
     </svg>
   );
 }

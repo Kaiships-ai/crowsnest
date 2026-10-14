@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Bookmark, Check } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { GenerationBlocked } from "@/components/remix/generation-blocked";
 import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
@@ -62,6 +64,9 @@ export function StageHook({
   // picked up again); `generate()` below is the only thing that changes hookOptions
   // afterward, and it already calls setDrafts directly — no sync effect needed.
   const [drafts, setDrafts] = useState<string[]>(session.hookOptions ?? []);
+  // Prefix for the per-option read-only fields below, so each label points at its own
+  // textarea even with several StageHook-rendered grids alive in the tree.
+  const hookFieldId = useId();
 
   async function generate(steer?: string) {
     setGenerating(true);
@@ -132,19 +137,23 @@ export function StageHook({
   return (
     <div className="flex flex-col gap-6">
       {session.chosenHook && (
-        <div className="border border-score-line bg-score-wash p-3">
-          <p className="font-mono text-2xs tracking-wide text-score uppercase">Chosen hook</p>
-          <p className="text-sm">{session.chosenHook}</p>
-        </div>
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Chosen hook</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm">{session.chosenHook}</p>
+          </CardContent>
+        </Card>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="hook-vault-select" className="font-mono text-2xs tracking-wide text-faint uppercase">
-            Seed from a Vault hook
-          </Label>
+        <Field className="w-full sm:w-64">
+          <FieldContent>
+            <FieldLabel htmlFor="hook-vault-select">Seed from a Vault hook</FieldLabel>
+          </FieldContent>
           <Select items={vaultOptions} value={vaultItemId} onValueChange={(v) => setVaultItemId(v as string)}>
-            <SelectTrigger id="hook-vault-select" data-testid="remix-hook-seed-select" className="w-64">
+            <SelectTrigger id="hook-vault-select" data-testid="remix-hook-seed-select">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -155,9 +164,9 @@ export function StageHook({
               ))}
             </SelectContent>
           </Select>
-        </div>
-        {/* Secondary, not primary — Continue in the footer is the one amber action on
-            this screen (brief: amber capped at one primary per screen). */}
+        </Field>
+        {/* Secondary, not primary: Continue in the footer is the one primary action on
+            this screen, and generating hooks is a step on the way to it. */}
         <Button variant="secondary" onClick={() => generate()} disabled={generating}>
           {generating ? "Generating…" : drafts.length > 0 ? "Regenerate hooks" : "Generate hooks"}
         </Button>
@@ -173,16 +182,21 @@ export function StageHook({
           {drafts.map((hook, i) => {
             const isChosen = session.chosenHook === hook;
             return (
-              <Card key={i} className={cn("rounded-none", isChosen && "bg-score-wash ring-2 ring-score-line")}>
-                <CardContent className="flex flex-col gap-2">
+              <Card key={i} size="sm" className={cn(isChosen && "bg-primary/10 ring-2 ring-primary/30")}>
+                <CardContent className="flex flex-col gap-3">
                   {/* Read-only presentation, not an editable field — edits here never
                       reached the server and were lost on reload (truth pass,
                       v1-gap-inventory.md). "Use this hook" is the only way to commit
-                      a hook, so this can't look like a form that saves. */}
-                  <p className="min-h-16 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm">
-                    {hook}
-                  </p>
-                  <div className="flex items-center gap-2">
+                      a hook, so the control is disabled rather than merely unwired.
+                      The opacity override is deliberate: the hook text is the card's
+                      whole content, so it has to stay as legible as it was as a <p>. */}
+                  <Field>
+                    <FieldLabel htmlFor={`${hookFieldId}-${i}`} className="sr-only">
+                      Hook option {i + 1}
+                    </FieldLabel>
+                    <Textarea id={`${hookFieldId}-${i}`} value={hook} disabled className="disabled:opacity-100" />
+                  </Field>
+                  <ButtonGroup>
                     <Button size="sm" variant="secondary" onClick={() => chooseHook(hook)}>
                       {isChosen ? (
                         <>
@@ -195,7 +209,7 @@ export function StageHook({
                     <Button size="sm" variant="ghost" onClick={() => saveAsTemplate(hook)}>
                       <Bookmark className="size-3.5" /> Save as template
                     </Button>
-                  </div>
+                  </ButtonGroup>
                 </CardContent>
               </Card>
             );

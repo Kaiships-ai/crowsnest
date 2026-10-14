@@ -23,12 +23,12 @@ function Tile({ value, label, sample, tone = "foreground" }: { value: string; la
     <div>
       <span
         data-num
-        className={`block font-mono text-[52px] leading-none tracking-tight tabular-nums ${tone === "score" ? "text-score" : "text-foreground"}`}
+        className={`block font-mono text-[52px] leading-none tracking-tight tabular-nums ${tone === "score" ? "text-primary" : "text-foreground"}`}
       >
         {value}
       </span>
       <span className="mt-3 block max-w-[19ch] text-[15px] text-muted-foreground">{label}</span>
-      <span className="mt-1.5 block font-mono text-2xs text-faint">{sample}</span>
+      <span className="mt-1.5 block font-mono text-2xs text-muted-foreground">{sample}</span>
     </div>
   );
 }

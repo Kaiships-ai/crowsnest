@@ -1,5 +1,6 @@
 import { medianConfidence, type BaselineMethod, type WindowSpec } from "@/server/services/outlier-calc";
 import type { MedianBasis } from "@/server/queries/channels";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCompact, formatMultiplier } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -50,9 +51,9 @@ function shortDate(iso: string): string {
 }
 
 const CONFIDENCE_COPY: Record<ReturnType<typeof medianConfidence>, { word: string; className: string }> = {
-  low: { word: "Low confidence", className: "text-faint" },
+  low: { word: "Low confidence", className: "text-muted-foreground" },
   medium: { word: "Medium confidence", className: "text-muted-foreground" },
-  high: { word: "High confidence", className: "text-pos" },
+  high: { word: "High confidence", className: "text-success" },
 };
 
 export function MedianBaseline({
@@ -68,14 +69,15 @@ export function MedianBaseline({
    *  rather than crashing the page (Global acceptance #1/#2). */
   basis: MedianBasis | null;
 }) {
-  // Score is the hero everywhere it appears; amber means exactly one thing — this post
-  // beat its channel's baseline, i.e. score >= 1.0. Not the feed badge's 2x/5x/10x heat
-  // tiers, which color a pill for scanning a grid, not for asserting "beat or didn't".
+  // Score is the hero everywhere it appears; the emphasized tone (text-primary) means
+  // exactly one thing — this post beat its channel's baseline, i.e. score >= 1.0. Not
+  // the feed badge's 2x/5x/10x heat tiers, which color a pill for scanning a grid, not
+  // for asserting "beat or didn't".
   const beatBaseline = score !== null && score >= 1;
 
   return (
     <div className="flex flex-col gap-3">
-      <span data-num className={cn("block font-mono text-[52px] leading-none font-medium tracking-tight", beatBaseline ? "text-score" : "text-foreground")}>
+      <span data-num className={cn("block font-mono text-[52px] leading-none font-medium tracking-tight", beatBaseline ? "text-primary" : "text-foreground")}>
         {formatMultiplier(score)}
       </span>
 
@@ -101,16 +103,16 @@ export function MedianBaseline({
           <div className="mt-2 max-w-[32rem]">
             <div className="relative h-1.5 bg-secondary">
               <span
-                className={cn("absolute top-0 left-0 h-1.5", beatBaseline ? "bg-score" : "bg-line-strong")}
+                className={cn("absolute top-0 left-0 h-1.5", beatBaseline ? "bg-primary" : "bg-border")}
                 style={{ width: `${(score !== null ? scalePosition(score) : 0) * 100}%` }}
               />
               <span
                 aria-hidden
-                className="absolute top-[-5px] h-4 w-px bg-line-strong"
+                className="absolute top-[-5px] h-4 w-px bg-border"
                 style={{ left: `${scalePosition(1) * 100}%` }}
               />
             </div>
-            <div className="mt-2.5 flex justify-between font-mono text-2xs tracking-wide text-faint">
+            <div className="mt-2.5 flex justify-between font-mono text-2xs tracking-wide text-muted-foreground">
               <span>0.2×</span>
               <span data-num className="text-muted-foreground">
                 1.0× = {formatCompact(basis.median)}
@@ -132,52 +134,59 @@ function ChannelHistogram({ basis }: { basis: MedianBasis }) {
   const selfBar = basis.bars.find((b) => b.isSelf);
 
   return (
-    <div className="mt-8">
-      <span data-lab className="font-mono text-2xs text-faint">
-        What that {methodLabel(basis.method)} is made of · {basis.handle}
-      </span>
+    <Card size="sm" className="mt-8">
+      <CardHeader>
+        <CardTitle>
+          What that {methodLabel(basis.method)} is made of · {basis.handle}
+        </CardTitle>
+      </CardHeader>
 
-      {basis.bars.length > 0 ? (
-        <div
-          role="img"
-          aria-label={`${basis.sampleSize} posts sampled for ${basis.handle}'s baseline, ${conf.word.toLowerCase()}`}
-          className="relative mt-5 flex h-[72px] items-end gap-1"
-        >
-          <span aria-hidden className="absolute right-0 bottom-9 left-0 h-px bg-line-strong" />
-          {basis.bars.map((bar) => (
-            <span
-              key={bar.videoId}
-              title={`${shortDate(bar.postedAt)} · ${formatCompact(bar.viewCount)} views${bar.isSelf ? " · this post" : ""}`}
-              className="relative flex h-full min-w-[3px] flex-1 items-end"
-            >
+      <CardContent className="flex flex-col gap-2.5">
+        {basis.bars.length > 0 ? (
+          <div
+            role="img"
+            aria-label={`${basis.sampleSize} posts sampled for ${basis.handle}'s baseline, ${conf.word.toLowerCase()}`}
+            className="relative flex h-[72px] items-end gap-1"
+          >
+            <span aria-hidden className="absolute right-0 bottom-9 left-0 h-px bg-border" />
+            {basis.bars.map((bar) => (
               <span
-                className={cn("w-full", bar.isSelf ? "bg-score" : "bg-line-strong")}
-                style={{ height: `${Math.max(2, (bar.viewCount / maxViews) * 100)}%` }}
-              />
-            </span>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-muted-foreground">No posts in the current baseline window.</p>
-      )}
-
-      <div className="mt-2.5 flex justify-between gap-4 font-mono text-2xs tracking-wide text-faint">
-        <span>
-          {basis.spanFrom && basis.spanTo ? `${shortDate(basis.spanFrom)} to ${shortDate(basis.spanTo)}` : "—"}
-          {" · "}
-          <span data-num>{basis.sampleSize}</span> posts sampled
-        </span>
-        {selfBar && (
-          <span className="text-score" data-num>
-            this post · {formatCompact(selfBar.viewCount)}
-          </span>
+                key={bar.videoId}
+                title={`${shortDate(bar.postedAt)} · ${formatCompact(bar.viewCount)} views${bar.isSelf ? " · this post" : ""}`}
+                className="relative flex h-full min-w-[3px] flex-1 items-end"
+              >
+                <span
+                  className={cn("w-full", bar.isSelf ? "bg-primary" : "bg-border")}
+                  style={{ height: `${Math.max(2, (bar.viewCount / maxViews) * 100)}%` }}
+                />
+              </span>
+            ))}
+          </div>
+        ) : (
+          // One muted line, not an Empty: the rest of this panel (the sample span, the
+          // confidence word, the sentence below) still has something to say when the
+          // bar list happens to be empty.
+          <p className="text-sm text-muted-foreground">No posts in the current baseline window.</p>
         )}
-      </div>
-      <div className={cn("mt-2 font-mono text-2xs tracking-wide", conf.className)}>{conf.word}</div>
-      <p className="mt-3 max-w-[56ch] text-sm text-muted-foreground">
-        {basis.handle}&rsquo;s {methodLabel(basis.method)} is the {methodLabel(basis.method)} view count across{" "}
-        <span data-num>{basis.sampleSize}</span> posts, {windowLabel(basis.window)}.
-      </p>
-    </div>
+
+        <div className="flex justify-between gap-4 font-mono text-2xs tracking-wide text-muted-foreground">
+          <span>
+            {basis.spanFrom && basis.spanTo ? `${shortDate(basis.spanFrom)} to ${shortDate(basis.spanTo)}` : "—"}
+            {" · "}
+            <span data-num>{basis.sampleSize}</span> posts sampled
+          </span>
+          {selfBar && (
+            <span className="text-primary" data-num>
+              this post · {formatCompact(selfBar.viewCount)}
+            </span>
+          )}
+        </div>
+        <div className={cn("font-mono text-2xs tracking-wide", conf.className)}>{conf.word}</div>
+        <p className="max-w-[56ch] text-sm text-muted-foreground">
+          {basis.handle}&rsquo;s {methodLabel(basis.method)} is the {methodLabel(basis.method)} view count across{" "}
+          <span data-num>{basis.sampleSize}</span> posts, {windowLabel(basis.window)}.
+        </p>
+      </CardContent>
+    </Card>
   );
 }

@@ -15,8 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { saveToVaultAction } from "@/server/actions/vault-actions";
@@ -131,25 +131,45 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
         </ToggleGroup>
 
         {(choice === "hook" || choice === "both") && (
-          <div className="flex flex-col gap-2 border border-border p-3">
-            <Label htmlFor="hook-title">Hook title</Label>
-            <Input id="hook-title" value={hookTitle} onChange={(e) => setHookTitle(e.target.value)} />
-            <Label htmlFor="hook-text">Hook template</Label>
-            <Textarea id="hook-text" value={hookText} onChange={(e) => setHookText(e.target.value)} rows={3} />
-            <Label htmlFor="hook-tags">Tags (comma separated)</Label>
-            <Input id="hook-tags" value={hookTags} onChange={(e) => setHookTags(e.target.value)} />
-          </div>
+          <FieldSet>
+            <FieldLegend variant="label">Hook</FieldLegend>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="hook-title">Hook title</FieldLabel>
+                <Input id="hook-title" value={hookTitle} onChange={(e) => setHookTitle(e.target.value)} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="hook-text">Hook template</FieldLabel>
+                <Textarea id="hook-text" value={hookText} onChange={(e) => setHookText(e.target.value)} rows={3} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="hook-tags">Tags</FieldLabel>
+                <Input id="hook-tags" value={hookTags} onChange={(e) => setHookTags(e.target.value)} />
+                <FieldDescription>Comma separated.</FieldDescription>
+              </Field>
+            </FieldGroup>
+          </FieldSet>
         )}
 
         {(choice === "style" || choice === "both") && (
-          <div className="flex flex-col gap-2 border border-border p-3">
-            <Label htmlFor="style-title">Style title</Label>
-            <Input id="style-title" value={styleTitle} onChange={(e) => setStyleTitle(e.target.value)} />
-            <Label htmlFor="style-text">Style template</Label>
-            <Textarea id="style-text" value={styleText} onChange={(e) => setStyleText(e.target.value)} rows={3} />
-            <Label htmlFor="style-tags">Tags (comma separated)</Label>
-            <Input id="style-tags" value={styleTags} onChange={(e) => setStyleTags(e.target.value)} />
-          </div>
+          <FieldSet>
+            <FieldLegend variant="label">Style</FieldLegend>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="style-title">Style title</FieldLabel>
+                <Input id="style-title" value={styleTitle} onChange={(e) => setStyleTitle(e.target.value)} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="style-text">Style template</FieldLabel>
+                <Textarea id="style-text" value={styleText} onChange={(e) => setStyleText(e.target.value)} rows={3} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="style-tags">Tags</FieldLabel>
+                <Input id="style-tags" value={styleTags} onChange={(e) => setStyleTags(e.target.value)} />
+                <FieldDescription>Comma separated.</FieldDescription>
+              </Field>
+            </FieldGroup>
+          </FieldSet>
         )}
 
         <DialogFooter>

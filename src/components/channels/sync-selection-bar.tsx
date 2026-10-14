@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 
 /**
  * The bar that appears above the board footer while any channel is ticked. Purely
@@ -22,13 +23,13 @@ export function SyncSelectionBar({
   onClear: () => void;
 }) {
   return (
-    <div className="flex flex-none items-center justify-between gap-6 border-t border-line-strong bg-popover px-6 py-3">
+    <div className="flex flex-none flex-wrap items-center justify-between gap-3 border-t border-border bg-popover px-4 py-3 sm:px-6">
       <span className="text-xs text-muted-foreground">
         <span data-testid="channels-selection-count" data-num className="text-foreground">{count}</span>{" "}
         selected
       </span>
-      <span className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
+      <ButtonGroup>
+        <Button variant="outline" size="sm" onClick={onClear}>Clear</Button>
         <Button
           data-testid="channels-sync-selected"
           variant="default"
@@ -38,7 +39,7 @@ export function SyncSelectionBar({
         >
           {syncing ? "Sync running" : "Sync selected"}
         </Button>
-      </span>
+      </ButtonGroup>
     </div>
   );
 }

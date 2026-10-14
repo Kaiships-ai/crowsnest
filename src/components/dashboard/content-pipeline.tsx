@@ -1,6 +1,8 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import type { ContentArtifact, ArtifactKind } from "@/server/services/artifacts";
 
 const KIND_LABEL: Record<ArtifactKind, string> = {
@@ -45,45 +47,53 @@ export function ContentPipeline({
   nowMs: number;
 }) {
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex items-baseline justify-between gap-6">
-        <span data-lab className="font-mono text-2xs text-faint">
-          Content pipeline
-        </span>
-        <div className="flex items-center gap-4 font-mono text-2xs text-muted-foreground" data-num>
+    <Card>
+      <CardHeader>
+        <CardTitle>Content pipeline</CardTitle>
+        <CardAction className="flex items-center gap-4 font-mono text-2xs text-muted-foreground" data-num>
           <span>{artifactTotal} artifacts</span>
           <span aria-hidden>·</span>
           <span>{scriptsDrafted} scripts</span>
           <span aria-hidden>·</span>
           <span>{plannedCount} planned</span>
-        </div>
-      </div>
+        </CardAction>
+      </CardHeader>
 
-      {artifacts.length > 0 ? (
-        <div className="flex flex-col divide-y divide-border border border-border">
-          {artifacts.map((a) => (
-            <div key={a.id} className="flex items-center gap-4 px-4 py-3">
-              <Badge variant="outline" className="rounded-none shrink-0">
-                {KIND_LABEL[a.kind] ?? a.kind}
-              </Badge>
-              <span className="min-w-0 flex-1 truncate text-sm text-foreground">{a.title}</span>
-              <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">by {a.agent}</span>
-              <span data-num className="shrink-0 font-mono text-2xs text-faint">
-                {ago(a.updatedAt, nowMs)}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="max-w-[60ch] text-sm text-muted-foreground">
-          No saved artifacts yet. Your agent writes angles, an outlier library, an idea bank, a monthly plan, and briefs
-          here through MCP (crowsnest_save_artifact). Point Claude or Codex at the MCP server and ask it to build a plan.
-        </p>
-      )}
+      <CardContent>
+        {artifacts.length > 0 ? (
+          <ItemGroup>
+            {artifacts.map((a) => (
+              <Item key={a.id} size="sm">
+                <ItemMedia>
+                  <Badge variant="outline" className="shrink-0">
+                    {KIND_LABEL[a.kind] ?? a.kind}
+                  </Badge>
+                </ItemMedia>
+                <ItemContent className="min-w-0">
+                  <ItemTitle>{a.title}</ItemTitle>
+                </ItemContent>
+                <ItemActions className="gap-4">
+                  <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">by {a.agent}</span>
+                  <span data-num className="shrink-0 font-mono text-2xs text-muted-foreground">
+                    {ago(a.updatedAt, nowMs)}
+                  </span>
+                </ItemActions>
+              </Item>
+            ))}
+          </ItemGroup>
+        ) : (
+          <p className="max-w-[60ch] text-sm text-muted-foreground">
+            No saved artifacts yet. Your agent writes angles, an outlier library, an idea bank, a monthly plan, and briefs
+            here through MCP (crowsnest_save_artifact). Point Claude or Codex at the MCP server and ask it to build a plan.
+          </p>
+        )}
+      </CardContent>
 
-      <Link href="/ideas" className="text-xs text-muted-foreground hover:text-foreground">
-        Open ideas and scripts →
-      </Link>
-    </section>
+      <CardFooter>
+        <Link href="/ideas" className="text-xs text-muted-foreground hover:text-foreground">
+          Open ideas and scripts →
+        </Link>
+      </CardFooter>
+    </Card>
   );
 }

@@ -35,9 +35,17 @@
 import { useRef, useState, type RefObject } from "react";
 import { Check, ChevronRight, Eye, KeyRound, Lock, LockOpen, Monitor, Shield } from "lucide-react";
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Progress } from "@/components/ui/progress";
 import {
   getIgStatusAction,
   igChallengeChooseAction,
@@ -82,34 +90,41 @@ function CodeForm({
   onCancel: () => void;
 }) {
   return (
-    <div className="mt-11 flex max-w-[430px] flex-col gap-2.5">
-      <Label htmlFor="ig-code">{label}</Label>
-      <div className="flex items-center gap-2">
-        <Input
-          id="ig-code"
-          ref={codeInputRef}
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !busy) onSubmit(kind);
-          }}
-          inputMode="numeric"
-          autoComplete="one-time-code"
-          maxLength={8}
-          placeholder="123456"
-          className="max-w-[10rem] font-mono"
-          autoFocus
-        />
-        <Button size="sm" onClick={() => onSubmit(kind)} disabled={busy}>
-          {busy ? "Submitting…" : "Submit"}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
-          Cancel
-        </Button>
-      </div>
-      <p className="text-xs text-muted-foreground">{hint}</p>
-      {codeError && <p className="text-sm text-destructive">{codeError}</p>}
-    </div>
+    <FieldGroup className="mt-11 max-w-[430px]">
+      <Field>
+        <FieldLabel htmlFor="ig-code">{label}</FieldLabel>
+        <div className="flex flex-wrap items-center gap-2">
+          <InputGroup className="w-[11rem]">
+            <InputGroupInput
+              id="ig-code"
+              ref={codeInputRef}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !busy) onSubmit(kind);
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={8}
+              placeholder="123456"
+              className="font-mono"
+              autoFocus
+              aria-invalid={codeError !== null || undefined}
+            />
+          </InputGroup>
+          <ButtonGroup>
+            <Button size="sm" onClick={() => onSubmit(kind)} disabled={busy}>
+              {busy ? "Submitting…" : "Submit"}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
+              Cancel
+            </Button>
+          </ButtonGroup>
+        </div>
+        <FieldDescription>{hint}</FieldDescription>
+        {codeError && <FieldError>{codeError}</FieldError>}
+      </Field>
+    </FieldGroup>
   );
 }
 
@@ -123,23 +138,37 @@ function DependencyStrip({ live }: { live: boolean }) {
   ];
   const Icon = live ? LockOpen : Lock;
   return (
-    <div className="mt-8 max-w-[460px] overflow-hidden border border-border bg-card">
-      {rows.map((r) => (
-        <div key={r.n} className="flex items-center gap-3.5 border-b border-border px-4 py-3">
-          <Icon aria-hidden className={`size-4 flex-none ${live ? "text-pos" : "text-faint"}`} />
-          <span className="w-5 flex-none font-mono text-2xs tracking-wide text-faint">{r.n}</span>
-          <span className={`flex-1 text-sm ${live ? "text-foreground" : "text-muted-foreground"}`}>{r.label}</span>
-          <span className={`font-mono text-2xs tracking-wide ${live ? "text-pos" : "text-faint"}`}>
-            {live ? "READY" : "NEEDS KEY"}
-          </span>
-        </div>
-      ))}
-      <p className={`px-4 py-2.5 text-xs ${live ? "text-pos" : "text-faint"}`}>
-        {live
-          ? "The read key is live — both steps can read Instagram now."
-          : "Both steps read Instagram through the read key, so they stay locked until it’s connected."}
-      </p>
-    </div>
+    <Card className="mt-8 max-w-[460px]">
+      <CardContent>
+        <ItemGroup>
+          {rows.map((r) => (
+            <Item key={r.n} size="sm">
+              <ItemMedia>
+                <Icon aria-hidden className={`size-4 flex-none ${live ? "text-success" : "text-muted-foreground"}`} />
+              </ItemMedia>
+              <ItemContent className="flex-row items-center gap-3.5">
+                <span className="w-5 flex-none font-mono text-2xs tracking-wide text-muted-foreground">{r.n}</span>
+                <ItemTitle className={`flex-1 font-normal ${live ? "text-foreground" : "text-muted-foreground"}`}>
+                  {r.label}
+                </ItemTitle>
+              </ItemContent>
+              <ItemActions>
+                <Badge variant="outline" className={live ? "text-success" : "text-muted-foreground"}>
+                  {live ? "READY" : "NEEDS KEY"}
+                </Badge>
+              </ItemActions>
+            </Item>
+          ))}
+        </ItemGroup>
+      </CardContent>
+      <CardFooter>
+        <p className={`text-xs ${live ? "text-success" : "text-muted-foreground"}`}>
+          {live
+            ? "The read key is live — both steps can read Instagram now."
+            : "Both steps read Instagram through the read key, so they stay locked until it’s connected."}
+        </p>
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -331,7 +360,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">02 · INSTAGRAM ACCESS</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">02 · INSTAGRAM ACCESS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">Give Crowsnest a read key</h1>
       <p className="mt-5 max-w-[50ch] text-sm leading-relaxed text-muted-foreground text-balance">
         Crowsnest can&apos;t read Instagram on its own. Sign it in to a <span className="text-foreground">throwaway account</span>{" "}
@@ -356,7 +385,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       {phase === "challenge_choice" && (
         <div className="mt-11 flex flex-col gap-4 max-w-[460px]">
           <p className="text-sm text-muted-foreground">Instagram issued a security challenge. Where should it send the code?</p>
-          <div className="flex items-center gap-2">
+          <ButtonGroup>
             <Button size="sm" onClick={() => void chooseChallengeChannel("email")} disabled={busy}>
               Email
             </Button>
@@ -366,7 +395,7 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
             <Button size="sm" variant="ghost" onClick={() => void recheck()} disabled={busy}>
               Cancel
             </Button>
-          </div>
+          </ButtonGroup>
         </div>
       )}
 
@@ -388,17 +417,19 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
       {phase === "connecting" && (
         <div className="mt-14 flex max-w-[460px] items-center gap-6">
           <span className="font-mono text-xs whitespace-nowrap">Reading the session</span>
-          <div className="h-px flex-1 animate-pulse bg-line-strong" />
+          {/* Indeterminate on purpose: the sidecar reports no percentage while it reads
+              the session, so a bar with a number on it would be invented. */}
+          <Progress value={null} aria-label="Reading the session" className="flex-1" />
         </div>
       )}
 
       {phase === "idle" && status?.loggedIn && (
         <div className="mt-12">
-          <span className="inline-flex items-center gap-2 font-mono text-2xs tracking-wide text-pos">
+          <span className="inline-flex items-center gap-2 font-mono text-2xs tracking-wide text-success">
             <Check aria-hidden className="size-3.5" /> READ KEY LIVE
           </span>
           <p className="mt-4 text-lg leading-tight">{status.username ? `@${status.username}` : "—"}</p>
-          <p className="mt-1 font-mono text-2xs text-faint">read-only session · revoke anytime in Settings</p>
+          <p className="mt-1 font-mono text-2xs text-muted-foreground">read-only session · revoke anytime in Settings</p>
           <DependencyStrip live />
           <Button className="mt-10" onClick={() => onContinue(statusResult)}>
             Choose channels <ChevronRight aria-hidden className="size-4" />
@@ -414,70 +445,64 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
                   over any Instagram sign-in, answered before the input. */}
               <div className="mt-7 flex flex-wrap gap-2">
                 {REASSURANCES.map(({ Icon, text }) => (
-                  <span
-                    key={text}
-                    className="inline-flex items-center gap-2 border border-border bg-card px-2.5 py-1.5 text-xs text-muted-foreground"
-                  >
-                    <Icon aria-hidden className="size-3.5 text-faint" />
+                  <Badge key={text} variant="outline" className="text-muted-foreground">
+                    <Icon aria-hidden />
                     {text}
-                  </span>
+                  </Badge>
                 ))}
               </div>
 
               {/* Primary path: paste a session ID. */}
-              <div className="mt-6 max-w-[460px] overflow-hidden border border-border">
-                <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3.5">
-                  <span className="grid size-8 flex-none place-items-center border border-line-strong bg-muted text-muted-foreground">
+              <Card className="mt-6 max-w-[460px]">
+                <CardHeader>
+                  <span className="grid size-8 flex-none place-items-center rounded-lg border border-border bg-muted text-muted-foreground">
                     <KeyRound aria-hidden className="size-4" />
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold leading-tight">Paste a session ID</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Recommended — connects straight away, no 2FA or login challenges.
-                    </p>
-                  </div>
-                </div>
-                <div className="p-4">
-                <div className="flex flex-col gap-2.5">
-                  <Label htmlFor="ig-session-id">Session ID</Label>
-                  <Input
-                    id="ig-session-id"
-                    data-testid="ig-session-id-input"
-                    value={sessionId}
-                    onChange={(e) => setSessionId(e.target.value)}
-                    placeholder="sessionid=IGSC%3A…"
-                    autoComplete="off"
-                    className="font-mono"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && sessionId.trim()) void connectBySession();
-                    }}
-                  />
-                </div>
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs text-foreground underline underline-offset-2">
-                    Where do I get a session ID?
-                  </summary>
-                  <div className="mt-2 border border-border bg-card p-3 text-xs leading-relaxed text-muted-foreground">
-                    Sign in to your throwaway account in a browser, then open developer tools → Application → Cookies,
-                    and copy the value of the <code>sessionid</code> cookie for instagram.com. Crowsnest stores it
-                    locally and uses it read-only.
-                  </div>
-                </details>
-                <Button
-                  className="mt-4"
-                  data-testid="ig-session-id-submit-button"
-                  onClick={() => void connectBySession()}
-                  disabled={busy || !sessionId.trim()}
-                >
-                  <KeyRound aria-hidden className="size-4" /> Get the read key
-                </Button>
-                {sessionError && (
-                  <p data-testid="ig-session-id-error" className="mt-2 text-sm text-destructive">
-                    {sessionError}
-                  </p>
-                )}
-                </div>
-              </div>
+                  <CardTitle>Paste a session ID</CardTitle>
+                  <CardDescription>Recommended — connects straight away, no 2FA or login challenges.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FieldGroup>
+                    <Field>
+                      <FieldLabel htmlFor="ig-session-id">Session ID</FieldLabel>
+                      <Input
+                        id="ig-session-id"
+                        data-testid="ig-session-id-input"
+                        value={sessionId}
+                        onChange={(e) => setSessionId(e.target.value)}
+                        placeholder="sessionid=IGSC%3A…"
+                        autoComplete="off"
+                        className="font-mono"
+                        aria-invalid={sessionError !== null || undefined}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && sessionId.trim()) void connectBySession();
+                        }}
+                      />
+                      {sessionError && <FieldError data-testid="ig-session-id-error">{sessionError}</FieldError>}
+                    </Field>
+                  </FieldGroup>
+
+                  <Accordion className="mt-4">
+                    <AccordionItem value="where">
+                      <AccordionTrigger>Where do I get a session ID?</AccordionTrigger>
+                      <AccordionContent className="leading-relaxed text-muted-foreground">
+                        Sign in to your throwaway account in a browser, then open developer tools → Application → Cookies,
+                        and copy the value of the <code>sessionid</code> cookie for instagram.com. Crowsnest stores it
+                        locally and uses it read-only.
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </CardContent>
+                <CardFooter>
+                  <Button
+                    data-testid="ig-session-id-submit-button"
+                    onClick={() => void connectBySession()}
+                    disabled={busy || !sessionId.trim()}
+                  >
+                    <KeyRound aria-hidden className="size-4" /> Get the read key
+                  </Button>
+                </CardFooter>
+              </Card>
 
               {/* Convenience: sidecar already has credentials from `kai kit init`. */}
               {credentialsConfigured && (
@@ -490,53 +515,55 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
 
               {/* Fallback: username + password (this path can still hit a challenge). */}
               <div className="mt-4 max-w-[460px]">
-                <button
-                  type="button"
-                  className="text-sm text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowPassword((v) => !v)}
-                >
+                <Button variant="link" className="h-auto p-0 text-muted-foreground" onClick={() => setShowPassword((v) => !v)}>
                   {showPassword ? "Hide password sign-in" : "Or sign in with a username and password"}
-                </button>
+                </Button>
                 {showPassword && (
-                  <div className="mt-3 border border-border p-4">
-                    <p className="text-xs text-muted-foreground">Checked against a real login before anything is saved.</p>
-                    <div className="mt-4 flex flex-col gap-2.5">
-                      <Label htmlFor="ig-credentials-username">Username</Label>
-                      <Input
-                        id="ig-credentials-username"
-                        data-testid="ig-credentials-username-input"
-                        value={credUsername}
-                        onChange={(e) => setCredUsername(e.target.value)}
-                        autoComplete="off"
-                      />
-                      <Label htmlFor="ig-credentials-password">Password</Label>
-                      <Input
-                        id="ig-credentials-password"
-                        data-testid="ig-credentials-password-input"
-                        type="password"
-                        value={credPassword}
-                        onChange={(e) => setCredPassword(e.target.value)}
-                        autoComplete="off"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && credUsername.trim() && credPassword) void connectWithCredentials();
-                        }}
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      className="mt-4"
-                      data-testid="ig-credentials-submit-button"
-                      onClick={() => void connectWithCredentials()}
-                      disabled={busy || !credUsername.trim() || !credPassword}
-                    >
-                      Connect
-                    </Button>
-                    {credError && (
-                      <p data-testid="ig-credentials-error" className="mt-2 text-sm text-destructive">
-                        {credError}
-                      </p>
-                    )}
-                  </div>
+                  <Card className="mt-3">
+                    <CardHeader>
+                      <CardDescription>Checked against a real login before anything is saved.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <FieldGroup>
+                        <Field>
+                          <FieldLabel htmlFor="ig-credentials-username">Username</FieldLabel>
+                          <Input
+                            id="ig-credentials-username"
+                            data-testid="ig-credentials-username-input"
+                            value={credUsername}
+                            onChange={(e) => setCredUsername(e.target.value)}
+                            autoComplete="off"
+                          />
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor="ig-credentials-password">Password</FieldLabel>
+                          <Input
+                            id="ig-credentials-password"
+                            data-testid="ig-credentials-password-input"
+                            type="password"
+                            value={credPassword}
+                            onChange={(e) => setCredPassword(e.target.value)}
+                            autoComplete="off"
+                            aria-invalid={credError !== null || undefined}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && credUsername.trim() && credPassword) void connectWithCredentials();
+                            }}
+                          />
+                        </Field>
+                        {credError && <FieldError data-testid="ig-credentials-error">{credError}</FieldError>}
+                      </FieldGroup>
+                    </CardContent>
+                    <CardFooter>
+                      <Button
+                        size="sm"
+                        data-testid="ig-credentials-submit-button"
+                        onClick={() => void connectWithCredentials()}
+                        disabled={busy || !credUsername.trim() || !credPassword}
+                      >
+                        Connect
+                      </Button>
+                    </CardFooter>
+                  </Card>
                 )}
               </div>
 
@@ -545,13 +572,15 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
           )}
 
           {serviceDown && (
-            <div className="mt-8 max-w-[460px] border border-border p-4">
-              <p className="text-sm text-destructive">The local Instagram service isn&apos;t running.</p>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Nothing answered at <code>{serviceUrl}</code>. Start it in a second terminal, then Re-check:
-              </p>
-              <pre className="mt-2 overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm run ig:service</pre>
-            </div>
+            <Alert variant="destructive" className="mt-8 max-w-[460px]">
+              <AlertTitle>The local Instagram service isn&apos;t running.</AlertTitle>
+              <AlertDescription>
+                <p>
+                  Nothing answered at <code>{serviceUrl}</code>. Start it in a second terminal, then Re-check:
+                </p>
+                <pre className="overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm run ig:service</pre>
+              </AlertDescription>
+            </Alert>
           )}
 
           {!serviceDown && loginFailure && (
@@ -559,17 +588,19 @@ export function ConnectStep({ initialStatus, serviceUrl, onBack, onContinue }: C
           )}
 
           <div className="mt-11 flex flex-wrap items-center gap-7">
-            <Button variant="outline" onClick={onBack}>
-              ← Back
-            </Button>
-            {serviceDown && (
-              <Button variant="outline" onClick={() => void recheck()} disabled={busy}>
-                Re-check
+            <ButtonGroup>
+              <Button variant="outline" onClick={onBack}>
+                ← Back
               </Button>
-            )}
-            <Button variant="ghost" onClick={() => onContinue(statusResult)}>
-              Skip — watch without syncing
-            </Button>
+              {serviceDown && (
+                <Button variant="outline" onClick={() => void recheck()} disabled={busy}>
+                  Re-check
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => onContinue(statusResult)}>
+                Skip — watch without syncing
+              </Button>
+            </ButtonGroup>
           </div>
         </>
       )}

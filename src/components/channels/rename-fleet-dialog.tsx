@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 
 export function RenameFleetDialog({
   fleetId,
@@ -62,12 +62,19 @@ export function RenameFleetDialog({
           <DialogDescription>Change this fleet&apos;s name.</DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="fleet-rename">Name</Label>
-          <Input id="fleet-rename" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fitness Niche" />
-        </div>
-
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        <FieldGroup>
+          <Field data-invalid={error !== null || undefined}>
+            <FieldLabel htmlFor="fleet-rename">Name</FieldLabel>
+            <Input
+              id="fleet-rename"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Fitness Niche"
+              aria-invalid={error !== null || undefined}
+            />
+            {error && <FieldError>{error}</FieldError>}
+          </Field>
+        </FieldGroup>
 
         <DialogFooter>
           <Button onClick={submit} disabled={!name.trim() || pending}>

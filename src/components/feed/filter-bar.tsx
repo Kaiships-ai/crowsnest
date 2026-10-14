@@ -6,6 +6,7 @@ import { Grid2x2, Grid3x3, LayoutGrid, Plus, Rows3, Search, Settings2, X } from 
 
 import { AddChannelDialog } from "@/components/channels/add-channel-dialog";
 import { ManageSavedViewsDialog } from "@/components/feed/manage-saved-views-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,11 +17,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { currentViewCriteria as buildViewCriteria, FILTER_PARAM_KEYS, resolveChipValue } from "@/lib/feed-filters";
-import { cn } from "@/lib/utils";
 import type { FeedBandCounts, SavedFilterRow } from "@/server/queries/feed";
 
 type Fleet = { id: string; name: string; channelCount: number };
@@ -62,11 +63,11 @@ const ENGAGEMENT_OPTIONS = [
   { value: "5", label: "5%+ engagement" },
   { value: "8", label: "8%+ engagement" },
 ];
-// Not a Select — Analyzed/Unanalyzed is its own persistent two-state row (task-4 brief),
-// same "first-class control, not a menu" treatment the follower band row already gets
-// below. Selected state is `bg-card text-foreground`, never amber: amber is reserved for
-// the outlier multiplier (HANDOFF.md "amber = the multiplier"), and this is a plain
-// on/off filter state, not a score.
+// Not a Select: Analyzed/Unanalyzed is its own persistent two-state row (task-4 brief),
+// the same "first-class control, not a menu" treatment the follower band row already
+// gets below. Its on-state is ToggleGroup's own selected tone, not the score's signal
+// color, because this is a plain on/off filter state and not a measure of how hard a
+// post beat its channel.
 const ANALYZED_OPTIONS = [
   { value: "yes", label: "Analyzed" },
   { value: "no", label: "Unanalyzed" },
@@ -114,13 +115,13 @@ const ANY_WRITES_PARAM = new Set(["minScore", "minViews", "since", "band", "minE
 // filterBtn treatment (feed.html line 17: color var(--t3), hover bg var(--s1) color
 // var(--t1)) — dark: overrides neutralize the shadcn Select's own default input chrome.
 const FILTER_TRIGGER_CLASS =
-  "h-7 gap-1.5 rounded-none border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
+  "h-7 gap-1.5 rounded-full border-transparent bg-transparent px-2 text-sm text-muted-foreground hover:bg-card hover:text-foreground aria-expanded:bg-card aria-expanded:text-foreground dark:bg-transparent dark:hover:bg-card";
 
 // Same read-as-state treatment as FILTER_TRIGGER_CLASS, sized down (task-2 brief: score,
 // timeframe, and follower-band lead; fleet/min-views/min-engagement/analyzed recede by
 // weight only — smaller and more muted, never hidden behind a popover or menu).
 const SECONDARY_FILTER_TRIGGER_CLASS =
-  "h-6 gap-1 rounded-none border-transparent bg-transparent px-1.5 text-xs text-faint hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
+  "h-6 gap-1 rounded-full border-transparent bg-transparent px-1.5 text-xs text-muted-foreground hover:bg-card hover:text-muted-foreground aria-expanded:bg-card aria-expanded:text-muted-foreground dark:bg-transparent dark:hover:bg-card";
 
 /** Chip text for the active-filter summary: reuses the option's own (already-normalized)
  *  label rather than inventing separate copy, so the chip always matches what the
@@ -293,31 +294,28 @@ export function FilterBar({
   }
 
   return (
-    <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-6 py-3 backdrop-blur">
+    <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
       {/* Free-text search (v1-scope.md P0: "a conspicuous hole in a research tool").
-          Underline field, not a boxed input — matches the filter row's read-as-state
-          treatment rather than looking like a form. Searches caption, handle, and
-          display name server-side (queries/feed.ts). */}
-      <div className="relative max-w-md">
-        <Search className="pointer-events-none absolute top-1/2 left-0 size-3.5 -translate-y-1/2 text-faint" aria-hidden />
-        <Input
+          Searches caption, handle, and display name server-side (queries/feed.ts). */}
+      <InputGroup className="w-full sm:w-80">
+        <InputGroupAddon align="inline-start">
+          <Search aria-hidden />
+        </InputGroupAddon>
+        <InputGroupInput
           type="search"
           value={queryDraft}
           onChange={(e) => setQueryDraft(e.target.value)}
           placeholder="Search captions and channels"
           aria-label="Search captions and channels"
-          className="h-8 rounded-none border-0 border-b border-border bg-transparent pl-5 focus-visible:border-b-ring focus-visible:ring-0"
         />
-      </div>
+      </InputGroup>
 
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <div className="flex flex-wrap items-center gap-2">
         {/* Filters cluster: score and timeframe lead at full weight (task-2 brief) — they
             drive the core "what over-performed, when" question, alongside the
             follower-band row below. Fleet, min-views, min-engagement, and the analyzed
-            toggle recede to a smaller, more muted second row: still fully visible and
+            toggle recede to smaller, more muted triggers: still fully visible and
             functional, never hidden behind a popover/dropdown/drawer/`<details>`. */}
-        <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-1">
         <Select items={SCORE_OPTIONS} value={minScore} onValueChange={(v) => set("minScore", v as string)}>
           <SelectTrigger
             size="sm"
@@ -348,9 +346,7 @@ export function FilterBar({
             ))}
           </SelectContent>
         </Select>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-1">
         <Select items={fleetItems} value={fleet} onValueChange={(v) => set("fleet", v as string)}>
           <SelectTrigger size="sm" aria-label="Fleet" className={SECONDARY_FILTER_TRIGGER_CLASS}>
             <SelectValue />
@@ -390,41 +386,30 @@ export function FilterBar({
           </SelectContent>
         </Select>
 
-        {/* Two-state segmented control, not a Select — mirrors the layout/density toggles
-            below rather than the dropdown chips above it, since there's no "any" third
-            state to pick from a menu: the clear action is re-clicking the active one.
-            Selected state is `bg-card text-foreground` (amber law: amber names the
-            multiplier, never a plain filter's on-state). Sized down with its secondary
-            siblings on this row — receded by weight only, still a first-class control. */}
-        <div className="flex items-center gap-0.5 rounded-lg p-0.5" role="group" aria-label="Analyzed status">
-          {ANALYZED_OPTIONS.map((o) => {
-            const active = analyzed === o.value;
-            return (
-              <button
-                key={o.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => set("analyzed", active ? "all" : o.value)}
-                className={cn(
-                  "h-6 rounded-[min(var(--radius-md),10px)] px-1.5 text-xs transition-colors",
-                  active ? "bg-card text-foreground" : "text-faint hover:bg-card hover:text-muted-foreground",
-                )}
-              >
-                {o.label}
-              </button>
-            );
-          })}
-        </div>
-        </div>
-        </div>
+        {/* Two-state segmented control, not a Select: there's no "any" third state to
+            pick from a menu, because the clear action is re-clicking the active one.
+            That is exactly what this build's ToggleGroup does with an array value, so
+            it converges on the same primitive as the layout, density and follower-band
+            rows rather than hand-rolling aria-pressed buttons. An empty array is the
+            cleared state, which the URL spells "all". */}
+        <ToggleGroup
+          value={analyzed === "all" ? [] : [analyzed]}
+          onValueChange={(vals: unknown[]) => set("analyzed", (vals[0] as string | undefined) ?? "all")}
+          aria-label="Analyzed status"
+        >
+          {ANALYZED_OPTIONS.map((o) => (
+            <ToggleGroupItem key={o.value} value={o.value} size="sm">
+              {o.label}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
 
         {/* Actions cluster: saving a view, clearing, and importing a URL are actions,
             not filters — separated from the filter group above so the row reads as
             "what I'm filtering by" then "what I can do". */}
-        <div className="flex flex-wrap items-center gap-1">
         <DropdownMenu>
           <DropdownMenuTrigger
-            render={<Button variant="ghost" size="sm" className={cn(FILTER_TRIGGER_CLASS, "rounded-full")} />}
+            render={<Button variant="ghost" size="sm" className={FILTER_TRIGGER_CLASS} />}
           >
             Saved views
           </DropdownMenuTrigger>
@@ -469,9 +454,8 @@ export function FilterBar({
         >
           <Plus /> Add post URL
         </Button>
-        </div>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <Select items={SORT_OPTIONS} value={sort} onValueChange={(v) => set("sort", v as string)}>
             <SelectTrigger size="sm" aria-label="Sort" className={FILTER_TRIGGER_CLASS}>
               <SelectValue />
@@ -501,7 +485,7 @@ export function FilterBar({
           {/* A thin divider so the layout toggle and the density toggle read as two
               separate 2-state groups, not one run of four icons where a selected item in
               each looks like two-of-four selected. */}
-          <div className="mx-0.5 h-5 w-px bg-border" aria-hidden />
+          <Separator orientation="vertical" className="mx-0.5 h-5" />
 
           {/* Same kind of control as the grid/list toggle above, so it sits right next
               to it (prototype feed.html line 6: comfortable/compact chips beside the
@@ -528,13 +512,17 @@ export function FilterBar({
       {/* Follower band stays a first-class visible control, never tucked in a menu
           (brief) — a persistent segmented row, not a Select. */}
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-2xs text-faint" data-lab="1">
+        <span className="text-2xs text-muted-foreground" data-lab="1">
           Followers
         </span>
+        {/* `flex-wrap` is the one class this group needs: ToggleGroup is `w-fit` and
+            single-line by default, so at 375px the last two bands were clipped off the
+            right edge with no way to scroll to them. */}
         <ToggleGroup
           value={[band]}
           onValueChange={(vals) => set("band", (vals[0] as string | undefined) ?? "any")}
           aria-label="Follower band"
+          className="flex-wrap"
         >
           {BAND_OPTIONS.map((o) => (
             <ToggleGroupItem key={o.value} value={o.value} size="sm">
@@ -545,7 +533,7 @@ export function FilterBar({
                   under none of them (getFeedBandCounts), which is why that sum can land
                   under the feed's own total and is still correct. */}
               {o.value !== "any" && (
-                <span className="ml-1.5 font-mono text-2xs tabular-nums text-faint" data-num="1">
+                <span className="ml-1.5 font-mono text-2xs tabular-nums text-muted-foreground" data-num="1">
                   {bandCounts[o.value as keyof FeedBandCounts]}
                 </span>
               )}
@@ -555,22 +543,20 @@ export function FilterBar({
       </div>
 
       {/* Persistent active-filter summary (task-2 brief, step 3): names every applied
-          threshold as a small neutral chip — never amber (amber law: amber names the
-          multiplier only) — plus the single Reset that replaces the old actions-cluster
-          "Clear filters" button. Shows whenever `hasActiveFilters`, not only in an empty
-          result state, and reuses the same FILTER_PARAM_KEYS check those empty states
-          already read. Per-chip remove is intentionally omitted — the brief calls it
-          optional and the one-move Reset the required control. */}
+          threshold as a small neutral chip, plus the single Reset that replaces the old
+          actions-cluster "Clear filters" button. The chips are outline Badges rather
+          than the filled tone, because they restate what is already on, they are not a
+          second call to action competing with Reset. Shows whenever `hasActiveFilters`,
+          not only in an empty result state, and reuses the same FILTER_PARAM_KEYS check
+          those empty states already read. Per-chip remove is intentionally omitted: the
+          brief calls it optional and the one-move Reset the required control. */}
       {hasActiveFilters && (
         <div className="flex flex-wrap items-center gap-1.5" data-testid="feed-active-filter-summary">
-          <span className="text-2xs text-faint">Active filters</span>
+          <span className="text-2xs text-muted-foreground">Active filters</span>
           {activeChips.map((chip) => (
-            <span
-              key={chip.key}
-              className="rounded-none border border-border bg-card px-2 py-0.5 text-2xs text-muted-foreground"
-            >
+            <Badge key={chip.key} variant="outline">
               {chip.label}
-            </span>
+            </Badge>
           ))}
           <Button
             variant="ghost"

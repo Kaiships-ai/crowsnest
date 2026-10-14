@@ -15,8 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createFleetAction } from "@/server/actions/fleet-actions";
 
 /**
@@ -73,10 +73,12 @@ export function NewFleetDialog() {
             void submit();
           }}
         >
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="fleet-name">Name</Label>
-            <Input id="fleet-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fitness Niche" />
-          </div>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="fleet-name">Name</FieldLabel>
+              <Input id="fleet-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Fitness Niche" />
+            </Field>
+          </FieldGroup>
 
           <DialogFooter>
             <Button type="submit" disabled={!name.trim() || pending}>

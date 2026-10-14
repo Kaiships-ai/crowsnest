@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { KeyRound, Unplug } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 /**
  * The designed "blocked" surface for a generation stage (Hook/Style/Script), swapped
  * in for the whole stage rather than graying out controls that can't do anything
  * (v1-scope.md, Remix studio P0: "Blocked state when the local model proxy is down,
- * with a recovery action"). Two distinct reasons, because they're fixed two different
- * ways:
+ * with a recovery action"). It takes over the whole view, so it is an `Empty`, not an
+ * inline alert. Two distinct reasons, because they're fixed two different ways:
  *  - "no-key": `ANTHROPIC_API_KEY` is unset. Fixed in this app, in Settings.
  *  - "proxy-down": a key is configured (routing through the local 9router proxy) but
  *    the most recent attempt(s) in the run log below failed to connect — see
@@ -32,41 +34,53 @@ export function GenerationBlocked({
 }) {
   if (reason === "no-key") {
     return (
-      <div className="flex flex-col items-start gap-6 py-16">
-        <p className="max-w-[38ch] text-lg text-foreground">{feature} needs a Claude API key.</p>
-        <Button variant="secondary" render={<Link href="/settings" />}>
-          Add API key in Settings
-        </Button>
-        <div className="max-w-[42ch] text-sm text-muted-foreground">
-          <p>No key on hand? 9router is a free, keyless alternative - install it once from a terminal:</p>
-          <pre className="mt-2 overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm install -g 9router</pre>
-          <p className="mt-2">
-            Then start it from{" "}
-            <Link href="/settings#router" className="underline underline-offset-2 hover:text-foreground">
-              Settings&apos; 9router section
-            </Link>
-            .
-          </p>
-        </div>
-      </div>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <KeyRound />
+          </EmptyMedia>
+          <EmptyTitle>{feature} needs a Claude API key.</EmptyTitle>
+        </EmptyHeader>
+        <EmptyContent>
+          <Button variant="secondary" render={<Link href="/settings" />}>
+            Add API key in Settings
+          </Button>
+          <div className="text-sm text-muted-foreground">
+            <p>No key on hand? 9router is a free, keyless alternative - install it once from a terminal:</p>
+            <pre className="mt-2 overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm install -g 9router</pre>
+            <p className="mt-2">
+              Then start it from{" "}
+              <Link href="/settings#router" className="underline underline-offset-2 hover:text-foreground">
+                Settings&apos; 9router section
+              </Link>
+              .
+            </p>
+          </div>
+        </EmptyContent>
+      </Empty>
     );
   }
 
   return (
-    <div className="flex flex-col items-start gap-6 py-16">
-      <p className="max-w-[40ch] text-lg text-foreground">
-        {proxyUrl ? (
-          <>
-            {feature} is blocked — nothing answered at <code className="font-mono text-base">{proxyUrl}</code>.
-          </>
-        ) : (
-          <>{feature} is blocked — the local model proxy didn&rsquo;t answer.</>
-        )}
-      </p>
-      <p className="max-w-[42ch] text-sm text-muted-foreground">
-        The last attempt in the run log below failed to connect. Start the local proxy in a terminal, then retry —
-        this stage isn&rsquo;t broken, it&rsquo;s offline.
-      </p>
-    </div>
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Unplug />
+        </EmptyMedia>
+        <EmptyTitle>
+          {proxyUrl ? (
+            <>
+              {feature} is blocked — nothing answered at <code className="font-mono">{proxyUrl}</code>.
+            </>
+          ) : (
+            <>{feature} is blocked — the local model proxy didn&rsquo;t answer.</>
+          )}
+        </EmptyTitle>
+        <EmptyDescription>
+          The last attempt in the run log below failed to connect. Start the local proxy in a terminal, then retry —
+          this stage isn&rsquo;t broken, it&rsquo;s offline.
+        </EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }

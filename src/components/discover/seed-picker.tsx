@@ -1,11 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Compass } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { followCreatorAction } from "@/server/actions/discover-actions";
 import type { CreatorSeedRow } from "@/server/queries/discover";
@@ -97,7 +100,16 @@ export function SeedPicker({
   }
 
   if (seeds.length === 0) {
-    return <p className="text-sm text-muted-foreground">No creators to discover yet.</p>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Compass />
+          </EmptyMedia>
+          <EmptyTitle>No creators to discover yet.</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
   }
 
   return (
@@ -119,38 +131,40 @@ export function SeedPicker({
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">No creators in this niche.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ItemGroup>
           {filtered.map((seed) => {
             const isTracked = seed.tracked || justFollowed.has(seed.handle);
             const isSelected = selected.has(seed.handle);
             const disabled = isTracked || (!isSelected && atCap);
             return (
-              <li
-                key={seed.handle}
-                data-testid="seed-picker-row"
-                className="flex items-center gap-3 border border-border bg-card px-3 py-2"
-              >
-                <Checkbox
-                  data-testid={`seed-picker-checkbox-${seed.handle}`}
-                  aria-label={`Select @${seed.handle}`}
-                  checked={isSelected}
-                  disabled={disabled}
-                  onCheckedChange={(v) => toggle(seed.handle, v === true)}
-                />
-                <span className="truncate font-mono text-sm text-foreground">@{seed.handle}</span>
-                <Badge variant="secondary" className="shrink-0 font-mono text-2xs uppercase tracking-wide">
-                  {seed.niche}
-                </Badge>
-                <span className="truncate text-xs text-muted-foreground">{seed.why}</span>
-                {isTracked && (
-                  <Badge variant="outline" className="ml-auto shrink-0 text-2xs uppercase tracking-wide">
-                    Tracked
+              <Item key={seed.handle} data-testid="seed-picker-row" variant="outline" size="sm">
+                <ItemMedia>
+                  <Checkbox
+                    data-testid={`seed-picker-checkbox-${seed.handle}`}
+                    aria-label={`Select @${seed.handle}`}
+                    checked={isSelected}
+                    disabled={disabled}
+                    onCheckedChange={(v) => toggle(seed.handle, v === true)}
+                  />
+                </ItemMedia>
+                <ItemContent>
+                  <ItemTitle className="block w-full truncate font-mono">@{seed.handle}</ItemTitle>
+                  <ItemDescription>{seed.why}</ItemDescription>
+                </ItemContent>
+                <ItemActions>
+                  <Badge variant="secondary" className="shrink-0 font-mono text-2xs uppercase tracking-wide">
+                    {seed.niche}
                   </Badge>
-                )}
-              </li>
+                  {isTracked && (
+                    <Badge variant="outline" className="shrink-0 text-2xs uppercase tracking-wide">
+                      Tracked
+                    </Badge>
+                  )}
+                </ItemActions>
+              </Item>
             );
           })}
-        </ul>
+        </ItemGroup>
       )}
 
       <Button

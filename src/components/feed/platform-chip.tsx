@@ -1,4 +1,6 @@
 import { Camera, type LucideIcon } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 // Instagram only in V1 (V1-BRIEF.md, Kai's ruling 2026-07-31). This used to carry
@@ -23,15 +25,16 @@ export function PlatformChip({ platform, className }: { platform: string; classN
   const meta = PLATFORM_META[platform];
   const Icon = meta?.icon ?? Camera;
 
+  // The two overrides are shape, not tone: this chip floats over a thumbnail, so it is
+  // a circle sized to the glyph rather than Badge's text-width pill, and its fill is a
+  // scrim over artwork rather than a theme surface.
   return (
-    <span
-      className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm",
-        className
-      )}
+    <Badge
+      variant="default"
+      className={cn("size-6 p-0 bg-black/55 text-white backdrop-blur-sm", className)}
     >
-      <Icon className="size-3.5" aria-hidden />
+      <Icon aria-hidden />
       <span className="sr-only">{meta?.label ?? platform}</span>
-    </span>
+    </Badge>
   );
 }

@@ -3,7 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 
-import { cn } from "@/lib/utils";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const THEME_OPTIONS = [
   { value: "dark", label: "Dark" },
@@ -18,10 +19,10 @@ function subscribe() {
   return () => {};
 }
 
-// Manual dark/light only, no system option, per the locked design. The control is a
-// neutral radiogroup (raised surface marks the active option), never the amber primary
-// token, matching settings-nav.tsx and sidebar.tsx: amber on this screen is reserved
-// for the scoring save button.
+// Manual dark/light only, no system option, per the locked design. One exclusive choice,
+// so a `ToggleGroup` named "Theme" rather than two buttons wired up as a radiogroup by
+// hand. This build's group takes its value as an array (see `EnumField` in
+// setting-field.tsx), so one selected theme is a one-element array.
 export function AppearanceSection() {
   const { theme, setTheme } = useTheme();
   // next-themes only knows the resolved theme after mount (it reads localStorage on the
@@ -34,34 +35,28 @@ export function AppearanceSection() {
   );
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Appearance</h2>
-        <p className="text-sm text-muted-foreground">Theme for this workspace. Saved on this device.</p>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Appearance</CardTitle>
+        <CardDescription>Theme for this workspace. Saved on this device.</CardDescription>
+      </CardHeader>
 
-      <div role="radiogroup" aria-label="Theme" className="flex w-fit gap-0.5">
-        {THEME_OPTIONS.map((opt) => {
-          const active = mounted && theme === opt.value;
-          return (
-            <button
-              key={opt.value}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => setTheme(opt.value)}
-              className={cn(
-                "rounded-sm px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-popover font-semibold text-foreground"
-                  : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
-              )}
-            >
+      <CardContent>
+        <ToggleGroup
+          aria-label="Theme"
+          value={mounted && theme ? [theme] : []}
+          onValueChange={(vals: unknown[]) => {
+            const next = vals[0] as string | undefined;
+            if (next) setTheme(next);
+          }}
+        >
+          {THEME_OPTIONS.map((opt) => (
+            <ToggleGroupItem key={opt.value} value={opt.value} size="sm">
               {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    </section>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </CardContent>
+    </Card>
   );
 }

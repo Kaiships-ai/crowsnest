@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/layout/page-container";
 import { DiscoverBoard } from "@/components/discover/discover-board";
 import { listCreatorSeeds } from "@/server/queries/discover";
 
@@ -9,8 +10,8 @@ export const dynamic = "force-dynamic";
 export default async function DiscoverPage() {
   const seeds = await listCreatorSeeds();
   return (
-    <div className="mx-auto max-w-[1120px] p-6">
+    <PageContainer>
       <DiscoverBoard seeds={seeds} />
-    </div>
+    </PageContainer>
   );
 }

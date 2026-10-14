@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
 /**
  * DESIGN.md §2.7's Niche Profile editor lived here as a Textarea feeding
  * `services/remix.ts`'s `getNicheProfile()` (`app_settings.niche_profile`). Task 6 moves
@@ -18,15 +20,17 @@ import Link from "next/link";
  */
 export function NicheProfileSection({ initialNiche }: { initialNiche: string }) {
   return (
-    <section className="flex flex-col gap-1">
-      <h2 className="text-lg font-semibold">Niche profile</h2>
-      <p className="text-sm text-muted-foreground">
-        {initialNiche ? `Currently "${initialNiche}." Edit it, along with voice and do/don't guidance, on` : "Configured on"}{" "}
-        <Link href="/persona" className="underline underline-offset-2 hover:text-foreground">
-          Persona
-        </Link>
-        , which feeds every Remix generation.
-      </p>
-    </section>
+    <Card>
+      <CardHeader>
+        <CardTitle>Niche profile</CardTitle>
+        <CardDescription>
+          {initialNiche ? `Currently "${initialNiche}." Edit it, along with voice and do/don't guidance, on` : "Configured on"}{" "}
+          <Link href="/persona" className="underline underline-offset-2 hover:text-foreground">
+            Persona
+          </Link>
+          , which feeds every Remix generation.
+        </CardDescription>
+      </CardHeader>
+    </Card>
   );
 }

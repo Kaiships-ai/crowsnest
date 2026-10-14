@@ -20,6 +20,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { EnumField, NumberField, SettingRow } from "./setting-field";
 import { numberFieldError } from "./number-validation";
@@ -83,48 +85,46 @@ export function ScoringSection({ initial }: { initial: ScoringSettings }) {
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Scoring</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>Scoring</CardTitle>
+        <CardDescription>
           Defines what a score means. Changing any row below recomputes every stored score under the new rule before the save returns.
-        </p>
-      </div>
+        </CardDescription>
+      </CardHeader>
 
-      <div className="flex flex-col gap-2">
-        <SettingRow label="Baseline statistic" hint="Which number defines &ldquo;normal&rdquo; for a channel.">
-          <EnumField value={method} onChange={setMethod} options={METHOD_OPTIONS} ariaLabel="Baseline statistic" />
-        </SettingRow>
-        <SettingRow label="Baseline window" hint="How far back the baseline looks.">
-          <EnumField value={windowSpec} onChange={setWindowSpec} options={WINDOW_OPTIONS} ariaLabel="Baseline window" />
-        </SettingRow>
-        <SettingRow label="Minimum usable posts" hint="Fewer usable posts than this and a channel gets no score at all.">
-          <NumberField
-            value={minUsable}
-            onChange={setMinUsable}
-            min={1}
-            max={1000}
-            suffix="posts"
-            ariaLabel="Minimum usable posts"
+      <CardContent>
+        <FieldGroup>
+          <SettingRow label="Baseline statistic" hint="Which number defines &ldquo;normal&rdquo; for a channel.">
+            <EnumField value={method} onChange={setMethod} options={METHOD_OPTIONS} ariaLabel="Baseline statistic" />
+          </SettingRow>
+          <SettingRow label="Baseline window" hint="How far back the baseline looks.">
+            <EnumField value={windowSpec} onChange={setWindowSpec} options={WINDOW_OPTIONS} ariaLabel="Baseline window" />
+          </SettingRow>
+          <SettingRow
+            label="Minimum usable posts"
+            hint="Fewer usable posts than this and a channel gets no score at all."
+            htmlFor="scoring-min-usable-posts"
             error={minUsableError}
-          />
-        </SettingRow>
-        <SettingRow label="Views floor" hint="Posts below this many views are excluded from the baseline. 0 means no floor.">
-          <NumberField
-            value={minViews}
-            onChange={setMinViews}
-            min={0}
-            max={1_000_000_000}
-            suffix="views"
-            ariaLabel="Views floor"
+          >
+            <NumberField value={minUsable} onChange={setMinUsable} min={1} max={1000} suffix="posts" />
+          </SettingRow>
+          <SettingRow
+            label="Views floor"
+            hint="Posts below this many views are excluded from the baseline. 0 means no floor."
+            htmlFor="scoring-views-floor"
             error={minViewsError}
-          />
-        </SettingRow>
-      </div>
+          >
+            <NumberField value={minViews} onChange={setMinViews} min={0} max={1_000_000_000} suffix="views" />
+          </SettingRow>
+        </FieldGroup>
+      </CardContent>
 
-      <Button onClick={() => setConfirmOpen(true)} disabled={!dirty || hasError || saving} className="w-fit" size="sm">
-        Save (rescores every post)
-      </Button>
+      <CardFooter>
+        <Button onClick={() => setConfirmOpen(true)} disabled={!dirty || hasError || saving} size="sm">
+          Save (rescores every post)
+        </Button>
+      </CardFooter>
 
       <Dialog
         open={confirmOpen}
@@ -153,6 +153,6 @@ export function ScoringSection({ initial }: { initial: ScoringSettings }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </section>
+    </Card>
   );
 }

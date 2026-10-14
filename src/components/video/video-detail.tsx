@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Image as ImageIcon,
   Lightbulb,
+  Sparkles,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,13 +27,16 @@ import { VideoPlayer } from "@/components/video/video-player";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatCompact, formatDuration, relativeTime } from "@/lib/format";
 import { assetUrl } from "@/lib/media-url";
-import { cn } from "@/lib/utils";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { SavePostButton } from "./save-post-button";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
@@ -68,7 +72,17 @@ export interface FeedNav {
  * this placeholder is replaced by the real content on the next load).
  */
 function NoAnalysisYet() {
-  return <p className="text-sm text-muted-foreground">No analysis yet. Ask your agent to analyze this video.</p>;
+  return (
+    <Empty className="py-16">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Sparkles />
+        </EmptyMedia>
+        <EmptyTitle>No analysis yet.</EmptyTitle>
+        <EmptyDescription>Ask your agent to analyze this video.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 }
 
 /**
@@ -92,12 +106,12 @@ function HookStructureTab({
   durationSec: number | null;
 }) {
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <span data-lab className="font-mono text-2xs text-faint">
-          Hook
-        </span>
-        <div className="mt-3 flex flex-wrap gap-4">
+    <div className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Hook</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-baseline gap-4">
           <span className="font-mono text-xs text-foreground">{analysis.hookType}</span>
           {analysis.formatTags.map((tag) => (
             <Badge key={`format-${tag}`} variant="secondary">
@@ -106,67 +120,76 @@ function HookStructureTab({
           ))}
           {analysis.styleTags.map((tag) => (
             <span key={`style-${tag}`} className="font-mono text-2xs text-muted-foreground">
-              {tag} <span className="text-faint">· unverified</span>
+              {tag} <span className="text-muted-foreground">· unverified</span>
             </span>
           ))}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      <div>
-        <span data-lab className="font-mono text-2xs text-faint">
-          Beats
-        </span>
-        {analysis.structureSegments.length > 0 ? (
-          <div className="mt-6 flex flex-col gap-6">
-            {analysis.structureSegments.map((segment, i) => {
-              const span = segment.endSec - segment.startSec;
-              // Real derived proportion (segment length / whole video), not a fabricated
-              // number — falls back to an even split when duration is unknown.
-              const widthPct = durationSec && durationSec > 0 ? Math.min((span / durationSec) * 100, 100) : null;
-              return (
-                <div key={i} className="grid grid-cols-[96px_minmax(0,1fr)] items-baseline gap-6">
-                  <span data-num className="font-mono text-2xs text-faint">
-                    {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
-                  </span>
-                  <div>
-                    <span className="text-sm font-semibold">{segment.label}</span>
-                    {/* Verbatim words for this beat, quoted out of the transcript by
-                        whichever analysis wrote this row. Absent on rows saved before the
-                        field existed — those show a plain placeholder, never an invented
-                        quote. */}
-                    <div className="mt-3 border-l-2 border-border pl-3">
-                      <span data-lab className="font-mono text-2xs text-faint">
-                        transcript
-                      </span>
-                      {segment.transcript !== undefined ? (
-                        segment.transcript.trim().length > 0 ? (
-                          <p className="mt-1 text-sm whitespace-pre-wrap text-foreground">{segment.transcript}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Beats</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {analysis.structureSegments.length > 0 ? (
+            // The per-beat labels that used to sit inside each row ("transcript",
+            // "summary") are the column headers now, so a beat reads across instead of
+            // down. 560px is the floor at which the four columns still read; the detail
+            // pane is wider than that on a desktop, so the scroll Table brings with it
+            // only engages on a narrow window.
+            <Table className="min-w-[560px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[104px]">Time</TableHead>
+                  <TableHead>Beat</TableHead>
+                  <TableHead>Transcript</TableHead>
+                  <TableHead>Summary</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {analysis.structureSegments.map((segment, i) => {
+                  const span = segment.endSec - segment.startSec;
+                  // Real derived proportion (segment length / whole video), not a fabricated
+                  // number — falls back to an even split when duration is unknown.
+                  const widthPct = durationSec && durationSec > 0 ? Math.min((span / durationSec) * 100, 100) : null;
+                  return (
+                    <TableRow key={i} className="align-top">
+                      <TableCell data-num className="font-mono text-2xs text-muted-foreground">
+                        {formatDuration(segment.startSec)}–{formatDuration(segment.endSec)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal">
+                        <span className="font-semibold">{segment.label}</span>
+                        <div
+                          className="mt-3 h-0.5 bg-border"
+                          style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
+                        />
+                      </TableCell>
+                      {/* Verbatim words for this beat, quoted out of the transcript by
+                          whichever analysis wrote this row. Absent on rows saved before the
+                          field existed — those show a plain placeholder, never an invented
+                          quote. */}
+                      <TableCell className="whitespace-normal">
+                        {segment.transcript !== undefined ? (
+                          segment.transcript.trim().length > 0 ? (
+                            <p className="whitespace-pre-wrap text-foreground">{segment.transcript}</p>
+                          ) : (
+                            <p className="text-muted-foreground">(no words spoken in this beat)</p>
+                          )
                         ) : (
-                          <p className="mt-1 text-sm text-muted-foreground">(no words spoken in this beat)</p>
-                        )
-                      ) : (
-                        <p className="mt-1 text-sm text-muted-foreground">(no per-beat transcript on this analysis)</p>
-                      )}
-                    </div>
-                    <div className="mt-3">
-                      <span data-lab className="font-mono text-2xs text-faint">
-                        summary
-                      </span>
-                      <p className="mt-1 text-sm text-muted-foreground">{segment.note}</p>
-                    </div>
-                    <div
-                      className="mt-3 h-0.5 bg-line-strong"
-                      style={{ width: widthPct !== null ? `${widthPct}%` : "100%" }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-muted-foreground">No structure segments returned.</p>
-        )}
-      </div>
+                          <p className="text-muted-foreground">(no per-beat transcript on this analysis)</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="whitespace-normal text-muted-foreground">{segment.note}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">No structure segments returned.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -348,7 +371,7 @@ export function VideoDetail({
     // the left card into their own tiny inner scrollers while Similar outliers ate the
     // rest. Letting the page grow past main means main scrolls the whole thing as one.
     <div className="flex min-h-full flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-faint">
+      <div className="flex flex-wrap items-center justify-between gap-4 px-6 pt-6 font-mono text-2xs tracking-wide text-muted-foreground">
         <Link href={feedNav.backHref} className="text-muted-foreground hover:text-foreground">
           ← Feed
         </Link>
@@ -388,16 +411,19 @@ export function VideoDetail({
         </Alert>
       )}
 
-      <div className="flex items-start gap-16 p-6">
+      {/* items-start only once the panes sit side by side: in the stacked column
+          direction it is the horizontal axis, and shrink-to-fit there would let the
+          right pane's text run past the viewport. */}
+      <div className="flex flex-col gap-8 p-6 lg:flex-row lg:items-start lg:gap-16">
         {/* Left: the video and everything measured about it. */}
-        <div className="flex w-[320px] shrink-0 flex-col gap-8">
+        <div className="flex w-full flex-col gap-8 lg:w-[320px] lg:shrink-0">
           {/* Capped at 42vh (rather than letting aspect-[9/16] run the full column
               width out to its natural ~1.78x height) so the six stats below are
               never pushed under the fold in a ~900px window. Media components render
               with object-contain/object-cover inside this box (see VideoPlayer,
               CarouselViewer, VideoThumb), so a shorter box still reads as vertical
               media, just letterboxed or lightly cropped instead of full-bleed. */}
-          <div className="relative aspect-[9/16] max-h-[42vh] w-full shrink-0 overflow-hidden bg-card">
+          <Card className="relative aspect-[9/16] max-h-[42vh] w-full shrink-0 gap-0 py-0">
             {item.mediaType === "carousel" ? (
               <CarouselViewer items={detail.children} />
             ) : item.mediaType === "video" ? (
@@ -409,7 +435,7 @@ export function VideoDetail({
             ) : (
               <>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <ImageIcon className="size-12 text-faint" aria-hidden />
+                  <ImageIcon className="size-12 text-muted-foreground" aria-hidden />
                 </div>
                 <VideoThumb assetId={item.thumbnailAssetId} />
               </>
@@ -417,7 +443,7 @@ export function VideoDetail({
             <div className="absolute top-2 right-2 z-10">
               <OutlierBadge score={item.outlierScore} size="lg" />
             </div>
-          </div>
+          </Card>
 
           {/* The six required-visible numbers (views, duration, posted, followers,
               likes, comments) sit right under the media, ahead of the baseline,
@@ -465,13 +491,14 @@ export function VideoDetail({
               >
                 View on {platformLabel(item.channel.platform)} <ExternalLink className="size-3.5" />
               </a>
-              <button
-                type="button"
-                onClick={copyLink}
-                className="inline-flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-              >
-                <Copy className="size-3.5" /> Copy link
-              </button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={<Button variant="ghost" size="icon" aria-label="Copy link" onClick={copyLink} />}
+                >
+                  <Copy />
+                </TooltipTrigger>
+                <TooltipContent>Copy link</TooltipContent>
+              </Tooltip>
             </div>
           </div>
         </div>
@@ -481,17 +508,24 @@ export function VideoDetail({
             the tabs flow at full height (the transcript has its own bounded ScrollArea). */}
         <div className="flex min-w-0 flex-1 flex-col">
           {detail.analysis?.summary ? (
-            <section className="mb-4 border border-border bg-card p-4">
-              <h3 className="mb-1.5 font-mono text-[13px] uppercase tracking-[0.06em] text-faint">Summary</h3>
-              <p className="text-[17px] text-foreground">{detail.analysis.summary}</p>
-            </section>
+            <Card className="mb-4">
+              <CardHeader>
+                <CardTitle>Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p>{detail.analysis.summary}</p>
+              </CardContent>
+            </Card>
           ) : null}
           <Tabs defaultValue="transcript" className="flex flex-col">
-            <TabsList>
+            {/* Four tabs are wider than a phone, and the pill keeps its own fixed
+                height, so the strip scrolls rather than wrapping — without this the
+                Layout tab is simply unreachable below sm. */}
+            <TabsList className="max-w-full overflow-x-auto">
               <TabsTrigger value="transcript">
                 Transcript
                 {detail.transcript ? (
-                  <span className="ml-1.5 font-mono text-[12px] text-faint tabular-nums">
+                  <span className="ml-1.5 font-mono text-[12px] text-muted-foreground tabular-nums">
                     {detail.transcript.text.trim().split(/\s+/).filter(Boolean).length} words
                   </span>
                 ) : null}
@@ -501,17 +535,17 @@ export function VideoDetail({
               <TabsTrigger value="layout">Layout</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="transcript">
+            <TabsContent value="transcript" className="pt-4">
               {detail.transcript ? (
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between gap-6 pt-4">
-                    <span data-lab className="font-mono text-2xs text-faint">
-                      Transcript · {detail.transcript.source}
-                    </span>
-                    <Button variant="outline" size="sm" onClick={copyTranscript}>
-                      <Copy className="size-3.5" /> Copy transcript
-                    </Button>
-                  </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Transcript · {detail.transcript.source}</CardTitle>
+                    <CardAction>
+                      <Button variant="outline" size="sm" onClick={copyTranscript}>
+                        <Copy className="size-3.5" /> Copy transcript
+                      </Button>
+                    </CardAction>
+                  </CardHeader>
                   {/* Tabs no longer carries h-full (that was the source of the
                       action-bar-over-beats overlap on the Hook tab), so this can't
                       lean on an inherited 100%-height chain anymore. ScrollArea needs
@@ -519,14 +553,16 @@ export function VideoDetail({
                       size-full to resolve — without one it collapses to auto and the
                       whole right column scrolls through the full transcript text
                       instead of the transcript scrolling in its own box. */}
-                  <ScrollArea className="mt-4 h-[60vh] pr-4">
-                    <p className="max-w-[68ch] text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                      {detail.transcript.text}
-                    </p>
-                  </ScrollArea>
-                </div>
+                  <CardContent>
+                    <ScrollArea className="h-[60vh] pr-4">
+                      <p className="max-w-[68ch] text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                        {detail.transcript.text}
+                      </p>
+                    </ScrollArea>
+                  </CardContent>
+                </Card>
               ) : (
-                <p className="pt-4 text-sm text-muted-foreground">No transcript yet.</p>
+                <p className="text-sm text-muted-foreground">No transcript yet.</p>
               )}
             </TabsContent>
 
@@ -534,9 +570,7 @@ export function VideoDetail({
               {detail.analysis ? (
                 <HookStructureTab analysis={detail.analysis} durationSec={item.durationSec} />
               ) : (
-                <div className="flex flex-col items-start gap-6 py-16">
-                  <NoAnalysisYet />
-                </div>
+                <NoAnalysisYet />
               )}
             </TabsContent>
 
@@ -546,9 +580,7 @@ export function VideoDetail({
                   {detail.analysis.whyItWorked}
                 </p>
               ) : (
-                <div className="flex flex-col items-start gap-6 py-16">
-                  <NoAnalysisYet />
-                </div>
+                <NoAnalysisYet />
               )}
             </TabsContent>
 
@@ -560,8 +592,8 @@ export function VideoDetail({
             </TabsContent>
           </Tabs>
 
-          {/* End of the reading path: exactly one amber exit (Remix). Save/Copy stay
-              on a raised (outline) surface per the amber-budget rule.
+          {/* End of the reading path: exactly one primary exit (Remix). Save/Copy stay
+              on a raised (outline) surface so this screen keeps one primary action.
               Keep-this-post and Save-to-Vault fill the single "Save" slot the
               prototype has here, so the pair sits inside its own bracket (divider,
               tighter gap, a destination caption under each) rather than reading as
@@ -570,16 +602,21 @@ export function VideoDetail({
               telling them apart before anyone reads a label. */}
           {/* Pinned to the bottom of the shell's main (the scroll container, see the note
               above), so the exit actions stay reachable instead of scrolling off the end
-              of a long transcript. Translucent so the beats stay readable underneath. */}
-          <div className="sticky bottom-0 z-10 mt-16 flex items-start gap-4 border-t border-border bg-background/95 pt-8 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-            <Link href={`/feed/${item.videoId}/remix`} className={cn(buttonVariants({ variant: "default" }))}>
+              of a long transcript. Translucent so the beats stay readable underneath.
+              Deliberately a plain div and not CardFooter: this bar belongs to the page,
+              not to a Card, and CardFooter reads its padding off a --card-spacing that
+              only a Card ancestor defines. */}
+          <div className="sticky bottom-0 z-10 mt-16 flex flex-wrap items-start gap-4 border-t border-border bg-background/95 pt-8 pb-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+            {/* `nativeButton={false}` because this renders an <a>: Base UI's Button
+                assumes a real <button> otherwise and strips the anchor's own semantics. */}
+            <Button render={<Link href={`/feed/${item.videoId}/remix`} />} nativeButton={false}>
               Remix this
-            </Link>
+            </Button>
 
             <div className="flex items-start gap-3 border-l border-border pl-4">
               <div className="flex flex-col items-start gap-1.5">
                 <SavePostButton videoId={item.videoId} saved={savedPost} />
-                <span className="font-mono text-2xs text-faint">Vault → Saved posts</span>
+                <span className="font-mono text-2xs text-muted-foreground">Vault → Saved posts</span>
               </div>
 
               <div className="flex flex-col items-start gap-1.5">
@@ -593,37 +630,39 @@ export function VideoDetail({
                     <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
                   </Tooltip>
                 )}
-                <span className="font-mono text-2xs text-faint">Vault → Hooks &amp; styles</span>
+                <span className="font-mono text-2xs text-muted-foreground">Vault → Hooks &amp; styles</span>
               </div>
             </div>
 
-            <Button variant="outline" size="sm" onClick={createPrompt}>
-              <Wand2 className="size-3.5" /> Copy as prompt
-            </Button>
+            <ButtonGroup>
+              <Button variant="outline" size="sm" onClick={createPrompt}>
+                <Wand2 className="size-3.5" /> Copy as prompt
+              </Button>
 
-            {detail.analysis ? (
-              existingIdea ? (
-                // Reflects the existing idea instead of a blind re-generate (B-12) —
-                // same disabled/no-op-state convention as the Save-to-Vault tooltip
-                // button above, not an actionable regenerate trigger.
-                <Button variant="outline" size="sm" disabled focusableWhenDisabled>
-                  <Lightbulb className="size-3.5" /> {IDEA_STATUS_LABEL[existingIdea.status] ?? "Idea added"}
-                </Button>
-              ) : hasLlmKey ? (
-                <Button variant="outline" size="sm" onClick={generateIdea} disabled={generatingIdea}>
-                  <Lightbulb className="size-3.5" /> {generatingIdea ? "Generating…" : "Generate idea"}
-                </Button>
-              ) : (
-                // Gated on the same `hasLlmKey` signal stage-hook.tsx/stage-style.tsx/
-                // stage-prompt.tsx use for their own generation controls (B-12).
-                <Tooltip>
-                  <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                    <Lightbulb className="size-3.5" /> Generate idea
-                  </TooltipTrigger>
-                  <TooltipContent>Add your Claude API key in Settings to generate an idea</TooltipContent>
-                </Tooltip>
-              )
-            ) : null}
+              {detail.analysis ? (
+                existingIdea ? (
+                  // Reflects the existing idea instead of a blind re-generate (B-12) —
+                  // same disabled/no-op-state convention as the Save-to-Vault tooltip
+                  // button above, not an actionable regenerate trigger.
+                  <Button variant="outline" size="sm" disabled focusableWhenDisabled>
+                    <Lightbulb className="size-3.5" /> {IDEA_STATUS_LABEL[existingIdea.status] ?? "Idea added"}
+                  </Button>
+                ) : hasLlmKey ? (
+                  <Button variant="outline" size="sm" onClick={generateIdea} disabled={generatingIdea}>
+                    <Lightbulb className="size-3.5" /> {generatingIdea ? "Generating…" : "Generate idea"}
+                  </Button>
+                ) : (
+                  // Gated on the same `hasLlmKey` signal stage-hook.tsx/stage-style.tsx/
+                  // stage-prompt.tsx use for their own generation controls (B-12).
+                  <Tooltip>
+                    <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
+                      <Lightbulb className="size-3.5" /> Generate idea
+                    </TooltipTrigger>
+                    <TooltipContent>Add your Claude API key in Settings to generate an idea</TooltipContent>
+                  </Tooltip>
+                )
+              ) : null}
+            </ButtonGroup>
           </div>
         </div>
       </div>

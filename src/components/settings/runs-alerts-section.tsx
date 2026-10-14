@@ -21,6 +21,8 @@ import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { FieldGroup } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { NumberField, SettingRow } from "./setting-field";
 import { numberFieldError } from "./number-validation";
@@ -99,64 +101,60 @@ export function RunsAlertsSection({ initial }: { initial: RunsAlertsSettings }) 
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Runs and alerts</h2>
-        <p className="text-sm text-muted-foreground">Time budgets and what gets an alert. Saved on this device.</p>
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>Runs and alerts</CardTitle>
+        <CardDescription>Time budgets and what gets an alert. Saved on this device.</CardDescription>
+      </CardHeader>
 
-      <div className="flex flex-col gap-2">
-        <SettingRow
-          label="Sync SLA budget"
-          hint="A sync slower than this flags as over budget on the run screens and raises a notification when it finishes. It is never auto cancelled."
-        >
-          <NumberField
-            value={syncSla}
-            onChange={setSyncSla}
-            min={1}
-            max={240}
-            suffix="min"
-            ariaLabel="Sync SLA budget minutes"
+      <CardContent>
+        <FieldGroup>
+          <SettingRow
+            label="Sync SLA budget"
+            hint="A sync slower than this flags as over budget on the run screens and raises a notification when it finishes. It is never auto cancelled."
+            htmlFor="runs-sync-sla-minutes"
             error={syncSlaError}
-          />
-        </SettingRow>
-        <SettingRow label="Remix SLA budget" hint="Same for a remix stage run." warnNote={NOT_WIRED_NOTE}>
-          <NumberField
-            value={remixSla}
-            onChange={setRemixSla}
-            min={1}
-            max={240}
-            suffix="min"
-            ariaLabel="Remix SLA budget minutes"
+          >
+            <NumberField value={syncSla} onChange={setSyncSla} min={1} max={240} suffix="min" />
+          </SettingRow>
+          <SettingRow
+            label="Remix SLA budget"
+            hint="Same for a remix stage run."
+            htmlFor="runs-remix-sla-minutes"
             error={remixSlaError}
-          />
-        </SettingRow>
-        <SettingRow
-          label="Heartbeat staleness"
-          hint="A running job with no heartbeat past this is treated as stuck. Reuses the existing reaper threshold, not set here."
-        >
-          <span className="font-mono text-sm text-muted-foreground">{HEARTBEAT_STALE_LABEL}</span>
-        </SettingRow>
-        <SettingRow
-          label="Browser notifications"
-          hint="Fire an OS style alert while a tab is open, even in the background."
-          warnNote={permission === "unsupported" ? "This browser does not support notifications." : undefined}
-        >
-          <Switch
-            checked={permission === "granted"}
-            onCheckedChange={(checked) => void toggleBrowserNotifications(checked)}
-            disabled={!mounted || permission === "unsupported"}
-            aria-label="Browser notifications"
-          />
-        </SettingRow>
-        <SettingRow label="Notify on success" hint="Off by default. Failures and SLA breaches always notify.">
-          <Switch checked={notifyOnSuccess} onCheckedChange={setNotifyOnSuccess} aria-label="Notify on success" />
-        </SettingRow>
-      </div>
+            warnNote={NOT_WIRED_NOTE}
+          >
+            <NumberField value={remixSla} onChange={setRemixSla} min={1} max={240} suffix="min" />
+          </SettingRow>
+          <SettingRow
+            label="Heartbeat staleness"
+            hint="A running job with no heartbeat past this is treated as stuck. Reuses the existing reaper threshold, not set here."
+          >
+            <span className="font-mono text-sm text-muted-foreground">{HEARTBEAT_STALE_LABEL}</span>
+          </SettingRow>
+          <SettingRow
+            label="Browser notifications"
+            hint="Fire an OS style alert while a tab is open, even in the background."
+            warnNote={permission === "unsupported" ? "This browser does not support notifications." : undefined}
+          >
+            <Switch
+              checked={permission === "granted"}
+              onCheckedChange={(checked) => void toggleBrowserNotifications(checked)}
+              disabled={!mounted || permission === "unsupported"}
+              aria-label="Browser notifications"
+            />
+          </SettingRow>
+          <SettingRow label="Notify on success" hint="Off by default. Failures and SLA breaches always notify.">
+            <Switch checked={notifyOnSuccess} onCheckedChange={setNotifyOnSuccess} aria-label="Notify on success" />
+          </SettingRow>
+        </FieldGroup>
+      </CardContent>
 
-      <Button onClick={save} disabled={!dirty || hasError || saving} className="w-fit" size="sm" variant="outline">
-        {saving ? "Saving…" : "Save"}
-      </Button>
-    </section>
+      <CardFooter>
+        <Button onClick={save} disabled={!dirty || hasError || saving} size="sm" variant="outline">
+          {saving ? "Saving…" : "Save"}
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }

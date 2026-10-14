@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, CheckCircle2, CircleOff, Loader2, RefreshCw, ShieldAlert } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, CircleOff, RefreshCw, ShieldAlert } from "lucide-react";
 
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import {
   getIgStatusAction,
   igChallengeChooseAction,
@@ -86,16 +94,49 @@ export function viewStateOf(phase: Phase, statusResult: StatusResult, failure: F
  * unreachable or a step actually failed) gets the destructive red; `ok` gets the
  * positive tone; `busy` stays muted while it spins.
  */
-function StatusRow({ tone, label, detail, testId }: { tone: "ok" | "warn" | "bad" | "busy"; label: string; detail?: string; testId?: string }) {
-  const Icon = tone === "ok" ? CheckCircle2 : tone === "busy" ? Loader2 : tone === "bad" ? CircleOff : AlertTriangle;
+function StatusRow({
+  tone,
+  label,
+  detail,
+  testId,
+  action,
+}: {
+  tone: "ok" | "warn" | "bad" | "busy";
+  label: string;
+  detail?: string;
+  testId?: string;
+  /** The one control that acts on the state this row reports (Connect, Disconnect),
+   *  right-aligned in the row itself. Rows whose next step is a whole form or a choice
+   *  of channels leave this empty and render that below instead. */
+  action?: ReactNode;
+}) {
+  const Icon = tone === "ok" ? CheckCircle2 : tone === "bad" ? CircleOff : AlertTriangle;
   const color =
-    tone === "ok" ? "text-[var(--pos)]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-foreground";
+    tone === "ok" ? "text-[var(--success)]" : tone === "bad" ? "text-destructive" : tone === "busy" ? "text-muted-foreground" : "text-foreground";
   return (
-    <div className="flex items-center gap-2 text-sm" data-testid={testId}>
-      <Icon className={`size-4 shrink-0 ${color} ${tone === "busy" ? "animate-spin" : ""}`} aria-hidden />
-      <span className="font-medium">{label}</span>
-      {detail && <span className="text-xs text-muted-foreground">({detail})</span>}
-    </div>
+    <Item size="sm" data-testid={testId}>
+      <ItemMedia variant="icon" className={color}>
+        {tone === "busy" ? <Spinner /> : <Icon aria-hidden />}
+      </ItemMedia>
+      {/* The clamps are off on purpose: in the `error` view the label *is* the failure
+          message and the detail is its code, and a truncated error is a useless error. */}
+      <ItemContent>
+        <ItemTitle className="line-clamp-none">{label}</ItemTitle>
+        {detail && <ItemDescription className="line-clamp-none">{detail}</ItemDescription>}
+      </ItemContent>
+      {action && <ItemActions>{action}</ItemActions>}
+    </Item>
+  );
+}
+
+/** One row of the connected-session detail table, in the same shape the Sync section's
+ *  read-only config table uses: a muted label column and a value column. */
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <TableRow>
+      <TableCell className="w-[12rem] align-top text-muted-foreground">{label}</TableCell>
+      <TableCell className="align-top">{children}</TableCell>
+    </TableRow>
   );
 }
 
@@ -119,9 +160,11 @@ function CodeForm({
   onCancel: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="flex items-center gap-2">
+    <Field>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {/* The input keeps its own width cap rather than stretching to the field: six
+          digits in a field as wide as the card reads as a text area, not a code. */}
+      <div className="flex flex-wrap items-center gap-2">
         <Input
           id={id}
           value={value}
@@ -135,15 +178,17 @@ function CodeForm({
           placeholder="123456"
           className="max-w-[10rem] font-mono"
         />
-        <Button size="sm" variant="secondary" onClick={onSubmit} disabled={busy}>
-          {busy ? "Submitting…" : "Submit"}
-        </Button>
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
-          Cancel
-        </Button>
+        <ButtonGroup>
+          <Button size="sm" variant="secondary" onClick={onSubmit} disabled={busy}>
+            {busy ? "Submitting…" : "Submit"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </Button>
+        </ButtonGroup>
       </div>
-      <p className="text-xs text-muted-foreground">{hint}</p>
-    </div>
+      <FieldDescription>{hint}</FieldDescription>
+    </Field>
   );
 }
 
@@ -333,242 +378,269 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
   }
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Instagram connection</h2>
-          <p className="text-sm text-muted-foreground">
+    <section className="flex flex-col gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Instagram connection</CardTitle>
+          <CardDescription>
             Sync talks to a local Python <code>instagrapi</code> sidecar that holds the authenticated session.
-          </p>
-        </div>
-        <Button size="sm" variant="outline" onClick={recheck} disabled={busy || phase === "connecting"}>
-          <RefreshCw className={busy ? "animate-spin" : undefined} aria-hidden />
-          Re-check
-        </Button>
-      </div>
+          </CardDescription>
+          <CardAction>
+            <Button size="sm" variant="outline" onClick={recheck} disabled={busy || phase === "connecting"}>
+              <RefreshCw className={busy ? "animate-spin" : undefined} aria-hidden />
+              Re-check
+            </Button>
+          </CardAction>
+        </CardHeader>
 
-      <SidecarControl health={statusResult} onHealthChange={refreshStatus} />
+        <CardContent className="flex flex-col gap-3">
+          <SidecarControl health={statusResult} onHealthChange={refreshStatus} />
 
-      <div className="flex flex-col gap-3 border border-border p-4">
-        {view === "service_down" && (
-          <>
-            <StatusRow tone="bad" label="Instagram service isn't running" detail={shownFailure?.error} />
-            <p className="text-xs text-muted-foreground">
-              Nothing answered at <code>{serviceUrl}</code> (<code>IG_SERVICE_URL</code>). Start the sidecar in a second terminal, then
-              Re-check:
-            </p>
-            <pre className="overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm run ig:service</pre>
-          </>
-        )}
+          {view === "service_down" && (
+            <>
+              <StatusRow tone="bad" label="Instagram service isn't running" detail={shownFailure?.error} />
+              <p className="text-xs text-muted-foreground">
+                Nothing answered at <code>{serviceUrl}</code> (<code>IG_SERVICE_URL</code>). Start the sidecar in a second terminal, then
+                Re-check:
+              </p>
+              <pre className="overflow-x-auto rounded bg-muted px-2 py-1.5 text-xs">npm run ig:service</pre>
+            </>
+          )}
 
-        {view === "no_credentials" && (
-          <>
-            <StatusRow tone="warn" label="No Instagram credentials configured" detail="service is running" />
-            <p className="text-xs text-muted-foreground">
-              Set <code>IG_USERNAME</code> and <code>IG_PASSWORD</code> in <code>.env.local</code> and restart the sidecar. They are read by
-              the sidecar process only. This app never receives them, never renders them, and no form here submits a password.
-            </p>
-          </>
-        )}
+          {view === "no_credentials" && (
+            <>
+              <StatusRow tone="warn" label="No Instagram credentials configured" detail="service is running" />
+              <p className="text-xs text-muted-foreground">
+                Set <code>IG_USERNAME</code> and <code>IG_PASSWORD</code> in <code>.env.local</code> and restart the sidecar. They are read
+                by the sidecar process only. This app never receives them, never renders them, and no form here submits a password.
+              </p>
+            </>
+          )}
 
-        {view === "logged_out" && (
-          <>
-            <StatusRow tone="warn" label="Not connected" detail="credentials configured, no active session" />
-            <p className="text-xs text-muted-foreground">
-              Connect signs in with the credentials already in the sidecar&apos;s environment. Instagram may answer with a two-factor prompt
-              or a security challenge, and you&apos;ll finish that here.
-            </p>
-            <div>
-              <Button size="sm" variant="secondary" onClick={connect}>
-                Connect
-              </Button>
-            </div>
-          </>
-        )}
+          {view === "logged_out" && (
+            <>
+              <StatusRow
+                tone="warn"
+                label="Not connected"
+                detail="credentials configured, no active session"
+                action={
+                  <Button size="sm" variant="secondary" onClick={connect}>
+                    Connect
+                  </Button>
+                }
+              />
+              <p className="text-xs text-muted-foreground">
+                Connect signs in with the credentials already in the sidecar&apos;s environment. Instagram may answer with a two-factor
+                prompt or a security challenge, and you&apos;ll finish that here.
+              </p>
+            </>
+          )}
 
-        {view === "connecting" && (
-          <>
-            <StatusRow tone="busy" label="Connecting…" detail="signing in via the sidecar" />
-            <p className="text-xs text-muted-foreground">
-              This can take up to two minutes. Instagram logins are deliberately rate-limited and the sidecar adds jitter.
-            </p>
-          </>
-        )}
+          {view === "connecting" && (
+            <>
+              <StatusRow tone="busy" label="Connecting…" detail="signing in via the sidecar" />
+              <p className="text-xs text-muted-foreground">
+                This can take up to two minutes. Instagram logins are deliberately rate-limited and the sidecar adds jitter.
+              </p>
+            </>
+          )}
 
-        {view === "two_factor_required" && (
-          <>
-            <StatusRow tone="warn" label="Two-factor code required" />
-            <CodeForm
-              id="ig-2fa-code"
-              label="6-digit code"
-              hint="From your authenticator app or the SMS Instagram just sent."
-              value={code}
-              busy={busy}
-              onChange={setCode}
-              onSubmit={() => void submitCode("two_factor")}
-              onCancel={() => void recheck()}
-            />
-          </>
-        )}
+          {view === "two_factor_required" && (
+            <>
+              <StatusRow tone="warn" label="Two-factor code required" />
+              <CodeForm
+                id="ig-2fa-code"
+                label="6-digit code"
+                hint="From your authenticator app or the SMS Instagram just sent."
+                value={code}
+                busy={busy}
+                onChange={setCode}
+                onSubmit={() => void submitCode("two_factor")}
+                onCancel={() => void recheck()}
+              />
+            </>
+          )}
 
-        {view === "challenge_required" && phase === "challenge_choice" && (
-          <>
-            <StatusRow tone="warn" label="Instagram issued a security challenge" detail="step 1 of 2" />
-            <p className="text-xs text-muted-foreground">Choose where Instagram should send the verification code.</p>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => void chooseChallengeChannel("email")} disabled={busy}>
-                Email
-              </Button>
-              <Button size="sm" variant="outline" onClick={() => void chooseChallengeChannel("sms")} disabled={busy}>
-                SMS
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => void recheck()} disabled={busy}>
-                Cancel
-              </Button>
-            </div>
-          </>
-        )}
-
-        {view === "challenge_required" && phase === "challenge_code" && (
-          <>
-            <StatusRow tone="warn" label="Instagram issued a security challenge" detail="step 2 of 2" />
-            <CodeForm
-              id="ig-challenge-code"
-              label="Verification code"
-              hint="The code Instagram just sent to the channel you picked."
-              value={code}
-              busy={busy}
-              onChange={setCode}
-              onSubmit={() => void submitCode("challenge")}
-              onCancel={() => void recheck()}
-            />
-          </>
-        )}
-
-        {view === "connected" && status && (
-          <>
-            <StatusRow testId="ig-connection-status-badge" tone="ok" label={status.username ? `Connected as @${status.username}` : "Connected"} />
-            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <dt>instagrapi</dt>
-              <dd className="font-mono">{status.instagrapiVersion ?? "not reported by the service"}</dd>
-              <dt>Session file</dt>
-              <dd>
-                <Badge variant={status.sessionLoaded ? "secondary" : "outline"}>
-                  {status.sessionLoaded ? "loaded from disk" : "not loaded (fresh login this run)"}
-                </Badge>
-              </dd>
-              <dt>Service</dt>
-              <dd className="font-mono">{serviceUrl}</dd>
-              {status.cooldownUntil && (
-                <>
-                  <dt>Rate-limit cooldown</dt>
-                  <dd className="font-mono">until {status.cooldownUntil}</dd>
-                </>
-              )}
-            </dl>
-            <div>
-              <Button size="sm" variant="outline" onClick={() => void disconnect()} disabled={busy}>
-                {busy ? "Disconnecting…" : "Disconnect"}
-              </Button>
-            </div>
-          </>
-        )}
-
-        {view === "error" && shownFailure && (
-          <>
-            <StatusRow tone="bad" label={shownFailure.error} detail={shownFailure.code} />
-            <p className="text-xs text-muted-foreground">
-              {shownFailure.retryable
-                ? "This one is worth retrying: it's a transient network, service or rate-limit condition."
-                : shownFailure.needsUserAction
-                  ? "Retrying as-is won't help: something has to change first (credentials, or a challenge Instagram wants resolved)."
-                  : "Retrying as-is is unlikely to help. Check the sidecar's logs for the full error."}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => void recheck()} disabled={busy}>
-                Re-check status
-              </Button>
-              {shownFailure.retryable && (
-                <Button size="sm" variant="secondary" onClick={() => void connect()} disabled={busy}>
-                  Retry connect
+          {view === "challenge_required" && phase === "challenge_choice" && (
+            <>
+              <StatusRow tone="warn" label="Instagram issued a security challenge" detail="step 1 of 2" />
+              <p className="text-xs text-muted-foreground">Choose where Instagram should send the verification code.</p>
+              <ButtonGroup>
+                <Button size="sm" variant="secondary" onClick={() => void chooseChallengeChannel("email")} disabled={busy}>
+                  Email
                 </Button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
+                <Button size="sm" variant="outline" onClick={() => void chooseChallengeChannel("sms")} disabled={busy}>
+                  SMS
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => void recheck()} disabled={busy}>
+                  Cancel
+                </Button>
+              </ButtonGroup>
+            </>
+          )}
+
+          {view === "challenge_required" && phase === "challenge_code" && (
+            <>
+              <StatusRow tone="warn" label="Instagram issued a security challenge" detail="step 2 of 2" />
+              <CodeForm
+                id="ig-challenge-code"
+                label="Verification code"
+                hint="The code Instagram just sent to the channel you picked."
+                value={code}
+                busy={busy}
+                onChange={setCode}
+                onSubmit={() => void submitCode("challenge")}
+                onCancel={() => void recheck()}
+              />
+            </>
+          )}
+
+          {view === "connected" && status && (
+            <>
+              <StatusRow
+                testId="ig-connection-status-badge"
+                tone="ok"
+                label={status.username ? `Connected as @${status.username}` : "Connected"}
+                action={
+                  <Button size="sm" variant="outline" onClick={() => void disconnect()} disabled={busy}>
+                    {busy ? "Disconnecting…" : "Disconnect"}
+                  </Button>
+                }
+              />
+              <Table>
+                <TableBody>
+                  <DetailRow label="instagrapi">
+                    <span className="font-mono">{status.instagrapiVersion ?? "not reported by the service"}</span>
+                  </DetailRow>
+                  <DetailRow label="Session file">
+                    <Badge variant={status.sessionLoaded ? "secondary" : "outline"}>
+                      {status.sessionLoaded ? "loaded from disk" : "not loaded (fresh login this run)"}
+                    </Badge>
+                  </DetailRow>
+                  <DetailRow label="Service">
+                    <span className="font-mono">{serviceUrl}</span>
+                  </DetailRow>
+                  {status.cooldownUntil && (
+                    <DetailRow label="Rate-limit cooldown">
+                      <span className="font-mono">until {status.cooldownUntil}</span>
+                    </DetailRow>
+                  )}
+                </TableBody>
+              </Table>
+            </>
+          )}
+
+          {view === "error" && shownFailure && (
+            <>
+              <StatusRow tone="bad" label={shownFailure.error} detail={shownFailure.code} />
+              <p className="text-xs text-muted-foreground">
+                {shownFailure.retryable
+                  ? "This one is worth retrying: it's a transient network, service or rate-limit condition."
+                  : shownFailure.needsUserAction
+                    ? "Retrying as-is won't help: something has to change first (credentials, or a challenge Instagram wants resolved)."
+                    : "Retrying as-is is unlikely to help. Check the sidecar's logs for the full error."}
+              </p>
+              <ButtonGroup>
+                <Button size="sm" variant="outline" onClick={() => void recheck()} disabled={busy}>
+                  Re-check status
+                </Button>
+                {shownFailure.retryable && (
+                  <Button size="sm" variant="secondary" onClick={() => void connect()} disabled={busy}>
+                    Retry connect
+                  </Button>
+                )}
+              </ButtonGroup>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {view !== "connected" && (
         <>
-          <div className="flex flex-col gap-3 border border-border p-4">
-            <div className="flex items-center gap-2">
-              <h3 className="text-sm font-semibold">Sign in with a session token</h3>
-              <Badge variant="secondary">Recommended</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Open <code>instagram.com</code> in a browser you&apos;re already signed into that account with, open DevTools, go to
-              Application → Cookies, and copy the value of the <code>sessionid</code> cookie. This skips password login entirely, so
-              it can&apos;t trip the failed-login count Instagram uses to checkpoint an account.
-            </p>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="ig-sessionid">Session ID</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="ig-sessionid"
-                  data-testid="ig-session-input"
-                  type="password"
-                  value={sessionid}
-                  onChange={(e) => setSessionid(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !busy && phase !== "connecting") void connectWithSession();
-                  }}
-                  autoComplete="off"
-                  placeholder="paste the sessionid cookie value"
-                  className="max-w-sm font-mono"
-                />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  data-testid="ig-session-connect-button"
-                  onClick={() => void connectWithSession()}
-                  disabled={busy || phase === "connecting" || sessionid.trim().length === 0}
-                >
-                  {phase === "connecting" ? "Connecting…" : "Connect"}
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle className="flex flex-wrap items-center gap-2">
+                Sign in with a session token
+                <Badge variant="secondary">Recommended</Badge>
+              </CardTitle>
+              <CardDescription>
+                Open <code>instagram.com</code> in a browser you&apos;re already signed into that account with, open DevTools, go to
+                Application → Cookies, and copy the value of the <code>sessionid</code> cookie. This skips password login entirely, so it
+                can&apos;t trip the failed-login count Instagram uses to checkpoint an account.
+              </CardDescription>
+            </CardHeader>
 
-          <div className="flex flex-col gap-3 border border-border p-4">
-            <h3 className="text-sm font-semibold">Sign in with a username and password</h3>
-            <p className="text-xs text-muted-foreground">
-              Validated against a real sidecar login before anything is saved - a wrong password is never stored as configured.
-            </p>
-            {credPhase === "idle" && (
-              <>
-                <div className="flex max-w-sm flex-col gap-2">
-                  <Label htmlFor="ig-credentials-username">Username</Label>
-                  <Input
-                    id="ig-credentials-username"
-                    data-testid="ig-credentials-username-input"
-                    value={credUsername}
-                    onChange={(e) => setCredUsername(e.target.value)}
-                    autoComplete="off"
-                  />
-                  <Label htmlFor="ig-credentials-password">Password</Label>
-                  <Input
-                    id="ig-credentials-password"
-                    data-testid="ig-credentials-password-input"
-                    type="password"
-                    value={credPassword}
-                    onChange={(e) => setCredPassword(e.target.value)}
-                    autoComplete="off"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && credUsername.trim() && credPassword) void submitCredLogin();
-                    }}
-                  />
-                </div>
-                <div>
+            <CardContent>
+              <FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="ig-sessionid">Session ID</FieldLabel>
+                  <InputGroup className="max-w-sm">
+                    <InputGroupInput
+                      id="ig-sessionid"
+                      data-testid="ig-session-input"
+                      type="password"
+                      value={sessionid}
+                      onChange={(e) => setSessionid(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !busy && phase !== "connecting") void connectWithSession();
+                      }}
+                      autoComplete="off"
+                      placeholder="paste the sessionid cookie value"
+                      className="font-mono"
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupButton
+                        variant="secondary"
+                        data-testid="ig-session-connect-button"
+                        onClick={() => void connectWithSession()}
+                        disabled={busy || phase === "connecting" || sessionid.trim().length === 0}
+                      >
+                        {phase === "connecting" ? "Connecting…" : "Connect"}
+                      </InputGroupButton>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </Field>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card size="sm">
+            <CardHeader>
+              <CardTitle>Sign in with a username and password</CardTitle>
+              <CardDescription>
+                Validated against a real sidecar login before anything is saved - a wrong password is never stored as configured.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="flex flex-col items-start gap-4">
+              {credPhase === "idle" && (
+                <>
+                  <FieldGroup className="max-w-sm">
+                    <Field>
+                      <FieldLabel htmlFor="ig-credentials-username">Username</FieldLabel>
+                      <Input
+                        id="ig-credentials-username"
+                        data-testid="ig-credentials-username-input"
+                        value={credUsername}
+                        onChange={(e) => setCredUsername(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="ig-credentials-password">Password</FieldLabel>
+                      <Input
+                        id="ig-credentials-password"
+                        data-testid="ig-credentials-password-input"
+                        type="password"
+                        value={credPassword}
+                        onChange={(e) => setCredPassword(e.target.value)}
+                        autoComplete="off"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && credUsername.trim() && credPassword) void submitCredLogin();
+                        }}
+                      />
+                    </Field>
+                  </FieldGroup>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -578,78 +650,80 @@ export function InstagramSection({ initialStatus, serviceUrl }: { initialStatus:
                   >
                     Connect
                   </Button>
-                </div>
-                {credError && (
-                  <p data-testid="ig-credentials-error" className="text-sm text-destructive">
-                    {credError}
-                  </p>
-                )}
-              </>
-            )}
-            {credPhase === "submitting" && <StatusRow tone="busy" label="Signing in…" />}
-            {credPhase === "two_factor" && (
-              <CodeForm
-                id="ig-credentials-2fa-code"
-                label="6-digit code"
-                hint="From your authenticator app or SMS."
-                value={credCode}
-                busy={busy}
-                onChange={setCredCode}
-                onSubmit={() => void submitCredCode("two_factor")}
-                onCancel={() => setCredPhase("idle")}
-              />
-            )}
-            {credPhase === "challenge_choice" && (
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="secondary" onClick={() => void chooseCredChallengeChannel("email")} disabled={busy}>
-                  Email
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => void chooseCredChallengeChannel("sms")} disabled={busy}>
-                  SMS
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setCredPhase("idle")} disabled={busy}>
-                  Cancel
-                </Button>
-              </div>
-            )}
-            {credPhase === "challenge_code" && (
-              <CodeForm
-                id="ig-credentials-challenge-code"
-                label="Verification code"
-                hint="The code Instagram just sent to the channel you picked."
-                value={credCode}
-                busy={busy}
-                onChange={setCredCode}
-                onSubmit={() => void submitCredCode("challenge")}
-                onCancel={() => setCredPhase("idle")}
-              />
-            )}
-          </div>
+                  {/* A login failure belongs to the pair, not to one input, so it sits
+                      under the button that submitted them rather than under a field. */}
+                  {credError && <FieldError data-testid="ig-credentials-error">{credError}</FieldError>}
+                </>
+              )}
+              {credPhase === "submitting" && <StatusRow tone="busy" label="Signing in…" />}
+              {credPhase === "two_factor" && (
+                <CodeForm
+                  id="ig-credentials-2fa-code"
+                  label="6-digit code"
+                  hint="From your authenticator app or SMS."
+                  value={credCode}
+                  busy={busy}
+                  onChange={setCredCode}
+                  onSubmit={() => void submitCredCode("two_factor")}
+                  onCancel={() => setCredPhase("idle")}
+                />
+              )}
+              {credPhase === "challenge_choice" && (
+                <ButtonGroup>
+                  <Button size="sm" variant="secondary" onClick={() => void chooseCredChallengeChannel("email")} disabled={busy}>
+                    Email
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => void chooseCredChallengeChannel("sms")} disabled={busy}>
+                    SMS
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setCredPhase("idle")} disabled={busy}>
+                    Cancel
+                  </Button>
+                </ButtonGroup>
+              )}
+              {credPhase === "challenge_code" && (
+                <CodeForm
+                  id="ig-credentials-challenge-code"
+                  label="Verification code"
+                  hint="The code Instagram just sent to the channel you picked."
+                  value={credCode}
+                  busy={busy}
+                  onChange={setCredCode}
+                  onSubmit={() => void submitCredCode("challenge")}
+                  onCancel={() => setCredPhase("idle")}
+                />
+              )}
+            </CardContent>
+          </Card>
         </>
       )}
 
+      {/* One line, not an Alert: the warning that earns a panel is the long one inside
+          the disclosure below, and stacking two destructive panels would flatten both. */}
       <p className="flex items-center gap-1.5 text-xs text-destructive">
         <ShieldAlert className="size-3.5 shrink-0" aria-hidden />
         Use a throwaway Instagram account - connecting one risks it being restricted or banned.
       </p>
 
-      <details className="border border-border">
-        <summary className="cursor-pointer p-3 text-sm font-medium">Why a throwaway account, and what&apos;s safe</summary>
-        <div className="flex flex-col gap-3 border-t border-border p-4">
-          <div className="flex gap-2">
-            <ShieldAlert className="size-4 shrink-0 text-destructive" aria-hidden />
-            <div className="text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">Risk: this uses Instagram&apos;s private API.</p>
-              <p className="mt-1">
-                <code>instagrapi</code> drives the same endpoints the mobile app uses. This violates Meta&apos;s Terms of Service. The
-                account you connect can be challenged, restricted, or permanently banned, and there is no appeal path that acknowledges
-                automated access. Use a burner account you can afford to lose, never your main one. Sync is rate-limited with jitter and
-                pins one device profile to reduce the odds, but nothing here removes the risk.
-              </p>
-            </div>
-          </div>
-        </div>
-      </details>
+      <Accordion>
+        <AccordionItem value="ig-throwaway-risk">
+          <AccordionTrigger>Why a throwaway account, and what&apos;s safe</AccordionTrigger>
+          <AccordionContent>
+            <Alert variant="destructive">
+              <ShieldAlert aria-hidden />
+              <AlertTitle>Risk: this uses Instagram&apos;s private API.</AlertTitle>
+              <AlertDescription>
+                <p>
+                  <code>instagrapi</code> drives the same endpoints the mobile app uses. This violates Meta&apos;s Terms of Service. The
+                  account you connect can be challenged, restricted, or permanently banned, and there is no appeal path that acknowledges
+                  automated access. Use a burner account you can afford to lose, never your main one. Sync is rate-limited with jitter and
+                  pins one device profile to reduce the odds, but nothing here removes the risk.
+                </p>
+              </AlertDescription>
+            </Alert>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </section>
   );
 }

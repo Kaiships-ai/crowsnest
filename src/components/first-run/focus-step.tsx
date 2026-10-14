@@ -20,6 +20,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Textarea } from "@/components/ui/textarea";
 import { saveNicheSettingsAction } from "@/server/actions/settings-actions";
 
@@ -65,7 +66,7 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
 
   return (
     <div>
-      <span className="font-mono text-2xs tracking-wide text-faint">01 · FOCUS</span>
+      <span className="font-mono text-2xs tracking-wide text-muted-foreground">01 · FOCUS</span>
       <h1 className="mt-4 text-xl leading-tight font-bold tracking-tight">What do you make?</h1>
       <p className="mt-5 max-w-[48ch] text-sm leading-relaxed text-muted-foreground text-balance">
         This shapes the channels step right after this one, and every remix you generate. Changeable later in
@@ -73,41 +74,43 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
       </p>
 
       <div className="mt-11">
-        <span className="font-mono text-2xs tracking-wide text-faint">SUBJECT</span>
-        <div className="mt-2 flex max-w-[460px] flex-col">
+        <span className="font-mono text-2xs tracking-wide text-muted-foreground">SUBJECT</span>
+        <div className="mt-2 flex max-w-[460px] flex-col items-stretch gap-1">
           {SUBJECTS.map((label) => {
             const isSelected = mode === "preset" && preset === label;
             return (
-              <button
+              <Button
                 key={label}
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setMode("preset");
                   setPreset(label);
                 }}
                 aria-pressed={isSelected}
-                className="flex items-center gap-3 border-b border-border py-3.5 text-left"
+                className="h-auto justify-start gap-3 py-3 text-left"
               >
                 <span
                   aria-hidden
                   className={`size-3 flex-none ${isSelected ? "bg-foreground" : "bg-transparent ring-1 ring-inset ring-border"}`}
                 />
                 <span className={`text-base ${isSelected ? "text-foreground" : "text-muted-foreground"}`}>{label}</span>
-              </button>
+              </Button>
             );
           })}
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setMode("other")}
             aria-pressed={mode === "other"}
-            className="flex items-center gap-3 border-b border-border py-3.5 text-left"
+            className="h-auto justify-start gap-3 py-3 text-left"
           >
             <span
               aria-hidden
               className={`size-3 flex-none ${mode === "other" ? "bg-foreground" : "bg-transparent ring-1 ring-inset ring-border"}`}
             />
             <span className={`text-base ${mode === "other" ? "text-foreground" : "text-muted-foreground"}`}>{OTHER}</span>
-          </button>
+          </Button>
         </div>
 
         {mode === "other" && (
@@ -125,13 +128,15 @@ export function FocusStep({ initialNiche, initialKeywords, onBack, onContinue }:
       {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
 
       <div className="mt-11 flex flex-wrap items-center gap-7">
-        <Button variant="outline" onClick={onBack}>
-          ← Back
-        </Button>
-        <Button onClick={() => void handleContinue()} disabled={!canContinue || saving}>
-          {saving ? "Saving…" : "Continue"}
-        </Button>
-        {!canContinue && <span className="font-mono text-xs text-faint">Pick a subject to continue</span>}
+        <ButtonGroup>
+          <Button variant="outline" onClick={onBack}>
+            ← Back
+          </Button>
+          <Button onClick={() => void handleContinue()} disabled={!canContinue || saving}>
+            {saving ? "Saving…" : "Continue"}
+          </Button>
+        </ButtonGroup>
+        {!canContinue && <span className="font-mono text-xs text-muted-foreground">Pick a subject to continue</span>}
       </div>
     </div>
   );

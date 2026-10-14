@@ -1,3 +1,5 @@
+import { PageContainer } from "@/components/layout/page-container";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountsSection } from "@/components/settings/accounts-section";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
@@ -121,111 +123,119 @@ export default async function SettingsPage() {
     : { configured: false, username: null, state: "unknown" as const, message: graphTokenResult.error, checkedAt: new Date().toISOString() };
 
   return (
-    <div className="mx-auto flex max-w-[1120px] gap-10 p-6">
+    <PageContainer className="flex flex-col gap-6 lg:flex-row lg:gap-10">
       <SettingsNav groups={SETTINGS_NAV_GROUPS} />
 
       {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
-          instead of pushing the nav out of the sticky column it needs to stay in. */}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <p className="pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[0].label}</p>
-        <div id="instagram" className="scroll-mt-6 border-b border-border pb-8">
-          <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+          instead of pushing the nav out of the sticky column it needs to stay in.
+          Every section is a Card now, so the group rhythm is gap, not a border-b rule
+          between full-bleed blocks. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-8">
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[0].label}</p>
+          <div id="instagram" className="scroll-mt-6">
+            <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+          </div>
+          <div id="accounts" className="scroll-mt-6">
+            <AccountsSection initialAccounts={accounts} />
+          </div>
+          <div id="graph-api" className="scroll-mt-6">
+            <GraphSection initialStatus={graphStatus} />
+          </div>
         </div>
 
-        <div id="accounts" className="scroll-mt-6 border-b border-border py-8">
-          <AccountsSection initialAccounts={accounts} />
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[1].label}</p>
+          <div id="niche-profile" className="scroll-mt-6">
+            <NicheProfileSection initialNiche={nicheSettings.niche} />
+          </div>
+          <div id="scoring" className="scroll-mt-6">
+            <ScoringSection
+              initial={{
+                scoreBaselineMethod: appSettings.scoreBaselineMethod,
+                scoreBaselineWindow: appSettings.scoreBaselineWindow,
+                scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
+                scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
+              }}
+            />
+          </div>
+          <div id="feed-defaults" className="scroll-mt-6">
+            <FeedDefaultsSection
+              initial={{
+                feedDefaultMinScore: appSettings.feedDefaultMinScore,
+                feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
+              }}
+            />
+          </div>
         </div>
 
-        <div id="graph-api" className="scroll-mt-6 border-b border-border py-8">
-          <GraphSection initialStatus={graphStatus} />
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[2].label}</p>
+          <div id="api-keys" className="scroll-mt-6">
+            <SecretsSection initialStatus={secretStatuses} />
+          </div>
+          <div id="router" className="scroll-mt-6">
+            <RouterSection initialStatus={routerStatus} initialAutoManage={appSettings.routerAutoManage} />
+          </div>
+          <div id="local-binaries" className="scroll-mt-6">
+            <LocalBinariesSection binaries={binaries} />
+          </div>
         </div>
 
-        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[1].label}</p>
-        <div id="niche-profile" className="scroll-mt-6 border-b border-border pb-8">
-          <NicheProfileSection initialNiche={nicheSettings.niche} />
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[3].label}</p>
+          <div id="sync" className="scroll-mt-6">
+            <SyncSection
+              config={{
+                eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
+                mediaRoot: config.MEDIA_ROOT,
+              }}
+              settings={{
+                syncLookbackDays: appSettings.syncLookbackDays,
+                maxItemsPerSync: appSettings.maxItemsPerSync,
+                viewCountEnrichPerChannel: appSettings.viewCountEnrichPerChannel,
+                syncCadenceMinutes: appSettings.syncCadenceMinutes,
+                mediaRetentionDays: appSettings.mediaRetentionDays,
+              }}
+              scoreBaselineWindow={appSettings.scoreBaselineWindow.value}
+              lastJob={lastJob}
+            />
+          </div>
+          <div id="runs-alerts" className="scroll-mt-6">
+            <RunsAlertsSection
+              initial={{
+                syncSlaMinutes: appSettings.syncSlaMinutes,
+                remixSlaMinutes: appSettings.remixSlaMinutes,
+                notifyOnSuccess: appSettings.notifyOnSuccess,
+              }}
+            />
+          </div>
         </div>
 
-        <div id="scoring" className="scroll-mt-6 border-b border-border py-8">
-          <ScoringSection
-            initial={{
-              scoreBaselineMethod: appSettings.scoreBaselineMethod,
-              scoreBaselineWindow: appSettings.scoreBaselineWindow,
-              scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
-              scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
-            }}
-          />
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[4].label}</p>
+          <div id="publish" className="scroll-mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Publish</CardTitle>
+                <CardDescription>
+                  Scheduling and publishing settings appear here once that feature lands. Nothing to configure yet.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         </div>
 
-        <div id="feed-defaults" className="scroll-mt-6 border-b border-border py-8">
-          <FeedDefaultsSection
-            initial={{
-              feedDefaultMinScore: appSettings.feedDefaultMinScore,
-              feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
-            }}
-          />
-        </div>
-
-        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[2].label}</p>
-        <div id="api-keys" className="scroll-mt-6 border-b border-border pb-8">
-          <SecretsSection initialStatus={secretStatuses} />
-        </div>
-
-        <div id="router" className="scroll-mt-6 border-b border-border py-8">
-          <RouterSection initialStatus={routerStatus} initialAutoManage={appSettings.routerAutoManage} />
-        </div>
-
-        <div id="local-binaries" className="scroll-mt-6 border-b border-border py-8">
-          <LocalBinariesSection binaries={binaries} />
-        </div>
-
-        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[3].label}</p>
-        <div id="sync" className="scroll-mt-6 border-b border-border pb-8">
-          <SyncSection
-            config={{
-              eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
-              mediaRoot: config.MEDIA_ROOT,
-            }}
-            settings={{
-              syncLookbackDays: appSettings.syncLookbackDays,
-              maxItemsPerSync: appSettings.maxItemsPerSync,
-              viewCountEnrichPerChannel: appSettings.viewCountEnrichPerChannel,
-              syncCadenceMinutes: appSettings.syncCadenceMinutes,
-              mediaRetentionDays: appSettings.mediaRetentionDays,
-            }}
-            scoreBaselineWindow={appSettings.scoreBaselineWindow.value}
-            lastJob={lastJob}
-          />
-        </div>
-
-        <div id="runs-alerts" className="scroll-mt-6 border-b border-border py-8">
-          <RunsAlertsSection
-            initial={{
-              syncSlaMinutes: appSettings.syncSlaMinutes,
-              remixSlaMinutes: appSettings.remixSlaMinutes,
-              notifyOnSuccess: appSettings.notifyOnSuccess,
-            }}
-          />
-        </div>
-
-        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[4].label}</p>
-        <div id="publish" className="scroll-mt-6 border-b border-border py-8">
-          <section className="flex flex-col gap-2">
-            <h2 className="text-lg font-semibold">Publish</h2>
-            <p className="text-sm text-muted-foreground">
-              Scheduling and publishing settings appear here once that feature lands. Nothing to configure yet.
-            </p>
-          </section>
-        </div>
-
-        <p className="pt-8 pb-2 font-mono text-2xs tracking-wide text-faint uppercase">{SETTINGS_NAV_GROUPS[5].label}</p>
-        <div id="onboarding" className="scroll-mt-6 border-b border-border pb-8">
-          <OnboardingSection />
-        </div>
-
-        <div id="appearance" className="scroll-mt-6 pt-8">
-          <AppearanceSection />
+        <div className="flex flex-col gap-4">
+          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[5].label}</p>
+          <div id="onboarding" className="scroll-mt-6">
+            <OnboardingSection />
+          </div>
+          <div id="appearance" className="scroll-mt-6">
+            <AppearanceSection />
+          </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }

@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ScrollText, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
+import { StatTile } from "@/components/dashboard/stat-tile";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Toggle } from "@/components/ui/toggle";
 import { formatDuration } from "@/lib/format";
 import { enrichedFromEvents } from "@/lib/run-enrichment";
 import { cn } from "@/lib/utils";
@@ -43,35 +53,27 @@ export function gapErrorClass(code: string | null): IgErrorClass | null {
   return code !== null && isIgErrorCode(code) ? classifyIgError(code) : null;
 }
 
-// Amber stays reserved for the score: transient is a normal retry, so it reads neutral;
-// auth/challenge/fatal all mean "this will not fix itself," so they share the
-// destructive token the rest of this screen already uses for stalled/over-budget.
-const GAP_CLASS_LABEL_CLASS: Record<IgErrorClass, string> = {
-  transient: "text-muted-foreground",
-  auth: "text-destructive",
-  challenge: "text-destructive",
-  fatal: "text-destructive",
+// Transient is a normal retry, so it reads neutral; auth/challenge/fatal all mean "this
+// will not fix itself," so they share the destructive tone the rest of this screen
+// already uses for stalled and over-budget.
+const GAP_CLASS_BADGE: Record<IgErrorClass, "outline" | "destructive"> = {
+  transient: "outline",
+  auth: "destructive",
+  challenge: "destructive",
+  fatal: "destructive",
 };
 
-// Same dot map as runs-list.tsx / sidebar.tsx's STATUS_DOT, not reinvented per screen.
-// Amber stays reserved for the score: "running" gets noticed by brightness plus motion,
-// only success/failed get a live hue.
-const STATUS_DOT: Record<RunStatus, string> = {
-  running: "bg-foreground animate-pulse",
-  waiting: "bg-foreground animate-pulse",
-  success: "bg-[var(--pos)]",
-  partial: "bg-muted-foreground",
-  failed: "bg-destructive",
-  canceled: "bg-muted-foreground",
-};
-
-const STATUS_WORD_CLASS: Record<RunStatus, string> = {
-  running: "text-foreground",
-  waiting: "text-foreground",
-  success: "text-[var(--pos)]",
-  partial: "text-muted-foreground",
-  failed: "text-destructive",
-  canceled: "text-muted-foreground",
+/** The run's status as one badge. The word is the signal; the variant only reinforces
+ *  it, and `running`/`waiting` add a Spinner because the run is actually working.
+ *  `success` has no badge variant of its own, so it borrows the shared `--success`
+ *  token the dashboard's stat tiles already use for a good delta. */
+const STATUS_BADGE: Record<RunStatus, { variant: "secondary" | "outline" | "destructive"; className?: string }> = {
+  running: { variant: "secondary" },
+  waiting: { variant: "secondary" },
+  success: { variant: "secondary", className: "text-success" },
+  partial: { variant: "outline", className: "text-muted-foreground" },
+  failed: { variant: "destructive" },
+  canceled: { variant: "outline", className: "text-muted-foreground" },
 };
 
 const STATUS_WORD_LABEL: Record<RunStatus, string> = {
@@ -205,11 +207,14 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
     }
   }
 
-  const tiles: { key: string; label: string; value: string; bad?: boolean }[] = [
+  // No per-tile tone: `StatTile` (the dashboard's own tile, reused here rather than
+  // re-drawn) renders one value treatment, so a non-zero Failed count reads through the
+  // number itself and through the run's status badge above, not through a red figure.
+  const tiles: { key: string; label: string; value: string }[] = [
     { key: "seen", label: "Seen", value: String(liveRun.itemsSeen) },
     { key: "created", label: "Created", value: String(liveRun.itemsCreated) },
     { key: "updated", label: "Updated", value: String(liveRun.itemsUpdated) },
-    { key: "failed", label: "Failed", value: String(liveRun.itemsFailed), bad: liveRun.itemsFailed > 0 },
+    { key: "failed", label: "Failed", value: String(liveRun.itemsFailed) },
   ];
   if (liveRun.channelsTotal !== null) {
     tiles.push({ key: "channels", label: "Channels", value: `${liveRun.channelsDone ?? 0} / ${liveRun.channelsTotal}` });
@@ -226,162 +231,172 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[liveRun.status])} />
-          <span className={cn("font-semibold", STATUS_WORD_CLASS[liveRun.status])}>{STATUS_WORD_LABEL[liveRun.status]}</span>
-          <span className="font-mono text-2xs text-faint">
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            <Badge variant={STATUS_BADGE[liveRun.status].variant} className={STATUS_BADGE[liveRun.status].className}>
+              {(liveRun.status === "running" || liveRun.status === "waiting") && <Spinner aria-hidden className="size-3" />}
+              {STATUS_WORD_LABEL[liveRun.status]}
+            </Badge>
+          </CardTitle>
+          <CardDescription className="font-mono">
             run_id {liveRun.runId} &middot; {liveRun.type}
-          </span>
-          {verdict.stuck && (
-            <span className="ml-auto inline-flex items-center gap-1 border border-destructive/45 px-2 py-0.5 font-mono text-2xs text-destructive">
-              Stalled, no heartbeat {agoLabel(liveRun.heartbeatAt, now)}
-            </span>
+          </CardDescription>
+          {(verdict.stuck || verdict.overBudget) && (
+            <CardAction>
+              <Badge variant="destructive">
+                {verdict.stuck
+                  ? `Stalled, no heartbeat ${agoLabel(liveRun.heartbeatAt, now)}`
+                  : `SLA over by ${formatDuration(Math.floor(overMs / 1000))}`}
+              </Badge>
+            </CardAction>
           )}
-          {!verdict.stuck && verdict.overBudget && (
-            <span className="ml-auto inline-flex items-center gap-1 border border-destructive/45 bg-[var(--destructive-wash)] px-2 py-0.5 font-mono text-2xs text-destructive">
-              SLA over by {formatDuration(Math.floor(overMs / 1000))}
-            </span>
-          )}
-        </div>
+        </CardHeader>
 
-        <div className="mt-3 flex flex-wrap gap-6 text-xs text-muted-foreground">
-          <span>
-            Started <span className="font-mono">{formatClock(liveRun.startedAt)}</span>
-          </span>
-          <span>
-            Elapsed <span className="font-mono">{formatDuration(Math.floor(elapsedMs / 1000))}</span>
-          </span>
-          <span>
-            Heartbeat <span className="font-mono">{agoLabel(liveRun.heartbeatAt, now)}</span>
-          </span>
-          <span>
-            Budget <span className="font-mono">{formatDuration(Math.floor(budgetMs / 1000))}</span>
-          </span>
-          {stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null) && (
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-6 text-xs text-muted-foreground">
             <span>
-              Ended <span className="font-mono">{stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null)}</span>
+              Started <span className="font-mono">{formatClock(liveRun.startedAt)}</span>
             </span>
-          )}
-        </div>
+            <span>
+              Elapsed <span className="font-mono">{formatDuration(Math.floor(elapsedMs / 1000))}</span>
+            </span>
+            <span>
+              Heartbeat <span className="font-mono">{agoLabel(liveRun.heartbeatAt, now)}</span>
+            </span>
+            <span>
+              Budget <span className="font-mono">{formatDuration(Math.floor(budgetMs / 1000))}</span>
+            </span>
+            {stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null) && (
+              <span>
+                Ended <span className="font-mono">{stopReasonLabel((liveRun.stopReason ?? null) as StopReason | null)}</span>
+              </span>
+            )}
+          </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-px border border-border bg-border sm:grid-cols-5">
-          {tiles.map((tile) => (
-            <div key={tile.key} className="bg-card px-4 py-3">
-              <div className="font-mono text-2xs tracking-wide text-faint uppercase">{tile.label}</div>
-              <div className={cn("mt-1.5 font-mono text-lg tabular-nums", tile.bad && "text-destructive")}>{tile.value}</div>
-            </div>
-          ))}
-        </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            {tiles.map((tile) => (
+              <StatTile key={tile.key} label={tile.label} value={tile.value} />
+            ))}
+          </div>
+        </CardContent>
 
-        <div className="mt-4 flex gap-2">
-          {canCancel && (
-            <Button variant="destructive" size="sm" disabled={cancelling} onClick={() => void handleCancel()}>
-              Cancel run
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            size="sm"
-            aria-pressed={followLive}
-            onClick={toggleFollowLive}
-            className={cn(followLive && "bg-muted text-foreground")}
-          >
-            {followLive ? "Following live" : "Follow live"}
-          </Button>
-        </div>
-      </div>
+        <CardFooter>
+          <ButtonGroup>
+            {canCancel && (
+              <Button variant="destructive" size="sm" disabled={cancelling} onClick={() => void handleCancel()}>
+                Cancel run
+              </Button>
+            )}
+            <Toggle variant="outline" size="sm" pressed={followLive} onPressedChange={toggleFollowLive}>
+              {followLive ? "Following live" : "Follow live"}
+            </Toggle>
+          </ButtonGroup>
+        </CardFooter>
+      </Card>
 
       {firstError && liveRun.status !== "running" && (
-        <button
-          type="button"
-          onClick={() => setOpenId(firstError.id)}
-          className="flex w-full items-start gap-2 border border-destructive/45 bg-[var(--destructive-wash)] px-4 py-3 text-left"
-        >
-          <span className="mt-0.5 font-mono text-2xs text-destructive uppercase">First error</span>
-          <span className="font-mono text-xs text-destructive">{firstError.event}</span>
-        </button>
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>First error</AlertTitle>
+          <AlertDescription>
+            {/* The event name is the control: pressing it opens that row's fields down
+                in the trace, which is why a failed run lands with it already expanded. */}
+            <Button variant="outline" size="sm" className="font-mono" onClick={() => setOpenId(firstError.id)}>
+              {firstError.event}
+            </Button>
+          </AlertDescription>
+        </Alert>
       )}
 
       {run.gaps.length > 0 && (
-        <div>
-          <span className="font-mono text-2xs tracking-wide text-faint uppercase">
-            Gaps &middot; {run.gaps.length} channel{run.gaps.length === 1 ? "" : "s"} didn&apos;t finish
-          </span>
-          <div className="mt-3 border border-border bg-card">
-            <ul className="flex flex-col">
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Gaps &middot; {run.gaps.length} channel{run.gaps.length === 1 ? "" : "s"} didn&apos;t finish
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ItemGroup>
               {run.gaps.map((gap, i) => (
                 <GapRow key={`${gap.channelId}-${i}`} gap={gap} />
               ))}
-            </ul>
-          </div>
-        </div>
+            </ItemGroup>
+          </CardContent>
+        </Card>
       )}
 
-      <div>
-        <div className="mb-3 flex items-center justify-between">
-          <span className="font-mono text-2xs tracking-wide text-faint uppercase">Trace &middot; log events for run_id {liveRun.runId}</span>
-          <div className="flex items-center gap-1.5 font-mono text-2xs text-faint">
-            <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-dim")} />
-            <span>{connected ? "Live" : "Reconnecting…"}</span>
-          </div>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Trace &middot; log events for run_id {liveRun.runId}</CardTitle>
+          <CardAction>
+            {/* A liveness indicator, not a busy one: the dot says the SSE subscription is
+                still attached, it is not reporting work in progress. */}
+            <span className="flex items-center gap-1.5 font-mono text-2xs text-muted-foreground">
+              <span aria-hidden className={cn("size-1.5 rounded-full", connected ? "bg-foreground animate-pulse" : "bg-muted-foreground")} />
+              {connected ? "Live" : "Reconnecting…"}
+            </span>
+          </CardAction>
+        </CardHeader>
 
-        <div className="border border-border bg-card">
+        <CardContent>
           {displayEvents.length === 0 ? (
-            <p className="py-16 text-center text-sm text-muted-foreground">No trace events yet for this run.</p>
+            <Empty>
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ScrollText />
+                </EmptyMedia>
+                <EmptyTitle>No trace events yet for this run.</EmptyTitle>
+              </EmptyHeader>
+            </Empty>
           ) : (
-            <div className="w-full overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-line-strong hover:bg-transparent">
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Time</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Level</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Source</TableHead>
-                    <TableHead className="h-auto pb-3 text-2xs font-normal text-faint">Event</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayEvents.map((e) => {
-                    const open = openId === e.id;
-                    return (
-                      <TableRow
-                        key={e.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={open}
-                        aria-label={`${open ? "Collapse" : "Expand"} fields for ${e.event}`}
-                        onClick={() => setOpenId(open ? null : e.id)}
-                        onKeyDown={(ev) => {
-                          if (ev.key === "Enter" || ev.key === " ") {
-                            ev.preventDefault();
-                            setOpenId(open ? null : e.id);
-                          }
-                        }}
-                        className="cursor-pointer border-border align-top"
-                      >
-                        <TableCell className="py-2 font-mono text-2xs whitespace-nowrap text-muted-foreground">
-                          {formatTs(e.ts)}
-                        </TableCell>
-                        <TableCell className={cn("py-2 text-sm font-medium", LEVEL_LABEL_CLASS[e.level])}>{e.level}</TableCell>
-                        <TableCell className="py-2 text-sm text-muted-foreground">{e.source}</TableCell>
-                        <TableCell className="py-2 font-mono text-xs">
-                          {e.event}
-                          {open && (
-                            <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-background p-2 font-mono text-2xs text-muted-foreground">
-                              {JSON.stringify(e.fields, null, 2)}
-                            </pre>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Time</TableHead>
+                  <TableHead>Level</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Event</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {displayEvents.map((e) => {
+                  const open = openId === e.id;
+                  return (
+                    <TableRow
+                      key={e.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={open}
+                      aria-label={`${open ? "Collapse" : "Expand"} fields for ${e.event}`}
+                      onClick={() => setOpenId(open ? null : e.id)}
+                      onKeyDown={(ev) => {
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          setOpenId(open ? null : e.id);
+                        }
+                      }}
+                      className="cursor-pointer align-top"
+                    >
+                      <TableCell className="font-mono text-muted-foreground">{formatTs(e.ts)}</TableCell>
+                      <TableCell className={cn("font-medium", LEVEL_LABEL_CLASS[e.level])}>{e.level}</TableCell>
+                      <TableCell className="text-muted-foreground">{e.source}</TableCell>
+                      <TableCell className="font-mono">
+                        {e.event}
+                        {open && (
+                          <pre className="mt-2 max-w-full overflow-x-auto rounded-lg bg-background p-2 font-mono text-2xs text-muted-foreground">
+                            {JSON.stringify(e.fields, null, 2)}
+                          </pre>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           )}
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -393,14 +408,18 @@ export function RunDetail({ run, syncSlaMinutes, remixSlaMinutes }: RunDetailPro
 function GapRow({ gap }: { gap: SyncGap }) {
   const errorClass = gapErrorClass(gap.code);
   return (
-    <li className="flex items-baseline justify-between gap-4 border-b border-border px-4 py-2.5 last:border-b-0">
-      <span className="min-w-0 truncate text-sm text-foreground">{gapDisplayName(gap)}</span>
-      <span className="flex shrink-0 items-baseline gap-3 text-right">
-        <span className="font-mono text-2xs text-muted-foreground">{gapMessage(gap)}</span>
-        {errorClass && (
-          <span className={cn("font-mono text-2xs uppercase", GAP_CLASS_LABEL_CLASS[errorClass])}>{errorClass}</span>
-        )}
-      </span>
-    </li>
+    <Item variant="outline" size="sm">
+      <ItemContent>
+        <ItemTitle className="block truncate">{gapDisplayName(gap)}</ItemTitle>
+        <ItemDescription className="font-mono text-2xs">{gapMessage(gap)}</ItemDescription>
+      </ItemContent>
+      {errorClass && (
+        <ItemActions>
+          <Badge variant={GAP_CLASS_BADGE[errorClass]} className="font-mono uppercase">
+            {errorClass}
+          </Badge>
+        </ItemActions>
+      )}
+    </Item>
   );
 }

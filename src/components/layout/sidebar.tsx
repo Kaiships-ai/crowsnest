@@ -3,18 +3,31 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { GetStartedChecklist, type GetStartedItem } from "@/components/layout/get-started-checklist";
-import { NAV_ITEMS } from "@/components/layout/nav-items";
+import { NAV_GROUPS } from "@/components/layout/nav-items";
 import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { phaseLabel, statusHeadline, syncViewState, type SyncViewState } from "@/components/sync/sync-progress-view";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
+import {
+  Sidebar as SidebarRoot,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuAction,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+} from "@/components/ui/sidebar";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SyncProgress, SyncStatusValue } from "@/server/services/sync-types";
@@ -24,29 +37,28 @@ function isNavItemActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-// On-system dot colors, ordered so all five read apart on a dark rail at a glance.
-// Amber is the score's color alone, so "in progress" can't borrow it — running gets
-// noticed by brightness plus motion instead: full `foreground` with a pulse, the one
-// state actually worth catching mid-glance. `never` sits at the opposite end, at `dim`,
-// since nothing has happened yet. `partial` (and the `cancelled` view state, which
-// reuses it below) lands in between at `muted-foreground` — resolved, but incomplete,
-// so it reads quieter than an active run and louder than never-synced. Only the two
-// states with an actual verdict get a live hue: success reads --pos, failed destructive.
+// On-system dot colors, ordered so all five read apart on the rail at a glance. `running`
+// gets noticed by brightness plus motion — full `foreground` with a pulse, the one state
+// worth catching mid-glance. `never` sits at the opposite end, dim, since nothing has
+// happened yet. `partial` (and the `cancelled` view state, which reuses it below) lands in
+// between at `muted-foreground`: resolved, but incomplete, so it reads quieter than an
+// active run and louder than never-synced. Only the two states with an actual verdict get
+// a live hue: success reads --success, failed destructive.
 const STATUS_DOT: Record<SyncStatusValue, string> = {
-  never: "bg-dim",
-  success: "bg-[var(--pos)]",
+  never: "bg-muted-foreground",
+  success: "bg-[var(--success)]",
   running: "bg-foreground animate-pulse",
   partial: "bg-muted-foreground",
   failed: "bg-destructive",
 };
 
 /**
- * The live view has three states DESIGN.md never named, and inventing a sixth colour for
- * them would break a palette the rest of the app matches. `cancelling` is still work in
- * flight, so it keeps running's amber. `cancelled` left channels unvisited, which is what
- * partial's amber already means. `stalled` takes failed's red on purpose: the process
- * died holding the lock, and amber would read as "still going" — the precise misreading
- * this whole pass exists to stop.
+ * The live view has three states the five sync statuses never named, and inventing a
+ * sixth colour for them would break a palette the rest of the app matches. `cancelling`
+ * is still work in flight, so it keeps running's treatment. `cancelled` left channels
+ * unvisited, which is what partial already means. `stalled` takes failed's red on
+ * purpose: the process died holding the lock, and anything softer would read as "still
+ * going", the precise misreading this mapping exists to stop.
  */
 const VIEW_STATE_DOT: Record<SyncViewState, SyncStatusValue> = {
   idle: "never",
@@ -107,28 +119,19 @@ function railDetail(progress: SyncProgress): string {
   return `Channel ${nth} of ${progress.channelsTotal} · ${progress.currentChannelHandle}`;
 }
 
-// Prototype's rail: 240px expanded, an icon-only strip collapsed. Both are plain widths
-// (not "auto"), so the 220ms transition below animates between two concrete numbers
-// instead of to/from an intrinsic size — which is the only way a CSS width transition
-// actually plays.
-const RAIL_EXPANDED = "w-60";
-const RAIL_COLLAPSED = "w-14";
-
 export interface SidebarProps {
   getStartedItems: GetStartedItem[];
   /** `countInboxIdeas()`, read once per full navigation by `(shell)/layout.tsx` — same
    *  flow `getStartedItems` already uses to get real per-user data into this otherwise
    *  static rail (see nav-items.ts's module doc for why the count isn't a NAV_ITEMS
    *  field). Rendered only on the Ideas item, and only as a plain count — the Ideas inbox
-   *  is a mundane tally, not the product's core signal, so it stays neutral text. Amber on
-   *  the rail is reserved for `feedOutlierCount` below (the one "worth making" signal). */
+   *  is a mundane tally, not the product's core signal, so it stays neutral. */
   ideasInboxCount: number;
   /** Outliers new since the creator last opened Feed (`getNewFeedOutliers()`, threaded
    *  from `(shell)/layout.tsx` exactly like `ideasInboxCount`). This is the rail's single
-   *  amber signal — the product's whole promise ("here is what beat the median, go make
-   *  it") surfaced where the eye lands. Rendered only on the Feed item, only when > 0, and
-   *  it is the one place amber is allowed on the rail; every other rail count is neutral.
-   *  DESIGN.md's world is "a single amber signal", and this is it. */
+   *  emphasized signal — the product's whole promise ("here is what beat the median, go
+   *  make it") surfaced where the eye lands. Rendered only on the Feed item, only when
+   *  > 0, and it is the one rail count allowed `primary`; every other one is neutral. */
   feedOutlierCount: number;
 }
 
@@ -140,8 +143,6 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   // follows — long enough to read as "nothing happened yet". Instead, on click we light
   // the target immediately and reconcile when the route commits: `displayHref` is the
   // pending target while a navigation is in flight, then falls back to the real pathname.
-  // One item is ever active, it switches on the click frame, and the existing 150ms color
-  // transition keeps the switch smooth rather than abrupt.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   // React's "adjust state during render" reset pattern, not an effect: the moment the
   // pathname changes (the click's route committed, or the user went elsewhere by any
@@ -155,12 +156,10 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   }
   const displayHref = pendingHref ?? pathname;
   const [panelOpen, setPanelOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
   // job is latest — so a run started on a channel page, in another tab, or by the
   // in-process sync scheduler (sync-scheduler.ts, which starts a library sweep on the
-  // syncCadenceMinutes cadence) shows up here. The old code fetched status exactly once on
-  // mount, which is why anything started elsewhere was invisible until a reload.
+  // syncCadenceMinutes cadence) shows up here.
   const { progress, isRunning, stalled, error, start, cancel } = useSyncProgress();
   // Set by whichever page currently holds state a navigation would drop (the channels
   // board's unsaved drag moves, so far) — see navigation-blocker.tsx. A confirm() rather
@@ -217,250 +216,147 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   }, [feedOutlierCount]);
 
   return (
-    <aside
-      className={cn(
-        // Fixed, not shrinking: with the shell as a flex row (not a grid with a fixed
-        // track) this is the only thing that decides the rail's width, so the content
-        // pane next to it is free to take up every pixel that isn't rail — no centered
-        // column, no leftover gutter.
-        "flex h-full shrink-0 flex-col overflow-y-auto border-r border-border bg-card",
-        "transition-[width] duration-[220ms] ease-[cubic-bezier(0.2,0.7,0.2,1)]",
-        // Its own thin scrollbar, not the browser default.
-        "[scrollbar-width:thin] [scrollbar-color:var(--border)_transparent]",
-        "[&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent",
-        collapsed ? RAIL_COLLAPSED : RAIL_EXPANDED
-      )}
-    >
-      <div className={cn("flex items-center gap-2.5 py-5", collapsed ? "justify-center px-2" : "px-5")}>
-        {!collapsed && (
-          <span className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight">
-            Crowsnest
-          </span>
-        )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          className="shrink-0"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed((prev) => !prev)}
-        >
-          <ChevronLeft
-            className={cn("size-4 transition-transform duration-200 ease-out", collapsed && "rotate-180")}
-          />
-        </Button>
-      </div>
+    <SidebarRoot collapsible="icon">
+      <SidebarHeader>
+        <span className="truncate px-3 py-1 text-base font-semibold tracking-tight group-data-[collapsible=icon]:hidden">
+          Crowsnest
+        </span>
+      </SidebarHeader>
 
-      <nav className="flex flex-1 flex-col gap-0.5 pb-2" aria-label="Primary">
-        {NAV_ITEMS.map((item, index) => {
-          const itemActive = isNavItemActive(displayHref, item.href);
-          const Icon = item.icon;
-          const startsNewGroup = index === 0 || NAV_ITEMS[index - 1].group !== item.group;
+      <SidebarContent>
+        {NAV_GROUPS.map(({ group, items }) => (
+          <SidebarGroup key={group}>
+            <SidebarGroupLabel data-lab className="font-mono text-2xs">
+              {group}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {items.map((item) => {
+                  const itemActive = isNavItemActive(displayHref, item.href);
+                  const Icon = item.icon;
 
-          return (
-            <div key={item.href}>
-              {startsNewGroup && (
-                <>
-                  {index > 0 && <Separator className="mx-3 my-3 w-auto" />}
-                  {!collapsed && (
-                    <span
-                      data-lab
-                      className="block px-6 pt-2 pb-2 font-mono text-2xs text-faint"
-                    >
-                      {item.group}
-                    </span>
-                  )}
-                </>
-              )}
-              <Link
-                href={item.href}
-                title={item.label}
-                aria-current={itemActive ? "page" : undefined}
-                onNavigate={(e) => {
-                  if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
-                    e.preventDefault();
-                    return;
-                  }
-                  // Light the target now, not after the server render commits. Skipped when
-                  // it is already the active route (a re-click navigates nowhere, so there
-                  // is nothing to reconcile and no pending state to strand).
-                  if (!itemActive) setPendingHref(item.href);
-                }}
-                className={cn(
-                  // A transparent left border on every item so the active one can light it
-                  // without shifting the row 2px. The marker is `line-strong` (neutral), not
-                  // amber: amber is the rail's single signal and it belongs on the Feed
-                  // outlier cue, not on "you are here". Raised surface + weight carry the
-                  // rest of the active state.
-                  // `relative` anchors the collapsed-mode signal dot below. Keyboard focus
-                  // gets the app's amber focus ring (globals: focus is amber because nothing
-                  // else competes for it), inset so it never collides with the rail edge —
-                  // the nav links had only the browser default before.
-                  "relative mx-3 flex items-center gap-2.5 border-l-2 border-transparent px-3 py-2 text-sm transition-colors",
-                  "focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring",
-                  collapsed && "justify-center px-0",
-                  itemActive
-                    ? "border-[color:var(--line-strong)] bg-popover font-semibold text-foreground"
-                    : "font-normal text-muted-foreground hover:bg-popover/60 hover:text-foreground"
-                )}
-              >
-                {/* Stroke tuned finer than Lucide's default 2 so the glyphs read as
-                    precise instrument marks against the grotesque/mono type, and the active
-                    item's icon thickens to 2 in lockstep with its bolded label — weight is
-                    the one thing that changes across the whole active row, icon included. */}
-                <Icon className="size-4 shrink-0" strokeWidth={itemActive ? 2 : 1.75} />
-                {!collapsed && (
-                  <>
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    {/* Ideas is a mundane tally, so its count stays neutral. Hidden at
-                        zero — an empty inbox needs no badge to say so, "silence is the
-                        default". */}
-                    {item.href === "/ideas" && ideasInboxCount > 0 && (
-                      <span className="shrink-0 rounded-none bg-popover px-1.5 py-0.5 font-mono text-2xs tabular-nums text-muted-foreground">
-                        {ideasInboxCount}
-                      </span>
-                    )}
-                    {/* The rail's ONE amber signal: outliers new since the last Feed visit.
-                        Amber here is not a decoration — globals.css reserves it for "the
-                        score, and the only thing amber is allowed to mean", and an outlier
-                        IS a high score, so this count is that exact meaning surfaced where
-                        the eye lands. `score-wash` background + `primary` text = the washed
-                        amber signal, restrained not shouted, and the only amber on the rail.
-                        Hidden at zero, same silence-is-default rule. */}
-                    {item.href === "/feed" && feedOutlierCount > 0 && (
-                      <span
-                        key={outlierSettleKey}
-                        className="rail-signal-settle shrink-0 rounded-none bg-score-wash px-1.5 py-0.5 font-mono text-2xs tabular-nums text-primary"
-                      >
-                        {feedOutlierCount}
-                      </span>
-                    )}
-                  </>
-                )}
-                {/* Collapsed rail keeps the signal alive as a bare amber dot — the count has
-                    no room, but "there is something on Feed worth making" must not vanish
-                    just because the labels did. Same score-amber, same hidden-at-zero rule. */}
-                {collapsed && item.href === "/feed" && feedOutlierCount > 0 && (
-                  <span aria-hidden className="absolute right-2 top-1.5 size-1.5 rounded-full bg-primary" />
-                )}
-              </Link>
-            </div>
-          );
-        })}
-      </nav>
+                  return (
+                    <SidebarMenuItem key={item.href}>
+                      <SidebarMenuButton
+                        isActive={itemActive}
+                        tooltip={item.label}
+                        render={
+                          <Link
+                            href={item.href}
+                            aria-current={itemActive ? "page" : undefined}
+                            // Survives the trip through SidebarMenuButton's `render` and
+                            // the TooltipTrigger it wraps this Link in: Base UI's
+                            // `useRender` merges onto the given element rather than
+                            // replacing it, so Next's own props reach the anchor intact.
+                            onNavigate={(e) => {
+                              if (isBlocked && !window.confirm("You have unsaved changes. Leave anyway?")) {
+                                e.preventDefault();
+                                return;
+                              }
+                              // Light the target now, not after the server render commits.
+                              // Skipped when it is already the active route: a re-click
+                              // navigates nowhere, so there is nothing to reconcile and no
+                              // pending state to strand.
+                              if (!itemActive) setPendingHref(item.href);
+                            }}
+                          >
+                            {/* Stroke tuned finer than Lucide's default 2 so the glyphs read
+                                as precise instrument marks against the mono type, and the
+                                active item's icon thickens to 2 in lockstep with its bolded
+                                label. */}
+                            <Icon strokeWidth={itemActive ? 2 : 1.75} />
+                            <span>{item.label}</span>
+                            {/* The collapsed rail has no room for a count, but "there is
+                                something on Feed worth making" must not vanish just because
+                                the labels did — SidebarMenuBadge hides itself at that width,
+                                so the signal survives as a bare dot. */}
+                            {item.href === "/feed" && feedOutlierCount > 0 && (
+                              <span
+                                aria-hidden
+                                className="absolute top-1.5 right-1.5 hidden size-1.5 rounded-full bg-primary group-data-[collapsible=icon]:block"
+                              />
+                            )}
+                          </Link>
+                        }
+                      />
+                      {/* Ideas is a mundane tally, so its count stays neutral. Hidden at
+                          zero: an empty inbox needs no badge to say so. */}
+                      {item.href === "/ideas" && ideasInboxCount > 0 && (
+                        <SidebarMenuBadge className="font-mono">{ideasInboxCount}</SidebarMenuBadge>
+                      )}
+                      {/* The rail's ONE emphasized signal: outliers new since the last Feed
+                          visit. Same hidden-at-zero rule, and the only rail count that gets
+                          `primary` rather than the muted sidebar foreground. */}
+                      {item.href === "/feed" && feedOutlierCount > 0 && (
+                        <SidebarMenuBadge
+                          key={outlierSettleKey}
+                          className="rail-signal-settle bg-primary/10 font-mono text-primary"
+                        >
+                          {feedOutlierCount}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
-      {/* Own top-level row, not nested in the footer's px-3 wrapper below — that wrapper's
-          padding would stack with this component's own mx-3/px-6, throwing its rows out
-          of alignment with the nav links above. */}
-      {!collapsed && <GetStartedChecklist items={getStartedItems} />}
+        <GetStartedChecklist items={getStartedItems} />
+      </SidebarContent>
 
-      <div className={cn("pb-4", collapsed ? "px-0" : "px-3")}>
-        <Separator className="mb-3" />
-
-        {collapsed ? (
-          // Labels gone, controls stay operable: the dot itself becomes the button that
-          // opens the same panel the expanded rail's status row opens.
-          <div className="flex flex-col items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="sm"
               onClick={() => setPanelOpen(true)}
               aria-label={`Open sync details — ${railStatusLabel}`}
-              title={railStatusLabel}
+              tooltip={railStatusLabel}
             >
-              <span aria-hidden className={cn("size-1.5 rounded-full", STATUS_DOT[dot])} />
-            </Button>
+              <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[dot])} />
+              <span className="min-w-0 truncate">{railStatusLabel}</span>
+            </SidebarMenuButton>
 
             {active ? (
-              <Button
-                variant="ghost"
-                size="icon-xs"
+              <SidebarMenuAction
                 onClick={() => void cancel()}
                 disabled={progress?.cancelRequested ?? false}
                 aria-label="Cancel sync"
               >
-                <X className="size-3.5" />
-              </Button>
+                <X />
+              </SidebarMenuAction>
             ) : (
-              <Button
-                variant="ghost"
-                size="icon-xs"
+              <SidebarMenuAction
                 onClick={() => void start()}
+                // A stalled run holds the lock but is dead; starting a new sync takes the
+                // lock back, so the button stays live rather than trapping the user.
                 disabled={isRunning && !stalled}
                 aria-label="Sync now"
-                title="Sync now"
               >
-                <RefreshCw className={cn("size-3.5", isRunning && !stalled && "animate-spin")} />
-              </Button>
+                {/* Driven by the polled `running` row, so it stops when the run really
+                    stops. A spinner tied to one client promise would stop when that promise
+                    settled and go silent across a reload mid-run. */}
+                <RefreshCw className={cn(isRunning && !stalled && "animate-spin")} />
+              </SidebarMenuAction>
             )}
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-1 pl-3 text-xs text-muted-foreground">
-              {/* Deliberately a bare <button>, not the UI-kit <Button>. Its cva base sets
-                  `shrink-0` and `whitespace-nowrap`, and `shrink-0` lands in a different
-                  tailwind-merge group from `flex-1`, so both survive the merge: the control
-                  ends up flex-shrink:0 and simply refuses to give way. With a real handle in
-                  it ("Syncing @hormozi") that overflowed the rail and collided with the icon
-                  button beside it. Nothing here needs the kit's affordances — it is a text
-                  row that must yield — so it opts out rather than fighting the cascade. */}
-              <button
-                type="button"
-                onClick={() => setPanelOpen(true)}
-                aria-label="Open sync details"
-                className="flex min-w-0 flex-1 items-center gap-2 py-0.5 text-left transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_DOT[dot])} />
-                {/* min-w-0 as well as truncate: a flex child's min-width:auto would otherwise
-                    keep it at its full text width and no ellipsis would ever appear. */}
-                <span className="min-w-0 truncate">{railStatusLabel}</span>
-              </button>
+          </SidebarMenuItem>
+        </SidebarMenu>
 
-              {active ? (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="shrink-0"
-                  onClick={() => void cancel()}
-                  disabled={progress?.cancelRequested ?? false}
-                  aria-label="Cancel sync"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="shrink-0"
-                  onClick={() => void start()}
-                  // A stalled run holds the lock but is dead; starting a new sync takes the
-                  // lock back, so the button stays live rather than trapping the user.
-                  disabled={isRunning && !stalled}
-                  aria-label="Sync now"
-                >
-                  {/* Driven by the polled `running` row, so it stops when the run really
-                      stops. The old spinner lasted exactly as long as one client promise
-                      happened to stay open, and a reload silenced it mid-run. */}
-                  <RefreshCw className={cn("size-3.5", isRunning && !stalled && "animate-spin")} />
-                </Button>
-              )}
-            </div>
+        <div className="group-data-[collapsible=icon]:hidden">
+          {active && progress !== null && (
+            <p className="truncate px-3 text-2xs tabular-nums text-muted-foreground">{railDetail(progress)}</p>
+          )}
 
-            {/* pr-3 matters as much as pl-3: without a right inset the ellipsis renders hard
-                against the rail's border, which reads as "clipped" rather than "shortened". */}
-            {active && progress !== null && (
-              <p className="mt-1 truncate px-3 text-2xs text-muted-foreground tabular-nums">{railDetail(progress)}</p>
-            )}
+          {/* Rendered, not toasted: a poll that fails every second would stack a tower of
+              identical toasts. The last good progress row stays on screen beside it (see
+              reducePoll) rather than blanking. */}
+          {error !== null && <p className="truncate px-3 text-2xs text-destructive">{error}</p>}
+        </div>
+      </SidebarFooter>
 
-            {/* Rendered, not toasted: a poll that fails every second would stack a tower of
-                identical toasts. The last good progress row stays on screen beside it (see
-                reducePoll) rather than blanking. */}
-            {error !== null && <p className="mt-1 truncate px-3 text-2xs text-destructive">{error}</p>}
-          </>
-        )}
-      </div>
+      <SidebarRail />
 
       <Dialog open={panelOpen} onOpenChange={setPanelOpen}>
         <DialogContent className="sm:max-w-xl">
@@ -481,6 +377,7 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
           />
         </DialogContent>
       </Dialog>
-    </aside>
+    </SidebarRoot>
   );
 }
+

@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Compass } from "lucide-react";
 
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CreatorSeedRow } from "@/server/queries/discover";
 import { CreatorSeedCard } from "./creator-seed-card";
@@ -27,17 +29,25 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
 
   if (seeds.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        No creators to discover yet. Run <code className="font-mono">npm run db:bootstrap</code> to load
-        the starter list.
-      </p>
+      <Empty>
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Compass />
+          </EmptyMedia>
+          <EmptyTitle>No creators to discover yet.</EmptyTitle>
+          <EmptyDescription>
+            Run <code className="font-mono">npm run db:bootstrap</code> to load the starter list.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
       {/* First-run orientation: without this the page is a filter and a wall of cards
-          with no statement of what following does. One muted line, no amber. */}
+          with no statement of what following does. One muted line, never a signal
+          colour. */}
       <p className="text-sm text-muted-foreground" data-testid="discover-lede">
         Curated creators worth tracking. Follow one to add it as a channel and pull its top
         posts into your feed.
@@ -62,7 +72,7 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
       {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground">No creators in this niche.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((seed) => (
             <CreatorSeedCard
               key={seed.handle}

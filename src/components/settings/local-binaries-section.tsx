@@ -1,5 +1,9 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+
 export interface BinaryStatus {
   label: string;
   available: boolean;
@@ -12,31 +16,43 @@ export interface BinaryStatus {
  * component — no "use client". */
 export function LocalBinariesSection({ binaries }: { binaries: BinaryStatus[] }) {
   return (
-    <section className="flex flex-col gap-3">
-      <div>
-        <h2 className="text-lg font-semibold">Local binaries</h2>
-        <p className="text-sm text-muted-foreground">
+    <Card>
+      <CardHeader>
+        <CardTitle>Local binaries</CardTitle>
+        <CardDescription>
           Optional command-line tools (yt-dlp for downloads, whisper-cpp for transcription) that unlock keyless transcription and manual reel import. Install them only if you want those features to work.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent>
+        <ItemGroup>
+          {binaries.map((bin) => (
+            <Item key={bin.label} variant="outline" size="sm">
+              <ItemMedia variant="icon">
+                {bin.available ? (
+                  <CheckCircle2 className="text-[var(--success)]" aria-hidden />
+                ) : (
+                  <AlertTriangle className="text-muted-foreground" aria-hidden />
+                )}
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{bin.label}</ItemTitle>
+              </ItemContent>
+              {!bin.available && bin.reason && (
+                <ItemActions>
+                  <Badge variant="secondary">{bin.reason}</Badge>
+                </ItemActions>
+              )}
+            </Item>
+          ))}
+        </ItemGroup>
+      </CardContent>
+
+      <CardFooter>
+        <p className="text-xs text-muted-foreground">
+          Install with: <code className="rounded bg-muted px-1 py-0.5">brew install yt-dlp whisper-cpp</code>
         </p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        {binaries.map((bin) => (
-          <div key={bin.label} className="flex items-center gap-2 border border-border p-3 text-sm">
-            {bin.available ? (
-              <CheckCircle2 className="size-4 shrink-0 text-[var(--pos)]" aria-hidden />
-            ) : (
-              <AlertTriangle className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            )}
-            <span className="font-medium">{bin.label}</span>
-            {!bin.available && bin.reason && <span className="text-xs text-muted-foreground">({bin.reason})</span>}
-          </div>
-        ))}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Install with: <code className="rounded bg-muted px-1 py-0.5">brew install yt-dlp whisper-cpp</code>
-      </p>
-    </section>
+      </CardFooter>
+    </Card>
   );
 }

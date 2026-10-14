@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent, type DragOverEvent, type DragStartEvent, type DropAnimation,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import { Compass, Users } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { useSyncProgress } from "@/components/sync/use-sync-progress";
 import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import type { ChannelRow, KanbanBoard as KanbanBoardData } from "@/server/queries/channels";
@@ -214,40 +218,56 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
     <div className="flex h-full flex-col">
       {/* No heading here: the topbar already renders the route title, and a second
           "Channels" one line below it is the duplicate the M6 rule bans. */}
-      <div className="flex items-end justify-between gap-6 border-b border-border px-6 pt-6 pb-4">
-        <p className="font-mono text-2xs text-faint">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
+        <p className="font-mono text-2xs text-muted-foreground">
           <span data-testid="channels-tracked-count" data-num className="text-muted-foreground">
             {board.channels.length}
           </span>{" "}
           tracked
           {neverSynced > 0 && (
             <>
-              <span className="mx-1.5 text-dim">&middot;</span>
+              <span className="mx-1.5 text-muted-foreground">&middot;</span>
               <span data-num className="text-muted-foreground">{neverSynced}</span> never synced
             </>
           )}
-          <span className="mx-1.5 text-dim">&middot;</span>
+          <span className="mx-1.5 text-muted-foreground">&middot;</span>
           <span data-num className="text-muted-foreground">{board.fleets.length}</span> fleets
         </p>
         <span className="flex items-center gap-2">
+          {/* Neutral text link, not a Button, so it never reads as the board's primary action. */}
+          <Link
+            href="/channels/discover"
+            className="mr-2 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <Compass className="size-4" />
+            Discover creators
+          </Link>
           <NewFleetDialog />
           <AddChannelDialog />
         </span>
       </div>
 
       {board.channels.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-          <p className="text-sm text-foreground">No channels tracked yet.</p>
-          <p className="max-w-[44ch] text-sm text-muted-foreground">
-            Add the creators you want to research as sources, then run a sync to pull their posts and start scoring
-            outliers.
-          </p>
-          <div className="pt-2">
+        <Empty className="flex-1 py-16">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <Users />
+            </EmptyMedia>
+            <EmptyTitle>No channels tracked yet.</EmptyTitle>
+            <EmptyDescription>
+              Add the creators you want to research as sources, then run a sync to pull their posts and start scoring
+              outliers.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
             <AddChannelDialog />
-          </div>
-        </div>
+          </EmptyContent>
+        </Empty>
       ) : (
       <DndContext
+        // A fixed id: dnd-kit otherwise numbers its aria-describedby ids from a module
+        // counter that keeps climbing on the server, so SSR and hydration disagree.
+        id="channels-board"
         sensors={sensors}
         onDragStart={onDragStart}
         onDragOver={onDragOver}
@@ -296,16 +316,16 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
         />
       )}
 
-      <div className="flex flex-none items-center justify-between gap-6 border-t border-line-strong bg-popover px-6 py-3">
+      <div className="flex flex-none flex-wrap items-center justify-between gap-3 border-t border-border bg-popover px-4 py-3 sm:px-6">
         <span className="text-xs text-muted-foreground">
           {dirty
             ? <><span data-num className="text-foreground">{moveCount}</span> unsaved move{moveCount === 1 ? "" : "s"}</>
             : "No unsaved changes"}
         </span>
-        <span className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" disabled={!dirty || pending} onClick={() => setOverlay({})}>Discard</Button>
+        <ButtonGroup>
+          <Button variant="outline" size="sm" disabled={!dirty || pending} onClick={() => setOverlay({})}>Discard</Button>
           <Button variant="default" size="sm" disabled={!dirty || pending} onClick={save}>Save changes</Button>
-        </span>
+        </ButtonGroup>
       </div>
     </div>
   );

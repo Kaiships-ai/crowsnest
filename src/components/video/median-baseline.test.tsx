@@ -1,15 +1,21 @@
-import { describe, expect, test } from "vitest";
+/**
+ * @vitest-environment jsdom
+ *
+ * `median-baseline.tsx` is a pure presentational component (no client hooks), so most
+ * of it is exercised through `react-dom/server`: string matching the rendered markup
+ * is enough for "which state is on screen, and what does it say." The exception is the
+ * hero's tone, which is a property of one element rather than of the whole markup, so
+ * that one test mounts the component and reads the element back.
+ */
+
+import { cleanup, render as renderDom } from "@testing-library/react";
+import { afterEach, describe, expect, test } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import type { MedianBasis } from "@/server/queries/channels";
 import { MedianBaseline, methodLabel, scalePosition, windowLabel } from "./median-baseline";
 
-/**
- * `median-baseline.tsx` is a pure presentational component (no client hooks), so it's
- * exercised through `react-dom/server` the same way `sync-progress-panel.test.tsx`
- * does — no jsdom/testing-library needed for "which state is on screen, and what does
- * it say."
- */
+afterEach(cleanup);
 
 function render(element: React.ReactElement): string {
   return renderToStaticMarkup(element);
@@ -120,13 +126,14 @@ describe("MedianBaseline", () => {
     expect(text(html)).toContain("No channel data to measure this against.");
   });
 
-  test("hero score is amber only at or above 1.0x, matching the feed card's rule", () => {
-    // The histogram highlights whichever bar is "this post" in the same amber token
-    // regardless of the hero's own state, so the hero span itself (not the whole
-    // markup) is what has to flip color at the 1.0x boundary.
-    const below = render(<MedianBaseline score={0.8} handle="@creator" basis={basis()} />);
-    const atOrAbove = render(<MedianBaseline score={1} handle="@creator" basis={basis()} />);
-    expect(below).toContain('text-foreground">0.8×');
-    expect(atOrAbove).toContain('text-score">1.0×');
+  test("hero score takes the emphasis tone only at or above 1.0x, matching the feed card's rule", () => {
+    // The histogram highlights whichever bar is "this post" in the same token
+    // regardless of the hero's own state, so the hero element itself (not the whole
+    // markup) is what has to flip tone at the 1.0x boundary.
+    const below = renderDom(<MedianBaseline score={0.8} handle="@creator" basis={basis()} />);
+    expect(below.getByText("0.8×").className).toContain("text-foreground");
+    cleanup();
+    const atOrAbove = renderDom(<MedianBaseline score={1} handle="@creator" basis={basis()} />);
+    expect(atOrAbove.getByText("1.0×").className).toContain("text-primary");
   });
 });

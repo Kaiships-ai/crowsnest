@@ -4,7 +4,8 @@ import Link from "next/link";
 import { Copy, ExternalLink, MoreHorizontal, Play } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +23,9 @@ import { VideoThumb } from "./video-thumb";
 // carousel-viewer.tsx's EMPTY_WELL so the feed and the detail screen agree on what an
 // empty media slot looks like. A plain object so it isn't reallocated on every render.
 const THUMBNAIL_HATCH: React.CSSProperties = {
-  backgroundColor: "var(--hatch-1)",
+  backgroundColor: "color-mix(in srgb, var(--muted-foreground) 5%, transparent)",
   backgroundImage:
-    "repeating-linear-gradient(135deg, var(--hatch-2) 0px, var(--hatch-2) 1px, transparent 1px, transparent 10px)",
+    "repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 0px, color-mix(in srgb, var(--muted-foreground) 16%, transparent) 1px, transparent 1px, transparent 10px)",
 };
 
 // Thumbnail sits desaturated at rest and only picks up color on hover/focus (prototype
@@ -74,10 +75,14 @@ export function OutlierCard({
   }
 
   return (
-    <div
+    <Card
       data-testid="outlier-card"
       data-id={item.videoId}
-      className="flex flex-col border border-border bg-card transition-all hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lg"
+      size="sm"
+      // `pt-0` is layout, not tone: the thumbnail is full-bleed to the card's top
+      // edge. Card's own `has-[>img:first-child]:pt-0` would do this for us if the
+      // media were a bare <img>, but it is a hatched well with overlays on top.
+      className="pt-0 transition-all hover:-translate-y-0.5 hover:shadow-lg"
     >
       {/* Thumbnail — the primary, keyboard-accessible trigger for onOpen. */}
       <div
@@ -98,7 +103,7 @@ export function OutlierCard({
       >
         <div aria-hidden className="absolute inset-0 opacity-40" style={THUMBNAIL_HATCH} />
         <div className="absolute inset-0 flex items-center justify-center">
-          <Play className="size-10 text-faint" fill="currentColor" aria-hidden />
+          <Play className="size-10 text-muted-foreground" fill="currentColor" aria-hidden />
         </div>
         <VideoThumb assetId={item.thumbnailAssetId} className={THUMB_FILTER} />
         {/* Hook headline overlay (prototype feed.html line 76) — the grid card's own
@@ -131,7 +136,7 @@ export function OutlierCard({
 
       {/* Score is the hero: biggest, plainest read on the card, first thing under the
           thumbnail (prototype feed.html line 80). */}
-      <div className={cn("flex flex-1 flex-col gap-1.5", isFull ? "p-3" : "p-2")}>
+      <CardContent className="flex flex-1 flex-col gap-1.5">
         <OutlierBadge score={item.outlierScore} size="hero" />
 
         {/* Supplementary mouse click-target (same action as the thumbnail above) — not
@@ -140,7 +145,7 @@ export function OutlierCard({
           <span className="text-2xs text-muted-foreground" data-num="1">
             {formatCompact(item.viewCount)} views · {formatEngagementRate(item.engagementRate)} eng
           </span>
-          <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-faint">
+          <span className="flex flex-wrap items-baseline gap-x-1 gap-y-0.5 text-2xs text-muted-foreground">
             <Link
               href={`/channels/${item.channel.id}`}
               onClick={(e) => e.stopPropagation()}
@@ -163,21 +168,25 @@ export function OutlierCard({
             </span>
           )}
         </div>
-      </div>
+      </CardContent>
 
       {isFull && (
-        <div className="flex items-center justify-between border-t border-border px-3 py-2">
+        <CardFooter className="justify-between border-t">
           {/* There is no save-from-feed path — saving to Vault requires an analysis,
               which only exists on the video detail page. The old bookmark button here
               was a "Save to Vault" tooltip on a link that saved nothing (truth pass,
               v1-gap-inventory.md). The thumbnail is already a link to that page, so
               removing this doesn't remove a way to get there. */}
-          <Link
-            href={`/feed/${item.videoId}/remix${hrefSuffix}`}
-            className={cn(buttonVariants({ variant: "secondary", size: "xs" }))}
+          {/* `nativeButton={false}` because this renders an <a>: Base UI's Button
+              assumes a real <button> otherwise and strips the anchor's own semantics. */}
+          <Button
+            render={<Link href={`/feed/${item.videoId}/remix${hrefSuffix}`} />}
+            nativeButton={false}
+            variant="secondary"
+            size="xs"
           >
             Remix
-          </Link>
+          </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -196,8 +205,8 @@ export function OutlierCard({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </CardFooter>
       )}
-    </div>
+    </Card>
   );
 }

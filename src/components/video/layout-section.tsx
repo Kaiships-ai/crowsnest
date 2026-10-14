@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getFramePassJobAction, runFramePassAction } from "@/server/actions/analyze-actions";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 import type { StoredVideoAnalysis } from "@/server/services/analyze";
@@ -140,103 +142,106 @@ export function LayoutSection({ videoId, analysis }: { videoId: string; analysis
   const failed = everRun && stored === null && !!analysis?.framePassError;
 
   return (
-    // No top margin: this is the whole of its own tab now, not a section trailing the
-    // beats inside Hook & structure, so mt-16 would just be dead space under the tab row.
-    <div>
-      <span data-lab className="font-mono text-2xs text-faint">
-        Layout
-      </span>
+    // A Card with no top margin: this is the whole of its own tab now, not a section
+    // trailing the beats inside Hook & structure, so extra space under the tab row
+    // would just be dead.
+    <Card>
+      <CardHeader>
+        <CardTitle>Layout</CardTitle>
+      </CardHeader>
 
-      {beats !== null && (
-        // Scrolls inside its own container: six reading columns plus the beat key is wider
-        // than the detail pane, and the page body must not scroll sideways.
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full min-w-[880px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-border">
-                <th data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">Beat</th>
+      <CardContent className="flex flex-col gap-5">
+        {beats !== null && (
+          // Scrolls inside Table's own container: six reading columns plus the beat key
+          // is wider than the detail pane, and the page body must not scroll sideways.
+          <Table className="min-w-[880px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Beat</TableHead>
                 {BEAT_LAYOUT_FIELDS.map((key) => (
-                  <th key={key} data-lab className="py-2 pr-6 font-mono text-2xs font-normal text-faint">
-                    {FIELD_LABELS[key]}
-                  </th>
+                  <TableHead key={key}>{FIELD_LABELS[key]}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {beats.map((beat, i) => (
-                <tr key={i} className="border-b border-border last:border-b-0 align-top">
-                  <td className="py-3 pr-6">
-                    <div className="text-sm font-semibold text-foreground">{beat.label}</div>
-                    <div data-num className="font-mono text-2xs text-faint">
+                <TableRow key={i} className="align-top">
+                  <TableCell>
+                    <div className="font-semibold text-foreground">{beat.label}</div>
+                    <div data-num className="font-mono text-2xs text-muted-foreground">
                       {formatDuration(beat.startSec)}–{formatDuration(beat.endSec)}
                     </div>
-                  </td>
+                  </TableCell>
                   {BEAT_LAYOUT_FIELDS.map((key) => {
                     const value = fieldValue(beat[key]);
                     return (
-                      <td
+                      // whitespace-normal, not TableCell's default nowrap: a reading is a
+                      // sentence, and six of them on one line would push the row far past
+                      // the min-width the columns are already scrolled to fit.
+                      <TableCell
                         key={key}
-                        className={value !== null ? "py-3 pr-6 text-sm text-foreground" : "py-3 pr-6 text-sm text-faint"}
+                        className={value !== null ? "whitespace-normal" : "whitespace-normal text-muted-foreground"}
                       >
                         {value ?? "—"}
-                      </td>
+                      </TableCell>
                     );
                   })}
-                </tr>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="mt-5 max-w-[56ch] text-sm text-muted-foreground">
-        {beats !== null ? (
-          <>
-            Read from <span data-num>{analysis?.framesSampled ?? "—"}</span> sampled frames
-            {analysis?.frameModel ? ` via ${analysis.frameModel}` : ""}, one row per story beat.
-          </>
-        ) : isLegacyFlat ? (
-          <>
-            This video&rsquo;s layout was read before the reading went per beat, so it is one
-            flat description with no beat timecodes to hang it on. Re-run the frame pass to
-            get the per-beat table. Nothing is translated across; the old reading is not
-            reshaped into beats it never described.
-          </>
-        ) : lastCode === "FRAME_NO_BEATS" ? (
-          <>
-            The layout is read per story beat, and this video has no beats yet. Analyze it
-            on the Hook &amp; structure tab first, then run the frame pass.
-          </>
-        ) : lastCode === "FRAME_NO_VIDEO_ASSET" ? (
-          // Checked before `failed` because `analysis` is the server render's copy: right
-          // after this failure it still says no pass has run, and that copy would
-          // contradict the Download button sitting under it.
-          <>This video has not been downloaded yet. Download it, then run the frame pass.</>
-        ) : failed ? (
-          <>Last frame pass didn&rsquo;t produce a reading: {analysis?.framePassError}.</>
-        ) : (
-          <>
-            No frame pass has run for this video yet. Running one samples frames and reads,
-            for each story beat, its on-screen text, animation, demo cursor, tool demo, text
-            position, and voice pace. Nothing above is a guess standing in for a reading.
-          </>
+            </TableBody>
+          </Table>
         )}
-      </p>
 
-      {(() => {
-        const cta = framePassCta({ hasLayout: beats !== null, lastCode });
-        return (
-          <Button
-            variant="outline"
-            size="sm"
-            className="mt-5"
-            onClick={cta.kind === "download" ? downloadThenHint : runFramePass}
-            disabled={pending}
-          >
-            {pending ? "Running…" : cta.label}
-          </Button>
-        );
-      })()}
-    </div>
+        <p className="max-w-[56ch] text-sm text-muted-foreground">
+          {beats !== null ? (
+            <>
+              Read from <span data-num>{analysis?.framesSampled ?? "—"}</span> sampled frames
+              {analysis?.frameModel ? ` via ${analysis.frameModel}` : ""}, one row per story beat.
+            </>
+          ) : isLegacyFlat ? (
+            <>
+              This video&rsquo;s layout was read before the reading went per beat, so it is one
+              flat description with no beat timecodes to hang it on. Re-run the frame pass to
+              get the per-beat table. Nothing is translated across; the old reading is not
+              reshaped into beats it never described.
+            </>
+          ) : lastCode === "FRAME_NO_BEATS" ? (
+            <>
+              The layout is read per story beat, and this video has no beats yet. Analyze it
+              on the Hook &amp; structure tab first, then run the frame pass.
+            </>
+          ) : lastCode === "FRAME_NO_VIDEO_ASSET" ? (
+            // Checked before `failed` because `analysis` is the server render's copy: right
+            // after this failure it still says no pass has run, and that copy would
+            // contradict the Download button sitting under it.
+            <>This video has not been downloaded yet. Download it, then run the frame pass.</>
+          ) : failed ? (
+            <>Last frame pass didn&rsquo;t produce a reading: {analysis?.framePassError}.</>
+          ) : (
+            <>
+              No frame pass has run for this video yet. Running one samples frames and reads,
+              for each story beat, its on-screen text, animation, demo cursor, tool demo, text
+              position, and voice pace. Nothing above is a guess standing in for a reading.
+            </>
+          )}
+        </p>
+      </CardContent>
+
+      <CardFooter>
+        {(() => {
+          const cta = framePassCta({ hasLayout: beats !== null, lastCode });
+          return (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cta.kind === "download" ? downloadThenHint : runFramePass}
+              disabled={pending}
+            >
+              {pending ? "Running…" : cta.label}
+            </Button>
+          );
+        })()}
+      </CardFooter>
+    </Card>
   );
 }

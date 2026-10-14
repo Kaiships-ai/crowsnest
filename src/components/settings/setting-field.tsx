@@ -10,22 +10,38 @@
  * sentence (see scoring-section.tsx / feed-defaults-section.tsx / sync-section.tsx),
  * because "how do I say this key is unwired" is a product decision per key, not a thing
  * this file should guess at.
+ *
+ * The row owns the label/control association and the validation message; the control
+ * reads both off `SettingFieldContext` rather than taking them as duplicate props. A row
+ * with a real input passes `htmlFor` and gets a `<label for>`; a row whose control is a
+ * toggle group does not, because `for` may only point at a labelable element, and
+ * `EnumField`'s own `aria-label` already names the group.
  */
 
-import type { ReactNode } from "react";
+import { createContext, useContext, type ReactNode } from "react";
 
-import { Input } from "@/components/ui/input";
+import { Field, FieldContent, FieldDescription, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
+const SettingFieldContext = createContext<{ controlId?: string; invalid: boolean }>({ invalid: false });
 
 export function SettingRow({
   label,
   hint,
+  htmlFor,
+  error,
   warnNote,
   infoNote,
   children,
 }: {
   label: string;
   hint?: string;
+  /** The id of the input this row labels. Omitted for a toggle-group row. */
+  htmlFor?: string;
+  /** From `numberFieldError` (number-validation.ts). Renders as the row's `FieldError`
+   *  (a `role="alert"` node) and marks the control `aria-invalid`. */
+  error?: string | null;
   /** Destructive tone — set when this key has no consumer yet (see `WIRED` in
    *  `src/server/settings/index.ts`), never for an ordinary validation message. */
   warnNote?: string;
@@ -35,16 +51,19 @@ export function SettingRow({
   infoNote?: string;
   children: ReactNode;
 }) {
+  const invalid = Boolean(error);
+
   return (
-    <div className="flex flex-col gap-2 border border-border p-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
-      <div className="min-w-0 sm:max-w-[26rem]">
-        <p className="text-sm font-medium">{label}</p>
-        {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-        {warnNote && <p className="mt-1 text-xs text-destructive">{warnNote}</p>}
-        {infoNote && <p className="mt-1 text-xs text-muted-foreground">{infoNote}</p>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
+    <Field orientation="responsive" data-invalid={invalid || undefined}>
+      <FieldContent>
+        {htmlFor ? <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel> : <FieldTitle>{label}</FieldTitle>}
+        {hint && <FieldDescription>{hint}</FieldDescription>}
+        {warnNote && <FieldError>{warnNote}</FieldError>}
+        {infoNote && <FieldDescription>{infoNote}</FieldDescription>}
+        {error && <FieldError>{error}</FieldError>}
+      </FieldContent>
+      <SettingFieldContext.Provider value={{ controlId: htmlFor, invalid }}>{children}</SettingFieldContext.Provider>
+    </Field>
   );
 }
 
@@ -70,6 +89,7 @@ export function EnumField<T extends string>({
       }}
       disabled={disabled}
       aria-label={ariaLabel}
+      className="flex-wrap"
     >
       {options.map((o) => (
         <ToggleGroupItem key={o.value} value={o.value} size="sm">
@@ -88,7 +108,6 @@ export function NumberField({
   suffix,
   disabled,
   ariaLabel,
-  error,
 }: {
   /** Kept as a string in local state, same reasoning `add-channel-dialog.tsx` and
    *  friends use for text inputs: an intermediate typed value ("" mid-edit, a leading
@@ -100,29 +119,30 @@ export function NumberField({
   max?: number;
   suffix?: string;
   disabled?: boolean;
+  /** Only for a control outside a `SettingRow`. Inside one, the row's label names it. */
   ariaLabel?: string;
-  /** From `numberFieldError` (number-validation.ts), computed by the caller against the
-   *  same min/max passed above. Null/undefined renders no message. */
-  error?: string | null;
 }) {
+  const { controlId, invalid } = useContext(SettingFieldContext);
+
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          inputMode="numeric"
-          className="w-24"
-          value={value}
-          min={min}
-          max={max}
-          disabled={disabled}
-          aria-label={ariaLabel}
-          aria-invalid={error ? true : undefined}
-          onChange={(e) => onChange(e.target.value)}
-        />
-        {suffix && <span className="text-xs text-muted-foreground">{suffix}</span>}
-      </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+    <InputGroup className="w-40">
+      <InputGroupInput
+        id={controlId}
+        type="number"
+        inputMode="numeric"
+        value={value}
+        min={min}
+        max={max}
+        disabled={disabled}
+        aria-label={ariaLabel}
+        aria-invalid={invalid || undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      {suffix && (
+        <InputGroupAddon align="inline-end">
+          <InputGroupText>{suffix}</InputGroupText>
+        </InputGroupAddon>
+      )}
+    </InputGroup>
   );
 }

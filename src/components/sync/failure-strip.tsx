@@ -8,18 +8,22 @@
  * (whether that run was started here, from the sidebar, or from another tab) the strip
  * hides itself rather than arguing with the progress bar over what's currently true.
  *
- * Failure is the normal state here, not an exception dressed as one — DESIGN.md and the
- * brief are both explicit that this must never read as a red alert bar. Only the left
- * rule and the dot carry severity, both drawn from the same two hues `sync-progress-
- * panel.tsx`'s `TONE_DOT` already uses (neutral/destructive), never amber — amber is the
- * score's colour alone.
+ * Failure is the normal state here, not an exception dressed as one — the brief is
+ * explicit that this must never read as a red alert bar. So it is a default-variant
+ * `Alert` announced politely, and only its border and its dot carry severity, both
+ * drawn from the same two hues `sync-progress-panel.tsx`'s `TONE_DOT` already uses:
+ * neutral and destructive.
  */
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
 import {
@@ -32,6 +36,9 @@ import {
 } from "./failure-strip-view";
 import { useSyncProgress } from "./use-sync-progress";
 
+// Severity rides on the strip's own border, not on a red wash over the whole bar: the
+// Alert stays the default variant so a failure reads as a normal state with a coloured
+// edge, which is the whole point of this surface.
 const TONE_RULE: Record<"warn" | "bad", string> = {
   warn: "border-destructive/50",
   bad: "border-destructive",
@@ -80,73 +87,88 @@ export function FailureStrip({ strip }: FailureStripProps) {
     else if (action.kind === "copy_command") void navigator.clipboard?.writeText("npm run ig:service");
   }
 
+  // An empty ButtonGroup would still draw its own role="group" box, and a settled
+  // connection-level kind can legitimately offer no control at all.
+  const hasActions = action.kind !== "none" || strip.gaps.length > 0 || (strip.kind === "partial" && strip.jobId !== null);
+
   return (
-    <div
+    // `role="status"` / `aria-live="polite"`, not Alert's own `role="alert"`: failure is
+    // the normal state on this strip, so it is announced politely rather than as an
+    // interruption. Severity is the border colour and the dot; the variant stays default
+    // so the bar never turns into a red wash.
+    <Alert
       role="status"
       aria-live="polite"
-      className={cn("flex flex-wrap items-start gap-x-6 gap-y-3 border-l-2 bg-card px-5 py-3.5", TONE_RULE[copy.tone])}
+      className={cn("grid-cols-[minmax(0,1fr)_auto] items-start gap-x-6 gap-y-3", TONE_RULE[copy.tone])}
     >
-      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+      <div className="flex min-w-0 items-start gap-2.5">
         <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", TONE_DOT[copy.tone])} />
         <div className="min-w-0">
-          <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">{copy.title}</p>
-          <p className="mt-1 text-sm text-foreground">{copy.headline}</p>
-          {strip.kind === "cooldown" && <p className="mt-1 text-xs text-muted-foreground">{formatCooldownWait(remaining)}</p>}
-          {copy.facts.length > 0 && <p className="mt-1.5 font-mono text-2xs text-muted-foreground">{copy.facts}</p>}
+          <AlertTitle>{copy.title}</AlertTitle>
+          <AlertDescription>{copy.headline}</AlertDescription>
+          {strip.kind === "cooldown" && <AlertDescription>{formatCooldownWait(remaining)}</AlertDescription>}
+          {copy.facts.length > 0 && <AlertDescription className="font-mono text-2xs">{copy.facts}</AlertDescription>}
         </div>
       </div>
 
-      {/* Secondary, not amber. This strip renders on every screen, so an amber action
-          here would compete with whatever that screen's own primary action is: Remix on
-          the detail page, the rescore save on Settings. Amber means one thing in this
-          design, a post beat its channel, and it gets one primary per screen. A recovery
-          control that follows Kai everywhere cannot be that one. */}
-      <div className="flex shrink-0 items-center gap-2">
-        {action.kind === "settings" ? (
-          <Link href="/settings" className={buttonVariants({ size: "sm", variant: "secondary" })}>
-            {action.label}
-          </Link>
-        ) : action.kind !== "none" ? (
-          <Button size="sm" variant="secondary" onClick={runAction} disabled={action.disabled}>
-            {action.label}
-          </Button>
-        ) : null}
+      {/* Secondary, never the screen's primary action. This strip renders on every
+          screen, so a primary-weight recovery control here would compete with whatever
+          that screen's own one primary action is: Remix on the detail page, the rescore
+          save on Settings. */}
+      {hasActions && (
+        <ButtonGroup className="shrink-0">
+          {action.kind === "settings" ? (
+            // Stays a Link rather than `<Button render={<Link/>}>`: Base UI's Button
+            // either warns about a non-button element or, with `nativeButton={false}`,
+            // overrides the anchor's role. `data-slot` is what ButtonGroup joins on.
+            <Link href="/settings" data-slot="button" className={buttonVariants({ size: "sm", variant: "secondary" })}>
+              {action.label}
+            </Link>
+          ) : action.kind !== "none" ? (
+            <Button size="sm" variant="secondary" onClick={runAction} disabled={action.disabled}>
+              {action.label}
+            </Button>
+          ) : null}
 
-        {strip.gaps.length > 0 && (
-          <Button size="sm" variant="outline" onClick={() => setDetailOpen((v) => !v)} aria-expanded={detailOpen}>
-            {detailOpen ? "Hide detail" : "What didn't come back"}
-          </Button>
-        )}
+          {strip.gaps.length > 0 && (
+            <Button size="sm" variant="outline" onClick={() => setDetailOpen((v) => !v)} aria-expanded={detailOpen}>
+              {detailOpen ? "Hide detail" : "What didn't come back"}
+            </Button>
+          )}
 
-        {/* Only `partial` self-heals without a human doing anything about it — every
-            connection-level kind stays until its cause is actually fixed, so it has no
-            dismiss control to lie with. */}
-        {strip.kind === "partial" && strip.jobId !== null && (
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            aria-label="Dismiss this notice"
-            title="Dismiss"
-            onClick={() => setDismissedJobId(strip.jobId)}
-          >
-            <X className="size-3.5" />
-          </Button>
-        )}
-      </div>
+          {/* Only `partial` self-heals without a human doing anything about it — every
+              connection-level kind stays until its cause is actually fixed, so it has no
+              dismiss control to lie with. */}
+          {strip.kind === "partial" && strip.jobId !== null && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Dismiss this notice"
+              title="Dismiss"
+              onClick={() => setDismissedJobId(strip.jobId)}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
+        </ButtonGroup>
+      )}
 
       {detailOpen && strip.gaps.length > 0 && (
-        <div className="w-full border-t border-border pt-3">
-          <h3 className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">What didn&apos;t come back</h3>
-          <ul className="mt-2 flex flex-col gap-1.5">
+        <div className="col-span-2">
+          <Separator className="mb-3" />
+          <h3 className="text-xs font-medium text-muted-foreground">What didn&apos;t come back</h3>
+          <ItemGroup className="mt-2">
             {strip.gaps.map((gap) => (
-              <li key={gap.channelId} className="flex items-baseline justify-between gap-4 border-b border-border py-1.5">
-                <span className="min-w-0 truncate text-sm text-foreground">{gapDisplayName(gap)}</span>
-                <span className="shrink-0 text-right font-mono text-2xs text-muted-foreground">{gapMessage(gap)}</span>
-              </li>
+              <Item key={gap.channelId} size="xs">
+                <ItemContent>
+                  <ItemTitle className="block truncate">{gapDisplayName(gap)}</ItemTitle>
+                </ItemContent>
+                <ItemDescription className="shrink-0 text-right font-mono text-2xs">{gapMessage(gap)}</ItemDescription>
+              </Item>
             ))}
-          </ul>
+          </ItemGroup>
         </div>
       )}
-    </div>
+    </Alert>
   );
 }
