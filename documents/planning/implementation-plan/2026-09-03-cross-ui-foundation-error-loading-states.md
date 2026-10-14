@@ -8,7 +8,7 @@ shipped: "2026-09-03 851249d"
 
 # UI Foundation: Error Boundaries, Loading Skeletons, Table Overflow — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: run with `/poteto-mode`, or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give every crowsnest page a graceful error boundary, a loading state instead of a blank paint, and stop wide tables from scrolling the page body sideways — the three cross-cutting gaps the Impeccable Evaluate pass found across all 14 routes.
 

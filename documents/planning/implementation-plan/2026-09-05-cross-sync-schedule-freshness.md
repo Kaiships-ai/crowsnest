@@ -794,7 +794,7 @@ git commit -m "docs(ig-sync): document scheduled sync and lastSuccessfulSyncAt"
 
 - [ ] **Step 1: Measure current per-page download time**
 
-Run a real sync over 2-3 channels (see `.claude/skills/crowsnest-up` to bring the stack up) and read `log_events` for the run. Compare `download.completed` count and timing against total channel wall-time. If thumbnail downloads are under ~15% of a channel's time, STOP: mark this phase abandoned in the frontmatter note and ship steps 3-4 alone. If they dominate, proceed to Task 8.
+Run a real sync over 2-3 channels (see the `verify` skill to bring the stack up) and read `log_events` for the run. Compare `download.completed` count and timing against total channel wall-time. If thumbnail downloads are under ~15% of a channel's time, STOP: mark this phase abandoned in the frontmatter note and ship steps 3-4 alone. If they dominate, proceed to Task 8.
 
 ### Task 8: Bounded-concurrency thumbnail fetch per page
 
