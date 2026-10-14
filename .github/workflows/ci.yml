@@ -37,3 +37,6 @@ jobs:
 
       - name: Skill lint
         run: bash scripts/skill-lint.sh
+
+      - name: Migration journal
+        run: node scripts/check-migrations.mjs
