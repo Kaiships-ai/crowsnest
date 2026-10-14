@@ -49,9 +49,9 @@ is `packaging/CHANGELOG.md`.
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **crowsnest** (14148 symbols, 27770 relationships, 664 execution flows).
+This project is indexed by GitNexus as **crowsnest**.
 
-> Index stale? Run `node .gitnexus/run.cjs analyze --index-only` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? Bootstrap with `npx`, `bunx`, or `pnpm dlx` — e.g. `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939).
+> Index stale? `node .gitnexus/run.cjs status` shows the indexed commit; `node .gitnexus/run.cjs analyze` refreshes it from the project root. No `.gitnexus/run.cjs` yet? Bootstrap with `bunx gitnexus@latest analyze` (npm 11 npx crash; #1939). `.gitnexusrc` sets `skipAgentsMd` and `skipSkills`, so `analyze` only rebuilds the index and never rewrites AGENTS.md, CLAUDE.md, or `.claude/skills`. This block is maintained by hand.
 
 ## Always Do
 
