@@ -6,6 +6,7 @@ import "./src/server/als-polyfill";
 import { createServer } from "node:http";
 import next from "next";
 import { handleMcpRequest } from "./src/server/mcp/http";
+import { startOwnMeasureScheduler } from "./src/server/services/own-measure-scheduler";
 import { startPublishScheduler } from "./src/server/services/publish-scheduler";
 import { startSyncScheduler } from "./src/server/services/sync-scheduler";
 
@@ -44,6 +45,15 @@ app.prepare().then(() => {
     startSyncScheduler();
   } catch (err) {
     console.error("startSyncScheduler failed on boot:", err);
+  }
+
+  // Start the own-channel measurement scheduler: hourly ticks measure reels under 72 hours
+  // old every hour and older posts daily, under a 150-call budget (own-measure.ts). Same
+  // guard: a scheduler that fails to start must never stop the server from listening.
+  try {
+    startOwnMeasureScheduler();
+  } catch (err) {
+    console.error("startOwnMeasureScheduler failed on boot:", err);
   }
 
   // HOST is unset in dev (binds all interfaces, unchanged). The packaged LaunchAgent sets

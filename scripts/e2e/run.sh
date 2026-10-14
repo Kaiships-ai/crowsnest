@@ -37,7 +37,10 @@ say "seeding fixture database at $CROWSNEST_DB_PATH"
 npx tsx scripts/seed-e2e.ts
 
 say "starting dev server on :$PORT against $CROWSNEST_DB_PATH"
-PORT="$PORT" CROWSNEST_DB_PATH="$CROWSNEST_DB_PATH" npm run dev >"$SERVER_LOG" 2>&1 &
+# graph-offline.mjs answers graph.instagram.com locally: the fixture's junk token must
+# never reach Instagram.
+NODE_OPTIONS="--import $REPO/scripts/e2e/graph-offline.mjs ${NODE_OPTIONS:-}" \
+  PORT="$PORT" CROWSNEST_DB_PATH="$CROWSNEST_DB_PATH" npm run dev >"$SERVER_LOG" 2>&1 &
 SERVER_PID=$!
 
 say "waiting for :$PORT to answer"

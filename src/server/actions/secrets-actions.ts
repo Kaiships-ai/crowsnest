@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 
+import { invalidateTokenStatus } from "@/server/graph/token-status";
 import { resetLlmClient } from "@/server/llm/client";
 import { clearSecret, MANAGED_SECRETS, secretStatus, setSecret, type ManagedSecret, type SecretStatus } from "@/server/secrets/store";
 
@@ -17,6 +18,7 @@ function isManaged(name: string): name is ManagedSecret {
  *  to call on any secret change: `getLlm()` rebuilds lazily on next use. */
 function invalidateSecretCaches(): void {
   resetLlmClient();
+  invalidateTokenStatus();
 }
 
 /**

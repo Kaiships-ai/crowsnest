@@ -165,7 +165,7 @@ export function ScriptDetailDialog({
                   </li>
                 ))}
               </ul>
-              <Link href="/mine" className="w-fit font-mono text-2xs text-muted-foreground hover:text-foreground">
+              <Link href="/?tab=calendar" className="w-fit font-mono text-2xs text-muted-foreground hover:text-foreground">
                 Open the planner
               </Link>
             </div>

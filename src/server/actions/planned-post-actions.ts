@@ -388,7 +388,7 @@ export async function uploadPlanVideoAction(id: string, formData: FormData): Pro
     }
 
     await db.update(tables.plannedPosts).set({ videoAssetId: assetId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/mine");
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -406,7 +406,7 @@ export async function setPlanCaptionAction(id: string, caption: string): Promise
     if (trimmed.length > CAPTION_MAX) return { ok: false, error: `A caption can be at most ${CAPTION_MAX} characters.`, code: "PLAN_CAPTION_TOO_LONG" };
 
     await db.update(tables.plannedPosts).set({ caption: trimmed || null, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/mine");
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -461,7 +461,7 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
         updatedAt: nowIso(),
       })
       .where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/mine");
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -480,7 +480,7 @@ export async function cancelScheduledPublishAction(id: string): Promise<SimpleRe
       .update(tables.plannedPosts)
       .set({ state: "draft", scheduledAt: null, idempotencyKey: null, plannedDate: null, plannedTime: null, updatedAt: nowIso() })
       .where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/mine");
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -519,7 +519,7 @@ export async function publishNowAction(id: string): Promise<SimpleResult> {
     // publish-post must act on the now-"publishing" row rather than treat it as a stale
     // in-flight row and no-op. See the claim-token guard in publish-post.ts.
     const result = await publishPlannedPost(id, { claimed: true });
-    revalidatePath("/mine");
+    revalidatePath("/");
     if (!result.ok) return { ok: false, error: result.lastError ?? "The publish failed.", code: "PLAN_PUBLISH_FAILED" };
     return { ok: true };
   } catch (err) {
@@ -540,7 +540,7 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
       .update(tables.plannedPosts)
       .set({ state: "scheduled", scheduledAt: nowIso(), lastError: null, errorClass: null, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "failed")));
-    revalidatePath("/mine");
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };

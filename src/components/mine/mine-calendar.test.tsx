@@ -143,3 +143,20 @@ describe("publish state cells (Goal 4)", () => {
     expect(mark.className).not.toMatch(/primary|amber/);
   });
 });
+
+describe("published plan detail", () => {
+  test("B-17: 'view post' opens that reel on My reels", () => {
+    renderCalendar([{ ...PLAN, state: "published", dryRun: false, publishedOwnPostId: "17890000000000001" }]);
+    fireEvent.click(screen.getByTestId("mine-calendar-published").closest("button") as HTMLElement);
+    const link = screen.getByText("view post");
+    expect(link.getAttribute("href")).toBe("/?tab=reels&reel=17890000000000001");
+  });
+});
+
+describe("month controls", () => {
+  test("MINE-19: month controls keep tab=calendar", () => {
+    renderCalendar();
+    expect(screen.getByLabelText("Previous month").getAttribute("href")).toBe("?tab=calendar&month=2026-07");
+    expect(screen.getByLabelText("Next month").getAttribute("href")).toBe("?tab=calendar&month=2026-09");
+  });
+});

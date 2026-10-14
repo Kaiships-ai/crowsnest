@@ -258,7 +258,7 @@ export function MineCalendar({
     router.refresh();
     toast.success("Planned post deleted", {
       action: {
-        label: "Undo",
+        label: <span data-testid="mine-delete-undo">Undo</span>,
         onClick: async () => {
           // Carry the whole row snapshot back through re-create so Undo is lossless
           // (B-09): restore the original id, time, target length, kind, and remix/source
@@ -301,7 +301,7 @@ export function MineCalendar({
             variant="ghost"
             size="icon-sm"
             nativeButton={false}
-            render={<Link href={`?month=${shiftMonth(month, -1)}`} aria-label="Previous month" />}
+            render={<Link href={`?tab=calendar&month=${shiftMonth(month, -1)}`} aria-label="Previous month" />}
           >
             ‹
           </Button>
@@ -312,11 +312,11 @@ export function MineCalendar({
             variant="ghost"
             size="icon-sm"
             nativeButton={false}
-            render={<Link href={`?month=${shiftMonth(month, 1)}`} aria-label="Next month" />}
+            render={<Link href={`?tab=calendar&month=${shiftMonth(month, 1)}`} aria-label="Next month" />}
           >
             ›
           </Button>
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`?month=${today.slice(0, 7)}`} />}>
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`?tab=calendar&month=${today.slice(0, 7)}`} />}>
             Today
           </Button>
         </div>
@@ -552,7 +552,7 @@ export function MineCalendar({
                       {selectedCell.plan.publishedOwnPostId && !selectedCell.plan.dryRun && (
                         <>
                           {" · "}
-                          <Link href={`/mine/${selectedCell.plan.publishedOwnPostId}`} className="underline hover:text-foreground">
+                          <Link href={`/?tab=reels&reel=${encodeURIComponent(selectedCell.plan.publishedOwnPostId)}`} className="underline hover:text-foreground">
                             view post
                           </Link>
                         </>

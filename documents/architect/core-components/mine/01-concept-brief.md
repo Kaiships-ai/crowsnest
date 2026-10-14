@@ -2,37 +2,40 @@
 
 `documents/architect/core-components/mine/`
 
-Status: shipped and in daily use. The delete undo is lossy, and there is no UI control to clear the own channel once set; neither blocks the page from working, and each is tracked in the backlog.
+Status: shipped. The planner, the publish dialog, manual and scheduled Graph measurement, per-reel insights, and account-wide audience live on the Dashboard as the My reels and Calendar tabs. The scheduled cadence and the newer reel metrics are unverified against a live Graph call (the configured token is rejected). There is no UI control to clear the own channel once set.
 
 ## 1. What it is
 
-mine is the my channel page at `/mine`, the one screen for the user's own Instagram channel, as opposed to the tracked competitors that fill the feed. It shows a header naming which channel is theirs, a band of metrics measured through the official Instagram Graph API (followers, reach, saves, shares, median reach, posts measured) with a progress bar toward a usable median, a reach-by-post strip, and a tab strip that switches between a Month planner calendar, a Posts list, and a weekday Metrics chart. Below the metrics it owns the planner: a seven-column month grid of planned and published days, the plan dialog that creates or edits a planned post, a dated intention to publish, optionally carrying a script, and the publish dialog that uploads a video, writes a caption, and publishes it now or schedules it for later. The pipeline that runs a scheduled publish belongs to the [publish](../publish/01-concept-brief.md) component.
+mine is the user's own side of crowsnest: how their own Instagram account is doing, and what they mean to post next. It lives on the Dashboard at `/` as two of its three tabs, held in the URL as `?tab=overview|reels|calendar`. Overview stays the research dashboard, owned by the dashboard component. My reels shows the own-account summary (followers, reach, saves, shares, median reach, posts measured), a reel picker, one reel's insights modeled on the Instagram app's Reel insights screen, that reel's views over time against the user's typical reel, and account-wide audience. Calendar is the planner: the month grid, the plan dialog, and the publish dialog that uploads a video, writes a caption, and publishes now or on a schedule. The old `/mine` route redirects to the Calendar tab and leaves the sidebar.
 
-Own posts are read-only on this page. The only writer of `own_posts`, `own_post_insights`, and `own_account_snapshots` is a Graph measurement (`measureOwnChannelAction`); the instagrapi sidecar that fills the feed never touches these tables, so a tracked-channel sync never changes anything this page shows.
+Own posts are read-only in mine. The only writer of `own_account_snapshots`, `own_posts`, `own_post_insights`, and `own_comments` is a Graph measurement; the instagrapi sidecar that fills the feed never touches these tables.
 
 ## 2. Why it exists
 
-The rest of crowsnest is about other people's channels, analyzing competitor reels and mining outliers. mine is the one place turned inward: it answers "how is my own account doing, and what am I planning to post". It exists so the user can see their real published performance, measured through the official Graph API, a separate identity and code path from the instagrapi sidecar that ig-sync uses to study other creators, and keep a lightweight, honest plan of what to publish. A plan can be marked published by hand once it has gone up, or taken through the publish dialog, which uploads a video, writes a caption, and publishes it now or on a schedule; the scheduler that fires a scheduled publish belongs to the [publish](../publish/01-concept-brief.md) component.
+The rest of crowsnest studies other people's channels. mine is the one place turned inward: it answers "how is my own account doing, and what am I posting next". It reads real published performance through the official Instagram Graph API, a separate identity and code path from the sidecar ig-sync uses, and keeps a lightweight, honest plan of what to publish.
 
-The planner and the metrics deliberately do not need each other. Planned posts need no Graph connection, so the calendar renders even on a machine with no Graph token configured, while the metrics band gates on a real measurement.
+The rework exists because the Instagram app shows rich per-reel insights the old page never did (views, watch time, skip rate, per-viewer rates, actions after viewing), and because a views-over-time curve needs frequent measurements in a reel's first days, which only a background job can take. Putting both halves on the Dashboard puts "how am I doing" and "what next" one click from the daily landing page.
+
+The planner and the metrics still do not need each other. Planned posts need no Graph connection, so the Calendar tab works with no token, while My reels gates on a real measurement.
 
 ## 3. Key concepts
 
 | Concept | Description |
 | --- | --- |
-| Own channel | The one tracked channel flagged `channels.isOwn`, enforced to at most one row by the partial unique index `channels_single_own`. Set by `setOwnChannelAction`, cleared by `unsetOwnChannelAction`, though nothing in this page's UI calls the clear action. |
-| Graph API measurement | The official Instagram Graph API reads mine's data, kept in a separate table set (`own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`) from the tracked-channel tables ig-sync writes. Reach, saves, and shares here are a different quantity from a tracked channel's view count and are never mixed with it. |
-| Planned post | A dated intention to publish, stored in `planned_posts`, optionally carrying a script, a video kind, a source video, or a remix session. The stored `state` is one of `draft`, `scheduled`, `publishing`, `published`, or `failed`; `missed` is the one value never stored, derived on read instead. The `publishing` and `failed` states are written by the [publish](../publish/02-architecture.md) pipeline. |
-| Missed, derived on read | `getPlannedPosts` and `getCalendarMonth` compute `missed` on every read by comparing today against a `scheduled` plan's `plannedDate`. A reschedule cannot leave a stale missed cell behind, because nothing was ever stored to begin with. |
-| Reconciliation | A suggestion, not a write: when a dated, not-yet-published plan shares its date with an own post, the read computes `reconciledOwnPostId` and the calendar offers to mark the plan published against it. Nothing marks it automatically. |
-| The two gates | The own channel flag and the Graph token are checked independently. Neither is faked when its data is missing: no own channel renders a picker instead of the page, and a token that is missing or failing renders a connect panel where the metrics would be. |
-| The edit sequence | A saved edit goes through one server action, `savePlanEditAction`, which sends only the changed fields, validates all of them up front, then writes them in a single transaction. A rejected input changes nothing, so an edit never lands partially. |
+| Own channel | The one tracked channel flagged `channels.isOwn`, at most one row by the partial unique index `channels_single_own`. Set by `setOwnChannelAction`. |
+| Graph API measurement | One run that reads the account, the media list, and each post's insights from `graph.instagram.com`, and writes the own-channel tables. Reach, saves, and shares here never mix with a tracked channel's view count. |
+| Insight snapshot | One `own_post_insights` row per post per measurement, append-only. The latest row is the post's current numbers; all rows together are its views over time. |
+| Scheduled measurement | An in-process job (`own-measure-scheduler.ts`), modeled on the sync and publish schedulers, that measures reels hourly for their first 72 hours and daily after, under Instagram's 200 calls per hour limit. |
+| Typical reel | The median views, at the same whole hours since posting, across the user's other measured reels. Computed on the server in a pure function. |
+| Per-viewer rate | Share, like, save, repost, or comment count divided by `reach`. Shown as a dash when reach is missing or zero. |
+| Account-wide audience | Followers vs non-followers and age, country, gender breakdowns. The API gives these only for the whole account, so they are labelled as such, never as a reel's numbers. |
+| Planned post | A dated intention to publish in `planned_posts`, optionally carrying a script, a video kind, a source video, or a remix session. Stored `state` is `draft`, `scheduled`, `publishing`, `published`, or `failed`; `missed` is derived on read. |
+| Reconciliation | A suggestion, not a write: a not-yet-published plan sharing its date with an own post is offered to be marked published against it. |
+| The two gates | The own channel flag and the Graph token are checked independently. Neither is faked: no own channel shows a picker, and a missing or failing token shows a connect panel, stacked over real historical numbers when there are any. |
 
 ## 4. How it fits in the system
 
-mine sits at `/mine` in the shell, reached from the sidebar. It reads the own channel flag and the tracked channel's follower count from `channels` (owned by the channels board and ig-sync), reads scripts from the vault to offer in the plan dialog, and reads the `scoreMinUsablePosts` setting to place the progress bar and gate the median. It owns `planned_posts`; the only other writer is the [publish](../publish/02-architecture.md) component, whose scheduler and lifecycle actions advance a row through its publish states. It owns the entire own-channel table set (`own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`) together with the Graph actions that measure them; nothing else in crowsnest reads or writes those tables.
-
-Taking a planned post through publish hands its row to the [publish](../publish/01-concept-brief.md) component, which uploads the video, creates the Instagram Reel, and writes the terminal state back onto the same `planned_posts` row. The persona at `/persona` and the ideas inbox at `/ideas` are separate routes and components that neither read from nor write to anything on this page.
+mine's two tabs sit on the Dashboard route, which the dashboard component owns; the Dashboard page picks the tab from `?tab=` and runs only that tab's reads. mine reads the own channel flag and follower count from `channels` (owned by the channels board and ig-sync), reads scripts from the vault for the plan dialog, and reads the `scoreMinUsablePosts` setting for the median floor. It owns `planned_posts`, which the [publish](../publish/01-concept-brief.md) component also advances through its publish states. It owns the own-channel table set, `own_account_breakdowns` included, and the one measurement service (`src/server/services/own-measure.ts`) that writes it, whether a user clicks "Measure now" or the scheduler fires. The MCP server's `crowsnest_metrics` tool reads the own-channel queries.
 
 ## 5. Dependency map
 
@@ -40,25 +43,30 @@ Taking a planned post through publish hands its row to the [publish](../publish/
 
 | Dependency | Why |
 | --- | --- |
-| SQLite database via drizzle (`src/server/db`) | Every table mine reads and writes: `planned_posts`, `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, plus a read of `channels` for the own-channel flag and follower count. |
-| App settings (`scoreMinUsablePosts`, DB over env over default, default 5) | The progress bar's target and the floor below which the median reach and own-channel scoring both stay null. Shared with the channel-side outlier baseline, not a separate copy. |
-| The vault (`src/server/queries/vault.ts`, `getScripts`) | Read-only, to populate the plan dialog's script select. |
-| The channels board and ig-sync (`src/server/queries/channels.ts`, `src/server/actions/channel-actions.ts`) | `getOwnChannel` and `getChannelsList` for the gate and the picker's candidate list; `setOwnChannelAction`/`unsetOwnChannelAction` for the own-channel flag itself. |
-| `.env.local` credentials (`IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`) | Read by the Graph client (`src/server/graph/client.ts`) alone; a missing or invalid value is what the connect panel's gate is checking. |
+| SQLite database via drizzle (`src/server/db`) | `planned_posts`, `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns`, `app_settings` for stored fetch errors, and a read of `channels`. |
+| App settings (`scoreMinUsablePosts`, default 5) | The floor below which median reach stays null, shared with channel-side scoring. |
+| The vault (`src/server/queries/vault.ts`, `getScripts`) | Read-only, for the plan dialog's script select. |
+| The channels board and ig-sync (`src/server/queries/channels.ts`, `src/server/actions/channel-actions.ts`) | `getOwnChannel` and `getChannelsList` for the gate and picker; `setOwnChannelAction` for the flag. |
+| The dashboard (`src/app/(shell)/(loaded)/page.tsx`) | Host of the My reels and Calendar tabs and the tab strip. |
+| Secrets store (`IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`) | Read by the Graph client alone; Settings > API keys wins over `.env.local`. |
+| `server.ts` | Boot point of the measurement scheduler, beside the sync and publish schedulers. |
 
 ### Downstream (what depends on mine)
 
 | Consumer | What it reads |
 | --- | --- |
-| [publish](../publish/01-concept-brief.md) | The plan's `planned_posts` row, which its scheduler and lifecycle actions advance from `scheduled` through `publishing` to `published` or `failed`. |
-| Shell nav (topbar `ROUTE_TITLES`) | Renders the route's title "My channel"; the page's own header names which channel is theirs, one heading level below it. |
+| [publish](../publish/01-concept-brief.md) | The plan's `planned_posts` row, which it advances from `scheduled` through `publishing` to `published` or `failed`. |
+| MCP server (`crowsnest_metrics`) | `getOwnChannelOverview` and `getOwnPosts`. |
+| The dashboard's Overview | `getPlannedPosts` for the content pipeline's planned count. |
+| Remix finish step and vault script dialog | Link to `/mine`, which redirects to the Calendar tab. |
 
 ### External
 
 | Dependency | Role |
 | --- | --- |
-| Instagram Graph API | The one external service this page calls, through `src/server/graph/client.ts`, for the account, its posts and their insights, and comments. A separate, official, token-authenticated path, never the instagrapi sidecar ig-sync uses to study other creators. |
+| Instagram Graph API (`graph.instagram.com`, Instagram Login) | The one external service mine calls, through `src/server/graph/client.ts`: account, media, per-media insights, comments, and account-level insights. Data can lag up to 48 hours; the limit is 200 calls per hour per user. |
+| recharts, through `src/components/ui/chart.tsx` | The views-over-time chart. |
 
 ## 6. Boundaries
 
-mine owns the my channel page frame, the two gates that decide what it can show, the planner calendar, the plan dialog, the publish dialog and its calendar controls, and the read-only own-post and metrics displays. It does not own the publish pipeline behind that dialog (the scheduler, the storage provider, and the Reel client belong to the [publish](../publish/01-concept-brief.md) component) or the remix flow that produces a script. It does not own the vault at `/vault` (saved posts, scripts, hook and style templates), the ideas inbox at `/ideas`, or the persona at `/persona`, each a separate route and component; mine only reads the vault's scripts to offer them in the plan dialog. Own posts are read-only here: the only writer is a Graph measurement (`measureOwnChannelAction`); the instagrapi sidecar writes tracked videos, never own posts, so a tracked-channel sync never changes this page. Marking a channel own is a single durable flag (`channels.isOwn`); there is no control on this page to clear it (`unsetOwnChannelAction` exists but the page never calls it, tracked as B-15 in [05-backlog-to-enhance](05-backlog-to-enhance.md)).
+mine owns the My reels and Calendar tab content, the two gates, the planner, the plan and publish dialogs, the own-post displays, and the own-channel measurement, manual and scheduled. It does not own the Dashboard route, the tab strip's Overview content, the publish pipeline behind the publish dialog, the remix flow, the vault, the ideas inbox, or the persona. Own posts are read-only here: the Graph measurement is their only writer. Marking a channel own is a single durable flag; there is no control to clear it (`unsetOwnChannelAction` exists but nothing calls it; tracked in [05-backlog-to-enhance](05-backlog-to-enhance.md)).

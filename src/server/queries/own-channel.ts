@@ -1,6 +1,7 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { CLASSIFIER_VERSION } from "@/server/graph/client";
+import { REEL_CURVE_HOURS, type OwnReel, type ReelSnapshotPoint } from "@/server/services/reel-insights";
 import { computeOwnMedianReach, indexAgainstOwnMedian, type OwnPostForCalc } from "@/server/services/own-metrics";
 import { getSetting } from "@/server/settings";
 
@@ -28,6 +29,10 @@ export interface OwnMetric {
   sampleSize: number;
   /** Posts in the window whose insights call failed. */
   failedSampleSize: number;
+  /** Posts measured without error that still carry no value for this metric (for example
+   *  a reel whose extended set fell back to the core set). Non-zero means `value` sums a
+   *  subset: show it as "n of m", never as the whole window's total. */
+  missingSampleSize: number;
   /** False for a metric the client does not request yet. Renders as "not wired". */
   wired: boolean;
 }
@@ -91,6 +96,14 @@ export interface OwnCommentSummary {
  *  "no error" state, matching every other query's absent-means-empty rule. */
 export const OWN_COMMENTS_FETCH_ERROR_KEY = "own_comments_fetch_error";
 
+/** app_settings key holding the last engaged-audience refusal (for example under 100
+ *  engagements). Row absent means the last fetch succeeded or none has run. */
+export const OWN_AUDIENCE_FETCH_ERROR_KEY = "own_audience_fetch_error";
+
+/** app_settings key holding the last follower split (views by follower_type) failure.
+ *  Row absent means the last split fetch succeeded or none has run. */
+export const OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY = "own_follower_split_fetch_error";
+
 const DEFAULT_WINDOW_DAYS = 30;
 
 type OwnPostInsightsRow = typeof tables.ownPostInsights.$inferSelect;
@@ -103,9 +116,13 @@ export interface JoinedOwnPost {
   externalId: string;
   permalink: string;
   format: string;
+  productType: string | null;
+  thumbnailUrl: string | null;
   caption: string | null;
   postedAt: string;
   durationSec: number | null;
+  /** The newest successful capture, whole: what getOwnReels shapes a reel's snapshot from. */
+  latestOk: OwnPostInsightsRow | null;
   reach: number | null;
   saved: number | null;
   shares: number | null;
@@ -120,39 +137,52 @@ export interface JoinedOwnPost {
   insightsError: string | null;
 }
 
+/** The newest successful (or, with successful false, newest failed) own_post_insights row
+ *  per post, picked in SQL. capturedAt is always our own toISOString() ("Z", fixed width;
+ *  Graph's "+0000" only ever lands in postedAt), so the string max is the newest. Also
+ *  the scheduler's "last measured" read in own-measure.ts, so the two cannot drift. */
+export async function newestCaptureByPost(postIds: string[], successful: boolean): Promise<Map<string, OwnPostInsightsRow>> {
+  if (postIds.length === 0) return new Map();
+  const where = and(inArray(tables.ownPostInsights.ownPostId, postIds), successful ? isNull(tables.ownPostInsights.fetchError) : isNotNull(tables.ownPostInsights.fetchError));
+  const newest = db
+    .select({ ownPostId: tables.ownPostInsights.ownPostId, capturedAt: sql<string>`max(${tables.ownPostInsights.capturedAt})`.as("newest_captured_at") })
+    .from(tables.ownPostInsights)
+    .where(where)
+    .groupBy(tables.ownPostInsights.ownPostId)
+    .as("newest");
+  const rows = await db
+    .select({ row: tables.ownPostInsights })
+    .from(tables.ownPostInsights)
+    .innerJoin(newest, and(eq(newest.ownPostId, tables.ownPostInsights.ownPostId), eq(newest.capturedAt, tables.ownPostInsights.capturedAt)))
+    .where(where);
+  return new Map(rows.map(({ row }) => [row.ownPostId, row]));
+}
+
 /**
- * Every own_posts row (newest first) joined with its OWN latest own_post_insights row.
- * "Latest" is computed in application code rather than a SQL window function: the rest
- * of this codebase already does the equivalent select-then-reduce for a channel's
- * newest snapshot (see `queries/channels.ts`'s `getMedianViews`), and a single-user
- * account's post count never approaches a scale where that matters.
+ * Every own_posts row (newest first) joined with its newest SUCCESSFUL own_post_insights
+ * row, so a later failed capture never hides the last good numbers. A post with no
+ * successful capture falls back to its newest failed row, so the failed state still shows.
  */
 export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const posts = await db.select().from(tables.ownPosts).orderBy(desc(tables.ownPosts.postedAt));
   if (posts.length === 0) return [];
 
-  const postIds = posts.map((p) => p.id);
-  const insightRows = await db
-    .select()
-    .from(tables.ownPostInsights)
-    .where(inArray(tables.ownPostInsights.ownPostId, postIds))
-    .orderBy(desc(tables.ownPostInsights.capturedAt));
-
-  const latestByPost = new Map<string, OwnPostInsightsRow>();
-  for (const row of insightRows) {
-    if (!latestByPost.has(row.ownPostId)) latestByPost.set(row.ownPostId, row);
-  }
+  const okByPost = await newestCaptureByPost(posts.map((p) => p.id), true);
+  const failedByPost = await newestCaptureByPost(posts.filter((p) => !okByPost.has(p.id)).map((p) => p.id), false);
 
   return posts.map((p) => {
-    const latest = latestByPost.get(p.id);
+    const latest = okByPost.get(p.id) ?? failedByPost.get(p.id);
     return {
       ownPostId: p.id,
       externalId: p.externalId,
       permalink: p.permalink,
       format: p.format,
+      productType: p.productType,
+      thumbnailUrl: p.thumbnailUrl,
       caption: p.caption,
       postedAt: p.postedAt,
       durationSec: p.durationSec,
+      latestOk: okByPost.get(p.id) ?? null,
       reach: latest?.reach ?? null,
       saved: latest?.saved ?? null,
       shares: latest?.shares ?? null,
@@ -186,24 +216,27 @@ const WIRED: Record<keyof OwnChannelOverview["metrics"], boolean> = {
   reach: true,
   saved: true,
   shares: true,
-  profileVisits: false,
-  followsFromPost: false,
+  profileVisits: true,
+  followsFromPost: true,
   watchTimeSec: false,
 };
 
 function aggregateMetric(posts: JoinedOwnPost[], key: "reach" | "saved" | "shares" | "profileVisits" | "followsFromPost" | "watchTimeSec", failedSampleSize: number): OwnMetric {
   const values = posts.map((p) => p[key]).filter((v): v is number => v !== null);
+  const measuredOk = posts.filter((p) => p.measuredAt !== null && p.insightsError === null).length;
   return {
     value: values.length > 0 ? values.reduce((a, b) => a + b, 0) : null,
     sampleSize: values.length,
     failedSampleSize,
+    missingSampleSize: Math.max(0, measuredOk - values.length),
     wired: WIRED[key],
   };
 }
 
+/** `posts` lets a caller that already loaded getPostsWithLatestInsights (My reels) reuse it. */
 export async function getOwnChannelOverview(
   windowDays: number = DEFAULT_WINDOW_DAYS,
-  opts: { offsetDays?: number } = {},
+  opts: { offsetDays?: number; posts?: JoinedOwnPost[] } = {},
 ): Promise<OwnChannelOverview> {
   const [snapshot] = await db.select().from(tables.ownAccountSnapshots).orderBy(desc(tables.ownAccountSnapshots.capturedAt)).limit(1);
   const account = snapshot
@@ -216,7 +249,7 @@ export async function getOwnChannelOverview(
       }
     : null;
 
-  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
+  const [allPosts, minUsable] = await Promise.all([opts.posts ?? getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
   // offsetDays shifts the day-range window back for a prior-period comparison (month over
   // month). It applies ONLY to this inWindow filter; the median below stays a trailing
   // post-count window over allPosts, unchanged, so a prior-period read is still scored
@@ -254,11 +287,11 @@ export async function getOwnChannelOverview(
   };
 }
 
-export async function getOwnPosts(opts: { limit?: number; offset?: number } = {}): Promise<{ items: OwnPostRow[]; total: number }> {
+export async function getOwnPosts(opts: { limit?: number; offset?: number; posts?: JoinedOwnPost[] } = {}): Promise<{ items: OwnPostRow[]; total: number }> {
   const limit = opts.limit ?? 24;
   const offset = opts.offset ?? 0;
 
-  const [allPosts, minUsable] = await Promise.all([getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
+  const [allPosts, minUsable] = await Promise.all([opts.posts ?? getPostsWithLatestInsights(), getSetting("scoreMinUsablePosts")]);
   const medianReach = computeOwnMedianReach(toCalcInput(allPosts), { minUsable });
 
   const items: OwnPostRow[] = allPosts.slice(offset, offset + limit).map((p) => ({
@@ -332,5 +365,77 @@ export async function getOwnComments(): Promise<OwnCommentSummary> {
     // string, and the current one is what a fresh reading would use.
     classifierVersion: CLASSIFIER_VERSION,
     fetchError: errorSetting[0]?.value ?? null,
+  };
+}
+
+/** Reels only, newest first, each with its newest successful snapshot (null when never
+ *  measured successfully): a failed capture never hides the last good numbers. */
+export async function getOwnReels(posts?: JoinedOwnPost[]): Promise<OwnReel[]> {
+  const reels = (posts ?? (await getPostsWithLatestInsights())).filter((p) => p.productType === "REELS");
+  return reels.map((p) => {
+    const l = p.latestOk;
+    return {
+      ownPostId: p.ownPostId, externalId: p.externalId, permalink: p.permalink, caption: p.caption, postedAt: p.postedAt, thumbnailUrl: p.thumbnailUrl,
+      latest: l
+        ? {
+            capturedAt: l.capturedAt, views: l.views, reach: l.reach, likes: l.likes, comments: l.comments, shares: l.shares,
+            saved: l.saved, reposts: l.reposts, followsFromPost: l.followsFromPost, profileVisits: l.profileVisits,
+            bioLinkTaps: l.bioLinkTaps, avgWatchTimeMs: l.avgWatchTimeMs, skipRate: l.skipRate, fetchError: l.fetchError,
+          }
+        : null,
+    };
+  });
+}
+
+/** Reel snapshots taken within REEL_CURVE_HOURS of posting, as (ownPostId, postedAt,
+ *  capturedAt, views): the input to typicalViewsCurve. */
+export async function getReelViewHistory(): Promise<ReelSnapshotPoint[]> {
+  // substr(…, 1, 19) drops the zone: Graph sends "+0000", which julianday cannot parse,
+  // and our own captures are "Z". Both are UTC.
+  const ageDays = sql`julianday(substr(${tables.ownPostInsights.capturedAt}, 1, 19)) - julianday(substr(${tables.ownPosts.postedAt}, 1, 19))`;
+  return db
+    .select({ ownPostId: tables.ownPostInsights.ownPostId, postedAt: tables.ownPosts.postedAt, capturedAt: tables.ownPostInsights.capturedAt, views: tables.ownPostInsights.views })
+    .from(tables.ownPostInsights)
+    .innerJoin(tables.ownPosts, eq(tables.ownPosts.id, tables.ownPostInsights.ownPostId))
+    .where(and(eq(tables.ownPosts.productType, "REELS"), sql`${ageDays} < ${REEL_CURVE_HOURS / 24}`));
+}
+
+export interface BreakdownEntry {
+  key: string;
+  value: number;
+}
+export interface AccountBreakdowns {
+  followerSplit: BreakdownEntry[];
+  followerSplitAt: string | null;
+  followerSplitError: string | null;
+  audience: { age: BreakdownEntry[]; country: BreakdownEntry[]; gender: BreakdownEntry[] };
+  audienceAt: string | null;
+  audienceError: string | null;
+}
+
+/** Newest batch per metric, entries sorted by value, plus the stored audience refusal. */
+export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
+  // ponytail: reads every stored batch and keeps the newest per metric in memory; a
+  // single-user account adds a few dozen rows a day. Filter in SQL if that ever shows.
+  const [rows, errorRow, splitErrorRow] = await Promise.all([
+    db.select().from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_AUDIENCE_FETCH_ERROR_KEY)).limit(1),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY)).limit(1),
+  ]);
+  const newest = (metric: string) => {
+    const first = rows.find((r) => r.metric === metric);
+    return first ? rows.filter((r) => r.metric === metric && r.capturedAt === first.capturedAt) : [];
+  };
+  const entries = (list: typeof rows) => list.map((r) => ({ key: r.key, value: r.value })).sort((a, b) => b.value - a.value);
+  const split = newest("views");
+  const audience = newest("engaged_audience_demographics");
+  const dim = (d: string) => entries(audience.filter((r) => r.dimension === d));
+  return {
+    followerSplit: entries(split),
+    followerSplitAt: split[0]?.capturedAt ?? null,
+    followerSplitError: splitErrorRow[0]?.value ?? null,
+    audience: { age: dim("age"), country: dim("country"), gender: dim("gender") },
+    audienceAt: audience[0]?.capturedAt ?? null,
+    audienceError: errorRow[0]?.value ?? null,
   };
 }

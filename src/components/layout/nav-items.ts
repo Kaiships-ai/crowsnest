@@ -8,7 +8,6 @@ import {
   Lightbulb,
   ScrollText,
   Settings,
-  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -33,8 +32,8 @@ export type NavItem = {
  * CREATE (the signal-to-remix loop: Feed, Ideas, Vault, in flow order), then
  * SOURCES (the inputs, configured less often), then SYSTEM (diagnostics) and
  * SETUP (config) at the bottom where infrequent tasks belong. Frequency and
- * journey both descend, so nothing daily sits below the fold. "My channel" is a
- * real route (`/mine`) and lives here. "Post" is deliberately NOT here: the prototype's "Post" entry points
+ * journey both descend, so nothing daily sits below the fold. The own-account views
+ * are Dashboard tabs, not a separate entry. "Post" is deliberately NOT here: the prototype's "Post" entry points
  * at whatever post is currently open, which has no fixed href to give this
  * array. sidebar.tsx renders it separately, right below Feed, using the same
  * `recently_viewed` fact the Dashboard's "Recently viewed" rail already reads
@@ -61,7 +60,6 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/vault", label: "Vault", icon: Archive, group: "Create" },
   { href: "/channels", label: "Channels", icon: Users, group: "Sources" },
   { href: "/channels/discover", label: "Discover", icon: Compass, group: "Sources" },
-  { href: "/mine", label: "My channel", icon: UserRound, group: "Sources" },
   { href: "/runs", label: "Runs", icon: Activity, group: "System" },
   { href: "/logs", label: "Logs", icon: ScrollText, group: "System" },
   { href: "/persona", label: "Persona", icon: Drama, group: "Setup" },

@@ -15,7 +15,12 @@ export const GRAPH_ERROR_CODES = [
    *  was never attempted. */
   "GRAPH_NOT_CONFIGURED",
   "GRAPH_AUTH_FAILED",
+  /** The token works but lacks a permission or scope (Graph codes 10, 200-299). */
+  "GRAPH_PERMISSION_DENIED",
   "GRAPH_RATE_LIMITED",
+  /** Instagram rejected the request itself (a 4xx such as code 100, invalid parameter).
+   *  Permanent: the same request fails the same way. */
+  "GRAPH_INVALID_REQUEST",
   "GRAPH_NETWORK",
   /** Reel container creation/publish failed, or a container's status_code went
    *  FINISHED->ERROR/EXPIRED while polling (publish, B2). */
@@ -31,12 +36,14 @@ const RETRYABLE: ReadonlySet<GraphErrorCode> = new Set<GraphErrorCode>(["GRAPH_R
 
 /** Coarser bucket than `GraphErrorCode`, for callers (the publish service/scheduler)
  *  that just need to branch/store "what kind of failure" without knowing every code. */
-export type GraphErrorClass = "auth" | "container" | "timeout" | "rate_limit" | "unknown";
+export type GraphErrorClass = "auth" | "container" | "timeout" | "rate_limit" | "invalid_request" | "unknown";
 
 const ERROR_CLASS_BY_CODE: Record<GraphErrorCode, GraphErrorClass> = {
   GRAPH_NOT_CONFIGURED: "auth",
   GRAPH_AUTH_FAILED: "auth",
+  GRAPH_PERMISSION_DENIED: "auth",
   GRAPH_RATE_LIMITED: "rate_limit",
+  GRAPH_INVALID_REQUEST: "invalid_request",
   GRAPH_NETWORK: "unknown",
   GRAPH_CONTAINER_FAILED: "container",
   GRAPH_TIMEOUT: "timeout",
@@ -68,6 +75,8 @@ export class GraphApiError extends Error {
         return "No Graph API token configured. Add IG_GRAPH_TOKEN in .env.local and restart the dev server.";
       case "GRAPH_AUTH_FAILED":
         return "Instagram rejected the Graph API token. It may be expired or revoked — refresh it in .env.local.";
+      case "GRAPH_PERMISSION_DENIED":
+        return "The Graph API token is missing a permission this app needs. Generate a new token with the insights permissions and update it.";
       case "GRAPH_RATE_LIMITED":
         return "Instagram is rate-limiting the Graph API. Try again later.";
       case "GRAPH_NETWORK":

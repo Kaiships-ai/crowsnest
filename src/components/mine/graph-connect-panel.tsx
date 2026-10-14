@@ -30,6 +30,10 @@ const STATE_COPY: Record<GraphTokenStatus["state"], { title: string; body: strin
     title: "Instagram rejected the token",
     body: "The configured Graph API token was rejected. It may have expired or been revoked.",
   },
+  permission_denied: {
+    title: "The token is missing a permission",
+    body: "Instagram accepted the token but refused its insights. Generate a new token with the insights permissions and reconnect. Check connection cannot see this permission; the next measurement re-verifies it.",
+  },
   rate_limited: {
     title: "Instagram is rate limiting this token",
     body: "The Graph API is temporarily refusing calls for this token. This usually clears on its own.",
@@ -62,6 +66,13 @@ export function GraphConnectPanel({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
+  // router.refresh() (after Measure now, even a failed one) hands a new server status:
+  // take it over the local one, or the panel keeps showing the state before the run.
+  const [seenInitial, setSeenInitial] = useState(initialStatus);
+  if (initialStatus !== seenInitial) {
+    setSeenInitial(initialStatus);
+    setStatus(initialStatus);
+  }
   const [checking, startChecking] = useTransition();
   const [measuring, startMeasuring] = useTransition();
 
@@ -80,12 +91,25 @@ export function GraphConnectPanel({
   function measure() {
     startMeasuring(async () => {
       const result = await measureOwnChannelAction();
+      // A failed run can still have written rows (and changed the token state): show them.
+      router.refresh();
       if (!result.ok) {
         toast.error(result.error);
         return;
       }
-      toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts`);
-      router.refresh();
+      if (result.stoppedEarly === "budget" && result.callsUsed === 0) {
+        toast.error("Measure now skipped: this hour's Graph calls are already spent. Try again later.");
+        return;
+      }
+      const stopped =
+        result.stoppedEarly === "rate_limited"
+          ? " (stopped early: Instagram rate limit)"
+          : result.stoppedEarly === "budget"
+            ? result.limitedByRecentCalls
+              ? " (stopped early: recent scheduled measurements already spent most of this hour's Graph calls)"
+              : " (stopped early: hourly call budget)"
+            : "";
+      toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
     });
   }
 
@@ -96,7 +120,7 @@ export function GraphConnectPanel({
     : STATE_COPY[status.state];
 
   return (
-    <div className="mt-10 max-w-[62ch]">
+    <div className="mt-10 max-w-[62ch]" data-testid="mine-connect-panel">
       <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Graph API</p>
       <p className="mt-3 text-lg font-medium text-foreground">{copy.title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
@@ -118,11 +142,11 @@ export function GraphConnectPanel({
       )}
 
       <div className="mt-6 flex items-center gap-3">
-        <Button size="sm" variant="outline" onClick={recheck} disabled={checking}>
+        <Button size="sm" variant="outline" onClick={recheck} disabled={checking} data-testid="mine-connect-check">
           {checking ? "Checking…" : "Check connection"}
         </Button>
         {status.state === "ok" && !everMeasured && (
-          <Button size="sm" onClick={measure} disabled={measuring}>
+          <Button size="sm" onClick={measure} disabled={measuring} data-testid="mine-connect-measure">
             {measuring ? "Measuring…" : "Measure now"}
           </Button>
         )}

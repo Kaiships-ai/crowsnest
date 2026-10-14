@@ -21,8 +21,8 @@ import { GraphApiError, type GraphErrorCode } from "./errors";
  *  1. The token never leaves this module in any error, string, log line or thrown
  *     value. Every message that can reach a caller or a log line is passed through
  *     `redactToken` first.
- *  2. A per-post insights failure is a field on that post (`GraphPost.insights.error`),
- *     never an exception that takes the whole pull down with it.
+ *  2. A per-post insights failure is a field on that post (`GraphPostInsights.error`),
+ *     never an exception, except auth and rate-limit failures, which must end the run.
  *  3. This client never touches the instagrapi sidecar's credentials or transport
  *     (`src/server/ig/`), and the sidecar never touches this token. Separate transports,
  *     separate tables, separate code paths — including a separate error hierarchy
@@ -52,17 +52,24 @@ export interface GraphPostInsights {
   comments: number | null;
   likes: number | null;
   views: number | null;
-  /** Requested only when the metric name has been verified against a live call.
-   *  ig_stats.py never requests these, so this port never can either — see the
-   *  contract's "no tile ships for a metric until one real API call has returned it". */
+  /** profile_visits and follows, requested in the feed extended set only (Meta does not
+   *  report them for reels). watchTimeSec is never requested (the reel watch time lands in
+   *  avgWatchTimeMs/totalWatchTimeMs). */
   profileVisits: number | null;
   followsFromPost: number | null;
   watchTimeSec: number | null;
+  reposts: number | null;
+  /** reels_skip_rate, passed through untouched (Meta marks it in development). */
+  skipRate: number | null;
+  /** Milliseconds, as the API returns them. */
+  avgWatchTimeMs: number | null;
+  totalWatchTimeMs: number | null;
+  bioLinkTaps: number | null;
   /** Non-null when this one post's insights call failed while others succeeded. */
   error: string | null;
 }
 
-export interface GraphPost {
+export interface GraphMedia {
   externalId: string;
   permalink: string;
   mediaType: string;
@@ -72,7 +79,35 @@ export interface GraphPost {
   postedAt: string;
   likeCount: number | null;
   commentsCount: number | null;
-  insights: GraphPostInsights;
+  thumbnailUrl: string | null;
+}
+
+export interface GraphBreakdownRow {
+  metric: string;
+  dimension: string;
+  key: string;
+  value: number;
+  timeframe: string | null;
+}
+
+export interface GraphAccountBreakdowns {
+  rows: GraphBreakdownRow[];
+  /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
+  audienceError: string | null;
+  /** Set when the follower split (views by follower_type) call failed without ending the
+   *  run; undefined when the split call itself was the run-ending stop (nothing learned). */
+  splitError?: string | null;
+  /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
+  stop?: GraphApiError | null;
+  /** A later audience dimension failed after an earlier one landed: rows is a partial
+   *  batch, not to be stored. audienceError holds the failure. */
+  incomplete?: boolean;
+}
+
+export interface GraphCommentsResult {
+  comments: GraphComment[];
+  /** Auth or rate limit on a per-media call: the pull stopped there and the run must end. */
+  stop: GraphApiError | null;
 }
 
 export interface GraphComment {
@@ -89,15 +124,26 @@ export interface GraphTokenStatus {
   /** Resolved by calling the account fields edge, so the screen names the real account
    *  rather than trusting a label. Null when the call failed. */
   username: string | null;
-  state: "ok" | "not_configured" | "auth_failed" | "rate_limited" | "network" | "unknown";
+  state: "ok" | "not_configured" | "auth_failed" | "permission_denied" | "rate_limited" | "network" | "unknown";
   message: string | null;
   checkedAt: string;
 }
 
+export interface PostInsightsResult {
+  insights: GraphPostInsights | null;
+  stop?: GraphApiError | null;
+}
+
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
-  fetchPosts(limit?: number): Promise<GraphPost[]>;
-  fetchComments(accountUsername: string): Promise<GraphComment[]>;
+  fetchMedia(limit?: number): Promise<GraphMedia[]>;
+  /** One post's insights. An auth or rate-limit failure comes back as `stop` (the run
+   *  must end) next to whatever insights were already fetched (null when none); any other
+   *  failure lands in insights.error. Calls are counted by the transport (graphCallLedger). */
+  fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult>;
+  fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
+  /** Comments for the given media (the run's own media list), one call per post with comments. */
+  fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
   checkToken(): Promise<GraphTokenStatus>;
@@ -113,6 +159,9 @@ function str(v: unknown): string | null {
 }
 function num(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+function arr(v: unknown): unknown[] {
+  return Array.isArray(v) ? v : [];
 }
 function required(value: string | null, field: string, payload: unknown): string {
   if (value === null) {
@@ -134,13 +183,13 @@ export function mapAccount(raw: unknown): GraphAccount {
   };
 }
 
-function formatOf(mediaType: string, productType: string | null): GraphPost["format"] {
+function formatOf(mediaType: string, productType: string | null): GraphMedia["format"] {
   if (productType === "REELS") return "Reel";
   if (mediaType === "CAROUSEL_ALBUM") return "Carousel";
   return mediaType || "?";
 }
 
-function buildPost(raw: Record<string, unknown>, insights: GraphPostInsights): GraphPost {
+function buildMedia(raw: Record<string, unknown>): GraphMedia {
   const mediaType = str(raw.media_type) ?? "";
   const productType = str(raw.media_product_type);
   return {
@@ -153,7 +202,7 @@ function buildPost(raw: Record<string, unknown>, insights: GraphPostInsights): G
     postedAt: required(str(raw.timestamp), "timestamp", raw),
     likeCount: num(raw.like_count),
     commentsCount: num(raw.comments_count),
-    insights,
+    thumbnailUrl: str(raw.thumbnail_url),
   };
 }
 
@@ -169,6 +218,11 @@ function emptyInsights(error: string): GraphPostInsights {
     profileVisits: null,
     followsFromPost: null,
     watchTimeSec: null,
+    reposts: null,
+    skipRate: null,
+    avgWatchTimeMs: null,
+    totalWatchTimeMs: null,
+    bioLinkTaps: null,
     error,
   };
 }
@@ -195,11 +249,47 @@ export function mapInsights(raw: unknown, isReel: boolean): GraphPostInsights {
     comments: stats.comments ?? null,
     likes: stats.likes ?? null,
     views: isReel ? (stats.views ?? null) : null,
-    profileVisits: null,
-    followsFromPost: null,
+    profileVisits: stats.profile_visits ?? null,
+    followsFromPost: stats.follows ?? null,
     watchTimeSec: null,
+    reposts: stats.reposts ?? null,
+    skipRate: stats.reels_skip_rate ?? null,
+    avgWatchTimeMs: stats.ig_reels_avg_watch_time ?? null,
+    totalWatchTimeMs: stats.ig_reels_video_view_total_time ?? null,
+    bioLinkTaps: null,
     error: null,
   };
+}
+
+/** Action type name for a bio link tap in profile_activity. ponytail: taken from Meta's
+ *  docs, not a live response (02 section 9); a wrong name would read as 0 taps. */
+export const BIO_LINK_ACTION = "BIO_LINK_CLICKED";
+
+/** Called only on a successful profile_activity response (a failed call leaves bioLinkTaps
+ *  null). Graph omits zero-valued action types, so an absent bio link action means 0 taps. */
+export function mapBioLinkTaps(raw: unknown): number | null {
+  for (const row of arr(rec(raw).data)) {
+    for (const b of arr(rec(rec(row).total_value).breakdowns)) {
+      for (const r of arr(rec(b).results)) {
+        if (arr(rec(r).dimension_values).includes(BIO_LINK_ACTION)) return num(rec(r).value);
+      }
+    }
+  }
+  return 0;
+}
+
+function mapBreakdown(raw: unknown, metric: string, dimension: string, timeframe: string): GraphBreakdownRow[] {
+  const out: GraphBreakdownRow[] = [];
+  for (const row of arr(rec(raw).data)) {
+    for (const b of arr(rec(rec(row).total_value).breakdowns)) {
+      for (const r of arr(rec(b).results)) {
+        const key = str(arr(rec(r).dimension_values)[0]);
+        const value = num(rec(r).value);
+        if (key !== null && value !== null) out.push({ metric, dimension, key, value, timeframe });
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -259,34 +349,108 @@ export function redactToken(text: string, token: string): string {
   return token ? text.split(token).join("<redacted>") : text;
 }
 
+// ---------------------------------------------------------------- call ledger
+
+const HOUR_MS = 3_600_000;
+
+/** Every HTTP call this process makes to Graph, counted in the transport so no caller can
+ *  miss one (measurement, token checks, account reads, publish). `total` gives a run its
+ *  own count (calls since it started); `at` the rolling hour. Kept on globalThis next to
+ *  the measure lock, because tsx server.ts and the Next bundle each load their own copy of
+ *  this module in the same process.
+ *  ponytail: in memory, so a restart forgets the last hour's calls; persist it if restarts
+ *  mid-hour ever push a run over Instagram's limit. */
+export interface GraphCallLedger {
+  total: number;
+  at: number[];
+}
+export function graphCallLedger(): GraphCallLedger {
+  const g = globalThis as { __crowsnestOwnMeasure?: { graphCalls?: GraphCallLedger } };
+  return ((g.__crowsnestOwnMeasure ??= {}).graphCalls ??= { total: 0, at: [] });
+}
+export function graphCallsInLastHour(now = Date.now()): number {
+  return graphCallLedger().at.filter((t) => t > now - HOUR_MS && t <= now).length;
+}
+function noteGraphCall(): void {
+  const ledger = graphCallLedger();
+  const now = Date.now();
+  ledger.total += 1;
+  ledger.at = ledger.at.filter((t) => t > now - HOUR_MS);
+  ledger.at.push(now);
+}
+
 // ---------------------------------------------------------------- transport
 
-type GraphFailureKind = "auth" | "rate_limit" | "network" | "unknown";
+type GraphFailureKind = "auth" | "permission" | "rate_limit" | "invalid_request" | "network" | "unknown";
 
 type GraphGetResult<T> = { ok: true; data: T } | { ok: false; message: string; kind: GraphFailureKind };
 
 /** Distinguishes an expired/revoked token from a throttled call from an unrecognized
- *  failure, using the HTTP status first and the Graph API's own error envelope
- *  (`{error: {code, type}}`) second. Meta documents code 190 / type "OAuthException"
- *  for a dead token, and codes 4/17/32/613 for various rate-limit conditions; the exact
- *  set is unverified against a live call (see the "no live token" caveat in the
- *  report), so `unknown` is the deliberately honest fallback rather than a guess. */
+ *  failure, using the HTTP status and the Graph API's own error envelope
+ *  (`{error: {code}}`). Meta documents code 190 (and 102) for a dead token, and codes
+ *  4/17/32/613 and 80000-80014 (business use case limits; Instagram's is 80002, sent as
+ *  HTTP 400) for rate limits. A failure Meta marks `is_transient: true`, or codes 1/2
+ *  (unknown, service unavailable) and 9007 (media not ready), is worth retrying, so it is
+ *  `unknown` (publish retries that class) rather than a terminal invalid_request. */
 function classifyHttpFailure(status: number, body: unknown): GraphFailureKind {
-  if (status === 401) return "auth";
-  const err = rec(rec(body).error);
-  const code = typeof err.code === "number" ? err.code : null;
-  const type = typeof err.type === "string" ? err.type : null;
-  if (type === "OAuthException" || code === 190) return "auth";
-  if (status === 429 || code === 4 || code === 17 || code === 32 || code === 613) return "rate_limit";
+  const error = rec(rec(body).error);
+  const code = num(error.code);
+  if (status === 429 || code === 4 || code === 17 || code === 32 || code === 613 || (code !== null && code >= 80000 && code <= 80014)) return "rate_limit";
+  // Not type "OAuthException": Meta sends that type on nearly every error, including an
+  // unsupported metric (code 100) and a permission refusal (code 10), which must stay
+  // per-post failures rather than end the run.
+  if (status === 401 || code === 190 || code === 102) return "auth";
+  if (error.is_transient === true || code === 1 || code === 2 || code === 9007) return "unknown";
+  // A permission or scope refusal (code 10, 200-299): the token works but lacks a grant.
+  // Needs reauthorization for the account call; stays non-fatal for a per-metric call.
+  if (code !== null && (code === 10 || (code >= 200 && code <= 299))) return "permission";
+  // Any other 4xx (code 100 invalid parameter, a bad video_url or caption): Instagram
+  // rejected the request itself, so repeating it cannot succeed. Publish treats this as
+  // terminal; a per-metric insights call still treats it as non-fatal.
+  if (status >= 400 && status < 500) return "invalid_request";
   return "unknown";
+}
+
+/** True when a stored per-post fetchError ("HTTP <status>: <body>", as graphRequest builds
+ *  it) is a non-transient invalid_request: Instagram will refuse it the same way again. */
+export function isPermanentFailure(message: string): boolean {
+  const f = parseFailure(message);
+  return f !== null && classifyHttpFailure(f.status, f.body) === "invalid_request";
+}
+
+function parseFailure(message: string): { status: number; body: unknown } | null {
+  const m = /^HTTP (\d+): ([\s\S]*)$/.exec(message);
+  if (!m) return null;
+  let body: unknown = null;
+  try {
+    body = JSON.parse(m[2]);
+  } catch {
+    // Not JSON: classify on the status alone.
+  }
+  return { status: Number(m[1]), body };
+}
+
+/** Code 10 on one media's insights is usually "(#10) Not enough viewers for the media to
+ *  show insights", a per-post refusal. Only a scope code (200-299), or a code 10 that names
+ *  a permission, means the token itself lacks the insights grant. */
+function tokenWidePermission(message: string): boolean {
+  const error = rec(rec(parseFailure(message)?.body).error);
+  const code = num(error.code);
+  if (code !== null && code >= 200 && code <= 299) return true;
+  const text = str(error.message) ?? "";
+  return code === 10 && /permission|scope/i.test(text) && !/not enough/i.test(text);
 }
 
 function errorCodeFor(kind: GraphFailureKind): GraphErrorCode {
   switch (kind) {
     case "auth":
       return "GRAPH_AUTH_FAILED";
+    case "permission":
+      return "GRAPH_PERMISSION_DENIED";
     case "rate_limit":
       return "GRAPH_RATE_LIMITED";
+    case "invalid_request":
+      return "GRAPH_INVALID_REQUEST";
     case "network":
       return "GRAPH_NETWORK";
     default:
@@ -323,6 +487,8 @@ async function graphRequest<T>(
   }
 
   let res: Response;
+  // Counted before the call: a timeout or dropped connection may still have reached Graph.
+  noteGraphCall();
   try {
     res = await fetch(url.toString(), init);
   } catch (err) {
@@ -357,6 +523,22 @@ function graphPost<T>(path: string, params: Record<string, string | number | und
   return graphRequest<T>("POST", path, params, token);
 }
 
+const CORE_METRICS = "reach,saved,shares,total_interactions,comments,likes";
+const REEL_CORE_METRICS = `${CORE_METRICS},views`;
+/** FEED media (image, carousel) also report follows and profile_visits. */
+const FEED_EXTENDED_METRICS = `${CORE_METRICS},follows,profile_visits`;
+/** No follows or profile_visits: Meta lists them for FEED and STORY only ("Other Available
+ *  Metrics (Non-Reels)"), and one refused name fails the whole call, which would drop
+ *  watch time, skip rate and reposts with it. profile_activity is asked separately. */
+const REEL_EXTENDED_METRICS =
+  "views,reach,likes,comments,shares,saved,total_interactions,reposts,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
+
+/** Auth and rate-limit failures end a measurement run; everything else is per-post
+ *  (fetchPostInsights also ends it on a permission refusal of the core metric set). */
+function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
+  return !result.ok && (result.kind === "auth" || result.kind === "rate_limit") ? new GraphApiError(errorCodeFor(result.kind), result.message) : null;
+}
+
 // ---------------------------------------------------------------- configuration gate
 
 /** Synchronous, network-free check used by the query layer: is there a token to read
@@ -389,59 +571,87 @@ export const graphClient: GraphClient = {
     return mapAccount(result.data);
   },
 
-  async fetchPosts(limit = 50): Promise<GraphPost[]> {
+  async fetchMedia(limit = 50): Promise<GraphMedia[]> {
     const { token, userId } = requireConfigured();
-    const mediaResult = await graphGet<{ data?: unknown[] }>(
+    const result = await graphGet<{ data?: unknown[] }>(
       `${userId}/media`,
-      { fields: "id,media_type,media_product_type,permalink,timestamp,like_count,comments_count,caption", limit },
+      { fields: "id,media_type,media_product_type,permalink,timestamp,like_count,comments_count,caption,thumbnail_url", limit },
       token
     );
-    if (!mediaResult.ok) throw new GraphApiError(errorCodeFor(mediaResult.kind), mediaResult.message);
-
-    const items = Array.isArray(mediaResult.data.data) ? mediaResult.data.data : [];
-    const posts: GraphPost[] = [];
-    for (const raw of items) {
-      const m = rec(raw);
-      const isReel = m.media_product_type === "REELS";
-      let metrics = "reach,saved,shares,total_interactions,comments,likes";
-      if (isReel) metrics += ",views";
-
-      const mediaId = str(m.id);
-      let insights: GraphPostInsights;
-      if (!mediaId) {
-        // Rule 2: a per-post failure never aborts the run. A post with no id at all
-        // cannot be measured, so it gets the same treatment as an insights call that
-        // failed, not a thrown error for the whole batch.
-        insights = emptyInsights("post has no id, cannot fetch insights");
-      } else {
-        const insightsResult = await graphGet<unknown>(`${mediaId}/insights`, { metric: metrics }, token);
-        insights = insightsResult.ok ? mapInsights(insightsResult.data, isReel) : emptyInsights(insightsResult.message);
-      }
-      posts.push(buildPost(m, insights));
-    }
-    return posts;
+    if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
+    return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
   },
 
-  async fetchComments(accountUsername: string): Promise<GraphComment[]> {
-    const { token, userId } = requireConfigured();
-    const mediaResult = await graphGet<{ data?: unknown[] }>(
-      `${userId}/media`,
-      { fields: "id,permalink,timestamp,comments_count", limit: 50 },
-      token
-    );
-    if (!mediaResult.ok) throw new GraphApiError(errorCodeFor(mediaResult.kind), mediaResult.message);
+  async fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult> {
+    const { token } = requireConfigured();
+    const path = `${media.externalId}/insights`;
+    const isReel = media.productType === "REELS";
+    let r = await graphGet<unknown>(path, { metric: isReel ? REEL_EXTENDED_METRICS : FEED_EXTENDED_METRICS }, token);
+    let stop = fatalOf(r);
+    if (stop) return { insights: null, stop };
+    if (!r.ok) {
+      // One unsupported metric name fails the whole call; retry once with the set that
+      // worked before the rework, so the post keeps its core numbers. Logged with Graph's
+      // own message (token already redacted) so a refused metric is visible.
+      log.warn("graph.insights.extended_fallback", { mediaId: media.externalId, isReel, error: r.message });
+      r = await graphGet<unknown>(path, { metric: isReel ? REEL_CORE_METRICS : CORE_METRICS }, token);
+      // The core set refused for a missing scope too: the token lacks the insights grant, so
+      // every other post would fail the same way. A refused extended set alone is not fatal.
+      stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" && tokenWidePermission(r.message) ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
+      if (stop) return { insights: null, stop };
+    }
+    if (!r.ok) return { insights: emptyInsights(r.message), stop: null };
+    const insights = mapInsights(r.data, isReel);
+    if (!isReel) return { insights, stop: null };
+    const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
+    // A fatal here still returns the insights already fetched, with bio link taps null.
+    insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
+    return { insights, stop: fatalOf(activity) };
+  },
 
-    const items = Array.isArray(mediaResult.data.data) ? mediaResult.data.data : [];
+  async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
+    const { token, userId } = requireConfigured();
+    const rows: GraphBreakdownRow[] = [];
+    // Meta's documented shape for views: period=day, metric_type=total_value, breakdown
+    // follower_type. since/until are optional; without them the API looks back 24 hours,
+    // recorded as timeframe "day".
+    const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
+    const audienceError: string | null = null;
+    const splitError = split.ok ? null : split.message;
+    let stop = fatalOf(split);
+    if (stop) return { rows, audienceError, stop };
+    if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
+    else log.warn("graph.breakdowns.split_failed", { error: split.message });
+    for (const [i, dimension] of ["age", "country", "gender"].entries()) {
+      const r = await graphGet<unknown>(
+        `${userId}/insights`,
+        { metric: "engaged_audience_demographics", period: "lifetime", timeframe: "this_month", metric_type: "total_value", breakdown: dimension },
+        token
+      );
+      stop = fatalOf(r);
+      if (stop) return { rows, audienceError, splitError, stop };
+      if (!r.ok) {
+        // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
+        // A later dimension failing leaves a partial batch, so the caller must not store it.
+        return { rows, audienceError: r.message, splitError, stop: null, incomplete: i > 0 };
+      }
+      rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
+    }
+    return { rows, audienceError, splitError, stop: null };
+  },
+
+  async fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult> {
+    const { token } = requireConfigured();
     const out: GraphComment[] = [];
-    for (const raw of items) {
-      const m = rec(raw);
-      const commentsCount = num(m.comments_count);
-      if (!commentsCount) continue;
-      const mediaId = str(m.id);
-      if (!mediaId) continue;
-      const permalink = str(m.permalink) ?? "";
+    for (const m of media) {
+      if (!m.commentsCount) continue;
+      const mediaId = m.externalId;
+      const permalink = m.permalink;
 
       const commentsResult = await graphGet<{ data?: unknown[] }>(`${mediaId}/comments`, { fields: "id,text,username,timestamp", limit: 100 }, token);
+      // A dead token or a rate limit ends the pull: every further call would fail too.
+      const stop = fatalOf(commentsResult);
+      if (stop) return { comments: out, stop };
       if (!commentsResult.ok) {
         // Unlike a post's insights, `GraphComment` has no per-item error slot (the
         // contract does not give it one), so a single media's comment pull failing
@@ -457,7 +667,7 @@ export const graphClient: GraphClient = {
         out.push(buildComment(permalink, rec(row), accountUsername));
       }
     }
-    return out;
+    return { comments: out, stop: null };
   },
 
   async checkToken(): Promise<GraphTokenStatus> {
@@ -471,7 +681,7 @@ export const graphClient: GraphClient = {
       return { configured: true, username: str(acct.username), state: "ok", message: null, checkedAt };
     }
     const state: GraphTokenStatus["state"] =
-      result.kind === "auth" ? "auth_failed" : result.kind === "rate_limit" ? "rate_limited" : result.kind === "network" ? "network" : "unknown";
+      result.kind === "auth" ? "auth_failed" : result.kind === "permission" ? "permission_denied" : result.kind === "rate_limit" ? "rate_limited" : result.kind === "network" ? "network" : "unknown";
     return { configured: true, username: null, state, message: result.message, checkedAt };
   },
 };

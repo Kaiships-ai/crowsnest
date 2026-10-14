@@ -8,7 +8,7 @@
  * other own-channel figure on this screen.
  */
 
-import { Bar, BarChart, LabelList, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, LabelList, Rectangle, XAxis, YAxis } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
@@ -91,6 +91,11 @@ export function OwnWeekdayRhythm({ posts }: { posts: OwnPostRow[] }) {
               radius={2}
               minPointSize={2}
               isAnimationActive={false}
+              shape={(props: React.ComponentProps<typeof Rectangle>) => (
+                <g data-testid="mine-weekday-bar">
+                  <Rectangle {...props} />
+                </g>
+              )}
             >
               <LabelList dataKey="avgLabel" position="top" className="fill-muted-foreground font-mono text-xs" />
             </Bar>

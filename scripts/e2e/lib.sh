@@ -85,6 +85,19 @@ JS
   "$BROWSE" eval "$js_file" >/dev/null
 }
 
+# wait_any <selector> -- waits until at least one element matches. `browse wait` refuses a
+# selector that matches several elements (a grid of day cells, a row of tiles), so a
+# repeated testid is polled through `browse js` instead.
+wait_any() {
+  local sel="$1"
+  for _ in $(seq 1 50); do
+    [ "$("$BROWSE" js "document.querySelectorAll('$sel').length" | tr -d '[:space:]')" != "0" ] && { echo "  ok: $sel present"; return 0; }
+    sleep 0.2
+  done
+  echo "ASSERT FAILED: timed out waiting for $sel" >&2
+  exit 1
+}
+
 step() { printf '\n[%s] %s\n' "$(basename "$0" .sh)" "$*"; }
 
 # snap <name> -- capture a screenshot of the current page as the evidence the 4b
