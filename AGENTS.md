@@ -16,6 +16,7 @@ per skill, invoked by bare name:
 - Design lane (whenever work touches UI): `hallmark`, `apple-design`, `emil-design-eng`,
   `pick-ui-library`, `shadcn`, `find-animation-opportunities`, `improve-animations`,
   `review-animations`, `animation-vocabulary`.
+- `verify`: launch an isolated app on :3001, drive it, capture evidence.
 - `proof-video` (UI proof recordings) and `product-description`.
 
 # Documentation

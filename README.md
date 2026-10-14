@@ -394,6 +394,7 @@ from the wrong origin, and it does it silently.
 | `animation-vocabulary` | Name and specify a motion effect |
 | `pick-ui-library` | Choose a UI dependency |
 | `shadcn` | Add, fix, and style shadcn components |
+| `verify` | Launch an isolated app on :3001, drive a journey, capture evidence |
 | `proof-video` | Caption and annotate a UI proof recording |
 | `product-description` | Build an outside-in product-description doc repo |
 
