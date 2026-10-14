@@ -40,3 +40,6 @@ jobs:
 
       - name: Migration journal
         run: node scripts/check-migrations.mjs
+
+      - name: Doc paths
+        run: node scripts/check-doc-paths.mjs
