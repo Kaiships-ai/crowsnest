@@ -50,7 +50,7 @@ Over `/api/mcp`, as an MCP tool call. The client lists tools, then calls one by 
 
 ### Limitations
 
-- The in-memory slice on `crowsnest_scripts` and `crowsnest_ideas` reads the whole list before paging; fine for a local vault, called out in [backlog to enhance](05-backlog-to-enhance.md).
+- The in-memory slice on `crowsnest_scripts` and `crowsnest_ideas` reads the whole list before paging; fine for a local vault, called out in the GitHub backlog (label `backlog`).
 - These tools add no logic over their backing queries, so any data rule (what counts as an outlier, how a brief is shaped) lives in that component, not here.
 
 ### User guide
@@ -164,8 +164,8 @@ Over `/api/mcp`, as MCP tool calls. There is no crowsnest screen for these tools
 
 ### Limitations
 
-- `getLastRunHealth` returns the last sync run overall, not a run scoped to the requested channel, so `channel_stats.lastRun` reflects the most recent sync of any channel. Called out in [backlog to enhance](05-backlog-to-enhance.md).
-- Rising mode ranks by recency alone; a true velocity signal (views per day since posting) is not computed. Called out in [backlog to enhance](05-backlog-to-enhance.md).
+- `getLastRunHealth` returns the last sync run overall, not a run scoped to the requested channel, so `channel_stats.lastRun` reflects the most recent sync of any channel. Called out in the GitHub backlog (label `backlog`).
+- Rising mode ranks by recency alone; a true velocity signal (views per day since posting) is not computed. Called out in the GitHub backlog (label `backlog`).
 - The own benchmark block's `reachIndex` is null until enough measured own posts exist to form a median, so a fresh own channel returns rows with null reach.
 
 ### User guide
@@ -332,5 +332,5 @@ Errors. A handled failure is an error result the caller reads, never a thrown ex
 - **The proxy is down.** The generate remix tools return an error; the read tools and the non-generating remix tools are unaffected.
 - **An unknown id.** `crowsnest_video`, `crowsnest_brief`, `crowsnest_transcribe`, and the save/state remix tools return an error result naming the missing id or session, not a thrown exception.
 - **Transcribe with no provider or a dead sidecar.** `crowsnest_transcribe` returns an error result (the download failure, or `no transcript provider available` with a per-provider reason), never a thrown exception; a photo or carousel with no downloadable video is the same handled error.
-- **A large list.** `crowsnest_scripts` and `crowsnest_ideas` read the whole list before slicing; on a local vault this is fine, but it is the known ceiling in [backlog to enhance](05-backlog-to-enhance.md).
+- **A large list.** `crowsnest_scripts` and `crowsnest_ideas` read the whole list before slicing; on a local vault this is fine, but it is the known ceiling in the GitHub backlog (label `backlog`).
 - **A missing media file.** A null asset id or an unresolvable stored path yields a null media block or a null `path`, never an error; the producer sees the absence rather than a failure.

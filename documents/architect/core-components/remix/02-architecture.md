@@ -196,7 +196,7 @@ The stepper's inter-stage connector (`stepper.tsx`) steps from the hairline `--b
 ## 8. Open, not verified
 
 - **Whether a truly concurrent double finish on a session with no plan can both insert.** `finishRemix` reads the most recent linked plan before deciding to insert, and there is no unique constraint on `planned_posts.remix_session_id` backing that read; two finishes racing at the database level, rather than the disabled-button case one browser tab already prevents, have not been proven safe.
-- **Whether the fixed behaviors in [05-backlog-to-enhance.md](05-backlog-to-enhance.md) reproduce exactly as described against a live LLM proxy.** The stuck research skeleton, the Quick Remix proxy-down block, and the stale-variants-after-outline-regenerate clear are covered in code (`StageResearch` renders an error and Retry on a failed assembly, Quick Remix gates on `proxyDown`, and regenerating the outline clears stale variants), not reproduced against a real proxy outage.
+- **Whether the fixed behaviors in the GitHub backlog (label `backlog`) reproduce exactly as described against a live LLM proxy.** The stuck research skeleton, the Quick Remix proxy-down block, and the stale-variants-after-outline-regenerate clear are covered in code (`StageResearch` renders an error and Retry on a failed assembly, Quick Remix gates on `proxyDown`, and regenerating the outline clears stale variants), not reproduced against a real proxy outage.
 - **Whether a Kit-installed buyer's remix generation completes end to end against the real Anthropic API with no local proxy.** This depends on the [llm layer](../llm/01-concept-brief.md), whose own open questions cover the no-proxy path.
 
 ## 9. MCP vs in-app: two remix paths

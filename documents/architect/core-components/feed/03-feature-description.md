@@ -81,7 +81,7 @@ The sticky header of `/feed`.
 
 ### Limitations
 
-- Saved view names are not deduplicated across tabs or sessions, an open question tracked as `FEED-Q2` in the [backlog](05-backlog-to-enhance.md).
+- Saved view names are not deduplicated across tabs or sessions, an open question tracked as `FEED-Q2` in the GitHub backlog (label `backlog`).
 - The import needs the post-fetch provider (yt-dlp) reachable; with it down, or the post gone, the import fails and the dialog stays open.
 
 ### User guide
@@ -115,7 +115,7 @@ Click any card, or focus it and press Enter or Space.
 
 ### Limitations
 
-- The sheet has no error branch on a failed server read: a rejected fetch leaves it stuck on its placeholder bars rather than showing an error or a not-found state, tracked as `FEED-Q3` in the [backlog](05-backlog-to-enhance.md).
+- The sheet has no error branch on a failed server read: a rejected fetch leaves it stuck on its placeholder bars rather than showing an error or a not-found state, tracked as `FEED-Q3` in the GitHub backlog (label `backlog`).
 
 ### User guide
 

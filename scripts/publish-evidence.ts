@@ -141,7 +141,7 @@ ${JSON.stringify(safe, null, 2)}
 A \`state\` of \`ok\` with a \`username\` proves the stored token authenticates against
 the real Graph API, so the publish path's auth precondition is satisfied on this
 machine. The remaining live gap is the S3/R2 bucket (no S3 keys exist locally yet;
-see 05-backlog and the PR body for the exact ask).
+see the PUB-06 GitHub issue and the PR body for the exact ask).
 `);
 }
 

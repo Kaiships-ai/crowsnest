@@ -54,8 +54,8 @@ The "Discover" entry in the sidebar nav (Sources group, Compass icon), or direct
 
 ### Limitations
 
-- Suggestion ranking (a persona match or a similar-outlier signal) is not built. Every niche shows its full curated list in the query's fixed order, niche then handle alphabetically, with no personalization. See `DISC-01` in the [backlog](05-backlog-to-enhance.md).
-- A creator seed is filed under exactly one niche. A creator whose content genuinely spans two niches (for example fitness and business) shows once, under its curated niche only. See `DISC-02` in the [backlog](05-backlog-to-enhance.md).
+- Suggestion ranking (a persona match or a similar-outlier signal) is not built. Every niche shows its full curated list in the query's fixed order, niche then handle alphabetically, with no personalization. See `DISC-01` in the GitHub backlog (label `backlog`).
+- A creator seed is filed under exactly one niche. A creator whose content genuinely spans two niches (for example fitness and business) shows once, under its curated niche only. See `DISC-02` in the GitHub backlog (label `backlog`).
 
 ### User guide
 

@@ -264,7 +264,7 @@ sequenceDiagram
     deactivate Getllm
 ```
 
-The cached client itself (`cachedClient`) is refreshed only once per cache lifetime, not on every AI call: a proxy that recovers mid-session is not picked back up automatically, only on the next `resetLlmClient()` (every secret save) or process restart. The dashboard's dependency status badge calls the same `isRoutedThroughProxy()` function directly (server-rendered on load, and again through `isRoutedThroughProxyAction` on "Check again"), so it always reflects the live reachability check, not `isCompatMode()`'s presence-only signal, and can never claim "routed through proxy" on a call that actually fell back to a direct connection. That gap was `ENH-2` in [05-backlog-to-enhance.md](05-backlog-to-enhance.md); fixed, see section 10.
+The cached client itself (`cachedClient`) is refreshed only once per cache lifetime, not on every AI call: a proxy that recovers mid-session is not picked back up automatically, only on the next `resetLlmClient()` (every secret save) or process restart. The dashboard's dependency status badge calls the same `isRoutedThroughProxy()` function directly (server-rendered on load, and again through `isRoutedThroughProxyAction` on "Check again"), so it always reflects the live reachability check, not `isCompatMode()`'s presence-only signal, and can never claim "routed through proxy" on a call that actually fell back to a direct connection. That gap was `ENH-2` in the GitHub backlog (label `backlog`); fixed, see section 10.
 
 ## 9. Key decisions
 

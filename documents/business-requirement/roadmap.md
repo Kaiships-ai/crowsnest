@@ -1,7 +1,7 @@
 # Crowsnest roadmap
 
 What shipped, what is planned next, and what is later. This is a summary; the detail behind
-every open item lives in each component's own `05-backlog-to-enhance.md` under
+every open item lives in each component's own GitHub issues (label `backlog`) under
 `architect/core-components/`, and this document points at those rather than repeating their
 rows. Per-release scope (what exactly ships in a given version) belongs in `brd/`, one file
 per release; this page is the standing overview across releases.
@@ -31,8 +31,8 @@ docs carry the depth.
   were out of scope for the product description. The onboarding component's backlog already
   carries the shape of the redesign (moving Instagram login and keys into the dashboard with
   live validation) and two live bugs found in testing. See
-  `architect/core-components/onboarding/05-backlog-to-enhance.md`.
-- **The bug board.** Every component's `05-backlog-to-enhance.md` holds its own open items;
+  GitHub issues (label `backlog`).
+- **The bug board.** Every component's GitHub issues (label `backlog`) holds its own open items;
   as of this writing that is one blocker (onboarding), and a further set of medium and low
   severity bugs spread across feed, remix, mine, analyze, and ig-sync. Working through
   that board, starting with the blocker, is v0.3's other thread. Run
@@ -53,7 +53,7 @@ date is set for any of them.
   filter chips for both platforms were removed from the shipped UI because the backend could
   not back them, a truth-pass fix rather than a feature cut. The `platform` column stays in
   the schema so a later platform is additive and needs no migration. See
-  `architect/core-components/ig-sync/05-backlog-to-enhance.md` for the one open item this
+  GitHub issues (label `backlog`) for the one open item this
   already tracks (the platform chips that shipped ahead of the backend).
 
 Nothing in the product description suggests the core loop itself behaves differently on a

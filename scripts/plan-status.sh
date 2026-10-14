@@ -2,7 +2,7 @@
 # plan-status.sh: the lego board, generated on demand (never committed).
 #
 # Prints one row per component: open backlog items and active plans touching it.
-# Reads documents/plans/*.md frontmatter and each component's 05-backlog-to-enhance.md.
+# Reads documents/plans/*.md frontmatter; open backlog counts come from GitHub issues (label backlog).
 # No arguments.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -19,10 +19,7 @@ printf '%-14s %-14s %s\n' "COMPONENT" "OPEN BACKLOG" "ACTIVE PLANS"
 for d in "$COMPS"/*/; do
   [ -d "$d" ] || continue
   c="$(basename "$d")"
-  bl="$d/05-backlog-to-enhance.md"
-  # open backlog = table rows whose last cell is "open"
-  open=0
-  [ -f "$bl" ] && open="$(grep -c "| open |$" "$bl" 2>/dev/null; true)"
+  open="$(gh issue list --label backlog --label "area:$c" --json number --jq length 2>/dev/null || echo "?")"
   # active plans naming this component in frontmatter components: [...]
   plans=0
   if [ -d "$PLANS" ]; then
@@ -32,12 +29,7 @@ for d in "$COMPS"/*/; do
   printf '%-14s %-14s %s\n' "$c" "$open" "$plans"
 done
 
-# shared backlog too
-sbl="$DOCS/architect/shared/backlog-to-enhance.md"
-if [ -f "$sbl" ]; then
-  sopen="$(grep -c '| open |$' "$sbl" 2>/dev/null)"; sopen="${sopen:-0}"
-  printf '%-14s %-14s %s\n' "shared" "$sopen" "-"
-fi
+printf '%-14s %-14s %s\n' shared "$(gh issue list --label backlog --label area:shared --json number --jq length 2>/dev/null || echo "?")" "-"
 
 hr
 printf 'Active plans:\n'

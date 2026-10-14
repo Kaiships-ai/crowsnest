@@ -1,6 +1,6 @@
 # onboarding: feature description
 
-Onboarding is what happens between a fresh install and a working feed. It has two halves that never share code: a terminal setup step, `kai kit init`, that writes config, creates the database, and starts the app, and a five screen in-app flow at `/first-run` that a route guard forces a fresh install through before any other page renders. This document also covers `ENH-1` in [05-backlog-to-enhance.md](05-backlog-to-enhance.md): moving credential entry into the dashboard with live validation (section 5) and making AI features work as soon as a valid key exists instead of depending on a proxy the installer never sets up (section 6). Both are built and shipped; a short list of small residuals from that work stays open as `ENH-2` through `ENH-4`.
+Onboarding is what happens between a fresh install and a working feed. It has two halves that never share code: a terminal setup step, `kai kit init`, that writes config, creates the database, and starts the app, and a five screen in-app flow at `/first-run` that a route guard forces a fresh install through before any other page renders. This document also covers `ENH-1` in the GitHub backlog (label `backlog`): moving credential entry into the dashboard with live validation (section 5) and making AI features work as soon as a valid key exists instead of depending on a proxy the installer never sets up (section 6). Both are built and shipped; a short list of small residuals from that work stays open as `ENH-2` through `ENH-4`.
 
 ## 1. Feature summary
 
@@ -8,7 +8,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Set up crowsnest in the terminal | `kai kit init` writes `.env.local`, prompts for Instagram credentials and an optional Anthropic key, creates the database, and starts the app | ● | `src/cli/kai.ts` (`cmdKitInit`) | none, ONB-1/ONB-2 fixed, see 05-backlog-to-enhance.md |
+| 2 | Set up crowsnest in the terminal | `kai kit init` writes `.env.local`, prompts for Instagram credentials and an optional Anthropic key, creates the database, and starts the app | ● | `src/cli/kai.ts` (`cmdKitInit`) | none, ONB-1/ONB-2 fixed, see GitHub issues |
 | 3 | Complete first run in the app | A five screen flow takes a fresh install to a tracked channel and a first sync underway | ● | `src/app/first-run/`, `src/components/first-run/` | none |
 | 4 | Replay first run | A Settings control clears the flag and sends the user back through the flow without deleting anything | ● | `src/components/settings/onboarding-section.tsx` | none |
 | 5 | Live-validated in-dashboard credentials | Set the Anthropic key and Instagram credentials from the dashboard instead of a blind terminal prompt, with a real check before you rely on them | ● | `src/components/settings/secrets-section.tsx`, `src/components/settings/instagram-section.tsx`, `src/components/first-run/connect-step.tsx`, `src/server/actions/ig-actions.ts` (`igLoginWithCredentialsAction`), `src/cli/service-darwin.ts` | none, realizes ENH-1, residuals ENH-3 and ENH-4 |
@@ -38,7 +38,7 @@ The `kai kit init` command, run from a terminal after `kai login <license-key>`.
 
 ### Limitations
 
-- **Fixed: the masked `IG_PASSWORD` prompt used to save an empty value on a real terminal** (`ONB-1`, was a blocker, now done, see `05-backlog-to-enhance.md`). The username saved, but the masked password read came back empty, so `.env.local` got `IG_PASSWORD=`, and the Instagram sidecar refused to start. Kept here as history: this was the failure mode a re-regression in `ask`'s secret path would reproduce.
+- **Fixed: the masked `IG_PASSWORD` prompt used to save an empty value on a real terminal** (`ONB-1`, was a blocker, now done, see GitHub issues (label `backlog`)). The username saved, but the masked password read came back empty, so `.env.local` got `IG_PASSWORD=`, and the Instagram sidecar refused to start. Kept here as history: this was the failure mode a re-regression in `ask`'s secret path would reproduce.
 - **Fixed: the `ANTHROPIC_API_KEY` prompt used to echo the key in plaintext** (`ONB-2`, was medium severity, now done). The same masked prompt code failed to suppress the echo on a real terminal; the key was entered and saved correctly, but was visible on screen and landed in scrollback.
 
 ### User guide
