@@ -20,7 +20,7 @@ The operator's daily app: 9router LLM proxy on :20128, `data/crowsnest.db` migra
 .claude/skills/verify/scripts/stack-up.sh --check   # read-only: no start, no migrate
 ```
 
-It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels/discover /mine /runs /settings`; all must be 200. Logs go to `~/.crowsnest/`.
+It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels/discover /mine /runs /settings`; each must answer 2xx or 3xx (`/mine` can redirect). Run it from the checkout whose `data/crowsnest.db` you mean; a worktree has none. Logs go to `~/.crowsnest/`.
 
 **The dev server runs in an Orca pane, never from a tool call.** A `npm run dev` backgrounded from a sandboxed tool call can be reaped within minutes with no crash trace. If `stack-up.sh` reports :3000 down:
 

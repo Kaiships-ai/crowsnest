@@ -20,10 +20,13 @@ else
   [ "$r" != 000 ] && echo "ok    9router started (HTTP $r)" || fail "9router did not start, see ~/.crowsnest/9router.log"
 fi
 
-if [ "$CHECK" = 1 ]; then
+if [ ! -f data/crowsnest.db ]; then
+  [ "$CHECK" = 1 ] && fail "no data/crowsnest.db here; run from the operator checkout, or without --check to create it"
+fi
+if [ "$CHECK" = 1 ] && [ -f data/crowsnest.db ]; then
   n="$(sqlite3 data/crowsnest.db 'select count(*) from __drizzle_migrations' 2>/dev/null || echo ?)"
   echo "info  data/crowsnest.db ledger has $n migrations, drizzle/ has $(ls drizzle/*.sql | wc -l | tr -d ' ') files"
-else
+elif [ "$CHECK" = 0 ]; then
   npm run -s db:migrate >"$HOME/.crowsnest/migrate.log" 2>&1 && echo "ok    db:migrate" \
     || fail "db:migrate failed, see ~/.crowsnest/migrate.log (\"table already exists\" = ledger drift, see SKILL.md)"
   npm run -s db:bootstrap >>"$HOME/.crowsnest/migrate.log" 2>&1 && echo "ok    db:bootstrap" || fail "db:bootstrap failed"
@@ -38,6 +41,10 @@ if [ "$r" = 000 ]; then
 fi
 for p in / /feed /channels/discover /mine /runs /settings; do
   r="$(code "http://localhost:3000$p" 30)"
-  [ "$r" = 200 ] && echo "ok    GET $p -> 200" || fail "GET $p -> $r (500 on one route = stale schema, run without --check)"
+  case "$r" in
+    2??|3??) echo "ok    GET $p -> $r" ;;
+    5??) fail "GET $p -> $r (a 500 on one route usually means a stale schema; run without --check)" ;;
+    *) fail "GET $p -> $r" ;;
+  esac
 done
 [ "$ok" = 1 ]
