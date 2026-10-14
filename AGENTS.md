@@ -46,6 +46,25 @@ description, sane `disable-model-invocation`, no duplicate names). Release is
 `scripts/release-prep.sh <ver>` then `.github/workflows/release.yml`; the Kit changelog
 is `packaging/CHANGELOG.md`.
 
+# Rules and what enforces them
+
+Each rule here comes from a mistake agents made at least twice. Prefer the enforcement over
+the prose: when a rule has a check, the check is the source of truth. When Kai corrects an
+agent, fix the mistake and add or tighten the row; a row with no enforcement that gets
+broken again needs a check, not more words.
+
+| Rule | Enforced by |
+| --- | --- |
+| Every skill in `.claude/skills` is valid (name, frontmatter, description, unique) | `scripts/skill-lint.sh` in CI |
+| Every `drizzle/*.sql` has a unique number and a journal entry (parallel PRs both took 0024) | `scripts/check-migrations.mjs` in CI |
+| Docs and agent files cite only files that exist (deletes and moves left dead citations) | `scripts/check-doc-paths.mjs` in CI; old debt in `scripts/doc-paths.baseline`, only new dead citations fail |
+| UI elements journeys drive carry a `data-testid` | `scripts/testid-audit.sh` in CI |
+| Graph API calls are counted against the hour's budget in one place | Architecture: `graphRequest` is private to `src/server/graph/client.ts`, so no other module can call Graph |
+| A Graph result that is partial or failed is never stored or reported as success | Not enforced yet (doc rule). The most repeated mistake in `fix(mine)`/`fix(graph)` history; it needs result types that make a partial batch unwritable |
+| Tests never hard-code a date that will pass (a fixed `2026-09-10` turned CI red) | Doc rule: compute it, as `FUTURE_SCHEDULE` in `src/server/actions/planned-post-actions.test.ts` does |
+| Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
+| Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. Its dev server on :3000 serves whatever that checkout has |
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
