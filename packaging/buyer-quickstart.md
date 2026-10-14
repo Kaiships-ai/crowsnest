@@ -121,7 +121,7 @@ first calls:
   channels you plan from.
 
 If the agent gets a result, the reasoning brain is now wired to the data brain. The full tool
-surface is in [MCP tool reference](../architect/shared/mcp-tool-reference.md).
+surface is in [MCP tool reference](../documents/architect/shared/mcp-tool-reference.md).
 
 ## Troubleshooting
 

@@ -87,8 +87,8 @@ rather than re-explain:
 | [background-jobs](shared/background-jobs.md) | The sidecar sync and the cook run — the two async jobs |
 | [external-services](shared/external-services.md) | The five off-box dependencies and their down-states |
 | [status-and-failures](shared/status-and-failures.md) | The shell failure strip and how errors surface |
-| [navigation-and-shell](shared/navigation-and-shell.md) | The app shell, the first-run gate, routing |
-| [interaction-model](shared/interaction-model.md) | The shared arrive / act / finish pattern |
+| [navigation-and-shell](../../DESIGN.md) | The app shell, the first-run gate, routing |
+| [interaction-model](../../DESIGN.md) | The shared arrive / act / finish pattern |
 | [data-contracts](shared/data-contracts.md) | The shapes passed between server and client |
 | [packaging-and-release](shared/packaging-and-release.md) | How a Kit is built, gated, and shipped |
 | [db-recovery](shared/db-recovery.md) | Restoring the database after a bad migration |
@@ -100,5 +100,5 @@ Apple Silicon only in v0.2: `install.sh` refuses a real Intel Mac with a refund 
 one OS-specific module is `src/cli/service-darwin.ts` (launchd). Intel, Windows, and Linux are
 scoped as one new platform file each, not a rewrite. Instagram is the only tracked source today;
 the `platform` column stays in the schema so TikTok or YouTube Shorts is additive. Both are in
-[roadmap](../business-requirement/roadmap.md) as later work, entirely in packaging and the
+[roadmap](../../PRODUCT.md) as later work, entirely in packaging and the
 sidecar, not in the loop above.

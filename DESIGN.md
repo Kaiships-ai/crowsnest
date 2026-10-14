@@ -1,57 +1,47 @@
 ---
 name: Crowsnest
-description: An instrument panel for creators — sharp, monospaced, and lit by a single amber signal.
+description: A calm, neutral instrument for creators, built on the stock shadcn base-maia theme with monospaced numbers.
 colors:
-  ground: "#0b0b0c"
-  card: "#141416"
-  ink: "#f2f2f0"
-  muted-ink: "#9a9a96"
-  faint: "#868682"
-  dim: "#55554f"
-  border: "#1f1f23"
-  line-strong: "#3e3e46"
-  amber: "#e8a33d"
-  amber-on: "#0b0b0c"
-  amber-wash: "rgba(232, 163, 61, 0.12)"
-  pos: "#6fad86"
-  destructive: "#d9503f"
-  destructive-wash: "rgba(217, 80, 63, 0.12)"
+  background: "oklch(0.145 0 0)"
+  card: "oklch(0.205 0 0)"
+  foreground: "oklch(0.985 0 0)"
+  muted-foreground: "oklch(0.708 0 0)"
+  secondary: "oklch(0.269 0 0)"
+  border: "oklch(1 0 0 / 10%)"
+  input: "oklch(1 0 0 / 15%)"
+  ring: "oklch(0.556 0 0)"
+  primary: "oklch(0.922 0 0)"
+  primary-foreground: "oklch(0.205 0 0)"
+  success: "oklch(0.696 0.17 162)"
+  destructive: "oklch(0.704 0.191 22.216)"
+  chart-1: "oklch(0.837 0.128 66.29)"
+  chart-2: "oklch(0.705 0.213 47.604)"
+  chart-3: "oklch(0.646 0.222 41.116)"
+  chart-4: "oklch(0.553 0.195 38.402)"
+  chart-5: "oklch(0.47 0.157 37.304)"
 typography:
-  display:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "2.125rem"
-    fontWeight: 700
-    lineHeight: 1.05
-    letterSpacing: "-0.02em"
-  title:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.5rem"
-    fontWeight: 600
-    lineHeight: 1.15
-    letterSpacing: "-0.01em"
-  lead:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.1875rem"
-    fontWeight: 400
-    lineHeight: 1.6
   body:
-    fontFamily: "Archivo, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.0625rem"
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.875rem"
     fontWeight: 400
-    lineHeight: 1.55
-  meta:
-    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, monospace"
-    fontSize: "0.9375rem"
-    fontWeight: 400
-    fontFeature: "tabular-nums slashed-zero"
+  title:
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1rem"
+    fontWeight: 500
   label:
     fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, monospace"
-    fontSize: "0.8125rem"
+    fontSize: "0.6875rem"
     fontWeight: 500
     letterSpacing: "0.06em"
+  meta:
+    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, monospace"
+    fontSize: "0.75rem"
+    fontWeight: 400
+    fontFeature: "tabular-nums slashed-zero"
 rounded:
-  surface: "0px"
-  pill: "9999px"
+  base: "0.625rem"
+  card: "1rem"
+  pill: "2rem"
 spacing:
   xs: "8px"
   sm: "12px"
@@ -59,163 +49,217 @@ spacing:
   lg: "24px"
 components:
   button-primary:
-    backgroundColor: "{colors.amber}"
-    textColor: "{colors.amber-on}"
-    rounded: "{rounded.pill}"
-    padding: "0 10px"
-    height: "32px"
-  button-primary-hover:
-    backgroundColor: "{colors.amber}"
-    textColor: "{colors.amber-on}"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.pill}"
-  button-outline:
-    backgroundColor: "{colors.ground}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.primary-foreground}"
     rounded: "{rounded.pill}"
   surface-card:
     backgroundColor: "{colors.card}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.surface}"
-    padding: "16px"
-  input-field:
-    backgroundColor: "{colors.ground}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.surface}"
-    padding: "8px 10px"
+    textColor: "{colors.foreground}"
+    rounded: "{rounded.card}"
+    padding: "24px"
 ---
 
-# Design System: Crowsnest
+# Design system: Crowsnest
 
-## Overview
+crowsnest uses a stock shadcn/ui theme: the `base-maia` style, the neutral base color, the
+standard radius, and shadcn's own chart palette. Tokens live in `src/app/globals.css`,
+primitives under `src/components/ui/`, and feature components under `src/components/`. The
+frontmatter above is the dark theme, which is the default; `:root` in `globals.css` holds the
+light values and next-themes toggles the `.dark` class (themes: dark, light; no system mode).
 
-**Creative North Star: "The Instrument Panel"**
+This page is the playbook for changing UI without reaching for a generic design skill. Routine
+fixes follow these rules. Design skills are for a net-new surface with no precedent here, not
+for keeping the house style. Anything in the shadcn docs applies directly. The `/gallery`
+route renders the shadcn `preview` showcase (ported into `src/components/blocks/preview/`)
+for eyeballing the system in light and dark.
 
-Crowsnest looks like a precise measuring tool, not a marketing surface. The screen is a
-panel of readouts: neutral by default, dense with real numbers, and lit by a single amber
-signal that means one thing only — this post beat its channel's own median. Everything that
-is not that signal recedes to a graded neutral scale, so the eye lands on the anomaly the
-way it lands on the one warm light on a dark console. The system runs dark by default
-(near-black ground) and swaps to a warm-paper light theme; both keep the same discipline.
+## Character
 
-The type does the tool's work. Display and body are set in Archivo, a grotesque that stays
-quiet at reading sizes and firm at title sizes; every number, unit, label, and status tag is
-set in IBM Plex Mono with tabular, slashed-zero figures, because aligned digits are what make
-a surface read as an instrument rather than a webpage. Corners are square on every surface —
-cards, inputs, wells, panels — and the only rounded thing in the product is the button, a
-pill that reads as the one place you act. Depth is nearly absent: the dark theme is flat and
-separates planes by tonal steps, and only the light theme is allowed a single soft elevation
-because a flat surface on paper needs one edge to sit on.
+Neutral and quiet. There is no brand hue: `primary` is a near-white (dark) or near-black
+(light) neutral, surfaces separate by tonal steps, and the numbers carry the identity. Inter
+carries words. IBM Plex Mono carries every number, id, timestamp, and system state, with
+tabular, slashed-zero figures so columns line up. One status color, `success`, is kept on top
+of stock shadcn. The rest of the chromatic range is the orange chart ramp and `destructive`.
 
-**Key Characteristics:**
-- Amber is a signal, not a brand color — reserved for the score and one action per screen.
-- Every number is monospaced and tabular; uppercase appears only on column heads and group labels.
-- Square corners on all surfaces; pill only on buttons.
-- Flat by default; depth is tonal, not shadowed (light theme excepted).
-- Dark-first, with a warm-paper light theme carrying the same rules.
+## Color tokens
 
-## Colors
+Use the semantic token, never a raw Tailwind color. All are defined in `src/app/globals.css`
+and available as `bg-*`, `text-*`, `border-*`.
 
-A graded neutral field with exactly two meaningful hues: amber for "beat the median," red for failure. Everything else is ink on ground.
+| Token | Use for |
+| --- | --- |
+| `background`, `foreground` | Page ground and default text |
+| `card`, `card-foreground` | Panel surfaces |
+| `popover`, `popover-foreground` | Floating surfaces |
+| `muted`, `muted-foreground` | Secondary surfaces and secondary text (also the quiet-label role) |
+| `border`, `input` | Hairlines and control edges |
+| `primary`, `primary-foreground` | The one primary action per screen, and value emphasis |
+| `secondary`, `accent` | Raised and hover surfaces |
+| `destructive` | Errors and failed states. Use `color-mix(in srgb, var(--destructive) 12%, transparent)` for a wash |
+| `success`, `success-foreground` | The one "good" state (a metric up, a run succeeded). The only status color shadcn does not ship, kept for this |
+| `chart-1..5` | Chart series, shadcn's amber-to-orange ramp. Use `chart-1..n` for both categorical series and magnitude ramps |
+| `ring` | Focus rings (handled by the primitives) |
+| `sidebar*` | Sidebar surfaces, handled by the sidebar components |
 
-### Primary
-- **Signal Amber** (#e8a33d dark / #a85f00 light): The one voice. Used on the score readout and on at most one primary action per screen — the filled button. Its `amber-wash` (rgba 0.12) and `amber-line` (rgba 0.35) back the score in situ. Nothing else may borrow it.
+Status rule: one primary action and one success color per screen. Failure is `destructive`.
+There is no separate warn color: a degraded state reads as muted text or a `destructive` wash.
 
-### Neutral
-- **Console Ground** (#0b0b0c dark / #f4f2ef light): The page. Near-black on dark, warm paper on light.
-- **Raised Card** (#141416 dark / #eae7e1 light): Panels, wells, cards, and the left rail — a tonal step up from ground, never a shadowed float.
-- **Readout Ink** (#f2f2f0 dark / #17150f light): Primary text and live values.
-- **Muted Ink** (#9a9a96 dark / #57554f light): Secondary text and descriptions.
-- **Faint Ink** (#868682 dark / #64625b light): Labels, meta, and de-emphasized units; tuned to hold AA at 13px on card.
-- **Dim Ink** (#55554f dark / #8c887f light): The quietest tier — placeholders and locked-state marks.
-- **Hairline** (#1f1f23 dark / #dcd8d0 light) and **Strong Line** (#3e3e46 dark / #b0aba1 light): The two rule weights; borders and dividers do the separating that shadows would elsewhere.
+## Type scale
 
-### Tertiary
-- **Verdict Green** (#6fad86 dark / #2f6b4a light): The healthy counterpart to failure — "connected," "ready," a passing check. Deliberately muted: a loud green would compete with amber, and only amber may shout.
-- **Failure Red** (#d9503f dark / #ae2818 light): Errors and destructive intent, with a 0.12 wash for its surfaces.
+Tailwind's stock scale, because that is what the shadcn primitives are authored against:
+`CardTitle` is `text-base`, `CardDescription`, `FieldDescription` and `Item` are `text-sm`.
+Overriding the scale inflates every composition, so do not. One extra step is defined as
+`--text-2xs` in `globals.css`, a notch below `text-xs`, for labels the stock scale has no size
+for.
 
-### Named Rules
-**The Amber Law.** Amber means exactly one thing: this beat its channel's median. It is allowed on the score and on one primary action per screen. It is banned on nav-active state, toggles, secondary buttons, the logo, progress bars, and count badges — those use a raised neutral surface instead. The budget is enforced by usage, not by the token.
+| Class | Size | Role |
+| --- | --- | --- |
+| `text-2xs` | 11px | Mono labels, column heads, units (the workhorse) |
+| `text-xs` | 12px | Mono values, meta |
+| `text-sm` | 14px | Body, captions |
+| `text-base` | 16px | Lead copy, card titles |
+| `text-lg` | 18px | Section titles |
+| `text-xl` | 20px | Page titles |
 
-**The Two-Hue Rule.** The only chromatic colors are amber (signal) and red (failure), with green as the muted positive verdict. Series and categories are told apart with the four neutral inks, never with invented hues — identity carries no "which is more" reading.
+Labels, units, values, and timestamps are mono (`font-mono`). Numbers carry the `.tabular`
+class or `data-num` so columns line up. Column heads and sidebar group labels use `data-lab`
+for uppercase tracking. Prose is the sans body font. Never uppercase a heading, a button, or
+body copy.
 
-## Typography
+## Shape, depth, and motion
 
-**Display / Body Font:** Archivo (with ui-sans-serif, system-ui fallback)
-**Label / Mono Font:** IBM Plex Mono (with ui-monospace, SFMono-Regular fallback)
+The base radius is `0.625rem`. `Card` and `Item` are `rounded-2xl`, `Button` is `rounded-4xl`
+(a pill), `InputGroup` and `ButtonGroup` are `rounded-4xl`. Cards separate from the ground by
+tone plus a faint ring (`ring-foreground/10`), not a drop shadow. Focus is a 3px `ring`
+shown instantly. Pressed buttons nudge down 1px. The one custom animation is the sidebar
+new-outlier badge, which settles in once (`rail-signal-settle`) and appears plainly under
+reduced motion.
 
-**Character:** A plain grotesque paired with a technical monospace. Archivo carries the prose and the titles without personality-forward flourish; Plex Mono carries every number and label and is what makes the surface read as measured rather than styled.
+## Which primitive for what
 
-### Hierarchy
-The scale is exactly six steps; the prototype uses no others.
-- **Display** (Archivo 700, 34px / `--text-xl`, line-height 1.05, -0.02em): Page titles and the score at display size.
-- **Title** (Archivo 600, 24px / `--text-lg`, line-height ~1.15): Card and section titles.
-- **Lead** (Archivo 400, 19px / `--text-base`): Lead copy directly under a title.
-- **Body** (Archivo 400, 17px / `--text-sm`): Body and captions; keep measure around 50–65ch.
-- **Meta** (IBM Plex Mono 400, 15px / `--text-xs`, tabular): Mono values and meta.
-- **Label** (IBM Plex Mono 500, 13px / `--text-2xs`, 0.06em, often uppercase): Column heads, unit labels, status tags, sidebar group labels.
+Check `src/components/ui/` before writing custom markup. Reach for a feature component under
+`src/components/` before duplicating one. The shadcn skill (`.claude/skills/shadcn/`) holds
+the full composition rules; these are the crowsnest specifics.
 
-### Named Rules
-**The Tabular Number Rule.** Every number is monospace and `font-variant-numeric: tabular-nums slashed-zero`. Aligned digits are the single detail that makes the product read as a tool.
+| Need | Use | Not |
+| --- | --- | --- |
+| A whole panel or view with no data | `Empty` (`ui/empty.tsx`) | A hand-built centered div |
+| One "no items yet" line inside a list or log | A single `text-sm text-muted-foreground` line | `Empty` (too heavy for an inline state) |
+| A panel with a title, body and optional header action | `Card` + `CardHeader` / `CardTitle` / `CardAction` / `CardContent` / `CardFooter` | A `div` with `border border-border bg-card` |
+| A labelled control with a hint or an error | `Field` + `FieldLabel` / `FieldDescription` / `FieldError`, grouped by `FieldGroup`, sectioned by `FieldSet` | A hand-stacked `Label` + control + `p` |
+| A list row with media, title, description and an action | `ItemGroup` + `Item` / `ItemMedia` / `ItemContent` / `ItemTitle` / `ItemActions` | A `flex items-center justify-between` row |
+| Rows and columns of data | `Table` (it brings its own scroll container) | A `grid grid-cols-[...]` pretending to be a table |
+| An input with a leading icon, or an input plus a button | `InputGroup` + `InputGroupInput` / `InputGroupAddon` / `InputGroupButton` | A `relative` wrapper with an absolute icon and `pl-8` |
+| Adjacent buttons forming a toolbar | `ButtonGroup` | Bare siblings with `gap-2` |
+| Exclusive selection among options | `ToggleGroup` (this build takes `value` as an array) | Raw buttons with `aria-pressed` |
+| The page gutter | `PageContainer` (`layout/page-container.tsx`) | A hand-written `mx-auto max-w-[1120px] p-6` |
+| Inline loading indicator | `Spinner` (`ui/spinner.tsx`) | A raw `Loader2` with `animate-spin` |
+| Content-shaped loading placeholder | `Skeleton` | A custom `animate-pulse` div |
+| Status pill | `Badge` with a variant | A styled `span` |
+| Vertical or horizontal spacing | `flex` + `gap-*` | `space-y-*` / `space-x-*` |
+| Equal width and height | `size-*` | `w-* h-*` |
 
-**The Uppercase Budget.** Uppercase appears only on column heads and group labels (via `data-lab`, 0.06em). Never uppercase a heading, a button, or body copy.
+Take the primitives at their defaults. Do not add a `className` to undo a default for tone or
+radius; override only when a layout would otherwise break.
 
-## Layout
+Primitive behaviors that callers rely on:
 
-A two-plane model: a raised rail or panel against the ground, separated by tone and a hairline rule rather than a shadow. Content sits on a generous, quiet grid with real whitespace; density comes from the type scale and mono alignment, not from cramming. Spacing follows a 4pt rhythm (common steps 8 / 12 / 16 / 24px). The first-run flow is the canonical full-bleed two-column: a fixed left aside (brand, standing line, step nav, escape hatch) against a single working column on the right. Wide content (tables, code, stat rows) scrolls inside its own container; the page body never scrolls sideways.
+| Case | What to write | Why |
+| --- | --- | --- |
+| A link that looks like a button | `<Button render={<Link href="..." />}>` | `Button` renders the link itself with button styling, so it keeps anchor semantics and Base UI never warns. Passing `nativeButton` opts back into Base UI's button. |
+| A one-line `ItemTitle` that must ellipsize | `className="block truncate"` | `ItemTitle` is `display: flex`, which clips text but never draws the ellipsis. `ItemContent` is `min-w-0`, so the title can shrink. |
+| A stack of `Card`s in a height-bounded scroller | `*:shrink-0` on the scroller | `Card` is `overflow-hidden`, which drops its flex minimum height to 0, so the cards shrink and clip instead of the list scrolling. |
+| A client chart fed from a big list | Shape the data on the server and pass only the result | A client prop is serialized into the page, so a whole library passed as `items` ships every row on every load. |
+| A `ToggleGroup` whose labels can outgrow a phone | `className="flex-wrap"` | `ToggleGroup` is single-line by default and clips past the edge. |
+| `DndContext` in a server-rendered page | A fixed `id` | dnd-kit numbers its aria ids from a counter that differs between server and client, which breaks hydration. |
 
-## Elevation & Depth
+## Fixing UI without a design skill
 
-Flat by default. The dark theme uses **no shadows at all** — planes are separated by tonal steps (ground → card → popover) and hairline borders. The one exception is the light theme, where a single soft elevation (`--elev: 0 2px 14px rgba(23,21,15,0.16)`) is permitted, because a flat surface on a paper ground needs one edge to sit on.
+1. Find the component under `src/components/<feature>/`.
+2. Change layout with `className` (`flex`, `grid`, `gap-*`), never override a primitive's
+   colors or typography.
+3. Use the token or type-scale class for the role, from the tables above.
+4. Run impact analysis before editing a shared primitive (see the GitNexus rules in
+   `AGENTS.md`), then `npm run build && npm run test && npm run lint && npm run typecheck`.
 
-### Named Rules
-**The Flat Console Rule.** Depth is tonal, not cast. Reach for a lighter surface and a hairline before you reach for a shadow; on dark, never reach for a shadow at all.
+Invoke a design skill only for a net-new surface with no precedent here, or a deliberate
+redesign the team has agreed to.
 
-## Shapes
+## Do's and don'ts
 
-Square corners everywhere — every card, input, well, panel, and badge sits at `--radius: 0`. The single rounded form in the entire product is the **button**, a full pill (`rounded-full`). That contrast is the point: roundness marks the one place you act. Borders are single hairlines in one of two weights; there is no bevel, no gradient, no clipping trickery.
-
-## Components
-
-### Buttons
-- **Shape:** Full pill (`rounded-full`), 32px tall at default size, compact horizontal padding (~10px).
-- **Primary:** Amber fill, near-black text (`bg-primary text-primary-foreground`). At most one per screen — see The Amber Law.
-- **Hover / Focus:** Primary darkens to `primary/80`; focus shows a 3px amber ring (`ring-ring/50`) instantly, never animated. Active nudges down 1px (`translate-y-px`) plus a global `brightness(0.9)` on press.
-- **Secondary / Outline / Ghost:** All neutral. Secondary is a raised surface; outline is a hairline on ground; ghost is bare until a muted hover fill. These carry every non-primary action so amber stays rare.
-- **Destructive:** A red wash (`destructive/10`) with red text, not a red fill — failure is stated, not shouted.
-
-### Cards / Containers
-- **Corner Style:** Square (0px).
-- **Background:** Raised Card (#141416 / #eae7e1), one tonal step above ground.
-- **Shadow Strategy:** None on dark; the single light-theme elevation only where a panel must lift off paper. See Elevation & Depth.
-- **Border:** Hairline (#1f1f23 / #dcd8d0), or Strong Line for a heavier division.
-- **Internal Padding:** 16px default (md).
-
-### Inputs / Fields
-- **Style:** Square, Strong Line stroke on ground.
-- **Focus:** Amber border shift plus a soft amber ring — the same focus language as buttons, shown instantly.
-- **Error / Disabled:** Error text and border in Failure Red; disabled drops to 50% opacity.
-
-### Navigation
-- **Style:** Left-rail and sidebar labels in muted ink; group labels uppercase mono. Active state is a raised neutral surface or an ink-weight shift — never amber (The Amber Law).
-
-### Signature: The Score Readout
-The one place amber is native. A post's score sits on `amber-wash` with an `amber-line` edge, set at display size in the same amber as the primary action, so "beat the median" and "the thing to do" share exactly one color across the whole product.
-
-## Do's and Don'ts
-
-### Do:
-- **Do** keep amber for the score and one primary action per screen; carry everything else on neutral surfaces.
-- **Do** set every number in IBM Plex Mono with tabular, slashed-zero figures.
-- **Do** keep surfaces square (0px) and let the pill button be the only rounded form.
-- **Do** separate planes with tone and a hairline; on dark, use no shadow.
-- **Do** reserve uppercase for column heads and group labels, at 0.06em.
-
-### Don't:
-- **Don't** put amber on nav-active state, toggles, secondary buttons, the logo, progress bars, or count badges.
-- **Don't** introduce a third chromatic hue, or a green loud enough to rival amber.
-- **Don't** round card, input, or panel corners, and don't wrap surfaces in shadows on the dark theme.
+- **Do** use semantic tokens, `text-2xs` mono labels, and `data-num` on numbers.
+- **Do** keep one primary action and one success color per screen.
+- **Do** compose from `src/components/ui/` primitives at their defaults.
+- **Don't** reach for a raw Tailwind color or a shadow on a card.
 - **Don't** set numbers in a proportional font or drop tabular figures.
-- **Don't** invent metrics, counts, or states the app cannot actually produce — a capability the app lacks does not appear in the UI.
+- **Don't** invent metrics, counts, or states the app cannot produce. A capability the app
+  lacks does not appear in the UI.
+
+## Interaction model
+
+Every action in the core loop passes through five phases, and a feature's docs narrate it in
+those phases.
+
+- **Arrive.** The page or dialog opens. Pages render on the server, so what the user sees is a
+  snapshot read at load time.
+- **Leave without acting.** The user backs out before changing anything. Usually nothing is
+  recorded.
+- **Begin acting.** The first edit or click that starts real work.
+- **While acting.** What updates while work is in flight: a disabled trigger for an instant
+  write, a pending state for a generation.
+- **Finish.** What is committed and where the user lands.
+
+Four words are used the same way everywhere. **Commit** is the durable step: a row written, a
+script saved, a plan created; until then, leaving discards the action. **Cancel** is the user
+ending an action on purpose before it commits. **Stop** is ending an already running process,
+which may already have side effects. **Interrupt** is anything the user did not do on purpose
+that ends an action: a backing service failing, the target record changing underneath, a
+reload, a second tab.
+
+There are two ways to reach the server. A **direct server read** is a page that queries the
+database as it renders (feed, video detail, calendar); there is no action to fail, and filters
+change the read by changing the URL. A **server action** is a write from a client component,
+and it returns `{ ok: true, ... }` or `{ ok: false, error, code }` instead of throwing. The
+code lets a caller tell "already saved" from "gone". While an action runs the trigger is
+disabled (a React transition); when it settles the client shows a toast and calls
+`router.refresh()` so server-rendered state appears without a manual reload.
+
+Generation is the same shape but slow and able to fail on the model rather than the database.
+It writes generated text to the record and appends a remix run row on success and on failure,
+so the log is complete; a failure writes nothing partial to the session.
+
+Edge cases: a page is a snapshot, so a record can change under an open page and the action
+answers "no longer exists" or "already done" as a toast. A pending transition blocks a double
+click but not a separate navigation control. The degradation contract (LLM down, sidecar down,
+Graph token invalid, no own channel) is in `PRODUCT.md`.
+
+## Navigation and shell
+
+Every core-loop page renders inside the `(shell)` layout (`src/app/(shell)/layout.tsx`): a
+navigation blocker, a command menu, the client error reporter, then a two-column frame with
+the sidebar on the left and a column holding the topbar (with the failure strip) above the
+scrolling page. Components live in `src/components/layout/`.
+
+- **Sidebar.** Items are ordered by the creator's day and the loop: overview (the dashboard)
+  first, then create (feed, ideas, vault), then sources, then system and setup. The current
+  page gets a neutral accent bar; a click lights the target immediately and reconciles when
+  the route commits. The feed item carries the one live signal: a count of outliers new
+  since the creator last opened the feed, hidden at zero, using the `rail-signal-settle`
+  animation. The cutoff moves only when the creator opens the feed. A get-started checklist
+  shows four live facts read on each navigation (finish setup, watch a channel, save a post,
+  draft a script).
+- **Dashboard tabs.** `?tab=overview|reels|calendar`. A missing or unknown tab means overview
+  and only the active tab's reads run. There is no "My channel" entry; `/mine` redirects to
+  `/?tab=calendar`.
+- **First-run gate.** Before anything else the shell checks setup: a fresh install with setup
+  not completed and no channels tracked redirects to `/first-run` and never sees the shell.
+- **Freshness.** The layout is `force-dynamic`, so counts and the failure strip re-read on
+  every full navigation. Nothing polls. After a write, the client calls `router.refresh()`.
+  A change made by a background job appears after the next navigation or refresh.
+- **Navigation blocker.** A page with unsaved work can register to stop a navigation and ask.
+  Unregistered pages navigate immediately and discard uncommitted work.
+- **Deep links.** The remix page takes a stage or quick-remix seed in its query string; the feed
+  carries its filters in the URL, so a saved view is a link and back and forward move
+  between states. There is no shell-level undo.
+- **Command menu.** A keyboard-driven menu for jumping between pages and actions, on every
+  core-loop page.

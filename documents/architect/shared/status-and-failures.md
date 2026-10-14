@@ -33,7 +33,7 @@ all.
 ### The failure strip
 
 The strip is a banner in the topbar, below the header, on every route under the
-[shell](navigation-and-shell.md). It is the app's standing status surface:
+[shell](../../../DESIGN.md). It is the app's standing status surface:
 persistent, app wide, and read fresh on each navigation rather than tied to any one action.
 
 In practice the strip reports the most recent sidecar sync. It reads the single latest sync
@@ -178,7 +178,7 @@ replaced. See the feed component's keep-this-post document for the undo pattern 
 
 **Navigation and refresh.** The strip is read once per server render and freshened by the
 live sync poll while the shell is mounted; a `router.refresh()` after a write is what flips
-any server rendered status a toast reported. See [navigation and shell](navigation-and-shell.md).
+any server rendered status a toast reported. See [navigation and shell](../../../DESIGN.md).
 
 **Background jobs and the sidecar.** The failure strip is the sidecar sync's
 status surface, reading its state from the database, which is why a sync's verdict outlives

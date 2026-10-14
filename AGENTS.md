@@ -22,8 +22,8 @@ per skill, invoked by bare name:
 # Documentation
 
 Docs live in `documents/` and render as an mkdocs-material site (`mkdocs.yml`,
-`docs_dir: documents`). Two layers: `business-requirement/` (what crowsnest is and must
-do) and `architect/` (how it is built, one folder per component under `core-components/`
+`docs_dir: documents`). Root `PRODUCT.md` (what crowsnest is and must do) and `DESIGN.md` (visual
+system, interaction model, shell) sit above `documents/architect/` (how it is built, one folder per component under `core-components/`
 plus cross-cutting `shared/`). Plans still being worked on go under `documents/plans/`;
 shipped plans are deleted (git history keeps them). `documents/index.md` is
 the index. Preview with `mkdocs serve`.

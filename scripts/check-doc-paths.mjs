@@ -17,7 +17,7 @@ const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\
 const docs = tracked.filter(
   (f) =>
     f.endsWith(".md") &&
-    (f.startsWith("documents/") || f.startsWith(".claude/skills/") || ["AGENTS.md", "CLAUDE.md", "README.md"].includes(f)) &&
+    (f.startsWith("documents/") || f.startsWith(".claude/skills/") || ["AGENTS.md", "CLAUDE.md", "README.md", "PRODUCT.md", "DESIGN.md"].includes(f)) &&
     !f.startsWith("documents/plans/"),
 );
 const citation = /`([\w.()[\]/-]+\/[\w.()[\]-]+\.(?:ts|tsx|mjs|cjs|js|sh|md|json|sql|py|ya?ml|toml))(?::\d+(?:-\d+)?)?`/g;
