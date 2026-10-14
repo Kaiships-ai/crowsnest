@@ -27,9 +27,9 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 
 ## Where things live
 
-- Implementation plans: planning/, flat, one file per plan, never moved. Frontmatter carries
-  status and components.
-- Frozen dated one-offs: archive/.
+- Plans still being worked on: plans/, flat, one file per plan. Frontmatter carries
+  status and components. Shipped plans are deleted.
+- Decisions still in force: decisions/.
 
 ## The bug board is generated, not committed
 

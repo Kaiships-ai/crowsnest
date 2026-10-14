@@ -18,8 +18,7 @@ const docs = tracked.filter(
   (f) =>
     f.endsWith(".md") &&
     (f.startsWith("documents/") || f.startsWith(".claude/skills/") || ["AGENTS.md", "CLAUDE.md", "README.md"].includes(f)) &&
-    !f.startsWith("documents/archive/") &&
-    !f.startsWith("documents/planning/"),
+    !f.startsWith("documents/plans/"),
 );
 const citation = /`([\w.()[\]/-]+\/[\w.()[\]-]+\.(?:ts|tsx|mjs|cjs|js|sh|md|json|sql|py|ya?ml|toml))(?::\d+(?:-\d+)?)?`/g;
 

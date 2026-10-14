@@ -2,7 +2,7 @@
 
 `documents/architect/core-components/mcp/`
 
-Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 30 `crowsnest_*` tools: seven data reads, eleven remix tools, nine monthly and weekly planning tools (four research reads, four sync-control tools including sidecar readiness, one analysis write), two content-artifact tools (one write, one read), and one on-demand transcription tool (`crowsnest_transcribe`), plus a prior-period comparison on `crowsnest_metrics`. The content-artifact tools (`crowsnest_save_artifact`, `crowsnest_artifacts`) persist and read back agent-authored artifacts (angles, an outlier library, an idea bank, a monthly plan, briefs) with provenance, keyless. The planning tool set is recorded in section 9 and specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md).
+Status: shipped, mounted in-process at `/api/mcp` over the app's one SQLite connection, exposing 30 `crowsnest_*` tools: seven data reads, eleven remix tools, nine monthly and weekly planning tools (four research reads, four sync-control tools including sidecar readiness, one analysis write), two content-artifact tools (one write, one read), and one on-demand transcription tool (`crowsnest_transcribe`), plus a prior-period comparison on `crowsnest_metrics`. The content-artifact tools (`crowsnest_save_artifact`, `crowsnest_artifacts`) persist and read back agent-authored artifacts (angles, an outlier library, an idea bank, a monthly plan, briefs) with provenance, keyless. The planning tool set is recorded in section 9.
 
 The remix chain is keyless (P0 slice 2b): its three generate stages (`crowsnest_remix_hooks`, `crowsnest_remix_outline`, `crowsnest_remix_variants`) never call an internal model. Each returns the stage's assembled `{ system, user, context }` prompt for the calling agent to fulfill itself; the agent writes the result back through `crowsnest_remix_choose_hook` (a hook), `crowsnest_remix_outline` called again with an `outline` argument (the same tool, bidirectional: no argument returns the prompt, an `outline` argument saves it), and `crowsnest_remix_save_script` (a full script). Saving the outline back matters because `crowsnest_remix_variants`' script prompt reads `session.outline`: without it the script prompt would silently fall back to its "no outline beats yet" placeholder instead of the agent's real beats. No `ANTHROPIC_API_KEY` and no LLM proxy are needed anywhere in the MCP remix chain. The in-app remix dashboard is unchanged and still calls the internal model directly, per [remix](../remix/02-architecture.md#9-mcp-vs-in-app-two-remix-paths).
 
@@ -106,7 +106,7 @@ The two unbounded list tools, `crowsnest_scripts` and `crowsnest_ideas`, take `l
 
 ## 9. Monthly and weekly planning tools
 
-The monthly and weekly planning tool set is shipped and reachable over `/api/mcp`. It is specified in [the monthly-planning spec](../../../planning/spec/2026-09-06-mcp-monthly-planning.md). It keeps the existing contract: every new tool is a thin wrapper over an existing query or action, returning through `result()` on success and `errorResult()` on a handled failure.
+The monthly and weekly planning tool set is shipped and reachable over `/api/mcp`. It keeps the existing contract: every new tool is a thin wrapper over an existing query or action, returning through `result()` on success and `errorResult()` on a handled failure.
 
 ### Tools and their backing functions
 

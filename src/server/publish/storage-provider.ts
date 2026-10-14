@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 
 /**
- * Pluggable public-URL storage for the Reels publish path (documents/planning/
- * implementation-plan/2026-09-04-comp-publish.md Phase B, task B1).
+ * Pluggable public-URL storage for the Reels publish path (see
+ * documents/architect/core-components/publish/02-architecture.md).
  *
  * The Instagram Graph API publishes a Reel by fetching the video from a PUBLIC https
  * URL — it does not accept a binary upload. This module uploads a local mp4 to an
