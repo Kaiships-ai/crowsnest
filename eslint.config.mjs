@@ -14,7 +14,6 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Untracked scratch and vendor bundles, not our source:
     "Crowsnest UI Mockups/**",
-    "claude-animation/**",
     // Skill helper scripts (their own CommonJS runtime), not the Next.js app:
     ".claude/**",
     // Local plugin skills (taste/ship) and their helper scripts, not app source:

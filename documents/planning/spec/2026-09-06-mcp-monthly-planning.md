@@ -38,7 +38,7 @@ are out of scope here.
 6. Compose the month. The agent labels each candidate broad, medium, or narrow, applies the
    human's ratio, and writes the monthly overview document. The human approves.
 7. Weekly refresh (repeats every week). The agent pulls a rising, short window outlier
-   surface to catch a surge, names the event from its own world knowledge, runs the crowsnest-weekly
+   surface to catch a surge, names the event from its own world knowledge, runs the weekly
    funnel model, and writes a reactive weekly plan. The human approves.
 8. Produce and publish. On the day, the agent runs the existing remix chain to a draft
    `planned_post`; the human records, publishes, and watches the data, which feeds step 1 of
@@ -129,7 +129,7 @@ security-lite case, but neither changes the trust boundary. Single user, localho
   internals).
 - browse-e2e is thin here: the MCP has no UI. The dashboard surfaces the same data through the same
   queries, so any UI assertion rides the existing feed and channels journeys, not a new one.
-- Follow the crowsnest-component test gate: every shipped case marked with its status marker before
+- Follow the component test gate: every shipped case marked with its status marker before
   the phase closes.
 
 ## Open questions

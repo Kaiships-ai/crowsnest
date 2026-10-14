@@ -1,6 +1,6 @@
 # Implementation plan: publish (schedule and auto-publish own-channel Reels)
 
-Component: `publish`. Case A (`/crowsnest-component`), Goal 4. Replaces the Serve button that
+Component: `publish`. Goal 4. Replaces the Serve button that
 Goal 2 deletes. Build starts only after Goal 2's PR merges (or branch off Goal 2's branch on
 orchestrator OK). This plan is written against `main` and copied into the worktree when it is
 created.
@@ -117,7 +117,7 @@ before every commit; `UNKNOWN` risk is not an all-clear.
 ### Phase E — docs and evidence
 
 - **E1. Five-doc block** `documents/architect/core-components/publish/01..05` via
-  `crowsnest-document-component`, house style. Update mkdocs nav, README (feature + journey §5),
+  the five-doc set, house style. Update mkdocs nav, README (feature + journey §5),
   PRODUCT.md (the cook-and-publish step is now real), `.env.example` (`S3_*`, dry-run,
   fallback setting). Archive nothing of Goal 2's studio docs (Goal 2 owns that).
 - **E2. Evidence.** One real dry-run publish captured under `evidence/publish/` (request/
@@ -145,7 +145,7 @@ the new state read-only.
 ## Rounds (mandatory after DoD)
 
 - Round 1: `/code-review high` (or a sonnet reviewer sub-agent) on the branch +
-  `verification-before-completion` against a copy of the main-tree `data/crowsnest.db`;
+  a live verification run against a copy of the main-tree `data/crowsnest.db`;
   fix everything; `browse` screenshot walk of `/mine` in light + dark.
 - Round 2: walk README §5 as a first-time user, fix the top 3 friction points, re-run the full
   gate. Deferrals -> `05-backlog-to-enhance.md` (instagrapi real-account fallback, launchd

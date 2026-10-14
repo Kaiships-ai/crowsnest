@@ -26,7 +26,7 @@ through its MCP server to Reel Factory, which produces, and the user publishes.
    file paths on the video and the post brief).
 3. The MCP is a documented component (`documents/architect/core-components/mcp/01..05`).
    Studio docs are archived. README, PRODUCT.md, and mkdocs nav no longer sell cook/serve.
-4. `/crowsnest-weekly` and `/crowsnest-remix` still work against the MCP end to end.
+4. The weekly-plan and remix agent flows still work against the MCP end to end.
 
 ## Constraints and decisions
 
@@ -36,7 +36,7 @@ through its MCP server to Reel Factory, which produces, and the user publishes.
   `packaging/CHANGELOG.md`.
 - **`/runs` stays.** It renders sync + remix + create rows today; remove only the create
   branch so it shows sync + remix. Goal 3 enhances `/runs` after this merges.
-- **Tool names stay stable.** `/crowsnest-remix` and `/crowsnest-weekly` call `crowsnest_feed`,
+- **Tool names stay stable.** The remix and weekly-plan agent flows call `crowsnest_feed`,
   `crowsnest_video`, `crowsnest_remix_*`. Standardization changes output shape, errors, and
   pagination, never a rename.
 - **`crowsnest_plans` stays read-only** (Goal 4 owns the plans query and its `state`

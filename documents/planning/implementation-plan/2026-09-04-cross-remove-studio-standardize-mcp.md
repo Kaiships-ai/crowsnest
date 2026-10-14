@@ -39,7 +39,7 @@ media file paths for the Reel Factory handoff, and a rename of `getStudioBrief` 
   warn on HIGH/CRITICAL. `rename` for symbol renames, never find-replace. Index is stale
   (16 commits behind at plan time) — reindex in the worktree before the rename task:
   `node .gitnexus/run.cjs analyze --index-only`.
-- Tool names on the MCP stay stable: `/crowsnest-remix` and `/crowsnest-weekly` depend on `crowsnest_feed`,
+- Tool names on the MCP stay stable: the remix and weekly-plan agent flows depend on `crowsnest_feed`,
   `crowsnest_video`, `crowsnest_remix_*`. No renames of registered tools.
 - `crowsnest_plans` stays read-only, output non-narrowed, `state` free-form (Goal 4 owns
   it). Ping Goal 4 (`term_e478413a`) before changing that tool's output shape.
@@ -752,7 +752,7 @@ git commit -m "refactor(mcp): audit tool schemas and output consistency"
 - Create: `documents/architect/core-components/mcp/01-concept-brief.md` ... `05-backlog-to-enhance.md`
 - Modify: `mkdocs.yml`, `documents/index.md`
 
-- [ ] **Step 1: Scaffold with the skill.** Run the `crowsnest-document-component` skill for the `mcp`
+- [ ] **Step 1: Scaffold the docs.** Create the five-doc set for the `mcp`
   component. It creates the five files and the mkdocs nav entry.
 - [ ] **Step 2: Fill `01`..`04` grounded in code** (`src/server/mcp/mcp-server.ts`,
   `http.ts`, `server.ts`): 01 what the MCP is and why (the Reel Factory handoff surface);
@@ -804,7 +804,7 @@ git commit -m "docs: archive the studio component docs"
 claude mcp add crowsnest --transport http http://localhost:3000/api/mcp
 ```
 
-  and one sentence that `/crowsnest-weekly` and `/crowsnest-remix` consume it. Confirm the transport +
+  and one sentence that the remix and weekly-plan agent flows consume it. Confirm the transport +
   path against `src/server/mcp/http.ts` before writing the line; correct it if the endpoint
   differs.
 - [ ] **Step 2: PRODUCT.md.** In "Product Purpose", "Capabilities and Constraints", and
@@ -832,23 +832,23 @@ git commit -m "docs: retire cook/serve from README, product, and requirements"
 
 **Files:** none (verification)
 
-- [ ] **Step 1: Bring the stack up** (`/crowsnest-up`, or `npm run dev` in a pane) against
+- [ ] **Step 1: Bring the stack up** (`npm run dev` in a pane, see the `verify` skill) against
   the main-tree DB copied in for real data.
-- [ ] **Step 2: Run `/crowsnest-weekly`** far enough to confirm `crowsnest_feed`, `crowsnest_video`,
+- [ ] **Step 2: Run the weekly-plan flow** far enough to confirm `crowsnest_feed`, `crowsnest_video`,
   `crowsnest_ideas`, `crowsnest_metrics` all answer through the MCP with the new structured
   output. Record the tool responses as evidence.
-- [ ] **Step 3: Run `/crowsnest-remix`** one full pass on a real video: `crowsnest_feed` ->
+- [ ] **Step 3: Run the remix flow** one full pass on a real video: `crowsnest_feed` ->
   `crowsnest_video` -> `crowsnest_remix_session` -> ... -> `crowsnest_remix_finish`, and
   confirm the finish returns a planned post id and `crowsnest_brief` on it now carries the
   `media` object with `path`, `byteSize`, `durationSec`. Save the transcript under
   `evidence/mcp/`.
 - [ ] **Step 4: Report** any tool that failed as a `05-backlog` row, not a silent skip.
 
-### Task 20: Open the PR (finishing-a-development-branch)
+### Task 20: Open the PR
 
 **Files:** none (git + gh)
 
-- [ ] **Step 1: Final gate + verification.** Run `verification-before-completion`, then
+- [ ] **Step 1: Final gate + verification.** Verify live, then
   the full gate: `npm run typecheck && npm run lint && npm run test && npm run build &&
   bash scripts/testid-audit.sh`. Working tree clean.
 - [ ] **Step 2: `detect-changes` regression review** (controller runs the GitNexus MCP
@@ -886,7 +886,7 @@ git commit -m "docs: retire cook/serve from README, product, and requirements"
   output, pagination on `crowsnest_scripts` and `crowsnest_ideas`.
 - `documents/architect/core-components/mcp/01..05` written; studio docs archived; README +
   PRODUCT.md + mkdocs nav updated.
-- `/crowsnest-weekly` and `/crowsnest-remix` each run once end to end against the MCP (Task 19).
+- The weekly-plan and remix flows each run once end to end against the MCP (Task 19).
 - Full gate green; working tree clean; PR opened.
 
 ## Self-review notes
