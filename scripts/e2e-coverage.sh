@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# e2e-coverage.sh <component-name> -- the mechanical half of crowsnest-component's
-# Phase 4b browse-e2e coverage gate, so the "grep-able facts, not judgment calls"
+# e2e-coverage.sh <component-name> -- the mechanical half of a component's
+# browse-e2e coverage gate, so the "grep-able facts, not judgment calls"
 # in that gate are actually grepped instead of eyeballed.
 #
 # Reads a component's 03-feature-description.md (the built-feature list) and

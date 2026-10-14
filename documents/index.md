@@ -28,13 +28,13 @@ Each component has the same five docs: 01-concept-brief, 02-architecture, 03-fea
 ## Where things live
 
 - Implementation plans: planning/, flat, one file per plan, never moved. Frontmatter carries
-  status and components. Placement and lifecycle are in the writing-plans skill.
+  status and components.
 - Frozen dated one-offs: archive/.
 
 ## The bug board is generated, not committed
 
 There is no committed status file, because it would be the one file every parallel session
-conflicts on. Run scripts/plan-status.sh (or the crowsnest-status skill) to print, on demand, each
+conflicts on. Run scripts/plan-status.sh to print, on demand, each
 component's open plans and open backlog count.
 
 ## Build the site

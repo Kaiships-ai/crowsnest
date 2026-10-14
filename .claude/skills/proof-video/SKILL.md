@@ -25,10 +25,8 @@ Never record against an operator's real data or a live Instagram session unless
 the proof is specifically about live sync, and then redact.
 
 The recording is browser-driven. The existing browse-e2e harness drives the UI
-but does not itself capture video; new Playwright capture belongs to
-`crowsnest-e2e` (planned). TODO: wire a Playwright recording helper (context
-video plus a caption, zoom, and speed cue API) into `crowsnest-e2e`; until it
-exists, capture the raw video with a Playwright context recorder or a screen
+but does not itself capture video. Until a Playwright recording helper (context
+video plus a caption, zoom, and speed cue API) exists in `e2e/`, capture the raw video with a Playwright context recorder or a screen
 recorder and hand-write the cue sidecar below.
 
 While recording, keep narration to one or two short lines per caption; oversized

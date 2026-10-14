@@ -8,7 +8,7 @@ shipped: null
 
 # Sync freshness + scheduled sync Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: run with `/poteto-mode` (recommended), or execute the plan directly in this session — phase by phase, verifying each phase before moving to the next. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give sync a trustworthy per-channel "completed" timestamp, let a library sweep skip channels that were successfully synced within a freshness window, run sync automatically on the existing `syncCadenceMinutes` cadence, and (only if measured to help) parallelise per-page thumbnail downloads.
 

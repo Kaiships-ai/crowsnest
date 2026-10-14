@@ -269,6 +269,5 @@ is set. Detail lives in each component's `05-backlog-to-enhance.md`; the standin
   `get.crowsnest.sh` which packaging says is not live; the entitlement path differs between
   `install.sh` (`~/.kai/state/entitlement.json`) and `kai login` (`~/.kai/entitlement.json`); and
   `cmdStatus` in `kai.ts` is dead code. See the kit docs.
-- **The live bug board is not committed** — run `scripts/plan-status.sh` (or the crowsnest-status
-  skill) for the current open-plan and open-backlog counts. This document carries no snapshot of
+- **The live bug board is not committed** — run `scripts/plan-status.sh` for the current open-plan and open-backlog counts. This document carries no snapshot of
   those counts on purpose (`documents/index.md`).

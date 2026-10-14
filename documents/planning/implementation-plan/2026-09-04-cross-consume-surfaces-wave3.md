@@ -8,7 +8,7 @@ shipped: null
 
 # Consume surfaces polish (UI Wave 3) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development. Steps use checkbox (`- [ ]`) syntax.
+> **For agentic workers:** REQUIRED: run with `/poteto-mode`. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** Apply the improvement board's Wave 3 items for the five Consume/Read surfaces: dashboard (`layout`), feed (`distill` + `clarify`), vault (`clarify` + `distill`), video detail (`optimize` in-page Suspense after notFound, `harden`, `polish`), ideas (`onboard` surface the hidden command shortcuts, `polish`). Rendering-layer only, no new dependency, no server/schema/action change.
 

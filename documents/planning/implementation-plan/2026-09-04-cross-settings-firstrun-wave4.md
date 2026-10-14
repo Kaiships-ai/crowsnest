@@ -8,7 +8,7 @@ shipped: null
 
 # Settings grouping + first-run adapt (UI Wave 4) Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: run with `/poteto-mode`. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Apply the improvement board's Wave 4 items for the two System surfaces in Goal 1 scope: the Settings page (`layout` group the 12 sections and the nav to match the sidebar's grouped model; `distill` collapse the Instagram section's buried secondary detail; `clarify` give the jargon section headers a plain one-line "what this controls"; `harden` make the numeric inputs' validation and error states consistent) and the first-run flow (`adapt` collapse the brand aside to a compact header below md so step content is above the fold). Not in scope: `/logs`, `/runs` (Goal 3), the seed-picker (Goal 5 mounts it later).
 
