@@ -14,8 +14,7 @@ markdown_extensions:
   - toc:
       permalink: true
 exclude_docs: |
-  planning/
-  archive/
+  plans/
   archive-do-not-read/
   .mkdocs-venv/
 

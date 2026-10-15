@@ -2,13 +2,13 @@
 # plan-status.sh: the lego board, generated on demand (never committed).
 #
 # Prints one row per component: open backlog items and active plans touching it.
-# Reads documents/planning/*.md frontmatter and each component's 05-backlog-to-enhance.md.
+# Reads documents/plans/*.md frontmatter and each component's 05-backlog-to-enhance.md.
 # No arguments.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
 DOCS="documents"
-PLANS="$DOCS/planning"
+PLANS="$DOCS/plans"
 COMPS="$DOCS/architect/core-components"
 
 hr() { printf '\n%s\n' "----------------------------------------------------------------"; }

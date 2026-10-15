@@ -469,8 +469,8 @@ material live under `documents/`, rendered as an mkdocs-material site. Preview l
 | `documents/index.md` | The doc index |
 | `documents/business-requirement/` | What Crowsnest is and must do (product document, per-release BRD, roadmap) |
 | `documents/architect/` | How it is built: high-level architecture, cross-cutting `shared/` docs, one folder per component under `core-components/` (each with five docs: concept brief, architecture, feature description, test cases, backlog) |
-| `documents/planning/` | Specs and implementation plans |
-| `documents/archive/` | Frozen older docs, kept for history, not current |
+| `documents/plans/` | Plans still being worked on |
+| `documents/decisions/` | Decisions still in force |
 
 Packaging and release detail: `documents/architect/shared/packaging-and-release.md` and the
 Kit changelog at `packaging/CHANGELOG.md`. Agent workflow, skills, and doc conventions are in

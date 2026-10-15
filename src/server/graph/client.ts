@@ -687,8 +687,7 @@ export const graphClient: GraphClient = {
 };
 
 // ---------------------------------------------------------------- Reels publish (B2)
-// Three-step own-channel publish flow (`documents/planning/implementation-plan/
-// 2026-09-04-comp-publish.md` Phase B, task B2): create a media container against a
+// Three-step own-channel publish flow (see `documents/architect/core-components/publish/02-architecture.md`): create a media container against a
 // public `video_url`, poll `status_code` until it leaves IN_PROGRESS, then publish the
 // finished container. Reuses `graphPost`/`graphGet`/`requireConfigured`/`GraphApiError`
 // above rather than a parallel client — same auth, same token redaction, same error

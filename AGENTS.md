@@ -24,8 +24,8 @@ per skill, invoked by bare name:
 Docs live in `documents/` and render as an mkdocs-material site (`mkdocs.yml`,
 `docs_dir: documents`). Two layers: `business-requirement/` (what crowsnest is and must
 do) and `architect/` (how it is built, one folder per component under `core-components/`
-plus cross-cutting `shared/`). Specs and plans go under `documents/planning/`;
-`documents/archive/` is frozen and must not be cited as current. `documents/index.md` is
+plus cross-cutting `shared/`). Plans still being worked on go under `documents/plans/`;
+shipped plans are deleted (git history keeps them). `documents/index.md` is
 the index. Preview with `mkdocs serve`.
 
 ## Writing rule (docs)
@@ -33,7 +33,7 @@ the index. Preview with `mkdocs serve`.
 Enforced in review, not by hooks: no em or en dashes, straight quotes only, sentence-case headings, grounded to code with
 no invented facts. Docs are evergreen: state the current system as fact, no `Date:`
 field, no dated "verified on" framing, no ticket IDs as inline citations. Each component
-carries exactly five docs (`01`..`05`); plans live under `documents/planning/`, never a
+carries exactly five docs (`01`..`05`); plans live under `documents/plans/`, never a
 sixth doc. (The prior humanizer hooks that enforced this are removed; do not re-add them.)
 
 # Build and CI
