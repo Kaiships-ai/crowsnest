@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-08 -- documents/architect/core-components/mine/04-test-cases.md, E2E-08.
+# mine-e2e-08 -- scripts/e2e/cases/mine.md, E2E-08.
 #
 # A rejected token stacks the connect panel over the measured numbers (seed: mine-seed.ts reels, junk token).
 set -euo pipefail

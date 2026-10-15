@@ -56,7 +56,7 @@ export function backupDatabase(dbPath: string): string | null {
   const backupPath = `${dbPath}.bak-${epochSeconds}`;
   copyFileSync(dbPath, backupPath);
   console.log(`db:backup: backed up ${dbPath} -> ${backupPath}`);
-  console.log("db:backup: if a migration turns out bad, see docs/product/db-recovery.md to restore from this file.");
+  console.log("db:backup: if a migration turns out bad, see documents/architecture/data.md (Database recovery runbook) to restore from this file.");
 
   pruneOldBackups(dbPath);
 

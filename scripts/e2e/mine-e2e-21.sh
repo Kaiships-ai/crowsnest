@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-21 -- documents/architect/core-components/mine/04-test-cases.md, E2E-21.
+# mine-e2e-21 -- scripts/e2e/cases/mine.md, E2E-21.
 #
 # A bad ?tab= falls back to Overview; a ?reel= that is no reel says so instead of erroring:
 # an unknown id reads as not measured yet, a non-reel own post links to Instagram.

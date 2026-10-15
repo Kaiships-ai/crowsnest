@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# ig-sync-e2e-01 -- adapted from documents/architect/core-components/ig-sync/
-# 04-test-cases.md, browse-e2e E2E-01 ("track a new channel by handle").
+# ig-sync-e2e-01 -- adapted from scripts/e2e/cases/ig-sync.md,
+# browse-e2e E2E-01 ("track a new channel by handle").
 #
 # That case's own setup calls for the sidecar up and logged in, which needs a live
 # burner Instagram account (services/ig/README.md) -- not something this harness can

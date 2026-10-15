@@ -9,8 +9,8 @@
  * exactly this shape — no accumulation across runs, no leftover rows from a prior
  * journey's writes (a kept post, a saved plan) making the next run's assertions lie.
  *
- * Shape (per the browse-e2e lens setup rows in documents/architect/core-components/
- * {feed,mine,ig-sync}/04-test-cases.md and references/browse-e2e-qa.md):
+ * Shape (per the browse-e2e lens setup rows in scripts/e2e/cases/
+ * {feed,mine,ig-sync}.md and references/browse-e2e-qa.md):
  *   - One tracked channel, marked as Kai's own (`isOwn`), synced.
  *   - More than 24 scored videos, so the feed's default page size is exercised.
  *   - Exactly one scores at or above 5x -- the feed-e2e-01 journey picks the "5x+"

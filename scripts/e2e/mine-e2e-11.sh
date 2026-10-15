@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-11 -- documents/architect/core-components/mine/04-test-cases.md, E2E-11.
+# mine-e2e-11 -- scripts/e2e/cases/mine.md, E2E-11.
 #
 # Only the newest 100 own posts load (seed: mine-seed.ts posts-101).
 set -euo pipefail

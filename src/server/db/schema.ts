@@ -845,7 +845,7 @@ export const contentArtifacts = sqliteTable(
  * `port` and `sessionPath` are the hooks for running an isolated sidecar per account. They
  * are optional and unset on a single-account install; wiring N live sidecars to them, and
  * verifying real parallel-across-accounts IG traffic, needs live per-account credentials
- * and is the documented next step (see documents/architect/shared/multi-account.md).
+ * and is the documented next step (see documents/architecture/data.md, Multi-account sync).
  */
 export const igAccounts = sqliteTable(
   "ig_accounts",

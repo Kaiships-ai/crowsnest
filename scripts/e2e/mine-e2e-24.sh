@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-24 -- documents/architect/core-components/mine/04-test-cases.md, E2E-24.
+# mine-e2e-24 -- scripts/e2e/cases/mine.md, E2E-24.
 #
 # Below the engagement threshold, the audience block explains why it is empty.
 set -euo pipefail

@@ -69,7 +69,8 @@ end-to-end loop is the thing every future decision must keep whole.
   signs into using a throwaway account's session. This sign-in is the "read key" that every
   channel-watch and every sync depends on. Read-only; nothing is posted through it.
 - Background services run under **launchd** and survive a reboot; `kai` CLI manages the
-  lifecycle (`login`, `kit init`, `up`, `start`, `stop`, `status`, `doctor`, `update`).
+  lifecycle (`login`, `kit init`, `up`, `start`, `stop`, `status`, `doctor`, `update`, `rollback`,
+  `mcp`). `kai mcp` registers the MCP server with Claude Code and Codex.
 - Distributed as the **$99 Kit**, a one-time purchase with no subscription, with a Polar
   license gate checked before the tarball is served and again by size/checksum after
   download. The Kit bundles its own Node, Python, and package manager. The buyer-facing
@@ -119,6 +120,23 @@ end-to-end loop is the thing every future decision must keep whole.
   `tsx server.ts` fronts the app, with a Python sidecar under `services/ig/`.
 - Terminology to keep consistent: **read key** (the throwaway-account Instagram session),
   **channel** (a watched competitor account), **sync**, **vault**, **remix**.
+- The MCP server at `/api/mcp` exposes 30 tools. Crowsnest holds the data and actions and the
+  connected agent is the only reasoning brain, so the full workflow (sync, inspect, save an
+  analysis, remix, brief) runs with no Anthropic key. A brief returned over MCP carries local
+  file paths for the video and thumbnail. An optional key enables in-app generation (remix
+  stages, Generate idea). Transcription needs whisper.cpp locally or `GROQ_API_KEY`.
+- Sync can be cancelled, run for selected channels, and put on an automatic cadence in Settings
+  (0 is off). Several burner accounts can be added and channels stick to one; one account's
+  cooldown does not stop the others, but live parallel traffic across accounts is not built.
+- Own-channel numbers come from the official Graph API with a token set in Settings. Own reels
+  are measured automatically while the app runs, hourly for the first 72 hours and daily after,
+  and "Measure now" runs it on demand. Insights can lag Instagram by up to 48 hours.
+- Publish: uploads are mp4 only, up to 200 MB, captions up to 2200 characters. A transient
+  failure retries automatically up to 3 attempts. A missing bucket or Graph token disables the
+  action and names the missing variables.
+- Instagram sign-in is validated against a live login before anything is saved. The Anthropic
+  key has a Test button. With only an Anthropic key set, AI features call Anthropic directly
+  when no 9router proxy answers.
 - Out of scope: Intel Macs, Windows, Linux, and platforms other than Instagram. The `platform`
   column stays in the schema so a later platform is additive.
 - Open product facts (do not fabricate): end-to-end verification on a real buyer's machine
@@ -129,12 +147,12 @@ end-to-end loop is the thing every future decision must keep whole.
 
 ## Use cases
 
-The loop as the buyer runs it. Detail per component lives in `documents/architect/core-components/`.
+The loop as the buyer runs it. Detail per part lives in `documents/architecture/`, and per-component features and test cases in `scripts/e2e/cases/`.
 
 | Use case | What happens | Rules |
 | --- | --- | --- |
 | Track a channel | Add a handle on `/channels` (or follow from Discover). Exactly one channel can be marked own; the rest are competitors or references. | The next sync picks the channel up. Setting a new own channel demotes the old one. |
-| Sync | The sidecar reads a 30-day lookback per tracked channel, at most 200 items per run, with 3 retries per upstream call, and writes new videos scored against the channel's own baseline. | Runs in the background and never blocks the buyer. Defaults are env settings (`LOOKBACK_DAYS`, `MAX_ITEMS_PER_SYNC`, `SYNC_MAX_RETRIES` in `src/server/config.ts`). A failure surfaces in the shell failure strip on the next navigation. A video that vanishes from Instagram is soft-removed: its saved post goes, a planned post keeps the plan and loses the link. |
+| Sync | The sidecar reads a 30-day lookback per tracked channel, at most 200 items per run, with 3 retries per upstream call, and writes new videos scored against the channel's own baseline. | Runs in the background and never blocks the buyer. Defaults are env settings (`LOOKBACK_DAYS`, `MAX_ITEMS_PER_SYNC`, `SYNC_MAX_RETRIES` in `src/server/config.ts`). A failure surfaces in the shell failure strip on the next navigation. A video that vanishes from Instagram is soft-removed (`videos.deletedAt`): it stays in the feed marked "No longer on Instagram", and its saved and planned posts stay. |
 | Analyze | One click on a video's detail page writes hook type, structure beats, format and style tags, and a why-it-worked note. Transcript is made on demand if missing. Re-analyze replaces the text columns only. | Needs a transcript source and the Anthropic key; the gate names which is missing instead of showing a dead button. The row is written whole or not at all. Save to vault, generate idea, and remix all need an analysis first. |
 | Remix | Six stages in order: prompt, research (local, no model call), hook, style, script (three variants), finish. Quick Remix runs every generation stage in one pass and lands on script. | Autosaved and server-backed; leaving resumes at the furthest stage. A failed generation still writes a run-log row. Finish is idempotent and creates one undated draft planned post carrying the script. Generation stages block with a named reason on a missing key or a proxy that looks down. |
 | Hand off and publish | Reel Factory (any MCP client) calls the read tools at `/api/mcp` to pull the planned post, its script, and the source video's local media path, then produces the reel outside crowsnest. The creator schedules or publishes it to their own channel through the Graph API, or marks the plan published by hand. | Registered once with `claude mcp add crowsnest --transport http http://localhost:3000/api/mcp`. crowsnest does not render video. |
@@ -200,8 +218,8 @@ launchd services), Discover, and Graph API publish. See `packaging/CHANGELOG.md`
 
 ## Evidence on Hand
 
-- Grounded component docs: per-component five-doc sets under
-  `documents/architect/core-components/`.
+- Grounded architecture pages under `documents/architecture/`, one per part, and per-component
+  feature and test-case files under `scripts/e2e/cases/`.
 - Kit changelog at `packaging/CHANGELOG.md`.
 - No fabricated metrics, testimonials, customer counts, or benchmarks exist or may be
   invented.

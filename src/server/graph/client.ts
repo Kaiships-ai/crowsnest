@@ -33,7 +33,7 @@ const HOST = "https://graph.instagram.com";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 // ---------------------------------------------------------------- public shapes
-// Byte-for-byte the interface specified in docs/product/v1-data-contracts.md §1, so a
+// Byte-for-byte the own-insights interface (documents/architecture/external-services.md), so a
 // caller written against the contract compiles against this without translation.
 
 export interface GraphAccount {
@@ -687,7 +687,7 @@ export const graphClient: GraphClient = {
 };
 
 // ---------------------------------------------------------------- Reels publish (B2)
-// Three-step own-channel publish flow (see `documents/architect/core-components/publish/02-architecture.md`): create a media container against a
+// Three-step own-channel publish flow (see `documents/architecture/publish.md`): create a media container against a
 // public `video_url`, poll `status_code` until it leaves IN_PROGRESS, then publish the
 // finished container. Reuses `graphPost`/`graphGet`/`requireConfigured`/`GraphApiError`
 // above rather than a parallel client — same auth, same token redaction, same error

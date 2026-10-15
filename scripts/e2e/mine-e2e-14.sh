@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-14 -- documents/architect/core-components/mine/04-test-cases.md, E2E-14.
+# mine-e2e-14 -- scripts/e2e/cases/mine.md, E2E-14.
 #
 # Moving between the three Dashboard tabs keeps the tab in the URL, across a reload.
 set -euo pipefail

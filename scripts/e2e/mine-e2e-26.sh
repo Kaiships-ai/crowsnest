@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-26 -- documents/architect/core-components/mine/04-test-cases.md, E2E-26.
+# mine-e2e-26 -- scripts/e2e/cases/mine.md, E2E-26.
 #
 # Clicking the active Calendar tab again changes nothing: same URL, one strip, same grid.
 set -euo pipefail

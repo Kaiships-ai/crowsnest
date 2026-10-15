@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-10 -- documents/architect/core-components/mine/04-test-cases.md, E2E-10.
+# mine-e2e-10 -- scripts/e2e/cases/mine.md, E2E-10.
 #
 # Delete a plan, then Undo, and the grid shows it again (seed: mine-seed.ts plan).
 set -euo pipefail

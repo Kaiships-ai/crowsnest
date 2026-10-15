@@ -468,11 +468,12 @@ material live under `documents/`, rendered as an mkdocs-material site. Preview l
 |-----------|----------|
 | `documents/index.md` | The doc index |
 | `PRODUCT.md`, `DESIGN.md` | What Crowsnest is and must do; the visual system, interaction model, and shell |
-| `documents/architect/` | How it is built: high-level architecture, cross-cutting `shared/` docs, one folder per component under `core-components/` (each with five docs: concept brief, architecture, feature description, test cases, backlog) |
+| `documents/architecture/` | How it is built: `overview.md` plus one page per part (data, jobs, external services, glossary, each component) |
+| `scripts/e2e/cases/` | Each component's built-feature list and browse-e2e test cases, read by `scripts/e2e-coverage.sh` and `scripts/testid-audit.sh` |
 | `documents/plans/` | Plans still being worked on |
 | `documents/decisions/` | Decisions still in force |
 
-Packaging and release detail: `documents/architect/shared/packaging-and-release.md` and the
+Packaging and release detail: `documents/architecture/kit.md` and the
 Kit changelog at `packaging/CHANGELOG.md`. Agent workflow, skills, and doc conventions are in
 `AGENTS.md` (included by `CLAUDE.md`).
 

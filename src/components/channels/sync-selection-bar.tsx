@@ -7,7 +7,7 @@ import { ButtonGroup } from "@/components/ui/button-group";
  * The bar that appears above the board footer while any channel is ticked. Purely
  * presentational: it owns no selection state and starts no sync itself, it just reports
  * the count and calls back. `startSyncAction` is the one seam all sync triggers reuse
- * (see ig-sync 02-architecture), so "Sync selected" is the per-card "Sync now" with more
+ * (see documents/architecture/ig-sync.md), so "Sync selected" is the per-card "Sync now" with more
  * than one id, and it is disabled while a sync is already running rather than queued.
  */
 export function SyncSelectionBar({

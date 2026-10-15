@@ -1,0 +1,55 @@
+# Mine
+
+Mine is the user's own side of crowsnest: how their own Instagram account is doing and what they mean to post next. It lives on the Dashboard at `/` as two of its three tabs, held in the URL as `?tab=overview|reels|calendar`. My reels shows account stats, a reel picker, one reel's insights, its views over time against the user's typical reel, and account-wide audience. Calendar is the planner: the month grid, the plan dialog, and the publish dialog. The old `/mine` route is a redirect to the Calendar tab. Own numbers come only from the official Instagram Graph API, a separate identity and code path from the sidecar that fills the feed.
+
+## Data it holds
+
+Schemas are in `src/server/db/schema.ts`. Mine owns these tables:
+
+- `planned_posts`: a dated intention to publish. Stored `state` is `draft`, `scheduled`, `publishing`, `published`, or `failed`. `missed` is derived on read and never stored. The publish part also advances this row.
+- `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns`: the own-channel set. `own_post_insights` is append-only, one row per post per measurement, so the latest row is the current numbers and all rows are the views over time. `own_account_breakdowns` is one generic table (metric, dimension, key, value) for the follower split and engaged-audience demographics.
+- `app_settings` keys for stored fetch errors: `own_audience_fetch_error`, `own_follower_split_fetch_error`, `own_comments_fetch_error`, and `own_comments_fetched_at`.
+
+It reads `channels` (the `isOwn` flag, at most one row, by the partial unique index `channels_single_own`) and `scripts` for the plan dialog. The own-channel tables hold no reference to `channels`; there is one Graph token, so one own account. `planned_posts.published_own_post_id` is plain text checked against `own_posts` in `markPlanPublishedAction`, not a foreign key. Secrets `IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID` come from Settings > API keys first, `.env.local` second.
+
+## Boundaries
+
+- Owns: the My reels and Calendar tab content and dialogs (`src/components/mine/`), the own-channel and planned-post queries (`src/server/queries/own-channel.ts`, `planned-posts.ts`), `planned-post-actions.ts` and `graph-actions.ts`, the Graph client (`src/server/graph/client.ts`) and token cache (`token-status.ts`), the measurement service and scheduler (`own-measure.ts`, `own-measure-scheduler.ts`), the pure reel math (`reel-insights.ts`, `own-metrics.ts`), and the `/mine` redirect route handler.
+- Called by: the Dashboard page (`src/app/(shell)/(loaded)/page.tsx`, which belongs to the dashboard part and picks the tab from `?tab=`), the publish part (advances `planned_posts`), the MCP tool `crowsnest_metrics` (reads `getOwnChannelOverview` and `getOwnPosts`), Overview (planned count), and remix finish and the vault script dialog (link to `/?tab=calendar`).
+- Calls: `graph.instagram.com` (account, media, per-media insights, comments, account insights), the channels queries and `setOwnChannelAction`, the vault `getScripts`, the `scoreMinUsablePosts` setting, and `server.ts`, which starts `startOwnMeasureScheduler()` beside the sync and publish schedulers.
+
+## Invariants
+
+- Own posts are read-only. `measureOwnChannel` (`src/server/services/own-measure.ts`) is the only writer of the own-channel tables, whether from "Measure now" (scope `all`) or the scheduler (scope `due`). The sidecar never touches them.
+- Each tab loads only its own reads, and `readAndBumpDashboardLastVisit` runs on Overview only. `?tab=` missing or unknown means Overview. A repeated query key uses its first value.
+- `/mine` is a route handler, not a page, so it answers a real 307 (a page under `(loaded)` would stream under `loading.tsx` and give a 200). The target carries only a valid `YYYY-MM` `month` (`mineRedirectTarget` in `month-param.ts`). The sidebar has no "My channel" entry.
+- Two independent gates, neither faked: no own channel shows the picker; a missing or failing token shows the connect panel, stacked over real historical numbers when any exist. The planner needs no token.
+- One measurement at a time. A single-flight lock plus a call ledger live on `globalThis.__crowsnestOwnMeasure`, because the tsx `server.ts` and the Next bundle load separate module copies. A `due` run that finds the lock held returns `MEASURE_BUSY`; an `all` run waits.
+- Graph budget: 200 calls per hour per user. A scheduled run uses at most 150, "Measure now" at most 190, each cut to 200 minus the calls made in the last hour minus 10 (`OWN_MEASURE_CALL_BUDGET`, `OWN_MEASURE_MANUAL_CALL_BUDGET`). The client transport counts every call, so publishes and token checks count too. A rate limit stops the run; rows already written stay. The ledger is in memory and resets on restart.
+- Due-ness is derived from `own_post_insights`, never stored. A reel under 72 hours old is due when its newest successful capture is an hour old, older posts at 24 hours, each with five minutes of slack. Failures back off from the newest failure: a day for a non-transient `invalid_request`, an hour for a young post, and for an older post one retry an hour later then daily.
+- The read picks each post's newest successful insight row, falling back to the newest failed row only when none succeeded (`getPostsWithLatestInsights`), so a later failed capture never hides the last good numbers.
+- A metric the API does not return is null, never zero. Per-viewer rates are null when `reach` is missing or zero. Bio link taps read 0 on a successful call without the action and null only on a failed call.
+- The reel metric set leaves out `follows` and `profile_visits` (Meta reports them for feed and story media only). A failed extended call retries once with the core set, except on auth or rate-limit failures. A permission refusal (HTTP code 200 to 299, or code 10 naming a permission) ends the run with `GRAPH_PERMISSION_DENIED`.
+- Delete Undo is lossless (full row snapshot, `mine-calendar.tsx`). A `publishing` or `failed` plan comes back as `scheduled` or `draft`, since the publish evidence is not restored.
+- Every own-channel metric carries `sampleSize` and `failedSampleSize` (rendered "n of N measured"), and no tile shows until a real Graph call returned the metric (`src/server/queries/own-channel.ts`).
+- `total_watch_time_ms` is stored although no block shows it, because a past snapshot cannot be re-fetched.
+- Account breakdowns run only when no run was cut short, 4 calls of budget remain, and the newest stored batch is 24 hours old (`breakdownsStale`).
+- The scheduler ticks hourly (override `OWN_MEASURE_SCHEDULER_INTERVAL_MS`) and 30 seconds after boot. It skips a tick with no own channel, no configured token, or the lock held (`own-measure-scheduler.ts`).
+- Failures are classified by HTTP status and code, never by error `type`, because Meta sends `OAuthException` on nearly every error (`src/server/graph/client.ts`, tested in `client.test.ts`).
+- Account-wide audience and follower split are labelled whole account and never shown as a reel's numbers. Demographics are stored only when the whole daily batch finished; the follower split is its own metric and refreshes regardless.
+- The typical-reel curve is the median of other reels' views at the same whole hour since posting, over the first `REEL_CURVE_HOURS` (168), computed on the server in the pure `reel-insights.ts`. Only the selected reel's shaped points reach the client chart.
+- Token status is cached on `globalThis.__crowsnestTokenStatus`: five minutes for definitive states, 30 seconds for transient ones. It is dropped when a token secret is saved or cleared and when a run ends in an auth failure. A remembered `permission_denied` stands over an `ok` live check until a measurement lands insights or the token changes.
+- Planned posts: create and `savePlanEditAction` validate up front and write once; the edit is a single transaction. A date at save makes `scheduled`, none makes `draft`. A blank title is refused. A plan carrying a remix-session script cannot change that script in the dialog.
+- `setOwnChannelAction` unmarks the old channel and marks the new one in one transaction. `unsetOwnChannelAction` exists but no control calls it, so the own flag cannot be cleared in the UI.
+- `measureOwnChannelAction` never throws; it returns `MEASURE_FAILED` for a non-Graph error and revalidates `/` either way.
+- Live Graph metric names and units (`reposts`, `reels_skip_rate`, the account `views` split, watch time in milliseconds) and the throttle codes come from Meta's documentation, not a live response, because the configured token is rejected.
+
+## Where to look
+
+- `src/server/services/own-measure.ts` (measurement, budget, lock, due rule)
+- `src/server/services/own-measure-scheduler.ts` (hourly tick, 30 second boot tick)
+- `src/server/graph/client.ts` and `token-status.ts` (Graph calls, error classes, ledger, token cache)
+- `src/server/queries/own-channel.ts` (reads, latest-insight pick) and `src/server/services/reel-insights.ts` (rates, curve)
+- `src/components/mine/my-reels-tab.tsx` and `calendar-tab.tsx` (tab server components), `mine-calendar.tsx`
+- `src/server/actions/planned-post-actions.ts`, `graph-actions.ts`, `channel-actions.ts`
+- `src/app/(shell)/(loaded)/mine/route.ts` and `src/components/dashboard/dashboard-tabs.tsx`

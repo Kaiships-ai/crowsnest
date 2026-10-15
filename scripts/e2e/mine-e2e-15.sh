@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-15 -- documents/architect/core-components/mine/04-test-cases.md, E2E-15.
+# mine-e2e-15 -- scripts/e2e/cases/mine.md, E2E-15.
 #
 # An old /mine link lands on the Calendar tab with its month, and month controls keep the tab.
 set -euo pipefail

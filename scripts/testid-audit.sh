@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# testid-audit.sh: report data-testid values named in the component test-case
+# testid-audit.sh: report data-testid values named in the e2e case
 # docs that do not yet exist under src/. The browse-e2e coverage mandate writes
 # coverage cases before their testids are built (each gap filed as a GitHub issue
 # labeled backlog), so a missing id is expected debt, not drift: it is reported as a warning,
@@ -7,9 +7,9 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-DOCS="documents/architect/core-components"
+DOCS="scripts/e2e/cases"
 
-ids="$(grep -rho 'data-testid="[^"]*"' "$DOCS"/*/04-test-cases.md 2>/dev/null \
+ids="$(grep -rho 'data-testid="[^"]*"' "$DOCS"/*.md 2>/dev/null \
   | sed -E 's/^data-testid="(.*)"$/\1/' | sort -u)"
 
 if [ -z "$ids" ]; then

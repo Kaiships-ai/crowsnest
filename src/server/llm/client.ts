@@ -247,7 +247,7 @@ let cachedClient: LlmClient | null = null;
  * the key resolved via `getSecret` (db-first, env fallback) is passed explicitly instead.
  *
  * A valid key should work even when `LLM_BASE_URL` points at a 9router that isn't
- * actually running (03-feature-description.md §6): `isCompatMode()` is presence-only, so
+ * actually running (scripts/e2e/cases/llm.md, Built features): `isCompatMode()` is presence-only, so
  * it isn't enough on its own to decide the client. `routerReachable()` (already used by
  * Settings' 9router status panel) settles it — reachable: honor the proxy, same as
  * before; unreachable: fall through to the real Anthropic API directly instead of

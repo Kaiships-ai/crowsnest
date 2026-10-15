@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-02 -- documents/architect/core-components/mine/04-test-cases.md, E2E-02.
+# mine-e2e-02 -- scripts/e2e/cases/mine.md, E2E-02.
 #
 # Plan a post from an empty calendar day, then find it on the grid, through the real UI.
 #

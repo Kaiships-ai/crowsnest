@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-09 -- documents/architect/core-components/mine/04-test-cases.md, E2E-09.
+# mine-e2e-09 -- scripts/e2e/cases/mine.md, E2E-09.
 #
 # A whitespace-only plan title keeps Save disabled (seed: mine-seed.ts empty).
 set -euo pipefail

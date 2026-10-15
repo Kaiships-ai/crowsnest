@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-17 -- documents/architect/core-components/mine/04-test-cases.md, E2E-17.
+# mine-e2e-17 -- scripts/e2e/cases/mine.md, E2E-17.
 #
 # One reel's insight blocks, in the app's order, with per-viewer rates and the estimated skip rate.
 set -euo pipefail

@@ -3,33 +3,39 @@
 Product and design live in the repo root: `PRODUCT.md` (what crowsnest is and must do) and `DESIGN.md`
 (visual system, interaction model, shell).
 
-- architect: how it is built. High-level architecture, shared technical docs, and one folder per
-  component under core-components.
+## Architecture
 
-## Components
+`architecture/overview.md` is the entry point. Each page below holds the data a part owns, its
+boundaries, and its invariants.
 
-Each component has the same four docs: 01-concept-brief, 02-architecture, 03-feature-description,
-03-feature-description, and 04-test-cases. Backlog items are GitHub issues labeled `backlog`.
-
-| Component | Concept brief |
+| Part | Page |
 | --- | --- |
-| kit | [01](architect/core-components/kit/01-concept-brief.md) |
-| onboarding | [01](architect/core-components/onboarding/01-concept-brief.md) |
-| feed | [01](architect/core-components/feed/01-concept-brief.md) |
-| discover | [01](architect/core-components/discover/01-concept-brief.md) |
-| analyze | [01](architect/core-components/analyze/01-concept-brief.md) |
-| remix | [01](architect/core-components/remix/01-concept-brief.md) |
-| mine | [01](architect/core-components/mine/01-concept-brief.md) |
-| publish | [01](architect/core-components/publish/01-concept-brief.md) |
-| ig-sync | [01](architect/core-components/ig-sync/01-concept-brief.md) |
-| llm | [01](architect/core-components/llm/01-concept-brief.md) |
-| mcp | [01](architect/core-components/mcp/01-concept-brief.md) |
+| Overview and process model | [overview](architecture/overview.md) |
+| Data, persistence, multi-account, recovery | [data](architecture/data.md) |
+| Background jobs and failure surfaces | [jobs-and-failures](architecture/jobs-and-failures.md) |
+| External services | [external-services](architecture/external-services.md) |
+| Vocabulary | [glossary](architecture/glossary.md) |
+| kit | [kit](architecture/kit.md) |
+| onboarding | [onboarding](architecture/onboarding.md) |
+| feed | [feed](architecture/feed.md) |
+| discover | [discover](architecture/discover.md) |
+| analyze | [analyze](architecture/analyze.md) |
+| remix | [remix](architecture/remix.md) |
+| mine | [mine](architecture/mine.md) |
+| publish | [publish](architecture/publish.md) |
+| ig-sync | [ig-sync](architecture/ig-sync.md) |
+| llm | [llm](architecture/llm.md) |
+| mcp | [mcp](architecture/mcp.md) |
 
 ## Where things live
 
+- Built-feature lists and browse-e2e test cases: `scripts/e2e/cases/<component>.md`, read by
+  `scripts/e2e-coverage.sh` and `scripts/testid-audit.sh`.
 - Plans still being worked on: plans/, flat, one file per plan. Frontmatter carries
   status and components. Shipped plans are deleted.
 - Decisions still in force: decisions/.
+- Backlog items are GitHub issues labeled `backlog`.
+- Lessons that no single doc owns: learnings.md.
 
 ## The bug board is generated, not committed
 

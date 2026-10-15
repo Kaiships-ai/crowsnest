@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# mine-e2e-18 -- documents/architect/core-components/mine/04-test-cases.md, E2E-18.
+# mine-e2e-18 -- scripts/e2e/cases/mine.md, E2E-18.
 #
 # The views-over-time chart draws the reel against the typical reel.
 set -euo pipefail
