@@ -172,5 +172,5 @@ Publish extends `planned_posts`, the table [mine](../mine/03-feature-description
 - A plan scheduled, then deleted before the scheduler claims it, is simply gone; the scheduler's next tick finds no such row and does nothing.
 - Two tabs open on the same plan cannot both publish it: whichever caller's atomic claim (the scheduler's tick, or a hand click of Publish now) lands first wins, and the other sees zero rows changed and no-ops.
 - A plan that fails on its final attempt (`attemptCount` at the cap) stays `failed` forever unless a human clicks Retry; nothing re-arms it automatically past the cap.
-- If the whole server process is killed between the atomic claim and this component's own terminal write, the row is left in `publishing` with nothing in this codebase that currently re-claims it; recognizing and recovering that state is not built (see [05-backlog-to-enhance](05-backlog-to-enhance.md)).
+- If the whole server process is killed between the atomic claim and this component's own terminal write, the row is left in `publishing` with nothing in this codebase that currently re-claims it; recognizing and recovering that state is not built (see the GitHub backlog (label `backlog`)).
 - Restarting the dev server does not lose a schedule: `scheduledAt` is durable on the row, and the scheduler's next tick after boot picks up any row already due.

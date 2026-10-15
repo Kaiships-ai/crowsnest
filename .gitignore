@@ -90,3 +90,6 @@ crowsnest.db-shm
 /test-results/
 /playwright-report/
 /blob-report/
+
+# local browse-e2e evidence
+/test-shots/

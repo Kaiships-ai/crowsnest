@@ -47,7 +47,6 @@ documents/architect/core-components/feed/04-test-cases.md	scripts/e2e/feed-e2e-0
 documents/architect/core-components/feed/04-test-cases.md	scripts/e2e/feed-e2e-06.sh
 documents/architect/core-components/feed/04-test-cases.md	scripts/e2e/feed-e2e-07.sh
 documents/architect/core-components/feed/04-test-cases.md	scripts/e2e/feed-e2e-09.sh
-documents/architect/core-components/feed/05-backlog-to-enhance.md	feed/page.tsx
 documents/architect/core-components/ig-sync/02-architecture.md	../cli/service-darwin.ts
 documents/architect/core-components/ig-sync/02-architecture.md	evidence/10-onboarding-bugs.md
 documents/architect/core-components/ig-sync/04-test-cases.md	references/browse-e2e-qa.md
@@ -62,7 +61,6 @@ documents/architect/core-components/kit/04-test-cases.md	evidence/10-onboarding-
 documents/architect/core-components/llm/04-test-cases.md	scripts/e2e/llm-e2e-03.sh
 documents/architect/core-components/llm/04-test-cases.md	scripts/e2e/llm-e2e-06.sh
 documents/architect/core-components/mine/04-test-cases.md	references/browse-e2e-qa.md
-documents/architect/core-components/mine/05-backlog-to-enhance.md	mine/page.tsx
 documents/architect/core-components/onboarding/04-test-cases.md	evidence/10-onboarding-bugs.md
 documents/architect/core-components/onboarding/04-test-cases.md	references/browse-e2e-qa.md
 documents/architect/core-components/onboarding/04-test-cases.md	scripts/e2e/onboarding-e2e-01.sh

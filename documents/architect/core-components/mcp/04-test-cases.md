@@ -96,7 +96,7 @@ nothing new here either: the channels, outliers, and own-channel metrics they re
 the dashboard through the same query functions, so any UI assertion rides the existing feed and
 channels journeys rather than a new mcp one.
 
-No `data-testid` gap is filed to [backlog to enhance](05-backlog-to-enhance.md): with no journey to
+No `data-testid` gap is filed to the GitHub backlog (label `backlog`): with no journey to
 script, there is no element to tag, so there is nothing for a later QA round to be blocked on.
 
 ## 4. security-lite

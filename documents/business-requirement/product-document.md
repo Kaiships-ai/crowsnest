@@ -239,14 +239,14 @@ using the buyer's `ANTHROPIC_API_KEY`. Details:
 ## 5. Roadmap (not yet built)
 
 Named because the component backlogs and packaging docs state them as future, not because a date
-is set. Detail lives in each component's `05-backlog-to-enhance.md`; the standing overview is
+is set. Detail lives in each component's GitHub issues (label `backlog`); the standing overview is
 [`roadmap.md`](roadmap.md).
 
 | Capability | When | Owner doc |
 | --- | --- | --- |
 | Fix the two `kai kit init` secret defects | v0.3 (blocker first) | onboarding / kit |
 | Onboarding redesign — IG login + keys into the dashboard, live validation | v0.3 | onboarding |
-| Bug board — work the open `05-backlog` items across every component | v0.3 | all components |
+| Bug board — work the open GitHub issues items across every component | v0.3 | all components |
 | TikTok / YouTube Shorts ingestion | Later | ig-sync |
 | Intel Macs, Windows, Linux | Later | kit / packaging |
 

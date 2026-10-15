@@ -103,8 +103,8 @@ step() { printf '\n[%s] %s\n' "$(basename "$0" .sh)" "$*"; }
 # snap <name> -- capture a screenshot of the current page as the evidence the 4b
 # test gate's screenshot mandate (references/browse-e2e-qa.md) asks for. Run it
 # at the frame that proves Expected. By default it writes straight into the
-# component's test-shots folder -- the exact path the 4b gate embeds in the case's
-# 04 Result cell -- derived from the journey filename (feed-e2e-01 -> feed), so
+# repo-root test-shots/<comp> folder (gitignored local evidence; the 4b gate cites that path in the case's
+# 04 Result cell), derived from the journey filename (feed-e2e-01 -> feed), so
 # there is no manual move between running the journey and citing its shot. Set
 # SNAP_DIR to override (e.g. a scratch dir in a smoke test).
 #
@@ -115,7 +115,7 @@ snap() {
   local name="$1" journey comp dir out
   journey="$(basename "$0" .sh)"      # feed-e2e-01
   comp="${journey%-e2e-*}"           # feed
-  dir="${SNAP_DIR:-documents/architect/core-components/$comp/test-shots}"
+  dir="${SNAP_DIR:-test-shots/$comp}"
   mkdir -p "$dir"
   out="$dir/${journey}-${name}.png"
   if "$BROWSE" screenshot "$out" >/dev/null 2>&1; then

@@ -154,4 +154,4 @@ sequenceDiagram
 
 - **Whether `scripts/verify-seeds.ts` exists or runs.** `data/seeds/README.md` states handles
   are "verified against the sidecar by `scripts/verify-seeds.ts` before commit," but no such
-  file exists in this repository today. Tracked in the [backlog](05-backlog-to-enhance.md).
+  file exists in this repository today. Tracked in the GitHub backlog (label `backlog`).

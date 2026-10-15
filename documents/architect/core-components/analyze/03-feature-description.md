@@ -67,7 +67,7 @@ The "Generate idea" button in the action row, alongside Remix this, the two save
 
 ### Limitations
 
-- Unlike the retired analyze gate, the button does not check whether generation is actually available before rendering; a missing key or a down proxy surfaces only after the click, as a failed toast (B-12, filed in [feed's backlog to enhance](../feed/05-backlog-to-enhance.md)).
+- Unlike the retired analyze gate, the button does not check whether generation is actually available before rendering; a missing key or a down proxy surfaces only after the click, as a failed toast (B-12, filed in the GitHub backlog (label `backlog`)).
 - The button never reflects whether an idea already exists for the video; it always reads "Generate idea," regardless (B-12).
 - The button honors no shortcut of its own; the detail page's arrow keys page to the previous or next video and are not tied to it.
 

@@ -73,7 +73,7 @@ Two consequences follow, both honest rather than gaps to close:
   elements to tag, so every assertion below names its real observable (an exact stdout
   line, a written file value, or a `kai status` line) instead of a testid, per the
   format reference's allowance for assertions that read something other than the DOM. No
-  testid gap is filed to `05-backlog`, because there is no DOM element to add one to.
+  testid gap is filed to GitHub issues, because there is no DOM element to add one to.
 - Every journey is `Mode: live`. A kit journey needs a real Apple Silicon Mac, a real
   Polar license, and a real `~/.kai` install; `npm run e2e`'s seeded-fixture harness
   starts a dev server against a fixture database and cannot lay down a real bundle or spend

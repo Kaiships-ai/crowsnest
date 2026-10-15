@@ -8,8 +8,8 @@ Two layers, modeled on the datahub standard.
 
 ## Components
 
-Each component has the same five docs: 01-concept-brief, 02-architecture, 03-feature-description,
-04-test-cases, 05-backlog-to-enhance.
+Each component has the same four docs: 01-concept-brief, 02-architecture, 03-feature-description,
+03-feature-description, and 04-test-cases. Backlog items are GitHub issues labeled `backlog`.
 
 | Component | Concept brief |
 | --- | --- |

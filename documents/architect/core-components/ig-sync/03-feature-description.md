@@ -89,7 +89,7 @@ A "Sync" action on the channels board (per channel or for the whole library) or 
 - The feed reflects the last sync, not the live state of Instagram: with the sidecar not running, no new videos arrive and the feed goes stale rather than erroring.
 - A sync is not undoable. Soft delete is reversible only in that a post reappearing on Instagram is un deleted rather than duplicated on a later sync; there is no per run rollback.
 - No live sync has been proven to complete end to end with real credentials through a Kit install; see [architecture](02-architecture.md#open-not-verified).
-- The concurrency a given run actually used is not shown anywhere; `sync_jobs` does not persist it, so a reload cannot tell whether a run pipelined 2 channels or was pinned to 1 (see [backlog](05-backlog-to-enhance.md)).
+- The concurrency a given run actually used is not shown anywhere; `sync_jobs` does not persist it, so a reload cannot tell whether a run pipelined 2 channels or was pinned to 1 (see the GitHub backlog (label `backlog`)).
 
 ### User guide
 
