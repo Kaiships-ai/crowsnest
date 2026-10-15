@@ -460,8 +460,9 @@ Kit and gate: `packaging/{install.sh.template,gen-install.sh,release.sh,worker/}
 
 ## 13. Documentation
 
-Full architecture, product requirements, component docs, planning documents, and historical
-material live under `documents/`, rendered as an mkdocs-material site. Preview locally with
+Product requirements live in root `PRODUCT.md` and the design system in root `DESIGN.md`.
+Architecture pages, decisions, and running plans live under `documents/`, rendered as an
+mkdocs-material site. Preview locally with
 `mkdocs serve` (then open [http://localhost:8000](http://localhost:8000)).
 
 | Directory | Contents |
