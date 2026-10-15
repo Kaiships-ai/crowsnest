@@ -193,6 +193,9 @@ end-to-end proof on a buyer's machine.
 
 Open items stay open until built. Detail lives in each component's backlog (GitHub issues).
 
+- **Content machine.** Track each post from idea to 48-hour numbers, per decision 0003 and
+  `documents/plans/2026-10-15-content-machine.md`.
+
 - **Onboarding redesign.** Move Instagram login and keys into the dashboard with live
   validation.
 - **Bug board.** Work the open backlog items across feed, remix, mine, analyze, ig-sync, and

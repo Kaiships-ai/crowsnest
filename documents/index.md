@@ -35,8 +35,8 @@ boundaries, and its invariants.
   `scripts/e2e-coverage.sh` and `scripts/testid-audit.sh`.
 - Plans still being worked on: `plans/`, flat, one file per plan. Frontmatter carries
   status and components. Shipped plans are deleted.
-- Decisions still in force: [0001](decisions/0001-personal-tool-first.md), [0002](decisions/0002-data-and-action-brain.md).
-- Running plans: `plans/2026-10-14-ig-sync-split-sync-engine.md` (plans are not rendered in the site).
+- Decisions still in force: [0001](decisions/0001-personal-tool-first.md), [0002](decisions/0002-data-and-action-brain.md), [0003](decisions/0003-post-lifecycle.md).
+- Running plans: `plans/2026-10-14-ig-sync-split-sync-engine.md`, `plans/2026-10-15-content-machine.md` (plans are not rendered in the site).
 - Backlog items are GitHub issues labeled `backlog` and `area:<part>`.
 - Lessons that no single doc owns: [learnings](learnings.md).
 
