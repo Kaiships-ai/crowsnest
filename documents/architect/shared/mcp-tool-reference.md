@@ -15,7 +15,7 @@ when `GROQ_API_KEY` is set) to turn a video into text. That is not the reasoning
 no `ANTHROPIC_API_KEY`.
 
 The endpoint is `http://localhost:3000/api/mcp`, streamable HTTP. Register it with
-`kai mcp` (see [buyer quickstart](../../business-requirement/buyer-quickstart.md)).
+`kai mcp` (see [buyer quickstart](../../../packaging/buyer-quickstart.md)).
 
 ## The 30 tools by phase
 

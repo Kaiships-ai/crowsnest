@@ -467,7 +467,7 @@ material live under `documents/`, rendered as an mkdocs-material site. Preview l
 | Directory | Contents |
 |-----------|----------|
 | `documents/index.md` | The doc index |
-| `documents/business-requirement/` | What Crowsnest is and must do (product document, per-release BRD, roadmap) |
+| `PRODUCT.md`, `DESIGN.md` | What Crowsnest is and must do; the visual system, interaction model, and shell |
 | `documents/architect/` | How it is built: high-level architecture, cross-cutting `shared/` docs, one folder per component under `core-components/` (each with five docs: concept brief, architecture, feature description, test cases, backlog) |
 | `documents/plans/` | Plans still being worked on |
 | `documents/decisions/` | Decisions still in force |

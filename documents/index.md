@@ -1,8 +1,8 @@
 # crowsnest documentation
 
-Two layers, modeled on the datahub standard.
+Product and design live in the repo root: `PRODUCT.md` (what crowsnest is and must do) and `DESIGN.md`
+(visual system, interaction model, shell).
 
-- business-requirement: what crowsnest is and what it must do (product document, per-release BRD).
 - architect: how it is built. High-level architecture, shared technical docs, and one folder per
   component under core-components.
 

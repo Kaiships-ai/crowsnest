@@ -125,7 +125,7 @@ This document is the persistence concern itself, so the first row below is the w
 
 **History and undo.** There is no cross-loop undo stack. Overwriting an autosaved field discards its previous value with no way back except the run log's record that an attempt happened. The one scoped undo is the keep this post remove toast, which re creates the row it deleted. See the interaction model.
 
-**Navigation and refresh.** URL held state is restored by [navigation and the shell](navigation-and-shell.md)'s model: a filter change is a URL replace, a deep link seeds the opening stage, and back and forward move between saved URL states. After a dialog write, a `router.refresh` re reads the server data so a committed row appears without a manual reload.
+**Navigation and refresh.** URL held state is restored by [navigation and the shell](../../../DESIGN.md)'s model: a filter change is a URL replace, a deep link seeds the opening stage, and back and forward move between saved URL states. After a dialog write, a `router.refresh` re reads the server data so a committed row appears without a manual reload.
 
 **Background jobs and the sidecar.** The sidecar sync writes video rows and can soft remove them; a removal takes the saved post row with the video. The own-channel measurement scheduler appends `own_post_insights` snapshot rows (with the reel columns `reposts`, `skip_rate`, `bio_link_taps`, `avg_watch_time_ms`, `total_watch_time_ms`), refreshes `own_posts.thumbnail_url`, and appends a daily `own_account_breakdowns` batch; it never overwrites a snapshot. None of this touches an open dialog or an unblurred field. See [background jobs](background-jobs.md) and [mine's architecture](../core-components/mine/02-architecture.md).
 
