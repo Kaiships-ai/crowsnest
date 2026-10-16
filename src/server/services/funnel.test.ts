@@ -14,7 +14,7 @@ test("returns the newest value per keyword, source and metric, joined to the pla
   expect(saveFunnel({ agent: "claude", rows: [
     { keyword: "plugin", source: "chatbotx", metric: "dms", value: 10, capturedAt: "2026-10-01T08:00:00Z" },
     { keyword: "PLUGIN", source: "chatbotx", metric: "dms", value: 25, capturedAt: "2026-10-02T08:00:00Z" },
-    { keyword: "PLUGIN", source: "polar", metric: "orders", value: 3, capturedAt: "2026-10-02T08:00:00Z" },
+    { keyword: "PLUGIN", source: "polar", metric: "Orders", value: 3, capturedAt: "2026-10-02T08:00:00Z" },
   ] })).toEqual({ ok: true, saved: 3 });
   const plugin = getFunnel().filter((e) => e.keyword.toLowerCase() === "plugin");
   expect(plugin).toEqual([
@@ -30,6 +30,9 @@ test("one bad row refuses the whole batch and writes nothing", async () => {
     { keyword: "ATOMIC", source: "tiktok", metric: "views", value: 2 },
   ] });
   expect(r.ok).toBe(false);
+  for (const bad of [{ value: -1 }, { value: 1, capturedAt: "2099-01-01T00:00:00Z" }]) {
+    expect(saveFunnel({ agent: "claude", rows: [{ keyword: "ATOMIC", source: "umami", metric: "views", ...bad }] }).ok).toBe(false);
+  }
   expect((await db.select().from(tables.reelFunnel)).length).toBe(before);
 });
 

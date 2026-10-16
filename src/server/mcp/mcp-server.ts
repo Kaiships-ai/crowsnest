@@ -34,7 +34,7 @@ import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/serv
 import { getLastRunHealth } from "@/server/queries/runs";
 import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
-import { FunnelRowSchema, getFunnel, saveFunnel } from "@/server/services/funnel";
+import { SaveFunnelSchema, getFunnel, saveFunnel } from "@/server/services/funnel";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -337,10 +337,7 @@ export function buildMcpServer(): McpServer {
     {
       title: "Save funnel snapshots",
       description: "Appends a batch of funnel numbers per reel keyword (source chatbotx, umami, polar or skool; a metric such as dms, emails, orders; a number). Writes all rows or none: one invalid row refuses the whole batch. capturedAt defaults to now. Saving the same batch again leaves the latest values unchanged.",
-      inputSchema: {
-        agent: z.string().describe("Who captured these numbers, for provenance: 'claude', 'codex', or your label."),
-        rows: z.array(FunnelRowSchema).describe("1 to 1000 rows: { keyword, source, metric, value, capturedAt? }."),
-      },
+      inputSchema: SaveFunnelSchema.shape,
     },
     async (args) => {
       const r = saveFunnel(args);

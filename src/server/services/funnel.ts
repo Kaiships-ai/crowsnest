@@ -7,14 +7,17 @@ import { FUNNEL_SOURCES } from "@/server/db/schema";
 export const FunnelRowSchema = z.object({
   keyword: z.string().trim().min(1).max(64),
   source: z.enum(FUNNEL_SOURCES),
-  metric: z.string().trim().min(1).max(64),
-  value: z.number(),
-  capturedAt: z.iso.datetime({ offset: true }).optional(),
+  metric: z.string().trim().toLowerCase().min(1).max(64),
+  value: z.number().nonnegative(),
+  capturedAt: z.iso
+    .datetime({ offset: true })
+    .refine((t) => Date.parse(t) <= Date.now() + 5 * 60_000, "capturedAt is in the future")
+    .optional(),
 });
 
 export const SaveFunnelSchema = z.object({
-  agent: z.string().trim().min(1),
-  rows: z.array(FunnelRowSchema).min(1).max(1000),
+  agent: z.string().trim().min(1).max(64).describe("Who captured these numbers, for provenance: 'claude', 'codex', or your label."),
+  rows: z.array(FunnelRowSchema).min(1).max(1000).describe("1 to 1000 rows: { keyword, source, metric, value, capturedAt? }."),
 });
 
 export interface FunnelEntry {
