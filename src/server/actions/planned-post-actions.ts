@@ -564,13 +564,21 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
 }
 
 export async function approvePlanVersionAction(versionId: string): Promise<ApproveResult> {
-  const r = approvePlanVersion(versionId);
-  if (r.ok && r.changed) revalidatePath("/");
-  return r;
+  try {
+    const r = approvePlanVersion(versionId);
+    if (r.ok && r.changed) revalidatePath("/");
+    return r;
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
 }
 
 export async function undoPlanVersionAction(ref: PlanRef): Promise<UndoResult> {
-  const r = undoPlanVersion(ref);
-  if (r.ok) revalidatePath("/");
-  return r;
+  try {
+    const r = undoPlanVersion(ref);
+    if (r.ok) revalidatePath("/");
+    return r;
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
 }

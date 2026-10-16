@@ -99,6 +99,7 @@ function syncDrafts(tx: Tx, v: PlanVersionRow): { created: number; updated: numb
 
   if (removeIds.length) tx.delete(P).where(and(inArray(P.id, removeIds), eq(P.state, "draft"))).run();
   const updateIds = [...drafts].filter(([key]) => wanted.has(key)).map(([, id]) => id);
+  // Cleared first so two reels can swap keywords without tripping planned_posts_keyword_lower.
   if (updateIds.length) tx.update(P).set({ keyword: null }).where(inArray(P.id, updateIds)).run();
 
   let created = 0;
@@ -142,7 +143,7 @@ function guardKeywords<T>(run: () => T): T | Fail {
   try {
     return run();
   } catch (err) {
-    if (isUniqueViolation(err)) return fail("KEYWORD_TAKEN", "a reel keyword is already held by a plan outside this period; nothing was changed");
+    if (isUniqueViolation(err)) return fail("KEYWORD_TAKEN", "a reel keyword is already held by another plan, possibly a scheduled or published one in this period; nothing was changed");
     throw err;
   }
 }
