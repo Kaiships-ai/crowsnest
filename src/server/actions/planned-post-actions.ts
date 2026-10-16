@@ -417,9 +417,17 @@ export async function setPlanFieldsAction(
   id: string,
   fields: { keyword?: string | null; magnetUrl?: string | null }
 ): Promise<SimpleResult> {
+  const keyword = fields.keyword?.trim();
+  if (keyword !== undefined && (keyword.length < 1 || keyword.length > KEYWORD_MAX || /[\t\n\r]/.test(keyword))) {
+    return { ok: false, error: `A keyword is 1 to ${KEYWORD_MAX} characters on one line.`, code: "PLAN_KEYWORD_INVALID" };
+  }
+  const magnetUrl = fields.magnetUrl?.trim();
+  if (magnetUrl !== undefined && !isGuideUrl(magnetUrl)) {
+    return { ok: false, error: `A guide link is an http or https URL of at most ${MAGNET_URL_MAX} characters, with no user or password.`, code: "PLAN_MAGNET_URL_INVALID" };
+  }
   const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
-  if (fields.keyword !== undefined) patch.keyword = fields.keyword?.trim() || null;
-  if (fields.magnetUrl !== undefined) patch.magnetUrl = fields.magnetUrl?.trim() || null;
+  if (fields.keyword !== undefined) patch.keyword = keyword ?? null;
+  if (fields.magnetUrl !== undefined) patch.magnetUrl = magnetUrl ?? null;
   try {
     const updated = Object.keys(patch).length
       ? await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id)).returning({ id: tables.plannedPosts.id })
@@ -429,6 +437,19 @@ export async function setPlanFieldsAction(
   } catch (err) {
     if (isUniqueViolation(err)) return { ok: false, error: `Another plan already uses the keyword "${patch.keyword}".`, code: "KEYWORD_TAKEN" };
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+const KEYWORD_MAX = 64;
+const MAGNET_URL_MAX = 2048;
+
+function isGuideUrl(raw: string): boolean {
+  if (raw.length > MAGNET_URL_MAX) return false;
+  try {
+    const url = new URL(raw);
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+  } catch {
+    return false;
   }
 }
 

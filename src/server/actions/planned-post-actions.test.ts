@@ -26,6 +26,7 @@ let detachScriptFromPlanAction: typeof import("./planned-post-actions")["detachS
 let markPlanPublishedAction: typeof import("./planned-post-actions")["markPlanPublishedAction"];
 let uploadPlanVideoAction: typeof import("./planned-post-actions")["uploadPlanVideoAction"];
 let setPlanCaptionAction: typeof import("./planned-post-actions")["setPlanCaptionAction"];
+let setPlanFieldsAction: typeof import("./planned-post-actions")["setPlanFieldsAction"];
 let schedulePublishAction: typeof import("./planned-post-actions")["schedulePublishAction"];
 let cancelScheduledPublishAction: typeof import("./planned-post-actions")["cancelScheduledPublishAction"];
 let publishNowAction: typeof import("./planned-post-actions")["publishNowAction"];
@@ -56,6 +57,7 @@ beforeAll(async () => {
     markPlanPublishedAction,
     uploadPlanVideoAction,
     setPlanCaptionAction,
+    setPlanFieldsAction,
     schedulePublishAction,
     cancelScheduledPublishAction,
     publishNowAction,
@@ -825,5 +827,48 @@ describe("ACTION-18: publish lifecycle writes revalidate /", () => {
     await setPlanCaptionAction(created.id, "caption");
     expect(revalidatePath).toHaveBeenCalledWith("/");
     expect(revalidatePath).not.toHaveBeenCalledWith("/mine");
+  });
+});
+
+describe("setPlanFieldsAction", () => {
+  async function seedPlan(state: PlannedPostState = "draft"): Promise<string> {
+    const id = newId();
+    await db.insert(tables.plannedPosts).values({ id, state, title: "P", keyword: "KEEP", magnetUrl: "https://example.com/keep", createdAt: nowIso(), updatedAt: nowIso() });
+    return id;
+  }
+  async function row(id: string) {
+    const [r] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+    return r;
+  }
+
+  test.each(["", "   ", "TWO\nLINES", "TAB\tBED", "X".repeat(65)])("refuses keyword %j and writes nothing", async (keyword) => {
+    const id = await seedPlan();
+    const res = await setPlanFieldsAction(id, { keyword });
+    expect(res).toMatchObject({ ok: false, code: "PLAN_KEYWORD_INVALID" });
+    expect(await row(id)).toMatchObject({ keyword: "KEEP" });
+  });
+
+  test.each(["", "not a url", "javascript:alert(1)", "https://user:pw@example.com/g", "https://user@example.com/g", `https://example.com/${"a".repeat(2048)}`])(
+    "refuses magnetUrl %j and writes nothing",
+    async (magnetUrl) => {
+      const id = await seedPlan();
+      const res = await setPlanFieldsAction(id, { magnetUrl });
+      expect(res).toMatchObject({ ok: false, code: "PLAN_MAGNET_URL_INVALID" });
+      expect(await row(id)).toMatchObject({ magnetUrl: "https://example.com/keep" });
+    },
+  );
+
+  test("null clears, and an inner space is kept", async () => {
+    const id = await seedPlan();
+    expect(await setPlanFieldsAction(id, { keyword: " FREE GUIDE ", magnetUrl: null })).toEqual({ ok: true });
+    expect(await row(id)).toMatchObject({ keyword: "FREE GUIDE", magnetUrl: null });
+    expect(await setPlanFieldsAction(id, { keyword: null })).toEqual({ ok: true });
+    expect(await row(id)).toMatchObject({ keyword: null });
+  });
+
+  test("a published plan can take a keyword and guide link", async () => {
+    const id = await seedPlan("published");
+    expect(await setPlanFieldsAction(id, { keyword: "PLUGIN", magnetUrl: "https://example.com/g" })).toEqual({ ok: true });
+    expect(await row(id)).toMatchObject({ state: "published", keyword: "PLUGIN", magnetUrl: "https://example.com/g" });
   });
 });
