@@ -2,6 +2,9 @@ import { beforeAll, expect, test } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { eq } from "drizzle-orm";
+import { mkdtempSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 // A real client<->server round trip over the SDK's in-memory transport, instead of
 // reaching into the private _registeredTools registry the other tests use (ENH-2). A
@@ -11,6 +14,7 @@ let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 
 beforeAll(async () => {
+  process.env.MEDIA_ROOT ??= mkdtempSync(path.join(os.tmpdir(), "crowsnest-media-"));
   ({ buildMcpServer } = await import("./mcp-server"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   migrate();
@@ -49,6 +53,7 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_remix_variants",
       "crowsnest_remix_save_script",
       "crowsnest_set_plan_fields",
+      "crowsnest_attach_video",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
@@ -202,4 +207,37 @@ test("crowsnest_set_plan_fields sets keyword and guide link, crowsnest_plans rea
 
   const retake = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword: "plugin" } });
   expect(retake.isError).not.toBe(true);
+});
+
+test("crowsnest_attach_video attaches a real mp4, dedupes the asset, and refuses an unknown or published plan", async () => {
+  const { db, tables, newId, nowIso } = await import("@/server/db");
+  const fixture = path.join(__dirname, "..", "media", "__fixtures__", "tiny.mp4");
+  const [a, b, done] = [newId(), newId(), newId()];
+  await db.insert(tables.plannedPosts).values([
+    { id: a, state: "draft", title: "A", createdAt: nowIso(), updatedAt: nowIso() },
+    { id: b, state: "draft", title: "B", createdAt: nowIso(), updatedAt: nowIso() },
+    { id: done, state: "published", title: "Done", createdAt: nowIso(), updatedAt: nowIso() },
+  ]);
+  const client = await connectedClient();
+  const assetsBefore = (await db.select().from(tables.mediaAssets)).length;
+
+  const attached = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: fixture } });
+  expect(attached.isError).not.toBe(true);
+  const assetId = (attached.structuredContent as { videoAssetId: string | null }).videoAssetId;
+  expect(assetId).toEqual(expect.any(String));
+
+  await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: b, path: fixture } });
+  const [rowB] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, b));
+  expect(rowB.videoAssetId).toBe(assetId);
+
+  const noPlan = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: "no-such-plan", path: fixture } });
+  expect((noPlan.structuredContent as { code: string }).code).toBe("PLAN_NOT_FOUND");
+
+  const locked = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: done, path: fixture } });
+  expect((locked.structuredContent as { code: string }).code).toBe("PLAN_LOCKED");
+
+  const missing = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: "/no/such/file.mp4" } });
+  expect((missing.structuredContent as { code: string }).code).toBe("PLAN_FILE_MISSING");
+
+  expect((await db.select().from(tables.mediaAssets)).length).toBe(assetsBefore + 1);
 });
