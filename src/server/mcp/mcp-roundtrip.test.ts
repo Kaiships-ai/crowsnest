@@ -338,6 +338,10 @@ test("plan versions propose, diff, approve and undo over the wire", async () => 
   expect(bad).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
   const badPeriod = await call("crowsnest_propose_plan", { period: "year", periodKey: "2026", agent: "claude", reels: [reel("a", "A")] });
   expect(badPeriod).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const noTitle = await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [{ key: "a" }] });
+  expect(noTitle).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const noAgent = await call("crowsnest_propose_plan", { ...ref });
+  expect(noAgent).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
   const v1 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B")] })).structuredContent as { id: string; version: number };
   const v2 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B2")] })).structuredContent as { id: string };
   expect(v1.version).toBe(1);

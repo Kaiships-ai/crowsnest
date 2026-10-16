@@ -360,8 +360,8 @@ export function buildMcpServer(): McpServer {
   );
 
   const periodShape = {
-    period: z.string().describe("'month' or 'week'."),
-    periodKey: z.string().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
+    period: z.string().optional().describe("'month' or 'week'."),
+    periodKey: z.string().optional().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
   };
 
   server.registerTool(
@@ -371,18 +371,19 @@ export function buildMcpServer(): McpServer {
       description: "Stores a reel list as the next version of a month or week plan, status proposed. Each reel is { key, title, date?, time?, keyword?, note? }; keep a reel's key across versions so approve updates its draft instead of replacing it. An invalid list is refused and nothing is stored. Approve happens only when Kai says so.",
       inputSchema: {
         ...periodShape,
-        agent: z.string().describe("Who proposed this plan: 'claude', 'codex', or your label."),
+        agent: z.string().optional().describe("Who proposed this plan: 'claude', 'codex', or your label."),
         reels: z
           .array(
             z.object({
-              key: z.string().describe("Stable id of this reel across versions, e.g. 'w44-plugin'. Keep it when you edit a reel."),
-              title: z.string(),
+              key: z.string().optional().describe("Stable id of this reel across versions, e.g. 'w44-plugin'. Keep it when you edit a reel."),
+              title: z.string().optional(),
               date: z.string().nullable().optional().describe("YYYY-MM-DD, or null for an undated reel."),
               time: z.string().nullable().optional().describe("HH:MM."),
               keyword: z.string().nullable().optional().describe("Comment keyword, unique across plans, case-insensitive."),
               note: z.string().nullable().optional(),
             }),
           )
+          .optional()
           .describe("1 to 62 reels, unique keys and keywords."),
       },
     },
@@ -400,7 +401,7 @@ export function buildMcpServer(): McpServer {
       inputSchema: {
         ...periodShape,
         version: z.number().optional().describe("Also return this version's reels."),
-        limit: z.number().optional().describe("How many versions to return, newest first. Default 5."),
+        limit: z.number().optional().describe("How many versions to return, newest first, 1 to 50. Default 5. The requested version is always included."),
       },
     },
     async (args) => {
@@ -413,7 +414,7 @@ export function buildMcpServer(): McpServer {
     "crowsnest_approve_plan",
     {
       title: "Approve a plan version",
-      description: "Makes one plan version live, supersedes the old live one, and brings the period's draft planned posts to its reels in one transaction. Only a pristine draft (no script, video, caption, source video or magnet URL, and reel fields unchanged since the last sync) is updated or removed; every other plan post is left alone and listed under kept with its reel key, a reason (not_draft, has_script, has_video, has_caption, has_source_video, has_magnet, edited), and the reel fields not applied. Approving the live version again changes nothing. A reel keyword another plan holds returns KEYWORD_TAKEN with nothing changed.",
+      description: "Makes one plan version live, supersedes the old live one, and brings the period's draft planned posts to its reels in one transaction. Only a pristine draft (state draft; no script, video, caption, source video or magnet URL; no target length, video kind or remix session; reel fields unchanged since the last sync) is updated or removed; every other plan post is left alone and listed under kept with its reel key, a reason (not_draft, has_script, has_video, has_caption, has_source_video, has_magnet, has_settings, edited), and the reel fields not applied (all of them for a post never synced). Approving the live version again changes nothing. A reel keyword another post holds, including a kept one, returns KEYWORD_TAKEN naming that post id and reel key, with nothing changed.",
       inputSchema: { versionId: z.string().describe("The plan version id, from crowsnest_propose_plan or crowsnest_plan_versions.") },
     },
     async (args) => {

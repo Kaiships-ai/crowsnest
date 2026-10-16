@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db, newId, nowIso, tables } from "@/server/db";
@@ -78,7 +78,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Post = typeof tables.plannedPosts.$inferSelect;
 export type SyncedFields = { title: string; date: string | null; time: string | null; keyword: string | null; note: string | null };
 const SYNCED = ["title", "date", "time", "keyword", "note"] as const;
-export type KeepReason = "not_draft" | "has_script" | "has_video" | "has_caption" | "has_source_video" | "has_magnet" | "edited";
+export type KeepReason = "not_draft" | "has_script" | "has_video" | "has_caption" | "has_source_video" | "has_magnet" | "has_settings" | "edited";
 export type KeptPost = { id: string; title: string; state: string; reelKey: string; reason: KeepReason; notApplied: string[] };
 type SyncResult = { created: number; updated: number; removed: number; kept: KeptPost[] };
 
@@ -93,6 +93,7 @@ function keepReason(p: Post): KeepReason | null {
   if (p.caption) return "has_caption";
   if (p.sourceVideoId) return "has_source_video";
   if (p.magnetUrl) return "has_magnet";
+  if (p.targetLengthSec != null || p.videoKind || p.remixSessionId) return "has_settings";
   if (!p.planSynced || !sameFields(current(p), p.planSynced as SyncedFields)) return "edited";
   return null;
 }
@@ -121,8 +122,9 @@ function syncDrafts(tx: Tx, v: PlanVersionRow): SyncResult {
       continue;
     }
     const want = target.get(key);
-    const was = (p.planSynced as SyncedFields | null) ?? current(p);
-    kept.push({ id: p.id, title: p.title, state: p.state, reelKey: key, reason, notApplied: want ? SYNCED.filter((f) => was[f] !== want[f]) : ["removed"] });
+    const was = p.planSynced as SyncedFields | null;
+    const notApplied = !want ? ["removed"] : was ? SYNCED.filter((f) => was[f] !== want[f]) : [...SYNCED];
+    kept.push({ id: p.id, title: p.title, state: p.state, reelKey: key, reason, notApplied });
     target.delete(key);
   }
 
@@ -131,6 +133,12 @@ function syncDrafts(tx: Tx, v: PlanVersionRow): SyncResult {
   const updateIds = [...pristine].filter(([key]) => target.has(key)).map(([, id]) => id);
   // Cleared first so two reels can swap keywords without tripping planned_posts_keyword_lower.
   if (updateIds.length) tx.update(P).set({ keyword: null }).where(inArray(P.id, updateIds)).run();
+
+  for (const f of target.values()) {
+    if (!f.keyword) continue;
+    const holder = tx.select({ id: P.id, reelKey: P.planReelKey }).from(P).where(sql`lower(${P.keyword}) = ${f.keyword.toLowerCase()}`).get();
+    if (holder) throw new KeywordTaken(f.keyword, holder);
+  }
 
   let created = 0;
   for (const [key, f] of target) {
@@ -143,6 +151,12 @@ function syncDrafts(tx: Tx, v: PlanVersionRow): SyncResult {
     }
   }
   return { created, updated: updateIds.length, removed: removeIds.length, kept };
+}
+
+class KeywordTaken extends Error {
+  constructor(keyword: string, holder: { id: string; reelKey: string | null }) {
+    super(`keyword ${keyword} is held by post ${holder.id} (reel key ${holder.reelKey ?? "none, not from a plan"}); nothing was changed`);
+  }
 }
 
 function uniqueIndexHit(err: unknown): string | null {
@@ -160,6 +174,7 @@ function guardKeywords<T>(run: () => T): T | Fail {
   try {
     return run();
   } catch (err) {
+    if (err instanceof KeywordTaken) return fail("KEYWORD_TAKEN", err.message);
     const msg = uniqueIndexHit(err);
     if (msg?.includes("planned_posts_keyword_lower")) return fail("KEYWORD_TAKEN", "a reel keyword is already held by another plan, possibly a kept or scheduled one in this period; nothing was changed");
     if (msg) return fail("PLAN_CONFLICT", `${msg}; nothing was changed`);
@@ -241,9 +256,10 @@ export interface PlanVersionSummary {
 }
 
 export function listPlanVersions(input: unknown): { ok: true; versions: PlanVersionSummary[] } | Fail {
-  const parsed = PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().min(1).max(50).default(5) })).safeParse(input);
+  const parsed = PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().default(5) })).safeParse(input);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
-  const { period, periodKey, version, limit } = parsed.data;
+  const { period, periodKey, version } = parsed.data;
+  const limit = Math.min(50, Math.max(1, parsed.data.limit));
   const V = tables.planVersions;
   const rows = db.select().from(V).where(and(eq(V.period, period), eq(V.periodKey, periodKey))).orderBy(V.version).all();
   const versions = rows.map((r, i) => ({
@@ -257,5 +273,8 @@ export function listPlanVersions(input: unknown): { ok: true; versions: PlanVers
     diff: i === 0 ? "first version" : `vs v${rows[i - 1].version}: ${diffReels(rows[i - 1].reels as Reel[], r.reels as Reel[])}`,
     ...(r.version === version ? { reels: r.reels as Reel[] } : {}),
   }));
-  return { ok: true, versions: versions.reverse().slice(0, limit) };
+  if (version !== undefined && !rows.some((r) => r.version === version)) return fail("INVALID_PLAN", `no version ${version} for ${period} ${periodKey}`);
+  const newest = versions.reverse().slice(0, limit);
+  const asked = versions.find((v) => v.version === version);
+  return { ok: true, versions: asked && !newest.includes(asked) ? [...newest, asked] : newest };
 }

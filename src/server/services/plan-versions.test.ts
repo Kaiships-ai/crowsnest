@@ -213,3 +213,43 @@ test("approving a 14-reel week takes under 150 ms at the median", () => {
   times.sort((a, b) => a - b);
   expect(times[5]).toBeLessThan(150);
 });
+
+test("a draft with a target length, video kind, or remix session is kept as has_settings", async () => {
+  const v1 = propose("2025-W20", reels("g", 3));
+  approvePlanVersion(v1.id);
+  await db.update(P).set({ videoKind: "talking_head" }).where(eq(P.planReelKey, "g-0"));
+  await db.update(P).set({ targetLengthSec: 30 }).where(eq(P.planReelKey, "g-1"));
+  const v2 = propose("2025-W20", [reels("g", 3)[2]]);
+  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, removed: 0, kept: [{ reelKey: "g-0", reason: "has_settings" }, { reelKey: "g-1", reason: "has_settings" }] });
+});
+
+test("a plan-linked draft with no planSynced is kept as edited with every reel field not applied", async () => {
+  const v1 = propose("2025-W21", [{ key: "n", title: "N" }]);
+  approvePlanVersion(v1.id);
+  await db.update(P).set({ planSynced: null }).where(eq(P.planReelKey, "n"));
+  const v2 = propose("2025-W21", [{ key: "n", title: "N2" }]);
+  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, kept: [{ reelKey: "n", reason: "edited", notApplied: ["title", "date", "time", "keyword", "note"] }] });
+});
+
+test("plan_versions always includes the asked version, refuses an unknown one, and clamps limit", () => {
+  for (let i = 0; i < 7; i++) propose("2025-W22", reels("v", 1));
+  const ref = { period: "week", periodKey: "2025-W22" } as const;
+  const one = listPlanVersions({ ...ref, version: 1 });
+  expect(one.ok && one.versions.map((v) => [v.version, !!v.reels])).toEqual([[7, false], [6, false], [5, false], [4, false], [3, false], [1, true]]);
+  expect(listPlanVersions({ ...ref, version: 9 })).toMatchObject({ ok: false, code: "INVALID_PLAN" });
+  const low = listPlanVersions({ ...ref, limit: 0 });
+  expect(low.ok && low.versions.map((v) => v.version)).toEqual([7]);
+  const high = listPlanVersions({ ...ref, limit: 500 });
+  expect(high.ok && high.versions.length).toBe(7);
+});
+
+test("a keyword a kept draft holds names that post and reel key", async () => {
+  const v1 = propose("2025-W23", [{ key: "h1", title: "Holder", keyword: "HELD" }]);
+  approvePlanVersion(v1.id);
+  const holder = await postByKey("h1");
+  await db.update(P).set({ caption: "mine" }).where(eq(P.id, holder.id));
+  const v2 = propose("2025-W23", [{ key: "h1", title: "Holder", keyword: "OTHER" }, { key: "h2", title: "Taker", keyword: "held" }]);
+  const r = approvePlanVersion(v2.id);
+  expect(r).toMatchObject({ ok: false, code: "KEYWORD_TAKEN" });
+  expect(!r.ok && r.error).toContain(`post ${holder.id} (reel key h1)`);
+});
