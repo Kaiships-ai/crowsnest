@@ -235,7 +235,7 @@ export function buildMcpServer(): McpServer {
     "crowsnest_ideas",
     {
       title: "Ideas",
-      description: "The ideas inbox or shortlist: short concepts generated from videos, for the weekly plan. Defaults to the inbox.",
+      description: "The ideas inbox or shortlist: short concepts drawn from videos, for the weekly plan. Defaults to the inbox.",
       inputSchema: {
         tab: z.enum(["inbox", "shortlist"]).optional().describe("Which list, default inbox."),
         limit: z.number().optional().describe("Max items, default 50."),

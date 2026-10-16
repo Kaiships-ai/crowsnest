@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, test } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
@@ -305,6 +305,43 @@ describe("agent-written stages", () => {
     expect(read.outline).toEqual({ beats: [{ label: "Hook", content: "the 9am myth", targetSec: 3 }] });
     expect(read.variants).toEqual(["Stop posting at 9am. Here is why."]);
     expect(read.chosenVariantIndex).toBe(0);
+  });
+
+  test("concurrent agent saves keep both variants", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await Promise.all([saveAgentScript(session.id, "one", "1"), saveAgentScript(session.id, "two", "2")]);
+
+    const read = await getOrCreateSession(videoId);
+    expect(read.variants).toEqual(["one", "two"]);
+    expect(read.chosenVariantIndex).toBe(1);
+  });
+
+  test("a retried agent save with the same text returns the same script and no duplicate", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    const first = await saveAgentScript(session.id, "same", "t");
+    await saveAgentScript(session.id, "other", "t");
+    const retry = await saveAgentScript(session.id, "same", "t");
+
+    const read = await getOrCreateSession(videoId);
+    const rows = await db.select().from(tables.scripts).where(eq(tables.scripts.remixSessionId, session.id));
+    expect(retry.scriptId).toBe(first.scriptId);
+    expect(read.variants).toEqual(["same", "other"]);
+    expect(read.chosenVariantIndex).toBe(0);
+    expect(rows).toHaveLength(2);
+  });
+
+  test("a failed script insert leaves no orphan variant", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    db.run(sql`CREATE TRIGGER fail_scripts BEFORE INSERT ON scripts BEGIN SELECT RAISE(ABORT, 'boom'); END`);
+    try {
+      await expect(saveAgentScript(session.id, "lost", "t")).rejects.toThrow("boom");
+    } finally {
+      db.run(sql`DROP TRIGGER fail_scripts`);
+    }
+    expect((await getOrCreateSession(videoId)).variants).toBeNull();
   });
 
   test("an agent save after older variants is the script finish attaches", async () => {

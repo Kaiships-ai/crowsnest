@@ -6,8 +6,8 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
  * DESIGN.md §2.7's Niche Profile editor lived here as a Textarea feeding
  * `services/remix.ts`'s `getNicheProfile()` (`app_settings.niche_profile`). Task 6 moves
  * editing to `/persona`: the niche text is now the seed for Persona's Audience field
- * (`getPersona()` in `server/services/persona.ts`), and every Remix generation stage
- * reads the full persona (audience, voice, do, do-not) rather than the niche string
+ * (`getPersona()` in `server/services/persona.ts`), and the remix prompts Claude reads over MCP
+ * use the full persona (audience, voice, do, do-not) rather than the niche string
  * alone. This section becomes a pointer rather than an editor, on purpose — with the
  * Persona screen now the real editing surface, a second editable copy of the same value
  * here would just be two places that could disagree about what "the niche" currently
@@ -28,7 +28,7 @@ export function NicheProfileSection({ initialNiche }: { initialNiche: string }) 
           <Link href="/persona" className="underline underline-offset-2 hover:text-foreground">
             Persona
           </Link>
-          , which feeds every Remix generation.
+          , which Claude reads over MCP when it writes a remix.
         </CardDescription>
       </CardHeader>
     </Card>

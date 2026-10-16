@@ -1,4 +1,4 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/schemas";
 import { getSimilarOutliers } from "./similar";
@@ -375,10 +375,70 @@ export async function buildScriptPrompt(id: string, opts?: { steer?: string }): 
  * not an older variant.
  */
 export async function saveAgentScript(id: string, content: string, title: string): Promise<{ scriptId: string }> {
-  const session = await getSession(id);
-  const variants = [...(session.variants ?? []), content];
-  await updateStage(id, { variants });
-  return saveScript(id, content, title, variants.length - 1);
+  return db.transaction((tx) => {
+    const session = tx.select().from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get();
+    if (!session) throw new Error(`Remix session not found: ${id}`);
+    const variants = session.variants ?? [];
+    const existingIndex = variants.indexOf(content);
+    const index = existingIndex === -1 ? variants.length : existingIndex;
+    const now = nowIso();
+    tx.update(tables.remixSessions)
+      .set({ variants: existingIndex === -1 ? [...variants, content] : variants, chosenVariantIndex: index, updatedAt: now })
+      .where(eq(tables.remixSessions.id, id))
+      .run();
+
+    const existing = tx
+      .select({ id: tables.scripts.id })
+      .from(tables.scripts)
+      .where(and(eq(tables.scripts.remixSessionId, id), eq(tables.scripts.content, content)))
+      .get();
+    if (existing) return { scriptId: existing.id };
+
+    const scriptId = newId();
+    tx.insert(tables.scripts)
+      .values({
+        id: scriptId,
+        title,
+        content,
+        sourceVideoId: session.sourceVideoId,
+        hookVaultItemId: null,
+        styleVaultItemId: session.styleVaultItemId,
+        remixSessionId: id,
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+      })
+      .run();
+    return { scriptId };
+  });
+}
+
+/** One variant's hand edit. Merged into the stored list, so an edit from a tab that loaded
+ *  before an agent save never drops the agent's variant. An index past the stored list is
+ *  ignored. */
+export async function editVariant(id: string, index: number, text: string): Promise<void> {
+  db.transaction((tx) => {
+    const row = tx.select({ variants: tables.remixSessions.variants }).from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get();
+    const variants = row?.variants ?? [];
+    if (index < 0 || index >= variants.length || variants[index] === text) return;
+    tx.update(tables.remixSessions)
+      .set({ variants: variants.map((v, i) => (i === index ? text : v)), updatedAt: nowIso() })
+      .where(eq(tables.remixSessions.id, id))
+      .run();
+  });
+}
+
+/** One outline beat's hand edit, merged the same way as editVariant. */
+export async function editBeat(id: string, index: number, beat: Outline["beats"][number]): Promise<void> {
+  db.transaction((tx) => {
+    const row = tx.select({ outline: tables.remixSessions.outline }).from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get();
+    const beats = parseOutline(row?.outline ?? null)?.beats ?? [];
+    if (index < 0 || index >= beats.length) return;
+    tx.update(tables.remixSessions)
+      .set({ outline: JSON.stringify({ beats: beats.map((b, i) => (i === index ? beat : b)) }), updatedAt: nowIso() })
+      .where(eq(tables.remixSessions.id, id))
+      .run();
+  });
 }
 
 /**

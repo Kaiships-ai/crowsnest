@@ -81,7 +81,7 @@ function IdeaCard({
 function EmptyPane({ tab }: { tab: IdeaTab }) {
   const copy =
     tab === "inbox"
-      ? "No ideas in the inbox yet. Sync a channel, or generate one from an analyzed post."
+      ? "No ideas in the inbox yet. Ask Claude over MCP to write ideas from your analyzed posts."
       : "Nothing shortlisted yet. Shortlist an idea from the inbox to see it here.";
   return (
     <Empty className="flex-1">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
 import { CopyPromptButton } from "@/components/remix/copy-prompt-button";
 import { GroundedIn } from "@/components/remix/grounded-in";
-import { updateStageAction } from "@/server/actions/remix-actions";
+import { editBeatAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { Outline } from "@/server/schemas";
 import type { VaultItemRow } from "@/server/queries/vault";
 import type { RemixSessionRow } from "@/server/services/remix";
@@ -35,6 +35,7 @@ export function StageStyle({
   // picked up again; updateBeat() below is the only thing that changes it
   // afterward, and it already calls setBeats directly — no sync effect needed.
   const [beats, setBeats] = useState(session.outline?.beats ?? []);
+  const savedBeats = useRef(beats);
 
   function selectStyle(value: string) {
     setStyleChoice(value);
@@ -44,7 +45,7 @@ export function StageStyle({
   }
 
   // Local edits update state on every keystroke for responsiveness; persisting is
-  // deferred to blur (see commitBeats below) so typing doesn't fire a server round
+  // deferred to blur (see commitBeat below) so typing doesn't fire a server round
   // trip per character.
   function updateBeat(index: number, patch: Partial<Outline["beats"][number]>) {
     const next = beats.map((beat, i) => (i === index ? { ...beat, ...patch } : beat));
@@ -52,8 +53,10 @@ export function StageStyle({
     onOutlineChange({ beats: next });
   }
 
-  function commitBeats() {
-    autosave(updateStageAction(session.id, { outline: { beats } }));
+  function commitBeat(index: number) {
+    if (JSON.stringify(beats[index]) === JSON.stringify(savedBeats.current[index])) return;
+    savedBeats.current = beats;
+    autosave(editBeatAction(session.id, index, beats[index]));
   }
 
   // DESIGN.md §6: an empty Vault never blocks the stage, the prompt still falls back
@@ -123,7 +126,7 @@ export function StageStyle({
                   <Input
                     value={String(beat.targetSec)}
                     onChange={(e) => updateBeat(i, { targetSec: Number(e.target.value) || 0 })}
-                    onBlur={commitBeats}
+                    onBlur={() => commitBeat(i)}
                     className="w-16 shrink-0 text-center font-mono tabular-nums"
                     aria-label={`Beat ${i + 1} target seconds`}
                   />
@@ -131,14 +134,14 @@ export function StageStyle({
                     <Input
                       value={beat.label}
                       onChange={(e) => updateBeat(i, { label: e.target.value })}
-                      onBlur={commitBeats}
+                      onBlur={() => commitBeat(i)}
                       className="font-medium"
                       aria-label={`Beat ${i + 1} label`}
                     />
                     <Textarea
                       value={beat.content}
                       onChange={(e) => updateBeat(i, { content: e.target.value })}
-                      onBlur={commitBeats}
+                      onBlur={() => commitBeat(i)}
                       rows={2}
                       className="text-sm"
                       aria-label={`Beat ${i + 1} content`}

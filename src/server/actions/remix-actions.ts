@@ -3,9 +3,12 @@
 import { eq } from "drizzle-orm";
 import { errorMessage } from "../lib/action-result";
 import { db, tables } from "../db";
+import type { Outline } from "../schemas";
 import { getPlansCarryingScript } from "../queries/planned-posts";
 import {
   buildResearch,
+  editBeat,
+  editVariant,
   finishRemix,
   saveScript,
   updateStage,
@@ -20,6 +23,24 @@ type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: s
 export async function updateStageAction(id: string, patch: Partial<StagePatch>): Promise<SimpleResult> {
   try {
     await updateStage(id, patch);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function editVariantAction(id: string, index: number, text: string): Promise<SimpleResult> {
+  try {
+    await editVariant(id, index, text);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function editBeatAction(id: string, index: number, beat: Outline["beats"][number]): Promise<SimpleResult> {
+  try {
+    await editBeat(id, index, beat);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

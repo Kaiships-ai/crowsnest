@@ -27,7 +27,7 @@ import { GroundedIn } from "@/components/remix/grounded-in";
 import { deriveScriptTitle } from "@/lib/script-title";
 import { buildRemixPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
-import { saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
+import { editVariantAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
 export function StageScript({
@@ -61,11 +61,6 @@ export function StageScript({
   const [addingToPlan, setAddingToPlan] = useState(false);
   const [addedPlanDate, setAddedPlanDate] = useState<string | null>(null);
 
-  function persistVariants(next: string[]) {
-    onVariantsChange(next);
-    autosave(updateStageAction(session.id, { variants: next }));
-  }
-
   /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
    *  post brief read the variant in front of the user rather than variants[0]. Saving
    *  re-records the same index server-side (see saveScript), which keeps a save without
@@ -95,7 +90,9 @@ export function StageScript({
   }
 
   function commitEditBlur(index: number) {
-    persistVariants(results);
+    if (results[index] === (session.variants ?? [])[index]) return;
+    onVariantsChange(results);
+    autosave(editVariantAction(session.id, index, results[index]));
     if (index === savedVariantIndex) {
       setSavedScriptId(null);
       setSavedVariantIndex(null);
