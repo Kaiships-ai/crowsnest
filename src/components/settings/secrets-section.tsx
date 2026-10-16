@@ -3,7 +3,7 @@
 /**
  * Settings' secrets panel: one row per `MANAGED_SECRETS` entry (Task 1's db-backed
  * store), grouped LLM / Instagram sidecar / Graph. Replaces the old presence-only
- * `ApiKeyStatusCard` pair (Anthropic, Groq only) — this panel covers all eight secrets
+ * `ApiKeyStatusCard` (Groq only) — this panel covers all seven secrets
  * and lets a value be set or cleared without touching `.env.local` or restarting.
  *
  * A secret value never round-trips back to the browser: the masked `<input
@@ -230,7 +230,7 @@ export function SecretsSection({ initialStatus }: { initialStatus: SecretStatus[
       <CardHeader>
         <CardTitle>API keys &amp; secrets</CardTitle>
         <CardDescription>
-          Values set here are stored in the local database. For the Anthropic and Groq keys this takes effect on the very next call, no app
+          Values set here are stored in the local database. For the Groq key this takes effect on the very next call, no app
           restart needed. A value from <code>.env.local</code> is used until something is set here. No value is ever shown once saved. The
           Instagram sidecar is the one exception: it reads its username, password, and service token once at startup, so a change here takes
           effect the next time the sidecar restarts, not immediately.
