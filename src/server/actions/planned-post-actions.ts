@@ -428,8 +428,9 @@ export async function setPlanFieldsAction(
     const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
     if (fields.keyword !== undefined) patch.keyword = fields.keyword?.trim() || null;
     if (fields.magnetUrl !== undefined) patch.magnetUrl = fields.magnetUrl?.trim() || null;
+    // No revalidatePath: its only caller is the MCP route, where it throws outside a
+    // request render, and the dashboard is force-dynamic.
     await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     if (errorMessage(err).includes("planned_posts_keyword_lower")) {

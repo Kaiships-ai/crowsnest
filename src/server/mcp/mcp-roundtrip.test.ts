@@ -1,6 +1,4 @@
-import { beforeAll, expect, test, vi } from "vitest";
-
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+import { beforeAll, expect, test } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { eq } from "drizzle-orm";
