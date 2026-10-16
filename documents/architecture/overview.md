@@ -16,7 +16,6 @@ This page is the map. Each part has its own page with the data it holds, its bou
 | [mine](mine.md) | The user's own channel: My reels, the calendar planner and Graph measurement. |
 | [publish](publish.md) | Scheduled and immediate publishing of a planned post through the Graph API. |
 | [mcp](mcp.md) | The in-process MCP server that exposes the data and the keyless remix chain to an agent. |
-| [llm](llm.md) | The one client the in-app generation features use to reach a model. |
 | [onboarding](onboarding.md) | The first-run gate and credential entry between `kai up` and a working feed. |
 | [kit](kit.md) | The `kai` CLI, license gate, packaging, update and launchd services. |
 

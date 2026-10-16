@@ -36,7 +36,7 @@ Release infrastructure (outside the repo): a Cloudflare Worker gate (`crowsnest-
 - Scripts run through `node -> tsx` with the bundled node, never `npm run`, which would resolve a buyer's own node and break native module ABI (`runScript` in `kai.ts`).
 - The sidecar's launchd environment comes from the secrets store (`getOrCreateServiceToken`, `IG_USERNAME`, `IG_PASSWORD`) and every plist value is XML-escaped, because a password with `&`, `<`, or `>` would otherwise make `launchctl` reject the plist (`src/cli/service-darwin.ts`).
 - The server binds `127.0.0.1` so macOS never shows the incoming-connections prompt. `kai up` polls `localhost:3000` for up to 25 seconds, treating 200, 307, and 404 as up, then checks the sidecar's `/health` and tails its log if that fails.
-- `kai doctor` is read-only, prints every check even after a failure, and makes no network call except the loopback sidecar `/health` and the MCP `tools/list` probe. It does not test live Instagram or Anthropic credentials.
+- `kai doctor` is read-only, prints every check even after a failure, and makes no network call except the loopback sidecar `/health` and the MCP `tools/list` probe. It does not test live Instagram credentials.
 - `kai mcp` registration is never fatal; the printed config is the fallback. `kai update` and `kai rollback` refuse in the dev repo.
 - Platform code stays behind one small interface in `service-darwin.ts` (`services`, `start`, `stop`, `running`, `installed`). Adding a platform is a new `platforms.json` key plus wheels and a sibling module.
 - `release.sh` and the release workflow refuse a version with no matching `## <version>` section in `packaging/CHANGELOG.md`.
@@ -51,7 +51,7 @@ Release infrastructure (outside the repo): a Cloudflare Worker gate (`crowsnest-
 - Repo secrets: `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (Workers R2 Storage: Edit). Set them in the GitHub settings UI, since the CLI paste prompt mangles the value. Worker secret: `TOKEN_SECRET`, set with `wrangler secret put TOKEN_SECRET`.
 - Runtime pins today: node 22.23.1, python-build-standalone 3.12.14, uv 0.12.8 (`packaging/platforms.json`).
 - The live install URL is the raw `workers.dev` subdomain. `packaging/README.md` still names `get.crowsnest.sh`, which is not set up.
-- Not proven: no Kit install has completed a live Instagram sync or a live Anthropic generation with real credentials (the one buyer test left both blank). Intel Macs, Windows, and Linux are future; `install.sh` refuses a real Intel Mac with a refund pointer and lets Rosetta on Apple Silicon through.
+- Not proven: no Kit install has completed a live Instagram sync with real credentials (the one buyer test left them blank). Intel Macs, Windows, and Linux are future; `install.sh` refuses a real Intel Mac with a refund pointer and lets Rosetta on Apple Silicon through.
 
 ## Where to look
 

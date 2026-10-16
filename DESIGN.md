@@ -206,7 +206,7 @@ those phases.
   recorded.
 - **Begin acting.** The first edit or click that starts real work.
 - **While acting.** What updates while work is in flight: a disabled trigger for an instant
-  write, a pending state for a generation.
+  write.
 - **Finish.** What is committed and where the user lands.
 
 Four words are used the same way everywhere. **Commit** is the durable step: a row written, a
@@ -224,13 +224,12 @@ code lets a caller tell "already saved" from "gone". While an action runs the tr
 disabled (a React transition); when it settles the client shows a toast and calls
 `router.refresh()` so server-rendered state appears without a manual reload.
 
-Generation is the same shape but slow and able to fail on the model rather than the database.
-It writes generated text to the record and appends a remix run row on success and on failure,
-so the log is complete; a failure writes nothing partial to the session.
+The app makes no model call. Text an agent writes over MCP lands in the same records and
+appears on the next page load.
 
 Edge cases: a page is a snapshot, so a record can change under an open page and the action
 answers "no longer exists" or "already done" as a toast. A pending transition blocks a double
-click but not a separate navigation control. The degradation contract (LLM down, sidecar down,
+click but not a separate navigation control. The degradation contract (sidecar down,
 Graph token invalid, no own channel) is in `PRODUCT.md`.
 
 ## Navigation and shell

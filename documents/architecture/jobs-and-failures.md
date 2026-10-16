@@ -1,12 +1,12 @@
 # Jobs and failures
 
-Work that outlives a single request runs inside the Next server as timers and detached runs. This page lists those jobs and then the surfaces that report on them: the failure strip, the Runs screens, notifications, toasts and the remix run log.
+Work that outlives a single request runs inside the Next server as timers and detached runs. This page lists those jobs and then the surfaces that report on them: the failure strip, the Runs screens, notifications and toasts.
 
 ## Data it holds
 
 - `sync_jobs`: one row per sync run per channel, or per library sweep (`channel_id` null, `lock_key` `__library__`). Holds status (running, success, partial, failed), counters (seen, created, updated, failed, deleted), `heartbeat_at`, a stop reason and the `gaps` JSON listing channels it could not cover.
 - `frame_pass_jobs`: one row per frame-pass run with the same lock and heartbeat pattern.
-- `remix_runs`: append-only log of each remix generation attempt, written on success and on failure.
+- `remix_runs`: rows from the removed in-app remix generation. Nothing writes it now; the Runs read still lists the old rows.
 - `planned_posts`: the publish job's state (`scheduled`, `publishing`, `published`, `failed`), `attempt_count`, `last_error`, `idempotency_key`.
 - `log_events`: stored info, warn and error events from backend, frontend and sidecar, already redacted, capped at 50000 rows and pruned oldest first (`src/server/logs/store.ts`).
 - `notifications`: stored alerts of kind `run_failed`, `run_finished` or `sla_breach`, with `read_at`.
@@ -37,13 +37,12 @@ Behavior the user can depend on:
 
 ## Failure surfaces
 
-Four surfaces, each with its own scope and lifetime.
+Three surfaces, each with its own scope and lifetime.
 
 | Surface | Scope | Lifetime | Source |
 | --- | --- | --- | --- |
 | Toast | One action | Seconds. Gone on reload, including an unclicked Undo. | The `ActionResult` the action returned |
 | Failure strip | The app, every shell route | Standing. Re-read on each server render. | The newest `sync_jobs` row (`getFailureStrip`) |
-| Remix run log | One remix session | Durable, append only, newest first | `remix_runs` |
 | Notification | The app | Durable until read | `notifications` |
 
 ### Failure strip kinds
@@ -72,10 +71,6 @@ Design constraints on the strip:
 
 Every server action settles into a toast and nothing throws across the action boundary. A destructive action carries its Undo inside the toast (removing a kept post re-creates the row). There is no undo stack behind it. A toast reports a result; a write that changes server-rendered data also calls `router.refresh()`.
 
-### Remix run log tones
-
-Success means the attempt produced a usable result; for variants, at least one of three came back. Partial means some variants succeeded ("N of M"), and only variant generation can be partial. Failed means the attempt produced nothing. The studio infers "model proxy likely down" from the last three rows (`src/components/remix/run-log-view.ts`); see [external-services](external-services.md).
-
 ### Empty states
 
 Pages say so in place instead of failing. The feed has four distinct empty states (no channels, none synced yet, a search with no match, a filter that cleared everything), each with its own recovery link. The calendar's published and dead-air markers stay off for a channel that was never measured, so an empty month reads as "nothing checked" rather than "nothing happened".
@@ -87,7 +82,7 @@ Pages say so in place instead of failing. The feed has four distinct empty state
 - **No double publish.** The conditional-UPDATE claim, not a lock, is the guarantee (`publish-scheduler.ts`). `planned_posts.idempotency_key` is unique on post id plus scheduled time.
 - **A scheduler that throws never stops the server.** Each tick catches and logs codes and counts only, never a message that could carry a token.
 - **Logs are redacted before insert.** Nothing raw lands in `log_events` (`src/server/lib/logger.ts`, `logs/store.ts`).
-- **No user setting changes the strip kinds, labels or run-log tones.** They are fixed in code.
+- **No user setting changes the strip kinds or labels.** They are fixed in code.
 
 ## Where to look
 

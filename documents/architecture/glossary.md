@@ -46,7 +46,7 @@ The vocabulary used across the docs and the UI. When a doc uses one of these wor
 
 **Idea.** A short concept with an angle, in the ideas inbox, one active per source video (`idea`).
 
-**Persona.** The single settings row of audience, voice and do and don't lists that grounds idea and script generation.
+**Persona.** The single settings row of audience, voice and do and don't lists that grounds the remix prompts the agent fulfills.
 
 ## Study and reuse
 
@@ -62,7 +62,7 @@ The vocabulary used across the docs and the UI. When a doc uses one of these wor
 
 **Remix.** Turning a studied video into a script for the user's niche, in stages.
 
-**Niche.** The user's content niche, a setting fed into every generation prompt and shown as a read-only chip on the prompt stage.
+**Niche.** The user's content niche, a setting fed into every remix prompt and shown as a read-only chip on the prompt stage.
 
 **Facts box.** The one editable field on the research stage, where the user adds their own angle or stats. Autosaves on blur.
 
@@ -76,13 +76,9 @@ The vocabulary used across the docs and the UI. When a doc uses one of these wor
 
 **Stage.** One of the six steps of a session, in order: prompt, research, hook, style, script, finish. The `stage` column records the furthest reached.
 
-**Variant.** One candidate script from the script stage, three by default against three fixed angles. The user picks one before saving.
+**Variant.** One candidate script stored on a session. The user picks one before saving.
 
-**Remix run.** One generation attempt in a session (hooks, outline or variants), logged append-only to `remixRuns` on success and failure.
-
-**Run log.** The list on the remix page of every remix run, newest first, each with a tone: Success, Partial or Failed.
-
-**Quick Remix.** The end-to-end shortcut action that runs a remix without stepping through the stages (`quickRemixAction`).
+**Copy prompt for Claude.** The button on the hook, style, and script stages that copies the MCP steps for that stage, for the user to paste into Claude.
 
 **Deep link.** A URL that carries an action or a seed into a page, for example the remix page opened at a stage.
 
@@ -134,10 +130,6 @@ The vocabulary used across the docs and the UI. When a doc uses one of these wor
 
 **Notification.** A stored alert raised when a run fails, finishes or breaches its SLA. It survives being missed, unlike a toast.
 
-**Generation.** A call to a language model that produces text: research notes, hooks, an outline, variants, an idea.
-
-**LLM proxy.** The optional local router set by `LLM_BASE_URL` (for example 9router) that the in-app model client routes through. Separate from the Anthropic API key.
-
 **Graph API.** The Instagram Graph API used to measure and publish to the owned channel, gated by a token.
 
 ## Feedback surfaces
@@ -147,8 +139,6 @@ The vocabulary used across the docs and the UI. When a doc uses one of these wor
 **Failure strip.** The shell banner that reports the most recent sync's verdict. See [jobs-and-failures](jobs-and-failures.md).
 
 **Toast.** A transient message that an action shows when it settles. Some carry an Undo. Distinct from a notification.
-
-**Generation blocked panel.** What a generation stage shows in place of its controls when no Anthropic key is set or the proxy looks unreachable. Also the block panel.
 
 **Connect panel.** What the own-channel pages show when the Graph token is missing or invalid, in place of live metrics. Historical numbers can still show under it.
 
