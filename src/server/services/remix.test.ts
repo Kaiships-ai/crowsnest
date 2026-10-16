@@ -13,12 +13,14 @@ let saveScript: typeof import("./remix")["saveScript"];
 let saveAgentScript: typeof import("./remix")["saveAgentScript"];
 let seedSessionFromIdea: typeof import("./remix")["seedSessionFromIdea"];
 let finishRemix: typeof import("./remix")["finishRemix"];
+let editVariant: typeof import("./remix")["editVariant"];
+let editBeat: typeof import("./remix")["editBeat"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOrCreateSession, updateStage, buildResearch, saveScript, saveAgentScript, seedSessionFromIdea, finishRemix } =
+  ({ getOrCreateSession, updateStage, buildResearch, saveScript, saveAgentScript, seedSessionFromIdea, finishRemix, editVariant, editBeat } =
     await import("./remix"));
 });
 
@@ -200,7 +202,7 @@ describe("finishRemix", () => {
   test("creates an undated planned post linked to the session and advances the stage to finish", async () => {
     const { videoId } = await seedVideo();
     const session = await getOrCreateSession(videoId);
-    await updateStage(session.id, { topic: "Three mistakes killing your reach.", targetLengthSec: 45 });
+    await updateStage(session.id, { topic: "Three mistakes killing your reach.", targetLengthSec: 45, variants: ["the script body"] });
     const { scriptId } = await saveScript(session.id, "the script body", "Three Mistakes", 0);
 
     const result = await finishRemix(session.id);
@@ -223,6 +225,7 @@ describe("finishRemix", () => {
   test("is idempotent: a second finish reuses the plan it already linked instead of duplicating it", async () => {
     const { videoId } = await seedVideo();
     const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["the script body"] });
     await saveScript(session.id, "the script body", "Three Mistakes", 0);
 
     const first = await finishRemix(session.id);
@@ -354,5 +357,25 @@ describe("agent-written stages", () => {
     const [row] = await db.select().from(tables.scripts).where(eq(tables.scripts.id, scriptId!));
 
     expect(row.content).toBe("new agent take");
+  });
+
+  test("a pick outside the stored variants is refused", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: [], chosenVariantIndex: null });
+
+    await expect(updateStage(session.id, { chosenVariantIndex: 1 })).rejects.toThrow();
+    expect((await getOrCreateSession(videoId)).chosenVariantIndex).toBeNull();
+  });
+
+  test("an edit past the stored list reports it was not applied", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["only"], outline: { beats: [{ label: "Hook", content: "a", targetSec: 3 }] } });
+
+    expect(await editVariant(session.id, 1, "lost")).toBe(false);
+    expect(await editBeat(session.id, 1, { label: "B", content: "b", targetSec: 2 })).toBe(false);
+    expect(await editVariant(session.id, 0, "kept")).toBe(true);
+    expect(await editBeat(session.id, 0, { label: "Hook", content: "kept", targetSec: 3 })).toBe(true);
   });
 });

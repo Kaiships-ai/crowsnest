@@ -10,6 +10,8 @@ import { afterEach, beforeAll, expect, test, vi } from "vitest";
 vi.hoisted(() => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
 });
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { error: toastError, success: vi.fn() } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
 import { db, newId, nowIso, tables } from "@/server/db";
@@ -19,7 +21,10 @@ import { StageScript } from "./stage-script";
 import { StageStyle } from "./stage-style";
 
 beforeAll(() => migrate());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  toastError.mockClear();
+});
 
 async function freshSession() {
   const channelId = newId();
@@ -78,4 +83,49 @@ test("blurring a beat in a stale Style tab keeps the agent's outline", async () 
   expect((await getOrCreateSession(created.sourceVideoId)).outline).toEqual({
     beats: [{ label: "Opener", content: "old", targetSec: 3 }, agentBeats[1]],
   });
+});
+
+test("a beat edit the server dropped shows a toast and is retried on the next blur", async () => {
+  const created = await freshSession();
+  const two = [
+    { label: "Hook", content: "h", targetSec: 3 },
+    { label: "Body", content: "b", targetSec: 20 },
+  ];
+  await updateStage(created.id, { outline: { beats: two } });
+  const stale = await getOrCreateSession(created.sourceVideoId);
+  render(<StageStyle session={stale} vaultStyles={[]} onOutlineChange={vi.fn()} onStyleVaultItemChange={vi.fn()} />);
+
+  await updateStage(created.id, { outline: { beats: [two[0]] } });
+  fireEvent.change(screen.getByDisplayValue("Body"), { target: { value: "Payoff" } });
+  fireEvent.blur(screen.getByDisplayValue("Payoff"));
+  await settle();
+  expect(toastError).toHaveBeenCalled();
+  expect((await getOrCreateSession(created.sourceVideoId)).outline).toEqual({ beats: [two[0]] });
+
+  await updateStage(created.id, { outline: { beats: two } });
+  fireEvent.blur(screen.getByDisplayValue("Payoff"));
+  await settle();
+  expect((await getOrCreateSession(created.sourceVideoId)).outline?.beats[1].label).toBe("Payoff");
+});
+
+test("a stale Script tab after an outline reset cannot store a pick or an edit", async () => {
+  const created = await freshSession();
+  await updateStage(created.id, { variants: ["A", "B"], chosenVariantIndex: 0 });
+  const stale = await getOrCreateSession(created.sourceVideoId);
+  const onVariantsChange = vi.fn();
+  render(<StageScript session={stale} onVariantsChange={onVariantsChange} onChosenVariantChange={vi.fn()} />);
+
+  await updateStage(created.id, { variants: [], chosenVariantIndex: null });
+  fireEvent.change(screen.getByDisplayValue("A"), { target: { value: "A edited" } });
+  fireEvent.blur(screen.getByDisplayValue("A edited"));
+  await settle();
+  expect(toastError).toHaveBeenCalled();
+  expect(onVariantsChange).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("tab", { name: "Variant 2" }));
+  await settle();
+  expect(toastError).toHaveBeenCalledTimes(2);
+  const read = await getOrCreateSession(created.sourceVideoId);
+  expect(read.variants).toEqual([]);
+  expect(read.chosenVariantIndex).toBeNull();
 });

@@ -199,15 +199,25 @@ export async function getOrCreateSession(videoId: string): Promise<RemixSessionR
  * chosenHook/styleVaultItemId/stage — on every stage move through the remix studio. */
 export async function updateStage(id: string, patch: Partial<StagePatch>): Promise<void> {
   const { researchNotes, outline, ...rest } = patch;
-  await db
-    .update(tables.remixSessions)
-    .set({
-      ...rest,
-      ...(researchNotes !== undefined ? { researchNotes: researchNotes as unknown as Record<string, unknown> } : {}),
-      ...(outline !== undefined ? { outline: JSON.stringify(outline) } : {}),
-      updatedAt: nowIso(),
-    })
-    .where(eq(tables.remixSessions.id, id));
+  db.transaction((tx) => {
+    const index = patch.chosenVariantIndex;
+    if (index !== undefined && index !== null) {
+      const variants =
+        patch.variants ?? tx.select({ variants: tables.remixSessions.variants }).from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get()?.variants ?? [];
+      if (!Number.isInteger(index) || index < 0 || index >= variants.length) {
+        throw new Error("That variant no longer exists. Reload to see the latest script.");
+      }
+    }
+    tx.update(tables.remixSessions)
+      .set({
+        ...rest,
+        ...(researchNotes !== undefined ? { researchNotes: researchNotes as unknown as Record<string, unknown> } : {}),
+        ...(outline !== undefined ? { outline: JSON.stringify(outline) } : {}),
+        updatedAt: nowIso(),
+      })
+      .where(eq(tables.remixSessions.id, id))
+      .run();
+  });
 }
 
 /**
@@ -414,30 +424,33 @@ export async function saveAgentScript(id: string, content: string, title: string
 }
 
 /** One variant's hand edit. Merged into the stored list, so an edit from a tab that loaded
- *  before an agent save never drops the agent's variant. An index past the stored list is
- *  ignored. */
-export async function editVariant(id: string, index: number, text: string): Promise<void> {
-  db.transaction((tx) => {
+ *  before an agent save never drops the agent's variant. Returns false when the index is out
+ *  of range. */
+export async function editVariant(id: string, index: number, text: string): Promise<boolean> {
+  return db.transaction((tx) => {
     const row = tx.select({ variants: tables.remixSessions.variants }).from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get();
     const variants = row?.variants ?? [];
-    if (index < 0 || index >= variants.length || variants[index] === text) return;
+    if (index < 0 || index >= variants.length) return false;
+    if (variants[index] === text) return true;
     tx.update(tables.remixSessions)
       .set({ variants: variants.map((v, i) => (i === index ? text : v)), updatedAt: nowIso() })
       .where(eq(tables.remixSessions.id, id))
       .run();
+    return true;
   });
 }
 
 /** One outline beat's hand edit, merged the same way as editVariant. */
-export async function editBeat(id: string, index: number, beat: Outline["beats"][number]): Promise<void> {
-  db.transaction((tx) => {
+export async function editBeat(id: string, index: number, beat: Outline["beats"][number]): Promise<boolean> {
+  return db.transaction((tx) => {
     const row = tx.select({ outline: tables.remixSessions.outline }).from(tables.remixSessions).where(eq(tables.remixSessions.id, id)).get();
     const beats = parseOutline(row?.outline ?? null)?.beats ?? [];
-    if (index < 0 || index >= beats.length) return;
+    if (index < 0 || index >= beats.length) return false;
     tx.update(tables.remixSessions)
       .set({ outline: JSON.stringify({ beats: beats.map((b, i) => (i === index ? beat : b)) }), updatedAt: nowIso() })
       .where(eq(tables.remixSessions.id, id))
       .run();
+    return true;
   });
 }
 
@@ -465,6 +478,11 @@ export async function saveScript(
   const scriptId = newId();
   const now = nowIso();
 
+  // Saving IS the pick; a stale index is refused before any script row is written.
+  if (variantIndex !== undefined) {
+    await updateStage(id, { chosenVariantIndex: variantIndex });
+  }
+
   await db.insert(tables.scripts).values({
     id: scriptId,
     title,
@@ -477,14 +495,6 @@ export async function saveScript(
     createdAt: now,
     updatedAt: now,
   });
-
-  // Saving IS the pick. Recorded here, alongside the script row, so the remix prompt
-  // (buildRemixPrompt) and the post brief read the variant the user actually chose
-  // rather than falling back to variants[0], which would put words in front of them
-  // that they never selected.
-  if (variantIndex !== undefined) {
-    await updateStage(id, { chosenVariantIndex: variantIndex });
-  }
 
   return { scriptId };
 }

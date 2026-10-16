@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import { errorMessage } from "../lib/action-result";
 import { db, tables } from "../db";
-import type { Outline } from "../schemas";
+import { OutlineSchema, type Outline } from "../schemas";
 import { getPlansCarryingScript } from "../queries/planned-posts";
 import {
   buildResearch,
@@ -29,19 +29,22 @@ export async function updateStageAction(id: string, patch: Partial<StagePatch>):
   }
 }
 
+const STALE_EDIT = "This stage changed while you were editing, so your edit was not saved. Reload to see the latest.";
+
 export async function editVariantAction(id: string, index: number, text: string): Promise<SimpleResult> {
+  if (typeof text !== "string") return { ok: false, error: "A variant must be text." };
   try {
-    await editVariant(id, index, text);
-    return { ok: true };
+    return (await editVariant(id, index, text)) ? { ok: true } : { ok: false, error: STALE_EDIT };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
 }
 
 export async function editBeatAction(id: string, index: number, beat: Outline["beats"][number]): Promise<SimpleResult> {
+  const parsed = OutlineSchema.shape.beats.element.safeParse(beat);
+  if (!parsed.success) return { ok: false, error: "A beat needs a label, content, and a target length in seconds." };
   try {
-    await editBeat(id, index, beat);
-    return { ok: true };
+    return (await editBeat(id, index, parsed.data)) ? { ok: true } : { ok: false, error: STALE_EDIT };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

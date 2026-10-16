@@ -91,8 +91,10 @@ export function StageScript({
 
   function commitEditBlur(index: number) {
     if (results[index] === (session.variants ?? [])[index]) return;
-    onVariantsChange(results);
-    autosave(editVariantAction(session.id, index, results[index]));
+    const edited = results;
+    void autosave(editVariantAction(session.id, index, edited[index])).then((saved) => {
+      if (saved) onVariantsChange(edited);
+    });
     if (index === savedVariantIndex) {
       setSavedScriptId(null);
       setSavedVariantIndex(null);

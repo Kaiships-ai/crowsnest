@@ -157,6 +157,7 @@ Continue from the style stage, or the script step in the stepper once reached.
 
 - Makes no model call and needs no key.
 - The stage opens on the variant the session already records as chosen, not silently on the first tab.
+- An edit or pick from a tab that loaded before the agent removed that variant or beat shows an Autosave failed toast telling the user to reload; the stored session is unchanged and the pick stays valid.
 - Editing the exact slot a save came from clears that save and hides "Add to plan" until a fresh save; editing a different slot leaves the save intact.
 - With no variants and no saved script, the stage reads "No script yet. Copy the prompt into Claude, then reload to see what it wrote."
 - Continue advances to finish once a variant or a saved script exists, not once one is picked, so the finish stage's guidance about a missing pick is always reachable.

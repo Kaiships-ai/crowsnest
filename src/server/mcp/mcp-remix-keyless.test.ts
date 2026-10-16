@@ -112,6 +112,9 @@ test("P0 slice 2b: remix chain runs end to end with no model key configured", as
   const scriptId = (saveScript.structuredContent as { scriptId: string }).scriptId;
   expect(typeof scriptId).toBe("string");
 
+  const retried = await callTool(server, "crowsnest_remix_save_script", { sessionId, title: "Other title", script: agentScript });
+  expect((retried.structuredContent as { scriptId: string }).scriptId).toBe(scriptId);
+
   const [scriptRow] = await db.select().from(tables.scripts).where(eq(tables.scripts.id, scriptId));
   expect(scriptRow.content).toBe(agentScript);
   expect(scriptRow.title).toBe("Keyless remix");

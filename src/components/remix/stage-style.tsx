@@ -55,8 +55,10 @@ export function StageStyle({
 
   function commitBeat(index: number) {
     if (JSON.stringify(beats[index]) === JSON.stringify(savedBeats.current[index])) return;
-    savedBeats.current = beats;
-    autosave(editBeatAction(session.id, index, beats[index]));
+    const beat = beats[index];
+    void autosave(editBeatAction(session.id, index, beat)).then((saved) => {
+      if (saved) savedBeats.current = savedBeats.current.map((b, i) => (i === index ? beat : b));
+    });
   }
 
   // DESIGN.md §6: an empty Vault never blocks the stage, the prompt still falls back
