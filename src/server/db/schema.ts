@@ -502,10 +502,13 @@ export const plannedPosts = sqliteTable("planned_posts", {
   dryRun: integer("dry_run").notNull().default(0),
   keyword: text("keyword"),
   magnetUrl: text("magnet_url"),
+  planVersionId: text("plan_version_id").references(() => planVersions.id, { onDelete: "set null" }),
+  planReelKey: text("plan_reel_key"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
   index("planned_posts_date").on(t.plannedDate),
+  index("planned_posts_plan_version").on(t.planVersionId),
   uniqueIndex("planned_posts_idempotency_key").on(t.idempotencyKey),
   uniqueIndex("planned_posts_keyword_lower").on(sql`lower(${t.keyword})`).where(sql`${t.keyword} IS NOT NULL`),
 ]);
@@ -890,4 +893,29 @@ export const reelFunnel = sqliteTable(
     createdAt: text("created_at").notNull(),
   },
   (t) => [index("reel_funnel_latest").on(sql`lower(${t.keyword})`, t.source, t.metric, t.capturedAt)],
+);
+
+export const PLAN_PERIODS = ["month", "week"] as const;
+export const PLAN_VERSION_STATUSES = ["proposed", "live", "superseded"] as const;
+
+/** One proposed or approved reel list for a month or week. `reels` is JSON checked by
+ *  ReelListSchema in services/plan-versions.ts before every write. */
+export const planVersions = sqliteTable(
+  "plan_versions",
+  {
+    id: text("id").primaryKey(),
+    period: text("period", { enum: PLAN_PERIODS }).notNull(),
+    periodKey: text("period_key").notNull(),
+    version: integer("version").notNull(),
+    status: text("status", { enum: PLAN_VERSION_STATUSES }).notNull(),
+    reels: text("reels", { mode: "json" }).notNull(),
+    agent: text("agent").notNull(),
+    approvedAt: text("approved_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("plan_versions_period_version").on(t.period, t.periodKey, t.version),
+    uniqueIndex("plan_versions_single_live").on(t.period, t.periodKey).where(sql`${t.status} = 'live'`),
+  ],
 );
