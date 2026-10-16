@@ -261,19 +261,21 @@ test("/api/mcp refuses a non-local Host or Origin and serves a local client", as
   const server = http.createServer((req, res) => void handleMcpRequest(req, res));
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as AddressInfo;
-  const call = (headers: Record<string, string>) =>
-    new Promise<number>((resolve, reject) => {
-      const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" });
+  const send = (headers: Record<string, string>, method = "POST") =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
       const req = http.request(
-        { port, path: "/api/mcp", method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers } },
+        { port, path: "/api/mcp", method, headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers } },
         (res) => {
-          res.resume();
-          resolve(res.statusCode ?? 0);
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", (c: string) => (body += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
         },
       );
       req.on("error", reject);
-      req.end(body);
+      req.end(method === "POST" ? JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) : undefined);
     });
+  const call = async (headers: Record<string, string>, method?: string) => (await send(headers, method)).status;
   try {
     expect(await call({ host: `localhost:${port}` })).toBe(200);
     expect(await call({ host: `[::1]:${port}`, origin: `http://127.0.0.1:${port}` })).toBe(200);
@@ -281,6 +283,16 @@ test("/api/mcp refuses a non-local Host or Origin and serves a local client", as
     expect(await call({ host: `localhost.evil.example:${port}` })).toBe(403);
     expect(await call({ host: `localhost:${port}`, origin: "http://evil.example" })).toBe(403);
     expect(await call({ host: `localhost:${port}`, origin: "null" })).toBe(403);
+    expect(await call({ host: `LOCALHOST:${port}` })).not.toBe(403);
+    expect(await call({ host: "[::1]" })).toBe(200);
+    expect(await call({ host: "evil.example" }, "GET")).toBe(403);
+    expect(await call({ host: "evil.example" }, "DELETE")).toBe(403);
+    const refused = await send({ host: "evil.example" });
+    expect(JSON.parse(refused.body)).toEqual({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "crowsnest MCP only answers local clients." },
+      id: null,
+    });
   } finally {
     server.close();
   }
