@@ -898,8 +898,6 @@ export const reelFunnel = sqliteTable(
 export const PLAN_PERIODS = ["month", "week"] as const;
 export const PLAN_VERSION_STATUSES = ["proposed", "live", "superseded"] as const;
 
-/** One proposed or approved reel list for a month or week. `reels` is JSON checked by
- *  ReelListSchema in services/plan-versions.ts before every write. */
 export const planVersions = sqliteTable(
   "plan_versions",
   {

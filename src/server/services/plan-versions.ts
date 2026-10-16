@@ -84,8 +84,6 @@ function periodPosts(tx: Tx, v: PlanVersionRow) {
     .all();
 }
 
-// Drafts of the period are brought to exactly `v`'s reels; any other state is Kai's or the
-// publisher's and is only reported.
 function syncDrafts(tx: Tx, v: PlanVersionRow): { created: number; updated: number; removed: number; kept: KeptPost[] } {
   const reels = v.reels as Reel[];
   const posts = periodPosts(tx, v);
@@ -167,8 +165,6 @@ export function approvePlanVersion(id: string): ApproveResult {
 
 export type UndoResult = { ok: true; live: { id: string; version: number } | null; created: number; updated: number; removed: number; kept: KeptPost[] } | Fail;
 
-// Returns the period to the version that was live before the current one: the undone
-// version goes back to proposed so it can be approved again.
 export function undoPlanVersion(ref: unknown): UndoResult {
   const parsed = PlanRefSchema.safeParse(ref);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
