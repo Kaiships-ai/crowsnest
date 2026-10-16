@@ -15,7 +15,7 @@ import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
 import { GroundedIn } from "@/components/remix/grounded-in";
 import { SteerBox } from "@/components/remix/steer-box";
 import { generateOutlineAction, updateStageAction } from "@/server/actions/remix-actions";
-import type { Outline } from "@/server/llm/schemas";
+import type { Outline } from "@/server/schemas";
 import type { VaultItemRow } from "@/server/queries/vault";
 import type { RemixSessionRow } from "@/server/services/remix";
 

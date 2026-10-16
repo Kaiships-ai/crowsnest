@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
-import type { BeatLayout, VideoLayout } from "@/server/llm/schemas";
+import type { BeatLayout, VideoLayout } from "@/server/schemas";
 
 // Test-DB pattern (phase-1 final-review M7): env must be set in beforeAll BEFORE any
 // dynamic import of "@/server/db", mirrored across the other service tests.
@@ -13,7 +13,7 @@ let persistFramePass: typeof import("./frame-pass")["persistFramePass"];
 let recordFramePassFailure: typeof import("./frame-pass")["recordFramePassFailure"];
 let FramePassValidationError: typeof import("./frame-pass")["FramePassValidationError"];
 let FramePassNoVideoError: typeof import("./frame-pass")["FramePassNoVideoError"];
-let asBeatLayout: typeof import("@/server/llm/schemas")["asBeatLayout"];
+let asBeatLayout: typeof import("@/server/schemas")["asBeatLayout"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -22,7 +22,7 @@ beforeAll(async () => {
   ({ persistFramePass, recordFramePassFailure, FramePassValidationError, FramePassNoVideoError } = await import(
     "./frame-pass"
   ));
-  ({ asBeatLayout } = await import("@/server/llm/schemas"));
+  ({ asBeatLayout } = await import("@/server/schemas"));
 });
 
 function field(value: string | null, frames: number[]) {

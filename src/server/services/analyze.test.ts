@@ -8,7 +8,7 @@ let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
-let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSchema"];
+let VideoAnalysisSchema: typeof import("@/server/schemas")["VideoAnalysisSchema"];
 let saveAgentAnalysis: typeof import("./analyze")["saveAgentAnalysis"];
 let rowToAnalysis: typeof import("./analyze")["rowToAnalysis"];
 
@@ -16,7 +16,7 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
+  ({ VideoAnalysisSchema } = await import("@/server/schemas"));
   ({ saveAgentAnalysis, rowToAnalysis } = await import("./analyze"));
 });
 

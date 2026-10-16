@@ -18,7 +18,7 @@ import { formatCompact, formatMultiplier } from "@/lib/format";
 import { heatTier } from "@/lib/heat";
 import { cn } from "@/lib/utils";
 import { buildResearchAction, updateStageAction } from "@/server/actions/remix-actions";
-import type { StoredStructureSegment } from "@/server/llm/schemas";
+import type { StoredStructureSegment } from "@/server/schemas";
 import type { SavedPostRow } from "@/server/queries/saved-posts";
 import type { ResearchNotes } from "@/server/services/remix";
 import type { RemixSessionRow } from "@/server/services/remix";

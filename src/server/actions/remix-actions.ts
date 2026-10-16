@@ -1,7 +1,7 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import type { Outline } from "../llm/schemas";
+import type { Outline } from "@/server/schemas";
 import { NoApiKeyError } from "../llm/client";
 import { llmErrorMessage } from "../llm/error-message";
 import { db, tables } from "../db";

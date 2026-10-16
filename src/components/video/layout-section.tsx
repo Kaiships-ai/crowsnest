@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { getFramePassJobAction, runFramePassAction } from "@/server/actions/analyze-actions";
 import { downloadVideoAction } from "@/server/actions/media-actions";
 import type { StoredVideoAnalysis } from "@/server/services/analyze";
-import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, asBeatLayout, type VideoLayoutField } from "@/server/schemas";
 import { formatDuration } from "@/lib/format";
 
 /** A field only counts as a reading when it's backed by at least one sampled frame

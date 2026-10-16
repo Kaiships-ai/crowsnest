@@ -1,4 +1,4 @@
-import type { Outline } from "@/server/llm/schemas";
+import type { Outline } from "@/server/schemas";
 
 /**
  * Prompts for the `remix` service (Task 5). Kept in their own file, versioned and

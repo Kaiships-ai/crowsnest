@@ -6,7 +6,7 @@ import { getVideoDetail } from "@/server/queries/video";
 import { getPostBrief } from "@/server/queries/post-brief";
 import { getScripts } from "@/server/queries/vault";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
-import { OutlineSchema } from "@/server/llm/schemas";
+import { OutlineSchema } from "@/server/schemas";
 import {
   getOrCreateSession,
   getRemixSession,

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, test, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { LlmClient } from "@/server/llm/client";
-import { HookOptionsSchema, OutlineSchema } from "@/server/llm/schemas";
+import { HookOptionsSchema, OutlineSchema } from "@/server/schemas";
 
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];

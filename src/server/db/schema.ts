@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
-import type { StoredStructureSegment, StoredVideoLayout } from "../llm/schemas";
+import type { StoredStructureSegment, StoredVideoLayout } from "../schemas";
 
 /**
  * Every binary we serve ourselves. Instagram CDN URLs are signed and expire within

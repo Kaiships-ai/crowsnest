@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { getLlm, type LlmClient } from "@/server/llm/client";
-import { IdeaSchema } from "@/server/llm/schemas";
+import { IdeaSchema } from "@/server/schemas";
 import { getPersona } from "./persona";
 import { log } from "@/server/lib/logger";
 import { OUTLIER_IDEA_THRESHOLD } from "./outlier-calc";

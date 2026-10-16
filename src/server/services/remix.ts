@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { errorMessage } from "@/server/lib/action-result";
 import { getLlm, type LlmClient } from "@/server/llm/client";
-import { HookOptionsSchema, OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/llm/schemas";
+import { HookOptionsSchema, OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/schemas";
 import { getSimilarOutliers } from "./similar";
 import { rowToAnalysis } from "./analyze";
 import { getPersona, type Persona } from "./persona";

@@ -1,4 +1,4 @@
-import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/schemas";
 import type { SampledFrame } from "./watch-frames";
 
 export class LayoutParseError extends Error {}

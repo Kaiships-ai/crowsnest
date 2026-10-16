@@ -1,7 +1,7 @@
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
-import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/schemas";
 
 /**
  * Resolve the on-disk video file the frame pass session should run `/watch` against.

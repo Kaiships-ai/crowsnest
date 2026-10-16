@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { saveToVaultAction } from "@/server/actions/vault-actions";
-import type { StoredAnalysisFields } from "@/server/llm/schemas";
+import type { StoredAnalysisFields } from "@/server/schemas";
 
 type Choice = "hook" | "style" | "both";
 
