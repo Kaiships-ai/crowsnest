@@ -185,9 +185,13 @@ test("crowsnest_set_plan_fields sets keyword and guide link, crowsnest_plans rea
   const brief = await client.callTool({ name: "crowsnest_brief", arguments: { postId: a } });
   expect((brief.structuredContent as { plan: unknown }).plan).toMatchObject({ keyword: "PLUGIN", magnetUrl: "https://example.com/guide" });
 
-  for (const magnetUrl of ["not a url", "javascript:alert(1)"]) {
+  for (const magnetUrl of ["not a url", "javascript:alert(1)", "http:foo", "https://example.com/a\nb"]) {
     const badUrl = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, magnetUrl } });
-    expect(badUrl.isError).toBe(true);
+    expect(badUrl.structuredContent).toMatchObject({ code: "PLAN_MAGNET_URL_INVALID", postId: b, error: expect.any(String) });
+  }
+  for (const keyword of ["  ", "X".repeat(65), "A\u2028B"]) {
+    const badKeyword = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword } });
+    expect(badKeyword.structuredContent).toMatchObject({ code: "PLAN_KEYWORD_INVALID", postId: b, error: expect.any(String) });
   }
 
   const cleared = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: a, keyword: null } });

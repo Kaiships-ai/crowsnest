@@ -298,11 +298,11 @@ export function buildMcpServer(): McpServer {
     "crowsnest_set_plan_fields",
     {
       title: "Set a plan's keyword and guide link",
-      description: "Sets the comment keyword and the guide (lead magnet) URL on one planned post. Works on a plan in any state, including scheduled and published, since a live reel still needs its keyword. Omit a field to leave it, pass null to clear it. A keyword another plan holds, compared case-insensitively for ASCII letters, returns code KEYWORD_TAKEN and writes nothing. A keyword with a tab or line break returns PLAN_KEYWORD_INVALID; a guide link over 2048 characters or carrying a user or password returns PLAN_MAGNET_URL_INVALID.",
+      description: "Sets the comment keyword and the guide (lead magnet) URL on one planned post. Works on a plan in any state, including scheduled and published, since a live reel still needs its keyword. Omit a field to leave it, pass null to clear it. A keyword another plan holds, compared case-insensitively for ASCII letters, returns code KEYWORD_TAKEN and writes nothing. Every refusal returns {error, code, postId}. A blank keyword, one over 64 characters, or one with a control character or line break returns PLAN_KEYWORD_INVALID. A guide link that does not start with http:// or https://, is over 2048 characters, has a control character, or carries a user or password returns PLAN_MAGNET_URL_INVALID.",
       inputSchema: {
         postId: z.string().describe("The planned post id, from crowsnest_plans."),
-        keyword: z.string().trim().min(1).max(64).nullable().optional().describe("Comment keyword, e.g. PLUGIN. Unique across plans, case-insensitive for ASCII letters."),
-        magnetUrl: z.string().url().refine((u) => /^https?:\/\//i.test(u), "must be an http or https URL").nullable().optional().describe("The http(s) guide link the keyword sends."),
+        keyword: z.string().nullable().optional().describe("Comment keyword, e.g. PLUGIN. Trimmed, 1 to 64 characters. Unique across plans, case-insensitive for ASCII letters."),
+        magnetUrl: z.string().nullable().optional().describe("The guide link the keyword sends, starting with http:// or https://. Stored as given, trimmed."),
       },
     },
     async (args) => {

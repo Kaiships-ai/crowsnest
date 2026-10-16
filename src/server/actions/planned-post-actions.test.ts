@@ -841,14 +841,14 @@ describe("setPlanFieldsAction", () => {
     return r;
   }
 
-  test.each(["", "   ", "TWO\nLINES", "TAB\tBED", "X".repeat(65)])("refuses keyword %j and writes nothing", async (keyword) => {
+  test.each(["", "   ", "TWO\nLINES", "TAB\tBED", "NUL\u0000X", "BELL\u0007X", "DEL\u007fX", "C1\u0085X", "LS\u2028X", "PS\u2029X", "X".repeat(65)])("refuses keyword %j and writes nothing", async (keyword) => {
     const id = await seedPlan();
     const res = await setPlanFieldsAction(id, { keyword });
     expect(res).toMatchObject({ ok: false, code: "PLAN_KEYWORD_INVALID" });
     expect(await row(id)).toMatchObject({ keyword: "KEEP" });
   });
 
-  test.each(["", "not a url", "javascript:alert(1)", "https://user:pw@example.com/g", "https://user@example.com/g", `https://example.com/${"a".repeat(2048)}`])(
+  test.each(["", "not a url", "javascript:alert(1)", "https://user:pw@example.com/g", "https://user@example.com/g", "http:foo", "HTTP:foo", "https://ex\tample.com/a", "https://example.com/a\nb", "https://example.com/a\u0000b", `https://example.com/${"a".repeat(2049 - 20)}`])(
     "refuses magnetUrl %j and writes nothing",
     async (magnetUrl) => {
       const id = await seedPlan();
@@ -857,6 +857,15 @@ describe("setPlanFieldsAction", () => {
       expect(await row(id)).toMatchObject({ magnetUrl: "https://example.com/keep" });
     },
   );
+
+  test("boundaries: a 64-char keyword and a 2048-char URL are stored as given, trimmed", async () => {
+    const id = await seedPlan();
+    const keyword = "K".repeat(64);
+    const magnetUrl = `https://example.com/${"a".repeat(2048 - 20)}`;
+    expect(magnetUrl).toHaveLength(2048);
+    expect(await setPlanFieldsAction(id, { keyword: ` ${keyword} `, magnetUrl: ` ${magnetUrl} ` })).toEqual({ ok: true });
+    expect(await row(id)).toMatchObject({ keyword, magnetUrl });
+  });
 
   test("null clears, and an inner space is kept", async () => {
     const id = await seedPlan();

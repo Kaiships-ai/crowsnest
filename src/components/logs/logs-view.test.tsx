@@ -10,8 +10,10 @@
  * throws if nothing matches, so a plain truthy check on its result is enough.
  */
 
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+
+afterEach(cleanup);
 
 // LogsView's filter row reads/writes the URL via next/navigation (the same
 // useRouter/usePathname/useSearchParams pattern feed's filter-bar.tsx uses) — real
