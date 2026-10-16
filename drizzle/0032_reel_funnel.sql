@@ -9,4 +9,4 @@ CREATE TABLE `reel_funnel` (
 	`created_at` text NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `reel_funnel_keyword_captured` ON `reel_funnel` (`keyword`,`captured_at`);
+CREATE INDEX `reel_funnel_latest` ON `reel_funnel` (lower("keyword"),`source`,`metric`,`captured_at`);

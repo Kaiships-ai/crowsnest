@@ -313,12 +313,13 @@ test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest
   expect(saved.structuredContent).toEqual({ ok: true, saved: 2 });
 
   const bad = await client.callTool({ name: "crowsnest_save_funnel", arguments: { agent: "claude", rows: [
-    { keyword: "FUNNELKW", source: "chatbotx", metric: "dms", value: 1 },
-    { keyword: "FUNNELKW", source: "nope", metric: "dms", value: 1 },
+    { keyword: "FUNNELKW", source: "chatbotx", metric: "dms", value: 1, capturedAt: "2026-10-01T00:00:00Z" },
+    { keyword: "FUNNELKW", source: "nope", metric: "dms", value: 1, capturedAt: "2026-10-01T00:00:00Z" },
   ] } });
   expect(bad.isError).toBe(true);
+  expect(bad.structuredContent).toMatchObject({ code: "INVALID_ROWS", error: expect.stringContaining("rows[1].source") });
 
-  const read = await client.callTool({ name: "crowsnest_funnel", arguments: {} });
-  const rows = (read.structuredContent as { data: { keyword: string; value: number; plan: unknown }[] }).data.filter((r) => r.keyword.toLowerCase() === "funnelkw");
+  const read = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "funnelkw" } });
+  const rows = (read.structuredContent as { data: { keyword: string; value: number; plan: unknown }[] }).data;
   expect(rows).toEqual([expect.objectContaining({ value: 9, plan: { id, title: "Funnel" } })]);
 });

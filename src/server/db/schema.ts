@@ -889,5 +889,5 @@ export const reelFunnel = sqliteTable(
     agent: text("agent").notNull(),
     createdAt: text("created_at").notNull(),
   },
-  (t) => [index("reel_funnel_keyword_captured").on(t.keyword, t.capturedAt)],
+  (t) => [index("reel_funnel_latest").on(sql`lower(${t.keyword})`, t.source, t.metric, t.capturedAt)],
 );

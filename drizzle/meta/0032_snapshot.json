@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c4e152be-ded5-4c02-8d29-793a3907e349",
+  "id": "5944baac-edf4-4e92-8bad-da1b00333f08",
   "prevId": "a2f629b8-420c-42a8-b4fa-4f793754def6",
   "tables": {
     "app_settings": {
@@ -2106,10 +2106,12 @@
         }
       },
       "indexes": {
-        "reel_funnel_keyword_captured": {
-          "name": "reel_funnel_keyword_captured",
+        "reel_funnel_latest": {
+          "name": "reel_funnel_latest",
           "columns": [
-            "keyword",
+            "lower(\"keyword\")",
+            "source",
+            "metric",
             "captured_at"
           ],
           "isUnique": false
@@ -3568,6 +3570,13 @@
   "internal": {
     "indexes": {
       "planned_posts_keyword_lower": {
+        "columns": {
+          "lower(\"keyword\")": {
+            "isExpression": true
+          }
+        }
+      },
+      "reel_funnel_latest": {
         "columns": {
           "lower(\"keyword\")": {
             "isExpression": true

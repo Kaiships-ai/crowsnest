@@ -4,25 +4,44 @@ import { z } from "zod";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { FUNNEL_SOURCES } from "@/server/db/schema";
 
-export const FunnelRowSchema = z.object({
-  keyword: z.string().trim().min(1).max(64),
-  source: z.enum(FUNNEL_SOURCES),
-  metric: z.string().trim().toLowerCase().min(1).max(64),
-  value: z.number().nonnegative(),
-  capturedAt: z.iso
-    .datetime({ offset: true })
-    .refine((t) => Date.parse(t) <= Date.now() + 5 * 60_000, "capturedAt is in the future")
-    .optional(),
-});
+type FunnelSource = (typeof FUNNEL_SOURCES)[number];
+
+export const FUNNEL_METRICS = {
+  chatbotx: ["dms"],
+  umami: ["emails", "visits"],
+  polar: ["orders", "revenue"],
+  skool: ["members"],
+} as const satisfies Record<FunnelSource, readonly string[]>;
+
+export const FUNNEL_METRICS_TEXT = Object.entries(FUNNEL_METRICS)
+  .map(([source, metrics]) => `${source}: ${metrics.join(", ")}`)
+  .join("; ");
+
+export const FunnelRowSchema = z
+  .object({
+    keyword: z.string().trim().min(1).max(64),
+    source: z.enum(FUNNEL_SOURCES),
+    metric: z.string().trim().toLowerCase(),
+    value: z.number().nonnegative(),
+    capturedAt: z.iso
+      .datetime({ offset: true })
+      .refine((t) => !(Date.parse(t) > Date.now() + 5 * 60_000), "capturedAt is in the future"),
+  })
+  .superRefine((row, ctx) => {
+    const allowed: readonly string[] = FUNNEL_METRICS[row.source];
+    if (!allowed.includes(row.metric)) {
+      ctx.addIssue({ code: "custom", path: ["metric"], message: `unknown metric "${row.metric}" for ${row.source}; allowed: ${allowed.join(", ")}` });
+    }
+  });
 
 export const SaveFunnelSchema = z.object({
-  agent: z.string().trim().min(1).max(64).describe("Who captured these numbers, for provenance: 'claude', 'codex', or your label."),
-  rows: z.array(FunnelRowSchema).min(1).max(1000).describe("1 to 1000 rows: { keyword, source, metric, value, capturedAt? }."),
+  agent: z.string().trim().min(1).max(64),
+  rows: z.array(FunnelRowSchema).min(1).max(1000),
 });
 
 export interface FunnelEntry {
   keyword: string;
-  source: (typeof FUNNEL_SOURCES)[number];
+  source: FunnelSource;
   metric: string;
   value: number;
   capturedAt: string;
@@ -40,7 +59,7 @@ export function saveFunnel(input: unknown): { ok: true; saved: number } | { ok: 
     source: r.source,
     metric: r.metric,
     value: r.value,
-    capturedAt: r.capturedAt ? new Date(r.capturedAt).toISOString() : now,
+    capturedAt: new Date(r.capturedAt).toISOString(),
     agent: parsed.data.agent,
     createdAt: now,
   }));
@@ -61,12 +80,14 @@ type LatestRow = {
   plan_title: string | null;
 };
 
-export function getFunnel(): FunnelEntry[] {
+export function getFunnel(keyword?: string): FunnelEntry[] {
+  const only = keyword?.trim() ? sql`WHERE lower(keyword) = lower(${keyword.trim()})` : sql``;
   const rows = db.all<LatestRow>(sql`
     WITH latest AS (
       SELECT keyword, source, metric, value, captured_at, agent,
         ROW_NUMBER() OVER (PARTITION BY lower(keyword), source, metric ORDER BY captured_at DESC, rowid DESC) AS rn
       FROM reel_funnel
+      ${only}
     )
     SELECT l.keyword, l.source, l.metric, l.value, l.captured_at, l.agent, p.id AS plan_id, p.title AS plan_title
     FROM latest l
