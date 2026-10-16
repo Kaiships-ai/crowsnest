@@ -4,7 +4,7 @@ import { RemixStudio } from "@/components/remix/remix-studio";
 import { getSavedPosts } from "@/server/queries/saved-posts";
 import { getVaultItems } from "@/server/queries/vault";
 import { getVideoDetail } from "@/server/queries/video";
-import { getLatestSessionScript, getNicheProfile, getOrCreateSession } from "@/server/services/remix";
+import { getNicheProfile, getOrCreateSession } from "@/server/services/remix";
 
 // Capped the same way the "similar tracked outliers" list already is (services/
 // remix.ts's buildResearch calls getSimilarOutliers(id, 5)) — a reference rail, not
@@ -33,13 +33,11 @@ export default async function RemixStudioPage({
     getNicheProfile(),
     searchParams,
   ]);
-  const latestScript = await getLatestSessionScript(session.id);
 
   return (
     <RemixStudio
       detail={detail}
       initialSession={session}
-      latestScript={latestScript}
       vaultHooks={vaultHooks}
       vaultStyles={vaultStyles}
       vaultSavedPosts={savedPosts.slice(0, RESEARCH_VAULT_LIMIT)}

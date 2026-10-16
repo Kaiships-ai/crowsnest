@@ -62,6 +62,7 @@ export interface StagePatch {
   researchNotes: ResearchNotes;
   outline: Outline;
   variants: string[];
+  hookOptions: string[];
   /** Nullable for the same reason `styleVaultItemId` is: the user must be able to
    *  un-pick, and `Partial<StagePatch>` already distinguishes "clear it" from "leave
    *  it alone". */
@@ -370,15 +371,16 @@ export async function buildScriptPrompt(id: string, opts?: { steer?: string }): 
   return { system: SCRIPT_SYSTEM, user, context: { angles: VARIANT_ANGLES } };
 }
 
-/** The newest script saved from this session, e.g. by the agent through crowsnest_remix_save_script. */
-export async function getLatestSessionScript(sessionId: string): Promise<{ id: string; title: string; content: string } | null> {
-  const [row] = await db
-    .select({ id: tables.scripts.id, title: tables.scripts.title, content: tables.scripts.content })
-    .from(tables.scripts)
-    .where(eq(tables.scripts.remixSessionId, sessionId))
-    .orderBy(desc(tables.scripts.createdAt))
-    .limit(1);
-  return row ?? null;
+/**
+ * The agent's script save (crowsnest_remix_save_script). It appends the script as a variant
+ * and picks it, so the studio's Script and Finish stages show the words the agent saved,
+ * not an older variant.
+ */
+export async function saveAgentScript(id: string, content: string, title: string): Promise<{ scriptId: string }> {
+  const session = await getSession(id);
+  const variants = [...(session.variants ?? []), content];
+  await updateStage(id, { variants });
+  return saveScript(id, content, title, variants.length - 1);
 }
 
 /**

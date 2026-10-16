@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 export type AgentStage = "hook" | "style" | "script";
 
 const STAGE_STEPS: Record<AgentStage, string> = {
-  hook: "Call crowsnest_remix_hooks with that sessionId to get the hook prompt, write 5 hooks by fulfilling it, then call crowsnest_remix_choose_hook with your best one.",
+  hook: "Call crowsnest_remix_hooks with that sessionId to get the hook prompt, write 5 hooks by fulfilling it, then call crowsnest_remix_choose_hook with your best one as hook and all 5 as hooks.",
   style:
     "Call crowsnest_remix_outline with that sessionId and no outline to get the outline prompt, write the beat outline by fulfilling it, then call crowsnest_remix_outline again with your outline to save it.",
   script:

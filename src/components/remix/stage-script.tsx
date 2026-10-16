@@ -35,12 +35,10 @@ import type { RemixSessionRow } from "@/server/services/remix";
  * Vault. With no variants, the latest script the agent saved for this session. */
 export function StageScript({
   session,
-  latestScript,
   onVariantsChange,
   onChosenVariantChange,
 }: {
   session: RemixSessionRow;
-  latestScript: { id: string; title: string; content: string } | null;
   onVariantsChange: (variants: string[]) => void;
   onChosenVariantChange: (index: number | null) => void;
 }) {
@@ -58,9 +56,8 @@ export function StageScript({
   const [saveTitle, setSaveTitle] = useState(() => deriveScriptTitle(session.topic));
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
-  // Which variant slot savedScriptId's content came from, tracked so an edit of that
-  // same slot, or a tab switch away from it, can be told apart from an unrelated action and used to invalidate the save (see the comments in
-  // selectVariant/commitEditBlur below).
+  // Which variant slot savedScriptId's content came from, so an edit of that slot or a
+  // tab switch away from it invalidates the save (see selectVariant/commitEditBlur).
   const [savedVariantIndex, setSavedVariantIndex] = useState<number | null>(null);
   // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
   // once a script exists, never required — the script above is already saved by the
@@ -104,8 +101,7 @@ export function StageScript({
 
   function commitEditBlur(index: number) {
     persistVariants(results);
-    // A hand-edit to the saved slot's own text
-    // invalidates that save.
+    // A hand-edit to the saved slot's own text invalidates that save.
     if (index === savedVariantIndex) {
       setSavedScriptId(null);
       setSavedVariantIndex(null);
@@ -212,17 +208,7 @@ export function StageScript({
       <div className="flex flex-col items-start gap-3">
         <GroundedIn>{groundedInText}</GroundedIn>
         <CopyPromptButton stage="script" videoId={session.sourceVideoId} />
-        {latestScript ? (
-          <>
-            <p className="text-sm font-medium">{latestScript.title}</p>
-            <Textarea value={latestScript.content} readOnly rows={12} className="font-mono text-sm" aria-label="Saved script" />
-            <Button size="sm" variant="ghost" onClick={() => copyVariant(latestScript.content)}>
-              <Copy className="size-3.5" /> Copy
-            </Button>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">No script yet. Copy the prompt into Claude, then reload to see what it wrote.</p>
-        )}
+        <p className="text-sm text-muted-foreground">No script yet. Copy the prompt into Claude, then reload to see what it wrote.</p>
       </div>
     );
   }

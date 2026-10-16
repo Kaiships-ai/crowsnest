@@ -10,7 +10,7 @@ let getOrCreateSession: typeof import("./remix")["getOrCreateSession"];
 let updateStage: typeof import("./remix")["updateStage"];
 let buildResearch: typeof import("./remix")["buildResearch"];
 let saveScript: typeof import("./remix")["saveScript"];
-let getLatestSessionScript: typeof import("./remix")["getLatestSessionScript"];
+let saveAgentScript: typeof import("./remix")["saveAgentScript"];
 let seedSessionFromIdea: typeof import("./remix")["seedSessionFromIdea"];
 let finishRemix: typeof import("./remix")["finishRemix"];
 
@@ -18,7 +18,7 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOrCreateSession, updateStage, buildResearch, saveScript, getLatestSessionScript, seedSessionFromIdea, finishRemix } =
+  ({ getOrCreateSession, updateStage, buildResearch, saveScript, saveAgentScript, seedSessionFromIdea, finishRemix } =
     await import("./remix"));
 });
 
@@ -296,18 +296,28 @@ describe("agent-written stages", () => {
     const session = await getOrCreateSession(videoId);
     // The same writes crowsnest_remix_choose_hook, crowsnest_remix_outline and
     // crowsnest_remix_save_script make.
-    await updateStage(session.id, { chosenHook: "Stop posting at 9am." });
+    await updateStage(session.id, { chosenHook: "Stop posting at 9am.", hookOptions: ["Stop posting at 9am.", "9am is a myth."] });
     await updateStage(session.id, { outline: { beats: [{ label: "Hook", content: "the 9am myth", targetSec: 3 }] } });
-    await saveScript(session.id, "Stop posting at 9am. Here is why.", "Posting time");
+    await saveAgentScript(session.id, "Stop posting at 9am. Here is why.", "Posting time");
 
-    // The read path the remix studio page uses.
     const read = await getOrCreateSession(videoId);
-    const script = await getLatestSessionScript(read.id);
 
     expect(read.chosenHook).toBe("Stop posting at 9am.");
+    expect(read.hookOptions).toEqual(["Stop posting at 9am.", "9am is a myth."]);
     expect(read.outline).toEqual({ beats: [{ label: "Hook", content: "the 9am myth", targetSec: 3 }] });
-    expect(read.variants).toBeNull();
-    expect(script?.content).toBe("Stop posting at 9am. Here is why.");
-    expect(script?.title).toBe("Posting time");
+    expect(read.variants).toEqual(["Stop posting at 9am. Here is why."]);
+    expect(read.chosenVariantIndex).toBe(0);
+  });
+
+  test("an agent save after older variants is the script finish attaches", async () => {
+    const { videoId } = await seedVideo();
+    const session = await getOrCreateSession(videoId);
+    await updateStage(session.id, { variants: ["old take"], chosenVariantIndex: 0 });
+    await saveAgentScript(session.id, "new agent take", "New");
+
+    const { scriptId } = await finishRemix(session.id);
+    const [row] = await db.select().from(tables.scripts).where(eq(tables.scripts.id, scriptId!));
+
+    expect(row.content).toBe("new agent take");
   });
 });

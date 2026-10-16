@@ -1,15 +1,9 @@
 import { z } from "zod";
 
 /**
- * Structured-output schemas for every Claude call in the AI half of the product
- * (Task 1 of docs/superpowers/plans/2026-07-24-phase3-remix-vault.md). Each is passed
- * to `LlmClient.generateParsed` via `zodOutputFormat` (see client.ts) — the SDK
- * guarantees the parsed result matches the shape below, or client.ts throws
- * `LlmParseError` after one retry. Keep these in sync with the prompts that target
- * them (remix-prompts.ts describes the shape in prose; these `z.object`s are the
- * enforced contract). VideoAnalysisSchema itself is now also the validation contract
- * for `saveAgentAnalysis` (analyze.ts) — the external agent's MCP-authored analysis
- * is checked against the exact same schema an in-app model call used to produce.
+ * Zod contracts for the analysis, outline and layout shapes the agent writes over MCP
+ * and the app stores. VideoAnalysisSchema validates `saveAgentAnalysis` (analyze.ts).
+ * Keep these in sync with the prompts that describe them (remix-prompts.ts).
  */
 
 /**

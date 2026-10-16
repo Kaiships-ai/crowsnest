@@ -62,7 +62,7 @@ export function buildOutlineUser(opts: {
 
 export const SCRIPT_SYSTEM = `You are a short-form video scriptwriter. Write a full spoken-word script from the given hook and outline — conversational, natural to say out loud, timed to the target length within +/-10%. When a source that worked is given, adapt its structure, pacing, and mechanism to the given topic — do not copy the source's words. After each beat, add a "[VISUAL] ..." cue line describing what should be on screen. Return only the script text, no preamble or explanation.`;
 
-// A source beat as stored on `StoredStructureSegment` (llm/schemas.ts): `transcript` is
+// A source beat as stored on `StoredStructureSegment` (schemas.ts): `transcript` is
 // optional because a beat analyzed before the per-beat transcript field shipped has none.
 // Anti-fabrication (spec's "guard"): undefined means "not captured" and renders nothing
 // for that beat's transcript — never a placeholder the model would read as words spoken.

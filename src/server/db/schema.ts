@@ -388,8 +388,8 @@ export const remixSessions = sqliteTable("remix_sessions", {
  * The remix studio's run log (v1-scope.md, Remix studio P0: "remix_sessions records no
  * per-run history. Add a remix_runs table. Without it a failed generation leaves no
  * trace, and this pipeline fails often."). Written by the in-app generation that has
- * since been removed; nothing writes or reads it now. Kept so existing rows and the
- * migration history stay intact.
+ * since been removed. Nothing writes it now; the Runs page (queries/runs.ts) still lists
+ * the old rows. Kept so those rows and the migration history stay intact.
  *
  * Deliberately its own table rather than a JSON column on `remix_sessions`: a run log
  * is an append-only sequence of independent facts, and a JSON blob would mean reading

@@ -15,7 +15,7 @@ import {
   buildHookPrompt,
   buildOutlinePrompt,
   buildScriptPrompt,
-  saveScript,
+  saveAgentScript,
   finishRemix,
 } from "@/server/services/remix";
 import { listIdeas } from "@/server/queries/ideas";
@@ -529,7 +529,7 @@ export function buildMcpServer(): McpServer {
   // (hooks, outline, variants): the MCP path is keyless (P0 slice 2b) — they return the
   // assembled { system, user, context } prompt instead of calling an internal model, and
   // the calling agent writes the result itself and reports it back (choose_hook,
-  // save_script). The app makes no model calls of its own. Stage
+  // save_script). The remix chain makes no model calls of its own. Stage
   // progression on the session is left to the service functions (finish sets the stage);
   // these tools do not manage the stepper, since that only affects how the dashboard
   // renders the session.
@@ -609,10 +609,11 @@ export function buildMcpServer(): McpServer {
       inputSchema: {
         sessionId: z.string().describe("The remix session id, from crowsnest_remix_session."),
         hook: z.string().describe("The hook text to set as chosen, from crowsnest_remix_hooks or your own."),
+        hooks: z.array(z.string()).optional().describe("All the hook options you wrote, so the studio can show them."),
       },
     },
     async (args) => {
-      await updateStage(args.sessionId, { chosenHook: args.hook });
+      await updateStage(args.sessionId, { chosenHook: args.hook, ...(args.hooks ? { hookOptions: args.hooks } : {}) });
       return result({ ok: true, chosenHook: args.hook });
     }
   );
@@ -649,7 +650,7 @@ export function buildMcpServer(): McpServer {
     },
     async (args) => {
       if (args.outline !== undefined) {
-        await updateStage(args.sessionId, { outline: args.outline });
+        await updateStage(args.sessionId, { outline: args.outline, variants: [], chosenVariantIndex: null });
         return result({ ok: true, outline: args.outline });
       }
       return result(await buildOutlinePrompt(args.sessionId, { steer: args.steer }));
@@ -682,7 +683,7 @@ export function buildMcpServer(): McpServer {
       },
     },
     async (args) => {
-      const { scriptId } = await saveScript(args.sessionId, args.script, args.title);
+      const { scriptId } = await saveAgentScript(args.sessionId, args.script, args.title);
       return result({ ok: true, scriptId });
     }
   );
