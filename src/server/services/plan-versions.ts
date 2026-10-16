@@ -30,7 +30,14 @@ export const PlanRefSchema = z
     period: z.enum(PLAN_PERIODS),
     periodKey: z.string().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
   })
-  .refine((p) => PERIOD_KEY[p.period].test(p.periodKey), "periodKey must be YYYY-MM for a month or YYYY-Www for a week");
+  .refine((p) => PERIOD_KEY[p.period].test(p.periodKey), "periodKey must be YYYY-MM for a month or YYYY-Www for a week")
+  .refine((p) => !p.periodKey.endsWith("W53") || hasWeek53(Number(p.periodKey.slice(0, 4))), "this ISO year has only 52 weeks");
+
+function hasWeek53(year: number): boolean {
+  const jan1 = new Date(Date.UTC(year, 0, 1)).getUTCDay();
+  const leap = new Date(Date.UTC(year, 1, 29)).getUTCMonth() === 1;
+  return jan1 === 4 || (leap && jan1 === 3);
+}
 
 export const ProposePlanSchema = z.object({
   period: z.enum(PLAN_PERIODS),
@@ -43,7 +50,6 @@ export type Reel = z.infer<typeof ReelSchema>;
 export type PlanRef = z.infer<typeof PlanRefSchema>;
 type Fail = { ok: false; error: string; code: string };
 type PlanVersionRow = typeof tables.planVersions.$inferSelect;
-type KeptPost = { id: string; title: string; state: string };
 
 const fail = (code: string, error: string): Fail => ({ ok: false, code, error });
 
@@ -69,68 +75,81 @@ export function proposePlan(input: unknown): { ok: true; id: string; version: nu
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Post = typeof tables.plannedPosts.$inferSelect;
+export type SyncedFields = { title: string; date: string | null; time: string | null; keyword: string | null; note: string | null };
+const SYNCED = ["title", "date", "time", "keyword", "note"] as const;
+export type KeepReason = "not_draft" | "has_script" | "has_video" | "has_caption" | "has_source_video" | "has_magnet" | "edited";
+export type KeptPost = { id: string; title: string; state: string; reelKey: string; reason: KeepReason; notApplied: string[] };
+type SyncResult = { created: number; updated: number; removed: number; kept: KeptPost[] };
 
-function periodPosts(tx: Tx, v: PlanVersionRow) {
+const synced = (r: Reel): SyncedFields => ({ title: r.title, date: r.date ?? null, time: r.time ?? null, keyword: r.keyword ?? null, note: r.note ?? null });
+const current = (p: Post): SyncedFields => ({ title: p.title, date: p.plannedDate, time: p.plannedTime, keyword: p.keyword, note: p.note });
+const sameFields = (a: SyncedFields, b: SyncedFields) => SYNCED.every((f) => a[f] === b[f]);
+
+function keepReason(p: Post): KeepReason | null {
+  if (p.state !== "draft") return "not_draft";
+  if (p.scriptId) return "has_script";
+  if (p.videoAssetId) return "has_video";
+  if (p.caption) return "has_caption";
+  if (p.sourceVideoId) return "has_source_video";
+  if (p.magnetUrl) return "has_magnet";
+  if (!p.planSynced || !sameFields(current(p), p.planSynced as SyncedFields)) return "edited";
+  return null;
+}
+
+function periodPosts(tx: Tx, v: PlanVersionRow): Post[] {
   const ids = tx
     .select({ id: tables.planVersions.id })
     .from(tables.planVersions)
     .where(and(eq(tables.planVersions.period, v.period), eq(tables.planVersions.periodKey, v.periodKey)))
     .all()
     .map((r) => r.id);
-  return tx
-    .select({ id: tables.plannedPosts.id, title: tables.plannedPosts.title, state: tables.plannedPosts.state, reelKey: tables.plannedPosts.planReelKey })
-    .from(tables.plannedPosts)
-    .where(and(inArray(tables.plannedPosts.planVersionId, ids), isNotNull(tables.plannedPosts.planReelKey)))
-    .all();
+  return tx.select().from(tables.plannedPosts).where(and(inArray(tables.plannedPosts.planVersionId, ids), isNotNull(tables.plannedPosts.planReelKey))).all();
 }
 
-function syncDrafts(tx: Tx, v: PlanVersionRow): { created: number; updated: number; removed: number; kept: KeptPost[] } {
-  const reels = v.reels as Reel[];
-  const posts = periodPosts(tx, v);
-  const kept = posts.filter((p) => p.state !== "draft").map(({ id, title, state }) => ({ id, title, state }));
-  const keptKeys = new Set(posts.filter((p) => p.state !== "draft").map((p) => p.reelKey));
-  const drafts = new Map(posts.filter((p) => p.state === "draft").map((p) => [p.reelKey!, p.id]));
-  const wanted = new Set(reels.map((r) => r.key));
-  const removeIds = [...drafts].filter(([key]) => !wanted.has(key)).map(([, id]) => id);
+function syncDrafts(tx: Tx, v: PlanVersionRow): SyncResult {
+  const target = new Map((v.reels as Reel[]).map((r) => [r.key, synced(r)]));
   const P = tables.plannedPosts;
   const now = nowIso();
+  const kept: KeptPost[] = [];
+  const pristine = new Map<string, string>();
+  for (const p of periodPosts(tx, v)) {
+    const key = p.planReelKey!;
+    const reason = keepReason(p);
+    if (!reason) {
+      pristine.set(key, p.id);
+      continue;
+    }
+    const want = target.get(key);
+    const was = (p.planSynced as SyncedFields | null) ?? current(p);
+    kept.push({ id: p.id, title: p.title, state: p.state, reelKey: key, reason, notApplied: want ? SYNCED.filter((f) => was[f] !== want[f]) : ["removed"] });
+    target.delete(key);
+  }
 
-  if (removeIds.length) tx.delete(P).where(and(inArray(P.id, removeIds), eq(P.state, "draft"))).run();
-  const updateIds = [...drafts].filter(([key]) => wanted.has(key)).map(([, id]) => id);
+  const removeIds = [...pristine].filter(([key]) => !target.has(key)).map(([, id]) => id);
+  if (removeIds.length) tx.delete(P).where(inArray(P.id, removeIds)).run();
+  const updateIds = [...pristine].filter(([key]) => target.has(key)).map(([, id]) => id);
   // Cleared first so two reels can swap keywords without tripping planned_posts_keyword_lower.
   if (updateIds.length) tx.update(P).set({ keyword: null }).where(inArray(P.id, updateIds)).run();
 
   let created = 0;
-  let updated = 0;
-  for (const r of reels) {
-    if (keptKeys.has(r.key)) continue;
-    const fields = {
-      title: r.title,
-      plannedDate: r.date ?? null,
-      plannedTime: r.time ?? null,
-      keyword: r.keyword ?? null,
-      note: r.note ?? null,
-      planVersionId: v.id,
-      planReelKey: r.key,
-      updatedAt: now,
-    };
-    const id = drafts.get(r.key);
-    if (id) {
-      tx.update(P).set(fields).where(and(eq(P.id, id), eq(P.state, "draft"))).run();
-      updated++;
-    } else {
+  for (const [key, f] of target) {
+    const fields = { title: f.title, plannedDate: f.date, plannedTime: f.time, keyword: f.keyword, note: f.note, planSynced: f, planVersionId: v.id, planReelKey: key, updatedAt: now };
+    const id = pristine.get(key);
+    if (id) tx.update(P).set(fields).where(eq(P.id, id)).run();
+    else {
       tx.insert(P).values({ id: newId(), state: "draft", createdAt: now, ...fields }).run();
       created++;
     }
   }
-  return { created, updated, removed: removeIds.length, kept };
+  return { created, updated: updateIds.length, removed: removeIds.length, kept };
 }
 
-function isUniqueViolation(err: unknown): boolean {
+function uniqueIndexHit(err: unknown): string | null {
   for (let e = err; e instanceof Error; e = e.cause) {
-    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE") return true;
+    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE") return e.message;
   }
-  return false;
+  return null;
 }
 
 function findVersion(tx: Tx, id: string) {
@@ -141,12 +160,14 @@ function guardKeywords<T>(run: () => T): T | Fail {
   try {
     return run();
   } catch (err) {
-    if (isUniqueViolation(err)) return fail("KEYWORD_TAKEN", "a reel keyword is already held by another plan, possibly a scheduled or published one in this period; nothing was changed");
+    const msg = uniqueIndexHit(err);
+    if (msg?.includes("planned_posts_keyword_lower")) return fail("KEYWORD_TAKEN", "a reel keyword is already held by another plan, possibly a kept or scheduled one in this period; nothing was changed");
+    if (msg) return fail("PLAN_CONFLICT", `${msg}; nothing was changed`);
     throw err;
   }
 }
 
-export type ApproveResult = { ok: true; changed: boolean; live: { id: string; version: number }; created: number; updated: number; removed: number; kept: KeptPost[] } | Fail;
+export type ApproveResult = ({ ok: true; changed: boolean; live: { id: string; version: number } } & SyncResult) | Fail;
 
 export function approvePlanVersion(id: string): ApproveResult {
   return guardKeywords(() =>
@@ -163,7 +184,7 @@ export function approvePlanVersion(id: string): ApproveResult {
   );
 }
 
-export type UndoResult = { ok: true; live: { id: string; version: number } | null; created: number; updated: number; removed: number; kept: KeptPost[] } | Fail;
+export type UndoResult = ({ ok: true; live: { id: string; version: number } } & SyncResult) | Fail;
 
 export function undoPlanVersion(ref: unknown): UndoResult {
   const parsed = PlanRefSchema.safeParse(ref);
@@ -176,20 +197,16 @@ export function undoPlanVersion(ref: unknown): UndoResult {
       const live = tx.select().from(V).where(and(inPeriod, eq(V.status, "live"))).get();
       if (!live) return fail("NOTHING_TO_UNDO", `no live version for ${period} ${periodKey}`);
       const prev = tx.select().from(V).where(and(inPeriod, eq(V.status, "superseded"), isNotNull(V.approvedAt))).orderBy(desc(V.approvedAt), desc(V.version)).get();
+      if (!prev) return fail("NOTHING_TO_UNDO", `v${live.version} is the only version ever live for ${period} ${periodKey}; nothing earlier to restore`);
       const now = nowIso();
       tx.update(V).set({ status: "proposed", approvedAt: null, updatedAt: now }).where(eq(V.id, live.id)).run();
-      if (!prev) {
-        const posts = periodPosts(tx, live);
-        const drafts = posts.filter((p) => p.state === "draft").map((p) => p.id);
-        if (drafts.length) tx.delete(tables.plannedPosts).where(and(inArray(tables.plannedPosts.id, drafts), eq(tables.plannedPosts.state, "draft"))).run();
-        const kept = posts.filter((p) => p.state !== "draft").map(({ id, title, state }) => ({ id, title, state }));
-        return { ok: true, live: null, created: 0, updated: 0, removed: drafts.length, kept };
-      }
       tx.update(V).set({ status: "live", updatedAt: now }).where(eq(V.id, prev.id)).run();
       return { ok: true, live: { id: prev.id, version: prev.version }, ...syncDrafts(tx, prev) };
     }),
   );
 }
+
+const names = (xs: string[]) => (xs.length > 3 ? `${xs.slice(0, 3).join("; ")} +${xs.length - 3} more` : xs.join("; "));
 
 function diffReels(prev: Reel[], next: Reel[]): string {
   const before = new Map(prev.map((r) => [r.key, r]));
@@ -204,9 +221,9 @@ function diffReels(prev: Reel[], next: Reel[]): string {
       return fields.length ? [`${r.title} (${fields.join(", ")})`] : [];
     });
   const parts = [
-    added.length && `added ${added.join("; ")}`,
-    removed.length && `removed ${removed.join("; ")}`,
-    changed.length && `changed ${changed.join("; ")}`,
+    added.length && `added ${names(added)}`,
+    removed.length && `removed ${names(removed)}`,
+    changed.length && `changed ${names(changed)}`,
   ].filter(Boolean);
   return parts.length ? parts.join(". ") : "no reel changes";
 }
@@ -224,9 +241,9 @@ export interface PlanVersionSummary {
 }
 
 export function listPlanVersions(input: unknown): { ok: true; versions: PlanVersionSummary[] } | Fail {
-  const parsed = PlanRefSchema.and(z.object({ version: z.number().int().positive().optional() })).safeParse(input);
+  const parsed = PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().min(1).max(50).default(5) })).safeParse(input);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
-  const { period, periodKey, version } = parsed.data;
+  const { period, periodKey, version, limit } = parsed.data;
   const V = tables.planVersions;
   const rows = db.select().from(V).where(and(eq(V.period, period), eq(V.periodKey, periodKey))).orderBy(V.version).all();
   const versions = rows.map((r, i) => ({
@@ -240,5 +257,5 @@ export function listPlanVersions(input: unknown): { ok: true; versions: PlanVers
     diff: i === 0 ? "first version" : `vs v${rows[i - 1].version}: ${diffReels(rows[i - 1].reels as Reel[], r.reels as Reel[])}`,
     ...(r.version === version ? { reels: r.reels as Reel[] } : {}),
   }));
-  return { ok: true, versions };
+  return { ok: true, versions: versions.reverse().slice(0, limit) };
 }

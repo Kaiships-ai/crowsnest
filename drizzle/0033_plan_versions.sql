@@ -15,4 +15,5 @@ CREATE UNIQUE INDEX `plan_versions_period_version` ON `plan_versions` (`period`,
 CREATE UNIQUE INDEX `plan_versions_single_live` ON `plan_versions` (`period`,`period_key`) WHERE "plan_versions"."status" = 'live';--> statement-breakpoint
 ALTER TABLE `planned_posts` ADD `plan_version_id` text REFERENCES plan_versions(id);--> statement-breakpoint
 ALTER TABLE `planned_posts` ADD `plan_reel_key` text;--> statement-breakpoint
+ALTER TABLE `planned_posts` ADD `plan_synced` text;--> statement-breakpoint
 CREATE INDEX `planned_posts_plan_version` ON `planned_posts` (`plan_version_id`);

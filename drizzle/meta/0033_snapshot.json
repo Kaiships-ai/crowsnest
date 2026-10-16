@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "5e15c5eb-166b-42cf-82cd-87fe6da63513",
+  "id": "24d9f5eb-6ea1-467c-9e77-9f42e3f9ebcc",
   "prevId": "c4e152be-ded5-4c02-8d29-793a3907e349",
   "tables": {
     "app_settings": {
@@ -2056,6 +2056,13 @@
         },
         "plan_reel_key": {
           "name": "plan_reel_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "plan_synced": {
+          "name": "plan_synced",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

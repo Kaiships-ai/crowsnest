@@ -335,13 +335,15 @@ test("plan versions propose, diff, approve and undo over the wire", async () => 
   const reel = (key: string, title: string) => ({ key, title, date: "2026-07-21" });
 
   const bad = await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [] });
-  expect(bad.isError).toBe(true);
+  expect(bad).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const badPeriod = await call("crowsnest_propose_plan", { period: "year", periodKey: "2026", agent: "claude", reels: [reel("a", "A")] });
+  expect(badPeriod).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
   const v1 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B")] })).structuredContent as { id: string; version: number };
   const v2 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B2")] })).structuredContent as { id: string };
   expect(v1.version).toBe(1);
 
   const versions = (await call("crowsnest_plan_versions", ref)).structuredContent as { data: { version: number; status: string; diff: string }[] };
-  expect(versions.data.map((v) => [v.version, v.status, v.diff])).toEqual([[1, "proposed", "first version"], [2, "proposed", "vs v1: changed Hook B2 (title)"]]);
+  expect(versions.data.map((v) => [v.version, v.status, v.diff])).toEqual([[2, "proposed", "vs v1: changed Hook B2 (title)"], [1, "proposed", "first version"]]);
 
   expect((await call("crowsnest_approve_plan", { versionId: v1.id })).structuredContent).toMatchObject({ ok: true, created: 2 });
   expect((await call("crowsnest_approve_plan", { versionId: v2.id })).structuredContent).toMatchObject({ ok: true, updated: 2, created: 0 });

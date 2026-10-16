@@ -35,8 +35,7 @@ import { getLastRunHealth } from "@/server/queries/runs";
 import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
 import { FUNNEL_METRICS_TEXT, getFunnel, saveFunnel } from "@/server/services/funnel";
-import { ProposePlanSchema, approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion } from "@/server/services/plan-versions";
-import { PLAN_PERIODS } from "@/server/db/schema";
+import { approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion } from "@/server/services/plan-versions";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -361,7 +360,7 @@ export function buildMcpServer(): McpServer {
   );
 
   const periodShape = {
-    period: z.enum(PLAN_PERIODS).describe("'month' or 'week'."),
+    period: z.string().describe("'month' or 'week'."),
     periodKey: z.string().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
   };
 
@@ -370,7 +369,22 @@ export function buildMcpServer(): McpServer {
     {
       title: "Propose a month or week plan",
       description: "Stores a reel list as the next version of a month or week plan, status proposed. Each reel is { key, title, date?, time?, keyword?, note? }; keep a reel's key across versions so approve updates its draft instead of replacing it. An invalid list is refused and nothing is stored. Approve happens only when Kai says so.",
-      inputSchema: ProposePlanSchema.shape,
+      inputSchema: {
+        ...periodShape,
+        agent: z.string().describe("Who proposed this plan: 'claude', 'codex', or your label."),
+        reels: z
+          .array(
+            z.object({
+              key: z.string().describe("Stable id of this reel across versions, e.g. 'w44-plugin'. Keep it when you edit a reel."),
+              title: z.string(),
+              date: z.string().nullable().optional().describe("YYYY-MM-DD, or null for an undated reel."),
+              time: z.string().nullable().optional().describe("HH:MM."),
+              keyword: z.string().nullable().optional().describe("Comment keyword, unique across plans, case-insensitive."),
+              note: z.string().nullable().optional(),
+            }),
+          )
+          .describe("1 to 62 reels, unique keys and keywords."),
+      },
     },
     async (args) => {
       const r = proposePlan(args);
@@ -382,8 +396,12 @@ export function buildMcpServer(): McpServer {
     "crowsnest_plan_versions",
     {
       title: "Plan versions with a short diff",
-      description: "Lists every version of one month or week plan with status, reel count, and a one-line diff against the version before that names only the added, removed, and changed reels. Pass version to also get that version's full reel list.",
-      inputSchema: { ...periodShape, version: z.number().int().positive().optional().describe("Also return this version's reels.") },
+      description: "Lists the newest versions of one month or week plan (limit, default 5) with status, reel count, and a one-line diff against the version before that names at most 3 added, removed, and changed reels each, then +N more. Pass version to also get that version's full reel list.",
+      inputSchema: {
+        ...periodShape,
+        version: z.number().optional().describe("Also return this version's reels."),
+        limit: z.number().optional().describe("How many versions to return, newest first. Default 5."),
+      },
     },
     async (args) => {
       const r = listPlanVersions(args);
@@ -395,7 +413,7 @@ export function buildMcpServer(): McpServer {
     "crowsnest_approve_plan",
     {
       title: "Approve a plan version",
-      description: "Makes one plan version live, supersedes the old live one, and brings the period's draft planned posts to its reels in one transaction. Scheduled, publishing, published, and failed posts are never changed and are listed under kept. Approving the live version again changes nothing. A reel keyword another plan holds returns KEYWORD_TAKEN with nothing changed.",
+      description: "Makes one plan version live, supersedes the old live one, and brings the period's draft planned posts to its reels in one transaction. Only a pristine draft (no script, video, caption, source video or magnet URL, and reel fields unchanged since the last sync) is updated or removed; every other plan post is left alone and listed under kept with its reel key, a reason (not_draft, has_script, has_video, has_caption, has_source_video, has_magnet, edited), and the reel fields not applied. Approving the live version again changes nothing. A reel keyword another plan holds returns KEYWORD_TAKEN with nothing changed.",
       inputSchema: { versionId: z.string().describe("The plan version id, from crowsnest_propose_plan or crowsnest_plan_versions.") },
     },
     async (args) => {
@@ -408,7 +426,7 @@ export function buildMcpServer(): McpServer {
     "crowsnest_undo_plan",
     {
       title: "Undo the last plan approval",
-      description: "Restores the version that was live before the current one and brings the drafts back to it; the undone version returns to proposed. With no earlier version, removes the period's drafts. Never changes a scheduled, publishing, published, or failed post and lists them under kept.",
+      description: "Restores the version that was live before the current one and brings the drafts back to it; the undone version returns to proposed. With no earlier live version it refuses with NOTHING_TO_UNDO and changes nothing. Leaves every non-pristine post alone and lists it under kept, as approve does.",
       inputSchema: periodShape,
     },
     async (args) => {

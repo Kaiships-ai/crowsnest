@@ -504,6 +504,8 @@ export const plannedPosts = sqliteTable("planned_posts", {
   magnetUrl: text("magnet_url"),
   planVersionId: text("plan_version_id").references(() => planVersions.id, { onDelete: "set null" }),
   planReelKey: text("plan_reel_key"),
+  /** The reel fields the last plan sync wrote. A draft whose fields still equal this, with nothing attached, is pristine and approve/undo may change or delete it. */
+  planSynced: text("plan_synced", { mode: "json" }),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
