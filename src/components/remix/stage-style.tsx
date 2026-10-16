@@ -18,8 +18,6 @@ import type { RemixSessionRow } from "@/server/services/remix";
 const SOURCE_VALUE = "__source__";
 const EMPTY_VALUE = "__empty__";
 
-/** DESIGN.md §2.5 stage ④: "Source video's structure" (default) or a Vault style
- * template, then the beat outline the agent wrote, editable inline. */
 export function StageStyle({
   session,
   vaultStyles,

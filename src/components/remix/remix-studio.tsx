@@ -87,9 +87,6 @@ export function RemixStudio({
     (activeStage === "research" && true) ||
     (activeStage === "hook" && Boolean(session.chosenHook)) ||
     (activeStage === "style" && Boolean(session.outline)) ||
-    // The Script stage advances once a variant exists. Not once one is
-    // PICKED: the Finish view is where the pick is confirmed, and gating entry to it on
-    // the pick would hide the screen that explains what is missing.
     (activeStage === "script" && (session.variants?.length ?? 0) > 0);
 
   async function handleContinue() {

@@ -30,9 +30,6 @@ import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
 import { saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
-/** DESIGN.md §2.5 stage ⑤: the scripts the agent wrote over the MCP chain. Variant Tabs
- * with editable Textareas and copy, "Save script" -> title Dialog -> toast + link to
- * Vault. */
 export function StageScript({
   session,
   onVariantsChange,
@@ -56,8 +53,6 @@ export function StageScript({
   const [saveTitle, setSaveTitle] = useState(() => deriveScriptTitle(session.topic));
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
-  // Which variant slot savedScriptId's content came from, so an edit of that slot or a
-  // tab switch away from it invalidates the save (see selectVariant/commitEditBlur).
   const [savedVariantIndex, setSavedVariantIndex] = useState<number | null>(null);
   // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
   // once a script exists, never required — the script above is already saved by the
@@ -101,7 +96,6 @@ export function StageScript({
 
   function commitEditBlur(index: number) {
     persistVariants(results);
-    // A hand-edit to the saved slot's own text invalidates that save.
     if (index === savedVariantIndex) {
       setSavedScriptId(null);
       setSavedVariantIndex(null);

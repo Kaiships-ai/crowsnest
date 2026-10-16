@@ -294,8 +294,6 @@ describe("agent-written stages", () => {
   test("a stage saved by the agent renders without a model call", async () => {
     const { videoId } = await seedVideo();
     const session = await getOrCreateSession(videoId);
-    // The same writes crowsnest_remix_choose_hook, crowsnest_remix_outline and
-    // crowsnest_remix_save_script make.
     await updateStage(session.id, { chosenHook: "Stop posting at 9am.", hookOptions: ["Stop posting at 9am.", "9am is a myth."] });
     await updateStage(session.id, { outline: { beats: [{ label: "Hook", content: "the 9am myth", targetSec: 3 }] } });
     await saveAgentScript(session.id, "Stop posting at 9am. Here is why.", "Posting time");

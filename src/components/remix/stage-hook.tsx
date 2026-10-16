@@ -22,8 +22,6 @@ import type { RemixSessionRow } from "@/server/services/remix";
 const NONE_VALUE = "__none__";
 const EMPTY_VALUE = "__empty__";
 
-/** DESIGN.md §2.5 stage ③: the agent writes hooks over the MCP chain; this stage shows
- * them as option Cards with use/save-to-Vault actions, the chosen hook pinned on top. */
 export function StageHook({
   session,
   vaultHooks,

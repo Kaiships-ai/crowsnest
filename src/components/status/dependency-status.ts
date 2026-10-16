@@ -71,8 +71,6 @@ export function classifyGraphStatus(token: GraphTokenStatus | typeof PING_TIMED_
   }
 }
 
-/** Both dependencies usable right now, the one condition under which the panel stays
- *  quiet (A4's brief: visible without hunting, but must not shout when all is fine). */
 export function bothHealthy(sidecar: SidecarStatus, graph: GraphStatus): boolean {
   return sidecar.state === "up" && graph.state === "up";
 }
@@ -91,7 +89,6 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typ
         resolve(value);
       },
       () => {
-        // A rejected check reads as "inconclusive" rather than crashing the dashboard.
         clearTimeout(timer);
         resolve(PING_TIMED_OUT);
       },
@@ -99,5 +96,4 @@ export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typ
   });
 }
 
-/** How long the dashboard waits for the live Graph check before showing "unknown". */
 export const PING_TIMEOUT_MS = 6000;

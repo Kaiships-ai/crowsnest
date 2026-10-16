@@ -49,8 +49,6 @@ test("P0 slice 2b: remix chain runs end to end with no model key configured", as
   const videoId = await seedVideo();
   const server = buildMcpServer();
 
-  // 1. Save an agent-authored analysis so research/hooks/outline have real source
-  //    material, same as an external agent would via crowsnest_save_analysis.
   const saved = await callTool(server, "crowsnest_save_analysis", {
     videoId,
     hookType: "curiosity-gap",
@@ -61,60 +59,42 @@ test("P0 slice 2b: remix chain runs end to end with no model key configured", as
   });
   expect(saved.isError).not.toBe(true);
 
-  // 2. session
   const session = await callTool(server, "crowsnest_remix_session", { videoId });
   expect(session.isError).not.toBe(true);
   const sessionId = (session.structuredContent as { id: string }).id;
 
-  // 3. set_prompt
   const setPrompt = await callTool(server, "crowsnest_remix_set_prompt", { sessionId, topic: "the biggest mistake beginners make", niche: "fitness" });
   expect(setPrompt.isError).not.toBe(true);
 
-  // 4. research — already documented as "no model call"
   const research = await callTool(server, "crowsnest_remix_research", { sessionId });
   expect(research.isError).not.toBe(true);
 
-  // 5. hooks — returns a prompt, not generated hooks
   const hooks = await callTool(server, "crowsnest_remix_hooks", { sessionId });
   expect(hooks.isError).not.toBe(true);
   const hookPrompt = hooks.structuredContent as { system: string; user: string; context: unknown };
   expect(typeof hookPrompt.system).toBe("string");
   expect(hookPrompt.system.length).toBeGreaterThan(0);
-  // niche comes from the global niche profile setting, not the session's own `niche`
-  // field.
   expect(hookPrompt.user).toContain("the biggest mistake beginners make");
   expect(hookPrompt.user).toContain("curiosity-gap");
 
-  // 6. choose_hook — the agent's own text, no generated options involved
   const chosenHook = "Here's the one mistake nobody warns you about";
   const chooseHook = await callTool(server, "crowsnest_remix_choose_hook", { sessionId, hook: chosenHook });
   expect(chooseHook.isError).not.toBe(true);
 
-  // 7. style
   const style = await callTool(server, "crowsnest_remix_style", { sessionId });
   expect(style.isError).not.toBe(true);
 
-  // 8. outline — with no outline arg, returns a prompt
   const outline = await callTool(server, "crowsnest_remix_outline", { sessionId });
   expect(outline.isError).not.toBe(true);
   const outlinePrompt = outline.structuredContent as { system: string; user: string; context: unknown };
   expect(typeof outlinePrompt.system).toBe("string");
   expect(outlinePrompt.user).toContain(chosenHook);
 
-  // 8b. outline — WITH an outline, saves it onto the session. This is the bug fix:
-  // buildScriptPrompt reads session.outline, which was always empty on the keyless
-  // path before this (the agent had a prompt to fulfill but no way to save its
-  // result back), so the script prompt silently fell back to the "no outline beats
-  // yet" placeholder instead of carrying the agent's real beats.
   const agentOutline = { beats: [{ label: "Hook", content: "Open with the mistake", targetSec: 3 }, { label: "Payoff", content: "Reveal the fix", targetSec: 20 }] };
   const saveOutline = await callTool(server, "crowsnest_remix_outline", { sessionId, outline: agentOutline });
   expect(saveOutline.isError).not.toBe(true);
   expect((saveOutline.structuredContent as { ok: boolean }).ok).toBe(true);
 
-  // Also prove crowsnest_remix_variants returns a prompt (not generated variants),
-  // with context.angles for the agent to write more than one take if it wants to,
-  // and that its user prompt carries the agent's OWN saved outline beats, not the
-  // "(no outline beats yet)" placeholder.
   const variants = await callTool(server, "crowsnest_remix_variants", { sessionId });
   expect(variants.isError).not.toBe(true);
   const scriptPrompt = variants.structuredContent as { system: string; user: string; context: { angles?: string[] } };
@@ -126,7 +106,6 @@ test("P0 slice 2b: remix chain runs end to end with no model key configured", as
   expect(Array.isArray(scriptPrompt.context.angles)).toBe(true);
   expect((scriptPrompt.context.angles ?? []).length).toBeGreaterThan(0);
 
-  // 9. save_script — the agent's own script text, no variantIndex
   const agentScript = "Here's the one mistake nobody warns you about.\n[VISUAL] close-up, direct to camera.\n...";
   const saveScript = await callTool(server, "crowsnest_remix_save_script", { sessionId, title: "Keyless remix", script: agentScript });
   expect(saveScript.isError).not.toBe(true);
@@ -137,14 +116,12 @@ test("P0 slice 2b: remix chain runs end to end with no model key configured", as
   expect(scriptRow.content).toBe(agentScript);
   expect(scriptRow.title).toBe("Keyless remix");
 
-  // 10. finish — creates the planned post carrying that script
   const finish = await callTool(server, "crowsnest_remix_finish", { sessionId });
   expect(finish.isError).not.toBe(true);
   const finishBody = finish.structuredContent as { postId: string; created: boolean; scriptId: string | null };
   expect(finishBody.created).toBe(true);
   expect(finishBody.scriptId).toBe(scriptId);
 
-  // 11. brief — reads the planned post back
   const brief = await callTool(server, "crowsnest_brief", { postId: finishBody.postId });
   expect(brief.isError).not.toBe(true);
   const briefBody = brief.structuredContent as { plan: { scriptId: string | null }; remix: { session: { chosenHook: string | null } } | null };

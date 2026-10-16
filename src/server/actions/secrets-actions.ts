@@ -11,8 +11,6 @@ function isManaged(name: string): name is ManagedSecret {
   return (MANAGED_SECRETS as readonly string[]).includes(name);
 }
 
-/** The Graph token status is cached, so a secret change must drop it or the change would
- *  not show until the cache expires. */
 function invalidateSecretCaches(): void {
   invalidateTokenStatus();
 }

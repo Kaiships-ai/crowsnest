@@ -168,8 +168,6 @@ function describeSourceStructure(analysis: StoredAnalysisFields | null): string 
     .join("; ");
 }
 
-// Fixed per-take angles (spec part 5) so several scripts read as deliberately
-// different takes instead of near-duplicates.
 const VARIANT_ANGLES = [
   "stay close to the source structure and pacing",
   "open from a different hook angle",
