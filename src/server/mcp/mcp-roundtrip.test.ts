@@ -182,10 +182,20 @@ test("crowsnest_set_plan_fields sets keyword and guide link, crowsnest_plans rea
   const [rowB] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, b));
   expect(rowB).toMatchObject({ keyword: null, magnetUrl: null });
 
-  const badUrl = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, magnetUrl: "not a url" } });
-  expect(badUrl.isError).toBe(true);
+  const brief = await client.callTool({ name: "crowsnest_brief", arguments: { postId: a } });
+  expect((brief.structuredContent as { plan: unknown }).plan).toMatchObject({ keyword: "PLUGIN", magnetUrl: "https://example.com/guide" });
 
-  await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: a, keyword: null } });
+  for (const magnetUrl of ["not a url", "javascript:alert(1)"]) {
+    const badUrl = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, magnetUrl } });
+    expect(badUrl.isError).toBe(true);
+  }
+
+  const cleared = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: a, keyword: null } });
+  expect(cleared.structuredContent).toMatchObject({ keyword: null, magnetUrl: "https://example.com/guide" });
+
+  const missing = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: "no-such-plan", keyword: "X" } });
+  expect((missing.structuredContent as { code: string }).code).toBe("PLAN_NOT_FOUND");
+
   const retake = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword: "plugin" } });
   expect(retake.isError).not.toBe(true);
 });

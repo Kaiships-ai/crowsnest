@@ -500,10 +500,7 @@ export const plannedPosts = sqliteTable("planned_posts", {
   /** sqlite boolean as int. Set when a publish ran the whole path but skipped the
    *  final publish POST (PUBLISH_DRY_RUN). */
   dryRun: integer("dry_run").notNull().default(0),
-  /** The comment keyword viewers type to get the guide (e.g. "PLUGIN"). Unique
-   *  case-insensitively across plans via planned_posts_keyword_lower. */
   keyword: text("keyword"),
-  /** The guide (lead magnet) link the keyword sends. */
   magnetUrl: text("magnet_url"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),

@@ -413,31 +413,30 @@ export async function setPlanCaptionAction(id: string, caption: string): Promise
   }
 }
 
-/**
- * Sets a plan's comment keyword and guide link. `undefined` leaves a field alone, `null`
- * or blank clears it. One UPDATE, so a keyword another plan holds (any case) fails the
- * planned_posts_keyword_lower index and nothing is written.
- */
 export async function setPlanFieldsAction(
   id: string,
   fields: { keyword?: string | null; magnetUrl?: string | null }
 ): Promise<SimpleResult> {
+  const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
+  if (fields.keyword !== undefined) patch.keyword = fields.keyword?.trim() || null;
+  if (fields.magnetUrl !== undefined) patch.magnetUrl = fields.magnetUrl?.trim() || null;
   try {
-    const plan = await getPlan(id);
-    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
-    if (fields.keyword !== undefined) patch.keyword = fields.keyword?.trim() || null;
-    if (fields.magnetUrl !== undefined) patch.magnetUrl = fields.magnetUrl?.trim() || null;
-    // No revalidatePath: its only caller is the MCP route, where it throws outside a
-    // request render, and the dashboard is force-dynamic.
-    await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    const updated = Object.keys(patch).length
+      ? await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id)).returning({ id: tables.plannedPosts.id })
+      : await db.select({ id: tables.plannedPosts.id }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+    if (updated.length === 0) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
     return { ok: true };
   } catch (err) {
-    if (errorMessage(err).includes("planned_posts_keyword_lower")) {
-      return { ok: false, error: `Another plan already uses the keyword "${fields.keyword}".`, code: "KEYWORD_TAKEN" };
-    }
+    if (isUniqueViolation(err)) return { ok: false, error: `Another plan already uses the keyword "${patch.keyword}".`, code: "KEYWORD_TAKEN" };
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE") return true;
+  }
+  return false;
 }
 
 /**

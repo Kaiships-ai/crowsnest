@@ -301,8 +301,8 @@ export function buildMcpServer(): McpServer {
       description: "Sets the comment keyword and the guide (lead magnet) URL on one planned post. Omit a field to leave it, pass null to clear it. A keyword another plan holds, in any case, returns code KEYWORD_TAKEN and writes nothing.",
       inputSchema: {
         postId: z.string().describe("The planned post id, from crowsnest_plans."),
-        keyword: z.string().trim().min(1).nullable().optional().describe("Comment keyword, e.g. PLUGIN. Unique across plans, case-insensitive."),
-        magnetUrl: z.string().url().nullable().optional().describe("The guide link the keyword sends."),
+        keyword: z.string().trim().min(1).max(64).nullable().optional().describe("Comment keyword, e.g. PLUGIN. Unique across plans, case-insensitive."),
+        magnetUrl: z.string().url().refine((u) => /^https?:\/\//i.test(u), "must be an http or https URL").nullable().optional().describe("The http(s) guide link the keyword sends."),
       },
     },
     async (args) => {
