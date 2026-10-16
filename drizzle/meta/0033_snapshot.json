@@ -2246,10 +2246,12 @@
         }
       },
       "indexes": {
-        "reel_funnel_keyword_captured": {
-          "name": "reel_funnel_keyword_captured",
+        "reel_funnel_latest": {
+          "name": "reel_funnel_latest",
           "columns": [
-            "keyword",
+            "lower(\"keyword\")",
+            "source",
+            "metric",
             "captured_at"
           ],
           "isUnique": false
