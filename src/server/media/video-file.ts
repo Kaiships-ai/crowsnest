@@ -1,5 +1,5 @@
 import { open, stat } from "node:fs/promises";
-import { eq } from "drizzle-orm";
+import { and, eq, notInArray } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
 import { errorMessage, type SimpleResult } from "../lib/action-result";
 import { getAssetStore } from "./asset-store";
@@ -22,26 +22,35 @@ export async function checkVideoFile(filePath: string): Promise<SimpleResult> {
   } finally {
     await fh.close();
   }
-  if (info.size < 12 || head.toString("ascii", 4, 8) !== "ftyp") {
+  // QuickTime .mov also carries ftyp, under the "qt  " brand; it is not an mp4.
+  if (info.size < 12 || head.toString("ascii", 4, 8) !== "ftyp" || head.toString("ascii", 8, 12) === "qt  ") {
     return { ok: false, error: "That file is not a valid mp4 video.", code: "PLAN_NOT_MP4" };
   }
   return { ok: true };
 }
 
+const LOCKED_STATES = ["publishing", "published"];
+const LOCKED: SimpleResult = { ok: false, error: "This post is already publishing or published, so its video is locked.", code: "PLAN_LOCKED" };
+
 /** Stores a local mp4 and points the plan's `videoAssetId` at it. Shared by the upload
- *  dialog and the MCP attach tool. Lives outside the "use server" actions module so a
- *  browser can never call it with an arbitrary server path. */
+ *  dialog and the MCP attach tool. Not in the "use server" actions module, where every
+ *  export becomes a server action the browser can call with any path. */
 export async function attachPlanVideo(planId: string, filePath: string): Promise<SimpleResult> {
   try {
     const [plan] = await db.select({ state: tables.plannedPosts.state }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, planId));
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    if (plan.state === "publishing" || plan.state === "published") {
-      return { ok: false, error: "This post is already publishing or published, so its video is locked.", code: "PLAN_LOCKED" };
-    }
+    if (LOCKED_STATES.includes(plan.state)) return LOCKED;
     const check = await checkVideoFile(filePath);
     if (!check.ok) return check;
     const assetId = await getAssetStore().put({ path: filePath }, "video", "video/mp4");
-    await db.update(tables.plannedPosts).set({ videoAssetId: assetId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, planId));
+    // The state guard repeats here because put can take seconds, long enough for the
+    // scheduler to claim the plan.
+    const updated = await db
+      .update(tables.plannedPosts)
+      .set({ videoAssetId: assetId, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, planId), notInArray(tables.plannedPosts.state, LOCKED_STATES)))
+      .returning({ id: tables.plannedPosts.id });
+    if (updated.length === 0) return LOCKED;
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };

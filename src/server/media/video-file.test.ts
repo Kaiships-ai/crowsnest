@@ -27,3 +27,9 @@ test("refuses a file over 200 MB", async () => {
   truncateSync(big, 200 * 1024 * 1024 + 1);
   expect(await checkVideoFile(big)).toMatchObject({ ok: false, code: "PLAN_FILE_TOO_LARGE" });
 });
+
+test("refuses a QuickTime file, which also carries ftyp", async () => {
+  const mov = path.join(dir, "clip.mp4");
+  writeFileSync(mov, Buffer.concat([Buffer.from([0, 0, 0, 0x14]), Buffer.from("ftypqt  "), Buffer.alloc(8)]));
+  expect(await checkVideoFile(mov)).toMatchObject({ ok: false, code: "PLAN_NOT_MP4" });
+});
