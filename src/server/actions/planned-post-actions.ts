@@ -414,6 +414,32 @@ export async function setPlanCaptionAction(id: string, caption: string): Promise
 }
 
 /**
+ * Sets a plan's comment keyword and guide link. `undefined` leaves a field alone, `null`
+ * or blank clears it. One UPDATE, so a keyword another plan holds (any case) fails the
+ * planned_posts_keyword_lower index and nothing is written.
+ */
+export async function setPlanFieldsAction(
+  id: string,
+  fields: { keyword?: string | null; magnetUrl?: string | null }
+): Promise<SimpleResult> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
+    if (fields.keyword !== undefined) patch.keyword = fields.keyword?.trim() || null;
+    if (fields.magnetUrl !== undefined) patch.magnetUrl = fields.magnetUrl?.trim() || null;
+    await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
+    revalidatePath("/");
+    return { ok: true };
+  } catch (err) {
+    if (errorMessage(err).includes("planned_posts_keyword_lower")) {
+      return { ok: false, error: `Another plan already uses the keyword "${fields.keyword}".`, code: "KEYWORD_TAKEN" };
+    }
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/**
  * Arms a plan for the scheduler. Every precondition is named in the error rather than
  * silently succeeding (plan locked decision 6): a video, a caption, a configured bucket,
  * and a configured Graph token must all be present, or this refuses and says which one is

@@ -5,7 +5,8 @@ import { getOutlierFeed, type FeedFilters, type FeedSort } from "@/server/querie
 import { getVideoDetail } from "@/server/queries/video";
 import { getPostBrief } from "@/server/queries/post-brief";
 import { getScripts } from "@/server/queries/vault";
-import { getPlannedPosts } from "@/server/queries/planned-posts";
+import { getPlannedPostById, getPlannedPosts } from "@/server/queries/planned-posts";
+import { setPlanFieldsAction } from "@/server/actions/planned-post-actions";
 import { OutlineSchema } from "@/server/schemas";
 import {
   getOrCreateSession,
@@ -107,7 +108,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only." }
+    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link." }
   );
 
   server.registerTool(
@@ -290,6 +291,24 @@ export function buildMcpServer(): McpServer {
     async (args) => {
       const range = args.from && args.to ? { from: args.from, to: args.to } : undefined;
       return result(await getPlannedPosts(range));
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_set_plan_fields",
+    {
+      title: "Set a plan's keyword and guide link",
+      description: "Sets the comment keyword and the guide (lead magnet) URL on one planned post. Omit a field to leave it, pass null to clear it. A keyword another plan holds, in any case, returns code KEYWORD_TAKEN and writes nothing.",
+      inputSchema: {
+        postId: z.string().describe("The planned post id, from crowsnest_plans."),
+        keyword: z.string().trim().min(1).nullable().optional().describe("Comment keyword, e.g. PLUGIN. Unique across plans, case-insensitive."),
+        magnetUrl: z.string().url().nullable().optional().describe("The guide link the keyword sends."),
+      },
+    },
+    async (args) => {
+      const res = await setPlanFieldsAction(args.postId, { keyword: args.keyword, magnetUrl: args.magnetUrl });
+      if (!res.ok) return errorResult({ error: res.error, code: res.code, postId: args.postId });
+      return result(await getPlannedPostById(args.postId));
     }
   );
 

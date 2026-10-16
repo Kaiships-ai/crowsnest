@@ -64,6 +64,8 @@ export interface PlannedPostRow {
   /** True when the last publish attempt ran the whole path but skipped the final
    *  publish POST (PUBLISH_DRY_RUN). */
   dryRun: boolean;
+  keyword: string | null;
+  magnetUrl: string | null;
 }
 
 type PlannedPostSelect = typeof tables.plannedPosts.$inferSelect;
@@ -118,6 +120,8 @@ function toRow(
     errorClass: row.errorClass,
     publishedAt: row.publishedAt,
     dryRun: row.dryRun !== 0,
+    keyword: row.keyword,
+    magnetUrl: row.magnetUrl,
   };
 }
 

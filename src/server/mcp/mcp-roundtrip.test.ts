@@ -1,6 +1,9 @@
-import { beforeAll, expect, test } from "vitest";
+import { beforeAll, expect, test, vi } from "vitest";
+
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { eq } from "drizzle-orm";
 
 // A real client<->server round trip over the SDK's in-memory transport, instead of
 // reaching into the private _registeredTools registry the other tests use (ENH-2). A
@@ -47,6 +50,7 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_remix_outline",
       "crowsnest_remix_variants",
       "crowsnest_remix_save_script",
+      "crowsnest_set_plan_fields",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
@@ -155,4 +159,35 @@ test("crowsnest_save_artifact rejects an unknown kind over the wire", async () =
     arguments: { kind: "not_a_kind", title: "x", data: { a: 1 }, agent: "claude" },
   });
   expect(res.isError).toBe(true);
+});
+
+test("crowsnest_set_plan_fields sets keyword and guide link, crowsnest_plans reads them back, a taken keyword is refused", async () => {
+  const { db, tables, newId, nowIso } = await import("@/server/db");
+  const a = newId();
+  const b = newId();
+  await db.insert(tables.plannedPosts).values([
+    { id: a, state: "draft", title: "A", createdAt: nowIso(), updatedAt: nowIso() },
+    { id: b, state: "draft", title: "B", createdAt: nowIso(), updatedAt: nowIso() },
+  ]);
+  const client = await connectedClient();
+
+  const set = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: a, keyword: "PLUGIN", magnetUrl: "https://example.com/guide" } });
+  expect(set.isError).not.toBe(true);
+
+  const plans = await client.callTool({ name: "crowsnest_plans", arguments: {} });
+  const rowA = (plans.structuredContent as { data: { id: string; keyword: string | null; magnetUrl: string | null }[] }).data.find((p) => p.id === a);
+  expect(rowA).toMatchObject({ keyword: "PLUGIN", magnetUrl: "https://example.com/guide" });
+
+  const taken = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword: "plugin", magnetUrl: "https://example.com/other" } });
+  expect(taken.isError).toBe(true);
+  expect((taken.structuredContent as { code: string }).code).toBe("KEYWORD_TAKEN");
+  const [rowB] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, b));
+  expect(rowB).toMatchObject({ keyword: null, magnetUrl: null });
+
+  const badUrl = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, magnetUrl: "not a url" } });
+  expect(badUrl.isError).toBe(true);
+
+  await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: a, keyword: null } });
+  const retake = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword: "plugin" } });
+  expect(retake.isError).not.toBe(true);
 });

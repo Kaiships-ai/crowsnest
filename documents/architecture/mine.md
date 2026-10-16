@@ -6,7 +6,7 @@ Mine is the user's own side of crowsnest: how their own Instagram account is doi
 
 Schemas are in `src/server/db/schema.ts`. Mine owns these tables:
 
-- `planned_posts`: a dated intention to publish. Stored `state` is `draft`, `scheduled`, `publishing`, `published`, or `failed`. `missed` is derived on read and never stored. The publish part also advances this row.
+- `planned_posts`: a dated intention to publish. Stored `state` is `draft`, `scheduled`, `publishing`, `published`, or `failed`. `missed` is derived on read and never stored. The publish part also advances this row. Nullable `keyword` (the comment word viewers type to get the guide) and `magnet_url` (the guide link) are set over MCP by `crowsnest_set_plan_fields`.
 - `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns`: the own-channel set. `own_post_insights` is append-only, one row per post per measurement, so the latest row is the current numbers and all rows are the views over time. `own_account_breakdowns` is one generic table (metric, dimension, key, value) for the follower split and engaged-audience demographics.
 - `app_settings` keys for stored fetch errors: `own_audience_fetch_error`, `own_follower_split_fetch_error`, `own_comments_fetch_error`, and `own_comments_fetched_at`.
 
@@ -40,6 +40,7 @@ It reads `channels` (the `isOwn` flag, at most one row, by the partial unique in
 - The typical-reel curve is the median of other reels' views at the same whole hour since posting, over the first `REEL_CURVE_HOURS` (168), computed on the server in the pure `reel-insights.ts`. Only the selected reel's shaped points reach the client chart.
 - Token status is cached on `globalThis.__crowsnestTokenStatus`: five minutes for definitive states, 30 seconds for transient ones. It is dropped when a token secret is saved or cleared and when a run ends in an auth failure. A remembered `permission_denied` stands over an `ok` live check until a measurement lands insights or the token changes.
 - Planned posts: create and `savePlanEditAction` validate up front and write once; the edit is a single transaction. A date at save makes `scheduled`, none makes `draft`. A blank title is refused. A plan carrying a remix-session script cannot change that script in the dialog.
+- A keyword belongs to at most one plan, compared case-insensitively. The partial unique index `planned_posts_keyword_lower` on `lower(keyword)` where it is not null enforces it, and `setPlanFieldsAction` maps that constraint to `KEYWORD_TAKEN` from a single UPDATE, so a refused call writes nothing. A blank or null value clears the field.
 - `setOwnChannelAction` unmarks the old channel and marks the new one in one transaction. `unsetOwnChannelAction` exists but no control calls it, so the own flag cannot be cleared in the UI.
 - `measureOwnChannelAction` never throws; it returns `MEASURE_FAILED` for a non-Graph error and revalidates `/` either way.
 - Live Graph metric names and units (`reposts`, `reels_skip_rate`, the account `views` split, watch time in milliseconds) and the throttle codes come from Meta's documentation, not a live response, because the configured token is rejected.
