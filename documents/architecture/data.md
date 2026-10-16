@@ -14,7 +14,7 @@ The schema is `src/server/db/schema.ts`. Tables by purpose:
 | Remix | `remix_sessions` (one per source video), `remix_runs` (append-only attempt log), `scripts` |
 | Plan and publish | `planned_posts` |
 | Own channel (Graph) | `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns` |
-| Agent output | `content_artifacts` |
+| Agent output | `content_artifacts`, `reel_funnel` (append-only funnel snapshots per reel keyword) |
 | Accounts | `ig_accounts` |
 | Jobs and observability | `sync_jobs`, `log_events`, `notifications` |
 | Configuration | `app_settings`, `secrets` |
@@ -52,6 +52,7 @@ Files outside the database:
 - **The platform column is plain text.** `channels.platform` and `videos.platform` allow another source later without a migration; only Instagram is ingested.
 - **A "video" is any tracked post.** The `videos` table also holds photos and carousels; `mediaType` says which, and a carousel is one row plus rows in `video_children`.
 - **Agent-authored output keeps provenance.** `content_artifacts` stores the agent's JSON verbatim with agent, model, source video ids and assumptions; `kind` is validated in `services/artifacts.ts`, not by a constraint.
+- **Funnel snapshots are append-only.** `reel_funnel` rows are never updated or deleted. A read takes the newest `captured_at` per case-insensitive keyword, source and metric, ties going to the later insert, and links a row to the plan whose `keyword` matches case-insensitively at read time. A renamed plan keyword leaves older rows under the old keyword with no plan (`services/funnel.ts`).
 - **Frame-pass layout cannot be fabricated.** `persistFramePass` (`services/frame-pass.ts`) refuses a layout field that carries a value while citing no frames. The model's output goes through the same validator a human entry would.
 
 ## What survives a reload
