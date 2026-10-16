@@ -1,8 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
-import { errorMessage } from "@/server/lib/action-result";
-import { getLlm, type LlmClient } from "@/server/llm/client";
-import { HookOptionsSchema, OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/schemas";
+import { OutlineSchema, type Outline, type StoredAnalysisFields } from "@/server/schemas";
 import { getSimilarOutliers } from "./similar";
 import { rowToAnalysis } from "./analyze";
 import { getPersona, type Persona } from "./persona";
@@ -71,33 +69,7 @@ export interface StagePatch {
 }
 
 const DEFAULT_TARGET_LENGTH_SEC = 45;
-const DEFAULT_VARIANT_COUNT = 3;
 const TRANSCRIPT_EXCERPT_CHARS = 500;
-
-/**
- * Writes one `remix_runs` row (v1-scope.md, Remix studio P0: "remix_sessions records
- * no per-run history... without it a failed generation leaves no trace, and this
- * pipeline fails often"). The only writer of that table — `queries/remix-runs.ts` is
- * read only, matching contract 2's "the write is the engine's own bookkeeping, not a
- * user action" pattern for `sync_channel_runs`.
- *
- * Called from inside each generation function's own try/catch so a run row is written
- * on both outcomes, never only on success — a run log that only records what worked
- * would defeat the reason this table exists.
- */
-async function recordRun(o: { sessionId: string; stage: RemixStage; startedAt: string; startedAtMs: number; outcome: "success" | "error"; detail: string }): Promise<void> {
-  await db.insert(tables.remixRuns).values({
-    id: newId(),
-    sessionId: o.sessionId,
-    stage: o.stage,
-    outcome: o.outcome,
-    startedAt: o.startedAt,
-    finishedAt: nowIso(),
-    elapsedMs: Date.now() - o.startedAtMs,
-    detail: o.detail,
-    errorMessage: o.outcome === "error" ? o.detail : null,
-  });
-}
 
 function parseOutline(raw: string | null): Outline | null {
   if (!raw) return null;
@@ -195,18 +167,13 @@ function describeSourceStructure(analysis: StoredAnalysisFields | null): string 
     .join("; ");
 }
 
-// Fixed per-slot angles (spec part 5): the full variant set reads as three deliberately
-// different takes instead of three near-duplicate samples, and a single-slot regenerate
-// keeps the angle that slot already had rather than drawing a new one.
+// Fixed per-take angles (spec part 5) so several scripts read as deliberately
+// different takes instead of near-duplicates.
 const VARIANT_ANGLES = [
   "stay close to the source structure and pacing",
   "open from a different hook angle",
   "tighten the pacing, cut the setup",
 ];
-
-function angleFor(index: number): string {
-  return VARIANT_ANGLES[index % VARIANT_ANGLES.length];
-}
 
 /**
  * Reuses the latest remix session for this source video if one exists (any stage —
@@ -312,9 +279,8 @@ export interface RemixPrompt {
 }
 
 /**
- * Assembles the Hooks stage prompt — same inputs and shape `generateHooks` sends to the
- * LLM (source hook pattern, niche, persona, facts, opening line, steer), just returned
- * instead of fulfilled. Makes no model call. The caller writes hooks itself and reports
+ * Assembles the Hooks stage prompt (source hook pattern, niche, persona, facts, opening
+ * line, steer). Makes no model call. The caller writes hooks itself and reports
  * its pick via `crowsnest_remix_choose_hook`.
  */
 export async function buildHookPrompt(id: string, opts?: { vaultItemId?: string; steer?: string }): Promise<RemixPrompt> {
@@ -341,8 +307,7 @@ export async function buildHookPrompt(id: string, opts?: { vaultItemId?: string;
 }
 
 /**
- * Assembles the Outline stage prompt — same inputs `generateOutline` sends to the LLM
- * (chosen structure, hook, target length, persona, facts, steer). Makes no model call.
+ * Assembles the Outline stage prompt (chosen structure, hook, target length, persona, facts, steer). Makes no model call.
  * The caller writes the outline itself and reports it back via the Script stage.
  */
 export async function buildOutlinePrompt(id: string, opts?: { steer?: string }): Promise<RemixPrompt> {
@@ -369,11 +334,9 @@ export async function buildOutlinePrompt(id: string, opts?: { steer?: string }):
 }
 
 /**
- * Assembles the Script stage prompt — same inputs `generateVariants` sends to the LLM
- * (hook, outline, persona, facts, similar outliers, source beats, steer), minus a baked
- * -in angle: `context.angles` carries the same fixed per-slot angles `generateVariants`
- * cycles through (`VARIANT_ANGLES`), so a caller wanting more than one take can append
- * each angle to `user` itself, same as this service always did internally. Makes no
+ * Assembles the Script stage prompt (hook, outline, persona, facts, similar outliers,
+ * source beats, steer). `context.angles` carries `VARIANT_ANGLES`, so a caller wanting
+ * more than one take can append each angle to `user` itself. Makes no
  * model call. The caller writes the script itself and saves it via
  * `crowsnest_remix_save_script`.
  */
@@ -407,211 +370,15 @@ export async function buildScriptPrompt(id: string, opts?: { steer?: string }): 
   return { system: SCRIPT_SYSTEM, user, context: { angles: VARIANT_ANGLES } };
 }
 
-/**
- * One Claude call -> HookOptionsSchema (5 hooks). Template comes from a chosen Vault
- * hook item if `opts.vaultItemId` is given, else falls back to the source video's own
- * hookType. Persists the result to `hookOptions`.
- */
-export async function generateHooks(id: string, opts?: { vaultItemId?: string; llm?: LlmClient; steer?: string }): Promise<string[]> {
-  const session = await getSession(id);
-  const startedAt = nowIso();
-  const startedAtMs = Date.now();
-
-  try {
-    const video = await getVideoRow(session.sourceVideoId);
-    const analysis = await getAnalysis(session.sourceVideoId);
-
-    const pattern = opts?.vaultItemId
-      ? (await getVaultItemTemplateText(opts.vaultItemId)) ?? describeSourceHookPattern(analysis)
-      : describeSourceHookPattern(analysis);
-
-    const client = opts?.llm ?? (await getLlm());
-    const niche = await getNicheProfile();
-    const persona = await getPersona();
-    const topic = session.topic ?? video?.caption ?? "this topic";
-    const facts = session.researchNotes?.facts || undefined;
-    // The source hook's opening line, verbatim, when the first beat's transcript was
-    // captured (spec part 1) — undefined otherwise, never a placeholder.
-    const openingLine = analysis?.structureSegments[0]?.transcript;
-
-    const result = await client.generateParsed({
-      system: HOOK_SYSTEM,
-      user: withPersona(
-        buildHookUser({ topic, niche, pattern, facts, whyItWorked: analysis?.whyItWorked, openingLine, steer: opts?.steer }),
-        persona
-      ),
-      schema: HookOptionsSchema,
-    });
-
-    await db
-      .update(tables.remixSessions)
-      .set({ hookOptions: result.hooks, updatedAt: nowIso() })
-      .where(eq(tables.remixSessions.id, id));
-
-    await recordRun({ sessionId: id, stage: "hook", startedAt, startedAtMs, outcome: "success", detail: `${result.hooks.length} hooks generated` });
-    return result.hooks;
-  } catch (err) {
-    // The previous hookOptions column is untouched — nothing above writes to it until
-    // generateParsed has already succeeded — so a failure here leaves the prior hook
-    // list intact, per the acceptance criteria, and only appends this row.
-    await recordRun({ sessionId: id, stage: "hook", startedAt, startedAtMs, outcome: "error", detail: errorMessage(err) });
-    throw err;
-  }
-}
-
-/**
- * One Claude call -> OutlineSchema. Structure comes from the session's chosen Vault
- * style item if `styleVaultItemId` is set, else the source video's own structure
- * segments. Persists the result (JSON-stringified — `outline` is a plain text column).
- */
-export async function generateOutline(id: string, opts?: { llm?: LlmClient; steer?: string }): Promise<Outline> {
-  const session = await getSession(id);
-  const startedAt = nowIso();
-  const startedAtMs = Date.now();
-
-  try {
-    const video = await getVideoRow(session.sourceVideoId);
-    const analysis = await getAnalysis(session.sourceVideoId);
-
-    const structure = session.styleVaultItemId
-      ? (await getVaultItemTemplateText(session.styleVaultItemId)) ?? describeSourceStructure(analysis)
-      : describeSourceStructure(analysis);
-
-    const client = opts?.llm ?? (await getLlm());
-    const niche = await getNicheProfile();
-    const persona = await getPersona();
-    const topic = session.topic ?? video?.caption ?? "this topic";
-    const targetLengthSec = session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC;
-    const facts = session.researchNotes?.facts || undefined;
-
-    const outline = await client.generateParsed({
-      system: OUTLINE_SYSTEM,
-      user: withPersona(
-        buildOutlineUser({ topic, niche, hook: session.chosenHook ?? "", targetLengthSec, structure, facts, whyItWorked: analysis?.whyItWorked, steer: opts?.steer }),
-        persona
-      ),
-      schema: OutlineSchema,
-    });
-
-    // B-03: a new outline invalidates any script variants (and the pick among them)
-    // generated from the outline it replaces — leaving them in place would show the
-    // script stage happily displaying text built from beats that no longer exist.
-    // Clearing them here, in the one place a fresh outline is persisted, covers every
-    // caller (the in-app regenerate button and Quick Remix) rather than each one having
-    // to remember to do it itself.
-    await db
-      .update(tables.remixSessions)
-      .set({ outline: JSON.stringify(outline), variants: null, chosenVariantIndex: null, updatedAt: nowIso() })
-      .where(eq(tables.remixSessions.id, id));
-
-    await recordRun({ sessionId: id, stage: "style", startedAt, startedAtMs, outcome: "success", detail: `outline generated (${outline.beats.length} beats)` });
-    return outline;
-  } catch (err) {
-    await recordRun({ sessionId: id, stage: "style", startedAt, startedAtMs, outcome: "error", detail: errorMessage(err) });
-    throw err;
-  }
-}
-
-/**
- * Generates `count` (default 3) script variants in parallel via Promise.allSettled —
- * a rejected variant becomes `{ error }` at its own index while the rest are
- * unaffected (per-variant isolation, DESIGN.md §6).
- *
- * Two persistence modes, both leaving a failed variant with no trace in the DB
- * (matching the plan's "retry that one variant" UX, Task 6, rather than storing a
- * placeholder):
- *  - `opts.index` unset (the normal "Write script" / "Regenerate all" call): exactly
- *    `count` variants are generated and the *whole* `variants[]` column is replaced
- *    with whichever succeeded.
- *  - `opts.index` set (a single-variant "Regenerate", review finding M2): exactly one
- *    variant is generated and, on success, read-modify-written into the existing
- *    persisted `variants[]` at that one slot — every other slot (including one being
- *    autosaved concurrently from a manual edit elsewhere) is left untouched. On
- *    failure the DB is not written at all, so the previous value at that slot survives.
- */
-export async function generateVariants(
-  id: string,
-  opts?: { count?: number; index?: number; llm?: LlmClient; steer?: string }
-): Promise<(string | { error: string })[]> {
-  const session = await getSession(id);
-  const startedAt = nowIso();
-  const startedAtMs = Date.now();
-  const video = await getVideoRow(session.sourceVideoId);
-  const analysis = await getAnalysis(session.sourceVideoId);
-  const count = opts?.index !== undefined ? 1 : (opts?.count ?? DEFAULT_VARIANT_COUNT);
-  const client = opts?.llm ?? (await getLlm());
-  const niche = await getNicheProfile();
-  const persona = await getPersona();
-  const facts = session.researchNotes?.facts || undefined;
-  const similar = session.researchNotes?.similar?.length
-    ? session.researchNotes.similar.map((item) => `${item.channelHandle}${item.caption ? ` — ${item.caption}` : ""}`)
-    : undefined;
-
-  const baseUser = buildScriptUser({
-    topic: session.topic ?? video?.caption ?? "this topic",
-    niche,
-    hook: session.chosenHook ?? "",
-    outline: session.outline ?? { beats: [] },
-    targetLengthSec: session.targetLengthSec ?? DEFAULT_TARGET_LENGTH_SEC,
-    facts,
-    similar,
-    sourceBeats: analysis?.structureSegments,
-    whyItWorked: analysis?.whyItWorked,
-    steer: opts?.steer,
-  });
-
-  // One angle per slot (spec part 5): the full set gets `count` distinct angles, a
-  // single-slot regenerate (`opts.index` set) keeps that slot's own angle rather than
-  // drawing a fresh one, via `angleFor`'s deterministic index -> angle mapping.
-  const slotIndexes = opts?.index !== undefined ? [opts.index] : Array.from({ length: count }, (_, i) => i);
-  const users = slotIndexes.map((i) => withPersona(`${baseUser}\nAngle: ${angleFor(i)}`, persona));
-
-  const settled = await Promise.allSettled(
-    users.map((user) => client.generateText({ system: SCRIPT_SYSTEM, user }))
-  );
-
-  const results: (string | { error: string })[] = settled.map((outcome) =>
-    outcome.status === "fulfilled" ? outcome.value : { error: errorMessage(outcome.reason) }
-  );
-  const successCount = results.filter((r) => typeof r === "string").length;
-
-  // Per-variant isolation means this call itself essentially never throws — a failed
-  // variant becomes `{ error }` at its own index instead. The run log still needs a run
-  // row on every call, so the "outcome" here is a judgment on the RESULT rather than on
-  // whether the call raised: zero successes out of however many were asked for is the
-  // same "this attempt didn't work" fact a caller of generateHooks/generateOutline gets
-  // from a thrown error, and it must not go unrecorded just because the mechanism here
-  // happens to be per-item rather than a single rejected promise.
-  const runOutcome: "success" | "error" = successCount > 0 ? "success" : "error";
-  const runDetail =
-    opts?.index !== undefined
-      ? typeof results[0] === "string"
-        ? `variant ${opts.index + 1} regenerated`
-        : `variant ${opts.index + 1} failed: ${(results[0] as { error: string }).error}`
-      : `${successCount} of ${count} variants succeeded`;
-
-  if (opts?.index !== undefined) {
-    const [result] = results;
-    if (typeof result === "string") {
-      const merged = [...(session.variants ?? [])];
-      merged[opts.index] = result;
-      await db
-        .update(tables.remixSessions)
-        .set({ variants: merged, updatedAt: nowIso() })
-        .where(eq(tables.remixSessions.id, id));
-    }
-    await recordRun({ sessionId: id, stage: "script", startedAt, startedAtMs, outcome: runOutcome, detail: runDetail });
-    return results;
-  }
-
-  const successes = results.filter((result): result is string => typeof result === "string");
-  await db
-    .update(tables.remixSessions)
-    .set({ variants: successes, updatedAt: nowIso() })
-    .where(eq(tables.remixSessions.id, id));
-
-  await recordRun({ sessionId: id, stage: "script", startedAt, startedAtMs, outcome: runOutcome, detail: runDetail });
-  return results;
+/** The newest script saved from this session, e.g. by the agent through crowsnest_remix_save_script. */
+export async function getLatestSessionScript(sessionId: string): Promise<{ id: string; title: string; content: string } | null> {
+  const [row] = await db
+    .select({ id: tables.scripts.id, title: tables.scripts.title, content: tables.scripts.content })
+    .from(tables.scripts)
+    .where(eq(tables.scripts.remixSessionId, sessionId))
+    .orderBy(desc(tables.scripts.createdAt))
+    .limit(1);
+  return row ?? null;
 }
 
 /**
@@ -808,24 +575,4 @@ export async function seedSessionFromIdea(ideaId: string): Promise<string> {
     .where(eq(tables.idea.id, ideaId));
 
   return session.id;
-}
-
-/**
- * The <60s "Quick Remix" path (DESIGN.md §2.5): research -> hooks (auto-picking the
- * first option) -> outline -> variants, sequentially, ending at stage "script" with
- * every field populated so the remix studio can land directly on the Script stage while
- * every earlier stage stays reachable and editable via the stepper.
- */
-export async function quickRemix(id: string, llm?: LlmClient): Promise<void> {
-  await buildResearch(id);
-  await updateStage(id, { stage: "research" });
-
-  const hooks = await generateHooks(id, { llm });
-  await updateStage(id, { chosenHook: hooks[0] ?? "", stage: "hook" });
-
-  await updateStage(id, { stage: "style" });
-  await generateOutline(id, { llm });
-
-  await generateVariants(id, { llm });
-  await updateStage(id, { stage: "script" });
 }

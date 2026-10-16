@@ -1,13 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 
 import { autosave } from "@/components/remix/autosave";
 import { ContextRail } from "@/components/remix/context-rail";
 import { resolveDeepLinkSeed } from "@/components/remix/deep-link";
-import { RunLog } from "@/components/remix/run-log";
-import { isProxyLikelyDown } from "@/components/remix/run-log-view";
 import { StageHook } from "@/components/remix/stage-hook";
 import { StagePrompt } from "@/components/remix/stage-prompt";
 import { StageResearch } from "@/components/remix/stage-research";
@@ -19,13 +16,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { CardFooter } from "@/components/ui/card";
-import {
-  getOrCreateSessionAction,
-  getRemixRunLogAction,
-  quickRemixAction,
-  updateStageAction,
-} from "@/server/actions/remix-actions";
-import type { RemixRunRow } from "@/server/queries/remix-runs";
+import { updateStageAction } from "@/server/actions/remix-actions";
 import type { SavedPostRow } from "@/server/queries/saved-posts";
 import type { VaultItemRow } from "@/server/queries/vault";
 import type { VideoDetail } from "@/server/queries/video";
@@ -41,18 +32,18 @@ import type { RemixSessionRow, RemixStage } from "@/server/services/remix";
 export function RemixStudio({
   detail,
   initialSession,
-  hasLlmKey,
+  latestScript,
   vaultHooks,
   vaultStyles,
   vaultSavedPosts,
   niche,
-  llmProxyUrl,
   seedHookVaultItemId,
   seedStyleVaultItemId,
 }: {
   detail: VideoDetail;
   initialSession: RemixSessionRow;
-  hasLlmKey: boolean;
+  // The newest script the agent saved for this session (crowsnest_remix_save_script).
+  latestScript: { id: string; title: string; content: string } | null;
   vaultHooks: VaultItemRow[];
   vaultStyles: VaultItemRow[];
   // The Vault's own saved posts (queries/saved-posts.ts), most recent first — what
@@ -60,12 +51,6 @@ export function RemixStudio({
   // studio P0: "the point of saving a post is that it seeds the next remix").
   vaultSavedPosts: SavedPostRow[];
   niche: string;
-  // `LLM_BASE_URL` when set (the local 9router proxy) — read once, server-side,
-  // in page.tsx, purely so the blocked surface can name where it looked rather than
-  // saying "somewhere" (v1-scope.md: "a recovery action that names the command to
-  // start the proxy" — the address is the honest half of that this app can supply;
-  // there is no in-repo command that starts an external process).
-  llmProxyUrl: string | null;
   // A Vault template card's "Use in Remix" deep link (?hook=<id> / ?style=<id>).
   seedHookVaultItemId?: string;
   seedStyleVaultItemId?: string;
@@ -78,10 +63,6 @@ export function RemixStudio({
   );
   const [session, setSession] = useState<RemixSessionRow>(() => ({ ...initialSession, ...deepLinkSeed.sessionPatch }));
   const [activeStage, setActiveStage] = useState<RemixStage>(deepLinkSeed.activeStage);
-  const [quickRemixPending, setQuickRemixPending] = useState(false);
-  // null = not fetched yet (kept distinct from "fetched, zero rows" — see run-log.tsx).
-  const [runs, setRuns] = useState<RemixRunRow[] | null>(null);
-
   // Persists the deep-link seed once on mount — local `session`/`activeStage` state
   // above already reflects it immediately, this just makes sure it survives past this
   // render (a refresh, or the stepper's furthest-stage gate which reads
@@ -97,37 +78,6 @@ export function RemixStudio({
     setSession((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // The run log's own source of truth (v1-scope.md, Remix studio P0 #5): fetched on
-  // mount so it survives a reload, and re-fetched by each generation stage after its
-  // own attempt (success or failure — `generateHooks`/`generateOutline`/
-  // `generateVariants` all write a row on both) via the `onRunRecorded` callback
-  // passed down below, so the panel and the proxy-down read stay live without the
-  // user reloading the page. `refreshRunLog` is what stage callbacks call (an event
-  // handler, not an effect body, so calling it directly is fine there); the mount
-  // fetch below inlines the same call instead of invoking that function, matching
-  // stage-research.tsx's own cancelled-guarded effect shape rather than tripping
-  // react-hooks/set-state-in-effect on a function reference.
-  const refreshRunLog = useCallback(async () => {
-    const result = await getRemixRunLogAction(session.id);
-    if (result.ok) setRuns(result.runs);
-  }, [session.id]);
-
-  useEffect(() => {
-    let cancelled = false;
-    getRemixRunLogAction(session.id).then((result) => {
-      if (!cancelled && result.ok) setRuns(result.runs);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [session.id]);
-
-  // Grounded in the run log itself, not a separate ping (Wave 2 rendering-layer-only
-  // rule — no new server action to actually reach the proxy): see
-  // `run-log-view.ts`'s `isProxyLikelyDown` for what counts as evidence. `runs ===
-  // null` (not yet fetched) reads as "unknown", never as "down".
-  const proxyDown = runs !== null && isProxyLikelyDown(runs);
-
   const furthestIndex = STAGE_ORDER.indexOf(session.stage);
   const activeIndex = STAGE_ORDER.indexOf(activeStage);
 
@@ -140,10 +90,10 @@ export function RemixStudio({
     (activeStage === "research" && true) ||
     (activeStage === "hook" && Boolean(session.chosenHook)) ||
     (activeStage === "style" && Boolean(session.outline)) ||
-    // The Script stage advances once a variant exists. Not once one is PICKED: the
-    // Finish view is where the pick is confirmed, and gating entry to it on the pick
-    // would hide the screen that explains what is missing.
-    (activeStage === "script" && (session.variants?.length ?? 0) > 0);
+    // The Script stage advances once a variant or a saved script exists. Not once one is
+    // PICKED: the Finish view is where the pick is confirmed, and gating entry to it on
+    // the pick would hide the screen that explains what is missing.
+    (activeStage === "script" && ((session.variants?.length ?? 0) > 0 || latestScript !== null));
 
   async function handleContinue() {
     const nextStage = STAGE_ORDER[activeIndex + 1];
@@ -163,31 +113,13 @@ export function RemixStudio({
   // Clears the furthest-reached stage back to "prompt" (acceptance criterion 6) —
   // deliberately only the stage: topic/hookOptions/outline/variants are left as they
   // are (updateStage has no "clear this field" path to reach for without a schema
-  // change), so a restarted run still gets to reuse what generation already produced
-  // instead of throwing it away. The run log is its own table, untouched by this.
+  // change), so a restarted run still reuses what the agent already wrote.
   async function handleRestart() {
     setActiveStage("prompt");
     if (session.stage !== "prompt") {
       patchSession({ stage: "prompt" });
       await updateStageAction(session.id, { stage: "prompt" });
     }
-  }
-
-  async function handleQuickRemix() {
-    setQuickRemixPending(true);
-    const result = await quickRemixAction(session.id);
-    if (!result.ok) {
-      setQuickRemixPending(false);
-      toast.error(result.error);
-      return;
-    }
-    const refreshed = await getOrCreateSessionAction(detail.item.videoId);
-    setQuickRemixPending(false);
-    if (refreshed.ok) {
-      setSession(refreshed.session);
-      setActiveStage(refreshed.session.stage);
-    }
-    refreshRunLog(); // quickRemix runs hooks/outline/variants server-side in one call
   }
 
   return (
@@ -220,11 +152,7 @@ export function RemixStudio({
                 session={session}
                 sourceTopic={detail.item.caption ?? "this topic"}
                 niche={niche}
-                hasLlmKey={hasLlmKey}
-                proxyDown={proxyDown}
-                quickRemixPending={quickRemixPending}
                 onUpdate={patchSession}
-                onQuickRemix={handleQuickRemix}
               />
             )}
             {activeStage === "research" && (
@@ -234,44 +162,29 @@ export function RemixStudio({
               <StageHook
                 session={session}
                 vaultHooks={vaultHooks}
-                hasLlmKey={hasLlmKey}
-                proxyDown={proxyDown}
-                llmProxyUrl={llmProxyUrl}
                 initialVaultItemId={deepLinkSeed.hookVaultItemId}
-                onHooksChange={(hookOptions) => patchSession({ hookOptions })}
                 onChosenHookChange={(chosenHook) => patchSession({ chosenHook })}
-                onRunRecorded={refreshRunLog}
               />
             )}
             {activeStage === "style" && (
               <StageStyle
                 session={session}
                 vaultStyles={vaultStyles}
-                hasLlmKey={hasLlmKey}
-                proxyDown={proxyDown}
-                llmProxyUrl={llmProxyUrl}
-                onOutlineChange={(outline, regenerated) =>
-                  patchSession(regenerated ? { outline, variants: null, chosenVariantIndex: null } : { outline })
-                }
+                onOutlineChange={(outline) => patchSession({ outline })}
                 onStyleVaultItemChange={(styleVaultItemId) => patchSession({ styleVaultItemId })}
-                onRunRecorded={refreshRunLog}
               />
             )}
             {activeStage === "script" && (
               <StageScript
                 session={session}
-                hasLlmKey={hasLlmKey}
-                proxyDown={proxyDown}
-                llmProxyUrl={llmProxyUrl}
+                latestScript={latestScript}
                 onVariantsChange={(variants) => patchSession({ variants })}
                 onChosenVariantChange={(chosenVariantIndex) => patchSession({ chosenVariantIndex })}
-                onRunRecorded={refreshRunLog}
               />
             )}
             {activeStage === "finish" && <StageFinish session={session} />}
           </div>
 
-          {activeStage !== "prompt" && <RunLog runs={runs} />}
         </div>
 
         <CardFooter className="flex-wrap justify-between gap-2 border-t border-border pb-4 [--card-spacing:--spacing(4)] sm:pb-6 sm:[--card-spacing:--spacing(6)]">

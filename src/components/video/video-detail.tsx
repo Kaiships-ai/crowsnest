@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -40,7 +40,6 @@ import { assetUrl } from "@/lib/media-url";
 import { SaveToVaultDialog } from "@/components/vault/save-to-vault-dialog";
 import { SavePostButton } from "./save-post-button";
 import { buildVideoPromptAction } from "@/server/actions/export-actions";
-import { generateIdeaAction } from "@/server/actions/idea-actions";
 import type { FeedItem } from "@/server/queries/feed";
 import type { MedianBasis } from "@/server/queries/channels";
 // Aliased: this component is also named VideoDetail (Task 7's file/export name), so
@@ -249,7 +248,6 @@ export function VideoDetail({
   medianBasis,
   feedNav,
   savedPost,
-  hasLlmKey,
   existingIdea,
   children,
 }: {
@@ -263,13 +261,9 @@ export function VideoDetail({
    *  the server so the button shows its real state on first paint rather than flipping
    *  after a fetch. */
   savedPost: { id: string; note: string | null } | null;
-  /** `hasLlmKey()` (`server/llm/client.ts`) — the same availability signal
-   *  stage-hook.tsx/stage-style.tsx/stage-prompt.tsx gate their own generation controls
-   *  on (B-12: Generate idea used to offer no such gate at all). */
-  hasLlmKey: boolean;
   /** `getIdeaBySourceVideoId` — the video's one non-discarded idea row, or null. Read on
-   *  the server (same convention as `savedPost` above) so Generate idea reflects an
-   *  existing idea on first paint instead of offering a blind re-generate (B-12). */
+   *  the server (same convention as `savedPost` above) so the idea status shows on
+   *  first paint. */
   existingIdea: { id: string; status: string } | null;
   /** The similar-outliers section, streamed in by the page behind its own Suspense
    *  boundary (similar-section.tsx) — a slow query in `getSimilarOutliers` no longer
@@ -278,7 +272,6 @@ export function VideoDetail({
 }) {
   const { item } = detail;
   const router = useRouter();
-  const [generatingIdea, startGenerateIdea] = useTransition();
 
   // Reading twelve posts in a row is the daily loop (V1 scope §2, Video detail
   // criterion 11) — arrow keys move without a trip back to the feed grid. Skipped
@@ -342,27 +335,6 @@ export function VideoDetail({
     } catch {
       toast.error("Couldn't copy to clipboard. Check browser permissions.");
     }
-  }
-
-  /** Design review finding: `generateIdeaAction` existed but nothing on this screen
-   * called it, so the Ideas inbox only ever filled from the background sync — there
-   * was no manual way to turn a post into an idea. Only rendered once `detail.analysis`
-   * exists (same gate `SaveToVaultDialog` below uses): `generateIdea` reads the
-   * `video_analyses` row, so calling it any earlier would just fail. */
-  function generateIdea() {
-    startGenerateIdea(async () => {
-      const result = await generateIdeaAction(item.videoId);
-      if (result.ok) {
-        toast.success(result.created ? "Idea added to the inbox" : "Idea updated");
-        // `existingIdea` is a prop straight off page.tsx's server fetch
-        // (getIdeaBySourceVideoId), not local state — refresh so the control flips to
-        // reflecting the new idea without a manual reload (same convention
-        // save-post-button.tsx's keep()/forget() use for `saved`).
-        router.refresh();
-      } else {
-        toast.error(result.error);
-      }
-    });
   }
 
   return (
@@ -639,28 +611,10 @@ export function VideoDetail({
                 <Wand2 className="size-3.5" /> Copy as prompt
               </Button>
 
-              {detail.analysis ? (
-                existingIdea ? (
-                  // Reflects the existing idea instead of a blind re-generate (B-12) —
-                  // same disabled/no-op-state convention as the Save-to-Vault tooltip
-                  // button above, not an actionable regenerate trigger.
-                  <Button variant="outline" size="sm" disabled focusableWhenDisabled>
-                    <Lightbulb className="size-3.5" /> {IDEA_STATUS_LABEL[existingIdea.status] ?? "Idea added"}
-                  </Button>
-                ) : hasLlmKey ? (
-                  <Button variant="outline" size="sm" onClick={generateIdea} disabled={generatingIdea}>
-                    <Lightbulb className="size-3.5" /> {generatingIdea ? "Generating…" : "Generate idea"}
-                  </Button>
-                ) : (
-                  // Gated on the same `hasLlmKey` signal stage-hook.tsx/stage-style.tsx/
-                  // stage-prompt.tsx use for their own generation controls (B-12).
-                  <Tooltip>
-                    <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                      <Lightbulb className="size-3.5" /> Generate idea
-                    </TooltipTrigger>
-                    <TooltipContent>Add your Claude API key in Settings to generate an idea</TooltipContent>
-                  </Tooltip>
-                )
+              {detail.analysis && existingIdea ? (
+                <Button variant="outline" size="sm" disabled focusableWhenDisabled>
+                  <Lightbulb className="size-3.5" /> {IDEA_STATUS_LABEL[existingIdea.status] ?? "Idea added"}
+                </Button>
               ) : null}
             </ButtonGroup>
           </div>

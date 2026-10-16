@@ -25,13 +25,12 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "
 import { Item, ItemActions, ItemContent, ItemDescription, ItemFooter, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { clearSecretAction, getSecretStatusAction, regenerateServiceTokenAction, setSecretAction } from "@/server/actions/secrets-actions";
-import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import type { ManagedSecret, SecretStatus } from "@/server/secrets/store";
 
-type Group = "llm" | "instagram" | "graph";
+type Group = "transcription" | "instagram" | "graph";
 
 const GROUPS: { id: Group; title: string; description: string }[] = [
-  { id: "llm", title: "LLM", description: "Used for generation (Anthropic) and transcription (Groq)." },
+  { id: "transcription", title: "Transcription", description: "Used for transcription (Groq)." },
   {
     id: "instagram",
     title: "Instagram sidecar",
@@ -42,8 +41,7 @@ const GROUPS: { id: Group; title: string; description: string }[] = [
 ];
 
 const SECRET_META: Record<ManagedSecret, { label: string; group: Group }> = {
-  ANTHROPIC_API_KEY: { label: "Anthropic API key", group: "llm" },
-  GROQ_API_KEY: { label: "Groq API key", group: "llm" },
+  GROQ_API_KEY: { label: "Groq API key", group: "transcription" },
   IG_SERVICE_TOKEN: { label: "Service token", group: "instagram" },
   IG_USERNAME: { label: "Username", group: "instagram" },
   IG_PASSWORD: { label: "Password", group: "instagram" },
@@ -70,7 +68,6 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
   // just flips the input between password and text so it can be read before saving.
   const [revealed, setRevealed] = useState(false);
   const [pending, startTransition] = useTransition();
-  const [testing, setTesting] = useState(false);
   // Set only by a regenerate that happened while the sidecar was answering — see
   // regenerate() below for why the check has to run before the token is replaced.
   const [sidecarStale, setSidecarStale] = useState(false);
@@ -130,14 +127,6 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
     });
   }
 
-  async function runTest() {
-    setTesting(true);
-    const result = await testAnthropicKeyAction();
-    setTesting(false);
-    if (result.ok) toast.success(`${meta.label}: connection OK`);
-    else toast.error(result.error);
-  }
-
   const isServiceToken = status.name === "IG_SERVICE_TOKEN";
 
   return (
@@ -152,17 +141,6 @@ function SecretRow({ status, onChanged }: { status: SecretStatus; onChanged: (ne
         {status.configured && sourceLabel(status) && <ItemDescription>{sourceLabel(status)}</ItemDescription>}
       </ItemContent>
       <ItemActions>
-        {status.name === "ANTHROPIC_API_KEY" && (
-          <Button
-            size="sm"
-            variant="outline"
-            data-testid={`secrets-${testIdSlug(status.name)}-test`}
-            onClick={() => void runTest()}
-            disabled={!status.configured || testing}
-          >
-            {testing ? "Testing…" : "Test"}
-          </Button>
-        )}
         {isServiceToken ? (
           <Button size="sm" variant="outline" onClick={regenerate} disabled={pending}>
             {pending ? "Regenerating…" : "Regenerate"}

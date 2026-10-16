@@ -3,7 +3,6 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
-import { generateIdea } from "../services/ideas";
 import { seedSessionFromIdea } from "../services/remix";
 
 /**
@@ -24,23 +23,6 @@ export type IdeaStatus = (typeof IDEA_STATUSES)[number];
 
 function isIdeaStatus(value: string): value is IdeaStatus {
   return (IDEA_STATUSES as readonly string[]).includes(value);
-}
-
-/** Generates (or refreshes) the one inbox idea for a video. `generateIdea` itself never
- *  throws — a bad LLM reply comes back as `{ id: "", created: false }` rather than an
- *  exception — so the only failure this wrapper can see is `id` coming back empty, which
- *  it reports as a normal `ok: false` rather than treating a caught exception as the
- *  only failure mode. */
-export async function generateIdeaAction(videoId: string): Promise<ActionResult<{ id: string; created: boolean }>> {
-  try {
-    const result = await generateIdea(videoId);
-    if (!result.id) {
-      return { ok: false, error: "Could not generate an idea for that video.", code: "IDEA_GENERATE_FAILED" };
-    }
-    return { ok: true, id: result.id, created: result.created };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err), code: "IDEA_GENERATE_UNKNOWN" };
-  }
 }
 
 /**

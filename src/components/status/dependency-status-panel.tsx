@@ -13,8 +13,7 @@
  * script, and it should be readable before anything is clicked.
  *
  * No control here ever claims to start anything. This app has no mechanism to launch an
- * external process (see `generation-blocked.tsx`'s identical reasoning for the Remix
- * screen) — the sidecar row offers a copyable command, never a "Start" button.
+ * external process, so the sidecar row offers a copyable command, never a "Start" button.
  */
 
 import { useState, useTransition } from "react";
@@ -27,25 +26,21 @@ import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupText } from "@
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { cn } from "@/lib/utils";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { isRoutedThroughProxyAction } from "@/server/actions/router-actions";
-import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
+import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import {
   bothHealthy,
-  classifyLlmStatus,
+  classifyGraphStatus,
   classifySidecarStatus,
   SIDECAR_START_COMMAND,
   withTimeout,
-  LLM_PING_TIMEOUT_MS,
-  type LlmStatus,
+  PING_TIMEOUT_MS,
+  type GraphStatus,
   type SidecarStatus,
 } from "./dependency-status";
 
 export interface DependencyStatusPanelProps {
   sidecar: SidecarStatus;
-  llm: LlmStatus;
-  /** Static for the life of the process (env vars read once at server start) — carried
-   *  through so a "Check again" only re-runs the two live probes, not the config read. */
-  hasLlmKey: boolean;
+  graph: GraphStatus;
 }
 
 /** The severity dot each row leads with. It sits in the row's `ItemMedia`, so the row
@@ -60,16 +55,10 @@ function sidecarTone(state: SidecarStatus["state"]): "ok" | "bad" {
   return state === "up" ? "ok" : "bad";
 }
 
-function llmTone(state: LlmStatus["state"]): "ok" | "warn" | "bad" {
+function graphTone(state: GraphStatus["state"]): "ok" | "warn" | "bad" {
   if (state === "up") return "ok";
-  if (state === "not_configured" || state === "unknown" || state === "reachable_unverified") return "warn";
-  return "bad";
-}
-
-function proxyLocationLine(llm: LlmStatus): string {
-  return llm.proxyUrl
-    ? `Looked at ${llm.proxyUrl}${llm.routedThroughProxy ? " (LLM_BASE_URL)" : ""}.`
-    : "Looked at the real Anthropic API. No LLM_BASE_URL is set.";
+  if (state === "down") return "bad";
+  return "warn";
 }
 
 function sidecarHeadline(sidecar: SidecarStatus): string {
@@ -83,23 +72,16 @@ function sidecarHeadline(sidecar: SidecarStatus): string {
   }
 }
 
-function llmHeadline(llm: LlmStatus): string {
-  switch (llm.state) {
+function graphHeadline(graph: GraphStatus): string {
+  switch (graph.state) {
     case "up":
-      return "Model backend is up.";
+      return "Graph API is up.";
     case "not_configured":
-      return "Model backend has no API key configured.";
+      return "Graph API has no token configured.";
     case "unknown":
-      return "Model backend did not answer in time.";
-    case "reachable_unverified":
-      return "Model backend answered, but generation isn't confirmed.";
+      return "Graph API check was inconclusive.";
     case "down":
-      // The distinction the false-green case demands: a proxy that answers with an
-      // error status is a different, more specific fact than a proxy no one is home
-      // at, and the two are fixed in completely different places.
-      return llm.reachable
-        ? "Model backend answered, but every attempt failed."
-        : "Model backend is unreachable.";
+      return "Graph API is failing.";
   }
 }
 
@@ -127,41 +109,30 @@ function CopyCommand({ command }: { command: string }) {
   );
 }
 
-export function DependencyStatusPanel({ sidecar: initialSidecar, llm: initialLlm, hasLlmKey }: DependencyStatusPanelProps) {
+export function DependencyStatusPanel({ sidecar: initialSidecar, graph: initialGraph }: DependencyStatusPanelProps) {
   const [sidecar, setSidecar] = useState(initialSidecar);
-  const [llm, setLlm] = useState(initialLlm);
+  const [graph, setGraph] = useState(initialGraph);
   const [isPending, startTransition] = useTransition();
 
-  // Re-runs the live probes: getIgStatusAction, the same $0 ping the Settings page's own
-  // "Test" button uses, and isRoutedThroughProxyAction (ENH-2) — that last one is a live
-  // reachability check, not a static config fact, so it must be re-read here too, not
-  // reused from the initial classify, or "Check again" could keep showing a stale
-  // "routed through proxy" after the proxy actually died (or came back) mid-session.
-  // `hasLlmKey`/`proxyUrl` alone are still config facts that only change on a restart.
   function recheck() {
     startTransition(async () => {
-      const [igResult, pingResult, routedThroughProxy] = await Promise.all([
-        getIgStatusAction(),
-        hasLlmKey ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
-        hasLlmKey ? isRoutedThroughProxyAction() : Promise.resolve(false),
-      ]);
+      const [igResult, graphResult] = await Promise.all([getIgStatusAction(), withTimeout(checkGraphTokenAction(), PING_TIMEOUT_MS)]);
       setSidecar(classifySidecarStatus(igResult));
-      setLlm(
-        classifyLlmStatus({
-          hasKey: hasLlmKey,
-          proxyUrl: initialLlm.proxyUrl,
-          routedThroughProxy,
-          ping: pingResult ?? "timed_out",
-        }),
+      setGraph(
+        graphResult === "timed_out"
+          ? classifyGraphStatus(graphResult)
+          : graphResult.ok
+            ? classifyGraphStatus(graphResult.status)
+            : { state: "unknown", detail: graphResult.error },
       );
     });
   }
 
-  if (bothHealthy(sidecar, llm)) {
+  if (bothHealthy(sidecar, graph)) {
     return (
       <p className="flex items-center gap-2 text-xs text-muted-foreground">
         <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground/40" />
-        Instagram sidecar and model backend are both up.
+        Instagram sidecar and Graph API are both up.
       </p>
     );
   }
@@ -194,21 +165,14 @@ export function DependencyStatusPanel({ sidecar: initialSidecar, llm: initialLlm
 
           <Item size="sm">
             <ItemMedia>
-              <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[llmTone(llm.state)])} />
+              <span aria-hidden className={cn("mt-1.5 size-2 shrink-0 rounded-full", ROW_TONE[graphTone(graph.state)])} />
             </ItemMedia>
             <ItemContent>
-              <ItemTitle>{llmHeadline(llm)}</ItemTitle>
-              {llm.detail && <ItemDescription>{llm.detail}</ItemDescription>}
-              {llm.state === "reachable_unverified" && (
-                <ItemDescription className="max-w-[52ch]">
-                  The proxy answered a token-count check, but that route doesn&rsquo;t call the model itself, so it is not proof Hook,
-                  Style, or Script will actually generate. Try one in Remix to know for sure.
-                </ItemDescription>
-              )}
-              <ItemDescription className="font-mono text-2xs">{proxyLocationLine(llm)}</ItemDescription>
-              {llm.state === "not_configured" && (
-                <Link href="/settings" className="mt-1.5 inline-block text-xs text-foreground underline underline-offset-2">
-                  Add API key in Settings
+              <ItemTitle>{graphHeadline(graph)}</ItemTitle>
+              {graph.detail && <ItemDescription>{graph.detail}</ItemDescription>}
+              {graph.state !== "up" && (
+                <Link href="/settings#graph-api" className="mt-1.5 inline-block text-xs text-foreground underline underline-offset-2">
+                  Check Graph API in Settings
                 </Link>
               )}
             </ItemContent>

@@ -213,28 +213,22 @@ describe("crowsnest_save_analysis", () => {
     expect(rows).toHaveLength(0);
   });
 
-  test("P0 slice 2a: keyless round trip — save via crowsnest_save_analysis, read back via crowsnest_video, transcript included, no ANTHROPIC_API_KEY set", async () => {
-    const prevKey = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    try {
-      const videoId = await seedVideo({ withTranscript: true });
-      const server = buildMcpServer();
+  test("P0 slice 2a: keyless round trip — save via crowsnest_save_analysis, read back via crowsnest_video, transcript included, no model key", async () => {
+    const videoId = await seedVideo({ withTranscript: true });
+    const server = buildMcpServer();
 
-      const saved = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS });
-      expect(saved.isError).not.toBe(true);
+    const saved = await callTool(server, "crowsnest_save_analysis", { videoId, ...VALID_ANALYSIS });
+    expect(saved.isError).not.toBe(true);
 
-      const read = await callTool(server, "crowsnest_video", { videoId });
-      expect(read.isError).not.toBe(true);
-      const body = read.structuredContent as {
-        analysis: { hookType: string; whyItWorked: string } | null;
-        transcript: { text: string } | null;
-      };
-      expect(body.analysis?.hookType).toBe(VALID_ANALYSIS.hookType);
-      expect(body.analysis?.whyItWorked).toBe(VALID_ANALYSIS.whyItWorked);
-      expect(body.transcript?.text.length).toBeGreaterThan(0);
-    } finally {
-      if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
-    }
+    const read = await callTool(server, "crowsnest_video", { videoId });
+    expect(read.isError).not.toBe(true);
+    const body = read.structuredContent as {
+      analysis: { hookType: string; whyItWorked: string } | null;
+      transcript: { text: string } | null;
+    };
+    expect(body.analysis?.hookType).toBe(VALID_ANALYSIS.hookType);
+    expect(body.analysis?.whyItWorked).toBe(VALID_ANALYSIS.whyItWorked);
+    expect(body.transcript?.text.length).toBeGreaterThan(0);
   });
 });
 

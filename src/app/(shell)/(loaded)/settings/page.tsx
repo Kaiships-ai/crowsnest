@@ -8,7 +8,6 @@ import { InstagramSection } from "@/components/settings/instagram-section";
 import { LocalBinariesSection, type BinaryStatus } from "@/components/settings/local-binaries-section";
 import { NicheProfileSection } from "@/components/settings/niche-profile-section";
 import { OnboardingSection } from "@/components/settings/onboarding-section";
-import { RouterSection } from "@/components/settings/router-section";
 import { RunsAlertsSection } from "@/components/settings/runs-alerts-section";
 import { ScoringSection } from "@/components/settings/scoring-section";
 import { SecretsSection } from "@/components/settings/secrets-section";
@@ -17,7 +16,6 @@ import { listAccounts } from "@/server/services/accounts";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { getRouterStatusAction } from "@/server/actions/router-actions";
 import { getAppSettingsAction, getNicheSettings } from "@/server/actions/settings-actions";
 import { getLatestSyncJob } from "@/server/actions/sync-actions";
 import { config } from "@/server/config";
@@ -46,10 +44,9 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
     ],
   },
   {
-    label: "Generation",
+    label: "Keys and binaries",
     items: [
       { id: "api-keys", label: "API keys" },
-      { id: "router", label: "9router" },
       { id: "local-binaries", label: "Local binaries" },
     ],
   },
@@ -89,7 +86,7 @@ export default async function SettingsPage() {
   // `checkGraphTokenAction` is the same shape: documented to never throw, `ok: false`
   // here would mean the action itself broke, not "no token" (that's `state:
   // "not_configured"` inside an `ok: true` result).
-  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult, routerStatus] = await Promise.all([
+  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult] = await Promise.all([
     getNicheSettings(),
     detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp"),
     whisperAvailability(),
@@ -97,7 +94,6 @@ export default async function SettingsPage() {
     getLatestSyncJob(),
     getAppSettingsAction(),
     checkGraphTokenAction(),
-    getRouterStatusAction(),
   ]);
 
   // Sync, not part of the Promise.all above: `secretStatus()` reads the local sqlite
@@ -173,9 +169,6 @@ export default async function SettingsPage() {
           <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[2].label}</p>
           <div id="api-keys" className="scroll-mt-6">
             <SecretsSection initialStatus={secretStatuses} />
-          </div>
-          <div id="router" className="scroll-mt-6">
-            <RouterSection initialStatus={routerStatus} initialAutoManage={appSettings.routerAutoManage} />
           </div>
           <div id="local-binaries" className="scroll-mt-6">
             <LocalBinariesSection binaries={binaries} />

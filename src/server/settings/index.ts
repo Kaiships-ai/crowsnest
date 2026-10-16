@@ -103,12 +103,6 @@ export interface AppSettings {
    *  this back to false so the flow can be replayed; see docs/product/v1-scope.md §2
    *  "First run" AC 1 and AC 14. */
   firstRunCompleted: boolean;
-  /** When true, the app is allowed to auto-start and auto-restart the local 9router
-   *  LLM proxy when its status is read and it isn't reachable. Off by default to stay
-   *  safe: with this off, the app only observes 9router's status and never spawns it.
-   *  Consumed by `getRouterStatusAction` (router-actions.ts), guarded by a cooldown so
-   *  a dead router can never trigger a restart loop. */
-  routerAutoManage: boolean;
 }
 
 /** Rows in `app_settings` are `key`/`value`, both TEXT. This is the `key` for each
@@ -132,7 +126,6 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   remixSlaMinutes: "remix_sla_minutes",
   notifyOnSuccess: "notify_on_success",
   firstRunCompleted: "first_run_completed",
-  routerAutoManage: "router_auto_manage",
 };
 
 /** Every setting key's DB key, exported for tests and for the write action, which needs
@@ -174,7 +167,6 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   remixSlaMinutes: posInt(1, 240),
   notifyOnSuccess: boolLike,
   firstRunCompleted: boolLike,
-  routerAutoManage: boolLike,
 };
 
 /** Built-in defaults, used only when there is no DB row AND (for the three keys below)
@@ -203,7 +195,6 @@ const DEFAULT: AppSettings = {
   remixSlaMinutes: 3,
   notifyOnSuccess: false, // success is opt in; failures and breaches always notify
   firstRunCompleted: false, // no row yet == first run has not happened
-  routerAutoManage: false, // safe by default: observe 9router, never spawn it, until opted in
 };
 
 /** The only keys that predate `app_settings` and have a validated fallback in
@@ -240,7 +231,6 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   remixSlaMinutes: false, // stored now, wired once remix runs raise their own notifications
   notifyOnSuccess: true, // sync-engine gates the run_finished notification on this
   firstRunCompleted: true, // read by the (shell) route guard — see src/server/queries/first-run-gate.ts
-  routerAutoManage: true, // getRouterStatusAction gates its auto-restart attempt on this
 };
 
 export type SettingSource = "db" | "env" | "default";

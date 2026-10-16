@@ -1,12 +1,13 @@
 import { describe, expect, test, vi } from "vitest";
 import {
   bothHealthy,
-  classifyLlmStatus,
+  classifyGraphStatus,
   classifySidecarStatus,
   PING_TIMED_OUT,
   withTimeout,
   type IgStatusResult,
 } from "./dependency-status";
+import type { GraphTokenStatus } from "@/server/graph/client";
 
 function igOk(overrides: Partial<Extract<IgStatusResult, { ok: true }>["status"]> = {}): IgStatusResult {
   return {
@@ -51,111 +52,32 @@ describe("classifySidecarStatus", () => {
   });
 });
 
-describe("classifyLlmStatus", () => {
-  test("no key configured reads as not_configured with no ping needed", () => {
-    const result = classifyLlmStatus({ hasKey: false, proxyUrl: null, routedThroughProxy: false, ping: PING_TIMED_OUT });
-    expect(result.state).toBe("not_configured");
-    expect(result.reachable).toBeNull();
+function token(state: GraphTokenStatus["state"], message: string | null = null): GraphTokenStatus {
+  return { configured: state !== "not_configured", username: null, state, message, checkedAt: "2026-01-01T00:00:00.000Z" };
+}
+
+describe("classifyGraphStatus", () => {
+  test("ok reads as up", () => {
+    expect(classifyGraphStatus(token("ok"))).toEqual({ state: "up", detail: null });
   });
 
-  test("a successful ping in native mode reads as up and reachable", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: null,
-      routedThroughProxy: false,
-      ping: { ok: true },
-    });
-    expect(result.state).toBe("up");
-    expect(result.reachable).toBe(true);
+  test("auth and network failures read as down with the check's own message", () => {
+    expect(classifyGraphStatus(token("auth_failed", "Token expired"))).toEqual({ state: "down", detail: "Token expired" });
+    expect(classifyGraphStatus(token("network", "offline")).state).toBe("down");
   });
 
-  test("a real live case: proxy answers, model dead (410) — down, but reachable stays true, not a false green", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: "http://localhost:20128",
-      routedThroughProxy: true,
-      ping: { ok: false, error: "Claude API error: 410 (not_found_error)" },
-    });
-    expect(result.state).toBe("down");
-    expect(result.reachable).toBe(true);
-    expect(result.detail).toBe("Claude API error: 410 (not_found_error)");
-  });
-
-  test("a real live case: proxy answers, token expired (401) — down, reachable true", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: "http://localhost:20128",
-      routedThroughProxy: true,
-      ping: { ok: false, error: "API key invalid or revoked — check Settings" },
-    });
-    expect(result.state).toBe("down");
-    expect(result.reachable).toBe(true);
-  });
-
-  test("nothing answers at all (APIConnectionError's mapped message) — down, and reachable is false", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: "http://localhost:20128",
-      routedThroughProxy: true,
-      ping: { ok: false, error: "Network error reaching Claude" },
-    });
-    expect(result.state).toBe("down");
-    expect(result.reachable).toBe(false);
-  });
-
-  test("proxy mode: a passing ping is reachable_unverified, never up — count_tokens doesn't prove generation works", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: "http://localhost:20128",
-      routedThroughProxy: true,
-      ping: { ok: true },
-    });
-    expect(result.state).toBe("reachable_unverified");
-    expect(result.reachable).toBe(true);
-  });
-
-  test("native mode: a passing ping is up — the real API's count_tokens validates key and model", () => {
-    const result = classifyLlmStatus({
-      hasKey: true,
-      proxyUrl: null,
-      routedThroughProxy: false,
-      ping: { ok: true },
-    });
-    expect(result.state).toBe("up");
-  });
-
-  test("a timed-out check reads as unknown, never coerced into down", () => {
-    const result = classifyLlmStatus({ hasKey: true, proxyUrl: null, routedThroughProxy: false, ping: PING_TIMED_OUT });
-    expect(result.state).toBe("unknown");
-    expect(result.reachable).toBeNull();
-  });
-
-  test("proxyUrl and routedThroughProxy pass through unchanged on every branch", () => {
-    for (const ping of [PING_TIMED_OUT, { ok: true } as const, { ok: false, error: "x" } as const]) {
-      const result = classifyLlmStatus({ hasKey: true, proxyUrl: "http://x", routedThroughProxy: true, ping });
-      expect(result.proxyUrl).toBe("http://x");
-      expect(result.routedThroughProxy).toBe(true);
-    }
+  test("no token, a rate limit, or a timeout is a warning, not down", () => {
+    expect(classifyGraphStatus(token("not_configured")).state).toBe("not_configured");
+    expect(classifyGraphStatus(token("rate_limited")).state).toBe("unknown");
+    expect(classifyGraphStatus(PING_TIMED_OUT).state).toBe("unknown");
   });
 });
 
 describe("bothHealthy", () => {
   test("true only when both are up", () => {
-    const up = classifySidecarStatus(igOk());
-    const llmUp = classifyLlmStatus({ hasKey: true, proxyUrl: null, routedThroughProxy: false, ping: { ok: true } });
-    expect(bothHealthy(up, llmUp)).toBe(true);
-  });
-
-  test("false when the sidecar is down even if the LLM is up", () => {
-    const down = classifySidecarStatus(igFail("IG_SERVICE_DOWN"));
-    const llmUp = classifyLlmStatus({ hasKey: true, proxyUrl: null, routedThroughProxy: false, ping: { ok: true } });
-    expect(bothHealthy(down, llmUp)).toBe(false);
-  });
-
-  test("false when the LLM is down even if the sidecar is up", () => {
-    const up = classifySidecarStatus(igOk());
-    const llmDown = classifyLlmStatus({ hasKey: true, proxyUrl: null, routedThroughProxy: false, ping: { ok: false, error: "x" } });
-    expect(bothHealthy(up, llmDown)).toBe(false);
+    expect(bothHealthy(classifySidecarStatus(igOk()), classifyGraphStatus(token("ok")))).toBe(true);
+    expect(bothHealthy(classifySidecarStatus(igFail("IG_SERVICE_DOWN")), classifyGraphStatus(token("ok")))).toBe(false);
+    expect(bothHealthy(classifySidecarStatus(igOk()), classifyGraphStatus(token("auth_failed")))).toBe(false);
   });
 });
 

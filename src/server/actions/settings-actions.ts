@@ -2,8 +2,6 @@
 
 import { eq, inArray } from "drizzle-orm";
 import { db, tables } from "../db";
-import { getLlm, NoApiKeyError, type LlmClient } from "../llm/client";
-import { llmErrorMessage } from "../llm/error-message";
 import { getSettingsWithSource, resolveAllSettings, scoringOptionsFromSettings, validateSetting, type AppSettings, type AppSettingsView } from "../settings";
 import { recomputeAllChannelScoresSync } from "../services/sync-engine";
 
@@ -79,28 +77,6 @@ export async function saveNicheSettingsAction(niche: string, keywords: string[])
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-/**
- * API Keys section's "Test" button for Anthropic (the only key with a real client seam
- * to test through) — a $0 `count_tokens` call via LlmClient.ping(). Groq stays
- * presence-only (no client wrapper exists for it yet); its status card just shows whether
- * the env var is set. Instagram is not an API key at all any more — it authenticates
- * through the sidecar's own Settings section.
- *
- * `llm` is an injectable seam purely for tests (mirrors remix.ts/analyze.ts's own
- * `{ llm? }` pattern) — the real "Test" button always calls this with no argument,
- * which resolves through the real `getLlm()` singleton.
- */
-export async function testAnthropicKeyAction(llm?: LlmClient): Promise<SimpleResult> {
-  try {
-    const client = llm ?? (await getLlm());
-    await client.ping();
-    return { ok: true };
-  } catch (err) {
-    if (err instanceof NoApiKeyError) return { ok: false, error: "ANTHROPIC_API_KEY is not set." };
-    return { ok: false, error: llmErrorMessage(err) };
   }
 }
 

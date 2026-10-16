@@ -5,7 +5,6 @@ import { notFound } from "next/navigation";
 import { SimilarSection, SimilarSkeleton } from "@/components/video/similar-section";
 import { VideoDetail } from "@/components/video/video-detail";
 import type { SearchParams } from "@/lib/feed-filters";
-import { hasLlmKey } from "@/server/llm/client";
 import { getChannelMedianBasis } from "@/server/queries/channels";
 import { getIdeaBySourceVideoId } from "@/server/queries/ideas";
 import { getSavedPostByVideoId } from "@/server/queries/saved-posts";
@@ -98,7 +97,6 @@ export default async function VideoDetailPage({
         medianBasis={medianBasis}
         feedNav={feedNav}
         savedPost={savedPost}
-        hasLlmKey={hasLlmKey()}
         existingIdea={existingIdea}
       >
         <Suspense fallback={<SimilarSkeleton />}>

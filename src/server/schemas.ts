@@ -148,15 +148,7 @@ export function asBeatLayout(layout: StoredVideoLayout | null | undefined): Beat
   return Array.isArray(layout) ? layout : null;
 }
 
-export const HookOptionsSchema = z.object({ hooks: z.array(z.string()).min(3).max(7) });
-export type HookOptions = z.infer<typeof HookOptionsSchema>;
-
 export const OutlineSchema = z.object({
   beats: z.array(z.object({ label: z.string(), content: z.string(), targetSec: z.number() })),
 });
 export type Outline = z.infer<typeof OutlineSchema>;
-
-/** One generated content idea (ideas loop, task 7): a one-line `concept` plus a short
- *  `angle` explaining the spin — see `services/ideas.ts`'s `generateIdea`. */
-export const IdeaSchema = z.object({ concept: z.string(), angle: z.string() });
-export type Idea = z.infer<typeof IdeaSchema>;

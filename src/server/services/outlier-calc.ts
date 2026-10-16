@@ -4,17 +4,6 @@ export interface VideoForCalc {
   postedAt: string;
 }
 
-/**
- * The outlier score (`videos.outlier_score`, computed by {@link scoreVideosAgainstBaseline}
- * above) a post must clear before it is worth turning into an auto-generated inbox idea
- * (`ideas.ts`). Historically also shared with an in-app auto-analyze download+transcribe+
- * LLM pass (`auto-analyze.ts`), retired in P0 slice 2a — analysis is now authored only by
- * an external agent through MCP, never in-app, so a post no longer needs to "qualify to
- * be analyzed" first. Kept as a named constant rather than a bare `3` even with a single
- * reader now.
- */
-export const OUTLIER_IDEA_THRESHOLD = 3;
-
 export function median(values: number[]): number {
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);

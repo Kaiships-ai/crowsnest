@@ -529,8 +529,7 @@ export function buildMcpServer(): McpServer {
   // (hooks, outline, variants): the MCP path is keyless (P0 slice 2b) — they return the
   // assembled { system, user, context } prompt instead of calling an internal model, and
   // the calling agent writes the result itself and reports it back (choose_hook,
-  // save_script). The in-app dashboard still calls the internal model directly via the
-  // generate*/quickRemix functions in remix.ts — unchanged, out of scope here. Stage
+  // save_script). The app makes no model calls of its own. Stage
   // progression on the session is left to the service functions (finish sets the stage);
   // these tools do not manage the stepper, since that only affects how the dashboard
   // renders the session.

@@ -24,7 +24,7 @@ export interface DeepLinkSeed {
  * - The Style stage's seed rides in `sessionPatch.styleVaultItemId` because that's
  *   itself a persisted session column that `StageStyle` already initializes its
  *   Select from (`session.styleVaultItemId ?? SOURCE_VALUE`) — no separate prop
- *   needed, and persisting it is what makes `generateOutline`'s server-side read of
+ *   needed, and persisting it is what makes `buildOutlinePrompt`'s server-side read of
  *   `session.styleVaultItemId` actually pick it up too. The Hook stage has no
  *   equivalent persisted "seed" column (`chosenHook` stores the picked hook's
  *   *text*, post-generation, not a vault item id), so its id is returned separately

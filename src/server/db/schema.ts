@@ -313,18 +313,17 @@ export const scripts = sqliteTable("scripts", {
 });
 
 /**
- * One row per generated content idea (ideas loop, task 7): `generateIdea` reads a
- * video's `video_analyses` row plus the single `persona` row and asks the LLM for a
- * one-line `concept` and a short `angle`. Lives in the "inbox" until Kai shortlists,
+ * One row per content idea (ideas loop, task 7): a one-line `concept` and a short
+ * `angle` drawn from one analyzed video. Lives in the "inbox" until Kai shortlists,
  * scripts, or discards it.
  *
  * `idea_source_active` is a partial unique index enforcing "at most one non-discarded
  * idea per source video" at the database level (`WHERE status != 'discarded'`) —
  * drizzle-kit (0.31.10) emits the `WHERE` clause for this table correctly (verified in
  * the generated migration), same as the existing `sync_jobs_lock_running` and
- * `channels_single_own` partial indexes. `generateIdea` (`services/ideas.ts`) still
- * does a select-then-update rather than relying on the index to reject a duplicate
- * INSERT — the index is the backstop, not the upsert mechanism.
+ * `channels_single_own` partial indexes. Writers should
+ * select-then-update rather than rely on the index to reject a duplicate INSERT; the
+ * index is the backstop, not the upsert mechanism.
  */
 export const idea = sqliteTable("idea", {
   id: text("id").primaryKey(),
@@ -388,10 +387,9 @@ export const remixSessions = sqliteTable("remix_sessions", {
 /**
  * The remix studio's run log (v1-scope.md, Remix studio P0: "remix_sessions records no
  * per-run history. Add a remix_runs table. Without it a failed generation leaves no
- * trace, and this pipeline fails often."). One row per generation attempt —
- * `generateHooks`, `generateOutline`, `generateVariants` — success or failure, so a
- * failed run is never invisible and a restart (which clears the session's stage back
- * to "prompt") never erases the history of what was actually tried.
+ * trace, and this pipeline fails often."). Written by the in-app generation that has
+ * since been removed; nothing writes or reads it now. Kept so existing rows and the
+ * migration history stay intact.
  *
  * Deliberately its own table rather than a JSON column on `remix_sessions`: a run log
  * is an append-only sequence of independent facts, and a JSON blob would mean reading

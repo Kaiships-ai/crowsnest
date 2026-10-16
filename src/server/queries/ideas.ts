@@ -123,11 +123,8 @@ export async function getIdea(id: string): Promise<IdeaListItem | null> {
   return row ? toIdeaListItem(row) : null;
 }
 
-/** The single non-discarded idea for one video, or null. Mirrors `generateIdea`'s own
- *  "at most one active idea per source video" read (`services/ideas.ts`, backed by the
- *  partial unique index `idea_source_active`) — used by the video detail page (B-12) so
- *  its Generate-idea control can reflect that an idea already exists instead of
- *  offering a blind re-generate. */
+/** The single non-discarded idea for one video, or null. Backed by the partial
+ *  unique index `idea_source_active`. The video detail page shows its status. */
 export async function getIdeaBySourceVideoId(videoId: string): Promise<{ id: string; status: string } | null> {
   const [row] = await db
     .select({ id: tables.idea.id, status: tables.idea.status })
