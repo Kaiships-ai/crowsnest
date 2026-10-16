@@ -342,17 +342,9 @@ const CAPTION_MAX = 2200;
 /** A `datetime-local` value ("YYYY-MM-DDTHH:MM"), the only schedule input the UI sends. */
 const SCHEDULE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
-/**
- * Attaches an uploaded mp4 to a plan. The bytes arrive as a `File` in `FormData` (the
- * native Server-Action file convention, see node_modules/next/dist/docs mutating-data),
- * are written to a temp file, then handed to `attachPlanVideo`, the same path the MCP
- * attach tool uses.
- */
 export async function uploadPlanVideoAction(id: string, formData: FormData): Promise<SimpleResult> {
   const file = formData.get("file");
   if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
-  // ponytail: buffer the whole file then copy it into the store. bodySizeLimit caps it at
-  // 200 MB; stream File.stream() to the temp path if that ceiling ever rises.
   const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);
   try {
     await writeFile(tmpPath, Buffer.from(await file.arrayBuffer()));
