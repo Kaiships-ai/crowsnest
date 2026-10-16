@@ -41,7 +41,6 @@ export function RemixStudio({
 }: {
   detail: VideoDetail;
   initialSession: RemixSessionRow;
-  // The newest script the agent saved for this session (crowsnest_remix_save_script).
   vaultHooks: VaultItemRow[];
   vaultStyles: VaultItemRow[];
   // The Vault's own saved posts (queries/saved-posts.ts), most recent first — what
@@ -88,7 +87,7 @@ export function RemixStudio({
     (activeStage === "research" && true) ||
     (activeStage === "hook" && Boolean(session.chosenHook)) ||
     (activeStage === "style" && Boolean(session.outline)) ||
-    // The Script stage advances once a variant or a saved script exists. Not once one is
+    // The Script stage advances once a variant exists. Not once one is
     // PICKED: the Finish view is where the pick is confirmed, and gating entry to it on
     // the pick would hide the screen that explains what is missing.
     (activeStage === "script" && (session.variants?.length ?? 0) > 0);

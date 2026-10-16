@@ -32,7 +32,7 @@ import type { RemixSessionRow } from "@/server/services/remix";
 
 /** DESIGN.md §2.5 stage ⑤: the scripts the agent wrote over the MCP chain. Variant Tabs
  * with editable Textareas and copy, "Save script" -> title Dialog -> toast + link to
- * Vault. With no variants, the latest script the agent saved for this session. */
+ * Vault. */
 export function StageScript({
   session,
   onVariantsChange,

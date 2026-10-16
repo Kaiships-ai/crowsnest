@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  *
  * The video's existing idea shows as a status, and nothing on the page generates one
- * (ideas come from the agent over MCP). Fixture pattern (a hand-built `VideoDetail`)
+ * (the app no longer creates ideas). Fixture pattern (a hand-built `VideoDetail`)
  * copied from quick-preview-sheet.test.tsx.
  */
 
