@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import path from "node:path";
 import { z } from "zod";
 
 import { getOutlierFeed, type FeedFilters, type FeedSort } from "@/server/queries/feed";
@@ -299,10 +300,10 @@ export function buildMcpServer(): McpServer {
     "crowsnest_attach_video",
     {
       title: "Attach a rendered video to a plan",
-      description: "Attaches a local mp4 (absolute path on the crowsnest host) to one planned post as its publish video. Refuses a missing file, a non-mp4, a file over 200 MB, an unknown plan, and a plan already publishing or published. The same file attached twice reuses one stored asset.",
+      description: "Attaches a local mp4 (absolute path on the crowsnest host; a relative path or a leading ~ is refused, not expanded) to one planned post as its publish video. Refuses a missing file, a non-mp4, a file over 200 MB, an unknown plan, and a plan already publishing or published. The same file attached twice reuses one stored asset.",
       inputSchema: {
         postId: z.string().describe("The planned post id, from crowsnest_plans."),
-        path: z.string().min(1).describe("Absolute path to the rendered .mp4 on this machine."),
+        path: z.string().refine((p) => path.isAbsolute(p), "path must be absolute").describe("Absolute path to the rendered .mp4 on this machine. A leading ~ is not expanded."),
       },
     },
     async (args) => {

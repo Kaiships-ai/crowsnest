@@ -6,11 +6,17 @@ import { getAssetStore } from "./asset-store";
 
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024;
 
+export function checkVideoSize(size: number): SimpleResult {
+  if (size === 0) return { ok: false, error: "That video file is empty.", code: "PLAN_EMPTY_FILE" };
+  if (size > MAX_VIDEO_BYTES) return { ok: false, error: "That video is too large. The limit is 200 MB.", code: "PLAN_FILE_TOO_LARGE" };
+  return { ok: true };
+}
+
 export async function checkVideoFile(filePath: string): Promise<SimpleResult> {
   const info = await stat(filePath).catch(() => null);
   if (!info?.isFile()) return { ok: false, error: `No video file at ${filePath}.`, code: "PLAN_FILE_MISSING" };
-  if (info.size === 0) return { ok: false, error: "That video file is empty.", code: "PLAN_EMPTY_FILE" };
-  if (info.size > MAX_VIDEO_BYTES) return { ok: false, error: "That video is too large. The limit is 200 MB.", code: "PLAN_FILE_TOO_LARGE" };
+  const size = checkVideoSize(info.size);
+  if (!size.ok) return size;
   const head = Buffer.alloc(12);
   const fh = await open(filePath, "r");
   try {
@@ -28,12 +34,18 @@ export async function checkVideoFile(filePath: string): Promise<SimpleResult> {
 const LOCKED_STATES = ["publishing", "published"];
 const LOCKED: SimpleResult = { ok: false, error: "This post is already publishing or published, so its video is locked.", code: "PLAN_LOCKED" };
 
+export async function checkPlanTakesVideo(planId: string): Promise<SimpleResult> {
+  const [plan] = await db.select({ state: tables.plannedPosts.state }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, planId));
+  if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+  if (LOCKED_STATES.includes(plan.state)) return LOCKED;
+  return { ok: true };
+}
+
 // Kept out of the "use server" actions module: every export there becomes a browser-callable server action.
 export async function attachPlanVideo(planId: string, filePath: string): Promise<SimpleResult> {
   try {
-    const [plan] = await db.select({ state: tables.plannedPosts.state }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, planId));
-    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    if (LOCKED_STATES.includes(plan.state)) return LOCKED;
+    const takes = await checkPlanTakesVideo(planId);
+    if (!takes.ok) return takes;
     const check = await checkVideoFile(filePath);
     if (!check.ok) return check;
     const assetId = await getAssetStore().put({ path: filePath }, "video", "video/mp4");

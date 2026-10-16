@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { isGraphConfigured } from "../graph/client";
-import { attachPlanVideo } from "../media/video-file";
+import { attachPlanVideo, checkPlanTakesVideo, checkVideoSize } from "../media/video-file";
 import { getStorageProvider } from "../publish/storage-provider";
 import { scriptExists, type PlannedPostState } from "../queries/planned-posts";
 import { publishPlannedPost } from "../services/publish-post";
@@ -345,8 +345,12 @@ const SCHEDULE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 export async function uploadPlanVideoAction(id: string, formData: FormData): Promise<SimpleResult> {
   const file = formData.get("file");
   if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
+  const size = checkVideoSize(file.size);
+  if (!size.ok) return size;
   const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);
   try {
+    const takes = await checkPlanTakesVideo(id);
+    if (!takes.ok) return takes;
     await writeFile(tmpPath, Buffer.from(await file.arrayBuffer()));
     const result = await attachPlanVideo(id, tmpPath);
     if (result.ok) revalidatePath("/");
