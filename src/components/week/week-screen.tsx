@@ -499,7 +499,7 @@ function ReelDrawer({
                   {metrics.map((m) => {
                     const cell = funnel.find((f) => f.source === m.source && f.metric === m.metric);
                     return (
-                      <div key={`${m.source}.${m.metric}`} className="min-w-0 rounded-md bg-muted px-1 py-2 text-center" data-testid={`week-funnel-${m.metric}`}>
+                      <div key={`${m.source}.${m.metric}`} className="min-w-0 rounded-md bg-muted px-1 py-2 text-center" data-testid="week-funnel-tile" data-metric={m.metric}>
                         <b className="block font-mono text-[15px] font-medium tabular-nums">{cell ? cell.value.toLocaleString("vi-VN") : "chưa đo"}</b>
                         <span className="text-2xs text-muted-foreground">{m.metric}</span>
                       </div>

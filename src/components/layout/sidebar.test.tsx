@@ -20,6 +20,7 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }),
   usePathname: () => "/feed",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 // The poll is the one thing in here that talks to the server. Pinned idle so the footer
