@@ -12,7 +12,7 @@ export type NavItem = {
  *  threaded in from `(shell)/layout.tsx` as props. */
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Tuần này", icon: CalendarDays, match: [] },
-  { href: "/feed", label: "Nguồn", icon: Radar, match: ["/feed", "/channels", "/sources"] },
+  { href: "/feed", label: "Nguồn", icon: Radar, match: ["/feed", "/channels"] },
   { href: "/settings", label: "Cài đặt", icon: Settings, match: ["/settings", "/logs", "/runs"] },
 ];
 

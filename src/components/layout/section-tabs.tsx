@@ -7,11 +7,21 @@ import { cn } from "@/lib/utils";
 
 export type SectionTab = { href: string; label: string; testId: string; match?: string[] };
 
+const under = (pathname: string, p: string) => pathname === p || pathname.startsWith(`${p}/`);
+
+/** The tab whose href or `match` path holds `pathname` most closely, so `/channels/discover`
+ *  is Khám phá while `/channels/abc` stays Kênh. */
+export function activeTab(tabs: SectionTab[], pathname: string): SectionTab | undefined {
+  const depth = (tab: SectionTab) => Math.max(-1, ...[tab.href, ...(tab.match ?? [])].filter((p) => under(pathname, p)).map((p) => p.length));
+  const best = tabs.reduce<SectionTab | undefined>((a, t) => (depth(t) > (a ? depth(a) : -1) ? t : a), undefined);
+  return best && depth(best) >= 0 ? best : undefined;
+}
+
 /** Link tabs: each tab is its own route, so deep links, Back and the route's own
- *  `searchParams` keep working. A tab is active on its href or any `match` prefix. */
+ *  `searchParams` keep working. */
 export function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
-  const pathname = usePathname();
-  const isActive = (tab: SectionTab) => [tab.href, ...(tab.match ?? [])].some((p) => pathname === p);
+  const current = activeTab(tabs, usePathname());
+  const isActive = (tab: SectionTab) => tab === current;
   return (
     <nav aria-label={label} className="flex gap-1 overflow-x-auto border-b border-border px-4 sm:px-6">
       {tabs.map((tab) => {

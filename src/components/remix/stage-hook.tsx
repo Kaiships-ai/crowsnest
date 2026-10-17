@@ -45,7 +45,7 @@ export function StageHook({
       templateText: text,
       tags: [],
     });
-    if (result.ok) toast.success("Saved to Vault");
+    if (result.ok) toast.success("Saved hook template");
     else toast.error(result.error);
   }
 

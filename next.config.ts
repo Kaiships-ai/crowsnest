@@ -1,12 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Persona, Ideas, Vault and the old /mine were folded away; old links land on Tuần này. `/?tab=...`
-  // (the old Dashboard) is handled in src/proxy.ts, since a redirect here would carry
-  // the query along. `/sources` is the Nguồn entry; its first tab is the Feed.
+  // `/?tab=...` is redirected in src/proxy.ts: a rule here would carry the query along.
   async redirects() {
     return [
-      ...["/persona", "/ideas", "/vault", "/mine"].map((source) => ({ source, destination: "/", permanent: false })),
+      ...["/persona", "/ideas", "/vault", "/mine"].map((p) => ({ source: `${p}/:path*`, destination: "/", permanent: false })),
       { source: "/sources", destination: "/feed", permanent: false },
     ];
   },

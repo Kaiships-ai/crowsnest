@@ -95,7 +95,7 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
       toast.error(result.error);
       return;
     }
-    toast.success(choice === "both" ? "Saved hook and style to Vault" : `Saved ${choice} to Vault`);
+    toast.success(choice === "both" ? "Saved hook and style templates" : `Saved ${choice} template`);
     setOpen(false);
     router.refresh();
   }
@@ -103,11 +103,11 @@ export function SaveToVaultDialog({ videoId, analysis }: { videoId: string; anal
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="outline" size="sm" data-testid="save-to-vault-trigger" />}>
-        <Bookmark className="size-3.5" /> Save to Vault
+        <Bookmark className="size-3.5" /> Save template
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Save to Vault</DialogTitle>
+          <DialogTitle>Save template</DialogTitle>
           <DialogDescription>Prefilled from this post&rsquo;s analysis — edit before saving.</DialogDescription>
         </DialogHeader>
 

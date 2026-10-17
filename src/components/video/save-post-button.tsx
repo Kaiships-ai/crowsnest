@@ -50,7 +50,7 @@ export function SavePostButton({
     startTransition(async () => {
       const result = await createSavedPostAction({ videoId, note: note.trim() || undefined });
       if (result.ok) {
-        toast.success("Kept in the vault");
+        toast.success("Saved for Remix research");
         setOpen(false);
         setNote("");
         // The button's "saved" state is a prop straight off page.tsx's server fetch
@@ -76,7 +76,7 @@ export function SavePostButton({
       // Every destructive action in this app is undoable through its toast (Shell
       // lock rule) — the Vault list's own remove button does the same re-create,
       // matching saved-post-row.tsx.
-      toast.success("Removed from the vault", {
+      toast.success("Removed from saved posts", {
         action: {
           label: "Undo",
           onClick: async () => {
@@ -124,7 +124,7 @@ export function SavePostButton({
           />
           {/* Optional on purpose. A required field here would get filled with anything
               to get past it, and a note that says nothing is worse than no note. */}
-          <FieldDescription>Optional. The vault shows this next to the score.</FieldDescription>
+          <FieldDescription>Optional. Remix research shows this next to the score.</FieldDescription>
         </Field>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => setOpen(false)} disabled={pending}>

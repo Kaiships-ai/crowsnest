@@ -274,7 +274,7 @@ export function StageResearch({
       <SectionHeader tone="reference">Reference, not sent</SectionHeader>
 
       <div className="flex flex-col gap-1.5 opacity-80">
-        <SourceBlockHeading label="Saved from your vault" tag="reference" tone="reference" />
+        <SourceBlockHeading label="Your saved posts" tag="reference" tone="reference" />
         {vaultSavedPosts.length > 0 ? (
           <ItemGroup>
             {vaultSavedPosts.map((row) => {
@@ -304,7 +304,7 @@ export function StageResearch({
           </ItemGroup>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Your vault is empty.{" "}
+            No saved posts yet.{" "}
             <Link href="/feed" className="hover:underline">
               Save a post from the feed
             </Link>{" "}

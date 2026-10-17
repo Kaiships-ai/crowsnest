@@ -55,7 +55,9 @@ vi.mock("@/components/sync/use-sync-progress", () => ({
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./nav-items";
 import { NextRequest } from "next/server";
-import { proxy } from "@/proxy";
+import { config as proxyConfig, proxy } from "@/proxy";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
+import { pathToRegexp } from "next/dist/compiled/path-to-regexp";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
@@ -121,15 +123,36 @@ describe("Sidebar", () => {
     nav.pathname = "/logs";
     view.rerender(rail());
     expect(activeLabel(view.container)).toContain("Cài đặt");
+
+    nav.pathname = "/feed";
+    view.rerender(rail());
+    expect(activeLabel(view.container)).toContain("Nguồn");
   });
 });
 
 describe("folded routes redirect to Tuần này", () => {
-  test("persona, ideas and vault redirect to /, and /sources opens the Feed tab", async () => {
+  test.each([
+    ["/persona", "/"],
+    ["/ideas/abc", "/"],
+    ["/vault", "/"],
+    ["/vault/hooks/x", "/"],
+    ["/mine", "/"],
+    ["/mine/reels", "/"],
+    ["/sources", "/feed"],
+  ])("%s redirects to %s", async (path, dest) => {
     const rules = await nextConfig.redirects!();
-    const to = Object.fromEntries(rules.map((r) => [r.source, r.destination]));
-    expect(to).toMatchObject({ "/persona": "/", "/ideas": "/", "/vault": "/", "/sources": "/feed" });
-    expect(rules.every((r) => r.permanent === false)).toBe(true);
+    const rule = rules.find((r) => pathToRegexp(r.source).test(path));
+    expect(rule).toMatchObject({ destination: dest, permanent: false });
+  });
+
+  test("/feed and /settings are not redirected", async () => {
+    const rules = await nextConfig.redirects!();
+    expect(rules.some((r) => ["/feed", "/settings", "/"].some((p) => pathToRegexp(r.source).test(p)))).toBe(false);
+  });
+
+  test("the proxy runs on / only", () => {
+    expect(unstable_doesMiddlewareMatch({ config: proxyConfig, nextConfig, url: "/?tab=calendar" })).toBe(true);
+    expect(unstable_doesMiddlewareMatch({ config: proxyConfig, nextConfig, url: "/feed?tab=x" })).toBe(false);
   });
 
   test.each(["overview", "calendar", "reels"])("/?tab=%s redirects to / without the query", (tab) => {
