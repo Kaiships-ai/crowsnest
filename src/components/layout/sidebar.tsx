@@ -153,12 +153,14 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
   // means) the optimistic target is stale, so drop it in the same render rather than one
   // commit later. Tracking the last pathname in state is what lets this run in render
   // without an effect and without a cascading re-render.
-  const [lastPathname, setLastPathname] = useState(pathname);
-  if (pathname !== lastPathname) {
-    setLastPathname(pathname);
+  // `/` and `/?tab=overview` share a pathname, so the tab is part of the location key.
+  const tab = useSearchParams().get("tab");
+  const location = tab ? `${pathname}?tab=${tab}` : pathname;
+  const [lastLocation, setLastLocation] = useState(location);
+  if (location !== lastLocation) {
+    setLastLocation(location);
     setPendingHref(null);
   }
-  const tab = useSearchParams().get("tab");
   const displayHref = pendingHref ?? (pathname === "/" && tab ? `/?tab=${tab}` : pathname);
   const [panelOpen, setPanelOpen] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
