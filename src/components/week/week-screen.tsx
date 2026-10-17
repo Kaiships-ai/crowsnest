@@ -13,12 +13,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRunStream } from "@/components/runs/use-run-stream";
 import { renderTemplateText } from "@/components/vault/template-card";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ConfirmDialog } from "@/components/mine/confirm-dialog";
+import { PlanDialog, type ScriptOption } from "@/components/mine/plan-dialog";
 import { PublishDialog } from "@/components/mine/publish-dialog";
 import { cn } from "@/lib/utils";
 import {
   approvePlanVersionAction,
+  cancelScheduledPublishAction,
+  createPlannedPostAction,
+  deletePlannedPostAction,
   movePlannedPostAction,
   publishNowAction,
+  retryFailedPublishAction,
   undoPlanVersionAction,
   updatePlannedPostAction,
   type MoveSnapshot,
@@ -59,6 +65,7 @@ export interface WeekScreenProps {
   /** Plan ids whose source video was removed from the platform. */
   sourceGone: string[];
   hookTemplates: { id: string; title: string; text: string }[];
+  scripts: ScriptOption[];
   runs: RunSummary[];
 }
 
@@ -383,6 +390,7 @@ export function WeekScreen(props: WeekScreenProps) {
           hook={selected.remixSessionId ? (props.hooks[selected.remixSessionId] ?? null) : null}
           hookTopic={(selected.remixSessionId && props.hookTopics[selected.remixSessionId]) || selected.keyword}
           hookTemplates={props.hookTemplates}
+          scripts={props.scripts}
           sourceGone={gone.has(selected.id)}
           onMove={(date) => void moveTo(selected.id, selected.plannedDate, { date })}
           onClose={() => setOpenId(null)}
@@ -410,6 +418,7 @@ function ReelDrawer({
   hook: savedHook,
   hookTopic,
   hookTemplates,
+  scripts,
   sourceGone,
   onMove,
   onClose,
@@ -428,6 +437,7 @@ function ReelDrawer({
   hook: string | null;
   hookTopic: string | null;
   hookTemplates: { id: string; title: string; text: string }[];
+  scripts: ScriptOption[];
   sourceGone: boolean;
   onMove: (date: string) => void;
   onClose: () => void;
@@ -441,6 +451,8 @@ function ReelDrawer({
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [attach, setAttach] = useState(false);
+  const [edit, setEdit] = useState(false);
+  const [cancelAsk, setCancelAsk] = useState(false);
   const ready = r.videoAssetId !== null && Boolean(r.caption?.trim());
   const dry = dryRun || r.dryRun;
 
@@ -489,6 +501,60 @@ function ReelDrawer({
     }
     toast.success(dry ? "Đã chạy thử (dry run), chưa đăng thật" : "Đã đăng lên Instagram");
     router.refresh();
+  }
+
+  async function cancelPublish() {
+    const res = await cancelScheduledPublishAction(r.id);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Đã huỷ lịch đăng. Reel vẫn ở ngày cũ.");
+    router.refresh();
+  }
+
+  async function retry() {
+    setBusy(true);
+    const res = await retryFailedPublishAction(r.id);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    toast.success("Đã xếp lại để đăng thử lần nữa");
+    router.refresh();
+  }
+
+  async function remove() {
+    const res = await deletePlannedPostAction(r.id);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    onClose();
+    router.refresh();
+    toast.success("Đã xoá reel", {
+      action: {
+        label: <span data-testid="week-delete-undo">Hoàn tác</span>,
+        onClick: async () => {
+          const back = await createPlannedPostAction({
+            id: r.id,
+            title: r.title,
+            note: r.note ?? undefined,
+            plannedDate: r.plannedDate ?? undefined,
+            plannedTime: r.plannedTime ?? undefined,
+            targetLengthSec: r.targetLengthSec ?? undefined,
+            videoKind: r.videoKind ?? undefined,
+            scriptId: r.scriptId ?? undefined,
+            remixSessionId: r.remixSessionId ?? undefined,
+            sourceVideoId: r.sourceVideoId ?? undefined,
+            state: r.state,
+          });
+          if (!back.ok) toast.error(back.error);
+          else router.refresh();
+        },
+      },
+    });
   }
 
   const latest = funnel.reduce<string | null>((m, f) => (m && m > f.capturedAt ? m : f.capturedAt), null);
@@ -627,6 +693,17 @@ function ReelDrawer({
               </span>
             ) : r.state === "publishing" ? (
               <span className="text-muted-foreground">Đang đăng.</span>
+            ) : r.state === "failed" ? (
+              <Button size="sm" disabled={busy} onClick={retry} data-testid="week-retry">
+                Thử đăng lại
+              </Button>
+            ) : r.state === "scheduled" && r.scheduledAt ? (
+              <span className="flex flex-wrap items-center gap-2" data-testid="week-scheduled">
+                <span className="text-muted-foreground">Hẹn đăng {new Date(r.scheduledAt).toLocaleString("vi-VN")}</span>
+                <Button size="sm" variant="outline" onClick={() => setCancelAsk(true)} data-testid="week-cancel-publish">
+                  Huỷ lịch đăng
+                </Button>
+              </span>
             ) : !ready ? (
               <span className="text-muted-foreground">Chờ video và caption.</span>
             ) : confirm ? (
@@ -654,6 +731,17 @@ function ReelDrawer({
             {r.state === "failed" && r.lastError && <span className="text-destructive">{r.lastError}</span>}
           </section>
 
+          {r.state !== "published" && r.state !== "publishing" && (
+            <div className="flex justify-between gap-2">
+              <Button size="sm" variant="outline" onClick={() => setEdit(true)} data-testid="week-edit">
+                Sửa plan
+              </Button>
+              <Button size="sm" variant="ghost" className="text-destructive" onClick={remove} data-testid="week-delete">
+                Xoá reel
+              </Button>
+            </div>
+          )}
+
           <section className="flex flex-col gap-2 rounded-lg p-3 ring-1 ring-border" data-testid="week-drawer-funnel">
             <h3 className="font-medium">Số 48h</h3>
             {!r.keyword ? (
@@ -677,6 +765,16 @@ function ReelDrawer({
           </section>
         </div>
       </SheetContent>
+      {edit && <PlanDialog open onOpenChange={setEdit} plan={r} scripts={scripts} onSaved={() => setEdit(false)} />}
+      <ConfirmDialog
+        open={cancelAsk}
+        onOpenChange={setCancelAsk}
+        title="Huỷ lịch đăng?"
+        body="Reel giữ ngày, video và caption. Nó chỉ không tự đăng nữa."
+        confirmLabel="Huỷ lịch đăng"
+        onConfirm={cancelPublish}
+        testid="week-cancel-confirm"
+      />
       {attach && (
         <PublishDialog
           open

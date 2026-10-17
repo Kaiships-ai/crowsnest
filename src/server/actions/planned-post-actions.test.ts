@@ -297,7 +297,7 @@ describe("createPlannedPostAction", () => {
     const created = (await createPlannedPostAction({ title: "Stuck", plannedDate: "2026-09-01" })) as { ok: true; id: string };
     await db.update(tables.plannedPosts).set({ state: stuckState, attemptCount: 1, lastError: "boom" }).where(eq(tables.plannedPosts.id, created.id));
     const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
-    await deletePlannedPostAction(created.id);
+    await db.delete(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
 
     const restored = await createPlannedPostAction({
       id: snapshot.id,
@@ -770,7 +770,7 @@ describe("schedulePublishAction preconditions", () => {
 describe("cancelScheduledPublishAction", () => {
   afterEach(unconfigurePublish);
 
-  test("returns a scheduled publish to a draft and clears scheduledAt", async () => {
+  test("clears the publish time and keeps the reel on its day", async () => {
     configurePublish();
     const id = await seedPublishablePlan();
     await schedulePublishAction(id, FUTURE_SCHEDULE);
@@ -779,15 +779,26 @@ describe("cancelScheduledPublishAction", () => {
     expect(result).toEqual({ ok: true });
 
     const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
-    expect(row.state).toBe("draft");
+    expect(row.state).toBe("scheduled");
+    expect(row.plannedDate).toBe(FUTURE_SCHEDULE.slice(0, 10));
     expect(row.scheduledAt).toBeNull();
     expect(row.idempotencyKey).toBeNull();
+    expect((await cancelScheduledPublishAction(id)).ok).toBe(false);
   });
 
   test("refuses to cancel a plan that is not scheduled", async () => {
     const created = (await createPlannedPostAction({ title: "Draft" })) as { ok: true; id: string };
     const result = await cancelScheduledPublishAction(created.id);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NOT_SCHEDULED" });
+  });
+});
+
+describe("deletePlannedPostAction guards", () => {
+  test("refuses a row that is publishing and leaves it", async () => {
+    const created = (await createPlannedPostAction({ title: "In flight" })) as { ok: true; id: string };
+    await db.update(tables.plannedPosts).set({ state: "publishing" }).where(eq(tables.plannedPosts.id, created.id));
+    expect(await deletePlannedPostAction(created.id)).toEqual({ ok: false, error: expect.any(String), code: "PLAN_ALREADY_IN_FLIGHT" });
+    expect(await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id))).toHaveLength(1);
   });
 });
 

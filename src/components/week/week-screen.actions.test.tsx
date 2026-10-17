@@ -7,6 +7,11 @@ import type { WeekScreenProps } from "./week-screen";
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
 vi.mock("@/components/mine/publish-dialog", () => ({ PublishDialog: () => null }));
+const toasts = vi.hoisted(() => [] as { msg: string; action?: { onClick: () => unknown } }[]);
+vi.mock("sonner", () => {
+  const push = (msg: string, opts?: { action?: { onClick: () => unknown } }) => void toasts.push({ msg, action: opts?.action });
+  return { toast: { success: push, error: push } };
+});
 vi.stubGlobal(
   "EventSource",
   class {
@@ -73,6 +78,7 @@ async function renderWeek(over: Partial<WeekScreenProps> = {}) {
       hookTopics={{}}
       sourceGone={[]}
       hookTemplates={[]}
+      scripts={[]}
       runs={[]}
       {...over}
     />
@@ -118,5 +124,43 @@ describe("week drawer against the real actions", () => {
     expect([...select.options].every((o) => o.value >= today)).toBe(true);
     fireEvent.change(select, { target: { value: plus(1) } });
     await waitFor(async () => expect(await row(id)).toMatchObject({ plannedDate: plus(1), state: "failed", lastError: "boom" }));
+  });
+
+  test("cancel a scheduled publish: confirm, then the reel keeps its day and loses its publish time", async () => {
+    const id = await seedPlan({ scheduledAt: new Date(Date.now() + 3_600_000).toISOString(), idempotencyKey: "k", videoAssetId: null, caption: "c" });
+    await renderWeek();
+    fireEvent.click(screen.getByTestId("week-cancel-publish"));
+    expect((await row(id)).scheduledAt).not.toBeNull();
+    fireEvent.click(screen.getByTestId("week-cancel-confirm-confirm"));
+    await waitFor(async () => expect(await row(id)).toMatchObject({ state: "scheduled", plannedDate: today, scheduledAt: null, idempotencyKey: null }));
+  });
+
+  test("retry a failed publish re-arms it", async () => {
+    const id = await seedPlan({ state: "failed", lastError: "boom", attemptCount: 1 });
+    await renderWeek();
+    expect(screen.queryByTestId("week-publish")).toBeNull();
+    fireEvent.click(screen.getByTestId("week-retry"));
+    await waitFor(async () => expect(await row(id)).toMatchObject({ state: "scheduled", lastError: null }));
+  });
+
+  test("delete removes the reel and Undo brings it back on its day", async () => {
+    const id = await seedPlan({ note: "giữ" });
+    await renderWeek();
+    toasts.length = 0;
+    fireEvent.click(screen.getByTestId("week-delete"));
+    await waitFor(async () => expect(await row(id)).toBeUndefined());
+    const undo = toasts.find((t) => t.msg === "Đã xoá reel")!.action!;
+    await act(async () => void (await undo.onClick()));
+    expect(await row(id)).toMatchObject({ title: "Reel", note: "giữ", plannedDate: today, plannedTime: "09:00" });
+  });
+
+  test("Sửa plan saves a new title through savePlanEditAction", async () => {
+    const id = await seedPlan({ remixSessionId: await seedSession("x") });
+    await renderWeek();
+    fireEvent.click(screen.getByTestId("week-edit"));
+    const title = screen.getByDisplayValue("Reel");
+    fireEvent.change(title, { target: { value: "Reel mới" } });
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(async () => expect((await row(id)).title).toBe("Reel mới"));
   });
 });

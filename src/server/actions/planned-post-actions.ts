@@ -314,6 +314,9 @@ export async function unschedulePlannedPostAction(id: string): Promise<SimpleRes
 
 export async function deletePlannedPostAction(id: string): Promise<SimpleResult> {
   try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (plan.state === "publishing") return { ok: false, error: "This post is publishing right now. Wait for it to finish.", code: "PLAN_ALREADY_IN_FLIGHT" };
     await db.delete(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
     return { ok: true };
   } catch (err) {
@@ -544,18 +547,19 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
   }
 }
 
-/** Cancels a scheduled publish, back to an undated draft. Only a `scheduled` row can be
- *  cancelled — a `publishing`/`published`/`failed` one is past the point of a clean pull. */
+/** Cancels a scheduled publish. The reel keeps its day on Tuần này; only the publish
+ *  time is cleared, so the scheduler no longer picks it up. Only a `scheduled` row with a
+ *  publish time can be cancelled. */
 export async function cancelScheduledPublishAction(id: string): Promise<SimpleResult> {
   try {
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    if (plan.state !== "scheduled") return { ok: false, error: "Only a scheduled publish can be cancelled.", code: "PLAN_NOT_SCHEDULED" };
+    if (plan.state !== "scheduled" || !plan.scheduledAt) return { ok: false, error: "Only a scheduled publish can be cancelled.", code: "PLAN_NOT_SCHEDULED" };
 
     await db
       .update(tables.plannedPosts)
-      .set({ state: "draft", scheduledAt: null, idempotencyKey: null, plannedDate: null, plannedTime: null, updatedAt: nowIso() })
-      .where(eq(tables.plannedPosts.id, id));
+      .set({ scheduledAt: null, idempotencyKey: null, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled")));
     revalidatePath("/");
     return { ok: true };
   } catch (err) {

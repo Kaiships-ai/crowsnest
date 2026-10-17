@@ -4,7 +4,7 @@ import { isGraphConfigured } from "@/server/graph/client";
 import { getStorageProvider } from "@/server/publish/storage-provider";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
 import { listRuns } from "@/server/queries/runs";
-import { getVaultItems } from "@/server/queries/vault";
+import { getScripts, getVaultItems } from "@/server/queries/vault";
 import { getRemixSession } from "@/server/services/remix";
 import { FUNNEL_METRICS, getFunnel } from "@/server/services/funnel";
 import { listPlanVersions } from "@/server/services/plan-versions";
@@ -81,6 +81,7 @@ export async function WeekTab() {
         hookTopics={hookTopics}
         sourceGone={sourceGone}
         hookTemplates={hookTemplates}
+        scripts={(await getScripts()).map((x) => ({ id: x.id, title: x.title }))}
         runs={listRuns(5)}
       />
     </>
