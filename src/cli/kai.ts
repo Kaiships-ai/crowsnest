@@ -265,11 +265,6 @@ async function cmdKitInit(): Promise<void> {
     console.log("Generated IG_SERVICE_TOKEN");
   }
 
-  console.log("\nANTHROPIC_API_KEY is optional. Skip it and the Create-Prompt export still");
-  console.log("works keyless. AI analysis and the Vault pipeline need the key.");
-  const apiKey = await ask("ANTHROPIC_API_KEY (blank to skip, not echoed)", { secret: true });
-  if (apiKey) env = setEnv(env, "ANTHROPIC_API_KEY", apiKey);
-
   closeIo();
   writeFileSync(envPath, env, { mode: 0o600 });
   // writeFileSync's mode only applies when it creates the file, and copyFileSync

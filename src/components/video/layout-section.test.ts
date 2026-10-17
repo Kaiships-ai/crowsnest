@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { asBeatLayout, type BeatLayout, type VideoLayoutField } from "@/server/llm/schemas";
+import { asBeatLayout, type BeatLayout, type VideoLayoutField } from "@/server/schemas";
 import { fieldValue, framePassCta } from "./layout-section";
 
 /**

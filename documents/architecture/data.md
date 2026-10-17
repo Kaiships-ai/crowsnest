@@ -63,7 +63,7 @@ State has four layers, most durable first.
 | Committed rows | saved post, script, planned post, analysis, remix session | Kept. |
 | Autosaved session fields | remix topic, research notes, hook, style, outline, variants, chosen variant | Kept at the last landed write. |
 | URL state | feed filters, sort, layout, density; remix opening stage and seed; dashboard `?tab=`; `?reel=`; calendar `?month=` | Kept, and shareable by copying the URL. |
-| Client-only state | an unblurred field, a dialog's fields before submit, a chosen detail tab, a steer note | Lost. |
+| Client-only state | an unblurred field, a dialog's fields before submit, a chosen detail tab | Lost. |
 
 Rules behind the table:
 
@@ -73,7 +73,7 @@ Rules behind the table:
 - Two tabs on one video share one session. Their autosaves write the same columns, last write wins per field, with no merge.
 - A saved view applied to the feed is a copy of its criteria in the URL, not a link to the row.
 - The recently viewed list is `app_settings.recently_viewed`, a JSON array of video ids, most recent first, capped at 8 (`src/server/queries/video.ts`). The write is fire-and-forget and swallows errors so tracking never breaks a page.
-- Saving never needs an external service. A failed generation leaves the field it targeted at its previous value.
+- Saving never needs an external service.
 
 ## Multi-account sync
 

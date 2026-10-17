@@ -31,12 +31,11 @@ import {
   type RunningJob,
   type StuckJob,
 } from "./stack-health";
-import type { LlmStatus, SidecarStatus } from "./dependency-status";
+import type { GraphStatus, SidecarStatus } from "./dependency-status";
 
 export interface StackHealthPanelProps {
   sidecar: SidecarStatus;
-  llm: LlmStatus;
-  hasLlmKey: boolean;
+  graph: GraphStatus;
   lastSync: LastSyncRow | null;
   running: RunningJob[];
   /** When the rows above were read — see `getStackHealth`'s own note on why the clock is
@@ -108,10 +107,10 @@ function StuckRow({ jobs }: { jobs: StuckJob[] }) {
   );
 }
 
-export function StackHealthPanel({ sidecar, llm, hasLlmKey, lastSync, running, checkedAtMs }: StackHealthPanelProps) {
+export function StackHealthPanel({ sidecar, graph, lastSync, running, checkedAtMs }: StackHealthPanelProps) {
   const summary = summarizeLastSync(lastSync);
   const stuck = selectStuckJobs(running, checkedAtMs);
-  const tone = stackTone({ sidecar, llm, lastSync: summary, stuckCount: stuck.length });
+  const tone = stackTone({ sidecar, graph, lastSync: summary, stuckCount: stuck.length });
 
   return (
     // Still a named region (Card renders a div, so the role is explicit): this block is
@@ -130,7 +129,7 @@ export function StackHealthPanel({ sidecar, llm, hasLlmKey, lastSync, running, c
       </CardHeader>
 
       <CardContent className="flex flex-col gap-4">
-        <DependencyStatusPanel sidecar={sidecar} llm={llm} hasLlmKey={hasLlmKey} />
+        <DependencyStatusPanel sidecar={sidecar} graph={graph} />
 
         <ItemGroup>
           <Item size="sm">

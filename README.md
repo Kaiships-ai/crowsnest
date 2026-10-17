@@ -99,7 +99,7 @@ Save hook / style to Vault
         ↓
 Open Remix Studio
         ↓
-Generate your script
+Have Claude write your script over MCP
         ↓
 Create Prompt / Export
         ↓
@@ -115,23 +115,12 @@ one click, landing back on the same path at Sync.
 The app starts empty — there is no demo data. It fills up with real posts from the real
 channels you choose to track.
 
-Most of the product works without an API key. Only the AI generation steps need one, and
-even those have a keyless alternative (**Create Prompt**, which exports a structured prompt
-you paste into any LLM).
+The app needs no model API key. It makes no model call of its own. Analysis and the remix
+hook, outline, and script are written by Claude (or any MCP client) over the MCP server.
 
-| Step                 | Needs Claude API? |
-| -------------------- | ----------------- |
-| Sync                 | No                |
-| Browse outliers      | No                |
-| Vault                | No                |
-| Video analysis       | Yes               |
-| Remix generation     | Yes               |
-| Create Prompt export | No                |
-| Local transcription  | No                |
-
-The Remix Studio pipeline is staged (Prompt → Research → Hook → Style → Script). Every
-generation stage needs `ANTHROPIC_API_KEY`; the Research stage's auto-assembly is the one
-step that works keyless.
+The Remix Studio pipeline is staged (Prompt → Research → Hook → Style → Script). The Hook,
+Style, and Script stages show what the agent wrote and a **Copy prompt for Claude** button
+that copies that stage's MCP steps; paste it into Claude, then reload the page.
 
 ## 6. Installation
 
@@ -206,12 +195,6 @@ value instead of failing later on a click.
 | `IG_SERVICE_URL` | no | Sidecar base URL (default `http://127.0.0.1:8765`) |
 | `IG_REQUEST_TIMEOUT_MS` / `IG_DOWNLOAD_TIMEOUT_MS` | no | Per-call timeouts (30s / 120s) |
 
-**AI**
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `ANTHROPIC_API_KEY` / `LLM_BASE_URL` / `CLAUDE_MODEL` | for AI | Analysis + remix. `LLM_BASE_URL` is deliberately not `ANTHROPIC_BASE_URL`: Claude Code honors that name and would route a Max session through the proxy instead |
-
 **Local media and transcription**
 
 | Variable | Required | Purpose |
@@ -262,8 +245,8 @@ challenge.
 
 ## 9. AI and local transcription
 
-**Claude** (needs `ANTHROPIC_API_KEY`) powers video analysis: the hook breakdown, the
-structure breakdown, and remix generation.
+**Claude**, connected over MCP, writes video analysis (the hook breakdown and the structure
+breakdown) and the remix hook, outline, and script. The app holds no model key.
 
 **Local Whisper** (`whisper.cpp`, with Metal acceleration; Groq API as a fallback) powers
 local, keyless transcription. For local transcription and manual reel import:
@@ -284,10 +267,8 @@ curl -L -o ~/.cache/whisper/ggml-large-v3-turbo.bin \
 Settings' Local Binaries section shows amber with the exact missing path if this step is
 skipped.
 
-**Keyless mode.** You do not need an Anthropic key to use Crowsnest. The **Create Prompt**
-export (on the Video Detail page, the Remix Script stage, or a saved script's Vault card)
-copies a structured markdown prompt to paste into any LLM, as a keyless alternative to
-analysis and remix generation.
+**Create Prompt.** The export on the Video Detail page, the Remix Script stage, or a saved
+script's Vault card copies a structured markdown prompt to paste into any LLM.
 
 ## 10. Architecture
 
@@ -345,7 +326,7 @@ and it picks the playbook. The repo keeps only the skills pstack does not cover,
 
 ### Running locally
 
-Run the 9router LLM proxy on port 20128 and the dev server (`npm run dev`) on port 3000.
+Run the dev server (`npm run dev`) on port 3000.
 
 The dev server has to run in a cmux pane. A `npm run dev` backgrounded from a sandboxed tool
 call gets reaped after a minute or two, and its log simply ends mid-request with no crash
@@ -501,14 +482,11 @@ Kit changelog at `packaging/CHANGELOG.md`. Agent workflow, skills, and doc conve
 | Vault               | Free                |
 | Local transcription | Free                |
 | Manual reel import  | Free                |
-| Claude analysis     | Anthropic API usage |
-| Remix generation    | Anthropic API usage |
 
 Crowsnest has no paid scraping vendor and no hosting requirement. Channel sync runs through a
 local Python process against an Instagram account you supply — the sync cost is account risk,
-not a scraping bill (see the Instagram access warning above). Claude API usage for analysis
-and remix is the only paid integration, and it is optional (Create Prompt is a keyless
-alternative). Local transcription (whisper.cpp) and manual reel import (yt-dlp) are free.
+not a scraping bill (see the Instagram access warning above). Analysis and remix run in your own Claude
+session over MCP, so the app itself makes no paid model call. Local transcription (whisper.cpp) and manual reel import (yt-dlp) are free.
 
 ## 16. License
 

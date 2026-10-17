@@ -4,7 +4,7 @@ import { formatCompact, formatMultiplier } from "@/lib/format";
 import { rowToAnalysis, type StoredVideoAnalysis } from "./analyze";
 import { getNicheProfile, getRemixSession } from "./remix";
 import { getSimilarOutliers } from "./similar";
-import { BEAT_LAYOUT_FIELDS, asBeatLayout, type StoredAnalysisFields } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, asBeatLayout, type StoredAnalysisFields } from "@/server/schemas";
 
 /**
  * Copy-as-Prompt (Task 7, spec §8): one structured markdown block — topic framing,

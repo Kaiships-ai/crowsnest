@@ -41,12 +41,11 @@ export type NavItem = {
  * post yet (it's simply omitted for them, same as that rail).
  *
  * "Setup" (Task 6) holds Persona and Settings — the two screens that
- * configure how generation behaves rather than showing its output. Settings
+ * configure how the app behaves rather than showing its output. Settings
  * moved here from System, and Persona is new.
  *
- * "Ideas" (Task 9) sits in Research right after Feed — the inbox that
- * `generateIdea` fills from an analyzed outlier, so it belongs beside the
- * feed it's generated from rather than in Create (nothing lands in Create
+ * "Ideas" (Task 9) sits in Research right after Feed — the inbox of ideas
+ * drawn from analyzed outliers, so it belongs beside the feed they come from rather than in Create (nothing lands in Create
  * until an idea is scripted). Its pending count is real per-user data, so it
  * is deliberately NOT a field on this array — same reasoning `sidebar.tsx`
  * already follows for `getStartedItems`: this array stays a constant the

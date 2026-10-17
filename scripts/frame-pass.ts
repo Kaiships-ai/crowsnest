@@ -19,7 +19,7 @@
  * Point CROWSNEST_DB_PATH at a copy to rehearse without touching data/crowsnest.db.
  */
 import { readFileSync } from "node:fs";
-import { BEAT_LAYOUT_FIELDS } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS } from "@/server/schemas";
 import {
   persistFramePass,
   recordFramePassFailure,

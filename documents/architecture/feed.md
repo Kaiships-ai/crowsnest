@@ -1,6 +1,6 @@
 # Feed
 
-The feed is the front door of the core loop and the app's landing page at `/feed`: a ranked page of outlier posts from tracked channels, scanned to find something worth remixing. It is a direct server read of the local database, so it renders even when the LLM proxy, the Graph token, or the sidecar are down. Around the grid sit the filter bar with saved views, the quick preview sheet, and the video detail page at `/feed/[videoId]`, where the keep-this-post and save-to-vault actions live.
+The feed is the front door of the core loop and the app's landing page at `/feed`: a ranked page of outlier posts from tracked channels, scanned to find something worth remixing. It is a direct server read of the local database, so it renders even when the Graph token or the sidecar are down. Around the grid sit the filter bar with saved views, the quick preview sheet, and the video detail page at `/feed/[videoId]`, where the keep-this-post and save-to-vault actions live.
 
 ## Data it holds
 

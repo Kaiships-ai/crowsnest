@@ -26,7 +26,6 @@ boundaries, and its invariants.
 | mine | [mine](architecture/mine.md) |
 | publish | [publish](architecture/publish.md) |
 | ig-sync | [ig-sync](architecture/ig-sync.md) |
-| llm | [llm](architecture/llm.md) |
 | mcp | [mcp](architecture/mcp.md) |
 
 ## Where things live

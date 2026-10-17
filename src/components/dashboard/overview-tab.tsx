@@ -13,9 +13,9 @@ import { ScoreRankingList } from "@/components/dashboard/score-ranking-list";
 import { StatTile } from "@/components/dashboard/stat-tile";
 import { StackHealthPanel } from "@/components/status/stack-health-panel";
 import {
-  classifyLlmStatus,
+  classifyGraphStatus,
   classifySidecarStatus,
-  LLM_PING_TIMEOUT_MS,
+  PING_TIMEOUT_MS,
   withTimeout,
 } from "@/components/status/dependency-status";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,6 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { ItemGroup } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { testAnthropicKeyAction } from "@/server/actions/settings-actions";
 import { getChannelsList } from "@/server/queries/channels";
 import {
   getDashboardStats,
@@ -38,12 +37,7 @@ import {
 import { getOutlierFeed } from "@/server/queries/feed";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
 import { listArtifacts } from "@/server/services/artifacts";
-import { hasLlmKey, isRoutedThroughProxy } from "@/server/llm/client";
-
-// Read once, server-side, same reasoning as the Remix screen's own `LLM_PROXY_URL`
-// (`(shell)/feed/[videoId]/remix/page.tsx`): the one honest thing this app can say
-// about the model backend's location, since it has no mechanism to start one itself.
-const LLM_PROXY_URL = process.env.LLM_BASE_URL ?? null;
+import { cachedTokenStatus } from "@/server/graph/token-status";
 
 // The Dashboard's Overview tab. Topbar already renders the route's h1 ("Dashboard") and
 // DashboardPage renders the tab strip, so content here starts directly at the KPI row.
@@ -69,8 +63,7 @@ const LLM_PROXY_URL = process.env.LLM_BASE_URL ?? null;
 //   sources, outliers, content pipeline), with the P1 analytics charts kept but moved
 //   below and labelled secondary.
 export async function OverviewTab() {
-  const llmKeyConfigured = hasLlmKey();
-  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, llmPingResult, routedThroughProxy, stackHealth, pipelineArtifacts, plannedPosts] = await Promise.all([
+  const [stats, topOutliers, fleetSpikes, recentlyViewed, allPosts, channels, igStatusResult, graphToken, stackHealth, pipelineArtifacts, plannedPosts] = await Promise.all([
     getDashboardStats(),
     getTopOutliersToday(),
     getFleetSpikes(),
@@ -84,16 +77,10 @@ export async function OverviewTab() {
     getChannelsList(),
     // A4 (v1-to-product-backlog.html): the two out-of-process dependencies, checked
     // before Kai clicks anything. The sidecar check is the same `getIgStatusAction`
-    // Settings already uses. The LLM check only runs when a key exists — no key means
-    // no client to ping, and `withTimeout` keeps a fully dead backend from stalling
-    // this page load (see dependency-status.ts's own doc on why that matters here).
+    // Settings already uses; Graph is the cached token check Settings' Graph section
+    // shows. `withTimeout` keeps a dead network from stalling this page load.
     getIgStatusAction(),
-    llmKeyConfigured ? withTimeout(testAnthropicKeyAction(), LLM_PING_TIMEOUT_MS) : Promise.resolve(undefined),
-    // ENH-2: whether a call is *actually* routed through the proxy right now — the same
-    // live `routerReachable()` check `getLlm()` itself makes, not `isCompatMode()`'s
-    // presence-only signal. A configured-but-unreachable proxy must read as "direct
-    // Anthropic," matching what getLlm() really hands back, not "routed through proxy."
-    isRoutedThroughProxy(),
+    withTimeout(cachedTokenStatus(), PING_TIMEOUT_MS),
     // M4-U8: the two halves of stack health that come out of this app's own tables —
     // the last sync and anything still running — next to the two live pings above, so
     // all four read at once. Two indexed reads over `sync_jobs`/`frame_pass_jobs`, in
@@ -114,12 +101,7 @@ export async function OverviewTab() {
   const newSinceVisit = await getNewOutliersSince(lastVisit);
 
   const sidecarStatus = classifySidecarStatus(igStatusResult);
-  const llmStatus = classifyLlmStatus({
-    hasKey: llmKeyConfigured,
-    proxyUrl: LLM_PROXY_URL,
-    routedThroughProxy,
-    ping: llmPingResult ?? "timed_out",
-  });
+  const graphStatus = classifyGraphStatus(graphToken);
 
   // The one next action, decided from state. Freshness is measured off the last finished
   // sync against `checkedAtMs` (a server-captured "now", so no clock is read in render).
@@ -137,8 +119,7 @@ export async function OverviewTab() {
       <>
         <StackHealthPanel
           sidecar={sidecarStatus}
-          llm={llmStatus}
-          hasLlmKey={llmKeyConfigured}
+          graph={graphStatus}
           lastSync={stackHealth.lastSync}
           running={stackHealth.running}
           checkedAtMs={stackHealth.checkedAtMs}
@@ -166,8 +147,7 @@ export async function OverviewTab() {
       {/* 1. Data freshness and account health. */}
       <StackHealthPanel
         sidecar={sidecarStatus}
-        llm={llmStatus}
-        hasLlmKey={llmKeyConfigured}
+        graph={graphStatus}
         lastSync={stackHealth.lastSync}
         running={stackHealth.running}
         checkedAtMs={stackHealth.checkedAtMs}

@@ -3,7 +3,6 @@
 import { randomBytes } from "node:crypto";
 
 import { invalidateTokenStatus } from "@/server/graph/token-status";
-import { resetLlmClient } from "@/server/llm/client";
 import { clearSecret, MANAGED_SECRETS, secretStatus, setSecret, type ManagedSecret, type SecretStatus } from "@/server/secrets/store";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -12,17 +11,12 @@ function isManaged(name: string): name is ManagedSecret {
   return (MANAGED_SECRETS as readonly string[]).includes(name);
 }
 
-/** The LLM client caches on first build and captures the key at that moment, so a
- *  Replace/Clear/Regenerate of the Anthropic key must drop that cache or the change
- *  would not take effect until a restart, defeating the runtime-update promise. Cheap
- *  to call on any secret change: `getLlm()` rebuilds lazily on next use. */
 function invalidateSecretCaches(): void {
-  resetLlmClient();
   invalidateTokenStatus();
 }
 
 /**
- * Settings panel's "Set"/"Replace" action for any of the eight `MANAGED_SECRETS`. The
+ * Settings panel's "Set"/"Replace" action for any of the seven `MANAGED_SECRETS`. The
  * value is write-only end to end: it arrives here from a masked `<input type="password">`
  * and this action returns only `{ ok }`, never the value or anything derived from it — see
  * `getSecretStatusAction` below for the read side.
@@ -48,7 +42,7 @@ export async function clearSecretAction(name: string): Promise<SimpleResult> {
   return { ok: true };
 }
 
-/** Settings panel's read path for all eight secrets: configured/source only, never a
+/** Settings panel's read path for all seven secrets: configured/source only, never a
  *  value — see `store.ts`'s `secretStatus()`. Safe to call after every set/clear/regenerate
  *  to refresh the panel's rows. */
 export async function getSecretStatusAction(): Promise<SecretStatus[]> {

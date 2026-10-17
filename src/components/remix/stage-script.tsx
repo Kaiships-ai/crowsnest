@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Copy, RefreshCw, Wand2 } from "lucide-react";
+import { Copy, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
@@ -20,56 +19,30 @@ import {
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { autosave } from "@/components/remix/autosave";
-import { GenerationBlocked } from "@/components/remix/generation-blocked";
-import { GeneratingSkeleton } from "@/components/remix/generating-skeleton";
+import { CopyPromptButton } from "@/components/remix/copy-prompt-button";
 import { GroundedIn } from "@/components/remix/grounded-in";
-import { SteerBox } from "@/components/remix/steer-box";
 import { deriveScriptTitle } from "@/lib/script-title";
 import { buildRemixPromptAction } from "@/server/actions/export-actions";
 import { createPlannedPostAction } from "@/server/actions/planned-post-actions";
-import { generateVariantsAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
+import { editVariantAction, saveScriptAction, updateStageAction } from "@/server/actions/remix-actions";
 import type { RemixSessionRow } from "@/server/services/remix";
 
-type VariantResult = string | { error: string };
-
-const DEFAULT_COUNT = 3;
-
-function isError(result: VariantResult): result is { error: string } {
-  return typeof result === "object";
-}
-
-/** DESIGN.md §2.5 stage ⑤ + §6: variant Tabs, editable Textareas, per-variant
- * regenerate + copy, a failed variant shows an inline destructive Alert + retry while
- * successes stay untouched, "Save script" -> title Dialog -> toast + link to Vault. */
 export function StageScript({
   session,
-  hasLlmKey,
-  proxyDown,
-  llmProxyUrl,
   onVariantsChange,
   onChosenVariantChange,
-  onRunRecorded,
 }: {
   session: RemixSessionRow;
-  hasLlmKey: boolean;
-  proxyDown: boolean;
-  llmProxyUrl: string | null;
   onVariantsChange: (variants: string[]) => void;
   onChosenVariantChange: (index: number | null) => void;
-  onRunRecorded: () => void;
 }) {
   // Initialized once from the session prop — this component only mounts while the
   // Script stage is active, so a fresh mount is exactly when session.variants should
-  // be picked up again; writeScript()/regenerate() below are the only things that
-  // change it afterward, and both already call setResults directly — no sync effect
-  // needed (see stage-hook.tsx / stage-style.tsx for the same reasoning).
-  const [results, setResults] = useState<VariantResult[]>(session.variants ?? []);
-  const [pending, setPending] = useState(false);
-  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
+  // be picked up again; commitEdit() below is the only thing that changes it afterward.
+  const [results, setResults] = useState<string[]>(session.variants ?? []);
   // Opens on the variant the session already records as chosen, so coming back to this
   // stage does not silently move the pick to variant 1.
   const [activeTab, setActiveTab] = useState(String(session.chosenVariantIndex ?? 0));
@@ -80,10 +53,6 @@ export function StageScript({
   const [saveTitle, setSaveTitle] = useState(() => deriveScriptTitle(session.topic));
   const [saving, setSaving] = useState(false);
   const [savedScriptId, setSavedScriptId] = useState<string | null>(null);
-  // Which variant slot savedScriptId's content came from — tracked so a later
-  // regenerate of that same slot, or a tab switch away from it, can be told apart from
-  // an unrelated action and used to invalidate the save (see the comments in
-  // writeScript/regenerate/selectVariant below).
   const [savedVariantIndex, setSavedVariantIndex] = useState<number | null>(null);
   // The Script stage's plan exit (v1-scope.md, Remix studio acceptance 7-9): offered
   // once a script exists, never required — the script above is already saved by the
@@ -91,70 +60,6 @@ export function StageScript({
   const [planDate, setPlanDate] = useState("");
   const [addingToPlan, setAddingToPlan] = useState(false);
   const [addedPlanDate, setAddedPlanDate] = useState<string | null>(null);
-
-  // Persists the *whole* array — used only for a manual variant-text edit
-  // (commitEditBlur below), where there's no single server-known "slot" the way a
-  // regenerate has. regenerate() below does NOT call this (see its comment, M2).
-  function persistSuccesses(next: VariantResult[]) {
-    const successes = next.filter((r): r is string => typeof r === "string");
-    onVariantsChange(successes);
-    autosave(updateStageAction(session.id, { variants: successes }));
-  }
-
-  async function writeScript() {
-    setPending(true);
-    const result = await generateVariantsAction(session.id, DEFAULT_COUNT);
-    setPending(false);
-    if (result.ok) {
-      setResults(result.variants);
-      setActiveTab("0");
-      // Every variant just got replaced, so any earlier pick points at text that no
-      // longer exists. Clearing it back to "no pick" is honest; carrying the index
-      // forward would relabel a script the user never read as the one they chose.
-      onChosenVariantChange(null);
-      autosave(updateStageAction(session.id, { chosenVariantIndex: null }));
-      // A prior "Save script" now points at text that no longer exists in variants[] —
-      // same staleness the remix-to-brief bridge guards against in finishRemix. Clearing
-      // it hides "Add to plan" until the user saves again, rather than letting it attach
-      // stale content under a plan built from a variant they can no longer even see.
-      setSavedScriptId(null);
-      setSavedVariantIndex(null);
-      setAddedPlanDate(null);
-      setPlanDate("");
-    } else {
-      toast.error(result.error);
-    }
-    onRunRecorded();
-  }
-
-  async function regenerate(index: number, steer?: string) {
-    setRegeneratingIndex(index);
-    const result = await generateVariantsAction(session.id, undefined, index, steer);
-    setRegeneratingIndex(null);
-    onRunRecorded();
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    const next = [...results];
-    next[index] = result.variants[0] ?? { error: "No result returned" };
-    setResults(next);
-    // Local sync only — the server already read-modify-wrote this one slot into
-    // variants[] (remix.ts's generateVariants with `index` set, review finding M2),
-    // so re-persisting the whole client-side `next` array here (the old "repair
-    // hack") would risk clobbering a sibling slot's concurrent autosave with a stale
-    // copy instead of the merge the server already did correctly.
-    onVariantsChange(next.filter((r): r is string => typeof r === "string"));
-    // The exact slot a prior "Save script" came from just got overwritten — same
-    // staleness finishRemix guards against server-side. Every other slot's save stays
-    // valid, so this only clears when it's the saved one.
-    if (index === savedVariantIndex) {
-      setSavedScriptId(null);
-      setSavedVariantIndex(null);
-      setAddedPlanDate(null);
-      setPlanDate("");
-    }
-  }
 
   /** Opening a variant tab IS the pick, persisted immediately so the Finish view and the
    *  post brief read the variant in front of the user rather than variants[0]. Saving
@@ -185,9 +90,11 @@ export function StageScript({
   }
 
   function commitEditBlur(index: number) {
-    persistSuccesses(results);
-    // Same staleness guard as regenerate(): a hand-edit to the saved slot's own text
-    // invalidates that save just as much as a regenerate of it would.
+    if (results[index] === (session.variants ?? [])[index]) return;
+    const edited = results;
+    void autosave(editVariantAction(session.id, index, edited[index])).then((saved) => {
+      if (saved) onVariantsChange(edited);
+    });
     if (index === savedVariantIndex) {
       setSavedScriptId(null);
       setSavedVariantIndex(null);
@@ -230,7 +137,7 @@ export function StageScript({
   async function saveScript() {
     const index = Number(activeTab);
     const content = results[index];
-    if (typeof content !== "string") return;
+    if (content === undefined) return;
     setSaving(true);
     const result = await saveScriptAction(session.id, content, saveTitle, index);
     setSaving(false);
@@ -278,7 +185,7 @@ export function StageScript({
     }
   }
 
-  // 2026-08-15 spec part 7: names what fed the last/next script generation, read
+  // 2026-08-15 spec part 7: names what feeds the script prompt, read
   // straight off session state already in this component — no server round trip.
   const scriptAnalysis = session.researchNotes?.sourceAnalysis;
   const groundedInParts = [
@@ -289,31 +196,12 @@ export function StageScript({
   ].filter((part): part is string => Boolean(part));
   const groundedInText = groundedInParts.length > 0 ? groundedInParts.join(", ") : "nothing yet, fill in Prompt and Research first";
 
-  // Script writing is offline, not broken — same block treatment as Hook/Style. This
-  // is the last stage (no footer Continue), so its own CTA gets to be the one amber
-  // action once the key comes back. Two distinct reasons share one surface — see
-  // generation-blocked.tsx.
-  if (!hasLlmKey || proxyDown) {
-    return <GenerationBlocked reason={!hasLlmKey ? "no-key" : "proxy-down"} feature="Script writing" proxyUrl={llmProxyUrl} />;
-  }
-
-  if (results.length === 0 && !pending) {
+  if (results.length === 0) {
     return (
       <div className="flex flex-col items-start gap-3">
         <GroundedIn>{groundedInText}</GroundedIn>
-        <p className="text-sm text-muted-foreground">Generate to see variants here.</p>
-        <Button onClick={writeScript}>Write script</Button>
-      </div>
-    );
-  }
-
-  if (pending) {
-    // generateVariantsAction is one atomic call with no incremental signal to
-    // observe (truth pass, v1-gap-inventory.md) — an honest indeterminate state.
-    return (
-      <div className="flex flex-col gap-3">
-        <GroundedIn>{groundedInText}</GroundedIn>
-        <GeneratingSkeleton label="Writing script…" count={DEFAULT_COUNT} rowClassName="h-40" />
+        <CopyPromptButton stage="script" videoId={session.sourceVideoId} />
+        <p className="text-sm text-muted-foreground">No script yet. Copy the prompt into Claude, then reload to see what it wrote.</p>
       </div>
     );
   }
@@ -321,6 +209,7 @@ export function StageScript({
   return (
     <div className="flex flex-col gap-4">
       <GroundedIn>{groundedInText}</GroundedIn>
+      <CopyPromptButton stage="script" videoId={session.sourceVideoId} />
 
       <Tabs value={activeTab} onValueChange={selectVariant}>
         <TabsList>
@@ -333,36 +222,16 @@ export function StageScript({
 
         {results.map((result, i) => (
           <TabsContent key={i} value={String(i)} className="flex flex-col gap-3 pt-3">
-            {isError(result) ? (
-              <Alert variant="destructive">
-                <AlertTitle>Couldn&rsquo;t generate this variant</AlertTitle>
-                <AlertDescription>{result.error}</AlertDescription>
-              </Alert>
-            ) : (
-              <Textarea
-                value={result}
-                onChange={(e) => commitEdit(i, e.target.value)}
-                onBlur={() => commitEditBlur(i)}
-                rows={12}
-                className="font-mono text-sm"
-              />
-            )}
-            <ButtonGroup>
-              <Button size="sm" variant="outline" onClick={() => regenerate(i)} disabled={regeneratingIndex === i}>
-                {regeneratingIndex === i ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
-                {isError(result) ? "Retry" : "Regenerate"}
-              </Button>
-              {!isError(result) && (
-                <Button size="sm" variant="ghost" onClick={() => copyVariant(result)}>
-                  <Copy className="size-3.5" /> Copy
-                </Button>
-              )}
-            </ButtonGroup>
-            <SteerBox
-              placeholder="e.g. cut the setup, make beat 2 faster, warmer tone"
-              pending={regeneratingIndex === i}
-              onRegenerate={(note) => regenerate(i, note)}
+            <Textarea
+              value={result}
+              onChange={(e) => commitEdit(i, e.target.value)}
+              onBlur={() => commitEditBlur(i)}
+              rows={12}
+              className="font-mono text-sm"
             />
+            <Button size="sm" variant="ghost" className="w-fit" onClick={() => copyVariant(result)}>
+              <Copy className="size-3.5" /> Copy
+            </Button>
           </TabsContent>
         ))}
       </Tabs>
@@ -371,14 +240,11 @@ export function StageScript({
 
       <div className="flex flex-wrap items-center gap-2">
         <ButtonGroup>
-          <Button variant="outline" onClick={writeScript}>
-            Regenerate all
-          </Button>
           <Button variant="outline" onClick={createPrompt}>
             <Wand2 className="size-3.5" /> Create Prompt
           </Button>
           <Dialog open={saveOpen} onOpenChange={setSaveOpen}>
-            <DialogTrigger render={<Button disabled={typeof results[Number(activeTab)] !== "string"} />}>Save script</DialogTrigger>
+            <DialogTrigger render={<Button disabled={results[Number(activeTab)] === undefined} />}>Save script</DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Save script</DialogTitle>

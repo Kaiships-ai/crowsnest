@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import { secrets } from "@/server/db/schema";
 
 /**
- * The eight secrets the Settings UI (a later task) manages. A db row always wins over
+ * The seven secrets the Settings UI (a later task) manages. A db row always wins over
  * the matching env var, so a value set through the UI takes effect without a restart —
  * env only remains as the bootstrap/dev-machine fallback.
  *
@@ -18,7 +18,6 @@ export const MANAGED_SECRETS = [
   "IG_SESSIONID",
   "IG_GRAPH_TOKEN",
   "IG_GRAPH_USER_ID",
-  "ANTHROPIC_API_KEY",
   "GROQ_API_KEY",
 ] as const;
 export type ManagedSecret = (typeof MANAGED_SECRETS)[number];

@@ -1,50 +1,24 @@
 "use server";
 
 import { eq } from "drizzle-orm";
-import type { Outline } from "../llm/schemas";
-import { NoApiKeyError } from "../llm/client";
-import { llmErrorMessage } from "../llm/error-message";
+import { errorMessage } from "../lib/action-result";
 import { db, tables } from "../db";
+import { OutlineSchema, type Outline } from "../schemas";
 import { getPlansCarryingScript } from "../queries/planned-posts";
-import { getRemixRunLog, type RemixRunRow } from "../queries/remix-runs";
 import {
   buildResearch,
+  editBeat,
+  editVariant,
   finishRemix,
-  generateHooks,
-  generateOutline,
-  generateVariants,
-  getOrCreateSession,
-  quickRemix,
   saveScript,
   updateStage,
   type RemixFinishResult,
-  type RemixSessionRow,
   type ResearchNotes,
   type StagePatch,
 } from "../services/remix";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string };
-
-/**
- * Thin "use server" wrappers around remix.ts (Task 5): all real logic — session
- * reuse, research assembly, the three Claude calls, variant isolation — lives in the
- * service, which is already fully covered by its own tests. One action per stage,
- * plus quickRemixAction for the end-to-end shortcut.
- */
-function errorMessage(err: unknown): string {
-  if (err instanceof NoApiKeyError) return "Add ANTHROPIC_API_KEY in Settings to enable remix generation.";
-  return llmErrorMessage(err);
-}
-
-export async function getOrCreateSessionAction(videoId: string): Promise<ActionResult<{ session: RemixSessionRow }>> {
-  try {
-    const session = await getOrCreateSession(videoId);
-    return { ok: true, session };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
 
 export async function updateStageAction(id: string, patch: Partial<StagePatch>): Promise<SimpleResult> {
   try {
@@ -55,42 +29,31 @@ export async function updateStageAction(id: string, patch: Partial<StagePatch>):
   }
 }
 
+const STALE_EDIT = "This stage changed while you were editing, so your edit was not saved. Reload to see the latest.";
+
+export async function editVariantAction(id: string, index: number, text: string): Promise<SimpleResult> {
+  if (typeof text !== "string") return { ok: false, error: "A variant must be text." };
+  try {
+    return (await editVariant(id, index, text)) ? { ok: true } : { ok: false, error: STALE_EDIT };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+export async function editBeatAction(id: string, index: number, beat: Outline["beats"][number]): Promise<SimpleResult> {
+  const parsed = OutlineSchema.shape.beats.element.safeParse(beat);
+  if (!parsed.success) return { ok: false, error: "A beat needs a label, content, and a target length in seconds." };
+  try {
+    return (await editBeat(id, index, parsed.data)) ? { ok: true } : { ok: false, error: STALE_EDIT };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 export async function buildResearchAction(id: string): Promise<ActionResult<{ notes: ResearchNotes }>> {
   try {
     const notes = await buildResearch(id);
     return { ok: true, notes };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function generateHooksAction(id: string, vaultItemId?: string, steer?: string): Promise<ActionResult<{ hooks: string[] }>> {
-  try {
-    const hooks = await generateHooks(id, { vaultItemId, steer });
-    return { ok: true, hooks };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function generateOutlineAction(id: string, steer?: string): Promise<ActionResult<{ outline: Outline }>> {
-  try {
-    const outline = await generateOutline(id, { steer });
-    return { ok: true, outline };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function generateVariantsAction(
-  id: string,
-  count?: number,
-  index?: number,
-  steer?: string
-): Promise<ActionResult<{ variants: (string | { error: string })[] }>> {
-  try {
-    const variants = await generateVariants(id, { count, index, steer });
-    return { ok: true, variants };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -118,32 +81,6 @@ export async function saveScriptAction(
 export async function finishRemixAction(id: string): Promise<ActionResult<RemixFinishResult>> {
   try {
     return { ok: true, ...(await finishRemix(id)) };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-export async function quickRemixAction(id: string): Promise<SimpleResult> {
-  try {
-    await quickRemix(id);
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
-/**
- * The run log a remix session has accumulated so far (v1-scope.md, Remix studio P0).
- * Read only — every row is written by `generateHooks`/`generateOutline`/
- * `generateVariants` themselves, on both success and failure, never by a user action.
- * Restarting a session (`updateStageAction(id, { stage: "prompt" })`) clears the stage,
- * not this history: the run log survives a restart and a page reload by construction,
- * since it lives in its own table rather than a column on the session row.
- */
-export async function getRemixRunLogAction(sessionId: string): Promise<ActionResult<{ runs: RemixRunRow[] }>> {
-  try {
-    const runs = await getRemixRunLog(sessionId);
-    return { ok: true, runs };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

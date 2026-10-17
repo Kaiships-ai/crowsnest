@@ -1,11 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * feed B-12: the Generate-idea control did not gate on the same LLM-availability
- * signal (`hasLlmKey`) its sibling generation controls use (stage-hook.tsx,
- * stage-style.tsx, stage-prompt.tsx), and it offered a blind re-generate even when an
- * idea already existed for the video instead of reflecting that state. Fixture pattern
- * (a hand-built `VideoDetail`) copied from quick-preview-sheet.test.tsx.
+ * The video's existing idea shows as a status, and nothing on the page generates one
+ * (the app no longer creates ideas). Fixture pattern (a hand-built `VideoDetail`)
+ * copied from quick-preview-sheet.test.tsx.
  */
 
 import { cleanup, render, screen } from "@testing-library/react";
@@ -15,9 +13,6 @@ import type { VideoDetail as VideoDetailData } from "@/server/queries/video";
 import type { FeedNav } from "./video-detail";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
-
-const mocks = vi.hoisted(() => ({ generateIdeaAction: vi.fn() }));
-vi.mock("@/server/actions/idea-actions", () => mocks);
 
 const { VideoDetail } = await import("./video-detail");
 
@@ -72,14 +67,13 @@ function detail(): VideoDetailData {
   };
 }
 
-function renderDetail(overrides: { hasLlmKey: boolean; existingIdea: { id: string; status: string } | null }) {
+function renderDetail(overrides: { existingIdea: { id: string; status: string } | null }) {
   return render(
     <VideoDetail
       detail={detail()}
       medianBasis={null}
       feedNav={FEED_NAV}
       savedPost={null}
-      hasLlmKey={overrides.hasLlmKey}
       existingIdea={overrides.existingIdea}
     >
       <div />
@@ -87,22 +81,15 @@ function renderDetail(overrides: { hasLlmKey: boolean; existingIdea: { id: strin
   );
 }
 
-describe("VideoDetail Generate idea control", () => {
-  test("disables Generate idea when no LLM key/proxy is available", () => {
-    renderDetail({ hasLlmKey: false, existingIdea: null });
-    const button = screen.getByText("Generate idea").closest("button");
-    expect(button).toBeTruthy();
-    // The underlying primitive stays focusable-when-disabled (so a tooltip can explain
-    // why), so it renders aria-disabled rather than the native `disabled` attribute.
-    expect(button?.getAttribute("aria-disabled")).toBe("true");
+describe("VideoDetail idea control", () => {
+  test("offers no Generate idea button", () => {
+    renderDetail({ existingIdea: null });
+    expect(screen.queryByText("Generate idea")).toBeNull();
   });
 
-  test("reflects an existing idea instead of offering a blind re-generate", () => {
-    renderDetail({ hasLlmKey: true, existingIdea: { id: "idea-1", status: "inbox" } });
-    expect(screen.queryByText("Generate idea")).toBeNull();
+  test("reflects an existing idea as a disabled status", () => {
+    renderDetail({ existingIdea: { id: "idea-1", status: "inbox" } });
     const reflected = screen.getByText("Idea in inbox").closest("button");
-    expect(reflected).toBeTruthy();
-    // Not a blind re-generate trigger: clicking it must never fire generateIdeaAction.
     expect(reflected?.getAttribute("aria-disabled")).toBe("true");
   });
 });

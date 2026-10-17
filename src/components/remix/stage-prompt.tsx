@@ -3,9 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Field, FieldContent, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,36 +19,24 @@ const LENGTH_ITEMS = [
 ];
 
 /** DESIGN.md §2.5 stage ①: topic (prefilled, transplants the source topic into Kai's
- * niche), a read-only niche chip linking to Settings, target-length Select, and the
- * "Quick Remix" shortcut alongside the (shared) Continue button. */
+ * niche), a read-only niche chip linking to Settings, and a target-length Select. */
 export function StagePrompt({
   session,
   sourceTopic,
   niche,
-  hasLlmKey,
-  proxyDown,
-  quickRemixPending,
   onUpdate,
-  onQuickRemix,
 }: {
   session: RemixSessionRow;
   sourceTopic: string;
   niche: string;
-  hasLlmKey: boolean;
-  // Same signal Hook/Style/Script gate on (remix-studio.tsx's `proxyDown`, from
-  // run-log-view.ts's `isProxyLikelyDown`) — Quick Remix runs those same three calls
-  // server-side in one shot, so it needs the same gate, not a parallel one (B-11).
-  proxyDown: boolean;
-  quickRemixPending: boolean;
   onUpdate: (patch: { topic?: string; targetLengthSec?: number }) => void;
-  onQuickRemix: () => void;
 }) {
   const [defaultTopic] = useState(() => session.topic ?? `${sourceTopic} — for my niche`);
   const [topic, setTopic] = useState(defaultTopic);
   const [targetLengthSec, setTargetLengthSec] = useState(String(session.targetLengthSec ?? 45));
 
   // The prefilled topic is only local state until it's persisted — if the user never
-  // touches the input and clicks Continue, generation would otherwise read a null
+  // touches the input and clicks Continue, the agent's prompts would otherwise read a null
   // session.topic and silently fall back to the bare source caption (no "for my
   // niche" framing). Sync the prefill once, guarded so it only fires while
   // session.topic is still unset.
@@ -119,29 +105,6 @@ export function StagePrompt({
           </Select>
         </Field>
       </FieldGroup>
-
-      {(!hasLlmKey || proxyDown) && (
-        // Blocked, not broken — the generation path is just offline, same as every
-        // other stage's key/proxy gate. Prompt itself still works without it, so this
-        // stays an inline note rather than swallowing the whole stage.
-        <Alert>
-          <AlertTitle>{hasLlmKey ? "Local proxy unavailable" : "Add your Claude API key"}</AlertTitle>
-          <AlertDescription>
-            {hasLlmKey
-              ? "The last attempt in the run log failed to connect. Start the local proxy, then retry — this stage isn't broken, it's offline."
-              : "Add ANTHROPIC_API_KEY in Settings to generate hooks, outlines, and scripts."}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      <Button
-        variant="secondary"
-        onClick={onQuickRemix}
-        disabled={!topic || !hasLlmKey || proxyDown || quickRemixPending}
-        className="w-fit"
-      >
-        {quickRemixPending ? "Running Quick Remix…" : "Quick Remix ✨"}
-      </Button>
     </div>
   );
 }

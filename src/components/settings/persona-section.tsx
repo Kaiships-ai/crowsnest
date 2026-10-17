@@ -99,7 +99,7 @@ export function PersonaSection({ initial }: { initial: Persona }) {
       <CardHeader>
         <CardTitle>Persona</CardTitle>
         <CardDescription>
-          Optional, but it sharpens every remix. Each generation stage reads this alongside your niche profile; leave a
+          Optional, but it sharpens every remix. Claude reads it over MCP alongside your niche profile when it writes a remix; leave a
           field blank and it falls back to the niche.
         </CardDescription>
       </CardHeader>

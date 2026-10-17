@@ -5,7 +5,7 @@ import {
   VideoAnalysisSchema,
   type StoredAnalysisFields,
   type StoredVideoLayout,
-} from "@/server/llm/schemas";
+} from "@/server/schemas";
 
 /**
  * `VideoAnalysisSchema` plus `summary` (B-10). `summary` is kept out of

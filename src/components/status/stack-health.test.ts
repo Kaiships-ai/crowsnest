@@ -8,7 +8,7 @@ import {
   type LastSyncRow,
   type RunningJob,
 } from "./stack-health";
-import type { LlmStatus, SidecarStatus } from "./dependency-status";
+import type { GraphStatus, SidecarStatus } from "./dependency-status";
 
 const NOW = Date.parse("2026-08-06T12:00:00.000Z");
 
@@ -45,8 +45,8 @@ function syncRow(overrides: Partial<LastSyncRow> = {}): LastSyncRow {
 
 const SIDECAR_UP: SidecarStatus = { state: "up", detail: null };
 
-function llm(state: LlmStatus["state"]): LlmStatus {
-  return { state, detail: null, proxyUrl: null, routedThroughProxy: false, reachable: null };
+function graph(state: GraphStatus["state"]): GraphStatus {
+  return { state, detail: null };
 }
 
 describe("selectStuckJobs", () => {
@@ -161,7 +161,7 @@ describe("summarizeLastSync", () => {
 });
 
 describe("stackTone", () => {
-  const healthy = { sidecar: SIDECAR_UP, llm: llm("up"), lastSync: summarizeLastSync(syncRow()), stuckCount: 0 };
+  const healthy = { sidecar: SIDECAR_UP, graph: graph("up"), lastSync: summarizeLastSync(syncRow()), stuckCount: 0 };
 
   test("everything up and a clean last sync is the only ok", () => {
     expect(stackTone(healthy)).toBe("ok");
@@ -181,11 +181,11 @@ describe("stackTone", () => {
     expect(stackTone({ ...healthy, lastSync: summarizeLastSync(syncRow({ status: "partial" })) })).toBe("warn");
   });
 
-  test("an unproven model backend warns rather than passing as healthy", () => {
-    for (const state of ["reachable_unverified", "not_configured", "unknown"] as const) {
-      expect(stackTone({ ...healthy, llm: llm(state) })).toBe("warn");
+  test("an unproven Graph API warns rather than passing as healthy", () => {
+    for (const state of ["not_configured", "unknown"] as const) {
+      expect(stackTone({ ...healthy, graph: graph(state) })).toBe("warn");
     }
-    expect(stackTone({ ...healthy, llm: llm("down") })).toBe("bad");
+    expect(stackTone({ ...healthy, graph: graph("down") })).toBe("bad");
   });
 
   test("never having synced is a warning, not a failure", () => {

@@ -8,7 +8,7 @@ let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
-let VideoAnalysisSchema: typeof import("@/server/llm/schemas")["VideoAnalysisSchema"];
+let VideoAnalysisSchema: typeof import("@/server/schemas")["VideoAnalysisSchema"];
 let saveAgentAnalysis: typeof import("./analyze")["saveAgentAnalysis"];
 let rowToAnalysis: typeof import("./analyze")["rowToAnalysis"];
 
@@ -16,7 +16,7 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   ({ db, tables, newId, nowIso } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ VideoAnalysisSchema } = await import("@/server/llm/schemas"));
+  ({ VideoAnalysisSchema } = await import("@/server/schemas"));
   ({ saveAgentAnalysis, rowToAnalysis } = await import("./analyze"));
 });
 
@@ -150,32 +150,26 @@ describe("saveAgentAnalysis", () => {
     expect(r).toEqual({ ok: false, error: "video not found" });
   });
 
-  test("keyless path: an agent-authored analysis is written and read back with no ANTHROPIC_API_KEY set", async () => {
+  test("keyless path: an agent-authored analysis is written and read back with no model key", async () => {
     // P0 slice 2a: analysis.ts no longer imports the LLM client at all, so this test
     // needs no fake/mock LLM and no key of any kind — proving the whole write-then-read
     // path (saveAgentAnalysis -> rowToAnalysis, the same mapping remix.ts and the
     // crowsnest_video MCP tool both consume) is genuinely keyless end to end.
-    const prevKey = process.env.ANTHROPIC_API_KEY;
-    delete process.env.ANTHROPIC_API_KEY;
-    try {
-      const { videoId } = await seedVideo({ withTranscript: true });
-      const ok = await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
-      expect(ok).toEqual({ ok: true });
+    const { videoId } = await seedVideo({ withTranscript: true });
+    const ok = await saveAgentAnalysis(videoId, FAKE_ANALYSIS);
+    expect(ok).toEqual({ ok: true });
 
-      const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
-      const analysis = rowToAnalysis(row);
-      expect(analysis.hookType).toBe(FAKE_ANALYSIS.hookType);
-      expect(analysis.structureSegments).toEqual(FAKE_ANALYSIS.structureSegments);
-      expect(analysis.whyItWorked).toBe(FAKE_ANALYSIS.whyItWorked);
+    const [row] = await db.select().from(tables.videoAnalyses).where(eq(tables.videoAnalyses.videoId, videoId));
+    const analysis = rowToAnalysis(row);
+    expect(analysis.hookType).toBe(FAKE_ANALYSIS.hookType);
+    expect(analysis.structureSegments).toEqual(FAKE_ANALYSIS.structureSegments);
+    expect(analysis.whyItWorked).toBe(FAKE_ANALYSIS.whyItWorked);
 
-      const [transcriptRow] = await db
-        .select({ text: tables.transcripts.text })
-        .from(tables.transcripts)
-        .where(eq(tables.transcripts.videoId, videoId));
-      expect(transcriptRow.text.length).toBeGreaterThan(0);
-    } finally {
-      if (prevKey !== undefined) process.env.ANTHROPIC_API_KEY = prevKey;
-    }
+    const [transcriptRow] = await db
+      .select({ text: tables.transcripts.text })
+      .from(tables.transcripts)
+      .where(eq(tables.transcripts.videoId, videoId));
+    expect(transcriptRow.text.length).toBeGreaterThan(0);
   });
 });
 

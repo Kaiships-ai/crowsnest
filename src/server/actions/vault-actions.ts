@@ -32,7 +32,7 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * rather than a second insert. A resubmission with genuinely edited content (a
  * different title or template text) is a new item, as it should be. Mirrors the
  * select-then-write pattern this codebase already uses for idempotency elsewhere
- * (createSavedPostAction's "already saved" check, generateIdea's select-then-update)
+ * (createSavedPostAction's "already saved" check)
  * rather than a DB unique constraint, since there is no single natural key here (unlike
  * videos.externalId) — the retry itself is what supplies the identity, via content.
  *

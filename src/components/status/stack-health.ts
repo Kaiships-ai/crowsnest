@@ -1,5 +1,5 @@
 /**
- * The stack health surface (enhancements spec M4-U8): sidecar, model backend, last sync,
+ * The stack health surface (enhancements spec M4-U8): sidecar, Graph API, last sync,
  * and any stuck job, readable in one place instead of four.
  *
  * Pure classification only, same split as `dependency-status.ts` next door and for the
@@ -8,7 +8,7 @@
  *
  * Nothing is re-derived that the app already decides somewhere else. The two dependency
  * rows keep coming from `dependency-status.ts`'s own `classifySidecarStatus` and
- * `classifyLlmStatus` (this module only folds their verdicts into one overall tone), and
+ * `classifyGraphStatus` (this module only folds their verdicts into one overall tone), and
  * "stuck" is `runs/sla.ts`'s `evaluateSla` against the same `SYNC_STALL_SECONDS`
  * threshold the Runs list and the sidebar's stalled read already use. A second definition
  * of stuck would be a second answer to the same question.
@@ -17,7 +17,7 @@
 import { evaluateSla } from "@/server/runs/sla";
 import { SYNC_STALL_SECONDS } from "@/server/services/sync-types";
 
-import type { LlmStatus, SidecarStatus } from "./dependency-status";
+import type { GraphStatus, SidecarStatus } from "./dependency-status";
 
 /** The staleness threshold, shared with the Runs list (`runs-list.tsx`'s own `STALE_MS`)
  *  rather than picked again here. Deliberately not the reaper's much longer lock-steal
@@ -139,7 +139,7 @@ export type StackTone = "ok" | "warn" | "bad";
 
 export interface StackToneInput {
   sidecar: SidecarStatus;
-  llm: LlmStatus;
+  graph: GraphStatus;
   lastSync: LastSyncSummary;
   stuckCount: number;
 }
@@ -149,18 +149,16 @@ export interface StackToneInput {
  *
  * "ok" is deliberately hard to earn: it means both dependencies verified up, nothing
  * stuck, and a last sync that either succeeded or is still going. Every state that is
- * merely unproven — a proxy that answered without proving it generates, a backend that
- * did not answer in time, nothing synced yet — is a warning, never a green. That is the
- * same false-green rule `dependency-status.ts` was written around, applied to all four
- * signals at once.
+ * merely unproven (a Graph check that did not answer in time, nothing synced yet) is a
+ * warning, never a green.
  */
-export function stackTone({ sidecar, llm, lastSync, stuckCount }: StackToneInput): StackTone {
+export function stackTone({ sidecar, graph, lastSync, stuckCount }: StackToneInput): StackTone {
   if (stuckCount > 0) return "bad";
   if (sidecar.state !== "up") return "bad";
-  if (llm.state === "down") return "bad";
+  if (graph.state === "down") return "bad";
   if (lastSync.state === "failed") return "bad";
 
-  if (llm.state !== "up") return "warn";
+  if (graph.state !== "up") return "warn";
   if (lastSync.state === "partial" || lastSync.state === "never") return "warn";
 
   return "ok";

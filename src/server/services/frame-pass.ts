@@ -1,7 +1,7 @@
 import path from "node:path";
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
-import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/llm/schemas";
+import { BEAT_LAYOUT_FIELDS, VideoLayoutSchema, type VideoLayout } from "@/server/schemas";
 
 /**
  * Resolve the on-disk video file the frame pass session should run `/watch` against.
@@ -35,9 +35,8 @@ export async function resolveVideoFile(videoId: string): Promise<{ ok: true; pat
 /**
  * Persist a Layout reading (V1 data contracts, contract 5) onto a video's analysis row.
  *
- * The vision itself does not happen in this process. `src/server/llm/client.ts` still has
- * no image path and the 9router proxy relays no live vision model, so the reading is
- * produced by a Claude Code subprocess instead: `frame-pass-runner.ts` extracts frames
+ * The vision itself does not happen in this process (it makes no model calls), so the
+ * reading is produced by a Claude Code subprocess instead: `frame-pass-runner.ts` extracts frames
  * with watch.py, hands the paths and the analysis's beat windows to a session limited to
  * `--allowedTools Read`, and a `VideoLayout` comes back: one row per story beat, each
  * carrying the beat's timecodes plus six readings (on-screen text, animation, demo

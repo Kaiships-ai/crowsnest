@@ -12,8 +12,7 @@
  * (fleet-actions.ts, secrets-actions.ts, media-actions.ts...), some need a wider
  * or narrower `code` type (graph-actions.ts's `GraphErrorCode`, ig-actions.ts's
  * `Failure` with `retryable`/`needsUserAction`), and some wrap a different error
- * message entirely (analyze-actions.ts, remix-actions.ts route LLM errors through
- * `llmErrorMessage`). Those stay local — this file only replaces the copies that were
+ * message entirely (analyze-actions.ts). Those stay local — this file only replaces the copies that were
  * genuinely identical to the shape below.
  */
 

@@ -54,17 +54,13 @@ login` first; init refuses to run without a cached license.
 kai kit init
 ```
 
-It asks three things:
+It asks two things:
 
 - **Instagram account.** Use a throwaway account. The sidecar drives Instagram's private API,
   and accounts do get challenged or banned. If you give a username you are also asked for its
   password (not echoed to the screen). Leave the username blank to skip Instagram for now; the
   two must be set together or both left blank.
 - **A sidecar token** is generated for you. You never type it.
-- **`ANTHROPIC_API_KEY`.** Optional, and not needed for the MCP flow. Leave it blank and the
-  MCP flow and the Create-Prompt export still work keyless. The key only powers the in-app AI
-  analysis and the in-app Vault pipeline, which are separate from driving crowsnest through
-  your agent.
 
 Your answers are written to `.env.local` with owner-only permissions, since it holds the
 Instagram password.
