@@ -722,7 +722,7 @@ function ReelDrawer({
                 Duyệt đăng
               </Button>
             )}
-            {r.state === "failed" && r.lastError && <span className="break-words text-destructive [overflow-wrap:anywhere]">{r.lastError}</span>}
+            {r.state === "failed" && r.lastError && <span className="w-full min-w-0 text-destructive [overflow-wrap:anywhere]">{r.lastError}</span>}
           </section>
 
           {r.state !== "published" && r.state !== "publishing" && (
