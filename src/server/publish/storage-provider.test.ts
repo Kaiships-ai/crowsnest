@@ -1,4 +1,7 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
@@ -61,35 +64,59 @@ describe("S3StorageProvider.upload / delete", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  test("upload PUTs the file and returns publicBase/objectKey, signed with a valid SigV4 shape", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, statusText: "OK" });
-    vi.stubGlobal("fetch", fetchMock);
+  // A real local endpoint, not a fetch mock: the upload must not go through
+  // globalThis.fetch, which Next patches in dev to hex-encode a whole request body into
+  // a cache key (a 76 MB reel ran the server out of heap). Stubbing fetch to throw makes
+  // any regression back onto fetch fail here.
+  async function withS3Server(status: number, run: (endpoint: string, seen: { method?: string; url?: string; headers?: Record<string, string | string[] | undefined>; body?: Buffer }) => Promise<void>) {
+    const seen: { method?: string; url?: string; headers?: Record<string, string | string[] | undefined>; body?: Buffer } = {};
+    const server = createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        Object.assign(seen, { method: req.method, url: req.url, headers: req.headers, body: Buffer.concat(chunks) });
+        res.writeHead(status).end();
+      });
+    });
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      await run(`http://127.0.0.1:${(server.address() as AddressInfo).port}`, seen);
+    } finally {
+      await new Promise((r) => server.close(r));
+    }
+  }
 
-    const provider = new S3StorageProvider(toConfig(FULL_ENV));
-    const result = await provider.upload(localPath, "video/mp4");
+  test("upload PUTs the file bytes and returns publicBase/objectKey, signed with a valid SigV4 shape", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("upload must not use globalThis.fetch")));
+    await withS3Server(200, async (endpoint, seen) => {
+      const provider = new S3StorageProvider(toConfig({ ...FULL_ENV, S3_ENDPOINT: endpoint }));
+      const result = await provider.upload(localPath, "video/mp4");
 
-    expect(result.objectKey).toMatch(/^crowsnest\/[0-9a-f-]{36}\.mp4$/);
-    expect(result.publicUrl).toBe(`${FULL_ENV.S3_PUBLIC_BASE}/${result.objectKey}`);
+      expect(result.objectKey).toMatch(/^crowsnest\/[0-9a-f-]{36}\.mp4$/);
+      expect(result.publicUrl).toBe(`${FULL_ENV.S3_PUBLIC_BASE}/${result.objectKey}`);
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe(`${FULL_ENV.S3_ENDPOINT}/${FULL_ENV.S3_BUCKET}/${result.objectKey}`);
-    expect(init.method).toBe("PUT");
-    expect(init.body).toBeInstanceOf(Buffer);
+      expect(seen.method).toBe("PUT");
+      expect(seen.url).toBe(`/${FULL_ENV.S3_BUCKET}/${result.objectKey}`);
+      const sent = await readFile(localPath);
+      expect(seen.body?.equals(sent)).toBe(true);
 
-    const headers = init.headers as Record<string, string>;
-    expect(headers["Content-Type"]).toBe("video/mp4");
-    expect(headers.Authorization).toMatch(
-      new RegExp(`^AWS4-HMAC-SHA256 Credential=${FULL_ENV.S3_KEY}/\\d{8}/auto/s3/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$`)
-    );
-    // The secret itself must never appear in any header value sent over the wire.
-    expect(JSON.stringify(headers)).not.toContain(FULL_ENV.S3_SECRET);
+      const headers = seen.headers ?? {};
+      expect(headers["content-type"]).toBe("video/mp4");
+      expect(headers["content-length"]).toBe(String(sent.length));
+      expect(headers["x-amz-content-sha256"]).toBe(createHash("sha256").update(sent).digest("hex"));
+      expect(headers.authorization).toMatch(
+        new RegExp(`^AWS4-HMAC-SHA256 Credential=${FULL_ENV.S3_KEY}/\\d{8}/auto/s3/aws4_request, SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date, Signature=[0-9a-f]{64}$`)
+      );
+      // The secret itself must never appear in any header value sent over the wire.
+      expect(JSON.stringify(headers)).not.toContain(FULL_ENV.S3_SECRET);
+    });
   });
 
   test("upload throws (and never returns a url) on a non-ok response", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 403, statusText: "Forbidden" }));
-    const provider = new S3StorageProvider(toConfig(FULL_ENV));
-    await expect(provider.upload(localPath, "video/mp4")).rejects.toThrow(/403/);
+    await withS3Server(403, async (endpoint) => {
+      const provider = new S3StorageProvider(toConfig({ ...FULL_ENV, S3_ENDPOINT: endpoint }));
+      await expect(provider.upload(localPath, "video/mp4")).rejects.toThrow(/403/);
+    });
   });
 
   test("delete targets the same object key with a DELETE request", async () => {

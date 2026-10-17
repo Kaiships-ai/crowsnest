@@ -1,5 +1,8 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { extname } from "node:path";
 
 /**
@@ -49,8 +52,8 @@ export interface S3StorageConfig {
 // single presigned-PUT-and-DELETE-object client is a few dozen lines of SigV4, not a
 // reason to add a ~200-file dependency. This is the one corner in this file that is NOT
 // cut lazily: a wrong signature is a silent 403, not a compile error. Upgrade to
-// @aws-sdk/client-s3 if multipart upload or large files ever become a requirement —
-// this hand-rolled path reads the whole file into memory before signing.
+// @aws-sdk/client-s3 if multipart upload ever becomes a requirement (S3 caps a single
+// PUT at 5 GB).
 
 const UNRESERVED = /^[A-Za-z0-9\-._~]$/;
 
@@ -86,20 +89,18 @@ function amzTimestamps(now: Date): { amzDate: string; dateStamp: string } {
 }
 
 /** Builds the `Authorization` header (AWS4-HMAC-SHA256) plus the exact header set it
- *  covers, for one S3 REST request. `body` is the payload to hash and sign — pass an
- *  empty buffer for DELETE, which has none. */
+ *  covers, for one S3 REST request. `payloadHash` is the hex sha256 of the body. */
 function signRequest(opts: {
   method: "PUT" | "DELETE";
   cfg: S3StorageConfig;
   objectKey: string;
   host: string;
-  body: Buffer;
+  payloadHash: string;
   contentType?: string;
-}): { authorization: string; amzDate: string; payloadHash: string } {
-  const { method, cfg, objectKey, host, body, contentType } = opts;
+}): { authorization: string; amzDate: string } {
+  const { method, cfg, objectKey, host, payloadHash, contentType } = opts;
   const region = cfg.region ?? "auto";
   const { amzDate, dateStamp } = amzTimestamps(new Date());
-  const payloadHash = sha256Hex(body);
 
   const headerEntries: [string, string][] = contentType
     ? [
@@ -130,7 +131,7 @@ function signRequest(opts: {
   const signature = hmac(kSigning, stringToSign).toString("hex");
 
   const authorization = `AWS4-HMAC-SHA256 Credential=${cfg.accessKey}/${credentialScope}, SignedHeaders=${signedHeaders}, Signature=${signature}`;
-  return { authorization, amzDate, payloadHash };
+  return { authorization, amzDate };
 }
 
 function objectUrl(cfg: S3StorageConfig, objectKey: string): { url: string; host: string } {
@@ -140,39 +141,50 @@ function objectUrl(cfg: S3StorageConfig, objectKey: string): { url: string; host
   return { url, host };
 }
 
+async function sha256File(path: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(path)) hash.update(chunk as Buffer);
+  return hash.digest("hex");
+}
+
+/** Streams the file as the PUT body over node:http(s), not `fetch`: Next patches the
+ *  global fetch in dev and hex-encodes a whole request body into a cache key, which ran
+ *  the server out of heap on a 76 MB reel. Streaming also keeps the file out of memory. */
+function putFile(url: string, path: string, headers: Record<string, string>): Promise<number> {
+  const send = url.startsWith("https:") ? httpsRequest : httpRequest;
+  return new Promise((resolve, reject) => {
+    const req = send(url, { method: "PUT", headers }, (res) => {
+      res.resume();
+      res.on("end", () => resolve(res.statusCode ?? 0));
+      res.on("error", reject);
+    });
+    req.on("error", reject);
+    createReadStream(path).on("error", reject).pipe(req);
+  });
+}
+
 export class S3StorageProvider implements StorageProvider {
   constructor(private readonly cfg: S3StorageConfig) {}
 
   async upload(localPath: string, contentType: string): Promise<{ publicUrl: string; objectKey: string }> {
-    const body = await readFile(localPath);
     const ext = extname(localPath) || ".mp4";
     const objectKey = `crowsnest/${randomUUID()}${ext}`;
     const { url, host } = objectUrl(this.cfg, objectKey);
-    const { authorization, amzDate, payloadHash } = signRequest({
-      method: "PUT",
-      cfg: this.cfg,
-      objectKey,
-      host,
-      body,
-      contentType,
-    });
+    const payloadHash = await sha256File(localPath);
+    const { size } = await stat(localPath);
+    const { authorization, amzDate } = signRequest({ method: "PUT", cfg: this.cfg, objectKey, host, payloadHash, contentType });
 
-    const res = await fetch(url, {
-      method: "PUT",
-      headers: {
-        Authorization: authorization,
-        Host: host,
-        "Content-Type": contentType,
-        "x-amz-content-sha256": payloadHash,
-        "x-amz-date": amzDate,
-      },
-      body,
+    const status = await putFile(url, localPath, {
+      Authorization: authorization,
+      Host: host,
+      "Content-Type": contentType,
+      "Content-Length": String(size),
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
     });
-    if (!res.ok) {
-      // Never include cfg.secret / accessKey value here — the Authorization header
-      // above already redacts to a signature, not the raw key, but the response body
-      // itself could theoretically echo request headers back; strip it to a status.
-      throw new Error(`S3 upload failed: ${res.status} ${res.statusText}`);
+    if (status < 200 || status >= 300) {
+      // Status only: the response body could echo request headers back.
+      throw new Error(`S3 upload failed: ${status}`);
     }
 
     return { publicUrl: `${this.cfg.publicBase.replace(/\/$/, "")}/${objectKey}`, objectKey };
@@ -180,13 +192,8 @@ export class S3StorageProvider implements StorageProvider {
 
   async delete(objectKey: string): Promise<void> {
     const { url, host } = objectUrl(this.cfg, objectKey);
-    const { authorization, amzDate, payloadHash } = signRequest({
-      method: "DELETE",
-      cfg: this.cfg,
-      objectKey,
-      host,
-      body: Buffer.alloc(0),
-    });
+    const payloadHash = sha256Hex("");
+    const { authorization, amzDate } = signRequest({ method: "DELETE", cfg: this.cfg, objectKey, host, payloadHash });
 
     const res = await fetch(url, {
       method: "DELETE",
