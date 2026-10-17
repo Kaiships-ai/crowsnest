@@ -17,10 +17,11 @@ import { PublishDialog } from "@/components/mine/publish-dialog";
 import { cn } from "@/lib/utils";
 import {
   approvePlanVersionAction,
+  movePlannedPostAction,
   publishNowAction,
-  schedulePlannedPostAction,
   undoPlanVersionAction,
   updatePlannedPostAction,
+  type MoveSnapshot,
 } from "@/server/actions/planned-post-actions";
 import { updateStageAction } from "@/server/actions/remix-actions";
 import type { RunSummary } from "@/server/queries/runs";
@@ -53,6 +54,8 @@ export interface WeekScreenProps {
   dryRun: boolean;
   /** remixSessionId to that session's chosen hook, the hook a plan's drawer edits. */
   hooks: Record<string, string | null>;
+  /** remixSessionId to that session's topic, which fills a hook template's {topic} slot. */
+  hookTopics: Record<string, string | null>;
   /** Plan ids whose source video was removed from the platform. */
   sourceGone: string[];
   hookTemplates: { id: string; title: string; text: string }[];
@@ -69,11 +72,11 @@ const TONE: Record<StatusTone, string> = {
 const ASK_PROMPT = (weekKey: string) =>
   `Dùng MCP crowsnest. Đọc crowsnest_plans và crowsnest_funnel cho tuần ${weekKey}.\nViết plan tuần sau, 2 reel mỗi ngày, rồi gửi bằng crowsnest_propose_plan (period "week"). Đừng đổi reel đã đăng.`;
 
-function Seg({ done }: { done: number }) {
+function Seg({ done, labelled = true }: { done: number; labelled?: boolean }) {
   return (
-    <span className="flex min-w-0 gap-[3px]" aria-label={`${done}/5 bước`}>
+    <span className="flex min-w-0 gap-[3px]" {...(labelled ? { "aria-label": `${done}/5 bước` } : { "aria-hidden": true })}>
       {STEPS.map((s, i) => (
-        <i key={s} className={cn("h-1 flex-1 rounded-sm", i < done ? (done === 5 ? "bg-success" : "bg-foreground") : "bg-foreground/10")} />
+        <i key={s} className={cn("h-1 flex-1 rounded-sm", i < done ? "bg-foreground" : "bg-foreground/10")} />
       ))}
     </span>
   );
@@ -100,6 +103,7 @@ function SyncLine({ seed }: { seed: RunSummary[] }) {
   );
 }
 
+const SLOT = /\{[^}]*\}/;
 const GONE = "Video gốc đã bị xoá khỏi Instagram";
 
 export function WeekScreen(props: WeekScreenProps) {
@@ -133,34 +137,40 @@ export function WeekScreen(props: WeekScreenProps) {
     setOpenId(id);
   }
 
-  async function moveTo(id: string, date: string) {
-    const r = reels.find((x) => x.id === id);
-    if (!r || r.plannedDate === date || !canMove(r)) return;
-    const from = r.plannedDate;
+  // A sequence per reel: only the newest move's answer touches the UI, so a late failure
+  // cannot roll back over a newer success. Next runs server actions one at a time, so
+  // the newest answer is also the last write.
+  const [moveSeq] = useState(() => new Map<string, number>());
+
+  /** `from` is the day the UI shows now; the server re-checks everything else. */
+  async function moveTo(id: string, from: string | null, to: { date: string } | { restore: MoveSnapshot }) {
+    const date = "date" in to ? to.date : to.restore.plannedDate;
+    if ("date" in to && (date === from || to.date < today)) return;
+    const n = (moveSeq.get(id) ?? 0) + 1;
+    moveSeq.set(id, n);
     performance.mark("week-drop");
     setReels((rs) => moveReel(rs, id, date));
     requestAnimationFrame(() => performance.measure("week-drop-paint", "week-drop"));
-    const res = await schedulePlannedPostAction(id, date, r.plannedTime ?? undefined);
+    const res = await movePlannedPostAction(id, to);
     performance.measure("week-drop-store", "week-drop");
+    if (moveSeq.get(id) !== n) return;
     if (!res.ok) {
-      setReels((rs) => moveReel(rs, id, from ?? date));
+      setReels((rs) => moveReel(rs, id, from));
       toast.error(res.error);
+      if (res.code === "PLAN_LOCKED") router.refresh();
       return;
     }
-    toast.success(`Đã chuyển sang ${dayLabel(date)}`, {
-      action: {
-        label: <span data-testid="week-move-undo">Hoàn tác</span>,
-        onClick: async () => {
-          if (!from) return;
-          setReels((rs) => moveReel(rs, id, from));
-          const back = await schedulePlannedPostAction(id, from, r.plannedTime ?? undefined);
-          if (!back.ok) toast.error(back.error);
-        },
-      },
+    if ("restore" in to) {
+      toast.success("Đã hoàn tác");
+      return;
+    }
+    toast.success(`Đã chuyển sang ${dayLabel(to.date)}`, {
+      action: { label: <span data-testid="week-move-undo">Hoàn tác</span>, onClick: () => void moveTo(id, date, { restore: res.prior }) },
     });
   }
 
   function dropZone(date: string) {
+    if (date < today) return {};
     return {
       "data-drop-day": date,
       onDragOver: (e: DragEvent) => {
@@ -171,8 +181,8 @@ export function WeekScreen(props: WeekScreenProps) {
       onDrop: (e: DragEvent) => {
         e.preventDefault();
         setOverDay(null);
-        const id = e.dataTransfer.getData("text/plain");
-        if (id) void moveTo(id, date);
+        const r = reels.find((x) => x.id === e.dataTransfer.getData("text/plain"));
+        if (r && canMove(r)) void moveTo(r.id, r.plannedDate, { date });
       },
     };
   }
@@ -188,11 +198,12 @@ export function WeekScreen(props: WeekScreenProps) {
       return;
     }
     router.refresh();
+    const approvedId = res.live.id;
     toast.success(`v${draft.version} đang chạy`, {
-      action: {
+      action: liveVersion === null ? undefined : {
         label: <span data-testid="week-approve-undo">Hoàn tác</span>,
         onClick: async () => {
-          const back = await undoPlanVersionAction({ period: "week", periodKey: weekKey });
+          const back = await undoPlanVersionAction({ period: "week", periodKey: weekKey }, approvedId);
           if (!back.ok) toast.error(back.error);
           else toast.success(`Đã quay về v${back.live.version}`);
           router.refresh();
@@ -232,8 +243,8 @@ export function WeekScreen(props: WeekScreenProps) {
         <span className="text-base font-medium tracking-tight">{r.title}</span>
         {r.note && <span className="truncate text-sm text-muted-foreground">{r.note}</span>}
         {gone.has(r.id) && <span className="font-mono text-2xs text-destructive">{GONE}</span>}
-        <Seg done={n} />
-        <span className="font-mono text-xs text-muted-foreground">{n === 5 ? "5/5 · xong" : `Bước ${n + 1}/5 · ${STEPS[n]}`}</span>
+        <Seg done={n} labelled={false} />
+        <span className="font-mono text-xs text-muted-foreground">{n === 5 ? "5/5 bước · xong" : `${n}/5 bước · tiếp: ${STEPS[n]}`}</span>
       </button>
     );
   };
@@ -306,7 +317,7 @@ export function WeekScreen(props: WeekScreenProps) {
             {next.label}
           </Button>
         ) : (
-          <span className="text-muted-foreground" data-testid="week-next-action">
+          <span className="text-muted-foreground" data-testid="week-next-none">
             Không có gì chờ anh.
           </span>
         )}
@@ -356,7 +367,7 @@ export function WeekScreen(props: WeekScreenProps) {
           split.days.map((d) => (
             <div key={d.date} {...dropZone(d.date)} data-testid="week-day" className={cn(overDay === d.date && "ring-1 ring-ring ring-inset")}>
               <div className="border-t border-border px-4 pt-2.5 pb-1 font-mono text-2xs uppercase tracking-wider text-muted-foreground">{dayLabel(d.date)}</div>
-              {d.reels.length ? d.reels.map(row) : <p className="px-4 pb-2.5 text-xs text-muted-foreground">Trống. Thả reel vào đây.</p>}
+              {d.reels.length ? d.reels.map(row) : <p className="px-4 pb-2.5 text-xs text-muted-foreground">{d.date < today ? "Trống." : "Trống. Thả reel vào đây."}</p>}
             </div>
           ))}
       </section>
@@ -371,12 +382,13 @@ export function WeekScreen(props: WeekScreenProps) {
           graphConfigured={props.graphConfigured}
           bucketConfigured={props.bucketConfigured}
           dryRun={props.dryRun}
-          days={weekDays(today)}
+          days={weekDays(today).filter((d) => d >= today)}
           hookSession={selected.remixSessionId && selected.remixSessionId in props.hooks ? selected.remixSessionId : null}
           hook={selected.remixSessionId ? (props.hooks[selected.remixSessionId] ?? null) : null}
+          hookTopic={(selected.remixSessionId && props.hookTopics[selected.remixSessionId]) || selected.keyword}
           hookTemplates={props.hookTemplates}
           sourceGone={gone.has(selected.id)}
-          onMove={(date) => void moveTo(selected.id, date)}
+          onMove={(date) => void moveTo(selected.id, selected.plannedDate, { date })}
           onClose={() => setOpenId(null)}
           onStep={(delta) => {
             const n = ordered[idx + delta];
@@ -400,6 +412,7 @@ function ReelDrawer({
   days,
   hookSession,
   hook: savedHook,
+  hookTopic,
   hookTemplates,
   sourceGone,
   onMove,
@@ -417,6 +430,7 @@ function ReelDrawer({
   days: string[];
   hookSession: string | null;
   hook: string | null;
+  hookTopic: string | null;
   hookTemplates: { id: string; title: string; text: string }[];
   sourceGone: boolean;
   onMove: (date: string) => void;
@@ -432,10 +446,15 @@ function ReelDrawer({
   const [busy, setBusy] = useState(false);
   const [attach, setAttach] = useState(false);
   const ready = r.videoAssetId !== null && Boolean(r.caption?.trim());
+  const dry = dryRun || r.dryRun;
 
   async function saveHook(value = hook) {
     const v = value.trim();
     if (!hookSession || v === hookAt) return;
+    if (SLOT.test(v)) {
+      toast.error("Điền chỗ trống {...} trong hook trước khi lưu.");
+      return;
+    }
     const res = await updateStageAction(hookSession, { chosenHook: v });
     if (!res.ok) {
       toast.error(res.error);
@@ -457,6 +476,12 @@ function ReelDrawer({
     onSaved({ note: v || null });
   }
 
+  function close() {
+    void saveHook();
+    void saveNote();
+    onClose();
+  }
+
   async function publish() {
     setBusy(true);
     const res = await publishNowAction(r.id);
@@ -466,7 +491,7 @@ function ReelDrawer({
       toast.error(res.error);
       return;
     }
-    toast.success(dryRun ? "Đã chạy thử (dry run), chưa đăng thật" : "Đã đăng lên Instagram");
+    toast.success(dry ? "Đã chạy thử (dry run), chưa đăng thật" : "Đã đăng lên Instagram");
     router.refresh();
   }
 
@@ -474,7 +499,7 @@ function ReelDrawer({
   const mark = (i: number) => (i < done ? "✓" : i === Math.min(done, 4) ? "●" : "○");
 
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()}>
+    <Sheet open onOpenChange={(o) => !o && close()}>
       <SheetContent
         className="w-full gap-3 overflow-y-auto sm:max-w-[440px]"
         data-testid="week-drawer"
@@ -497,6 +522,11 @@ function ReelDrawer({
             <label className="flex items-center gap-2">
               <span className="font-mono text-2xs uppercase tracking-wider text-muted-foreground">Chuyển sang ngày</span>
               <NativeSelect size="sm" value={r.plannedDate ?? ""} onChange={(e) => onMove(e.target.value)} data-testid="week-move-select">
+                {r.plannedDate && !days.includes(r.plannedDate) && (
+                  <NativeSelectOption value={r.plannedDate} disabled>
+                    {dayLabel(r.plannedDate)}
+                  </NativeSelectOption>
+                )}
                 {days.map((d) => (
                   <NativeSelectOption key={d} value={d}>
                     {dayLabel(d)}
@@ -507,7 +537,7 @@ function ReelDrawer({
           )}
           <ol className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-xs" data-testid="week-drawer-steps">
             {STEPS.map((s, i) => (
-              <li key={s} className={cn(i < done ? "text-success" : i === done ? "text-foreground" : "text-muted-foreground")}>
+              <li key={s} className={cn(i <= done ? "text-foreground" : "text-muted-foreground", i === done && "font-medium")}>
                 {mark(i)} {s}
               </li>
             ))}
@@ -532,10 +562,7 @@ function ReelDrawer({
                     onBlur={() => saveHook()}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") e.currentTarget.blur();
-                      if (e.key === "Escape") {
-                        void saveHook();
-                        onClose();
-                      }
+                      if (e.key === "Escape") close();
                     }}
                   />
                 </label>
@@ -549,8 +576,9 @@ function ReelDrawer({
                         className="rounded-md px-2 py-1.5 text-left text-sm ring-1 ring-border hover:bg-muted/50"
                         data-testid="week-hook-template"
                         onClick={() => {
-                          setHook(t.text);
-                          void saveHook(t.text);
+                          const filled = hookTopic ? t.text.replaceAll(/\{(topic|keyword)\}/g, hookTopic) : t.text;
+                          setHook(filled);
+                          if (!SLOT.test(filled)) void saveHook(filled);
                         }}
                       >
                         {renderTemplateText(t.text)}
@@ -608,10 +636,10 @@ function ReelDrawer({
             ) : confirm ? (
               <div className="flex w-full flex-col gap-2 rounded-lg p-3 ring-1 ring-foreground" data-testid="week-publish-confirm">
                 <b>
-                  Đăng &quot;{r.title}&quot; lên Instagram{dryRun ? " (dry run)" : ""}?
+                  Đăng &quot;{r.title}&quot; lên Instagram{dry ? " (dry run)" : ""}?
                 </b>
                 <span className="text-muted-foreground">
-                  {dryRun ? "Đang ở chế độ dry run: không có gì lên Instagram." : "Sau khi đăng không hoàn tác được."}
+                  {dry ? "Đang ở chế độ dry run: không có gì lên Instagram." : "Sau khi đăng không hoàn tác được."}
                 </span>
                 <span className="flex justify-end gap-1.5">
                   <Button size="sm" variant="outline" onClick={() => setConfirm(false)} data-testid="week-publish-cancel">

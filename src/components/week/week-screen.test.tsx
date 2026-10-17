@@ -49,6 +49,7 @@ describe("week model", () => {
     expect(nextAction([needsVideo, failed], null)?.target).toEqual({ kind: "reel", id: "f" });
     expect(nextAction([needsVideo], null)?.label).toBe("Làm video: Reel");
     expect(nextAction([reel({ state: "published" })], null)).toBeNull();
+    expect(nextAction([reel({ state: "draft" })], null)?.label).toBe("Viết hồ sơ: Reel");
   });
 
   test("a dry run never reads as a plain publish", () => {
@@ -60,6 +61,7 @@ describe("week model", () => {
     expect(stepsDone(reel({}), true)).toBe(1);
     expect(stepsDone(reel({ scriptId: "s", videoAssetId: "a", state: "published" }), true)).toBe(5);
     expect(stepsDone(reel({ videoAssetId: "a" }), false)).toBe(1);
+    expect(stepsDone(reel({ scriptId: "s", videoAssetId: "a", state: "published", dryRun: true }), true)).toBe(3);
   });
 
   test("a move and its undo round-trip", () => {
@@ -97,6 +99,7 @@ function screenProps(reels: PlannedPostRow[], over: Partial<WeekScreenProps> = {
     bucketConfigured: true,
     dryRun: true,
     hooks: {},
+    hookTopics: {},
     sourceGone: [],
     hookTemplates: [],
     runs: [],

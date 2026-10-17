@@ -36,9 +36,13 @@ export async function WeekTab() {
     newest && newest.status === "proposed" && (!live || newest.version > live.version) ? { id: newest.id, version: newest.version, diff: newest.diff } : null;
 
   const hooks: Record<string, string | null> = {};
+  const hookTopics: Record<string, string | null> = {};
   for (const id of new Set(plans.flatMap((p) => (p.remixSessionId ? [p.remixSessionId] : [])))) {
     const session = await getRemixSession(id);
-    if (session) hooks[id] = session.chosenHook;
+    if (session) {
+      hooks[id] = session.chosenHook;
+      hookTopics[id] = session.topic;
+    }
   }
 
   const sourceIds = plans.flatMap((p) => (p.sourceVideoId ? [p.sourceVideoId] : []));
@@ -71,6 +75,7 @@ export async function WeekTab() {
       bucketConfigured={getStorageProvider() !== null}
       dryRun={dryRun}
       hooks={hooks}
+      hookTopics={hookTopics}
       sourceGone={sourceGone}
       hookTemplates={hookTemplates}
       runs={listRuns(5)}

@@ -201,7 +201,9 @@ export function approvePlanVersion(id: string): ApproveResult {
 
 export type UndoResult = ({ ok: true; live: { id: string; version: number } } & SyncResult) | Fail;
 
-export function undoPlanVersion(ref: unknown): UndoResult {
+/** `expectLiveId` pins the undo to the version the caller just approved: if another
+ *  version went live since, nothing changes. */
+export function undoPlanVersion(ref: unknown, expectLiveId?: string): UndoResult {
   const parsed = PlanRefSchema.safeParse(ref);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
   const { period, periodKey } = parsed.data;
@@ -211,6 +213,7 @@ export function undoPlanVersion(ref: unknown): UndoResult {
       const inPeriod = and(eq(V.period, period), eq(V.periodKey, periodKey));
       const live = tx.select().from(V).where(and(inPeriod, eq(V.status, "live"))).get();
       if (!live) return fail("NOTHING_TO_UNDO", `no live version for ${period} ${periodKey}`);
+      if (expectLiveId && live.id !== expectLiveId) return fail("LIVE_CHANGED", `v${live.version} is live now, not the version you approved; nothing was changed`);
       const prev = tx.select().from(V).where(and(inPeriod, eq(V.status, "superseded"), isNotNull(V.approvedAt))).orderBy(desc(V.approvedAt), desc(V.version)).get();
       if (!prev) return fail("NOTHING_TO_UNDO", `v${live.version} is the only version ever live for ${period} ${periodKey}; nothing earlier to restore`);
       const now = nowIso();

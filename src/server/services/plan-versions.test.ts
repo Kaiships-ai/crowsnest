@@ -253,3 +253,17 @@ test("a keyword a kept draft holds names that post and reel key", async () => {
   expect(r).toMatchObject({ ok: false, code: "KEYWORD_TAKEN" });
   expect(!r.ok && r.error).toContain(`post ${holder.id} (reel key h1)`);
 });
+
+test("undo pinned to the approved version: refused for the first version, and when another went live since", () => {
+  const ref = { period: "week", periodKey: "2026-W30" } as const;
+  const v1 = propose("2026-W30", reels("p", 1));
+  approvePlanVersion(v1.id);
+  expect(undoPlanVersion(ref, v1.id)).toMatchObject({ ok: false, code: "NOTHING_TO_UNDO" });
+
+  const v2 = propose("2026-W30", reels("p", 2));
+  const v3 = propose("2026-W30", reels("p", 3));
+  approvePlanVersion(v2.id);
+  approvePlanVersion(v3.id);
+  expect(undoPlanVersion(ref, v2.id)).toMatchObject({ ok: false, code: "LIVE_CHANGED" });
+  expect(undoPlanVersion(ref, v3.id)).toMatchObject({ ok: true, live: { id: v2.id } });
+});

@@ -26,9 +26,10 @@ const hasProfile = (r: WeekReel) => r.scriptId !== null || Boolean(r.caption?.tr
 const readyToPublish = (r: WeekReel) => r.videoAssetId !== null && Boolean(r.caption?.trim());
 
 /** How many of the five steps are done, counted in order: a later step never counts
- *  before an earlier one. Step one is the plan itself, so every reel has at least one. */
+ *  before an earlier one. Step one is the plan itself, so every reel has at least one.
+ *  A dry-run publish never counts as published. */
 export function stepsDone(r: WeekReel, hasFunnel: boolean): number {
-  const checks = [true, hasProfile(r), r.videoAssetId !== null, r.state === "published", hasFunnel];
+  const checks = [true, hasProfile(r), r.videoAssetId !== null, r.state === "published" && !r.dryRun, hasFunnel];
   const firstOpen = checks.indexOf(false);
   return firstOpen === -1 ? checks.length : firstOpen;
 }
@@ -50,7 +51,8 @@ export function reelStatus(r: WeekReel, hasFunnel: boolean): [string, StatusTone
 export type NextAction = { label: string; target: { kind: "reel"; id: string } | { kind: "draft" } } | null;
 
 /** The single next-action chip: the publish gate first, then a waiting plan draft, then
- *  a failed publish, then the first reel that needs a video. Reels are in day order. */
+ *  a failed publish, then the first reel that needs a video, then the first that needs a
+ *  profile. Reels are in day order. */
 export function nextAction(reels: WeekReel[], draft: DraftVersion | null): NextAction {
   const open = reels.filter((r) => r.state !== "published" && r.state !== "publishing");
   const gate = open.find((r) => r.state !== "failed" && readyToPublish(r));
@@ -60,6 +62,8 @@ export function nextAction(reels: WeekReel[], draft: DraftVersion | null): NextA
   if (failed) return { label: `Sửa lỗi đăng: ${failed.title}`, target: { kind: "reel", id: failed.id } };
   const video = open.find((r) => hasProfile(r) && r.videoAssetId === null);
   if (video) return { label: `Làm video: ${video.title}`, target: { kind: "reel", id: video.id } };
+  const profile = open.find((r) => !hasProfile(r));
+  if (profile) return { label: `Viết hồ sơ: ${profile.title}`, target: { kind: "reel", id: profile.id } };
   return null;
 }
 
@@ -97,7 +101,7 @@ export function splitWeek<T extends WeekReel>(reels: T[], today: string): { toda
 }
 
 /** Moves one reel to `date` in a local list, the optimistic half of a drag. */
-export function moveReel<T extends WeekReel>(reels: T[], id: string, date: string): T[] {
+export function moveReel<T extends WeekReel>(reels: T[], id: string, date: string | null): T[] {
   return reels.map((r) => (r.id === id ? { ...r, plannedDate: date } : r));
 }
 

@@ -634,9 +634,9 @@ export async function approvePlanVersionAction(versionId: string): Promise<Appro
   }
 }
 
-export async function undoPlanVersionAction(ref: PlanRef): Promise<UndoResult> {
+export async function undoPlanVersionAction(ref: PlanRef, expectLiveId?: string): Promise<UndoResult> {
   try {
-    const r = undoPlanVersion(ref);
+    const r = undoPlanVersion(ref, expectLiveId);
     if (r.ok) revalidatePath("/");
     return r;
   } catch (err) {
