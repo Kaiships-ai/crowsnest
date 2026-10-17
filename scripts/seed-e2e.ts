@@ -70,8 +70,6 @@ async function main(): Promise<void> {
     isPrivate: false,
     trackedSince: daysAgo(60),
     lastSyncedAt: now,
-    // Own channel: mine-e2e-02 needs `/mine` to open straight on the dashboard/connect
-    // panel and calendar, never the "This is me" picker.
     isOwn: true,
   });
 

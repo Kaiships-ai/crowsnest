@@ -115,11 +115,8 @@ function railDetail(progress: SyncProgress): string {
 
 export interface SidebarProps {
   getStartedItems: GetStartedItem[];
-  /** Outliers new since the creator last opened Feed (`getNewFeedOutliers()`, threaded
-   *  from `(shell)/layout.tsx` exactly like `ideasInboxCount`). This is the rail's single
-   *  emphasized signal — the product's whole promise ("here is what beat the median, go
-   *  make it") surfaced where the eye lands. Rendered only on the Feed item, only when
-   *  > 0, and it is the one rail count allowed `primary`; every other one is neutral. */
+  /** Outliers new since the last Feed visit (`getNewFeedOutliers()`), shown on Nguồn only
+   *  when > 0. */
   feedOutlierCount: number;
 }
 

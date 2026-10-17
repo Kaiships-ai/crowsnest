@@ -1,9 +1,6 @@
 "use client";
 
-// Next.js App Router error boundary for every page under (shell). Catches a throw from
-// any shell PAGE (a failed server query in dashboard/feed/vault/ideas/settings/…) and
-// renders one recoverable surface instead of a blank screen. A throw in (shell)/layout.tsx
-// itself bubbles past this to src/app/error.tsx (Task 3).
+// A throw in (shell)/layout.tsx itself bubbles past this to src/app/error.tsx.
 import { useEffect } from "react";
 
 import { ErrorState } from "@/components/layout/error-state";

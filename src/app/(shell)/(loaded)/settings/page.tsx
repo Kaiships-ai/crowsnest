@@ -28,7 +28,6 @@ import { detectBinary } from "@/server/lib/exec";
 import { secretStatus } from "@/server/secrets/store";
 import { whisperAvailability } from "@/server/transcribe/whispercpp";
 
-// Anchors for SettingsNav, grouped to match the main sidebar's own grouped model.
 // Group order here is the order the sections appear on the page below, so the two
 // never drift out of sync with each other.
 const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
