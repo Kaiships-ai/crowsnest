@@ -12,8 +12,7 @@ import { ClientErrorReporter } from "@/components/logs/client-error-reporter";
 import { getFailureStrip } from "@/server/queries/failure-surface";
 import { getFirstRunGate } from "@/server/queries/first-run-gate";
 import { getDashboardStats, getNewFeedOutliers } from "@/server/queries/dashboard";
-import { countInboxIdeas } from "@/server/queries/ideas";
-import { getSavedPosts } from "@/server/queries/saved-posts";
+import { getPlannedPosts } from "@/server/queries/planned-posts";
 
 // Same reasoning as `(shell)/page.tsx`'s own `force-dynamic`: a layout has no route
 // param or searchParams of its own to implicitly opt out of static rendering, so without
@@ -35,31 +34,21 @@ export default async function ShellLayout({ children }: { children: ReactNode })
   const gate = await getFirstRunGate();
   if (gate.redirectToFirstRun) redirect("/first-run");
 
-  // Four independent reads, none dependent on the others — the same "one Promise.all"
-  // shape (shell)/page.tsx uses for its own queries. `getDashboardStats` and
-  // `getSavedPosts` are reused as-is rather than duplicated in a leaner form: this is a
-  // rendering-layer pass, and at this app's single-user/local-SQLite scale a couple of
-  // extra count queries on a full navigation is not a real cost. See sidebar.tsx and
-  // get-started-checklist.tsx for what each result backs. `countInboxIdeas` backs the
-  // Ideas nav item's pending count (Task 9) — see nav-items.ts's module doc for why that
-  // count is threaded down as a prop instead of living on NAV_ITEMS itself.
-  const [strip, stats, savedPosts, ideasInboxCount, feedOutlierCount] = await Promise.all([
+  const [strip, stats, plans, feedOutlierCount] = await Promise.all([
     getFailureStrip(),
     getDashboardStats(),
-    getSavedPosts(),
-    countInboxIdeas(),
+    getPlannedPosts(),
     // The rail's live signal: outliers new since the creator last opened Feed. Read here
     // (not bumped) so it survives until they actually visit Feed, which moves the cutoff.
     getNewFeedOutliers(),
   ]);
 
-  // Four real facts, not the prototype's four session flags — see
-  // get-started-checklist.tsx's module doc for why those two lists differ.
+  // The reel flow's four steps, each read from real rows. A dry run is not a publish.
   const getStartedItems: GetStartedItem[] = [
     { key: "setup", label: "Finish setup", href: "/first-run", done: gate.firstRunCompleted },
-    { key: "channel", label: "Watch a channel", href: "/channels", done: stats.channelsTracked > 0 },
-    { key: "save", label: "Save a post", href: "/feed", done: savedPosts.length > 0 },
-    { key: "script", label: "Draft a script", href: "/vault?tab=scripts", done: stats.scriptsDrafted > 0 },
+    { key: "source", label: "Add a source", href: "/channels", done: stats.channelsTracked > 0 },
+    { key: "plan", label: "Plan a reel", href: "/", done: plans.length > 0 },
+    { key: "publish", label: "Publish a reel", href: "/", done: plans.some((p) => p.publishedAt !== null && !p.dryRun) },
   ];
 
   // Read server-side so the rail renders at its persisted width on the first paint
@@ -72,7 +61,7 @@ export default async function ShellLayout({ children }: { children: ReactNode })
       <CommandMenu>
         <ClientErrorReporter />
         <SidebarProvider defaultOpen={defaultOpen}>
-          <Sidebar getStartedItems={getStartedItems} ideasInboxCount={ideasInboxCount} feedOutlierCount={feedOutlierCount} />
+          <Sidebar getStartedItems={getStartedItems} feedOutlierCount={feedOutlierCount} />
           {/* The shell is a fixed viewport with one inner scroller, not a long page:
               the topbar and the rail stay put while only the content moves. SidebarInset
               is itself the <main>, so the scroller is a plain div inside it rather than

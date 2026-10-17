@@ -45,7 +45,7 @@ describe("ROUTE_TITLES covers every route", () => {
 
     // Without this the whole file passes vacuously the day the walk breaks or the app
     // directory moves: zero routes trivially satisfy "every route has a title".
-    expect(routes.length).toBeGreaterThanOrEqual(12);
+    expect(routes.length).toBeGreaterThanOrEqual(10);
     expect(routes).toContain("/");
     expect(routes).toContain("/runs");
     expect(routes).toContain("/logs");
@@ -62,7 +62,7 @@ describe("ROUTE_TITLES covers every route", () => {
     // /channels/discover previously matched the generic /channels/[^/]+ pattern and
     // read "Channel detail" instead of naming the discover page. The more specific
     // pattern must be listed before the generic one for this to hold.
-    expect(getPageTitle("/channels/discover")).toBe("Discover");
+    expect(getPageTitle("/channels/discover")).toBe("Nguồn");
   });
 
   test("no route falls through to the app name", () => {

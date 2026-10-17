@@ -7,18 +7,21 @@
  * stands in for `toBeInTheDocument()`.
  *
  * The rail had no coverage at all while it was 486 lines of hand-rolled markup. These
- * three assertions lock the contracts the rewrite onto the shadcn Sidebar block could
- * silently drop: exactly one active item, the Feed signal's hidden-at-zero rule, and
- * every nav group being rendered.
+ * assertions lock the three-item rail (Tuần này, Nguồn, Cài đặt), exactly one active
+ * item, the Feed signal's hidden-at-zero rule, and the redirects of the folded routes.
  */
 
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import nextConfig from "../../../next.config";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 // The rail calls usePathname for its active marker and useRouter().refresh() when a
 // watched run finishes; the real implementations throw outside an App Router tree.
 const nav = vi.hoisted(() => ({ pathname: "/feed", search: "" }));
 vi.mock("next/navigation", () => ({
+  redirect: (url: string) => {
+    throw new Error(`NEXT_REDIRECT ${url}`);
+  },
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => nav.pathname,
   useSearchParams: () => new URLSearchParams(nav.search),
@@ -52,15 +55,18 @@ vi.mock("@/components/sync/use-sync-progress", () => ({
   }),
 }));
 
+vi.mock("@/components/week/week-tab", () => ({ WeekTab: () => null }));
+
 import { Sidebar } from "./sidebar";
-import { NAV_GROUPS } from "./nav-items";
+import { NAV_ITEMS } from "./nav-items";
+import WeekPage from "@/app/(shell)/(loaded)/page";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
 const rail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => (
   <NavigationBlockerProvider>
     <SidebarProvider defaultOpen>
-      <Sidebar getStartedItems={[]} ideasInboxCount={0} feedOutlierCount={0} {...props} />
+      <Sidebar getStartedItems={[]} feedOutlierCount={0} {...props} />
     </SidebarProvider>
   </NavigationBlockerProvider>
 );
@@ -76,12 +82,27 @@ afterEach(() => {
 const activeLabel = (container: HTMLElement) => container.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.textContent;
 
 describe("Sidebar", () => {
-  test("marks exactly the item matching the current pathname as active", () => {
+  test("shows exactly Tuần này, Nguồn and Cài đặt", () => {
     const { container } = renderRail();
+    const labels = [...container.querySelectorAll('[data-slot="sidebar-menu-button"] a, a[data-slot="sidebar-menu-button"]')].map((a) => a.textContent?.trim());
+    expect(labels).toEqual(["Tuần này", "Nguồn", "Cài đặt"]);
+    expect(NAV_ITEMS.map((item) => item.label)).toEqual(["Tuần này", "Nguồn", "Cài đặt"]);
+  });
 
+  test.each([
+    ["/feed", "Nguồn"],
+    ["/channels/discover", "Nguồn"],
+    ["/channels/abc", "Nguồn"],
+    ["/logs", "Cài đặt"],
+    ["/runs/abc", "Cài đặt"],
+    ["/settings", "Cài đặt"],
+    ["/", "Tuần này"],
+  ])("on %s exactly %s is active", (pathname, label) => {
+    nav.pathname = pathname;
+    const { container } = renderRail();
     const active = container.querySelectorAll('[data-slot="sidebar-menu-button"][data-active]');
     expect(active.length).toBe(1);
-    expect(active[0].textContent).toContain("Feed");
+    expect(active[0].textContent).toContain(label);
   });
 
   test("shows the Feed outlier count only when there is one", () => {
@@ -95,26 +116,27 @@ describe("Sidebar", () => {
     expect(withoutCount.container.querySelectorAll('[data-slot="sidebar-menu-badge"]').length).toBe(0);
   });
 
-  test("renders every nav group label once", () => {
-    const { container } = renderRail();
-
-    for (const { group } of NAV_GROUPS) {
-      expect(within(container).getAllByText(group).length).toBe(1);
-    }
-  });
-
-  test("drops the optimistic highlight when only the tab changes, as on Back from Dashboard", () => {
+  test("lights a clicked item at once and drops it when the route commits", () => {
     nav.pathname = "/";
     const view = renderRail();
-    expect(activeLabel(view.container)).toContain("Tuần này");
+    fireEvent.click(within(view.container).getByText("Cài đặt"));
+    expect(activeLabel(view.container)).toContain("Cài đặt");
 
-    fireEvent.click(within(view.container).getByText("Dashboard"));
-    nav.search = "tab=overview";
+    nav.pathname = "/logs";
     view.rerender(rail());
-    expect(activeLabel(view.container)).toContain("Dashboard");
+    expect(activeLabel(view.container)).toContain("Cài đặt");
+  });
+});
 
-    nav.search = "";
-    view.rerender(rail());
-    expect(activeLabel(view.container)).toContain("Tuần này");
+describe("folded routes redirect to Tuần này", () => {
+  test("persona, ideas and vault redirect to /, and /sources opens the Feed tab", async () => {
+    const rules = await nextConfig.redirects!();
+    const to = Object.fromEntries(rules.map((r) => [r.source, r.destination]));
+    expect(to).toMatchObject({ "/persona": "/", "/ideas": "/", "/vault": "/", "/sources": "/feed" });
+    expect(rules.every((r) => r.permanent === false)).toBe(true);
+  });
+
+  test.each(["overview", "calendar", "reels"])("/?tab=%s redirects to / without the query", async (tab) => {
+    await expect(WeekPage({ searchParams: Promise.resolve({ tab }) })).rejects.toThrow("NEXT_REDIRECT /");
   });
 });
