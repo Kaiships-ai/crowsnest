@@ -47,15 +47,14 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
           with no statement of what following does. One muted line, never a signal
           colour. */}
       <p className="text-sm text-muted-foreground" data-testid="discover-lede">
-        Curated creators worth tracking. Follow one to add it as a channel and pull its top
-        posts into your feed.
+        Creator đáng theo dõi. Bấm Theo dõi để thêm thành kênh và kéo bài top của họ vào Feed.
       </p>
 
       <Tabs value={niche} onValueChange={(v) => setNiche(v as Niche)}>
         <TabsList data-testid="discover-niche-filter">
           {NICHES.map((n) => (
             <TabsTrigger key={n} value={n} className="font-mono uppercase tracking-wide">
-              {n}
+              {n === "all" ? "tất cả" : n}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -63,12 +62,12 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
 
       <p className="font-mono text-xs text-muted-foreground" data-testid="discover-count">
         {niche === "all"
-          ? `${seeds.length} creators`
-          : `${filtered.length} of ${seeds.length} creators`}
+          ? `${seeds.length} creator`
+          : `${filtered.length} / ${seeds.length} creator`}
       </p>
 
       {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No creators in this niche.</p>
+        <p className="text-sm text-muted-foreground">Không có creator nào trong nhóm này.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {filtered.map((seed) => (

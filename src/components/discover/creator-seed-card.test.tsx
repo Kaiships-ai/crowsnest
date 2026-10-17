@@ -52,19 +52,19 @@ test("Follow transitions to a queued state then Tracked, and disables", async ()
   render(<CreatorSeedCard seed={seed()} />);
 
   const button = screen.getByTestId("creator-seed-follow") as HTMLButtonElement;
-  expect(button.textContent).toBe("Follow");
+  expect(button.textContent).toBe("Theo dõi");
   expect(button.disabled).toBe(false);
 
   fireEvent.click(button);
 
-  expect(button.textContent).toBe("Queuing…");
+  expect(button.textContent).toBe("Đang thêm…");
   expect(button.disabled).toBe(true);
 
   await act(async () => {
     resolveAction({ ok: true, syncQueued: true, alreadyTracked: false, channelId: "c1" });
   });
 
-  expect(button.textContent).toBe("Tracked");
+  expect(button.textContent).toBe("Đang theo dõi");
   expect(button.disabled).toBe(true);
   expect(mocks.followCreatorAction).toHaveBeenCalledWith("lift.laura");
 });
@@ -100,7 +100,7 @@ test("a new follow toasts where the posts go; an already-tracked one stays silen
     fireEvent.click(screen.getByTestId("creator-seed-follow"));
   });
 
-  expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("watch Runs"));
+  expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("Lần chạy"));
 
   vi.mocked(toast.success).mockClear();
   mocks.followCreatorAction.mockResolvedValue({
@@ -142,7 +142,7 @@ test("a rejected server action resets the button to Follow instead of freezing o
   });
 
   // Without the try/catch the button would stay disabled on "Queuing…" forever.
-  expect(button.textContent).toBe("Follow");
+  expect(button.textContent).toBe("Theo dõi");
   expect(button.disabled).toBe(false);
   expect(onFollowed).not.toHaveBeenCalled();
 });
@@ -151,7 +151,7 @@ test("a tracked seed renders disabled Tracked from the start", () => {
   render(<CreatorSeedCard seed={seed({ tracked: true })} />);
 
   const button = screen.getByTestId("creator-seed-follow") as HTMLButtonElement;
-  expect(button.textContent).toBe("Tracked");
+  expect(button.textContent).toBe("Đang theo dõi");
   expect(button.disabled).toBe(true);
   expect(mocks.followCreatorAction).not.toHaveBeenCalled();
 });

@@ -36,8 +36,8 @@ export function CreatorSeedCard({
         if (!result.alreadyTracked) {
           toast.success(
             result.syncQueued
-              ? `Following @${seed.handle}. Pulling top posts now — watch Runs.`
-              : `Following @${seed.handle}. Posts sync on the next run.`
+              ? `Đang theo dõi @${seed.handle}. Đang kéo bài top, xem ở Lần chạy.`
+              : `Đang theo dõi @${seed.handle}. Dịch vụ Instagram chưa chạy, bài sẽ được kéo khi nó chạy lại.`
           );
         }
       } else {
@@ -48,7 +48,7 @@ export function CreatorSeedCard({
       // A rejected server action (transport/serialization) would otherwise leave
       // the button stuck disabled on "Queuing…" forever with no way to retry.
       setState("idle");
-      toast.error("Could not follow. Try again.");
+      toast.error("Không theo dõi được. Thử lại.");
     }
   }
 
@@ -76,7 +76,7 @@ export function CreatorSeedCard({
           disabled={state !== "idle"}
           onClick={() => void onFollow()}
         >
-          {state === "tracked" ? "Tracked" : state === "pending" ? "Queuing…" : "Follow"}
+          {state === "tracked" ? "Đang theo dõi" : state === "pending" ? "Đang thêm…" : "Theo dõi"}
         </Button>
       </CardFooter>
     </Card>
