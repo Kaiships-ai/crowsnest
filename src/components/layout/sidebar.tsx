@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { GetStartedChecklist, type GetStartedItem } from "@/components/layout/get-started-checklist";
-import { NAV_GROUPS } from "@/components/layout/nav-items";
+import { NAV_ITEMS, isNavItemActive } from "@/components/layout/nav-items";
 import { useNavigationBlocker } from "@/components/layout/navigation-blocker";
 import { SyncProgressPanel } from "@/components/sync/sync-progress-panel";
 import { phaseLabel, statusHeadline, syncViewState, type SyncViewState } from "@/components/sync/sync-progress-view";
@@ -19,7 +19,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
@@ -31,15 +30,6 @@ import {
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SyncProgress, SyncStatusValue } from "@/server/services/sync-types";
-
-/** `current` is the pathname plus `?tab=` when the landing route carries one, so Tuần này
- *  ("/") and the Dashboard ("/?tab=...") light separately. */
-function isNavItemActive(current: string, href: string) {
-  if (href === "/") return current === "/";
-  if (href.startsWith("/?tab=")) return current.startsWith("/?tab=");
-  const pathname = current;
-  return pathname === href || pathname.startsWith(`${href}/`);
-}
 
 // On-system dot colors, ordered so all five read apart on the rail at a glance. `running`
 // gets noticed by brightness plus motion — full `foreground` with a pulse, the one state
@@ -125,42 +115,24 @@ function railDetail(progress: SyncProgress): string {
 
 export interface SidebarProps {
   getStartedItems: GetStartedItem[];
-  /** `countInboxIdeas()`, read once per full navigation by `(shell)/layout.tsx` — same
-   *  flow `getStartedItems` already uses to get real per-user data into this otherwise
-   *  static rail (see nav-items.ts's module doc for why the count isn't a NAV_ITEMS
-   *  field). Rendered only on the Ideas item, and only as a plain count — the Ideas inbox
-   *  is a mundane tally, not the product's core signal, so it stays neutral. */
-  ideasInboxCount: number;
-  /** Outliers new since the creator last opened Feed (`getNewFeedOutliers()`, threaded
-   *  from `(shell)/layout.tsx` exactly like `ideasInboxCount`). This is the rail's single
-   *  emphasized signal — the product's whole promise ("here is what beat the median, go
-   *  make it") surfaced where the eye lands. Rendered only on the Feed item, only when
-   *  > 0, and it is the one rail count allowed `primary`; every other one is neutral. */
   feedOutlierCount: number;
 }
 
-export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: SidebarProps) {
+export function Sidebar({ getStartedItems, feedOutlierCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  // Optimistic active item. A shell route is `force-dynamic`, so a nav click waits on a
-  // server render (fast, but not free) before `pathname` moves and the active marker
-  // follows — long enough to read as "nothing happened yet". Instead, on click we light
-  // the target immediately and reconcile when the route commits: `displayHref` is the
-  // pending target while a navigation is in flight, then falls back to the real pathname.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   // React's "adjust state during render" reset pattern, not an effect: the moment the
   // pathname changes (the click's route committed, or the user went elsewhere by any
   // means) the optimistic target is stale, so drop it in the same render rather than one
   // commit later. Tracking the last pathname in state is what lets this run in render
   // without an effect and without a cascading re-render.
-  const tab = useSearchParams().get("tab");
-  const location = tab ? `${pathname}?tab=${tab}` : pathname;
-  const [lastLocation, setLastLocation] = useState(location);
-  if (location !== lastLocation) {
-    setLastLocation(location);
+  const [lastPathname, setLastPathname] = useState(pathname);
+  if (pathname !== lastPathname) {
+    setLastPathname(pathname);
     setPendingHref(null);
   }
-  const displayHref = pendingHref ?? (pathname === "/" && tab ? `/?tab=${tab}` : pathname);
+  const pendingItem = NAV_ITEMS.find((item) => item.href === pendingHref);
   const [panelOpen, setPanelOpen] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
   // job is latest — so a run started on a channel page, in another tab, or by the
@@ -230,15 +202,11 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
       </SidebarHeader>
 
       <SidebarContent>
-        {NAV_GROUPS.map(({ group, items }) => (
-          <SidebarGroup key={group}>
-            <SidebarGroupLabel data-lab className="font-mono text-2xs">
-              {group}
-            </SidebarGroupLabel>
+        <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {items.map((item) => {
-                  const itemActive = isNavItemActive(displayHref, item.href);
+                {NAV_ITEMS.map((item) => {
+                  const itemActive = pendingItem ? pendingItem === item : isNavItemActive(pathname, item);
                   const Icon = item.icon;
 
                   return (
@@ -285,11 +253,6 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
                           </Link>
                         }
                       />
-                      {/* Ideas is a mundane tally, so its count stays neutral. Hidden at
-                          zero: an empty inbox needs no badge to say so. */}
-                      {item.href === "/ideas" && ideasInboxCount > 0 && (
-                        <SidebarMenuBadge className="font-mono">{ideasInboxCount}</SidebarMenuBadge>
-                      )}
                       {/* The rail's ONE emphasized signal: outliers new since the last Feed
                           visit. Same hidden-at-zero rule, and the only rail count that gets
                           `primary` rather than the muted sidebar foreground. */}
@@ -307,7 +270,6 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
 
         <GetStartedChecklist items={getStartedItems} />
       </SidebarContent>

@@ -96,7 +96,7 @@ end-to-end loop is the thing every future decision must keep whole.
 ## Capabilities and Constraints
 
 - Core loop is built and runs: sync, feed and filters, video detail + analysis, save to
-  vault, the six-stage remix studio, and calendar and plan dialog. The
+  the six-stage remix studio, and the Tuần này week screen. The
   finished remix hands off through the MCP server to Reel Factory, which produces the video.
   Scheduled and immediate publish to the creator's own channel is built on the Graph API,
   dry-run by default outside production; a live publish needs a configured S3-compatible
@@ -109,7 +109,7 @@ end-to-end loop is the thing every future decision must keep whole.
   synced.
 - Degradation contract: a missing service removes only the step that needs it. With the sidecar not running, no new videos arrive and the feed
   goes stale instead of erroring. With the Graph token invalid, only own-channel metrics are
-  unavailable. With no own channel set, the dashboard asks for one.
+  unavailable. With no own channel set, the planner and publish still work.
 - Constraints future work must respect: Apple Silicon only; single-user local install; local
   sqlite (`data/crowsnest.db`, plaintext secrets, never returned to the browser); Instagram
   access is read-only and depends on a running local sidecar logged into a throwaway account
@@ -170,10 +170,10 @@ end-to-end proof on a buyer's machine.
   up), quick preview sheet, keep-this-post shortlist, save to vault, manual import of one
   pasted post URL.
 - **Analyze.** Agent-written analysis over MCP, on-demand transcription (whisper.cpp or Groq).
-- **Mine.** Dashboard (overview, my reels, calendar), own-channel Graph metrics, planner
-  calendar and plan dialog, vault, ideas inbox, persona and niche.
+- **Mine.** Tuần này week screen with the planner, own-channel Graph measurement stored for MCP,
+  and the Graph API card in Cài đặt.
 - **Remix.** Six-stage pipeline, local research assembly, hook, outline, and script prompts
-  grounded in the source pattern, niche, and persona for the agent to fulfill over MCP, Copy
+  grounded in the source pattern and niche for the agent to fulfill over MCP, Copy
   prompt for Claude on each of those stages, idempotent finish to plan.
 - **Publish.** Scheduled and immediate publish of a planned Reel via the Graph API.
 - **MCP.** Typed read-and-remix tool surface for Reel Factory.

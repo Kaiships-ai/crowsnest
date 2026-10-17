@@ -8,6 +8,8 @@ beforeAll(async () => {
   process.env.IG_SERVICE_URL = "http://127.0.0.1:1";
 });
 
+const getIgStatusAction = vi.fn();
+vi.mock("./ig-actions", () => ({ getIgStatusAction: () => getIgStatusAction() }));
 const addChannelAction = vi.fn();
 const startSyncAction = vi.fn();
 
@@ -39,6 +41,7 @@ beforeEach(async () => {
   await clearChannels();
   addChannelAction.mockReset();
   startSyncAction.mockReset();
+  getIgStatusAction.mockReset().mockResolvedValue({ ok: true });
 });
 
 describe("followCreatorAction", () => {
@@ -52,6 +55,15 @@ describe("followCreatorAction", () => {
     expect(addChannelAction).toHaveBeenCalledWith("@newcreator");
     expect(startSyncAction).toHaveBeenCalledWith(["chan-1"]);
     expect(result).toEqual({ ok: true, channelId: "chan-1", syncQueued: true, alreadyTracked: false });
+  });
+
+  test("with the Instagram service down it follows but starts no sync and says so", async () => {
+    const { followCreatorAction } = await import("./discover-actions");
+    addChannelAction.mockResolvedValue({ ok: true, channelId: "chan-3" });
+    getIgStatusAction.mockResolvedValue({ ok: false, code: "IG_SERVICE_DOWN", error: "down" });
+
+    expect(await followCreatorAction("offline")).toEqual({ ok: true, channelId: "chan-3", syncQueued: false, alreadyTracked: false });
+    expect(startSyncAction).not.toHaveBeenCalled();
   });
 
   test("an already-tracked handle is a no-op: no add, no sync start", async () => {

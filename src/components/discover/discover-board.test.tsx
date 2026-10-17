@@ -67,16 +67,16 @@ test("a followed card stays Tracked after a niche-filter round trip unmounts and
     fireEvent.click(techButton());
   });
 
-  expect(techButton().textContent).toBe("Tracked");
+  expect(techButton().textContent).toBe("Đang theo dõi");
 
   // Switch to fitness: the tech card unmounts (destroying its local state).
   fireEvent.click(screen.getByRole("tab", { name: "fitness" }));
   expect(screen.queryByText("@tech.tim")).toBeNull();
 
   // Switch back to all: the tech card remounts.
-  fireEvent.click(screen.getByRole("tab", { name: "all" }));
+  fireEvent.click(screen.getByRole("tab", { name: "tất cả" }));
 
-  expect(techButton().textContent).toBe("Tracked");
+  expect(techButton().textContent).toBe("Đang theo dõi");
   expect(techButton().disabled).toBe(true);
   // Only followed once, not re-invoked by the remount.
   expect(mocks.followCreatorAction).toHaveBeenCalledTimes(1);

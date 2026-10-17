@@ -72,7 +72,7 @@ State has four layers, most durable first.
 | --- | --- | --- |
 | Committed rows | saved post, script, planned post, analysis, remix session | Kept. |
 | Autosaved session fields | remix topic, research notes, hook, style, outline, variants, chosen variant | Kept at the last landed write. |
-| URL state | feed filters, sort, layout, density; remix opening stage and seed; dashboard `?tab=`; `?reel=`; calendar `?month=` | Kept, and shareable by copying the URL. |
+| URL state | feed filters, sort, layout, density; remix opening stage and seed; logs `?levels=` | Kept, and shareable by copying the URL. |
 | Client-only state | an unblurred field, a dialog's fields before submit, a chosen detail tab | Lost. |
 
 Rules behind the table:

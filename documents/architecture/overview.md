@@ -4,6 +4,10 @@ Crowsnest is a single-user product that runs on the buyer's own Mac. A Next.js a
 
 This page is the map. Each part has its own page with the data it holds, its boundaries and its invariants.
 
+## The shell
+
+The sidebar has three items: Tuần này (`/`), Nguồn (`/feed`, with link tabs Feed, Kênh at `/channels`, and Khám phá at `/channels/discover`), and Cài đặt (`/settings`, with tabs Cấu hình and Nhật ký sự cố, the latter holding Log at `/logs` and Lần chạy at `/runs`). The rail and tab definitions are `src/components/layout/nav-items.ts` and `section-tabs.tsx`. The Persona, Ideas, Vault, and Dashboard screens and `/mine` are gone: their paths redirect to `/` (`next.config.ts`), and their data and MCP tools remain. See [DESIGN.md](../../DESIGN.md).
+
 ## The parts
 
 | Part | What it is |
@@ -13,7 +17,7 @@ This page is the map. Each part has its own page with the data it holds, its bou
 | [feed](feed.md) | The ranked outlier feed, filter bar, saved views and the video detail page. |
 | [analyze](analyze.md) | Stores a video's analysis. Authored by the external agent through MCP. |
 | [remix](remix.md) | The six-stage studio that turns an analyzed video into a script. |
-| [mine](mine.md) | The user's own channel: My reels, the calendar planner and Graph measurement. |
+| [mine](mine.md) | The user's own channel: the Tuần này week planner and Graph measurement. |
 | [publish](publish.md) | Scheduled and immediate publishing of a planned post through the Graph API. |
 | [mcp](mcp.md) | The in-process MCP server that exposes the data and the keyless remix chain to an agent. |
 | [onboarding](onboarding.md) | The first-run gate and credential entry between `kai up` and a working feed. |

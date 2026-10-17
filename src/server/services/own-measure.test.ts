@@ -7,9 +7,8 @@ const graphClient = vi.hoisted(() => ({
   fetchAccountBreakdowns: vi.fn(), fetchComments: vi.fn(), checkToken: vi.fn(),
 }));
 vi.mock("@/server/graph/client", async (importOriginal) => ({ ...(await importOriginal<object>()), graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
-const invalidateTokenStatus = vi.hoisted(() => vi.fn());
 const rememberTokenStatus = vi.hoisted(() => vi.fn());
-vi.mock("@/server/graph/token-status", () => ({ invalidateTokenStatus, rememberTokenStatus }));
+vi.mock("@/server/graph/token-status", () => ({ rememberTokenStatus }));
 
 process.env.CROWSNEST_DB_PATH = ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
@@ -520,10 +519,10 @@ describe("fatal failures after the post loop", () => {
     expect(graphClient.fetchAccountBreakdowns).not.toHaveBeenCalled();
   });
 
-  test("an auth failure on the breakdowns fails the run with its code and drops the cached token status", async () => {
+  test("an auth failure on the breakdowns fails the run with its code and records the token as refused", async () => {
     graphClient.fetchAccountBreakdowns.mockImplementation(spend(1, { rows: [], audienceError: null, stop: new GraphApiError("GRAPH_AUTH_FAILED", "bad token") }));
     expect(await svc.measureOwnChannel({ scope: "due", now: NOW })).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
-    expect(invalidateTokenStatus).toHaveBeenCalled();
+    expect(rememberTokenStatus).toHaveBeenCalledWith(expect.objectContaining({ state: "auth_failed" }));
   });
 
   test("a rate limit on the breakdowns is stoppedEarly rate_limited, calls counted, and only the finished split is stored", async () => {

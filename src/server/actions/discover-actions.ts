@@ -3,6 +3,7 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { db, tables } from "../db";
 import { normalizeHandle } from "../services/sync-engine";
+import { getIgStatusAction } from "./ig-actions";
 import { addChannelAction, startSyncAction } from "./sync-actions";
 import type { ActionResult } from "../lib/action-result";
 
@@ -43,6 +44,7 @@ export async function followCreatorAction(
   const added = await addChannelAction(normalized);
   if (!added.ok) return added;
 
-  const sync = await startSyncAction([added.channelId]);
-  return { ok: true, channelId: added.channelId, syncQueued: sync.ok, alreadyTracked: false };
+  const igServiceUp = (await getIgStatusAction()).ok;
+  const syncQueued = igServiceUp && (await startSyncAction([added.channelId])).ok;
+  return { ok: true, channelId: added.channelId, syncQueued, alreadyTracked: false };
 }

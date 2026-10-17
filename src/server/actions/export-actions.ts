@@ -1,6 +1,6 @@
 "use server";
 
-import { buildRemixPrompt, buildScriptPrompt, buildVideoPrompt } from "../services/export";
+import { buildRemixPrompt, buildVideoPrompt } from "../services/export";
 
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -32,12 +32,3 @@ export async function buildRemixPromptAction(sessionId: string): Promise<ActionR
   }
 }
 
-export async function buildScriptPromptAction(scriptId: string): Promise<ActionResult<{ prompt: string }>> {
-  try {
-    const prompt = await buildScriptPrompt(scriptId);
-    if (prompt === null) return { ok: false, error: "Script not found." };
-    return { ok: true, prompt };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}

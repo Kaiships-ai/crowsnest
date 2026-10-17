@@ -98,6 +98,7 @@ function screenProps(reels: PlannedPostRow[], over: Partial<WeekScreenProps> = {
     graphConfigured: true,
     bucketConfigured: true,
     dryRun: true,
+    scripts: [],
     hooks: {},
     hookTopics: {},
     sourceGone: [],

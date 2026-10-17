@@ -3,10 +3,8 @@ import { beforeAll, describe, expect, test } from "vitest";
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
-let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let buildVideoPrompt: typeof import("./export")["buildVideoPrompt"];
-let buildScriptPrompt: typeof import("./export")["buildScriptPrompt"];
 let buildRemixPrompt: typeof import("./export")["buildRemixPrompt"];
 
 // Fixed (not nowIso()) so postedAt/createdAt never vary between runs — required for
@@ -15,9 +13,9 @@ const FIXED_DATE = "2026-01-01T00:00:00.000Z";
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
-  ({ db, tables, newId, nowIso } = await import("@/server/db"));
+  ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ buildVideoPrompt, buildScriptPrompt, buildRemixPrompt } = await import("./export"));
+  ({ buildVideoPrompt, buildRemixPrompt } = await import("./export"));
 });
 
 describe("buildVideoPrompt", () => {
@@ -110,71 +108,6 @@ describe("buildVideoPrompt", () => {
     const result = await buildVideoPrompt(videoId);
     expect(result).not.toBeNull();
     expect(result).toContain("No transcript available.");
-  });
-});
-
-describe("buildScriptPrompt", () => {
-  test("returns null when the script doesn't exist", async () => {
-    migrate();
-    const result = await buildScriptPrompt(newId());
-    expect(result).toBeNull();
-  });
-
-  test("snapshot: script linked to hook/style vault items and an analyzed source video", async () => {
-    migrate();
-    const channelId = newId();
-    const videoId = newId();
-    await db.insert(tables.channels).values({ id: channelId, platform: "instagram", handle: "@formfirst.fit", trackedSince: FIXED_DATE });
-    await db.insert(tables.videos).values({
-      id: videoId, channelId, platform: "instagram", externalId: "export-script-source",
-      url: "https://example.com/source", caption: "source video caption",
-      postedAt: FIXED_DATE, durationSec: 30, viewCount: 300_000, outlierScore: 9.1, firstSeenAt: FIXED_DATE,
-    });
-    await db.insert(tables.videoAnalyses).values({
-      videoId, hookType: "negative-warning",
-      structureSegments: [{ label: "Hook", startSec: 0, endSec: 3, note: "warns of a mistake" }],
-      formatTags: ["talking-head"], styleTags: ["fast-cut"],
-      whyItWorked: "The warning framing creates urgency.", model: "claude-sonnet-5", createdAt: FIXED_DATE,
-    });
-
-    const hookId = newId();
-    const styleId = newId();
-    await db.insert(tables.vaultItems).values([
-      { id: hookId, type: "hook", title: "Negative Warning Hook", templateText: "you're falling behind on {topic}", tags: ["warning"], createdAt: FIXED_DATE },
-      { id: styleId, type: "style", title: "Fast-Cut Listicle", templateText: "5 beats, CTA at end", tags: ["editing", "listicle"], createdAt: FIXED_DATE },
-    ]);
-
-    const scriptId = newId();
-    await db.insert(tables.scripts).values({
-      id: scriptId,
-      title: "My Remixed Script",
-      content: "HOOK: you're falling behind...\nBUILD: here's why...\nCTA: follow for more.",
-      sourceVideoId: videoId,
-      hookVaultItemId: hookId,
-      styleVaultItemId: styleId,
-      status: "draft",
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
-    });
-
-    const result = await buildScriptPrompt(scriptId);
-    expect(result).toMatchSnapshot();
-  });
-
-  test("graceful degradation: standalone script with no source video or vault links", async () => {
-    migrate();
-    const scriptId = newId();
-    await db.insert(tables.scripts).values({
-      id: scriptId, title: "Standalone Script", content: "just a draft, no links",
-      status: "draft", createdAt: nowIso(), updatedAt: nowIso(),
-    });
-
-    const result = await buildScriptPrompt(scriptId);
-    expect(result).not.toBeNull();
-    expect(result).toContain("No source video linked.");
-    expect(result).toContain("No hook template linked");
-    expect(result).toContain("No style template linked");
-    expect(result).toContain("just a draft, no links");
   });
 });
 

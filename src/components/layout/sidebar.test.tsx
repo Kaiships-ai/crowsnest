@@ -5,14 +5,10 @@
  * defaults to the node environment and only the components that actually touch the DOM
  * opt into jsdom. `@testing-library/jest-dom` isn't a dependency, so `toBeTruthy()`
  * stands in for `toBeInTheDocument()`.
- *
- * The rail had no coverage at all while it was 486 lines of hand-rolled markup. These
- * three assertions lock the contracts the rewrite onto the shadcn Sidebar block could
- * silently drop: exactly one active item, the Feed signal's hidden-at-zero rule, and
- * every nav group being rendered.
  */
 
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
+import nextConfig from "../../../next.config";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 // The rail calls usePathname for its active marker and useRouter().refresh() when a
@@ -53,14 +49,19 @@ vi.mock("@/components/sync/use-sync-progress", () => ({
 }));
 
 import { Sidebar } from "./sidebar";
-import { NAV_GROUPS } from "./nav-items";
+import { NAV_ITEMS } from "./nav-items";
+import { NextRequest } from "next/server";
+import { config as proxyConfig, proxy } from "@/proxy";
+import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
+
+const { pathToRegexp } = (await import("next/dist/compiled/path-to-regexp" as string)) as { pathToRegexp: (p: string) => RegExp };
 
 const rail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => (
   <NavigationBlockerProvider>
     <SidebarProvider defaultOpen>
-      <Sidebar getStartedItems={[]} ideasInboxCount={0} feedOutlierCount={0} {...props} />
+      <Sidebar getStartedItems={[]} feedOutlierCount={0} {...props} />
     </SidebarProvider>
   </NavigationBlockerProvider>
 );
@@ -76,12 +77,27 @@ afterEach(() => {
 const activeLabel = (container: HTMLElement) => container.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.textContent;
 
 describe("Sidebar", () => {
-  test("marks exactly the item matching the current pathname as active", () => {
+  test("shows exactly Tuần này, Nguồn and Cài đặt", () => {
     const { container } = renderRail();
+    const labels = [...container.querySelectorAll('[data-slot="sidebar-menu-button"] a, a[data-slot="sidebar-menu-button"]')].map((a) => a.textContent?.trim());
+    expect(labels).toEqual(["Tuần này", "Nguồn", "Cài đặt"]);
+    expect(NAV_ITEMS.map((item) => item.label)).toEqual(["Tuần này", "Nguồn", "Cài đặt"]);
+  });
 
+  test.each([
+    ["/feed", "Nguồn"],
+    ["/channels/discover", "Nguồn"],
+    ["/channels/abc", "Nguồn"],
+    ["/logs", "Cài đặt"],
+    ["/runs/abc", "Cài đặt"],
+    ["/settings", "Cài đặt"],
+    ["/", "Tuần này"],
+  ])("on %s exactly %s is active", (pathname, label) => {
+    nav.pathname = pathname;
+    const { container } = renderRail();
     const active = container.querySelectorAll('[data-slot="sidebar-menu-button"][data-active]');
     expect(active.length).toBe(1);
-    expect(active[0].textContent).toContain("Feed");
+    expect(active[0].textContent).toContain(label);
   });
 
   test("shows the Feed outlier count only when there is one", () => {
@@ -95,26 +111,54 @@ describe("Sidebar", () => {
     expect(withoutCount.container.querySelectorAll('[data-slot="sidebar-menu-badge"]').length).toBe(0);
   });
 
-  test("renders every nav group label once", () => {
-    const { container } = renderRail();
-
-    for (const { group } of NAV_GROUPS) {
-      expect(within(container).getAllByText(group).length).toBe(1);
-    }
-  });
-
-  test("drops the optimistic highlight when only the tab changes, as on Back from Dashboard", () => {
+  test("lights a clicked item at once and drops it when the route commits", () => {
     nav.pathname = "/";
     const view = renderRail();
-    expect(activeLabel(view.container)).toContain("Tuần này");
+    fireEvent.click(within(view.container).getByText("Cài đặt"));
+    expect(activeLabel(view.container)).toContain("Cài đặt");
 
-    fireEvent.click(within(view.container).getByText("Dashboard"));
-    nav.search = "tab=overview";
+    nav.pathname = "/logs";
     view.rerender(rail());
-    expect(activeLabel(view.container)).toContain("Dashboard");
+    expect(activeLabel(view.container)).toContain("Cài đặt");
 
-    nav.search = "";
+    nav.pathname = "/feed";
     view.rerender(rail());
-    expect(activeLabel(view.container)).toContain("Tuần này");
+    expect(activeLabel(view.container)).toContain("Nguồn");
+  });
+});
+
+describe("folded routes redirect to Tuần này", () => {
+  test.each([
+    ["/persona", "/"],
+    ["/ideas/abc", "/"],
+    ["/vault", "/"],
+    ["/vault/hooks/x", "/"],
+    ["/mine", "/"],
+    ["/mine/reels", "/"],
+    ["/sources", "/feed"],
+  ])("%s redirects to %s", async (path, dest) => {
+    const rules = await nextConfig.redirects!();
+    const rule = rules.find((r) => pathToRegexp(r.source).test(path));
+    expect(rule).toMatchObject({ destination: dest, permanent: false });
+  });
+
+  test("/feed and /settings are not redirected", async () => {
+    const rules = await nextConfig.redirects!();
+    expect(rules.some((r) => ["/feed", "/settings", "/"].some((p) => pathToRegexp(r.source).test(p)))).toBe(false);
+  });
+
+  test("the proxy runs on / only", () => {
+    expect(unstable_doesMiddlewareMatch({ config: proxyConfig, nextConfig, url: "/?tab=calendar" })).toBe(true);
+    expect(unstable_doesMiddlewareMatch({ config: proxyConfig, nextConfig, url: "/feed?tab=x" })).toBe(false);
+  });
+
+  test.each(["overview", "calendar", "reels"])("/?tab=%s redirects to / without the query", (tab) => {
+    const res = proxy(new NextRequest(`http://localhost/?tab=${tab}&month=2026-09`));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/");
+  });
+
+  test("/ with no tab passes through", () => {
+    expect(proxy(new NextRequest("http://localhost/")).headers.get("location")).toBeNull();
   });
 });

@@ -10,8 +10,8 @@ Discover is a curated directory of Instagram creators to follow, at `/channels/d
 
 ## Boundaries
 
-- Owns: `src/server/db/bootstrap.ts` (`bootstrapCreatorSeeds`), `src/server/queries/discover.ts` (`listCreatorSeeds`), `src/server/actions/discover-actions.ts` (`followCreatorAction`), `src/components/discover/` (`DiscoverBoard`, `CreatorSeedCard`, `SeedPicker`), the discover route, the Discover nav entry in `src/components/layout/nav-items.ts`, and `scripts/verify-seeds.ts`.
-- Called by: the sidebar nav (Sources group), the first-run sources step (`src/components/first-run/sources-step.tsx` mounts `SeedPicker`), `npm run db:bootstrap`.
+- Owns: `src/server/db/bootstrap.ts` (`bootstrapCreatorSeeds`), `src/server/queries/discover.ts` (`listCreatorSeeds`), `src/server/actions/discover-actions.ts` (`followCreatorAction`), `src/components/discover/` (`DiscoverBoard`, `CreatorSeedCard`, `SeedPicker`), the discover route, the Khám phá tab in `src/components/layout/section-tabs.tsx`, and `scripts/verify-seeds.ts`.
+- Called by: the Nguồn tabs and the Kênh empty state ("Chọn từ Khám phá"), the first-run sources step (`src/components/first-run/sources-step.tsx` mounts `SeedPicker`), `npm run db:bootstrap`.
 - Calls: `normalizeHandle` in `src/server/services/sync-engine.ts`, then `addChannelAction` and `startSyncAction` in `src/server/actions/sync-actions.ts`. Discover never reads `videos` or scoring data.
 
 ## Invariants

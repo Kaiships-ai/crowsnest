@@ -5,8 +5,6 @@ let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let listIdeas: typeof import("./ideas")["listIdeas"];
-let getIdea: typeof import("./ideas")["getIdea"];
-let countInboxIdeas: typeof import("./ideas")["countInboxIdeas"];
 
 beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
@@ -16,7 +14,7 @@ beforeAll(async () => {
   process.env.IG_SERVICE_TOKEN ??= "test-token";
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ listIdeas, getIdea, countInboxIdeas } = await import("./ideas"));
+  ({ listIdeas } = await import("./ideas"));
 });
 
 beforeEach(async () => {
@@ -151,41 +149,3 @@ describe("listIdeas", () => {
   });
 });
 
-describe("getIdea", () => {
-  test("returns null for a missing id", async () => {
-    expect(await getIdea("nope")).toBeNull();
-  });
-
-  test("resolves a single idea with its source post, regardless of status", async () => {
-    const channelId = await seedChannel("@ideas-get");
-    const videoId = await seedVideo(channelId, { outlierScore: 3.3 });
-    const ideaId = await seedIdea(videoId, { status: "discarded", concept: "Get me" });
-
-    const item = await getIdea(ideaId);
-    expect(item?.id).toBe(ideaId);
-    expect(item?.concept).toBe("Get me");
-    expect(item?.status).toBe("discarded");
-    expect(item?.post.outlierScore).toBe(3.3);
-  });
-});
-
-describe("countInboxIdeas", () => {
-  test("zero when nothing is in the inbox", async () => {
-    expect(await countInboxIdeas()).toBe(0);
-  });
-
-  test("counts only inbox-status ideas, not shortlisted/scripted/discarded", async () => {
-    const channelId = await seedChannel("@ideas-count");
-    const v1 = await seedVideo(channelId);
-    const v2 = await seedVideo(channelId);
-    const v3 = await seedVideo(channelId);
-    const v4 = await seedVideo(channelId);
-
-    await seedIdea(v1, { status: "inbox" });
-    await seedIdea(v2, { status: "inbox" });
-    await seedIdea(v3, { status: "shortlisted" });
-    await seedIdea(v4, { status: "discarded" });
-
-    expect(await countInboxIdeas()).toBe(2);
-  });
-});

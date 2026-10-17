@@ -3,7 +3,7 @@ import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
-import { invalidateTokenStatus, rememberTokenStatus } from "@/server/graph/token-status";
+import { rememberTokenStatus } from "@/server/graph/token-status";
 import { newestCaptureByPost, OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
 
 /**
@@ -397,8 +397,9 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
   state.inFlight = run;
   try {
     const result = await run;
-    // A dead token must not keep reading as connected from the cached status.
-    if (!result.ok && result.code === "GRAPH_AUTH_FAILED") invalidateTokenStatus();
+    if (!result.ok && result.code === "GRAPH_AUTH_FAILED") {
+      rememberTokenStatus({ configured: true, username: null, state: "auth_failed", message: result.error, checkedAt: new Date().toISOString() });
+    }
     // The account call still works without insights, so a live check would read ok:
     // remember the refusal instead so the screen shows the permission state.
     if (!result.ok && result.code === "GRAPH_PERMISSION_DENIED") {

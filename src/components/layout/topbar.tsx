@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { useCommandMenu } from "@/components/layout/command-menu";
@@ -12,35 +12,18 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
 
-/**
- * Every route under `(shell)/` needs an entry here. A route that is missing one does not
- * fall back to something close, it falls back to "Crowsnest", so the topbar names the app
- * instead of the page and the h1 stops telling you where you are. /runs, /runs/[runId]
- * and /logs shipped without entries and read that way.
- *
- * Titles for a route that also sits in the rail match NAV_ITEMS' label exactly ("Runs",
- * "Logs"), so the highlighted rail entry and the heading agree. Detail routes follow the
- * sentence-case "Channel detail" / "Run detail" convention already set below — copy is
- * sentence case throughout per DESIGN-SYSTEM.md section 4.
- *
- * `first-run` deliberately has no entry: it lives outside the `(shell)` group and never
- * renders a Topbar at all.
- */
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Tuần này" },
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix studio" },
   { pattern: /^\/feed\/[^/]+$/, title: "Post detail" },
-  { pattern: /^\/feed$/, title: "Feed" },
-  { pattern: /^\/ideas$/, title: "Ideas" },
-  { pattern: /^\/channels\/discover$/, title: "Discover" },
+  { pattern: /^\/feed$/, title: "Nguồn" },
+  { pattern: /^\/channels\/discover$/, title: "Nguồn" },
   { pattern: /^\/channels\/[^/]+$/, title: "Channel detail" },
-  { pattern: /^\/channels$/, title: "Channels" },
-  { pattern: /^\/vault$/, title: "Vault" },
+  { pattern: /^\/channels$/, title: "Nguồn" },
   { pattern: /^\/runs\/[^/]+$/, title: "Run detail" },
-  { pattern: /^\/runs$/, title: "Runs" },
-  { pattern: /^\/logs$/, title: "Logs" },
-  { pattern: /^\/persona$/, title: "Persona" },
-  { pattern: /^\/settings$/, title: "Settings" },
+  { pattern: /^\/runs$/, title: "Nhật ký sự cố" },
+  { pattern: /^\/logs$/, title: "Nhật ký sự cố" },
+  { pattern: /^\/settings$/, title: "Cài đặt" },
 ];
 
 /** Exported for the guard test in topbar.test.ts, which walks the `(shell)` route tree on
@@ -60,8 +43,7 @@ export interface TopbarProps {
 export function Topbar({ strip }: TopbarProps) {
   const pathname = usePathname();
   const { setOpen } = useCommandMenu();
-  const tab = useSearchParams().get("tab");
-  const title = pathname === "/" && tab ? "Dashboard" : getPageTitle(pathname);
+  const title = getPageTitle(pathname);
 
   return (
     <div className="flex shrink-0 flex-col border-b border-border">
@@ -83,7 +65,7 @@ export function Topbar({ strip }: TopbarProps) {
             variant="outline"
             onClick={() => setOpen(true)}
             aria-label="Search"
-            className="h-8 w-8 justify-center gap-2 px-0 font-normal text-muted-foreground sm:w-64 sm:justify-start sm:px-3"
+            className="h-8 w-8 justify-center gap-2 px-0 font-normal text-foreground sm:w-64 sm:justify-start sm:px-3"
           >
             <Search className="size-3.5 shrink-0" />
             <span className="hidden flex-1 text-left text-sm sm:inline">Search…</span>

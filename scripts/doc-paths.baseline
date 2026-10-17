@@ -23,6 +23,5 @@
 .claude/skills/shadcn/registry.md	acme/ui/data/schema.json
 .claude/skills/shadcn/registry.md	registry/ui/button.tsx
 .claude/skills/shadcn/registry.md	registry/ui/registry.json
-.claude/skills/verify/features/mine.md	src/app/(shell)/(loaded)/mine/page.tsx
 AGENTS.md	.gitnexus/run.cjs
 README.md	data/ig-session.json

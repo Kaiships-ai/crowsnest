@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      ...["/persona", "/ideas", "/vault", "/mine"].map((p) => ({ source: `${p}/:path*`, destination: "/", permanent: false })),
+      { source: "/sources", destination: "/feed", permanent: false },
+    ];
+  },
   experimental: {
     serverActions: {
       // uploadPlanVideoAction takes a real mp4 Reel through a Server Action, and the

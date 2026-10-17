@@ -50,10 +50,10 @@ export function ConfirmDialog({
         </DialogHeader>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} data-testid={`${testid}-cancel`}>
-            Keep it
+            Giữ lại
           </Button>
           <Button variant="destructive" onClick={confirm} disabled={busy} data-testid={`${testid}-confirm`}>
-            {busy ? "Working…" : confirmLabel}
+            {busy ? "Đang làm…" : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

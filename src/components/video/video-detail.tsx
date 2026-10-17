@@ -588,7 +588,7 @@ export function VideoDetail({
             <div className="flex items-start gap-3 border-l border-border pl-4">
               <div className="flex flex-col items-start gap-1.5">
                 <SavePostButton videoId={item.videoId} saved={savedPost} />
-                <span className="font-mono text-2xs text-muted-foreground">Vault → Saved posts</span>
+                <span className="font-mono text-2xs text-muted-foreground">Feeds Remix research</span>
               </div>
 
               <div className="flex flex-col items-start gap-1.5">
@@ -597,12 +597,12 @@ export function VideoDetail({
                 ) : (
                   <Tooltip>
                     <TooltipTrigger render={<Button variant="outline" size="sm" disabled focusableWhenDisabled />}>
-                      <Bookmark className="size-3.5" /> Save to Vault
+                      <Bookmark className="size-3.5" /> Save template
                     </TooltipTrigger>
                     <TooltipContent>Analyze this video first to save hook/style templates</TooltipContent>
                   </Tooltip>
                 )}
-                <span className="font-mono text-2xs text-muted-foreground">Vault → Hooks &amp; styles</span>
+                <span className="font-mono text-2xs text-muted-foreground">Hooks show in the Tuần này drawer</span>
               </div>
             </div>
 

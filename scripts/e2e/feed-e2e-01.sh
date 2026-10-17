@@ -47,7 +47,7 @@ assert_text "Keep this post"
 sleep 0.3
 
 step "assert: kept in the vault"
-assert_text "Kept in the vault"
+assert_text "Saved for Remix research"
 assert_text "Kept"
 snap "kept-in-vault"
 

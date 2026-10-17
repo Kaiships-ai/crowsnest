@@ -259,8 +259,11 @@ export function ChannelsKanban({ board }: { board: KanbanBoardData }) {
               outliers.
             </EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
+          <EmptyContent className="flex-row flex-wrap justify-center">
             <AddChannelDialog />
+            <Button variant="outline" render={<Link href="/channels/discover" />} nativeButton={false} data-testid="channels-empty-discover">
+              Chọn từ Khám phá
+            </Button>
           </EmptyContent>
         </Empty>
       ) : (

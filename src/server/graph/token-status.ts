@@ -3,8 +3,8 @@ import { graphClient, type GraphTokenStatus } from "./client";
 /**
  * Server-side cache of the Graph token check, so a My reels render or a reel picker click
  * does not make a live Graph call every time. Dropped when a token secret is saved or
- * cleared, and when a measurement hits an auth failure; a measurement run also writes its
- * own outcome here (ok, or a permission refusal). "Check connection" stays live, but /me
+ * cleared; a measurement run writes its own outcome here (ok, auth_failed, or a
+ * permission refusal). "Check connection" stays live, but /me
  * cannot see the insights permission, so a refusal a measurement saw stands over an ok
  * check until a measurement succeeds or the token secret changes.
  * Kept on globalThis: tsx server.ts (the scheduler) and Next's bundle (actions, renders)
@@ -30,6 +30,10 @@ export async function cachedTokenStatus(now: number = Date.now(), opts: { live?:
   if (status.state === "ok" && state.denied) status = { ...state.denied, checkedAt: status.checkedAt };
   state.cached = { status, at: now };
   return status;
+}
+
+export function peekTokenStatus(): GraphTokenStatus | null {
+  return state.cached?.status ?? null;
 }
 
 export function rememberTokenStatus(status: GraphTokenStatus, now: number = Date.now()): void {

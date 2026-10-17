@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/layout/page-container";
+import { INCIDENT_TABS, SectionTabs, SettingsTabs } from "@/components/layout/section-tabs";
 import { RunsList } from "@/components/runs/runs-list";
 import { getSetting } from "@/server/settings";
 import { listRuns } from "@/server/queries/runs";
@@ -24,9 +25,13 @@ export default async function RunsPage() {
   ]);
 
   return (
-    <PageContainer>
-      <p className="mb-4 font-mono text-2xs text-muted-foreground">{runs.length} runs</p>
-      <RunsList seedRuns={runs} syncSlaMinutes={syncSlaMinutes} remixSlaMinutes={remixSlaMinutes} />
-    </PageContainer>
+    <>
+      <SettingsTabs />
+      <PageContainer className="flex flex-col gap-4">
+        <SectionTabs tabs={INCIDENT_TABS} label="Nhật ký sự cố" />
+        <p className="font-mono text-2xs text-muted-foreground">{runs.length} runs</p>
+        <RunsList seedRuns={runs} syncSlaMinutes={syncSlaMinutes} remixSlaMinutes={remixSlaMinutes} />
+      </PageContainer>
+    </>
   );
 }

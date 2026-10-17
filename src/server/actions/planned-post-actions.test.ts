@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 // A datetime-local string (YYYY-MM-DDTHH:MM) always ~30 days in the future, so the
 // schedule tests never rot into PLAN_SCHEDULE_IN_PAST as the calendar advances.
@@ -32,6 +32,7 @@ let cancelScheduledPublishAction: typeof import("./planned-post-actions")["cance
 let publishNowAction: typeof import("./planned-post-actions")["publishNowAction"];
 let retryFailedPublishAction: typeof import("./planned-post-actions")["retryFailedPublishAction"];
 let movePlannedPostAction: typeof import("./planned-post-actions")["movePlannedPostAction"];
+let restorePlannedPostAction: typeof import("./planned-post-actions")["restorePlannedPostAction"];
 let DEFAULT_MAX_ATTEMPTS: typeof import("../services/publish-scheduler")["DEFAULT_MAX_ATTEMPTS"];
 let deleteScriptAction: typeof import("./remix-actions")["deleteScriptAction"];
 let getPlannedPosts: typeof import("../queries/planned-posts")["getPlannedPosts"];
@@ -64,6 +65,7 @@ beforeAll(async () => {
     publishNowAction,
     retryFailedPublishAction,
     movePlannedPostAction,
+    restorePlannedPostAction,
   } = await import("./planned-post-actions"));
   ({ DEFAULT_MAX_ATTEMPTS } = await import("../services/publish-scheduler"));
   ({ deleteScriptAction } = await import("./remix-actions"));
@@ -297,7 +299,7 @@ describe("createPlannedPostAction", () => {
     const created = (await createPlannedPostAction({ title: "Stuck", plannedDate: "2026-09-01" })) as { ok: true; id: string };
     await db.update(tables.plannedPosts).set({ state: stuckState, attemptCount: 1, lastError: "boom" }).where(eq(tables.plannedPosts.id, created.id));
     const [snapshot] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
-    await deletePlannedPostAction(created.id);
+    await db.delete(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
 
     const restored = await createPlannedPostAction({
       id: snapshot.id,
@@ -525,7 +527,7 @@ describe("deletePlannedPostAction", () => {
   test("removes the plan", async () => {
     const created = (await createPlannedPostAction({ title: "Delete me" })) as { ok: true; id: string };
     const result = await deletePlannedPostAction(created.id);
-    expect(result).toEqual({ ok: true });
+    expect(result).toMatchObject({ ok: true, snapshot: { id: created.id, title: "Delete me" } });
 
     const rows = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
     expect(rows).toHaveLength(0);
@@ -770,7 +772,7 @@ describe("schedulePublishAction preconditions", () => {
 describe("cancelScheduledPublishAction", () => {
   afterEach(unconfigurePublish);
 
-  test("returns a scheduled publish to a draft and clears scheduledAt", async () => {
+  test("returns the reel to draft, keeps its day and time, and clears the publish time", async () => {
     configurePublish();
     const id = await seedPublishablePlan();
     await schedulePublishAction(id, FUTURE_SCHEDULE);
@@ -780,14 +782,86 @@ describe("cancelScheduledPublishAction", () => {
 
     const [row] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
     expect(row.state).toBe("draft");
+    expect(row.plannedDate).toBe(FUTURE_SCHEDULE.slice(0, 10));
+    expect(row.plannedTime).toBe(FUTURE_SCHEDULE.slice(11, 16));
     expect(row.scheduledAt).toBeNull();
     expect(row.idempotencyKey).toBeNull();
+    expect((await cancelScheduledPublishAction(id)).ok).toBe(false);
   });
 
   test("refuses to cancel a plan that is not scheduled", async () => {
     const created = (await createPlannedPostAction({ title: "Draft" })) as { ok: true; id: string };
     const result = await cancelScheduledPublishAction(created.id);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_NOT_SCHEDULED" });
+  });
+});
+
+describe("the scheduler claim after a cancel or move inside the batch window", () => {
+  afterEach(unconfigurePublish);
+
+  test("a row selected as due, then cancelled or moved before its claim, is not claimed", async () => {
+    configurePublish();
+    const cancelled = await seedPublishablePlan();
+    const moved = await seedPublishablePlan();
+    const due = new Date(Date.now() + 60_000).toISOString();
+    for (const id of [cancelled, moved]) {
+      await db.update(tables.plannedPosts).set({ state: "scheduled", plannedDate: due.slice(0, 10), scheduledAt: due, idempotencyKey: `${id}:${due}` }).where(eq(tables.plannedPosts.id, id));
+    }
+    const { runDuePublishes } = await import("../services/publish-scheduler");
+    const publish = vi.fn(async () => ({ ok: true, state: "published" as const }));
+    const tomorrow = new Date(Date.now() + 86_400_000).toLocaleDateString("sv-SE");
+
+    const result = await runDuePublishes(new Date(Date.now() + 120_000), {
+      publish,
+      selectRetryableFailed: async () => [],
+      selectDueScheduled: async () => {
+        expect((await cancelScheduledPublishAction(cancelled)).ok).toBe(true);
+        expect((await movePlannedPostAction(moved, { date: tomorrow })).ok).toBe(true);
+        return [{ id: cancelled }, { id: moved }];
+      },
+    });
+
+    expect(result.claimed).toBe(0);
+    expect(publish).not.toHaveBeenCalled();
+    const rows = await db.select().from(tables.plannedPosts).where(inArray(tables.plannedPosts.id, [cancelled, moved]));
+    expect(rows.map((r) => r.state).sort()).toEqual(["draft", "scheduled"]);
+  });
+});
+
+describe("restorePlannedPostAction", () => {
+  test("delete then restore gives back the exact row, every column", async () => {
+    const id = newId();
+    await db.insert(tables.plannedPosts).values({ id, state: "failed", title: "T", note: "n", caption: "c", keyword: "K", magnetUrl: "https://x.test/m", idempotencyKey: "ik", lastError: "boom", errorClass: "timeout", attemptCount: 2, createdAt: "2026-01-02T03:04:05.000Z", updatedAt: "2026-01-03T00:00:00.000Z" });
+    const [before] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+    const del = await deletePlannedPostAction(id);
+    if (!del.ok) throw new Error(del.error);
+    expect(await restorePlannedPostAction(del.snapshot)).toEqual({ ok: true, disarmed: false });
+    expect((await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id)))[0]).toEqual(before);
+    expect(await restorePlannedPostAction(del.snapshot)).toMatchObject({ ok: false, code: "PLAN_EXISTS" });
+  });
+
+  test("an armed row whose time has passed comes back as an unarmed draft", async () => {
+    const id = newId();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    await db.insert(tables.plannedPosts).values({ id, state: "scheduled", title: "T", plannedDate: past.slice(0, 10), plannedTime: "09:00", scheduledAt: past, idempotencyKey: `${id}:${past}`, createdAt: nowIso(), updatedAt: nowIso() });
+    const del = await deletePlannedPostAction(id);
+    if (!del.ok) throw new Error(del.error);
+    expect(await restorePlannedPostAction(del.snapshot)).toEqual({ ok: true, disarmed: true });
+    expect((await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id)))[0]).toMatchObject({ state: "draft", scheduledAt: null, idempotencyKey: null, plannedTime: "09:00" });
+  });
+
+  test("a publishing snapshot is refused", async () => {
+    const snapshot = { id: newId(), state: "publishing" } as Parameters<typeof restorePlannedPostAction>[0];
+    expect(await restorePlannedPostAction(snapshot)).toMatchObject({ ok: false, code: "PLAN_ALREADY_IN_FLIGHT" });
+  });
+});
+
+describe("deletePlannedPostAction guards", () => {
+  test("refuses a row that is publishing and leaves it", async () => {
+    const created = (await createPlannedPostAction({ title: "In flight" })) as { ok: true; id: string };
+    await db.update(tables.plannedPosts).set({ state: "publishing" }).where(eq(tables.plannedPosts.id, created.id));
+    expect(await deletePlannedPostAction(created.id)).toEqual({ ok: false, error: expect.any(String), code: "PLAN_ALREADY_IN_FLIGHT" });
+    expect(await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id))).toHaveLength(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
 import { feedItemColumns, toFeedItem, type FeedItem } from "./feed";
 
@@ -98,120 +98,6 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   };
 }
 
-/**
- * "Today's top outliers" (DESIGN.md §2.1): highest-scored videos posted in the last 7
- * days; if none were posted that recently, falls back to all-time highest-scored so the
- * section is never empty on a quiet week for an otherwise-populated tracker.
- */
-export async function getTopOutliersToday(limit = 6): Promise<FeedItem[]> {
-  const orderBy = [sql`${tables.videos.outlierScore} IS NULL`, desc(tables.videos.outlierScore)] as const;
-
-  const recent = await db
-    .select(feedItemColumns)
-    .from(tables.videos)
-    .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(and(gte(tables.videos.postedAt, daysAgoIso(SEVEN_DAYS)), isNull(tables.videos.deletedAt)))
-    .orderBy(...orderBy)
-    .limit(limit);
-  if (recent.length > 0) return recent.map(toFeedItem);
-
-  const fallback = await db
-    .select(feedItemColumns)
-    .from(tables.videos)
-    .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(isNull(tables.videos.deletedAt))
-    .orderBy(...orderBy)
-    .limit(limit);
-  return fallback.map(toFeedItem);
-}
-
-/**
- * The all-time highest-scored video, no 7-day window. `getTopOutliersToday` is "today's
- * top" for the Dashboard and falls back to a null-scored recent post rather than ever
- * return nothing; that fallback is wrong for a caller (the Vault empty state) that wants
- * a genuine outlier to browse. This query only ever returns rows with a real score, so an
- * empty result means "no scored video exists yet" rather than "here's a recent one anyway".
- */
-export async function getTopOutlierAllTime(limit = 1): Promise<FeedItem[]> {
-  const rows = await db
-    .select(feedItemColumns)
-    .from(tables.videos)
-    .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(and(isNotNull(tables.videos.outlierScore), isNull(tables.videos.deletedAt)))
-    // Tie-break on postedAt (newest first) so a score tie doesn't leave the pick
-    // dependent on undefined SQL row order.
-    .orderBy(desc(tables.videos.outlierScore), desc(tables.videos.postedAt))
-    .limit(limit);
-  return rows.map(toFeedItem);
-}
-
-export interface FleetSpike {
-  fleetId: string;
-  fleetName: string;
-  newOutliers7d: number;
-  sparkline: number[];
-}
-
-/**
- * "Fleets with new spikes" (DESIGN.md §2.1) — only fleets that actually have at least
- * one new (score >= 2) outlier posted in the last 7 days, per the section's own name;
- * an empty-membership fleet is skipped outright rather than ever handed an empty array
- * to `inArray` (mirrors the guard in feed.ts's buildWhere, backlog item M2).
- */
-export async function getFleetSpikes(): Promise<FleetSpike[]> {
-  const sevenDaysAgo = daysAgoIso(SEVEN_DAYS);
-  const ninetyDaysAgo = daysAgoIso(SPARKLINE_WINDOW_DAYS);
-  const fleets = await db.select().from(tables.fleets);
-
-  const spikes = await Promise.all(
-    fleets.map(async (fleet): Promise<FleetSpike | null> => {
-      const memberRows = await db
-        .select({ channelId: tables.fleetChannels.channelId })
-        .from(tables.fleetChannels)
-        .where(eq(tables.fleetChannels.fleetId, fleet.id));
-      const channelIds = memberRows.map((r) => r.channelId);
-      if (channelIds.length === 0) return null;
-
-      const [newOutliersRow] = await db
-        .select({ count: sql<number>`count(*)` })
-        .from(tables.videos)
-        .where(
-          and(
-            inArray(tables.videos.channelId, channelIds),
-            gte(tables.videos.outlierScore, OUTLIER_MIN_SCORE),
-            gte(tables.videos.postedAt, sevenDaysAgo),
-            isNull(tables.videos.deletedAt)
-          )
-        );
-      const newOutliers7d = newOutliersRow?.count ?? 0;
-      if (newOutliers7d === 0) return null;
-
-      const recentVideos = await db
-        .select({ postedAt: tables.videos.postedAt, viewCount: tables.videos.viewCount })
-        .from(tables.videos)
-        .where(
-          and(
-            inArray(tables.videos.channelId, channelIds),
-            gte(tables.videos.postedAt, ninetyDaysAgo),
-            isNull(tables.videos.deletedAt)
-          )
-        );
-
-      return {
-        fleetId: fleet.id,
-        fleetName: fleet.name,
-        newOutliers7d,
-        sparkline: bucketViewsByPostedAt(recentVideos),
-      };
-    })
-  );
-
-  return spikes
-    .filter((s): s is FleetSpike => s !== null)
-    .sort((a, b) => b.newOutliers7d - a.newOutliers7d);
-}
-
-const DASHBOARD_LAST_VISIT_KEY = "dashboard_last_visit";
 
 /**
  * How many outliers (score >= OUTLIER_MIN_SCORE, not removed) were first seen after
@@ -233,30 +119,6 @@ export async function getNewOutliersSince(sinceIso: string | null): Promise<numb
       )
     );
   return row?.count ?? 0;
-}
-
-/**
- * Reads the stored last-visit timestamp (or null the first time), then writes `now`.
- * Runs on every dashboard load, so "since your last visit" means since the previous
- * load. Stored in app_settings, the same key-value table `recently_viewed` uses, so
- * this needs no schema change.
- */
-export async function readAndBumpDashboardLastVisit(now: string = nowIso()): Promise<string | null> {
-  const [row] = await db
-    .select()
-    .from(tables.appSettings)
-    .where(eq(tables.appSettings.key, DASHBOARD_LAST_VISIT_KEY))
-    .limit(1);
-  const prev = row?.value ?? null;
-  if (row) {
-    await db
-      .update(tables.appSettings)
-      .set({ value: now })
-      .where(eq(tables.appSettings.key, DASHBOARD_LAST_VISIT_KEY));
-  } else {
-    await db.insert(tables.appSettings).values({ key: DASHBOARD_LAST_VISIT_KEY, value: now });
-  }
-  return prev;
 }
 
 const FEED_LAST_VISIT_KEY = "feed_last_visit";

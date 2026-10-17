@@ -1,13 +1,17 @@
+import { GraphTokenLine } from "@/components/status/graph-token-line";
 import { ChannelsKanban } from "@/components/channels/kanban-board";
+import { SourcesTabs } from "@/components/layout/section-tabs";
 import { getKanbanBoard } from "@/server/queries/channels";
 
-// The topbar renders the route title. The board's own header row carries only the meta
-// line and the actions, so there is exactly one "Channels" heading on the screen.
-//
-// Unlike /runs and /logs (plain lists, capped at 1120px), this route is a horizontal
-// multi-column kanban board — it needs the full viewport width, not a boxed column, or
-// the fleet's columns get squeezed and clipped. No content-width wrapper here on purpose.
 export default async function ChannelsPage() {
   const board = await getKanbanBoard();
-  return <ChannelsKanban board={board} />;
+  return (
+    <div className="flex h-full flex-col">
+      <SourcesTabs />
+      <GraphTokenLine className="mx-4 mt-3 mb-0 sm:mx-6" />
+      <div className="min-h-0 flex-1">
+        <ChannelsKanban board={board} />
+      </div>
+    </div>
+  );
 }

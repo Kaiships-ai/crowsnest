@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Copy, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -151,9 +150,7 @@ export function StageScript({
       setAddedPlanDate(null);
       setPlanDate("");
       setSaveOpen(false);
-      toast.success("Script saved", {
-        action: { label: "Open in Vault", onClick: () => window.open("/vault?tab=scripts", "_blank") },
-      });
+      toast.success("Script saved");
     } else {
       toast.error(result.error);
     }
@@ -262,11 +259,6 @@ export function StageScript({
             </DialogContent>
           </Dialog>
         </ButtonGroup>
-        {savedScriptId && (
-          <Link href="/vault?tab=scripts" className="text-xs text-muted-foreground hover:text-foreground">
-            View in Vault →
-          </Link>
-        )}
       </div>
 
       {savedScriptId && (
