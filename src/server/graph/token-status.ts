@@ -32,6 +32,12 @@ export async function cachedTokenStatus(now: number = Date.now(), opts: { live?:
   return status;
 }
 
+/** The last known status without any network call, for renders. Null until a Check or a
+ *  measurement has run in this process. */
+export function peekTokenStatus(): GraphTokenStatus | null {
+  return state.cached?.status ?? null;
+}
+
 export function rememberTokenStatus(status: GraphTokenStatus, now: number = Date.now()): void {
   state.cached = { status, at: now };
   state.denied = status.state === "permission_denied" ? status : null;

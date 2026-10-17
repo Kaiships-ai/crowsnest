@@ -1,9 +1,8 @@
 import Link from "next/link";
 
-import { PING_TIMED_OUT, PING_TIMEOUT_MS, withTimeout } from "@/components/status/dependency-status";
 import { cn } from "@/lib/utils";
 import type { GraphTokenStatus } from "@/server/graph/client";
-import { cachedTokenStatus } from "@/server/graph/token-status";
+import { peekTokenStatus } from "@/server/graph/token-status";
 
 /** Configured but refused. A missing token is not "broken" (a fresh machine has none), and
  *  rate limits and network blips clear on their own. */
@@ -13,10 +12,11 @@ const BROKEN: Partial<Record<GraphTokenStatus["state"], string>> = {
 };
 
 /** J6 "Sửa khi hỏng": one line when the Graph token is broken, opening the Instagram card
- *  in Cài đặt. Reads the cached status, so Check there clears it on the next render. */
-export async function GraphTokenLine({ className }: { className?: string }) {
-  const status = await withTimeout(cachedTokenStatus().catch(() => null), PING_TIMEOUT_MS);
-  const message = status && status !== PING_TIMED_OUT ? BROKEN[status.state] : undefined;
+ *  in Cài đặt. Reads the last Check or measurement only, never Graph, so it never holds up a
+ *  render or spends the hourly Graph budget. */
+export function GraphTokenLine({ className }: { className?: string }) {
+  const status = peekTokenStatus();
+  const message = status ? BROKEN[status.state] : undefined;
   if (!message) return null;
   return (
     <Link
