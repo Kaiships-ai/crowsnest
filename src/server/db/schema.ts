@@ -872,3 +872,22 @@ export const igAccounts = sqliteTable(
     uniqueIndex("ig_accounts_single_default").on(t.isDefault).where(sql`${t.isDefault} = 1`),
   ],
 );
+
+export const FUNNEL_SOURCES = ["chatbotx", "umami", "polar", "skool"] as const;
+
+/** Append-only funnel snapshots per reel keyword. Never updated: a newer capturedAt
+ *  supersedes an older row on read, so a renamed plan keyword keeps its old history. */
+export const reelFunnel = sqliteTable(
+  "reel_funnel",
+  {
+    id: text("id").primaryKey(),
+    keyword: text("keyword").notNull(),
+    source: text("source", { enum: FUNNEL_SOURCES }).notNull(),
+    metric: text("metric").notNull(),
+    value: real("value").notNull(),
+    capturedAt: text("captured_at").notNull(),
+    agent: text("agent").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (t) => [index("reel_funnel_latest").on(sql`lower(${t.keyword})`, t.source, t.metric, t.capturedAt)],
+);

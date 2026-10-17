@@ -58,6 +58,8 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_remix_save_script",
       "crowsnest_set_plan_fields",
       "crowsnest_attach_video",
+      "crowsnest_save_funnel",
+      "crowsnest_funnel",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
@@ -296,4 +298,28 @@ test("/api/mcp refuses a non-local Host or Origin and serves a local client", as
   } finally {
     server.close();
   }
+});
+
+test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest value with its plan", async () => {
+  const { db, tables, newId, nowIso } = await import("@/server/db");
+  const id = newId();
+  await db.insert(tables.plannedPosts).values({ id, state: "draft", title: "Funnel", keyword: "FUNNELKW", createdAt: nowIso(), updatedAt: nowIso() });
+  const client = await connectedClient();
+
+  const saved = await client.callTool({ name: "crowsnest_save_funnel", arguments: { agent: "claude", rows: [
+    { keyword: "funnelkw", source: "chatbotx", metric: "dms", value: 5, capturedAt: "2026-10-01T00:00:00Z" },
+    { keyword: "FUNNELKW", source: "chatbotx", metric: "dms", value: 9, capturedAt: "2026-10-02T00:00:00Z" },
+  ] } });
+  expect(saved.structuredContent).toEqual({ ok: true, saved: 2 });
+
+  const bad = await client.callTool({ name: "crowsnest_save_funnel", arguments: { agent: "claude", rows: [
+    { keyword: "FUNNELKW", source: "chatbotx", metric: "dms", value: 1, capturedAt: "2026-10-01T00:00:00Z" },
+    { keyword: "FUNNELKW", source: "nope", metric: "dms", value: 1, capturedAt: "2026-10-01T00:00:00Z" },
+  ] } });
+  expect(bad.isError).toBe(true);
+  expect(bad.structuredContent).toMatchObject({ code: "INVALID_ROWS", error: expect.stringContaining("rows[1].source") });
+
+  const read = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "funnelkw" } });
+  const rows = (read.structuredContent as { data: { keyword: string; value: number; plan: unknown }[] }).data;
+  expect(rows).toEqual([expect.objectContaining({ value: 9, plan: { id, title: "Funnel" } })]);
 });

@@ -34,6 +34,7 @@ import { getChannelsList, getChannelDetail, getChannelMedianBasis } from "@/serv
 import { getLastRunHealth } from "@/server/queries/runs";
 import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
+import { FUNNEL_METRICS_TEXT, getFunnel, saveFunnel } from "@/server/services/funnel";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -110,7 +111,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan." }
+    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads the latest value per keyword, source and metric with the plan that holds the keyword." }
   );
 
   server.registerTool(
@@ -329,6 +330,32 @@ export function buildMcpServer(): McpServer {
       if (!res.ok) return errorResult({ error: res.error, code: res.code, postId: args.postId });
       return result(await getPlannedPostById(args.postId));
     }
+  );
+
+  server.registerTool(
+    "crowsnest_save_funnel",
+    {
+      title: "Save funnel snapshots",
+      description: `Appends a batch of funnel numbers per reel keyword. Each row is { keyword, source, metric, value, capturedAt }. Allowed metrics per source, exact strings: ${FUNNEL_METRICS_TEXT}. value is zero or more. capturedAt is required: pass the source's own timestamp with an offset (e.g. 2026-10-16T07:00:00+07:00), not the time you call this. Writes all rows or none: an invalid row returns code INVALID_ROWS naming the row and field. Saving the same batch again leaves the latest values unchanged.`,
+      inputSchema: {
+        agent: z.string().describe("Who captured these numbers, for provenance: 'claude', 'codex', or your label."),
+        rows: z.array(z.record(z.string(), z.unknown())).describe("1 to 1000 rows: { keyword, source, metric, value, capturedAt }."),
+      },
+    },
+    async (args) => {
+      const r = saveFunnel(args);
+      return r.ok ? result(r) : errorResult({ code: "INVALID_ROWS", error: r.error });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_funnel",
+    {
+      title: "Funnel numbers per keyword",
+      description: "The latest value per keyword, source and metric, each with capturedAt and the plan holding the keyword (case-insensitive), or plan null when no plan holds it. Pass keyword to get one reel only (case-insensitive).",
+      inputSchema: { keyword: z.string().max(64).optional().describe("Only this keyword, in any case.") },
+    },
+    async ({ keyword }) => result(getFunnel(keyword))
   );
 
   server.registerTool(
