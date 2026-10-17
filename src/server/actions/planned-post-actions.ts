@@ -235,6 +235,67 @@ export async function schedulePlannedPostAction(id: string, plannedDate: string,
   }
 }
 
+export interface MoveSnapshot {
+  plannedDate: string | null;
+  plannedTime: string | null;
+  scheduledAt: string | null;
+}
+
+const localYmd = (d: Date) => d.toLocaleDateString("sv-SE");
+
+/** The same local wall-clock time as `iso`, on local date `date`. */
+function shiftToDate(iso: string, date: string): string {
+  const at = new Date(iso);
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d, at.getHours(), at.getMinutes(), at.getSeconds()).toISOString();
+}
+
+/**
+ * The one way a reel changes day: drag, the day select, and their undo all land here.
+ * It never changes `state` (a failed reel stays failed with its error), refuses a row
+ * that is publishing or published, carries an armed `scheduledAt` to the new day at the
+ * same local time, and never writes a past `scheduledAt` onto a scheduled row, which the
+ * scheduler would claim at once. `{ restore }` puts back the snapshot an earlier move
+ * returned, exactly. The state check sits in the UPDATE itself so a stale tab cannot win.
+ */
+export async function movePlannedPostAction(
+  id: string,
+  to: { date: string } | { restore: MoveSnapshot }
+): Promise<ActionResult<{ prior: MoveSnapshot }>> {
+  try {
+    const plan = await getPlan(id);
+    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (plan.state === "published" || plan.state === "publishing") {
+      return { ok: false, error: "Reel đã đăng hoặc đang đăng, không chuyển ngày được.", code: "PLAN_LOCKED" };
+    }
+
+    let next: MoveSnapshot;
+    if ("restore" in to) {
+      next = to.restore;
+      if (next.plannedDate !== null && !isValidDate(next.plannedDate)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
+    } else {
+      if (!isValidDate(to.date)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
+      if (to.date < localYmd(new Date())) return { ok: false, error: "Không chuyển reel về ngày đã qua.", code: "PLAN_MOVE_TO_PAST" };
+      next = { plannedDate: to.date, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt && shiftToDate(plan.scheduledAt, to.date) };
+    }
+    if (plan.state === "scheduled" && next.scheduledAt && Date.parse(next.scheduledAt) <= Date.now()) {
+      return { ok: false, error: "Giờ đăng mới đã qua. Chọn ngày khác.", code: "PLAN_SCHEDULE_IN_PAST" };
+    }
+
+    const res = await db
+      .update(tables.plannedPosts)
+      .set({ ...next, idempotencyKey: next.scheduledAt ? `${id}:${next.scheduledAt}` : plan.idempotencyKey, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, plan.state)));
+    if ((res as { changes?: number }).changes !== 1) {
+      return { ok: false, error: "Reel vừa đổi trạng thái. Tải lại trang.", code: "PLAN_LOCKED" };
+    }
+    revalidatePath("/");
+    return { ok: true, prior: { plannedDate: plan.plannedDate, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt } };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
 /** Nulls the date and returns the plan to draft — the prototype's own "back in the
  *  pool, undated" behaviour. */
 export async function unschedulePlannedPostAction(id: string): Promise<SimpleResult> {

@@ -31,6 +31,7 @@ let schedulePublishAction: typeof import("./planned-post-actions")["schedulePubl
 let cancelScheduledPublishAction: typeof import("./planned-post-actions")["cancelScheduledPublishAction"];
 let publishNowAction: typeof import("./planned-post-actions")["publishNowAction"];
 let retryFailedPublishAction: typeof import("./planned-post-actions")["retryFailedPublishAction"];
+let movePlannedPostAction: typeof import("./planned-post-actions")["movePlannedPostAction"];
 let DEFAULT_MAX_ATTEMPTS: typeof import("../services/publish-scheduler")["DEFAULT_MAX_ATTEMPTS"];
 let deleteScriptAction: typeof import("./remix-actions")["deleteScriptAction"];
 let getPlannedPosts: typeof import("../queries/planned-posts")["getPlannedPosts"];
@@ -62,6 +63,7 @@ beforeAll(async () => {
     cancelScheduledPublishAction,
     publishNowAction,
     retryFailedPublishAction,
+    movePlannedPostAction,
   } = await import("./planned-post-actions"));
   ({ DEFAULT_MAX_ATTEMPTS } = await import("../services/publish-scheduler"));
   ({ deleteScriptAction } = await import("./remix-actions"));
@@ -914,5 +916,75 @@ describe("setPlanFieldsAction", () => {
     const id = await seedPlan("published");
     expect(await setPlanFieldsAction(id, { keyword: "PLUGIN", magnetUrl: "https://example.com/g" })).toEqual({ ok: true });
     expect(await row(id)).toMatchObject({ state: "published", keyword: "PLUGIN", magnetUrl: "https://example.com/g" });
+  });
+});
+
+describe("movePlannedPostAction", () => {
+  const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toLocaleDateString("sv-SE");
+  const at = (date: string, hhmm: string) => new Date(`${date}T${hhmm}`).toISOString();
+  async function seed(fields: Partial<typeof tables.plannedPosts.$inferInsert>): Promise<string> {
+    const id = newId();
+    await db.insert(tables.plannedPosts).values({ id, title: "R", state: "scheduled", plannedDate: day(2), plannedTime: "09:00", createdAt: nowIso(), updatedAt: nowIso(), ...fields });
+    return id;
+  }
+  async function row(id: string) {
+    const [r] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+    return r;
+  }
+
+  test.each(["published", "publishing"] as const)("refuses a %s reel and writes nothing", async (state) => {
+    const id = await seed({ state, scheduledAt: at(day(2), "09:00") });
+    const before = await row(id);
+    expect(await movePlannedPostAction(id, { date: day(3) })).toMatchObject({ ok: false, code: "PLAN_LOCKED" });
+    expect(await row(id)).toEqual(before);
+  });
+
+  test("an armed reel's publish moves with it, same local time, new idempotency key", async () => {
+    const id = await seed({ scheduledAt: at(day(2), "09:30"), idempotencyKey: "k" });
+    expect(await movePlannedPostAction(id, { date: day(4) })).toMatchObject({ ok: true });
+    expect(await row(id)).toMatchObject({ state: "scheduled", plannedDate: day(4), plannedTime: "09:00", scheduledAt: at(day(4), "09:30"), idempotencyKey: `${id}:${at(day(4), "09:30")}` });
+  });
+
+  test("a failed reel with a past scheduledAt stays failed with its error and is never re-armed", async () => {
+    const id = await seed({ state: "failed", plannedDate: day(-1), scheduledAt: at(day(-1), "09:00"), lastError: "boom", attemptCount: 1 });
+    expect(await movePlannedPostAction(id, { date: day(1) })).toMatchObject({ ok: true });
+    const r = await row(id);
+    expect(r).toMatchObject({ state: "failed", lastError: "boom", plannedDate: day(1), scheduledAt: at(day(1), "09:00") });
+  });
+
+  test("a draft stays a draft", async () => {
+    const id = await seed({ state: "draft" });
+    expect(await movePlannedPostAction(id, { date: day(3) })).toMatchObject({ ok: true });
+    expect(await row(id)).toMatchObject({ state: "draft", plannedDate: day(3), scheduledAt: null });
+  });
+
+  test("refuses a past day", async () => {
+    const id = await seed({});
+    expect(await movePlannedPostAction(id, { date: day(-1) })).toMatchObject({ ok: false, code: "PLAN_MOVE_TO_PAST" });
+    expect((await row(id)).plannedDate).toBe(day(2));
+  });
+
+  test("never lands a past scheduledAt on a scheduled reel", async () => {
+    const id = await seed({ plannedDate: day(0), scheduledAt: new Date(Date.now() - 60_000).toISOString() });
+    const before = await row(id);
+    expect(await movePlannedPostAction(id, { date: day(0) })).toMatchObject({ ok: false, code: "PLAN_SCHEDULE_IN_PAST" });
+    expect(await row(id)).toEqual(before);
+  });
+
+  test("undo restores the exact prior date, time and scheduledAt through the same action", async () => {
+    const id = await seed({ plannedTime: "07:15", scheduledAt: at(day(2), "07:15") });
+    const moved = await movePlannedPostAction(id, { date: day(5) });
+    if (!moved.ok) throw new Error(moved.error);
+    expect(await movePlannedPostAction(id, { restore: moved.prior })).toMatchObject({ ok: true });
+    expect(await row(id)).toMatchObject({ state: "scheduled", plannedDate: day(2), plannedTime: "07:15", scheduledAt: at(day(2), "07:15") });
+  });
+
+  test("undo is refused once the reel was published in the meantime", async () => {
+    const id = await seed({ scheduledAt: at(day(2), "09:00") });
+    const moved = await movePlannedPostAction(id, { date: day(3) });
+    if (!moved.ok) throw new Error(moved.error);
+    await db.update(tables.plannedPosts).set({ state: "published" }).where(eq(tables.plannedPosts.id, id));
+    expect(await movePlannedPostAction(id, { restore: moved.prior })).toMatchObject({ ok: false, code: "PLAN_LOCKED" });
+    expect(await row(id)).toMatchObject({ state: "published", plannedDate: day(3) });
   });
 });
