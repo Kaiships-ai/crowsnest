@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Persona, Ideas, Vault and the old /mine were folded away; old links land on Tuần này. `/?tab=...`
-  // (the old Dashboard) is handled in the landing page, since a redirect here would carry
+  // (the old Dashboard) is handled in src/proxy.ts, since a redirect here would carry
   // the query along. `/sources` is the Nguồn entry; its first tab is the Feed.
   async redirects() {
     return [

@@ -19,9 +19,6 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 // watched run finishes; the real implementations throw outside an App Router tree.
 const nav = vi.hoisted(() => ({ pathname: "/feed", search: "" }));
 vi.mock("next/navigation", () => ({
-  redirect: (url: string) => {
-    throw new Error(`NEXT_REDIRECT ${url}`);
-  },
   useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
   usePathname: () => nav.pathname,
   useSearchParams: () => new URLSearchParams(nav.search),
@@ -55,11 +52,10 @@ vi.mock("@/components/sync/use-sync-progress", () => ({
   }),
 }));
 
-vi.mock("@/components/week/week-tab", () => ({ WeekTab: () => null }));
-
 import { Sidebar } from "./sidebar";
 import { NAV_ITEMS } from "./nav-items";
-import WeekPage from "@/app/(shell)/(loaded)/page";
+import { NextRequest } from "next/server";
+import { proxy } from "@/proxy";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
@@ -136,7 +132,13 @@ describe("folded routes redirect to Tuần này", () => {
     expect(rules.every((r) => r.permanent === false)).toBe(true);
   });
 
-  test.each(["overview", "calendar", "reels"])("/?tab=%s redirects to / without the query", async (tab) => {
-    await expect(WeekPage({ searchParams: Promise.resolve({ tab }) })).rejects.toThrow("NEXT_REDIRECT /");
+  test.each(["overview", "calendar", "reels"])("/?tab=%s redirects to / without the query", (tab) => {
+    const res = proxy(new NextRequest(`http://localhost/?tab=${tab}&month=2026-09`));
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost/");
+  });
+
+  test("/ with no tab passes through", () => {
+    expect(proxy(new NextRequest("http://localhost/")).headers.get("location")).toBeNull();
   });
 });
