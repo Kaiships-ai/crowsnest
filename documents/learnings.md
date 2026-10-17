@@ -18,7 +18,7 @@ guardrail mis-routed this class", "this test shape kept passing against broken c
 | Date | Component | Class | Root cause (one line) | Fix | Guardrail note |
 | --- | --- | --- | --- | --- | --- |
 | 2026-09-29 | mine | auth | Meta tags nearly every Graph error `type: OAuthException` (an unsupported metric is code 100, a refusal code 10), so keying auth on the type ended a measurement run before the core-set fallback | classify by HTTP 401 or code 190/102, rate limit (429, 4/17/32/613) checked first, in `src/server/graph/client.ts` | n/a, found in Phase 4 build |
-| 2026-09-29 | mine | logic | `loading.tsx` streams its segment, so `redirect()` in a page under `(loaded)` arrived as a 200 with a meta refresh, not a 307 | `/mine` became a route handler, `src/app/(shell)/(loaded)/mine/route.ts`; assert the HTTP status, not the final URL | n/a, found in Phase 4 build |
+| 2026-09-29 | mine | logic | `loading.tsx` streams its segment, so `redirect()` in a page under `(loaded)` arrived as a 200 with a meta refresh, not a 307 | `/mine` became a route handler (now a `next.config.ts` redirect); assert the HTTP status, not the final URL | n/a, found in Phase 4 build |
 | 2026-09-29 | mine | test | Browse-e2e rows sat 🟡 "would mutate the seeded db" because they were driven against a real database | per-journey seed variants in `scripts/e2e/mine-seed.ts` over a temp DB copy on a spare-port production server made every offline row runnable | n/a, Phase 4b |
 
 Columns:

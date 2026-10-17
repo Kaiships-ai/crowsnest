@@ -9,6 +9,7 @@
 | 4 | The quick preview sheet | Read-only panel over the feed showing one video's details | ● | `src/components/feed/quick-preview-sheet.tsx`, `preview-action.ts` | FEED-Q3 |
 | 5 | The keep this post button | One-row-per-video toggle that saves a post to a shortlist | ● | `src/components/video/save-post-button.tsx`, `saved-post-actions.ts` | none |
 | 6 | The save to vault dialog | Lifts a hook or style template out of an analysis into a reusable vault item | ● | `vault-actions.ts` | none |
+| 8 | Nguồn tabs | Feed, Kênh, and Khám phá are link tabs over one section; the Kênh empty state has two exits | ● | `src/components/layout/section-tabs.tsx`, `src/components/channels/kanban-board.tsx` | none |
 | 7 | The video detail page | Two-column study surface for one video, with arrow-key navigation to neighbours | ● | `src/app/(shell)/feed/[videoId]/page.tsx`, `src/components/video/video-detail.tsx` | B-10 |
 
 ## Behavior notes
@@ -176,6 +177,15 @@ Not checkable by hand:
 - Whether the recently viewed write reliably lands when the page is opened and immediately navigated away from.
 - Whether a neighbour move during a player download in flight lets the download complete server-side and the new page reflect it.
 - The root cause of `notFound()` returning 200 rather than 404 on this route.
+
+### Nguồn tabs
+
+| ID | P | Needs | Claim | Setup | Steps | Expected | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| SRC-01 | P1 | mouse | Nguồn shows three link tabs, Feed `data-testid="sources-tab-feed"`, Kênh `sources-tab-channels`, Khám phá `sources-tab-discover`, and the current one carries `aria-current="page"` ([Nguồn tabs](#built-features)). | Any Nguồn page. | 1. Press each tab in turn. | The URL is `/feed`, `/channels`, `/channels/discover`; the pressed tab is current. | not run |
+| SRC-02 | P2 | mouse | `/sources` redirects to `/feed` ([Nguồn tabs](#built-features)). | Dev server up. | 1. Open `/sources`. | The browser lands on `/feed`. | not run |
+| SRC-03 | P2 | mouse | A Kênh page with no channels offers two exits, add a channel and "Chọn từ Khám phá" (`data-testid="channels-empty-discover"`), which opens `/channels/discover` ([Nguồn tabs](#built-features)). | A database with no tracked channels. | 1. Open `/channels`.<br>2. Press `data-testid="channels-empty-discover"`. | Both exits show; the second lands on `/channels/discover`. | not run |
+| SRC-04 | P2 | Graph token invalid | A rejected Graph token shows `data-testid="graph-token-line"` on the feed, Kênh, and Khám phá pages ([Nguồn tabs](#built-features)). | Graph token rejected. | 1. Open `/feed`, `/channels`, `/channels/discover`. | The red line shows on each and links to `/settings#graph-api`. | not run |
 
 ## 2. route and action
 

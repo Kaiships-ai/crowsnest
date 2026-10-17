@@ -13,10 +13,12 @@ Work that outlives a single request runs inside the Next server as timers and de
 
 A "Run" is not a table. `src/server/queries/runs.ts` unifies `sync_jobs` and `remix_runs` into one read for the Runs list and detail pages.
 
+Both views live under Cài đặt, in the Nhật ký sự cố tab: Log at `/logs` and Lần chạy at `/runs`. The Log view shows warn and error by default and adds info when "Show everything" is on. When the cached Graph token state is `auth_failed` or `permission_denied`, Tuần này and the Nguồn pages show one line (`src/components/status/graph-token-line.tsx`) that links to the Graph API card in Cài đặt; Check connection there clears it.
+
 ## Boundaries
 
 - Owns: `src/server/services/sync-engine.ts`, `sync-scheduler.ts`, `publish-scheduler.ts`, `own-measure-scheduler.ts`, `frame-pass-runner.ts`, `src/server/runs/sla.ts`, `src/server/notifications/`, `src/server/logs/`, `src/server/queries/failure-surface.ts`, `src/components/sync/`, `src/components/runs/`.
-- Called by: `server.ts` (boots the three schedulers), server actions (manual sync, cancel, retry), the shell layout (failure strip), `/api/runs/stream` (server-sent events refreshed every 2 seconds).
+- Called by: `server.ts` (boots the three schedulers), server actions (manual sync, cancel, retry), the shell layout (failure strip), the Cài đặt tabs (Log and Lần chạy), `/api/runs/stream` (server-sent events refreshed every 2 seconds).
 - Calls: the Instagram sidecar, the Graph API, the local `claude` CLI (frame pass). See [external-services](external-services.md).
 
 ## The jobs

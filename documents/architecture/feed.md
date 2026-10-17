@@ -1,6 +1,6 @@
 # Feed
 
-The feed is the front door of the core loop and the app's landing page at `/feed`: a ranked page of outlier posts from tracked channels, scanned to find something worth remixing. It is a direct server read of the local database, so it renders even when the Graph token or the sidecar are down. Around the grid sit the filter bar with saved views, the quick preview sheet, and the video detail page at `/feed/[videoId]`, where the keep-this-post and save-to-vault actions live.
+The feed is the front door of the core loop and the first tab of Nguồn at `/feed` (Tuần này is the landing page at `/`): a ranked page of outlier posts from tracked channels, scanned to find something worth remixing. It is a direct server read of the local database, so it renders even when the Graph token or the sidecar are down. Around the grid sit the filter bar with saved views, the quick preview sheet, and the video detail page at `/feed/[videoId]`, where the keep-this-post and save-to-vault actions live.
 
 ## Data it holds
 
@@ -15,8 +15,8 @@ Tables are defined in `src/server/db/schema.ts`.
 ## Boundaries
 
 - Owns: `src/app/(shell)/feed/` (list page and detail page), `src/lib/feed-filters.ts`, `src/server/queries/feed.ts`, `src/server/queries/video.ts`, `src/server/queries/preview-action.ts`, `src/components/feed/`, `src/components/video/`, and the saved view, saved post, and vault actions in `src/server/actions/`.
-- Called by: the app shell (landing route), dashboard recently viewed links, channel grids, similar-outlier cards, and vault cards linking to a detail page.
-- Calls: the remix studio and vault (links only), the analyze part's output (`rowToAnalysis`), and `importReelByUrl` in `src/server/services/sync-engine.ts` (yt-dlp provider) for Add post URL. The remix route under `feed/[videoId]/remix/` shares the prefix but belongs to remix.
+- Called by: the Nguồn tabs (`src/components/layout/section-tabs.tsx`), channel grids, similar-outlier cards, and the week screen.
+- Calls: the remix studio (links only), the analyze part's output (`rowToAnalysis`), and `importReelByUrl` in `src/server/services/sync-engine.ts` (yt-dlp provider) for Add post URL. The remix route under `feed/[videoId]/remix/` shares the prefix but belongs to remix.
 
 ## Invariants
 
