@@ -2,16 +2,24 @@ import { beforeAll, expect, test } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { eq } from "drizzle-orm";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
+import os from "node:os";
+import path from "node:path";
 
 // A real client<->server round trip over the SDK's in-memory transport, instead of
 // reaching into the private _registeredTools registry the other tests use (ENH-2). A
 // round trip is what would have caught the "structuredContent must be a record" defect:
 // the SDK validates the wire shape here, the internal registry call does not.
 let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
+let handleMcpRequest: typeof import("./http")["handleMcpRequest"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 
 beforeAll(async () => {
+  process.env.MEDIA_ROOT ??= mkdtempSync(path.join(os.tmpdir(), "crowsnest-media-"));
   ({ buildMcpServer } = await import("./mcp-server"));
+  ({ handleMcpRequest } = await import("./http"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   migrate();
 });
@@ -49,6 +57,7 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_remix_variants",
       "crowsnest_remix_save_script",
       "crowsnest_set_plan_fields",
+      "crowsnest_attach_video",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
@@ -202,4 +211,89 @@ test("crowsnest_set_plan_fields sets keyword and guide link, crowsnest_plans rea
 
   const retake = await client.callTool({ name: "crowsnest_set_plan_fields", arguments: { postId: b, keyword: "plugin" } });
   expect(retake.isError).not.toBe(true);
+});
+
+test("crowsnest_attach_video attaches a real mp4, dedupes the asset, and refuses an unknown or published plan", async () => {
+  const { db, tables, newId, nowIso } = await import("@/server/db");
+  const fixture = path.join(__dirname, "..", "media", "__fixtures__", "tiny.mp4");
+  const [a, b, done] = [newId(), newId(), newId()];
+  await db.insert(tables.plannedPosts).values([
+    { id: a, state: "draft", title: "A", createdAt: nowIso(), updatedAt: nowIso() },
+    { id: b, state: "draft", title: "B", createdAt: nowIso(), updatedAt: nowIso() },
+    { id: done, state: "published", title: "Done", createdAt: nowIso(), updatedAt: nowIso() },
+  ]);
+  const client = await connectedClient();
+  const assetsBefore = (await db.select().from(tables.mediaAssets)).length;
+
+  const attached = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: fixture } });
+  expect(attached.isError).not.toBe(true);
+  const assetId = (attached.structuredContent as { videoAssetId: string | null }).videoAssetId;
+  expect(assetId).toEqual(expect.any(String));
+
+  await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: b, path: fixture } });
+  const [rowB] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, b));
+  expect(rowB.videoAssetId).toBe(assetId);
+
+  const noPlan = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: "no-such-plan", path: fixture } });
+  expect((noPlan.structuredContent as { code: string }).code).toBe("PLAN_NOT_FOUND");
+
+  const locked = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: done, path: fixture } });
+  expect((locked.structuredContent as { code: string }).code).toBe("PLAN_LOCKED");
+
+  const [doneRow] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, done));
+  expect(doneRow.videoAssetId).toBeNull();
+
+  const relative = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: path.relative(process.cwd(), fixture) } });
+  expect(relative.isError).toBe(true);
+
+  const empty = path.join(mkdtempSync(path.join(os.tmpdir(), "crowsnest-empty-")), "empty.mp4");
+  writeFileSync(empty, "");
+  const emptyRes = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: empty } });
+  expect((emptyRes.structuredContent as { code: string }).code).toBe("PLAN_EMPTY_FILE");
+
+  const missing = await client.callTool({ name: "crowsnest_attach_video", arguments: { postId: a, path: "/no/such/file.mp4" } });
+  expect((missing.structuredContent as { code: string }).code).toBe("PLAN_FILE_MISSING");
+
+  expect((await db.select().from(tables.mediaAssets)).length).toBe(assetsBefore + 1);
+});
+
+test("/api/mcp refuses a non-local Host or Origin and serves a local client", async () => {
+  const server = http.createServer((req, res) => void handleMcpRequest(req, res));
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  const send = (headers: Record<string, string>, method = "POST") =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = http.request(
+        { port, path: "/api/mcp", method, headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers } },
+        (res) => {
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", (c: string) => (body += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+        },
+      );
+      req.on("error", reject);
+      req.end(method === "POST" ? JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) : undefined);
+    });
+  const call = async (headers: Record<string, string>, method?: string) => (await send(headers, method)).status;
+  try {
+    expect(await call({ host: `localhost:${port}` })).toBe(200);
+    expect(await call({ host: `[::1]:${port}`, origin: `http://127.0.0.1:${port}` })).toBe(200);
+    expect(await call({ host: "evil.example" })).toBe(403);
+    expect(await call({ host: `localhost.evil.example:${port}` })).toBe(403);
+    expect(await call({ host: `localhost:${port}`, origin: "http://evil.example" })).toBe(403);
+    expect(await call({ host: `localhost:${port}`, origin: "null" })).toBe(403);
+    expect(await call({ host: `LOCALHOST:${port}` })).not.toBe(403);
+    expect(await call({ host: "[::1]" })).toBe(200);
+    expect(await call({ host: "evil.example" }, "GET")).toBe(403);
+    expect(await call({ host: "evil.example" }, "DELETE")).toBe(403);
+    const refused = await send({ host: "evil.example" });
+    expect(JSON.parse(refused.body)).toEqual({
+      jsonrpc: "2.0",
+      error: { code: -32000, message: "crowsnest MCP only answers local clients." },
+      id: null,
+    });
+  } finally {
+    server.close();
+  }
 });

@@ -635,6 +635,41 @@ describe("uploadPlanVideoAction", () => {
     expect(row.videoAssetId).not.toBeNull();
   });
 
+  test("refuses an oversize, empty, or unplanned upload before reading its bytes", async () => {
+    const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
+    const upload = async (planId: string, size: number) => {
+      const file = new File([Buffer.from("x")], "clip.mp4", { type: "video/mp4" });
+      Object.defineProperty(file, "size", { value: size });
+      const read = vi.spyOn(file, "arrayBuffer");
+      const fd = new FormData();
+      fd.append("file", file);
+      const result = await uploadPlanVideoAction(planId, fd);
+      expect(read).not.toHaveBeenCalled();
+      return result;
+    };
+    expect(await upload(created.id, 200 * 1024 * 1024 + 1)).toMatchObject({ code: "PLAN_FILE_TOO_LARGE" });
+    expect(await upload(created.id, 0)).toMatchObject({ code: "PLAN_EMPTY_FILE" });
+    expect(await upload("no-such-plan", 10)).toMatchObject({ code: "PLAN_NOT_FOUND" });
+  });
+
+  test("refuses an upload to a published plan and keeps its video", async () => {
+    const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
+    const mp4 = new Uint8Array([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]);
+    const send = () => {
+      const fd = new FormData();
+      fd.append("file", new File([mp4], "clip.mp4", { type: "video/mp4" }));
+      return uploadPlanVideoAction(created.id, fd);
+    };
+    expect(await send()).toEqual({ ok: true });
+    const [before] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    await db.update(tables.plannedPosts).set({ state: "published" }).where(eq(tables.plannedPosts.id, created.id));
+    mp4[11] = 0x6e;
+
+    expect(await send()).toMatchObject({ ok: false, code: "PLAN_LOCKED" });
+    const [after] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.id, created.id));
+    expect(after.videoAssetId).toBe(before.videoAssetId);
+  });
+
   test("rejects a non-mp4 file renamed to .mp4 (no ftyp signature)", async () => {
     const created = (await createPlannedPostAction({ title: "Plan" })) as { ok: true; id: string };
     const fd = new FormData();

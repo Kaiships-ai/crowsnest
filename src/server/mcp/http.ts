@@ -24,7 +24,29 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
   }
 }
 
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+function isLocalHost(host: string | undefined): boolean {
+  if (!host) return false;
+  try {
+    return LOCAL_HOSTS.has(new URL(`http://${host}`).hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isLocalRequest(req: IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (origin !== undefined && !isLocalHost(URL.canParse(origin) ? new URL(origin).host : undefined)) return false;
+  return isLocalHost(req.headers.host);
+}
+
 export async function handleMcpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  if (!isLocalRequest(req)) {
+    res.writeHead(403, { "content-type": "application/json" });
+    res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message: "crowsnest MCP only answers local clients." }, id: null }));
+    return;
+  }
   try {
     const body = req.method === "POST" ? await readBody(req) : undefined;
     const server = buildMcpServer();

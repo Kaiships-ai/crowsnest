@@ -8,7 +8,7 @@ import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { isGraphConfigured } from "../graph/client";
-import { getAssetStore } from "../media/asset-store";
+import { attachPlanVideo, checkPlanTakesVideo, checkVideoSize } from "../media/video-file";
 import { getStorageProvider } from "../publish/storage-provider";
 import { scriptExists, type PlannedPostState } from "../queries/planned-posts";
 import { publishPlannedPost } from "../services/publish-post";
@@ -342,56 +342,23 @@ const CAPTION_MAX = 2200;
 /** A `datetime-local` value ("YYYY-MM-DDTHH:MM"), the only schedule input the UI sends. */
 const SCHEDULE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 
-/** Upper bound on an uploaded video, kept in step with serverActions.bodySizeLimit. */
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024;
-
-/**
- * Attaches an uploaded mp4 to a plan. The bytes arrive as a `File` in `FormData` (the
- * native Server-Action file convention — see node_modules/next/dist/docs mutating-data),
- * are written to a temp file, then handed to the content-addressed media store
- * (`getAssetStore().put`) so the same seam that ingests rendered media owns this too. No
- * new media infra. Rejects anything that is not an mp4.
- */
 export async function uploadPlanVideoAction(id: string, formData: FormData): Promise<SimpleResult> {
+  const file = formData.get("file");
+  if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
+  const size = checkVideoSize(file.size);
+  if (!size.ok) return size;
+  const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);
   try {
-    const plan = await getPlan(id);
-    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-
-    const file = formData.get("file");
-    if (!(file instanceof File)) return { ok: false, error: "No file was uploaded.", code: "PLAN_NO_FILE" };
-    if (file.size === 0) return { ok: false, error: "That video file is empty.", code: "PLAN_EMPTY_FILE" };
-    // Keep this ceiling in step with serverActions.bodySizeLimit in next.config.ts.
-    if (file.size > MAX_UPLOAD_BYTES) {
-      return { ok: false, error: "That video is too large. The limit is 200 MB.", code: "PLAN_FILE_TOO_LARGE" };
-    }
-    // The filename and Content-Type are both client-set, so a fast reject on them only
-    // catches honest mistakes; the real check is the ISO base media file signature below.
-    const looksMp4 = file.type === "video/mp4" || file.name.toLowerCase().endsWith(".mp4");
-    if (!looksMp4) return { ok: false, error: "Only an .mp4 video can be published.", code: "PLAN_NOT_MP4" };
-
-    const bytes = Buffer.from(await file.arrayBuffer());
-    // ISO base media format (mp4) carries an "ftyp" box at offset 4. Sniff it so bytes
-    // renamed to .mp4 are rejected here rather than surfacing as an opaque Graph
-    // container failure once Instagram tries to fetch the video.
-    if (bytes.length < 12 || bytes.toString("ascii", 4, 8) !== "ftyp") {
-      return { ok: false, error: "That file is not a valid mp4 video.", code: "PLAN_NOT_MP4" };
-    }
-    // ponytail: buffer the whole file then copy it into the store. Round-0 mp4s are small
-    // enough; if large uploads ever land, stream File.stream() straight to the temp path.
-    const tmpPath = path.join(os.tmpdir(), `crowsnest-plan-upload-${newId()}.mp4`);
-    await writeFile(tmpPath, bytes);
-    let assetId: string;
-    try {
-      assetId = await getAssetStore().put({ path: tmpPath }, "video", "video/mp4");
-    } finally {
-      await rm(tmpPath, { force: true });
-    }
-
-    await db.update(tables.plannedPosts).set({ videoAssetId: assetId, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/");
-    return { ok: true };
+    const takes = await checkPlanTakesVideo(id);
+    if (!takes.ok) return takes;
+    await writeFile(tmpPath, Buffer.from(await file.arrayBuffer()));
+    const result = await attachPlanVideo(id, tmpPath);
+    if (result.ok) revalidatePath("/");
+    return result;
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  } finally {
+    await rm(tmpPath, { force: true });
   }
 }
 
