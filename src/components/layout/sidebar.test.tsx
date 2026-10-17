@@ -12,8 +12,10 @@
  * every nav group being rendered.
  */
 
-import { render, within } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { cleanup, render, within } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+
+afterEach(cleanup);
 
 // The rail calls usePathname for its active marker and useRouter().refresh() when a
 // watched run finishes; the real implementations throw outside an App Router tree.
