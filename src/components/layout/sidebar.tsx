@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,8 +32,12 @@ import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SyncProgress, SyncStatusValue } from "@/server/services/sync-types";
 
-function isNavItemActive(pathname: string, href: string) {
-  if (href === "/") return pathname === "/";
+/** `current` is the pathname plus `?tab=` when the landing route carries one, so Tuần này
+ *  ("/") and the Dashboard ("/?tab=...") light separately. */
+function isNavItemActive(current: string, href: string) {
+  if (href === "/") return current === "/";
+  if (href.startsWith("/?tab=")) return current.startsWith("/?tab=");
+  const pathname = current;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -154,7 +158,8 @@ export function Sidebar({ getStartedItems, ideasInboxCount, feedOutlierCount }: 
     setLastPathname(pathname);
     setPendingHref(null);
   }
-  const displayHref = pendingHref ?? pathname;
+  const tab = useSearchParams().get("tab");
+  const displayHref = pendingHref ?? (pathname === "/" && tab ? `/?tab=${tab}` : pathname);
   const [panelOpen, setPanelOpen] = useState(false);
   // No `channelId`: this rail speaks for the whole library, and the poll adopts whatever
   // job is latest — so a run started on a channel page, in another tab, or by the

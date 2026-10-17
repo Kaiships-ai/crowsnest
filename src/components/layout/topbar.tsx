@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 
 import { useCommandMenu } from "@/components/layout/command-menu";
@@ -27,7 +27,7 @@ import type { FailureStrip as FailureStripData } from "@/server/queries/failure-
  * renders a Topbar at all.
  */
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
-  { pattern: /^\/$/, title: "Dashboard" },
+  { pattern: /^\/$/, title: "Tuần này" },
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix studio" },
   { pattern: /^\/feed\/[^/]+$/, title: "Post detail" },
   { pattern: /^\/feed$/, title: "Feed" },
@@ -60,7 +60,8 @@ export interface TopbarProps {
 export function Topbar({ strip }: TopbarProps) {
   const pathname = usePathname();
   const { setOpen } = useCommandMenu();
-  const title = getPageTitle(pathname);
+  const tab = useSearchParams().get("tab");
+  const title = pathname === "/" && tab ? "Dashboard" : getPageTitle(pathname);
 
   return (
     <div className="flex shrink-0 flex-col border-b border-border">
