@@ -60,6 +60,10 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_attach_video",
       "crowsnest_save_funnel",
       "crowsnest_funnel",
+      "crowsnest_propose_plan",
+      "crowsnest_plan_versions",
+      "crowsnest_approve_plan",
+      "crowsnest_undo_plan",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
@@ -322,4 +326,32 @@ test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest
   const read = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "funnelkw" } });
   const rows = (read.structuredContent as { data: { keyword: string; value: number; plan: unknown }[] }).data;
   expect(rows).toEqual([expect.objectContaining({ value: 9, plan: { id, title: "Funnel" } })]);
+});
+
+test("plan versions propose, diff, approve and undo over the wire", async () => {
+  const client = await connectedClient();
+  const ref = { period: "week", periodKey: "2026-W30" };
+  const call = (name: string, args: Record<string, unknown>) => client.callTool({ name, arguments: args });
+  const reel = (key: string, title: string) => ({ key, title, date: "2026-07-21" });
+
+  const bad = await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [] });
+  expect(bad).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const badPeriod = await call("crowsnest_propose_plan", { period: "year", periodKey: "2026", agent: "claude", reels: [reel("a", "A")] });
+  expect(badPeriod).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const noTitle = await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [{ key: "a" }] });
+  expect(noTitle).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const noAgent = await call("crowsnest_propose_plan", { ...ref });
+  expect(noAgent).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
+  const v1 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B")] })).structuredContent as { id: string; version: number };
+  const v2 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B2")] })).structuredContent as { id: string };
+  expect(v1.version).toBe(1);
+
+  const versions = (await call("crowsnest_plan_versions", ref)).structuredContent as { data: { version: number; status: string; diff: string }[] };
+  expect(versions.data.map((v) => [v.version, v.status, v.diff])).toEqual([[2, "proposed", "vs v1: changed Hook B2 (title)"], [1, "proposed", "first version"]]);
+
+  expect((await call("crowsnest_approve_plan", { versionId: v1.id })).structuredContent).toMatchObject({ ok: true, created: 2 });
+  expect((await call("crowsnest_approve_plan", { versionId: v2.id })).structuredContent).toMatchObject({ ok: true, updated: 2, created: 0 });
+  expect((await call("crowsnest_undo_plan", ref)).structuredContent).toMatchObject({ ok: true, live: { id: v1.id, version: 1 } });
+  const undoNone = await call("crowsnest_undo_plan", { period: "week", periodKey: "2026-W31" });
+  expect(undoNone.structuredContent).toMatchObject({ code: "NOTHING_TO_UNDO" });
 });

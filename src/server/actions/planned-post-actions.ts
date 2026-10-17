@@ -14,6 +14,7 @@ import { scriptExists, type PlannedPostState } from "../queries/planned-posts";
 import { publishPlannedPost } from "../services/publish-post";
 import { DEFAULT_MAX_ATTEMPTS } from "../services/publish-scheduler";
 import { isVideoKind } from "../services/video-kind";
+import { approvePlanVersion, undoPlanVersion, type ApproveResult, type PlanRef, type UndoResult } from "../services/plan-versions";
 
 /**
  * Server actions backing the manual planner (V1 data contracts, contract 6). Every
@@ -557,6 +558,26 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "failed")));
     revalidatePath("/");
     return { ok: true };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+export async function approvePlanVersionAction(versionId: string): Promise<ApproveResult> {
+  try {
+    const r = approvePlanVersion(versionId);
+    if (r.ok && r.changed) revalidatePath("/");
+    return r;
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+export async function undoPlanVersionAction(ref: PlanRef): Promise<UndoResult> {
+  try {
+    const r = undoPlanVersion(ref);
+    if (r.ok) revalidatePath("/");
+    return r;
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }

@@ -35,6 +35,7 @@ import { getLastRunHealth } from "@/server/queries/runs";
 import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
 import { FUNNEL_METRICS_TEXT, getFunnel, saveFunnel } from "@/server/services/funnel";
+import { approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion } from "@/server/services/plan-versions";
 
 /**
  * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
@@ -111,7 +112,7 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads the latest value per keyword, source and metric with the plan that holds the keyword." }
+    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads the latest value per keyword, source and metric with the plan that holds the keyword. (5) PLAN a month or week: crowsnest_propose_plan stores a reel list as the next proposed version; crowsnest_plan_versions lists versions with a short diff; crowsnest_approve_plan (only when Kai says approve) makes one live and syncs its draft planned posts; crowsnest_undo_plan restores the previous live version." }
   );
 
   server.registerTool(
@@ -356,6 +357,83 @@ export function buildMcpServer(): McpServer {
       inputSchema: { keyword: z.string().max(64).optional().describe("Only this keyword, in any case.") },
     },
     async ({ keyword }) => result(getFunnel(keyword))
+  );
+
+  const periodShape = {
+    period: z.string().optional().describe("'month' or 'week'."),
+    periodKey: z.string().optional().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
+  };
+
+  server.registerTool(
+    "crowsnest_propose_plan",
+    {
+      title: "Propose a month or week plan",
+      description: "Stores a reel list as the next version of a month or week plan, status proposed. Each reel is { key, title, date?, time?, keyword?, note? }; keep a reel's key across versions so approve updates its draft instead of replacing it. An invalid list is refused and nothing is stored. Approve happens only when Kai says so.",
+      inputSchema: {
+        ...periodShape,
+        agent: z.string().optional().describe("Who proposed this plan: 'claude', 'codex', or your label."),
+        reels: z
+          .array(
+            z.object({
+              key: z.string().optional().describe("Stable id of this reel across versions, e.g. 'w44-plugin'. Keep it when you edit a reel."),
+              title: z.string().optional(),
+              date: z.string().nullable().optional().describe("YYYY-MM-DD, or null for an undated reel."),
+              time: z.string().nullable().optional().describe("HH:MM."),
+              keyword: z.string().nullable().optional().describe("Comment keyword, unique across plans, case-insensitive."),
+              note: z.string().nullable().optional(),
+            }),
+          )
+          .optional()
+          .describe("1 to 62 reels, unique keys and keywords."),
+      },
+    },
+    async (args) => {
+      const r = proposePlan(args);
+      return r.ok ? result(r) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_plan_versions",
+    {
+      title: "Plan versions with a short diff",
+      description: "Lists the newest versions of one month or week plan (limit, default 5) with status, reel count, and a one-line diff against the version before that names at most 3 added, removed, and changed reels each, then +N more. Pass version to also get that version's full reel list.",
+      inputSchema: {
+        ...periodShape,
+        version: z.number().optional().describe("Also return this version's reels."),
+        limit: z.number().optional().describe("How many versions to return, newest first, 1 to 50. Default 5. The requested version is always included."),
+      },
+    },
+    async (args) => {
+      const r = listPlanVersions(args);
+      return r.ok ? result(r.versions) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_approve_plan",
+    {
+      title: "Approve a plan version",
+      description: "Makes one plan version live, supersedes the old live one, and brings the period's draft planned posts to its reels in one transaction. Only a pristine draft (state draft; no script, video, caption, source video or magnet URL; no target length, video kind or remix session; reel fields unchanged since the last sync) is updated or removed; every other plan post is left alone and listed under kept with its reel key, a reason (not_draft, has_script, has_video, has_caption, has_source_video, has_magnet, has_settings, edited), and the reel fields not applied (all of them for a post never synced). Approving the live version again changes nothing. A reel keyword another post holds, including a kept one, returns KEYWORD_TAKEN naming that post id and reel key, with nothing changed.",
+      inputSchema: { versionId: z.string().describe("The plan version id, from crowsnest_propose_plan or crowsnest_plan_versions.") },
+    },
+    async (args) => {
+      const r = approvePlanVersion(args.versionId);
+      return r.ok ? result(r) : errorResult({ error: r.error, code: r.code });
+    }
+  );
+
+  server.registerTool(
+    "crowsnest_undo_plan",
+    {
+      title: "Undo the last plan approval",
+      description: "Restores the version that was live before the current one and brings the drafts back to it; the undone version returns to proposed. With no earlier live version it refuses with NOTHING_TO_UNDO and changes nothing. Leaves every non-pristine post alone and lists it under kept, as approve does.",
+      inputSchema: periodShape,
+    },
+    async (args) => {
+      const r = undoPlanVersion(args);
+      return r.ok ? result(r) : errorResult({ error: r.error, code: r.code });
+    }
   );
 
   server.registerTool(
