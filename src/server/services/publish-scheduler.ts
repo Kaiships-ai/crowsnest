@@ -1,6 +1,7 @@
 import { and, asc, eq, inArray, isNotNull, lt, lte } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
+import { DEFAULT_MAX_ATTEMPTS } from "@/lib/publish-attempts";
 import { publishPlannedPost, type PublishPostResult } from "./publish-post";
 
 /**
@@ -39,7 +40,7 @@ import { publishPlannedPost, type PublishPostResult } from "./publish-post";
  * tests never touch the network or (for most cases) a real database.
  */
 
-export const DEFAULT_MAX_ATTEMPTS = 3;
+export { DEFAULT_MAX_ATTEMPTS };
 
 /**
  * Only a transient failure is worth an automatic retry. A permanent one (no_video with
@@ -98,7 +99,8 @@ export interface PublishSchedulerDeps {
   /** `scheduled` rows due at or before `nowIso`, oldest first, capped at `limit`. */
   selectDueScheduled: (nowIso: string, limit: number) => Promise<{ id: string }[]>;
   /** The atomic claim: `UPDATE ... SET state='publishing' WHERE id=? AND
-   *  state='scheduled'`. Returns true iff exactly one row changed. */
+   *  state='scheduled' AND scheduledAt IS NOT NULL AND scheduledAt <= now`, so a row
+   *  cancelled or moved after the batch select is left alone. True iff one row changed. */
   claim: (id: string, nowIso: string) => Promise<boolean>;
   /** `publishing` rows whose `updatedAt` is older than `cutoffIso`, capped at `limit`
    *  (PUB-04). */
@@ -139,7 +141,14 @@ async function defaultClaim(id: string, nowIso: string): Promise<boolean> {
   const result = await db
     .update(tables.plannedPosts)
     .set({ state: "publishing", updatedAt: nowIso })
-    .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled")));
+    .where(
+      and(
+        eq(tables.plannedPosts.id, id),
+        eq(tables.plannedPosts.state, "scheduled"),
+        isNotNull(tables.plannedPosts.scheduledAt),
+        lte(tables.plannedPosts.scheduledAt, nowIso)
+      )
+    );
   return (result as { changes?: number }).changes === 1;
 }
 

@@ -17,13 +17,14 @@ import { ConfirmDialog } from "@/components/mine/confirm-dialog";
 import { PlanDialog, type ScriptOption } from "@/components/mine/plan-dialog";
 import { PublishDialog } from "@/components/mine/publish-dialog";
 import { cn } from "@/lib/utils";
+import { DEFAULT_MAX_ATTEMPTS } from "@/lib/publish-attempts";
 import {
   approvePlanVersionAction,
   cancelScheduledPublishAction,
-  createPlannedPostAction,
   deletePlannedPostAction,
   movePlannedPostAction,
   publishNowAction,
+  restorePlannedPostAction,
   retryFailedPublishAction,
   undoPlanVersionAction,
   updatePlannedPostAction,
@@ -537,21 +538,10 @@ function ReelDrawer({
       action: {
         label: <span data-testid="week-delete-undo">Hoàn tác</span>,
         onClick: async () => {
-          const back = await createPlannedPostAction({
-            id: r.id,
-            title: r.title,
-            note: r.note ?? undefined,
-            plannedDate: r.plannedDate ?? undefined,
-            plannedTime: r.plannedTime ?? undefined,
-            targetLengthSec: r.targetLengthSec ?? undefined,
-            videoKind: r.videoKind ?? undefined,
-            scriptId: r.scriptId ?? undefined,
-            remixSessionId: r.remixSessionId ?? undefined,
-            sourceVideoId: r.sourceVideoId ?? undefined,
-            state: r.state,
-          });
-          if (!back.ok) toast.error(back.error);
-          else router.refresh();
+          const back = await restorePlannedPostAction(res.snapshot);
+          if (!back.ok) return toast.error(back.error);
+          if (back.disarmed) toast.info("Đã khôi phục reel. Giờ hẹn đăng đã qua nên reel về bản nháp, hẹn lại nếu cần.");
+          router.refresh();
         },
       },
     });
@@ -693,6 +683,10 @@ function ReelDrawer({
               </span>
             ) : r.state === "publishing" ? (
               <span className="text-muted-foreground">Đang đăng.</span>
+            ) : r.state === "failed" && r.attemptCount >= DEFAULT_MAX_ATTEMPTS ? (
+              <span className="text-muted-foreground" data-testid="week-retry-exhausted">
+                Đã thử đăng {r.attemptCount} lần, hết lượt thử lại. Xem lỗi bên dưới.
+              </span>
             ) : r.state === "failed" ? (
               <Button size="sm" disabled={busy} onClick={retry} data-testid="week-retry">
                 Thử đăng lại
@@ -728,7 +722,7 @@ function ReelDrawer({
                 Duyệt đăng
               </Button>
             )}
-            {r.state === "failed" && r.lastError && <span className="text-destructive">{r.lastError}</span>}
+            {r.state === "failed" && r.lastError && <span className="break-words text-destructive [overflow-wrap:anywhere]">{r.lastError}</span>}
           </section>
 
           {r.state !== "published" && r.state !== "publishing" && (

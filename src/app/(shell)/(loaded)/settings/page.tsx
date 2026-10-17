@@ -16,7 +16,8 @@ import { SecretsSection } from "@/components/settings/secrets-section";
 import { SettingsNav, type SettingsNavGroup } from "@/components/settings/settings-nav";
 import { listAccounts } from "@/server/services/accounts";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
-import { checkGraphTokenAction } from "@/server/actions/graph-actions";
+import { isGraphConfigured, type GraphTokenStatus } from "@/server/graph/client";
+import { peekTokenStatus } from "@/server/graph/token-status";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { getAppSettingsAction } from "@/server/actions/settings-actions";
 import { getOwnChannel } from "@/server/queries/channels";
@@ -86,16 +87,12 @@ export default async function SettingsPage() {
   // ban is satisfied by construction). `getIgStatusAction` never throws — an unreachable
   // sidecar arrives as an `ok: false` result the section renders as "service isn't
   // running", which is why this Promise.all can't take the whole page down with it.
-  // `checkGraphTokenAction` is the same shape: documented to never throw, `ok: false`
-  // here would mean the action itself broke, not "no token" (that's `state:
-  // "not_configured"` inside an `ok: true` result).
-  const [ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult, stackHealth, ownChannel, ownOverview] = await Promise.all([
+  const [ytdlpPath, whisper, igStatus, latestJob, appSettings, stackHealth, ownChannel, ownOverview] = await Promise.all([
     detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp"),
     whisperAvailability(),
     getIgStatusAction(),
     getLatestSyncJob(),
     getAppSettingsAction(),
-    checkGraphTokenAction(),
     getStackHealth(),
     getOwnChannel(),
     getOwnChannelOverview(),
@@ -119,9 +116,10 @@ export default async function SettingsPage() {
   // rendered as a read failure, never as "no sync has run yet".
   const lastJob: LastSyncJobResult = latestJob.ok ? { ok: true, job: latestJob.job } : { ok: false, error: latestJob.error };
 
-  const graphStatus = graphTokenResult.ok
-    ? graphTokenResult.status
-    : { configured: false, username: null, state: "unknown" as const, message: graphTokenResult.error, checkedAt: new Date().toISOString() };
+  // Cached only: a live Graph call runs from Check connection, never from a render.
+  const graphStatus: GraphTokenStatus | null =
+    peekTokenStatus() ??
+    (isGraphConfigured() ? null : { configured: false, username: null, state: "not_configured", message: null, checkedAt: new Date().toISOString() });
 
   return (
     <>
@@ -134,7 +132,7 @@ export default async function SettingsPage() {
         <div className="flex min-w-0 flex-1 flex-col gap-8">
           <StackHealthPanel
             sidecar={classifySidecarStatus(igStatus)}
-            graph={classifyGraphStatus(graphStatus)}
+            graph={graphStatus ? classifyGraphStatus(graphStatus) : { state: "unknown", detail: "Chưa kiểm tra." }}
             lastSync={stackHealth.lastSync}
             running={stackHealth.running}
             checkedAtMs={stackHealth.checkedAtMs}

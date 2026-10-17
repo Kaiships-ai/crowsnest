@@ -18,8 +18,8 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 10 | Sync status | Live progress line while a sync runs, a failed sync links to its run | ● | `useRunStream` | none |
 | 11 | Broken Graph token line | One red line on Tuần này and Nguồn when the cached token state is `auth_failed` or `permission_denied`, linking to the Graph API card in Cài đặt; it reads the cache only. Check clears `auth_failed`; `permission_denied` clears on a good measurement or a new token | ● | `src/components/status/graph-token-line.tsx`, `week-tab.tsx` | none |
 | 12 | Old Dashboard links | Any `/?tab=` value redirects to `/` | ● | `src/proxy.ts` | none |
-| 13 | Recover a publish from the drawer | A failed reel offers "Thử đăng lại"; a reel with a publish time offers "Huỷ lịch đăng" behind a confirm and keeps its day | ● | `week-screen.tsx`, `retryFailedPublishAction`, `cancelScheduledPublishAction` | none |
-| 14 | Edit and delete a reel | "Sửa plan" opens the plan dialog; "Xoá reel" deletes with an undo toast; a publishing reel cannot be deleted | ● | `week-screen.tsx`, `plan-dialog.tsx`, `savePlanEditAction`, `deletePlannedPostAction` | none |
+| 13 | Recover a publish from the drawer | A failed reel offers "Thử đăng lại" until the attempt cap, then says why; a reel with a publish time offers "Huỷ lịch đăng" behind a confirm and goes back to draft on its day and time | ● | `week-screen.tsx`, `retryFailedPublishAction`, `cancelScheduledPublishAction` | none |
+| 14 | Edit and delete a reel | "Sửa plan" opens the plan dialog and re-dates by the move rules; "Xoá reel" deletes with an undo toast that restores every column; a publishing reel cannot be deleted | ● | `week-screen.tsx`, `plan-dialog.tsx`, `savePlanEditAction`, `deletePlannedPostAction` | none |
 
 ## Test cases
 
@@ -35,7 +35,10 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 - Sidebar Back. From `/`, open Nguồn and press Back; the rail marks Tuần này.
 - J6 broken token. With the cached Graph token state `auth_failed` or `permission_denied`, `data-testid="graph-token-line"` shows one red line on `/` and on `/feed`, `/channels`, `/channels/discover`. It links to `/settings#graph-api`; there, press `data-testid="mine-connect-check"`: an `auth_failed` line is gone on the next render once the token works. A `permission_denied` line stays until a measurement succeeds or the token is saved again. With Graph unreachable the page renders without waiting. With a missing token or a healthy one, no line shows.
 - Funnel. A reel with a keyword and saved rows shows numbers in the `data-testid="week-funnel-tile"` tiles whose `data-metric` is `dms`, `emails`, and `orders`; a metric with no row reads "chưa đo".
-- Cancel publish. On a reel with a publish time press `data-testid="week-cancel-publish"`, then `week-cancel-confirm-confirm`; the row keeps its day and `scheduled_at` is null.
+- Cancel publish. On a reel with a publish time press `data-testid="week-cancel-publish"`, then `week-cancel-confirm-confirm`; the row is `draft`, keeps `planned_date` and `planned_time`, and `scheduled_at` and `idempotency_key` are null. A scheduler tick after it claims nothing.
+- Edit a reel's date. In "Sửa plan" change the date: a failed reel stays `failed`; an armed reel's `scheduled_at` moves by the same days and `planned_time` is kept; a past date is refused.
+- Delete then undo. Press `week-delete`, then the toast's `week-delete-undo`; every column of the row equals the row before the delete. A `publishing` reel cannot be deleted.
+- Retry cap. A failed reel with `attempt_count` 3 shows `week-retry-exhausted` and no `week-retry`.
 - Retry. On a failed reel press `data-testid="week-retry"`; the row is `scheduled` with no `last_error`. With PUBLISH_DRY_RUN=1 the scheduler only dry-runs it.
 - Delete and undo. Press `data-testid="week-delete"`; the row is gone; press `week-delete-undo` in the toast; it is back on its day.
 - Edit. Press `data-testid="week-edit"`, change the title, save; the row title changes.

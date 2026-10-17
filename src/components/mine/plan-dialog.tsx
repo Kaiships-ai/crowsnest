@@ -101,7 +101,7 @@ export function PlanDialog({
         setError(result.error);
         return;
       }
-      toast.success(date ? "Planned" : "Saved as a draft");
+      toast.success(date ? "Đã lên lịch" : "Đã lưu bản nháp");
       reset();
       onOpenChange(false);
       onSaved();
@@ -127,7 +127,7 @@ export function PlanDialog({
       return;
     }
     setSaving(false);
-    toast.success("Plan updated");
+    toast.success("Đã lưu plan");
     onOpenChange(false);
     onSaved();
     router.refresh();
@@ -143,51 +143,49 @@ export function PlanDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit planned post" : "New planned post"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Sửa plan" : "Plan mới"}</DialogTitle>
           <DialogDescription>
-            Nothing here publishes or reminds. This is a dated intention, nothing more, until you mark it
-            published by hand.
+            Đổi ngày giữ nguyên giờ hẹn đăng. Bỏ trống ngày thì reel về bản nháp và huỷ lịch đăng.
           </DialogDescription>
         </DialogHeader>
 
         <FieldGroup>
           <Field>
-            <FieldLabel htmlFor="plan-title">Title</FieldLabel>
+            <FieldLabel htmlFor="plan-title">Tiêu đề</FieldLabel>
             <Input
               id="plan-title"
               data-testid="plan-dialog-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="What this post is"
+              placeholder="Reel này nói về gì"
             />
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="plan-date">Date</FieldLabel>
+            <FieldLabel htmlFor="plan-date">Ngày</FieldLabel>
             <Input id="plan-date" data-testid="plan-dialog-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <FieldDescription>Leave blank to keep it as an undated draft.</FieldDescription>
+            <FieldDescription>Bỏ trống để giữ làm bản nháp chưa có ngày.</FieldDescription>
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="plan-note">Note</FieldLabel>
-            <Textarea id="plan-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
+            <FieldLabel htmlFor="plan-note">Ghi chú</FieldLabel>
+            <Textarea id="plan-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Không bắt buộc" />
           </Field>
 
           {carriesRemix ? (
             <FieldDescription>
-              This plan carries a script from a remix run. Detaching it here isn&apos;t offered. Do that from
-              the Vault.
+              Plan này mang kịch bản từ một lượt remix, nên không gỡ kịch bản ở đây được.
             </FieldDescription>
           ) : (
             <>
               <Field>
-                <FieldLabel htmlFor="plan-script">Script</FieldLabel>
+                <FieldLabel htmlFor="plan-script">Kịch bản</FieldLabel>
                 <Select value={scriptId || "none"} onValueChange={(v) => setScriptId(!v || v === "none" ? "" : v)}>
                   <SelectTrigger id="plan-script" data-testid="plan-dialog-script">
-                    <SelectValue placeholder="No script" />
+                    <SelectValue placeholder="Chưa có kịch bản" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">No script</SelectItem>
+                    <SelectItem value="none">Chưa có kịch bản</SelectItem>
                     {scripts.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.title}
@@ -205,8 +203,8 @@ export function PlanDialog({
                     onCheckedChange={(v) => setNoScriptAck(v === true)}
                   />
                   <FieldLabel htmlFor="plan-no-script-ack" className="font-normal text-muted-foreground">
-                    I don&apos;t have a script yet. This plan will render as a note with a date, distinct from
-                    one carrying a script, and gets flagged stale after 30 days if it still has neither.
+                    Mình chưa có kịch bản. Plan sẽ hiện như một ghi chú có ngày, và bị đánh dấu cũ sau 30 ngày nếu
+                    vẫn chưa có kịch bản.
                   </FieldLabel>
                 </Field>
               )}
@@ -214,13 +212,13 @@ export function PlanDialog({
           )}
 
           <Field>
-            <FieldLabel htmlFor="plan-video-kind">Video kind</FieldLabel>
+            <FieldLabel htmlFor="plan-video-kind">Loại video</FieldLabel>
             <Select value={videoKind || "none"} onValueChange={(v) => setVideoKind(!v || v === "none" ? "" : v)}>
               <SelectTrigger id="plan-video-kind" data-testid="plan-dialog-video-kind">
-                <SelectValue placeholder="Not set" />
+                <SelectValue placeholder="Chưa chọn" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Not set</SelectItem>
+                <SelectItem value="none">Chưa chọn</SelectItem>
                 {VIDEO_KINDS.map((k) => (
                   <SelectItem key={k} value={k}>
                     {k}
@@ -235,10 +233,10 @@ export function PlanDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
+            Huỷ
           </Button>
           <Button onClick={save} data-testid="plan-dialog-save" disabled={!canSave || saving}>
-            {saving ? "Saving…" : isEdit ? "Save changes" : "Create plan"}
+            {saving ? "Đang lưu…" : isEdit ? "Lưu thay đổi" : "Tạo plan"}
           </Button>
         </DialogFooter>
       </DialogContent>

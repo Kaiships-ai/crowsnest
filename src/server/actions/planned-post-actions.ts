@@ -3,7 +3,7 @@
 import { rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
@@ -12,7 +12,7 @@ import { attachPlanVideo, checkPlanTakesVideo, checkVideoSize } from "../media/v
 import { getStorageProvider } from "../publish/storage-provider";
 import { scriptExists, type PlannedPostState } from "../queries/planned-posts";
 import { publishPlannedPost } from "../services/publish-post";
-import { DEFAULT_MAX_ATTEMPTS } from "../services/publish-scheduler";
+import { DEFAULT_MAX_ATTEMPTS } from "@/lib/publish-attempts";
 import { isVideoKind } from "../services/video-kind";
 import { approvePlanVersion, undoPlanVersion, type ApproveResult, type PlanRef, type UndoResult } from "../services/plan-versions";
 
@@ -171,6 +171,7 @@ export async function savePlanEditAction(
   try {
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    if (plan.state === "published" || plan.state === "publishing") return LOCKED;
 
     // Validate everything up front, before any write, so a bad input can never leave a partial edit.
     const title = edit.title !== undefined ? edit.title.trim() : undefined;
@@ -178,38 +179,30 @@ export async function savePlanEditAction(
     if (edit.videoKind !== undefined && edit.videoKind !== null && !isVideoKind(edit.videoKind)) {
       return { ok: false, error: "Unknown video_kind", code: "BAD_VIDEO_KIND" };
     }
-    if (typeof edit.date === "string" && !isValidDate(edit.date)) {
-      return { ok: false, error: "That date is not a real calendar date.", code: "PLAN_INVALID_DATE" };
+    let day: DayChange | undefined;
+    if (edit.date !== undefined && edit.date !== (plan.plannedDate ?? null)) {
+      const r = dayChange(plan, edit.date);
+      if (!r.ok) return r;
+      day = r.change;
     }
     if (typeof edit.scriptId === "string" && !(await scriptExists(edit.scriptId))) {
       return { ok: false, error: "That script no longer exists.", code: "SCRIPT_NOT_FOUND" };
     }
 
-    const now = nowIso();
-    db.transaction((tx) => {
-      const fields: Record<string, unknown> = { updatedAt: now };
-      if (title !== undefined) fields.title = title;
-      if (edit.note !== undefined) fields.note = edit.note.trim() || null;
-      if (edit.targetLengthSec !== undefined) fields.targetLengthSec = edit.targetLengthSec;
-      if (edit.videoKind !== undefined) fields.videoKind = edit.videoKind;
-      tx.update(tables.plannedPosts).set(fields).where(eq(tables.plannedPosts.id, id)).run();
+    const fields: Partial<PlanInsert> = { updatedAt: nowIso(), ...day };
+    if (title !== undefined) fields.title = title;
+    if (edit.note !== undefined) fields.note = edit.note.trim() || null;
+    if (edit.targetLengthSec !== undefined) fields.targetLengthSec = edit.targetLengthSec;
+    if (edit.videoKind !== undefined) fields.videoKind = edit.videoKind;
+    if (edit.scriptId === null) Object.assign(fields, { scriptId: null, scriptDetachedNote: edit.scriptDetachNote ?? null });
+    else if (edit.scriptId !== undefined) Object.assign(fields, { scriptId: edit.scriptId, scriptDetachedNote: null });
 
-      if (edit.date !== undefined) {
-        const dateSet =
-          edit.date === null
-            ? { state: "draft", plannedDate: null, plannedTime: null, updatedAt: now }
-            : { state: "scheduled", plannedDate: edit.date, plannedTime: null, updatedAt: now };
-        tx.update(tables.plannedPosts).set(dateSet).where(eq(tables.plannedPosts.id, id)).run();
-      }
-
-      if (edit.scriptId !== undefined) {
-        const scriptSet =
-          edit.scriptId === null
-            ? { scriptId: null, scriptDetachedNote: edit.scriptDetachNote ?? null, updatedAt: now }
-            : { scriptId: edit.scriptId, scriptDetachedNote: null, updatedAt: now };
-        tx.update(tables.plannedPosts).set(scriptSet).where(eq(tables.plannedPosts.id, id)).run();
-      }
-    });
+    const res = await db
+      .update(tables.plannedPosts)
+      .set(fields)
+      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, plan.state)));
+    if ((res as { changes?: number }).changes !== 1) return CHANGED;
+    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -249,6 +242,40 @@ function shiftToDate(iso: string, date: string): string {
   return new Date(y, m - 1, d, at.getHours(), at.getMinutes(), at.getSeconds()).toISOString();
 }
 
+type PlanRow = typeof tables.plannedPosts.$inferSelect;
+type PlanInsert = typeof tables.plannedPosts.$inferInsert;
+type DayChange = MoveSnapshot & { state: string; idempotencyKey: string | null };
+
+const LOCKED = { ok: false, error: "Reel đã đăng hoặc đang đăng, không sửa được.", code: "PLAN_LOCKED" } as const;
+const CHANGED = { ok: false, error: "Reel vừa đổi trạng thái. Tải lại trang.", code: "PLAN_LOCKED" } as const;
+
+/**
+ * The day rules every re-date shares (drag, day select, Sửa plan). The state never
+ * changes, except that blanking the day of a scheduled reel returns it to draft. An armed
+ * `scheduledAt` moves with the day at the same local time, `plannedTime` is kept, a past
+ * day is refused, and a past `scheduledAt` is never written onto a scheduled row.
+ */
+function dayChange(plan: PlanRow, date: string | null): { ok: true; change: DayChange } | { ok: false; error: string; code: string } {
+  if (date === null) {
+    const state = plan.state === "scheduled" ? "draft" : plan.state;
+    return { ok: true, change: { state, plannedDate: null, plannedTime: null, scheduledAt: null, idempotencyKey: null } };
+  }
+  if (!isValidDate(date)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
+  if (date < localYmd(new Date())) return { ok: false, error: "Không chuyển reel về ngày đã qua.", code: "PLAN_MOVE_TO_PAST" };
+  const change = armed(plan, { plannedDate: date, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt && shiftToDate(plan.scheduledAt, date) });
+  return armsInPast(change) ? PAST_ARM : { ok: true, change };
+}
+
+const PAST_ARM = { ok: false, error: "Giờ đăng mới đã qua. Chọn ngày khác.", code: "PLAN_SCHEDULE_IN_PAST" } as const;
+
+function armsInPast(next: DayChange): boolean {
+  return next.state === "scheduled" && !!next.scheduledAt && Date.parse(next.scheduledAt) <= Date.now();
+}
+
+function armed(plan: PlanRow, next: MoveSnapshot): DayChange {
+  return { ...next, state: plan.state, idempotencyKey: next.scheduledAt ? `${plan.id}:${next.scheduledAt}` : null };
+}
+
 /**
  * The one way a reel changes day: drag, the day select, and their undo all land here.
  * It never changes `state` (a failed reel stays failed with its error), refuses a row
@@ -264,30 +291,24 @@ export async function movePlannedPostAction(
   try {
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    if (plan.state === "published" || plan.state === "publishing") {
-      return { ok: false, error: "Reel đã đăng hoặc đang đăng, không chuyển ngày được.", code: "PLAN_LOCKED" };
-    }
+    if (plan.state === "published" || plan.state === "publishing") return LOCKED;
 
-    let next: MoveSnapshot;
+    let next: DayChange;
     if ("restore" in to) {
-      next = to.restore;
-      if (next.plannedDate !== null && !isValidDate(next.plannedDate)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
+      if (to.restore.plannedDate !== null && !isValidDate(to.restore.plannedDate)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
+      next = armed(plan, to.restore);
+      if (armsInPast(next)) return PAST_ARM;
     } else {
-      if (!isValidDate(to.date)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
-      if (to.date < localYmd(new Date())) return { ok: false, error: "Không chuyển reel về ngày đã qua.", code: "PLAN_MOVE_TO_PAST" };
-      next = { plannedDate: to.date, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt && shiftToDate(plan.scheduledAt, to.date) };
-    }
-    if (plan.state === "scheduled" && next.scheduledAt && Date.parse(next.scheduledAt) <= Date.now()) {
-      return { ok: false, error: "Giờ đăng mới đã qua. Chọn ngày khác.", code: "PLAN_SCHEDULE_IN_PAST" };
+      const r = dayChange(plan, to.date);
+      if (!r.ok) return r;
+      next = r.change;
     }
 
     const res = await db
       .update(tables.plannedPosts)
-      .set({ ...next, idempotencyKey: next.scheduledAt ? `${id}:${next.scheduledAt}` : plan.idempotencyKey, updatedAt: nowIso() })
+      .set({ ...next, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, plan.state)));
-    if ((res as { changes?: number }).changes !== 1) {
-      return { ok: false, error: "Reel vừa đổi trạng thái. Tải lại trang.", code: "PLAN_LOCKED" };
-    }
+    if ((res as { changes?: number }).changes !== 1) return CHANGED;
     revalidatePath("/");
     return { ok: true, prior: { plannedDate: plan.plannedDate, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt } };
   } catch (err) {
@@ -312,13 +333,39 @@ export async function unschedulePlannedPostAction(id: string): Promise<SimpleRes
   }
 }
 
-export async function deletePlannedPostAction(id: string): Promise<SimpleResult> {
+const IN_FLIGHT = { ok: false, error: "Reel đang đăng. Đợi đăng xong rồi thử lại.", code: "PLAN_ALREADY_IN_FLIGHT" } as const;
+
+/** Deletes a plan in one guarded statement and returns the whole row, for `restorePlannedPostAction`. */
+export async function deletePlannedPostAction(id: string): Promise<ActionResult<{ snapshot: PlanRow }>> {
   try {
-    const plan = await getPlan(id);
-    if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
-    if (plan.state === "publishing") return { ok: false, error: "This post is publishing right now. Wait for it to finish.", code: "PLAN_ALREADY_IN_FLIGHT" };
-    await db.delete(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
-    return { ok: true };
+    const [snapshot] = await db
+      .delete(tables.plannedPosts)
+      .where(and(eq(tables.plannedPosts.id, id), ne(tables.plannedPosts.state, "publishing")))
+      .returning();
+    if (snapshot) {
+      revalidatePath("/");
+      return { ok: true, snapshot };
+    }
+    return (await getPlan(id)) ? IN_FLIGHT : { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+/**
+ * Undo for a delete: re-inserts the exact row, same id and every column. Refused if the id
+ * exists. An armed row whose `scheduledAt` has passed comes back unarmed as a draft, so
+ * the scheduler never publishes it the moment it returns; `disarmed` says so.
+ */
+export async function restorePlannedPostAction(snapshot: PlanRow): Promise<ActionResult<{ disarmed: boolean }>> {
+  try {
+    if (snapshot.state === "publishing") return IN_FLIGHT;
+    if (await getPlan(snapshot.id)) return { ok: false, error: "Reel này đã có lại rồi.", code: "PLAN_EXISTS" };
+    const disarmed = armsInPast(snapshot);
+    const row = disarmed ? { ...snapshot, state: "draft", scheduledAt: null, idempotencyKey: null } : snapshot;
+    await db.insert(tables.plannedPosts).values(row);
+    revalidatePath("/");
+    return { ok: true, disarmed };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }
@@ -547,16 +594,18 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
   }
 }
 
+/** Disarms a scheduled publish: back to draft on the same day and time, no `scheduledAt`. */
 export async function cancelScheduledPublishAction(id: string): Promise<SimpleResult> {
   try {
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
     if (plan.state !== "scheduled" || !plan.scheduledAt) return { ok: false, error: "Only a scheduled publish can be cancelled.", code: "PLAN_NOT_SCHEDULED" };
 
-    await db
+    const res = await db
       .update(tables.plannedPosts)
-      .set({ scheduledAt: null, idempotencyKey: null, updatedAt: nowIso() })
-      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled")));
+      .set({ state: "draft", scheduledAt: null, idempotencyKey: null, updatedAt: nowIso() })
+      .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled"), isNotNull(tables.plannedPosts.scheduledAt)));
+    if ((res as { changes?: number }).changes !== 1) return CHANGED;
     revalidatePath("/");
     return { ok: true };
   } catch (err) {
@@ -611,7 +660,7 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
     if (plan.state !== "failed") return { ok: false, error: "Only a failed publish can be retried.", code: "PLAN_NOT_FAILED" };
-    if (plan.attemptCount >= DEFAULT_MAX_ATTEMPTS) return { ok: false, error: "This publish has already hit its retry limit.", code: "PLAN_RETRY_EXHAUSTED" };
+    if (plan.attemptCount >= DEFAULT_MAX_ATTEMPTS) return { ok: false, error: "Reel đã thử đăng đủ số lần cho phép, không thử lại được nữa.", code: "PLAN_RETRY_EXHAUSTED" };
 
     await db
       .update(tables.plannedPosts)

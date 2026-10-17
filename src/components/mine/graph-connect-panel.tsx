@@ -45,7 +45,8 @@ export function GraphConnectPanel({
   everMeasured,
 }: {
   ownHandle: string | null;
-  initialStatus: GraphTokenStatus;
+  /** The cached status; null when nothing has checked the token yet. */
+  initialStatus: GraphTokenStatus | null;
   /** True once own_account_snapshots has at least one row — distinguishes "never
    *  measured" from "not connected", since a token can be configured and correct on a
    *  machine that has simply never run a measurement yet. */
@@ -96,15 +97,16 @@ export function GraphConnectPanel({
               ? " (stopped early: recent scheduled measurements already spent most of this hour's Graph calls)"
               : " (stopped early: hourly call budget)"
             : "";
-      toast.success(`Measured @${ownHandle ?? status.username ?? "account"}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
+      toast.success(`Measured @${ownHandle ?? status?.username ?? "account"}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
     });
   }
 
-  const configured = status.state !== "not_configured";
-  const connectedButNeverMeasured = status.state === "ok" && !everMeasured;
-  const copy = connectedButNeverMeasured
-    ? { title: "Connected, nothing measured yet", body: `Instagram confirms the token as @${status.username ?? ownHandle ?? "unknown"}, but no measurement has run.` }
-    : STATE_COPY[status.state];
+  const configured = status?.state !== "not_configured";
+  const copy = !status
+    ? { title: "Chưa kiểm tra", body: "Bấm Check connection để hỏi Instagram token còn dùng được không." }
+    : status.state === "ok" && !everMeasured
+      ? { title: "Connected, nothing measured yet", body: `Instagram confirms the token as @${status.username ?? ownHandle ?? "unknown"}, but no measurement has run.` }
+      : STATE_COPY[status.state];
 
   return (
     <div className="max-w-[62ch]" data-testid="mine-connect-panel">
@@ -134,15 +136,15 @@ export function GraphConnectPanel({
         <Button size="sm" variant="outline" onClick={recheck} disabled={checking} data-testid="mine-connect-check">
           {checking ? "Checking…" : "Check connection"}
         </Button>
-        {status.state === "ok" && !everMeasured && (
+        {status?.state === "ok" && !everMeasured && (
           <Button size="sm" onClick={measure} disabled={measuring} data-testid="mine-connect-measure">
             {measuring ? "Measuring…" : "Measure now"}
           </Button>
         )}
       </div>
 
-      <p className="mt-6 font-mono text-2xs text-muted-foreground">
-        last checked {new Date(status.checkedAt).toLocaleString("en-US")}
+      <p className="mt-6 font-mono text-2xs text-muted-foreground" data-testid="mine-connect-checked">
+        {status ? `last checked ${new Date(status.checkedAt).toLocaleString("en-US")}` : "chưa kiểm tra"}
       </p>
     </div>
   );
