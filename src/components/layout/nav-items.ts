@@ -1,5 +1,6 @@
 import {
   Activity,
+  CalendarDays,
   Archive,
   Compass,
   Drama,
@@ -53,7 +54,8 @@ export type NavItem = {
  * `(shell)/layout.tsx` (`countInboxIdeas()`) as a prop instead.
  */
 export const NAV_ITEMS: NavItem[] = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
+  { href: "/", label: "Tuần này", icon: CalendarDays, group: "Overview" },
+  { href: "/?tab=overview", label: "Dashboard", icon: LayoutDashboard, group: "Overview" },
   { href: "/feed", label: "Feed", icon: Flame, group: "Create" },
   { href: "/ideas", label: "Ideas", icon: Lightbulb, group: "Create" },
   { href: "/vault", label: "Vault", icon: Archive, group: "Create" },

@@ -12,14 +12,31 @@
  * every nav group being rendered.
  */
 
-import { cleanup, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 // The rail calls usePathname for its active marker and useRouter().refresh() when a
 // watched run finishes; the real implementations throw outside an App Router tree.
+const nav = vi.hoisted(() => ({ pathname: "/feed", search: "" }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }),
-  usePathname: () => "/feed",
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), prefetch: vi.fn() }),
+  usePathname: () => nav.pathname,
+  useSearchParams: () => new URLSearchParams(nav.search),
+}));
+
+// Next's Link only calls onNavigate inside a real App Router; this stand-in calls it on
+// click so the rail's optimistic highlight can be driven.
+vi.mock("next/link", () => ({
+  default: ({ href, onNavigate, ...rest }: { href: string; onNavigate?: (e: { preventDefault: () => void }) => void } & React.ComponentProps<"a">) => (
+    <a
+      href={href}
+      {...rest}
+      onClick={(e) => {
+        e.preventDefault();
+        onNavigate?.({ preventDefault: () => {} });
+      }}
+    />
+  ),
 }));
 
 // The poll is the one thing in here that talks to the server. Pinned idle so the footer
@@ -40,17 +57,23 @@ import { NAV_GROUPS } from "./nav-items";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-function renderRail(props: Partial<React.ComponentProps<typeof Sidebar>> = {}) {
-  return render(
-    <NavigationBlockerProvider>
-      <SidebarProvider defaultOpen>
-        <Sidebar getStartedItems={[]} ideasInboxCount={0} feedOutlierCount={0} {...props} />
-      </SidebarProvider>
-    </NavigationBlockerProvider>,
-  );
-}
+const rail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => (
+  <NavigationBlockerProvider>
+    <SidebarProvider defaultOpen>
+      <Sidebar getStartedItems={[]} ideasInboxCount={0} feedOutlierCount={0} {...props} />
+    </SidebarProvider>
+  </NavigationBlockerProvider>
+);
 
-afterEach(cleanup);
+const renderRail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => render(rail(props));
+
+afterEach(() => {
+  cleanup();
+  nav.pathname = "/feed";
+  nav.search = "";
+});
+
+const activeLabel = (container: HTMLElement) => container.querySelector('[data-slot="sidebar-menu-button"][data-active]')?.textContent;
 
 describe("Sidebar", () => {
   test("marks exactly the item matching the current pathname as active", () => {
@@ -78,5 +101,20 @@ describe("Sidebar", () => {
     for (const { group } of NAV_GROUPS) {
       expect(within(container).getAllByText(group).length).toBe(1);
     }
+  });
+
+  test("drops the optimistic highlight when only the tab changes, as on Back from Dashboard", () => {
+    nav.pathname = "/";
+    const view = renderRail();
+    expect(activeLabel(view.container)).toContain("Tuần này");
+
+    fireEvent.click(within(view.container).getByText("Dashboard"));
+    nav.search = "tab=overview";
+    view.rerender(rail());
+    expect(activeLabel(view.container)).toContain("Dashboard");
+
+    nav.search = "";
+    view.rerender(rail());
+    expect(activeLabel(view.container)).toContain("Tuần này");
   });
 });
