@@ -7,4 +7,4 @@ One file per user-facing feature. Each names its route, how to drive it with the
 | Feed: filter, open, keep | `/feed`, `/feed/<id>` | `feed-e2e-01` | [feed.md](feed.md) |
 | Channels: track a handle (sidecar down) | `/channels` | `ig-sync-e2e-01` | [channels.md](channels.md) |
 
-Other nav routes not yet mapped: `/` (Dashboard), `/ideas`, `/channels/discover`, `/runs`, `/logs`, `/persona`, `/settings` (from `src/components/layout/nav-items.ts`).
+Other nav routes not yet mapped: `/` (Tuần này), `/channels/discover`, `/runs`, `/logs`, `/settings` (from `src/components/layout/nav-items.ts`).

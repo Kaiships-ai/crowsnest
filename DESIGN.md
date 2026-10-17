@@ -239,32 +239,33 @@ navigation blocker, a command menu, the client error reporter, then a two-column
 the sidebar on the left and a column holding the topbar (with the failure strip) above the
 scrolling page. Components live in `src/components/layout/`.
 
-- **Sidebar.** Exactly three items, no groups and no counts (`src/components/layout/nav-items.ts`):
-  Tuần này (`/`, the landing route), Nguồn (`/feed`, also lit on `/channels*` and `/sources`), and
+- **Sidebar.** Exactly three items, no groups (`src/components/layout/nav-items.ts`). The only count is the new-outlier badge on Nguồn, shown when above zero:
+  Tuần này (`/`, the landing route), Nguồn (`/feed`, also lit on `/feed/*` and `/channels*`), and
   Cài đặt (`/settings`, also lit on `/logs` and `/runs*`). The current page gets a neutral accent
   bar; a click lights the target immediately and reconciles when the route commits. A get-started
   checklist shows four live facts read on each navigation: Finish setup, Add a source, Plan a reel,
   Publish a reel (a publish that is not a dry run).
 - **Nguồn.** Link tabs (`src/components/layout/section-tabs.tsx`), each its own route so Back and
-  deep links work: Feed (`/feed`), Kênh (`/channels`), Khám phá (`/channels/discover`). `/sources`
-  redirects to `/feed`. The Kênh empty state has two exits, add a channel and "Chọn từ Khám phá".
+  deep links work: Feed (`/feed`), Kênh (`/channels`), Khám phá (`/channels/discover`). The tab that holds the path most closely is lit, so a channel page
+  lights Kênh. `/sources` redirects to `/feed`. Khám phá copy is Vietnamese; a follow while the
+  Instagram service is down still adds the channel and the toast says the posts come when it is back. The Kênh empty state has two exits, add a channel and "Chọn từ Khám phá".
   Khám phá with no creator seeds says "Chưa có gợi ý creator nào."
 - **Cài đặt.** Link tabs Cấu hình (`/settings`) and Nhật ký sự cố (`/logs`). Nhật ký sự cố has
-  sub-tabs Log (`/logs`) and Lần chạy (`/runs`). Logs default to warn and error; "Show everything"
-  adds info. Cấu hình opens with the stack health panel, and its Graph API card is the connect
+  sub-tabs Log (`/logs`) and Lần chạy (`/runs`). Logs default to warn and error; any other set, "Show everything" included,
+  is written to `?levels=`. Cấu hình opens with the stack health panel, and its Graph API card is the connect
   panel (`settings-graph-card`) with Check connection.
 - **Tuần này.** The landing screen: one next-action chip as the only primary button, "Hôm nay"
   open as cards, "Cả tuần" collapsed as one list per day. Rows drag to another day and save
   optimistically with undo. A row opens the reel drawer (a sheet): the five steps, the hook
-  edited inline on the remix session (Esc saves and closes; no session means an empty step with one way out), hook template chips, a note saved on blur, a "Chuyển sang ngày" select as the keyboard move, video, the publish gate with an inline confirm, and the
+  edited inline on the remix session (Esc saves and closes; no session means an empty step with one way out), hook template chips, a note saved on blur, a "Chuyển sang ngày" select as the keyboard move, video, the publish gate with an inline confirm (a failed reel offers "Thử đăng lại" instead, a reel with a publish time offers "Huỷ lịch đăng" behind a confirm), "Sửa plan" (the plan dialog) and "Xoá reel" (with undo), and the
   funnel tiles, where an unmeasured metric reads "chưa đo". Arrow keys step through the week's
-  reels in the drawer. Status text is muted, only errors take a hue; muted text never sits on a `muted` fill in light theme, where it drops under 4.5:1.
-- **Redirects.** `/persona`, `/ideas`, `/vault`, and `/mine` redirect to `/` (`next.config.ts`),
-  and any `/?tab=` value redirects to `/` from the landing page. Those screens no longer exist; the
+  reels in the drawer. Status text is muted, only errors take a hue; light `muted-foreground` is `oklch(0.51 0 0)` so it stays at or above 4.5:1 on a `muted` fill.
+- **Redirects.** `/persona`, `/ideas`, `/vault`, and `/mine`, with any sub-path, redirect to `/`
+  (`next.config.ts`), and any `/?tab=` value redirects to `/` (`src/proxy.ts`). Those screens no longer exist; the
   server data and the MCP tools that read it are unchanged.
 - **Graph token line.** When the cached Graph token state is `auth_failed` or `permission_denied`,
   Tuần này and the Nguồn pages show one red line (`graph-token-line`) linking to `/settings#graph-api`.
-  Check connection there refreshes the cache and clears it. A missing token shows no line.
+  The line reads the last status a Check or a measurement left in the server cache, never Graph itself, so it never delays a render; after a restart it shows nothing until one of them runs. A measurement that hits an auth failure records `auth_failed`. Check connection replaces an `auth_failed` with its live answer, so a fixed token clears the line. `/me` cannot see the insights permission, so a `permission_denied` stays until a measurement succeeds or the token secret is saved again. A missing token shows no line.
 - **First-run gate.** Before anything else the shell checks setup: a fresh install with setup
   not completed and no channels tracked redirects to `/first-run` and never sees the shell.
 - **Freshness.** The layout is `force-dynamic`, so counts and the failure strip re-read on

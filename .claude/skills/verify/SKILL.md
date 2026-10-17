@@ -20,7 +20,7 @@ The operator's daily app: 9router LLM proxy on :20128, `data/crowsnest.db` migra
 .claude/skills/verify/scripts/stack-up.sh --check   # read-only: no start, no migrate
 ```
 
-It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels/discover /mine /runs /settings`; each must answer 2xx or 3xx (`/mine` can redirect). Run it from the checkout whose `data/crowsnest.db` you mean; a worktree has none. Logs go to `~/.crowsnest/`.
+It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels/discover /runs /settings`; each must answer 2xx or 3xx. Run it from the checkout whose `data/crowsnest.db` you mean; a worktree has none. Logs go to `~/.crowsnest/`.
 
 **The dev server runs in an Orca pane, never from a tool call.** A `npm run dev` backgrounded from a sandboxed tool call can be reaped within minutes with no crash trace. If `stack-up.sh` reports :3000 down:
 
@@ -79,9 +79,9 @@ For an ad-hoc check, drive `browse` directly with `data-testid` selectors (the r
 
 ```bash
 B=~/.claude/skills/gstack/browse/dist/browse
-$B goto http://localhost:3001/vault && $B wait --networkidle
+$B goto http://localhost:3001/feed && $B wait --networkidle
 $B text                     # visible page text
-$B screenshot data/verify/evidence/<run-id>/vault.png
+$B screenshot data/verify/evidence/<run-id>/feed.png
 ```
 
 `browse eval` only reads JS files under `/tmp` or the cwd. Select options are `[data-slot="select-item"]` nodes matched by visible text; check the label in the component before scripting it. Each feature's routes, test ids, and journey are in `features/`.
