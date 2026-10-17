@@ -20,7 +20,7 @@ The operator's daily app: 9router LLM proxy on :20128, `data/crowsnest.db` migra
 .claude/skills/verify/scripts/stack-up.sh --check   # read-only: no start, no migrate
 ```
 
-It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels/discover /runs /settings`; each must answer 2xx or 3xx. Run it from the checkout whose `data/crowsnest.db` you mean; a worktree has none. Logs go to `~/.crowsnest/`.
+It leaves anything already up alone and never kills a port holder. It smokes `/ /feed /channels /channels/discover /logs /runs /settings`; each must answer 2xx or 3xx. Run it from the checkout whose `data/crowsnest.db` you mean; a worktree has none. Logs go to `~/.crowsnest/`.
 
 **The dev server runs in an Orca pane, never from a tool call.** A `npm run dev` backgrounded from a sandboxed tool call can be reaped within minutes with no crash trace. If `stack-up.sh` reports :3000 down:
 
@@ -59,6 +59,10 @@ VERIFY_SKIP_BUILD=1 .claude/skills/verify/scripts/up.sh   # reuse the last build
 
 Ready when it prints `verify: ready on http://localhost:3001`. It means `GET /feed` returned 200 against a freshly seeded DB. It runs `npm run build` then `npm run start` (production) because Next 16 refuses a second `next dev` in one checkout ("Another next dev server is already running"). So rebuild after every code change; `VERIFY_SKIP_BUILD=1` only when nothing changed. Logs: `data/verify/{build,seed,server}.log`. It refuses to start if :3001 is taken; set `VERIFY_PORT` to move it.
 
+The server runs with `PUBLISH_DRY_RUN=1` and preloads `scripts/e2e/graph-offline.mjs`, which answers every graph.instagram.com call with a rejected-token error, so nothing reaches Instagram. A worktree has no `.env.local`, so no `S3_*` vars are set and any publish stops at "No storage bucket configured" (see `features/week.md`).
+
+`up.sh` reseeds `data/e2e.db` on every start. Add fixture state only after it prints ready: `npx tsx scripts/e2e/mine-seed.ts plan` for one reel dated today, then `sqlite3 data/e2e.db` for the state a check needs. The seed writes junk `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`, and `IG_SERVICE_TOKEN` rows to `secrets`, and a `secrets` row beats the server env.
+
 ### Doctor
 
 ```bash
@@ -84,7 +88,9 @@ $B text                     # visible page text
 $B screenshot data/verify/evidence/<run-id>/feed.png
 ```
 
-`browse eval` only reads JS files under `/tmp` or the cwd. Select options are `[data-slot="select-item"]` nodes matched by visible text; check the label in the component before scripting it. Each feature's routes, test ids, and journey are in `features/`.
+Run browse from `.gstack/browse-cwd` in the checkout (`mkdir -p .gstack/browse-cwd`). Give `screenshot` and `eval` absolute paths: relative ones resolve against the browse server, and it only accepts paths under the checkout or `/tmp`. Use `localhost`, never `127.0.0.1`, or Server Actions are blocked. `browse eval` only reads JS files under `/tmp` or the cwd. Select options are `[data-slot="select-item"]` nodes matched by visible text; check the label in the component before scripting it. Each feature's routes, test ids, and journey are in `features/`.
+
+The MCP lives on the same server at `/api/mcp` and needs no token from localhost. `scripts/mcp.sh <tool> '<json-args>'` makes one call against the verify instance, e.g. `mcp.sh crowsnest_propose_plan '{...}'` to put a plan draft on Tuần này. Use it for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. `scripts/week-drag.js` is a browse eval helper for the week's native drag and drop.
 
 ### Evidence
 
