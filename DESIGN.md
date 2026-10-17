@@ -250,9 +250,9 @@ scrolling page. Components live in `src/components/layout/`.
 - **Tuần này.** The landing screen: one next-action chip as the only primary button, "Hôm nay"
   open as cards, "Cả tuần" collapsed as one list per day. Rows drag to another day and save
   optimistically with undo. A row opens the reel drawer (a sheet): the five steps, the hook
-  edited inline (Esc saves and closes), video, the publish gate with an inline confirm, and the
+  edited inline on the remix session (Esc saves and closes; no session means an empty step with one way out), hook template chips, a note saved on blur, a "Chuyển sang ngày" select as the keyboard move, video, the publish gate with an inline confirm, and the
   funnel tiles, where an unmeasured metric reads "chưa đo". Arrow keys step through the week's
-  reels in the drawer.
+  reels in the drawer. Status text is muted, only errors take a hue; muted text never sits on a `muted` fill in light theme, where it drops under 4.5:1.
 - **Dashboard tabs.** `?tab=overview|reels|calendar`. No tab means Tuần này; an unknown tab means overview
   and only the active tab's reads run. There is no "My channel" entry; `/mine` redirects to
   `/?tab=calendar`.

@@ -1,6 +1,11 @@
+import { inArray, isNotNull, and } from "drizzle-orm";
+import { db, tables } from "@/server/db";
 import { isGraphConfigured } from "@/server/graph/client";
 import { getStorageProvider } from "@/server/publish/storage-provider";
 import { getPlannedPosts } from "@/server/queries/planned-posts";
+import { listRuns } from "@/server/queries/runs";
+import { getVaultItems } from "@/server/queries/vault";
+import { getRemixSession } from "@/server/services/remix";
 import { FUNNEL_METRICS, getFunnel } from "@/server/services/funnel";
 import { listPlanVersions } from "@/server/services/plan-versions";
 import { WeekScreen } from "./week-screen";
@@ -30,6 +35,27 @@ export async function WeekTab() {
   const draft: DraftVersion | null =
     newest && newest.status === "proposed" && (!live || newest.version > live.version) ? { id: newest.id, version: newest.version, diff: newest.diff } : null;
 
+  const hooks: Record<string, string | null> = {};
+  for (const id of new Set(plans.flatMap((p) => (p.remixSessionId ? [p.remixSessionId] : [])))) {
+    const session = await getRemixSession(id);
+    if (session) hooks[id] = session.chosenHook;
+  }
+
+  const sourceIds = plans.flatMap((p) => (p.sourceVideoId ? [p.sourceVideoId] : []));
+  const gone = sourceIds.length
+    ? new Set(
+        db
+          .select({ id: tables.videos.id })
+          .from(tables.videos)
+          .where(and(inArray(tables.videos.id, sourceIds), isNotNull(tables.videos.deletedAt)))
+          .all()
+          .map((v) => v.id)
+      )
+    : new Set<string>();
+  const sourceGone = plans.filter((p) => p.sourceVideoId && gone.has(p.sourceVideoId)).map((p) => p.id);
+
+  const hookTemplates = (await getVaultItems("hook")).map((t) => ({ id: t.id, title: t.title, text: t.templateText }));
+
   const dryRun = process.env.PUBLISH_DRY_RUN === "1" || (process.env.PUBLISH_DRY_RUN === undefined && process.env.NODE_ENV !== "production");
 
   return (
@@ -44,6 +70,10 @@ export async function WeekTab() {
       graphConfigured={isGraphConfigured()}
       bucketConfigured={getStorageProvider() !== null}
       dryRun={dryRun}
+      hooks={hooks}
+      sourceGone={sourceGone}
+      hookTemplates={hookTemplates}
+      runs={listRuns(5)}
     />
   );
 }
