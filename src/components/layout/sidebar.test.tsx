@@ -57,9 +57,11 @@ import { NAV_ITEMS } from "./nav-items";
 import { NextRequest } from "next/server";
 import { config as proxyConfig, proxy } from "@/proxy";
 import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
-import { pathToRegexp } from "next/dist/compiled/path-to-regexp";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
+
+// The matcher Next itself uses for `redirects()` sources.
+const { pathToRegexp } = (await import("next/dist/compiled/path-to-regexp" as string)) as { pathToRegexp: (p: string) => RegExp };
 
 const rail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => (
   <NavigationBlockerProvider>
