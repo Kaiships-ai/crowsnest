@@ -19,8 +19,7 @@ import { cn } from "@/lib/utils";
 import type { LogEventRow, LogQueryFilter, LogSource, StoredLogLevel } from "@/server/logs/store";
 
 const LEVELS: StoredLogLevel[] = ["info", "warn", "error"];
-// The store's own default (queryLogEvents) when no levels are given — problems-only.
-// Kept here so "Show everything" has something to turn back off into.
+// What a bare /logs shows (logs/page.tsx); any other set is written to the URL.
 const PROBLEMS_ONLY: StoredLogLevel[] = ["warn", "error"];
 
 const SOURCE_ITEMS: { value: LogSource | "all"; label: string }[] = [
@@ -77,8 +76,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
 
   function setLevels(next: StoredLogLevel[]) {
     const params = new URLSearchParams(searchParams.toString());
-    if (sameLevelSet(next, LEVELS)) {
-      // Back to the implicit default — keep the URL as short as a bare /logs visit.
+    if (sameLevelSet(next, PROBLEMS_ONLY)) {
       params.delete("levels");
     } else {
       params.set("levels", next.join(","));

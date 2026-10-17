@@ -10,7 +10,7 @@
  * throws if nothing matches, so a plain truthy check on its result is enough.
  */
 
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
 afterEach(cleanup);
@@ -20,8 +20,9 @@ afterEach(cleanup);
 // implementations throw "invariant expected app router to be mounted" outside an actual
 // App Router tree, so a bare render() needs this stand-in, the same way failure-strip.test.tsx
 // mocks the server actions it isn't the one under test here.
+const replace = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace, refresh: vi.fn(), push: vi.fn() }),
   usePathname: () => "/logs",
   useSearchParams: () => new URLSearchParams(),
 }));
@@ -45,5 +46,19 @@ describe("LogsView", () => {
   test("shows an empty state when there are no rows", () => {
     render(<LogsView rows={[]} filter={{ levels: ["warn", "error"] }} />);
     expect(screen.getByText(/no log events/i)).toBeTruthy();
+  });
+
+  test("show everything writes all three levels to the URL", () => {
+    replace.mockClear();
+    render(<LogsView rows={rows} filter={{ levels: ["warn", "error"] }} />);
+    fireEvent.click(screen.getByRole("switch"));
+    expect(replace).toHaveBeenCalledWith("/logs?levels=info%2Cwarn%2Cerror", { scroll: false });
+  });
+
+  test("checking info writes it to the URL", () => {
+    replace.mockClear();
+    render(<LogsView rows={rows} filter={{ levels: ["warn", "error"] }} />);
+    fireEvent.click(document.getElementById("logs-level-info")!);
+    expect(replace).toHaveBeenCalledWith("/logs?levels=warn%2Cerror%2Cinfo", { scroll: false });
   });
 });
