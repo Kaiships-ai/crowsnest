@@ -116,7 +116,6 @@ export default async function SettingsPage() {
   // rendered as a read failure, never as "no sync has run yet".
   const lastJob: LastSyncJobResult = latestJob.ok ? { ok: true, job: latestJob.job } : { ok: false, error: latestJob.error };
 
-  // Cached only: a live Graph call runs from Check connection, never from a render.
   const graphStatus: GraphTokenStatus | null =
     peekTokenStatus() ??
     (isGraphConfigured() ? null : { configured: false, username: null, state: "not_configured", message: null, checkedAt: new Date().toISOString() });

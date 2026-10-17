@@ -153,8 +153,8 @@ export async function updatePlannedPostAction(
  * Applies a whole plan edit (fields, schedule, script) as ONE unit (B-04). The dialog
  * used to fire updatePlannedPostAction, schedule/unschedule, and attach/detach as separate
  * awaited calls, so a failure partway through left a partial edit. Here every input is
- * validated first, then all writes run in a single transaction, so the edit either lands
- * whole or not at all.
+ * validated first, then one UPDATE guarded on the row's state writes it, so the edit
+ * lands whole or not at all.
  */
 export async function savePlanEditAction(
   id: string,
@@ -249,17 +249,8 @@ type DayChange = MoveSnapshot & { state: string; idempotencyKey: string | null }
 const LOCKED = { ok: false, error: "Reel đã đăng hoặc đang đăng, không sửa được.", code: "PLAN_LOCKED" } as const;
 const CHANGED = { ok: false, error: "Reel vừa đổi trạng thái. Tải lại trang.", code: "PLAN_LOCKED" } as const;
 
-/**
- * The day rules every re-date shares (drag, day select, Sửa plan). The state never
- * changes, except that blanking the day of a scheduled reel returns it to draft. An armed
- * `scheduledAt` moves with the day at the same local time, `plannedTime` is kept, a past
- * day is refused, and a past `scheduledAt` is never written onto a scheduled row.
- */
 function dayChange(plan: PlanRow, date: string | null): { ok: true; change: DayChange } | { ok: false; error: string; code: string } {
-  if (date === null) {
-    const state = plan.state === "scheduled" ? "draft" : plan.state;
-    return { ok: true, change: { state, plannedDate: null, plannedTime: null, scheduledAt: null, idempotencyKey: null } };
-  }
+  if (date === null) return { ok: true, change: undatedAndDisarmed(plan) };
   if (!isValidDate(date)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
   if (date < localYmd(new Date())) return { ok: false, error: "Không chuyển reel về ngày đã qua.", code: "PLAN_MOVE_TO_PAST" };
   const change = armed(plan, { plannedDate: date, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt && shiftToDate(plan.scheduledAt, date) });
@@ -270,6 +261,10 @@ const PAST_ARM = { ok: false, error: "Giờ đăng mới đã qua. Chọn ngày 
 
 function armsInPast(next: DayChange): boolean {
   return next.state === "scheduled" && !!next.scheduledAt && Date.parse(next.scheduledAt) <= Date.now();
+}
+
+function undatedAndDisarmed(plan: PlanRow): DayChange {
+  return { state: plan.state === "scheduled" ? "draft" : plan.state, plannedDate: null, plannedTime: null, scheduledAt: null, idempotencyKey: null };
 }
 
 function armed(plan: PlanRow, next: MoveSnapshot): DayChange {
