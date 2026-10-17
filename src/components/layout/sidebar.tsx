@@ -115,19 +115,12 @@ function railDetail(progress: SyncProgress): string {
 
 export interface SidebarProps {
   getStartedItems: GetStartedItem[];
-  /** Outliers new since the last Feed visit (`getNewFeedOutliers()`), shown on Nguồn only
-   *  when > 0. */
   feedOutlierCount: number;
 }
 
 export function Sidebar({ getStartedItems, feedOutlierCount }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  // Optimistic active item. A shell route is `force-dynamic`, so a nav click waits on a
-  // server render (fast, but not free) before `pathname` moves and the active marker
-  // follows — long enough to read as "nothing happened yet". Instead, on click we light
-  // the target immediately and reconcile when the route commits: `pendingHref` is the
-  // pending target while a navigation is in flight, then falls back to the real pathname.
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   // React's "adjust state during render" reset pattern, not an effect: the moment the
   // pathname changes (the click's route committed, or the user went elsewhere by any

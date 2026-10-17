@@ -12,20 +12,6 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import type { FailureStrip as FailureStripData } from "@/server/queries/failure-surface";
 
-/**
- * Every route under `(shell)/` needs an entry here. A route that is missing one does not
- * fall back to something close, it falls back to "Crowsnest", so the topbar names the app
- * instead of the page and the h1 stops telling you where you are. /runs, /runs/[runId]
- * and /logs shipped without entries and read that way.
- *
- * The tabbed routes take their rail entry's label (Nguồn, Cài đặt) or their section name
- * (Nhật ký sự cố), so the highlighted rail entry and the heading agree. Detail routes follow the
- * sentence-case "Channel detail" / "Run detail" convention already set below — copy is
- * sentence case throughout per DESIGN-SYSTEM.md section 4.
- *
- * `first-run` deliberately has no entry: it lives outside the `(shell)` group and never
- * renders a Topbar at all.
- */
 const ROUTE_TITLES: { pattern: RegExp; title: string }[] = [
   { pattern: /^\/$/, title: "Tuần này" },
   { pattern: /^\/feed\/[^/]+\/remix$/, title: "Remix studio" },

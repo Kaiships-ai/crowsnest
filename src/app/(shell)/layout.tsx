@@ -43,7 +43,6 @@ export default async function ShellLayout({ children }: { children: ReactNode })
     getNewFeedOutliers(),
   ]);
 
-  // The reel flow's four steps, each read from real rows. A dry run is not a publish.
   const getStartedItems: GetStartedItem[] = [
     { key: "setup", label: "Finish setup", href: "/first-run", done: gate.firstRunCompleted },
     { key: "source", label: "Add a source", href: "/channels", done: stats.channelsTracked > 0 },

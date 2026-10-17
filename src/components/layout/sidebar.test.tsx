@@ -5,10 +5,6 @@
  * defaults to the node environment and only the components that actually touch the DOM
  * opt into jsdom. `@testing-library/jest-dom` isn't a dependency, so `toBeTruthy()`
  * stands in for `toBeInTheDocument()`.
- *
- * The rail had no coverage at all while it was 486 lines of hand-rolled markup. These
- * assertions lock the three-item rail (Tuần này, Nguồn, Cài đặt), exactly one active
- * item, the Feed signal's hidden-at-zero rule, and the redirects of the folded routes.
  */
 
 import { cleanup, fireEvent, render, within } from "@testing-library/react";
@@ -60,7 +56,6 @@ import { unstable_doesMiddlewareMatch } from "next/experimental/testing/server";
 import { NavigationBlockerProvider } from "./navigation-blocker";
 import { SidebarProvider } from "@/components/ui/sidebar";
 
-// The matcher Next itself uses for `redirects()` sources.
 const { pathToRegexp } = (await import("next/dist/compiled/path-to-regexp" as string)) as { pathToRegexp: (p: string) => RegExp };
 
 const rail = (props: Partial<React.ComponentProps<typeof Sidebar>> = {}) => (

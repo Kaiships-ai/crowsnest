@@ -44,7 +44,7 @@ export async function followCreatorAction(
   const added = await addChannelAction(normalized);
   if (!added.ok) return added;
 
-  // A sync started while the Instagram service is down fails mid-run, so do not claim one.
-  const syncQueued = (await getIgStatusAction()).ok && (await startSyncAction([added.channelId])).ok;
+  const igServiceUp = (await getIgStatusAction()).ok;
+  const syncQueued = igServiceUp && (await startSyncAction([added.channelId])).ok;
   return { ok: true, channelId: added.channelId, syncQueued, alreadyTracked: false };
 }

@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // `/?tab=...` is redirected in src/proxy.ts: a rule here would carry the query along.
   async redirects() {
     return [
       ...["/persona", "/ideas", "/vault", "/mine"].map((p) => ({ source: `${p}/:path*`, destination: "/", permanent: false })),

@@ -9,16 +9,12 @@ export type SectionTab = { href: string; label: string; testId: string; match?: 
 
 const under = (pathname: string, p: string) => pathname === p || pathname.startsWith(`${p}/`);
 
-/** The tab whose href or `match` path holds `pathname` most closely, so `/channels/discover`
- *  is Khám phá while `/channels/abc` stays Kênh. */
 export function activeTab(tabs: SectionTab[], pathname: string): SectionTab | undefined {
   const depth = (tab: SectionTab) => Math.max(-1, ...[tab.href, ...(tab.match ?? [])].filter((p) => under(pathname, p)).map((p) => p.length));
   const best = tabs.reduce<SectionTab | undefined>((a, t) => (depth(t) > (a ? depth(a) : -1) ? t : a), undefined);
   return best && depth(best) >= 0 ? best : undefined;
 }
 
-/** Link tabs: each tab is its own route, so deep links, Back and the route's own
- *  `searchParams` keep working. */
 export function SectionTabs({ tabs, label }: { tabs: SectionTab[]; label: string }) {
   const current = activeTab(tabs, usePathname());
   const isActive = (tab: SectionTab) => tab === current;
@@ -56,7 +52,6 @@ export const SETTINGS_TABS: SectionTab[] = [
   { href: "/logs", label: "Nhật ký sự cố", testId: "settings-tab-incidents", match: ["/runs"] },
 ];
 
-/** Nhật ký sự cố holds two views, the event log and the run history. */
 export const INCIDENT_TABS: SectionTab[] = [
   { href: "/logs", label: "Log", testId: "incidents-tab-logs" },
   { href: "/runs", label: "Lần chạy", testId: "incidents-tab-runs" },

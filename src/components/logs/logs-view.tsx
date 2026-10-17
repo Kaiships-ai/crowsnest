@@ -16,11 +16,9 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { isoToLocalInput, localInputToIso } from "@/lib/datetime-local";
 import { cn } from "@/lib/utils";
+import { DEFAULT_LOG_LEVELS, LOG_LEVELS } from "./levels";
 import type { LogEventRow, LogQueryFilter, LogSource, StoredLogLevel } from "@/server/logs/store";
 
-const LEVELS: StoredLogLevel[] = ["info", "warn", "error"];
-// What a bare /logs shows (logs/page.tsx); any other set is written to the URL.
-const PROBLEMS_ONLY: StoredLogLevel[] = ["warn", "error"];
 
 const SOURCE_ITEMS: { value: LogSource | "all"; label: string }[] = [
   { value: "all", label: "All sources" },
@@ -58,9 +56,9 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
   const urlLevels = searchParams.get("levels");
   const levels = urlLevels !== null
     ? (urlLevels.split(",").filter(Boolean) as StoredLogLevel[])
-    : (filter.levels ?? LEVELS);
+    : (filter.levels ?? LOG_LEVELS);
   const source = (searchParams.get("source") as LogSource | null) ?? filter.source ?? "all";
-  const showEverything = sameLevelSet(levels, LEVELS);
+  const showEverything = sameLevelSet(levels, LOG_LEVELS);
 
   // Draft-only fields: applied to the URL on Refresh (or Enter), not per keystroke —
   // free text shouldn't thrash the URL mid-word, the same reasoning the feed's search
@@ -76,7 +74,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
 
   function setLevels(next: StoredLogLevel[]) {
     const params = new URLSearchParams(searchParams.toString());
-    if (sameLevelSet(next, PROBLEMS_ONLY)) {
+    if (sameLevelSet(next, DEFAULT_LOG_LEVELS)) {
       params.delete("levels");
     } else {
       params.set("levels", next.join(","));
@@ -132,7 +130,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          {LEVELS.map((level) => (
+          {LOG_LEVELS.map((level) => (
             <Field key={level} orientation="horizontal" className="w-auto">
               <Checkbox
                 id={`logs-level-${level}`}
@@ -149,7 +147,7 @@ export function LogsView({ rows, filter }: { rows: LogEventRow[]; filter: LogQue
             <Switch
               id="logs-show-everything"
               checked={showEverything}
-              onCheckedChange={(checked) => setLevels(checked ? LEVELS : PROBLEMS_ONLY)}
+              onCheckedChange={(checked) => setLevels(checked ? LOG_LEVELS : DEFAULT_LOG_LEVELS)}
               size="sm"
             />
             <FieldLabel htmlFor="logs-show-everything" className="text-muted-foreground">

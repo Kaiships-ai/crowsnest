@@ -130,9 +130,7 @@ export default async function SettingsPage() {
         <SettingsNav groups={SETTINGS_NAV_GROUPS} />
 
         {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
-            instead of pushing the nav out of the sticky column it needs to stay in.
-            Every section is a Card now, so the group rhythm is gap, not a border-b rule
-            between full-bleed blocks. */}
+            instead of pushing the nav out of the sticky column it needs to stay in. */}
         <div className="flex min-w-0 flex-1 flex-col gap-8">
           <StackHealthPanel
             sidecar={classifySidecarStatus(igStatus)}

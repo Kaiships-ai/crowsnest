@@ -547,9 +547,6 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
   }
 }
 
-/** Cancels a scheduled publish. The reel keeps its day on Tuần này; only the publish
- *  time is cleared, so the scheduler no longer picks it up. Only a `scheduled` row with a
- *  publish time can be cancelled. */
 export async function cancelScheduledPublishAction(id: string): Promise<SimpleResult> {
   try {
     const plan = await getPlan(id);

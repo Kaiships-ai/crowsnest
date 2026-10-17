@@ -1,11 +1,5 @@
 "use client";
 
-/**
- * The Graph token card in Cài đặt, and the place the Tuần này broken-token line opens
- * (J6). It names what is wrong in words, never a zero or a guess; "Check connection" is a
- * live check that refreshes the cached status the broken-token line reads.
- */
-
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";

@@ -397,7 +397,6 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
   state.inFlight = run;
   try {
     const result = await run;
-    // A dead token must not keep reading as connected, and the broken-token line reads this.
     if (!result.ok && result.code === "GRAPH_AUTH_FAILED") {
       rememberTokenStatus({ configured: true, username: null, state: "auth_failed", message: result.error, checkedAt: new Date().toISOString() });
     }
