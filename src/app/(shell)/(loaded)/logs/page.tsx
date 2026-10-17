@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/layout/page-container";
+import { INCIDENT_TABS, SectionTabs, SettingsTabs } from "@/components/layout/section-tabs";
 import { LogsView } from "@/components/logs/logs-view";
 import { queryLogEvents, type LogQueryFilter, type LogSource, type StoredLogLevel } from "@/server/logs/store";
 
@@ -26,10 +27,10 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const levelsRaw = first(sp.levels);
   // `!== undefined` (not a truthiness check) so an explicit empty selection — every
   // level box unchecked — reads as "show nothing", distinct from a bare /logs visit
-  // that never set the param at all and should fall back to showing everything.
+  // that never set the param at all and falls back to warn and error only.
   const levels = levelsRaw !== undefined
     ? (levelsRaw.split(",").filter(Boolean) as StoredLogLevel[])
-    : (["info", "warn", "error"] as StoredLogLevel[]);
+    : (["warn", "error"] as StoredLogLevel[]);
 
   const filter: LogQueryFilter = {
     levels,
@@ -43,8 +44,12 @@ export default async function LogsPage({ searchParams }: { searchParams: Promise
   const rows = queryLogEvents(filter);
 
   return (
-    <PageContainer>
-      <LogsView rows={rows} filter={filter} />
-    </PageContainer>
+    <>
+      <SettingsTabs />
+      <PageContainer className="flex flex-col gap-4">
+        <SectionTabs tabs={INCIDENT_TABS} label="Nhật ký sự cố" />
+        <LogsView rows={rows} filter={filter} />
+      </PageContainer>
+    </>
   );
 }

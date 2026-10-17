@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { GraphTokenLine } from "@/components/status/graph-token-line";
 
 import { FeedGrid } from "@/components/feed/feed-grid";
 import { FilterBar } from "@/components/feed/filter-bar";
 import { PageContainer } from "@/components/layout/page-container";
+import { SourcesTabs } from "@/components/layout/section-tabs";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { bandOrAny, defaultViewCriteria, first, num, resolveFeedCriteria, shouldApplyDefaultView, type SearchParams } from "@/lib/feed-filters";
@@ -101,6 +103,8 @@ export default async function FeedPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="flex h-full flex-col">
+      <SourcesTabs />
+      <GraphTokenLine className="mx-4 mt-3 mb-0 sm:mx-6" />
       <FilterBar
         fleets={fleets}
         savedFilters={savedFilters}

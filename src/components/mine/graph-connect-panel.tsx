@@ -1,16 +1,9 @@
 "use client";
 
 /**
- * The not-connected surface (WAVE2-BRIEF: "There is no Graph token on this machine, so
- * own channel insights return a not connected result. Design that state properly too.
- * It is what Kai sees.") This is not a loading skeleton standing in for numbers — it is
- * the honest primary state of this screen on a fresh machine, so it says exactly what is
- * missing and exactly what connecting would produce. Never a zero, never a guess.
- *
- * `checkGraphTokenAction` and `measureOwnChannelAction` are both real server actions
- * (graph-actions.ts) — the "Check again" / "Measure now" buttons here call the same
- * functions a Settings token strip would, there just isn't one built yet for the Graph
- * token (it's env-only config, `IG_GRAPH_TOKEN` / `IG_GRAPH_USER_ID` in `.env.local`).
+ * The Graph token card in Cài đặt, and the place the Tuần này broken-token line opens
+ * (J6). It names what is wrong in words, never a zero or a guess; "Check connection" is a
+ * live check that refreshes the cached status the broken-token line reads.
  */
 
 import { useState, useTransition } from "react";
@@ -57,7 +50,7 @@ export function GraphConnectPanel({
   initialStatus,
   everMeasured,
 }: {
-  ownHandle: string;
+  ownHandle: string | null;
   initialStatus: GraphTokenStatus;
   /** True once own_account_snapshots has at least one row — distinguishes "never
    *  measured" from "not connected", since a token can be configured and correct on a
@@ -109,18 +102,18 @@ export function GraphConnectPanel({
               ? " (stopped early: recent scheduled measurements already spent most of this hour's Graph calls)"
               : " (stopped early: hourly call budget)"
             : "";
-      toast.success(`Measured @${ownHandle}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
+      toast.success(`Measured @${ownHandle ?? status.username ?? "account"}: ${result.postsMeasured} of ${result.postsSeen} posts${stopped}`);
     });
   }
 
   const configured = status.state !== "not_configured";
   const connectedButNeverMeasured = status.state === "ok" && !everMeasured;
   const copy = connectedButNeverMeasured
-    ? { title: "Connected, nothing measured yet", body: `Instagram confirms the token as @${status.username ?? ownHandle}, but no measurement has run.` }
+    ? { title: "Connected, nothing measured yet", body: `Instagram confirms the token as @${status.username ?? ownHandle ?? "unknown"}, but no measurement has run.` }
     : STATE_COPY[status.state];
 
   return (
-    <div className="mt-10 max-w-[62ch]" data-testid="mine-connect-panel">
+    <div className="max-w-[62ch]" data-testid="mine-connect-panel">
       <p className="font-mono text-2xs tracking-wide text-muted-foreground uppercase">Graph API</p>
       <p className="mt-3 text-lg font-medium text-foreground">{copy.title}</p>
       <p className="mt-2 text-sm text-muted-foreground">{copy.body}</p>
@@ -128,11 +121,13 @@ export function GraphConnectPanel({
       {!configured && (
         <div className="mt-5 border-l-2 border-border pl-4">
           <p className="text-sm text-muted-foreground">
-            Set <code className="font-mono text-2xs text-foreground">IG_GRAPH_TOKEN</code> and{" "}
-            <code className="font-mono text-2xs text-foreground">IG_GRAPH_USER_ID</code> in{" "}
-            <code className="font-mono text-2xs text-foreground">.env.local</code> and restart the app.
+            Set the Graph token and Graph user ID under{" "}
+            <a href="#api-keys" className="text-foreground underline underline-offset-2">
+              API keys
+            </a>
+            .
           </p>
-          <p className="mt-3 text-sm text-muted-foreground">Connecting gives this screen, from your own posts:</p>
+          <p className="mt-3 text-sm text-muted-foreground">Connecting publishes reels and gives, from your own posts:</p>
           <ul className="mt-2 flex flex-col gap-1 font-mono text-2xs text-muted-foreground">
             <li>· reach, accounts reached per post</li>
             <li>· saves and shares per post</li>

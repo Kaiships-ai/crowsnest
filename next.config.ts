@@ -1,12 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Persona, Ideas and Vault were folded away; old links land on Tuần này. `/?tab=...`
+  // Persona, Ideas, Vault and the old /mine were folded away; old links land on Tuần này. `/?tab=...`
   // (the old Dashboard) is handled in the landing page, since a redirect here would carry
   // the query along. `/sources` is the Nguồn entry; its first tab is the Feed.
   async redirects() {
     return [
-      ...["/persona", "/ideas", "/vault"].map((source) => ({ source, destination: "/", permanent: false })),
+      ...["/persona", "/ideas", "/vault", "/mine"].map((source) => ({ source, destination: "/", permanent: false })),
       { source: "/sources", destination: "/feed", permanent: false },
     ];
   },

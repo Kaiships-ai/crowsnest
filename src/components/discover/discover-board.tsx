@@ -34,10 +34,8 @@ export function DiscoverBoard({ seeds }: { seeds: CreatorSeedRow[] }) {
           <EmptyMedia variant="icon">
             <Compass />
           </EmptyMedia>
-          <EmptyTitle>No creators to discover yet.</EmptyTitle>
-          <EmptyDescription>
-            Run <code className="font-mono">npm run db:bootstrap</code> to load the starter list.
-          </EmptyDescription>
+          <EmptyTitle>Chưa có gợi ý creator nào.</EmptyTitle>
+          <EmptyDescription data-testid="discover-empty-line">Thêm một kênh bạn biết ở tab Kênh.</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );

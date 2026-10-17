@@ -8,6 +8,7 @@ import { getVaultItems } from "@/server/queries/vault";
 import { getRemixSession } from "@/server/services/remix";
 import { FUNNEL_METRICS, getFunnel } from "@/server/services/funnel";
 import { listPlanVersions } from "@/server/services/plan-versions";
+import { GraphTokenLine } from "@/components/status/graph-token-line";
 import { WeekScreen } from "./week-screen";
 import { isoWeekKey, weekDays, type DraftVersion, type FunnelCell } from "./week-model";
 
@@ -63,22 +64,25 @@ export async function WeekTab() {
   const dryRun = process.env.PUBLISH_DRY_RUN === "1" || (process.env.PUBLISH_DRY_RUN === undefined && process.env.NODE_ENV !== "production");
 
   return (
-    <WeekScreen
-      today={today}
-      weekKey={weekKey}
-      liveVersion={live?.version ?? null}
-      draft={draft}
-      reels={plans}
-      funnel={funnel}
-      metrics={METRICS}
-      graphConfigured={isGraphConfigured()}
-      bucketConfigured={getStorageProvider() !== null}
-      dryRun={dryRun}
-      hooks={hooks}
-      hookTopics={hookTopics}
-      sourceGone={sourceGone}
-      hookTemplates={hookTemplates}
-      runs={listRuns(5)}
-    />
+    <>
+      <GraphTokenLine />
+      <WeekScreen
+        today={today}
+        weekKey={weekKey}
+        liveVersion={live?.version ?? null}
+        draft={draft}
+        reels={plans}
+        funnel={funnel}
+        metrics={METRICS}
+        graphConfigured={isGraphConfigured()}
+        bucketConfigured={getStorageProvider() !== null}
+        dryRun={dryRun}
+        hooks={hooks}
+        hookTopics={hookTopics}
+        sourceGone={sourceGone}
+        hookTemplates={hookTemplates}
+        runs={listRuns(5)}
+      />
+    </>
   );
 }

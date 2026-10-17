@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, test } from "vitest";
@@ -73,16 +73,3 @@ describe("ROUTE_TITLES covers every route", () => {
   });
 });
 
-describe("/mine is a redirect handler, not a page", () => {
-  test("it carries no title: a handler never renders the topbar", () => {
-    // Only page.tsx files render under the shell; /mine is route.ts, so a title for it is dead config.
-    expect(shellRoutes()).not.toContain("/mine");
-    expect(getPageTitle("/mine")).toBe("Crowsnest");
-  });
-
-  test("no in-app link goes through the redirect", () => {
-    const files = ["src/components/remix/stage-finish.tsx", "src/components/vault/script-detail-dialog.tsx"];
-    const linking = files.filter((f) => readFileSync(path.join(process.cwd(), f), "utf8").includes('href="/mine"'));
-    expect(linking).toEqual([]);
-  });
-});

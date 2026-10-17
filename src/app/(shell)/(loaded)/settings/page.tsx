@@ -1,12 +1,14 @@
 import { PageContainer } from "@/components/layout/page-container";
-import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SettingsTabs } from "@/components/layout/section-tabs";
+import { GraphConnectPanel } from "@/components/mine/graph-connect-panel";
+import { classifyGraphStatus, classifySidecarStatus } from "@/components/status/dependency-status";
+import { StackHealthPanel } from "@/components/status/stack-health-panel";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountsSection } from "@/components/settings/accounts-section";
 import { AppearanceSection } from "@/components/settings/appearance-section";
 import { FeedDefaultsSection } from "@/components/settings/feed-defaults-section";
-import { GraphSection } from "@/components/settings/graph-section";
 import { InstagramSection } from "@/components/settings/instagram-section";
 import { LocalBinariesSection, type BinaryStatus } from "@/components/settings/local-binaries-section";
-import { NicheProfileSection } from "@/components/settings/niche-profile-section";
 import { OnboardingSection } from "@/components/settings/onboarding-section";
 import { RunsAlertsSection } from "@/components/settings/runs-alerts-section";
 import { ScoringSection } from "@/components/settings/scoring-section";
@@ -16,7 +18,10 @@ import { listAccounts } from "@/server/services/accounts";
 import { SyncSection, type LastSyncJobResult } from "@/components/settings/sync-section";
 import { checkGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
-import { getAppSettingsAction, getNicheSettings } from "@/server/actions/settings-actions";
+import { getAppSettingsAction } from "@/server/actions/settings-actions";
+import { getOwnChannel } from "@/server/queries/channels";
+import { getStackHealth } from "@/server/queries/dashboard";
+import { getOwnChannelOverview } from "@/server/queries/own-channel";
 import { getLatestSyncJob } from "@/server/actions/sync-actions";
 import { config } from "@/server/config";
 import { detectBinary } from "@/server/lib/exec";
@@ -38,7 +43,6 @@ const SETTINGS_NAV_GROUPS: SettingsNavGroup[] = [
   {
     label: "Intelligence",
     items: [
-      { id: "niche-profile", label: "Niche profile" },
       { id: "scoring", label: "Scoring" },
       { id: "feed-defaults", label: "Feed defaults" },
     ],
@@ -86,14 +90,16 @@ export default async function SettingsPage() {
   // `checkGraphTokenAction` is the same shape: documented to never throw, `ok: false`
   // here would mean the action itself broke, not "no token" (that's `state:
   // "not_configured"` inside an `ok: true` result).
-  const [nicheSettings, ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult] = await Promise.all([
-    getNicheSettings(),
+  const [ytdlpPath, whisper, igStatus, latestJob, appSettings, graphTokenResult, stackHealth, ownChannel, ownOverview] = await Promise.all([
     detectBinary(process.env.YTDLP_BIN_PATH ?? "yt-dlp"),
     whisperAvailability(),
     getIgStatusAction(),
     getLatestSyncJob(),
     getAppSettingsAction(),
     checkGraphTokenAction(),
+    getStackHealth(),
+    getOwnChannel(),
+    getOwnChannelOverview(),
   ]);
 
   // Sync, not part of the Promise.all above: `secretStatus()` reads the local sqlite
@@ -119,116 +125,131 @@ export default async function SettingsPage() {
     : { configured: false, username: null, state: "unknown" as const, message: graphTokenResult.error, checkedAt: new Date().toISOString() };
 
   return (
-    <PageContainer className="flex flex-col gap-6 lg:flex-row lg:gap-10">
-      <SettingsNav groups={SETTINGS_NAV_GROUPS} />
+    <>
+      <SettingsTabs />
+      <PageContainer className="flex flex-col gap-6 lg:flex-row lg:gap-10">
+        <SettingsNav groups={SETTINGS_NAV_GROUPS} />
 
-      {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
-          instead of pushing the nav out of the sticky column it needs to stay in.
-          Every section is a Card now, so the group rhythm is gap, not a border-b rule
-          between full-bleed blocks. */}
-      <div className="flex min-w-0 flex-1 flex-col gap-8">
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[0].label}</p>
-          <div id="instagram" className="scroll-mt-6">
-            <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+        {/* min-w-0 so the sections beside a flex sibling (the nav) can still shrink/wrap
+            instead of pushing the nav out of the sticky column it needs to stay in.
+            Every section is a Card now, so the group rhythm is gap, not a border-b rule
+            between full-bleed blocks. */}
+        <div className="flex min-w-0 flex-1 flex-col gap-8">
+          <StackHealthPanel
+            sidecar={classifySidecarStatus(igStatus)}
+            graph={classifyGraphStatus(graphStatus)}
+            lastSync={stackHealth.lastSync}
+            running={stackHealth.running}
+            checkedAtMs={stackHealth.checkedAtMs}
+          />
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[0].label}</p>
+            <div id="instagram" className="scroll-mt-6">
+              <InstagramSection initialStatus={igStatus} serviceUrl={config.IG_SERVICE_URL} />
+            </div>
+            <div id="accounts" className="scroll-mt-6">
+              <AccountsSection initialAccounts={accounts} />
+            </div>
+            <div id="graph-api" className="scroll-mt-6">
+              <Card data-testid="settings-graph-card">
+                <CardHeader>
+                  <CardTitle>Instagram Graph API</CardTitle>
+                  <CardDescription>The token that publishes reels and reads your own reach. Paste a new one under API keys, then check.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <GraphConnectPanel ownHandle={ownChannel?.handle ?? null} initialStatus={graphStatus} everMeasured={ownOverview.account !== null} />
+                </CardContent>
+              </Card>
+            </div>
           </div>
-          <div id="accounts" className="scroll-mt-6">
-            <AccountsSection initialAccounts={accounts} />
+
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[1].label}</p>
+            <div id="scoring" className="scroll-mt-6">
+              <ScoringSection
+                initial={{
+                  scoreBaselineMethod: appSettings.scoreBaselineMethod,
+                  scoreBaselineWindow: appSettings.scoreBaselineWindow,
+                  scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
+                  scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
+                }}
+              />
+            </div>
+            <div id="feed-defaults" className="scroll-mt-6">
+              <FeedDefaultsSection
+                initial={{
+                  feedDefaultMinScore: appSettings.feedDefaultMinScore,
+                  feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
+                }}
+              />
+            </div>
           </div>
-          <div id="graph-api" className="scroll-mt-6">
-            <GraphSection initialStatus={graphStatus} />
+
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[2].label}</p>
+            <div id="api-keys" className="scroll-mt-6">
+              <SecretsSection initialStatus={secretStatuses} />
+            </div>
+            <div id="local-binaries" className="scroll-mt-6">
+              <LocalBinariesSection binaries={binaries} />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[3].label}</p>
+            <div id="sync" className="scroll-mt-6">
+              <SyncSection
+                config={{
+                  eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
+                  mediaRoot: config.MEDIA_ROOT,
+                }}
+                settings={{
+                  syncLookbackDays: appSettings.syncLookbackDays,
+                  maxItemsPerSync: appSettings.maxItemsPerSync,
+                  viewCountEnrichPerChannel: appSettings.viewCountEnrichPerChannel,
+                  syncCadenceMinutes: appSettings.syncCadenceMinutes,
+                  mediaRetentionDays: appSettings.mediaRetentionDays,
+                }}
+                scoreBaselineWindow={appSettings.scoreBaselineWindow.value}
+                lastJob={lastJob}
+              />
+            </div>
+            <div id="runs-alerts" className="scroll-mt-6">
+              <RunsAlertsSection
+                initial={{
+                  syncSlaMinutes: appSettings.syncSlaMinutes,
+                  remixSlaMinutes: appSettings.remixSlaMinutes,
+                  notifyOnSuccess: appSettings.notifyOnSuccess,
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[4].label}</p>
+            <div id="publish" className="scroll-mt-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Publish</CardTitle>
+                  <CardDescription>
+                    Scheduling and publishing settings appear here once that feature lands. Nothing to configure yet.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[5].label}</p>
+            <div id="onboarding" className="scroll-mt-6">
+              <OnboardingSection />
+            </div>
+            <div id="appearance" className="scroll-mt-6">
+              <AppearanceSection />
+            </div>
           </div>
         </div>
-
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[1].label}</p>
-          <div id="niche-profile" className="scroll-mt-6">
-            <NicheProfileSection initialNiche={nicheSettings.niche} />
-          </div>
-          <div id="scoring" className="scroll-mt-6">
-            <ScoringSection
-              initial={{
-                scoreBaselineMethod: appSettings.scoreBaselineMethod,
-                scoreBaselineWindow: appSettings.scoreBaselineWindow,
-                scoreMinUsablePosts: appSettings.scoreMinUsablePosts,
-                scoreMinViewsFloor: appSettings.scoreMinViewsFloor,
-              }}
-            />
-          </div>
-          <div id="feed-defaults" className="scroll-mt-6">
-            <FeedDefaultsSection
-              initial={{
-                feedDefaultMinScore: appSettings.feedDefaultMinScore,
-                feedDefaultFollowerBand: appSettings.feedDefaultFollowerBand,
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[2].label}</p>
-          <div id="api-keys" className="scroll-mt-6">
-            <SecretsSection initialStatus={secretStatuses} />
-          </div>
-          <div id="local-binaries" className="scroll-mt-6">
-            <LocalBinariesSection binaries={binaries} />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[3].label}</p>
-          <div id="sync" className="scroll-mt-6">
-            <SyncSection
-              config={{
-                eagerVideoDownload: config.EAGER_VIDEO_DOWNLOAD,
-                mediaRoot: config.MEDIA_ROOT,
-              }}
-              settings={{
-                syncLookbackDays: appSettings.syncLookbackDays,
-                maxItemsPerSync: appSettings.maxItemsPerSync,
-                viewCountEnrichPerChannel: appSettings.viewCountEnrichPerChannel,
-                syncCadenceMinutes: appSettings.syncCadenceMinutes,
-                mediaRetentionDays: appSettings.mediaRetentionDays,
-              }}
-              scoreBaselineWindow={appSettings.scoreBaselineWindow.value}
-              lastJob={lastJob}
-            />
-          </div>
-          <div id="runs-alerts" className="scroll-mt-6">
-            <RunsAlertsSection
-              initial={{
-                syncSlaMinutes: appSettings.syncSlaMinutes,
-                remixSlaMinutes: appSettings.remixSlaMinutes,
-                notifyOnSuccess: appSettings.notifyOnSuccess,
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[4].label}</p>
-          <div id="publish" className="scroll-mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Publish</CardTitle>
-                <CardDescription>
-                  Scheduling and publishing settings appear here once that feature lands. Nothing to configure yet.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-4">
-          <p data-lab className="font-mono text-2xs text-muted-foreground">{SETTINGS_NAV_GROUPS[5].label}</p>
-          <div id="onboarding" className="scroll-mt-6">
-            <OnboardingSection />
-          </div>
-          <div id="appearance" className="scroll-mt-6">
-            <AppearanceSection />
-          </div>
-        </div>
-      </div>
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }
