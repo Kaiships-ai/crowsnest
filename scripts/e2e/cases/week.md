@@ -8,7 +8,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | --- | --- | --- | --- | --- | --- |
 | 1 | Land on Tuần này | `/` with no tab shows the week screen with one next-action chip and today's reels | ● | `src/components/week/week-tab.tsx`, `week-screen.tsx`, `src/app/(shell)/(loaded)/page.tsx` | none |
 | 2 | Today and week split | "Hôm nay" cards open, "Cả tuần" collapsed with one list per day | ● | `week-model.ts` (`splitWeek`) | none |
-| 3 | Drag a reel to another day | Optimistic move, saved through `schedulePlannedPostAction`, undo in the toast | ● | `week-screen.tsx` (`moveTo`) | none |
+| 3 | Drag a reel to another day | Optimistic move through `movePlannedPostAction`: state kept, `scheduledAt` carried, published refused, past days not targets; undo restores the prior snapshot | ● | `week-screen.tsx` (`moveTo`) | none |
 | 4 | Reel drawer | Five steps, inline hook, keyword, video, publish gate with confirm, funnel tiles | ● | `week-screen.tsx` (`ReelDrawer`) | none |
 | 5 | Approve and undo a plan draft | Draft bar for a proposed week version newer than the live one | ● | `approvePlanVersionAction`, `undoPlanVersionAction` | No discard: plan versions have no reject |
 | 6 | Ask Claude for next week | Copies a prompt naming the MCP plan tools | ● | `week-screen.tsx` (`ask`) | none |
@@ -25,5 +25,9 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 - Drag. Open `data-testid="week-toggle"`, drag a `data-testid="week-row"` onto another `data-testid="week-day"`, reload. The reel stays on the new day. `data-testid="week-move-undo"` moves it back.
 - Hook. In `data-testid="week-drawer"` for a reel with a remix session, type in `data-testid="week-hook-input"` and press Esc. The drawer closes and `remix_sessions.chosen_hook` holds the edit. A reel with no session shows `data-testid="week-hook-empty"`.
 - Keyboard move. In the drawer, pick another day in `data-testid="week-move-select"` with the keyboard. The reel moves at once and `data-testid="week-move-undo"` moves it back.
+- Move rules. Move an armed reel: its `scheduled_at` moves to the new day at the same time. Move a failed reel: it stays failed with its error. A published reel in a stale tab: the move is refused and the reel stays. Past days take no drop and are not in the select.
+- Hook template. With a remix session topic, a `{topic}` template saves the filled hook. A template with another slot stays in `data-testid="week-hook-input"` and `chosen_hook` is unchanged.
+- Note on close. Type in `data-testid="week-note-input"` and press Esc; the note is saved.
+- Sidebar Back. From `/`, open Dashboard and press Back; the rail marks Tuần này.
 - Funnel. A reel with a keyword and saved rows shows numbers in the `data-testid="week-funnel-tile"` tiles whose `data-metric` is `dms`, `emails`, and `orders`; a metric with no row reads "chưa đo".
 - Phone. At 400 px width the page has no horizontal scroll.

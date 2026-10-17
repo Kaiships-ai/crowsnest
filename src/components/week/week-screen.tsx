@@ -137,23 +137,19 @@ export function WeekScreen(props: WeekScreenProps) {
     setOpenId(id);
   }
 
-  // A sequence per reel: only the newest move's answer touches the UI, so a late failure
-  // cannot roll back over a newer success. Next runs server actions one at a time, so
-  // the newest answer is also the last write.
-  const [moveSeq] = useState(() => new Map<string, number>());
+  const [newestMoveNo] = useState(() => new Map<string, number>());
 
-  /** `from` is the day the UI shows now; the server re-checks everything else. */
   async function moveTo(id: string, from: string | null, to: { date: string } | { restore: MoveSnapshot }) {
     const date = "date" in to ? to.date : to.restore.plannedDate;
     if ("date" in to && (date === from || to.date < today)) return;
-    const n = (moveSeq.get(id) ?? 0) + 1;
-    moveSeq.set(id, n);
+    const n = (newestMoveNo.get(id) ?? 0) + 1;
+    newestMoveNo.set(id, n);
     performance.mark("week-drop");
     setReels((rs) => moveReel(rs, id, date));
     requestAnimationFrame(() => performance.measure("week-drop-paint", "week-drop"));
     const res = await movePlannedPostAction(id, to);
     performance.measure("week-drop-store", "week-drop");
-    if (moveSeq.get(id) !== n) return;
+    if (newestMoveNo.get(id) !== n) return;
     if (!res.ok) {
       setReels((rs) => moveReel(rs, id, from));
       toast.error(res.error);

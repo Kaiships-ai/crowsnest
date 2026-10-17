@@ -243,7 +243,6 @@ export interface MoveSnapshot {
 
 const localYmd = (d: Date) => d.toLocaleDateString("sv-SE");
 
-/** The same local wall-clock time as `iso`, on local date `date`. */
 function shiftToDate(iso: string, date: string): string {
   const at = new Date(iso);
   const [y, m, d] = date.split("-").map(Number);
@@ -256,7 +255,7 @@ function shiftToDate(iso: string, date: string): string {
  * that is publishing or published, carries an armed `scheduledAt` to the new day at the
  * same local time, and never writes a past `scheduledAt` onto a scheduled row, which the
  * scheduler would claim at once. `{ restore }` puts back the snapshot an earlier move
- * returned, exactly. The state check sits in the UPDATE itself so a stale tab cannot win.
+ * returned, exactly.
  */
 export async function movePlannedPostAction(
   id: string,

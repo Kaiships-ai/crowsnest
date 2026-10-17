@@ -4,8 +4,6 @@ import { eq } from "drizzle-orm";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import type { WeekScreenProps } from "./week-screen";
 
-// The drawer driven against the real server actions on an in-memory DB, so what is
-// asserted is the row the action wrote, not a mock's call log.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: () => {}, push: () => {} }) }));
 vi.mock("@/components/mine/publish-dialog", () => ({ PublishDialog: () => null }));
