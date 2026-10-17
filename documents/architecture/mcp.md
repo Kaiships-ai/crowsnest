@@ -23,7 +23,8 @@ The endpoint is `http://localhost:3000/api/mcp`, streamable HTTP. Names, inputs,
 | `crowsnest_research_set` | Outliers with analyses plus own reach benchmark | R |
 | `crowsnest_outlier_pack` | Top N shortlist with media handoff, rising mode | R |
 | `crowsnest_metrics` | Own channel current and prior window, recent own posts | R |
-| `crowsnest_plans` | Planned posts, optionally in a date range | R |
+| `crowsnest_plans` | Planned posts, optionally in a date range, each with `keyword` and `magnetUrl` | R |
+| `crowsnest_set_plan_fields` | Set or clear one plan's `keyword` and `magnetUrl` | W |
 | `crowsnest_scripts` | Saved scripts, newest first, paged | R |
 | `crowsnest_ideas` | Ideas inbox or shortlist, paged | R |
 | `crowsnest_brief` | A planned post's brief with source media paths | R |
@@ -58,7 +59,7 @@ Typical flows. Sync: `ig_status`, `channels`, `sync_selected`, poll `sync_status
 - Every handler returns through `result()` or `errorResult()`. `result` serializes one value to both JSON text and `structuredContent`. `errorResult` sets `isError: true`. Handled failures (unknown id, no own channel) are error results, never thrown (`src/server/mcp/mcp-server.test.ts`).
 - `mediaInfoFor` reads `path`, `byteSize`, and `durationSec` off the `media_assets` row and never touches the file. A null id or missing row returns null and an unresolvable stored path gives a null `path`.
 - The remix chain is keyless. `crowsnest_remix_hooks`, `_outline`, and `_variants` return the assembled `{ system, user, context }` prompt from `services/remix.ts` builders and never call a model (`src/server/mcp/mcp-remix-keyless.test.ts`). The agent must save its outline back through `crowsnest_remix_outline` with `outline`, or the script prompt carries no beats.
-- `crowsnest_remix_finish` is idempotent and is the only place the MCP writes a planned post. `crowsnest_plans` never writes.
+- `crowsnest_remix_finish` is idempotent and is the only place the MCP creates a planned post. `crowsnest_set_plan_fields` only edits `keyword` and `magnetUrl` on an existing plan in any state, scheduled and published included, because a live reel still needs its funnel keyword. An omitted field is left alone and null clears it. The tool schema only type-checks; `setPlanFieldsAction` is the single validator, so every refusal returns `{error, code, postId}`. It refuses a `keyword` that is blank, over 64 characters after trimming, or holds a control character (Unicode `Cc`, U+2028, U+2029) (`PLAN_KEYWORD_INVALID`), and a `magnetUrl` that does not start with `http://` or `https://`, is over 2048 characters, holds a control character, or carries a user or password (`PLAN_MAGNET_URL_INVALID`). A valid link is stored as the trimmed raw string, not the parser's normalized `href`. A keyword another plan holds, compared case-insensitively for ASCII letters only (SQLite `lower()`), returns `KEYWORD_TAKEN` with nothing written. `crowsnest_plans` never writes.
 - `crowsnest_sync_selected` rejects an empty `channelIds` with code `NO_CHANNELS`; there is no whole-library default. On `IG_SERVICE_DOWN` its error adds `bootstrap: "npm run ig:service"`.
 - `crowsnest_ig_status` never returns an error result. Only `IG_SERVICE_DOWN` makes `reachable` false; any other failure code means the sidecar answered.
 - `crowsnest_sync_status` returns null progress for an unknown job, and `crowsnest_sync_cancel` stops at the next channel boundary keeping committed work.

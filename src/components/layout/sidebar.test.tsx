@@ -15,8 +15,6 @@
 import { cleanup, render, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 
-afterEach(cleanup);
-
 // The rail calls usePathname for its active marker and useRouter().refresh() when a
 // watched run finishes; the real implementations throw outside an App Router tree.
 vi.mock("next/navigation", () => ({
@@ -52,11 +50,10 @@ function renderRail(props: Partial<React.ComponentProps<typeof Sidebar>> = {}) {
   );
 }
 
+afterEach(cleanup);
+
 describe("Sidebar", () => {
   test("marks exactly the item matching the current pathname as active", () => {
-    // Queries are scoped to `container`, not `document`: this repo's vitest config has
-    // no `globals: true`, so testing-library's auto-cleanup afterEach never registers
-    // and every render in this file stays in the document.
     const { container } = renderRail();
 
     const active = container.querySelectorAll('[data-slot="sidebar-menu-button"][data-active]');
@@ -69,7 +66,7 @@ describe("Sidebar", () => {
     const badges = withCount.container.querySelectorAll('[data-slot="sidebar-menu-badge"]');
     expect(badges.length).toBe(1);
     expect(badges[0].textContent).toBe("3");
-    withCount.unmount();
+    cleanup();
 
     const withoutCount = renderRail({ feedOutlierCount: 0 });
     expect(withoutCount.container.querySelectorAll('[data-slot="sidebar-menu-badge"]').length).toBe(0);

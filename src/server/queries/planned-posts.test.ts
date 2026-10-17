@@ -182,6 +182,21 @@ describe("getPlannedPosts", () => {
   });
 });
 
+describe("keyword", () => {
+  test("a keyword is read back, and a second plan cannot hold it in any case", async () => {
+    await db.insert(tables.plannedPosts).values({ id: newId(), state: "draft", title: "A", keyword: "PLUGIN", magnetUrl: "https://example.com/g", createdAt: nowIso(), updatedAt: nowIso() });
+    await expect(
+      db.insert(tables.plannedPosts).values({ id: newId(), state: "draft", title: "B", keyword: "plugin", createdAt: nowIso(), updatedAt: nowIso() })
+    ).rejects.toThrow();
+    await db.insert(tables.plannedPosts).values({ id: newId(), state: "draft", title: "C", createdAt: nowIso(), updatedAt: nowIso() });
+
+    const rows = await getPlannedPosts();
+    expect(rows).toHaveLength(2);
+    expect(rows.find((r) => r.title === "A")).toMatchObject({ keyword: "PLUGIN", magnetUrl: "https://example.com/g" });
+    expect(rows.find((r) => r.title === "C")).toMatchObject({ keyword: null, magnetUrl: null });
+  });
+});
+
 describe("getCalendarMonth", () => {
   test("no plans and no measurement yet: empty published, empty plans, measuredAt null", async () => {
     const month = await getCalendarMonth("2026-06");

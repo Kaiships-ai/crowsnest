@@ -413,6 +413,54 @@ export async function setPlanCaptionAction(id: string, caption: string): Promise
   }
 }
 
+export async function setPlanFieldsAction(
+  id: string,
+  fields: { keyword?: string | null; magnetUrl?: string | null }
+): Promise<SimpleResult> {
+  const keyword = fields.keyword?.trim();
+  if (keyword !== undefined && (keyword.length < 1 || keyword.length > KEYWORD_MAX || CONTROL_CHAR.test(keyword))) {
+    return { ok: false, error: `A keyword is 1 to ${KEYWORD_MAX} characters with no control characters or line breaks.`, code: "PLAN_KEYWORD_INVALID" };
+  }
+  const magnetUrl = fields.magnetUrl?.trim();
+  if (magnetUrl !== undefined && !isGuideUrl(magnetUrl)) {
+    return { ok: false, error: `A guide link starts with http:// or https://, is at most ${MAGNET_URL_MAX} characters, and has no control characters, user, or password.`, code: "PLAN_MAGNET_URL_INVALID" };
+  }
+  const patch: { keyword?: string | null; magnetUrl?: string | null } = {};
+  if (fields.keyword !== undefined) patch.keyword = keyword ?? null;
+  if (fields.magnetUrl !== undefined) patch.magnetUrl = magnetUrl ?? null;
+  try {
+    const updated = Object.keys(patch).length
+      ? await db.update(tables.plannedPosts).set({ ...patch, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id)).returning({ id: tables.plannedPosts.id })
+      : await db.select({ id: tables.plannedPosts.id }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id));
+    if (updated.length === 0) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
+    return { ok: true };
+  } catch (err) {
+    if (isUniqueViolation(err)) return { ok: false, error: `Another plan already uses the keyword "${patch.keyword}".`, code: "KEYWORD_TAKEN" };
+    return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
+  }
+}
+
+const KEYWORD_MAX = 64;
+const MAGNET_URL_MAX = 2048;
+const CONTROL_CHAR = /[\p{Cc}\u2028\u2029]/u;
+
+function isGuideUrl(raw: string): boolean {
+  if (raw.length > MAGNET_URL_MAX || !/^https?:\/\//i.test(raw) || CONTROL_CHAR.test(raw)) return false;
+  try {
+    const url = new URL(raw);
+    return (url.protocol === "http:" || url.protocol === "https:") && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    if ((e as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE") return true;
+  }
+  return false;
+}
+
 /**
  * Arms a plan for the scheduler. Every precondition is named in the error rather than
  * silently succeeding (plan locked decision 6): a video, a caption, a configured bucket,
