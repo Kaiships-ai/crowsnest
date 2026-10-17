@@ -7,12 +7,8 @@ let newId: typeof import("@/server/db")["newId"];
 let nowIso: typeof import("@/server/db")["nowIso"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let getDashboardStats: typeof import("./dashboard")["getDashboardStats"];
-let getTopOutliersToday: typeof import("./dashboard")["getTopOutliersToday"];
-let getTopOutlierAllTime: typeof import("./dashboard")["getTopOutlierAllTime"];
-let getFleetSpikes: typeof import("./dashboard")["getFleetSpikes"];
 let getRecentlyViewed: typeof import("./dashboard")["getRecentlyViewed"];
 let getNewOutliersSince: typeof import("./dashboard")["getNewOutliersSince"];
-let readAndBumpDashboardLastVisit: typeof import("./dashboard")["readAndBumpDashboardLastVisit"];
 let getFeedLastVisit: typeof import("./dashboard")["getFeedLastVisit"];
 let bumpFeedLastVisit: typeof import("./dashboard")["bumpFeedLastVisit"];
 let getNewFeedOutliers: typeof import("./dashboard")["getNewFeedOutliers"];
@@ -23,12 +19,8 @@ beforeAll(async () => {
   ({ migrate } = await import("@/server/db/test-migrate"));
   ({
     getDashboardStats,
-    getTopOutliersToday,
-    getTopOutlierAllTime,
-    getFleetSpikes,
     getRecentlyViewed,
     getNewOutliersSince,
-    readAndBumpDashboardLastVisit,
     getFeedLastVisit,
     bumpFeedLastVisit,
     getNewFeedOutliers,
@@ -158,132 +150,6 @@ describe("getDashboardStats", () => {
   });
 });
 
-describe("getTopOutliersToday", () => {
-  test("returns the highest-scored videos posted in the last 7 days, respecting limit", async () => {
-    const channelId = await seedChannel();
-    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 3 });
-    await seedVideo(channelId, { postedAt: isoDaysAgo(2), outlierScore: 9 });
-    await seedVideo(channelId, { postedAt: isoDaysAgo(20), outlierScore: 50 }); // too old, excluded
-
-    const items = await getTopOutliersToday(1);
-
-    expect(items).toHaveLength(1);
-    expect(items[0].outlierScore).toBe(9);
-  });
-
-  test("falls back to all-time top scores when nothing was posted in the last 7 days", async () => {
-    const channelId = await seedChannel();
-    await seedVideo(channelId, { postedAt: isoDaysAgo(30), outlierScore: 15 });
-
-    const items = await getTopOutliersToday(6);
-
-    expect(items).toHaveLength(1);
-    expect(items[0].outlierScore).toBe(15);
-  });
-
-  test("excludes soft-deleted videos from both the recent list and the all-time fallback", async () => {
-    const channelId = await seedChannel();
-    const liveId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 5 });
-    const deletedRecentId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99 });
-    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedRecentId));
-
-    const recentItems = await getTopOutliersToday(6);
-    expect(recentItems.map((i) => i.videoId)).toEqual([liveId]);
-
-    // Now exercise the all-time fallback path too: delete the only remaining video and
-    // confirm the fallback query itself also filters deletedAt (not just the recent one).
-    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, liveId));
-    const fallbackItems = await getTopOutliersToday(6);
-    expect(fallbackItems).toEqual([]);
-  });
-});
-
-describe("getTopOutlierAllTime", () => {
-  test("returns the highest-scored video regardless of age, unlike getTopOutliersToday's 7-day window", async () => {
-    const channelId = await seedChannel();
-    // A recent post with no score yet (what getTopOutliersToday(1) would surface via its
-    // fallback-to-recent behavior) alongside the real top outlier from outside the 7-day
-    // window (mirrors the live bug: a 23-day-old top scorer beat by nothing in-window).
-    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: null });
-    const topId = await seedVideo(channelId, { postedAt: isoDaysAgo(23), outlierScore: 10.1 });
-    await seedVideo(channelId, { postedAt: isoDaysAgo(5), outlierScore: 3 });
-
-    const items = await getTopOutlierAllTime(1);
-
-    expect(items).toHaveLength(1);
-    expect(items[0].videoId).toBe(topId);
-    expect(items[0].outlierScore).toBe(10.1);
-  });
-
-  test("returns [] when no video has a non-null score, rather than falling back to a null-scored one", async () => {
-    const channelId = await seedChannel();
-    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: null });
-    await seedVideo(channelId, { postedAt: isoDaysAgo(30), outlierScore: null });
-
-    const items = await getTopOutlierAllTime(1);
-
-    expect(items).toEqual([]);
-  });
-
-  test("excludes soft-deleted videos even when they have the highest score", async () => {
-    const channelId = await seedChannel();
-    const liveId = await seedVideo(channelId, { postedAt: isoDaysAgo(10), outlierScore: 5 });
-    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99 });
-    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
-
-    const items = await getTopOutlierAllTime(1);
-
-    expect(items.map((i) => i.videoId)).toEqual([liveId]);
-  });
-});
-
-describe("getFleetSpikes", () => {
-  test("only includes fleets with at least one new (score>=2) outlier in the last 7 days, sorted desc", async () => {
-    const quietChannel = await seedChannel();
-    const busyChannel = await seedChannel();
-    const emptyMembershipFleetId = newId();
-    const quietFleetId = newId();
-    const busyFleetId = newId();
-
-    await db.insert(tables.fleets).values([
-      { id: emptyMembershipFleetId, name: "Empty Fleet", createdAt: nowIso() },
-      { id: quietFleetId, name: "Quiet Fleet", createdAt: nowIso() },
-      { id: busyFleetId, name: "Busy Fleet", createdAt: nowIso() },
-    ]);
-    // emptyMembershipFleetId deliberately has zero fleet_channels rows (never inArray'd with []).
-    await db.insert(tables.fleetChannels).values([
-      { fleetId: quietFleetId, channelId: quietChannel },
-      { fleetId: busyFleetId, channelId: busyChannel },
-    ]);
-
-    await seedVideo(quietChannel, { postedAt: isoDaysAgo(1), outlierScore: 1 }); // below threshold
-    await seedVideo(busyChannel, { postedAt: isoDaysAgo(1), outlierScore: 5 });
-    await seedVideo(busyChannel, { postedAt: isoDaysAgo(2), outlierScore: 8 });
-
-    const spikes = await getFleetSpikes();
-
-    expect(spikes.map((s) => s.fleetName)).toEqual(["Busy Fleet"]); // Quiet Fleet + Empty Fleet excluded
-    expect(spikes[0].newOutliers7d).toBe(2);
-  });
-
-  test("excludes soft-deleted videos from a fleet's newOutliers7d count and sparkline", async () => {
-    const channelId = await seedChannel();
-    const fleetId = newId();
-    await db.insert(tables.fleets).values({ id: fleetId, name: "Fleet With Deletions", createdAt: nowIso() });
-    await db.insert(tables.fleetChannels).values({ fleetId, channelId });
-
-    await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 5, viewCount: 1000 });
-    const deletedId = await seedVideo(channelId, { postedAt: isoDaysAgo(1), outlierScore: 99, viewCount: 999_999 });
-    await db.update(tables.videos).set({ deletedAt: nowIso() }).where(eq(tables.videos.id, deletedId));
-
-    const spikes = await getFleetSpikes();
-
-    const spike = spikes.find((s) => s.fleetId === fleetId);
-    expect(spike?.newOutliers7d).toBe(1);
-    expect(spike?.sparkline.reduce((a, b) => a + b, 0)).toBe(1000);
-  });
-});
-
 describe("getRecentlyViewed", () => {
   test("returns [] when no recently_viewed setting has ever been written", async () => {
     expect(await getRecentlyViewed()).toEqual([]);
@@ -334,12 +200,6 @@ describe("what changed since the last visit", () => {
     expect(await getNewOutliersSince(null)).toBe(0);
   });
 
-  test("readAndBumpDashboardLastVisit returns the previous value and writes now", async () => {
-    const first = await readAndBumpDashboardLastVisit("2026-08-05T00:00:00.000Z");
-    expect(first).toBeNull(); // nothing stored yet
-    const second = await readAndBumpDashboardLastVisit("2026-08-06T00:00:00.000Z");
-    expect(second).toBe("2026-08-05T00:00:00.000Z");
-  });
 });
 
 describe("feed cue (new outliers since last Feed visit)", () => {
@@ -350,15 +210,6 @@ describe("feed cue (new outliers since last Feed visit)", () => {
     // bump is insert-or-update: a second bump replaces, never duplicates the row.
     await bumpFeedLastVisit("2026-08-06T00:00:00.000Z");
     expect(await getFeedLastVisit()).toBe("2026-08-06T00:00:00.000Z");
-  });
-
-  test("bumping the Feed cutoff does not touch the dashboard cutoff, and vice versa", async () => {
-    await readAndBumpDashboardLastVisit("2026-08-01T00:00:00.000Z");
-    await bumpFeedLastVisit("2026-08-10T00:00:00.000Z");
-    // Reading (and re-bumping) the dashboard visit returns the dashboard value, proving
-    // the two keys are independent — opening the Dashboard must not clear the Feed cue.
-    expect(await readAndBumpDashboardLastVisit("2026-08-11T00:00:00.000Z")).toBe("2026-08-01T00:00:00.000Z");
-    expect(await getFeedLastVisit()).toBe("2026-08-10T00:00:00.000Z");
   });
 
   test("getNewFeedOutliers counts only outliers first seen after the last Feed visit", async () => {

@@ -3,7 +3,7 @@
  * Actions.
  *
  * Canonical source is `saved-post-actions.ts`, which several other action modules
- * (idea-actions.ts, planned-post-actions.ts, saved-view-actions.ts...) hand-copied
+ * (planned-post-actions.ts, saved-view-actions.ts...) hand-copied
  * verbatim rather than importing, some admitting as much in their own comments
  * ("Matches saved-post-actions.ts's own ActionResult union"). Centralized here so the
  * shape can't quietly drift between copies.

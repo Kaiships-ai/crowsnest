@@ -1,40 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`buildScriptPrompt > snapshot: script linked to hook/style vault items and an analyzed source video 1`] = `
-"# Copy-as-Prompt — My Remixed Script
-
-## Topic framing
-My Remixed Script
-
-## Hook strategy
-you're falling behind on {topic}
-
-## Structure beats
-5 beats, CTA at end
-
-## Style notes
-Style: editing, listicle
-
-## Research facts
-Why it worked: The warning framing creates urgency.
-
-## Source metrics
-- Channel: @formfirst.fit
-- Views: 300K
-- Outlier multiplier: 9.1×
-- Duration: 30s
-- Posted: 2026-01-01T00:00:00.000Z
-
-## Script
-HOOK: you're falling behind...
-BUILD: here's why...
-CTA: follow for more.
-
----
-
-Paste this into any LLM to draft your own version, or use Crowsnest's Remix Studio for a guided 5-stage flow."
-`;
-
 exports[`buildVideoPrompt > graceful degradation: no analysis yet — metrics + transcript still present, sections note analysis pending 1`] = `
 "# Copy-as-Prompt — a video with no analysis yet
 

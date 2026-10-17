@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { feedItemColumns, toFeedItem, type FeedItem, type FeedItemRow } from "./feed";
 
@@ -108,21 +108,6 @@ export async function listIdeas({ tab }: { tab: IdeaTab }): Promise<IdeaListItem
   return rows.map(toIdeaListItem);
 }
 
-/** A single idea by id, with its source post — regardless of status, so the detail pane
- *  can still resolve an idea right after it's discarded (reversible) without the row
- *  vanishing out from under an open panel. Null when the id doesn't exist. */
-export async function getIdea(id: string): Promise<IdeaListItem | null> {
-  const [row] = await db
-    .select(ideaColumns)
-    .from(tables.idea)
-    .innerJoin(tables.videos, eq(tables.idea.sourceVideoId, tables.videos.id))
-    .innerJoin(tables.channels, eq(tables.videos.channelId, tables.channels.id))
-    .where(eq(tables.idea.id, id))
-    .limit(1);
-
-  return row ? toIdeaListItem(row) : null;
-}
-
 /** The single non-discarded idea for one video, or null. Backed by the partial
  *  unique index `idea_source_active`. The video detail page shows its status. */
 export async function getIdeaBySourceVideoId(videoId: string): Promise<{ id: string; status: string } | null> {
@@ -134,12 +119,3 @@ export async function getIdeaBySourceVideoId(videoId: string): Promise<{ id: str
   return row ?? null;
 }
 
-/** How many ideas sit in the inbox right now — backs the Ideas nav item's count badge
- *  (neutral, never amber — DESIGN-SYSTEM.md §3 bans amber on a sidebar count badge). */
-export async function countInboxIdeas(): Promise<number> {
-  const [row] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(tables.idea)
-    .where(eq(tables.idea.status, "inbox"));
-  return row?.count ?? 0;
-}

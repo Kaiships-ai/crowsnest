@@ -413,29 +413,3 @@ export interface AccountBreakdowns {
   audienceError: string | null;
 }
 
-/** Newest batch per metric, entries sorted by value, plus the stored audience refusal. */
-export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
-  // ponytail: reads every stored batch and keeps the newest per metric in memory; a
-  // single-user account adds a few dozen rows a day. Filter in SQL if that ever shows.
-  const [rows, errorRow, splitErrorRow] = await Promise.all([
-    db.select().from(tables.ownAccountBreakdowns).orderBy(desc(tables.ownAccountBreakdowns.capturedAt)),
-    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_AUDIENCE_FETCH_ERROR_KEY)).limit(1),
-    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY)).limit(1),
-  ]);
-  const newest = (metric: string) => {
-    const first = rows.find((r) => r.metric === metric);
-    return first ? rows.filter((r) => r.metric === metric && r.capturedAt === first.capturedAt) : [];
-  };
-  const entries = (list: typeof rows) => list.map((r) => ({ key: r.key, value: r.value })).sort((a, b) => b.value - a.value);
-  const split = newest("views");
-  const audience = newest("engaged_audience_demographics");
-  const dim = (d: string) => entries(audience.filter((r) => r.dimension === d));
-  return {
-    followerSplit: entries(split),
-    followerSplitAt: split[0]?.capturedAt ?? null,
-    followerSplitError: splitErrorRow[0]?.value ?? null,
-    audience: { age: dim("age"), country: dim("country"), gender: dim("gender") },
-    audienceAt: audience[0]?.capturedAt ?? null,
-    audienceError: errorRow[0]?.value ?? null,
-  };
-}
