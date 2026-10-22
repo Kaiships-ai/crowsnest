@@ -94,7 +94,7 @@ The MCP lives on the same server at `/api/mcp` and needs no token from localhost
 
 ### Evidence
 
-`drive.sh` writes `data/verify/evidence/<run-id>/<journey>.transcript.txt` plus every `snap` screenshot there (`data/` is gitignored). A proof is:
+`drive.sh` writes `data/verify/evidence/<run-id>/<journey>.transcript.txt` plus every `snap` screenshot there (`data/` is gitignored). From a worktree, the kept copy is in the main checkout; see Cleanup. A proof is:
 
 - the real user path through the UI, never a direct server-action call or DB insert;
 - the transcript showing each action and its `ok:` assertion, plus a screenshot of the end state;
@@ -109,3 +109,13 @@ Network boundaries stay real: the IG sidecar and Graph API are not mocked, so a 
 ```
 
 Kills only the process group `up.sh` started, removes the pid/port files, and keeps `data/verify/evidence/`. `data/e2e.db` is left for inspection and rebuilt on the next launch. Never `pkill node` or kill by name; the operator's dev server is a node process too.
+
+In a worktree, `down.sh` also runs `keep-evidence.sh`, which copies `data/verify/evidence/` into the main checkout at `data/verify/evidence/<branch>/` (slashes become dashes). Run it on its own after recording outside `drive.sh`, such as a proof video. Proof lives in the main checkout; the worktree copy is scratch.
+
+After the branch's PR merges, retire the worktree:
+
+```bash
+.claude/skills/verify/scripts/retire.sh <worktree-path>   # run from outside the worktree, e.g. the main checkout
+```
+
+It refuses the main checkout, a worktree with uncommitted changes, and a branch whose PR is not merged and whose head is not on `origin/main`. It stops the worktree's `browse` server and refuses while any other process still has its working directory inside the worktree, such as an agent pane; it lists their pids. Otherwise it runs `down.sh` (stop the server, copy the evidence), then removes the worktree and its local branch. Retire every worktree the task created, delegate worktrees under `.claude/worktrees/` included.

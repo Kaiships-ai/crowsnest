@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Stops only the server up.sh started (its process group). Keeps data/verify/evidence.
+# Stops only the server up.sh started (its process group). Keeps data/verify/evidence and,
+# in a worktree, copies it to the main checkout (keep-evidence.sh).
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 DIR=data/verify
@@ -14,3 +15,4 @@ else
 fi
 rm -f "$DIR/server.pid" "$DIR/server.port"
 echo "verify: evidence kept in $DIR/evidence/"
+"$(dirname "$0")/keep-evidence.sh"
