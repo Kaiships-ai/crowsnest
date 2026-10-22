@@ -20,6 +20,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 12 | Old Dashboard links | Any `/?tab=` value redirects to `/` | ● | `src/proxy.ts` | none |
 | 13 | Recover a publish from the drawer | A failed reel offers "Thử đăng lại" until the attempt cap, then says why; a reel with a publish time offers "Huỷ lịch đăng" behind a confirm and goes back to draft on its day and time | ● | `week-screen.tsx`, `retryFailedPublishAction`, `cancelScheduledPublishAction` | none |
 | 14 | Edit and delete a reel | "Sửa plan" opens the plan dialog and re-dates by the move rules; "Xoá reel" deletes with an undo toast that restores every column; a publishing reel cannot be deleted | ● | `week-screen.tsx`, `plan-dialog.tsx`, `savePlanEditAction`, `deletePlannedPostAction` | none |
+| 15 | Drawer motion | The reel drawer slides in and out on the drawer curve; arrow keys step reels inside it without replaying the slide; under reduced motion it fades without sliding | ● | `week-screen.tsx` (`ReelDrawer`), `src/components/ui/sheet.tsx`, `src/app/globals.css` | none |
 
 ## Test cases
 
@@ -32,6 +33,9 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 - Move rules. Move an armed reel: its `scheduled_at` moves to the new day at the same time. Move a failed reel: it stays failed with its error. A published reel in a stale tab: the move is refused and the reel stays. Past days take no drop and are not in the select.
 - Hook template. With a remix session topic, a `{topic}` template saves the filled hook. A template with another slot stays in `data-testid="week-hook-input"` and `chosen_hook` is unchanged.
 - Note on close. Type in `data-testid="week-note-input"` and press Esc; the note is saved.
+- Drawer enter and exit. Click a `data-testid="week-today-card"`; `data-testid="week-drawer"` starts translated and transparent and settles at full opacity with no translate over about 200ms. Press Esc; it fades and slides out over about 200ms before leaving the DOM, still showing the same reel's title.
+- Keyboard step. With the drawer open and focus outside an input, press ArrowDown; the same `data-testid="week-drawer"` element shows the next reel's title at once with no slide, and `data-testid="week-note-input"` shows that reel's note.
+- Reduced motion. With `prefers-reduced-motion: reduce`, open and close the drawer; it fades in and out with no translate at any frame.
 - Sidebar Back. From `/`, open Nguồn and press Back; the rail marks Tuần này.
 - J6 broken token. With the cached Graph token state `auth_failed` or `permission_denied`, `data-testid="graph-token-line"` shows one red line on `/` and on `/feed`, `/channels`, `/channels/discover`. It links to `/settings#graph-api`; there, press `data-testid="mine-connect-check"`: an `auth_failed` line is gone on the next render once the token works. A `permission_denied` line stays until a measurement succeeds or the token is saved again. With Graph unreachable the page renders without waiting. With a missing token or a healthy one, no line shows.
 - Funnel. A reel with a keyword and saved rows shows numbers in the `data-testid="week-funnel-tile"` tiles whose `data-metric` is `dms`, `emails`, and `orders`; a metric with no row reads "chưa đo".
