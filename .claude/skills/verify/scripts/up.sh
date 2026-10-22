@@ -21,8 +21,11 @@ fi
 CROWSNEST_DB_PATH=data/e2e.db npx tsx scripts/seed-e2e.ts >"$DIR/seed.log" 2>&1 \
   || { echo "verify: seed failed, see $DIR/seed.log" >&2; tail -20 "$DIR/seed.log" >&2; exit 1; }
 
+# graph-offline.mjs answers graph.instagram.com locally, so the seed's junk token never
+# reaches Instagram. PUBLISH_DRY_RUN=1 stops every publish before the final POST.
 set -m
-PORT="$PORT" CROWSNEST_DB_PATH=data/e2e.db npm run start >"$DIR/server.log" 2>&1 &
+NODE_OPTIONS="--import $PWD/scripts/e2e/graph-offline.mjs ${NODE_OPTIONS:-}" PUBLISH_DRY_RUN=1 \
+  PORT="$PORT" CROWSNEST_DB_PATH=data/e2e.db npm run start >"$DIR/server.log" 2>&1 &
 echo $! >"$DIR/server.pid"
 echo "$PORT" >"$DIR/server.port"
 set +m

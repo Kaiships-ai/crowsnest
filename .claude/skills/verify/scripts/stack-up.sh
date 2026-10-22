@@ -39,7 +39,7 @@ if [ "$r" = 000 ]; then
     || fail "dev server down on :3000. Start it in an Orca pane (SKILL.md, Operator stack), then re-run with --check"
   [ "$ok" = 1 ]; exit $?
 fi
-for p in / /feed /channels/discover /runs /settings; do
+for p in / /feed /channels /channels/discover /logs /runs /settings; do
   r="$(code "http://localhost:3000$p" 30)"
   case "$r" in
     2??|3??) echo "ok    GET $p -> $r" ;;
