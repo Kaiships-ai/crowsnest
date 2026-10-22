@@ -126,6 +126,8 @@ export function WeekScreen(props: WeekScreenProps) {
   }
   const [weekOpen, setWeekOpen] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [shownId, setShownId] = useState<string | null>(null);
+  if (openId !== null && openId !== shownId) setShownId(openId);
   const [overDay, setOverDay] = useState<string | null>(null);
 
   const funnelOf = (r: PlannedPostRow) => (r.keyword ? (funnel[r.keyword.toLowerCase()] ?? []) : []);
@@ -281,7 +283,7 @@ export function WeekScreen(props: WeekScreenProps) {
     );
   };
 
-  const selected = reels.find((r) => r.id === openId) ?? null;
+  const selected = reels.find((r) => r.id === shownId) ?? null;
   const idx = selected ? ordered.findIndex((r) => r.id === selected.id) : -1;
 
   return (
@@ -376,38 +378,40 @@ export function WeekScreen(props: WeekScreenProps) {
           ))}
       </section>
 
-      {selected && (
-        <ReelDrawer
-          key={selected.id}
-          reel={selected}
-          done={done(selected)}
-          funnel={funnelOf(selected)}
-          metrics={metrics}
-          graphConfigured={props.graphConfigured}
-          bucketConfigured={props.bucketConfigured}
-          dryRun={props.dryRun}
-          days={weekDays(today).filter((d) => d >= today)}
-          hookSession={selected.remixSessionId && selected.remixSessionId in props.hooks ? selected.remixSessionId : null}
-          hook={selected.remixSessionId ? (props.hooks[selected.remixSessionId] ?? null) : null}
-          hookTopic={(selected.remixSessionId && props.hookTopics[selected.remixSessionId]) || selected.keyword}
-          hookTemplates={props.hookTemplates}
-          scripts={props.scripts}
-          sourceGone={gone.has(selected.id)}
-          onMove={(date) => void moveTo(selected.id, selected.plannedDate, { date })}
-          onClose={() => setOpenId(null)}
-          onStep={(delta) => {
-            const n = ordered[idx + delta];
-            if (n) setOpenId(n.id);
-          }}
-          onSaved={(patch) => setReels((rs) => rs.map((r) => (r.id === selected.id ? { ...r, ...patch } : r)))}
-        />
-      )}
+      <ReelDrawer
+        open={openId !== null}
+        reel={selected}
+        done={selected ? done(selected) : 0}
+        funnel={selected ? funnelOf(selected) : []}
+        metrics={metrics}
+        graphConfigured={props.graphConfigured}
+        bucketConfigured={props.bucketConfigured}
+        dryRun={props.dryRun}
+        days={weekDays(today).filter((d) => d >= today)}
+        hookSession={selected?.remixSessionId && selected.remixSessionId in props.hooks ? selected.remixSessionId : null}
+        hook={selected?.remixSessionId ? (props.hooks[selected.remixSessionId] ?? null) : null}
+        hookTopic={(selected?.remixSessionId && props.hookTopics[selected.remixSessionId]) || (selected?.keyword ?? null)}
+        hookTemplates={props.hookTemplates}
+        scripts={props.scripts}
+        sourceGone={selected ? gone.has(selected.id) : false}
+        onMove={(date) => {
+          if (selected) void moveTo(selected.id, selected.plannedDate, { date });
+        }}
+        onClose={() => setOpenId(null)}
+        onClosed={() => setShownId(null)}
+        onStep={(delta) => {
+          const n = ordered[idx + delta];
+          if (n) setOpenId(n.id);
+        }}
+        onSaved={(patch) => setReels((rs) => rs.map((r) => (r.id === selected?.id ? { ...r, ...patch } : r)))}
+      />
     </div>
   );
 }
 
 function ReelDrawer({
-  reel: r,
+  open,
+  reel,
   done,
   funnel,
   metrics,
@@ -423,10 +427,12 @@ function ReelDrawer({
   sourceGone,
   onMove,
   onClose,
+  onClosed,
   onStep,
   onSaved,
 }: {
-  reel: PlannedPostRow;
+  open: boolean;
+  reel: PlannedPostRow | null;
   done: number;
   funnel: FunnelCell[];
   metrics: { source: string; metric: string }[];
@@ -442,24 +448,43 @@ function ReelDrawer({
   sourceGone: boolean;
   onMove: (date: string) => void;
   onClose: () => void;
+  onClosed: () => void;
   onStep: (delta: number) => void;
   onSaved: (patch: Partial<PlannedPostRow>) => void;
 }) {
   const router = useRouter();
   const [hook, setHook] = useState(savedHook ?? "");
-  const [hookAt, setHookAt] = useState(savedHook ?? "");
-  const [note, setNote] = useState(r.note ?? "");
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [hookAt, setHookAt] = useState({ id: reel?.id, value: savedHook ?? "" });
+  const [note, setNote] = useState(reel?.note ?? "");
+  // Keyed by reel id: the drawer outlives a reel, and a publish or retry still running
+  // after an arrow-key step must not unlock or close the next reel's buttons.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [attach, setAttach] = useState(false);
   const [edit, setEdit] = useState(false);
   const [cancelAsk, setCancelAsk] = useState(false);
+  const [stateFor, setStateFor] = useState(reel?.id);
+  if (reel?.id !== stateFor) {
+    setStateFor(reel?.id);
+    setHook(savedHook ?? "");
+    setHookAt({ id: reel?.id, value: savedHook ?? "" });
+    setNote(reel?.note ?? "");
+    setAttach(false);
+    setEdit(false);
+    setCancelAsk(false);
+  }
+  // Same Sheet element as below, so it stays mounted closed and the next open plays the slide.
+  if (!reel) return <Sheet open={false} />;
+  const r = reel;
   const ready = r.videoAssetId !== null && Boolean(r.caption?.trim());
   const dry = dryRun || r.dryRun;
+  const confirm = confirmId === r.id;
+  const busy = busyId === r.id;
+  const settle = (id: string | null) => (id === r.id ? null : id);
 
   async function saveHook(value = hook) {
     const v = value.trim();
-    if (!hookSession || v === hookAt) return;
+    if (!hookSession || v === hookAt.value) return;
     if (SLOT.test(v)) {
       toast.error("Điền chỗ trống {...} trong hook trước khi lưu.");
       return;
@@ -469,7 +494,7 @@ function ReelDrawer({
       toast.error(res.error);
       return;
     }
-    setHookAt(v);
+    setHookAt((h) => (h.id === r.id ? { id: r.id, value: v } : h));
     toast.success("Đã lưu hook");
     router.refresh();
   }
@@ -492,10 +517,10 @@ function ReelDrawer({
   }
 
   async function publish() {
-    setBusy(true);
+    setBusyId(r.id);
     const res = await publishNowAction(r.id);
-    setBusy(false);
-    setConfirm(false);
+    setBusyId(settle);
+    setConfirmId(settle);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -515,9 +540,9 @@ function ReelDrawer({
   }
 
   async function retry() {
-    setBusy(true);
+    setBusyId(r.id);
     const res = await retryFailedPublishAction(r.id);
-    setBusy(false);
+    setBusyId(settle);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -551,7 +576,7 @@ function ReelDrawer({
   const mark = (i: number) => (i < done ? "✓" : i === Math.min(done, 4) ? "●" : "○");
 
   return (
-    <Sheet open onOpenChange={(o) => !o && close()}>
+    <Sheet open={open} onOpenChange={(o) => !o && close()} onOpenChangeComplete={(o) => !o && onClosed()}>
       <SheetContent
         className="w-full gap-3 overflow-y-auto sm:max-w-[440px]"
         data-testid="week-drawer"
@@ -709,7 +734,7 @@ function ReelDrawer({
                   {dry ? "Đang ở chế độ dry run: không có gì lên Instagram." : "Sau khi đăng không hoàn tác được."}
                 </span>
                 <span className="flex justify-end gap-1.5">
-                  <Button size="sm" variant="outline" onClick={() => setConfirm(false)} data-testid="week-publish-cancel">
+                  <Button size="sm" variant="outline" onClick={() => setConfirmId(null)} data-testid="week-publish-cancel">
                     Huỷ
                   </Button>
                   <Button size="sm" disabled={busy} onClick={publish} data-testid="week-publish-go">
@@ -718,7 +743,7 @@ function ReelDrawer({
                 </span>
               </div>
             ) : (
-              <Button size="sm" onClick={() => setConfirm(true)} data-testid="week-publish">
+              <Button size="sm" onClick={() => setConfirmId(r.id)} data-testid="week-publish">
                 Duyệt đăng
               </Button>
             )}

@@ -131,7 +131,9 @@ body copy.
 The base radius is `0.625rem`. `Card` and `Item` are `rounded-2xl`, `Button` is `rounded-4xl`
 (a pill), `InputGroup` and `ButtonGroup` are `rounded-4xl`. Cards separate from the ground by
 tone plus a faint ring (`ring-foreground/10`), not a drop shadow. Focus is a 3px `ring`
-shown instantly. Pressed buttons nudge down 1px. The one custom animation is the sidebar
+shown instantly. Pressed buttons nudge down 1px. Sheets slide in and out on the drawer curve
+(`--ease-drawer`, `cubic-bezier(0.32, 0.72, 0, 1)`, 200ms), transitioning only translate
+and opacity; under reduced motion they fade without sliding. The one custom keyframe animation is the sidebar
 new-outlier badge, which settles in once (`rail-signal-settle`) and appears plainly under
 reduced motion.
 

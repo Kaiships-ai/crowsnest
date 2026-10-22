@@ -55,6 +55,8 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 :root {
@@ -179,5 +181,10 @@
 @media (prefers-reduced-motion: reduce) {
   .rail-signal-settle {
     animation: none;
+  }
+
+  /* Unlayered, so it beats the sheet's starting and ending translate utilities; the fade stays. */
+  [data-slot="sheet-content"] {
+    translate: none;
   }
 }
