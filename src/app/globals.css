@@ -182,4 +182,9 @@
   .rail-signal-settle {
     animation: none;
   }
+
+  /* Unlayered, so it beats the sheet's starting and ending translate utilities; the fade stays. */
+  [data-slot="sheet-content"] {
+    translate: none;
+  }
 }
