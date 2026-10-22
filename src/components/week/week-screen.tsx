@@ -454,10 +454,12 @@ function ReelDrawer({
 }) {
   const router = useRouter();
   const [hook, setHook] = useState(savedHook ?? "");
-  const [hookAt, setHookAt] = useState(savedHook ?? "");
+  const [hookAt, setHookAt] = useState({ id: reel?.id, value: savedHook ?? "" });
   const [note, setNote] = useState(reel?.note ?? "");
-  const [confirm, setConfirm] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // Keyed by reel id: the drawer outlives a reel, and a publish or retry still running
+  // after an arrow-key step must not unlock or close the next reel's buttons.
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [attach, setAttach] = useState(false);
   const [edit, setEdit] = useState(false);
   const [cancelAsk, setCancelAsk] = useState(false);
@@ -465,10 +467,8 @@ function ReelDrawer({
   if (reel?.id !== stateFor) {
     setStateFor(reel?.id);
     setHook(savedHook ?? "");
-    setHookAt(savedHook ?? "");
+    setHookAt({ id: reel?.id, value: savedHook ?? "" });
     setNote(reel?.note ?? "");
-    setConfirm(false);
-    setBusy(false);
     setAttach(false);
     setEdit(false);
     setCancelAsk(false);
@@ -478,10 +478,13 @@ function ReelDrawer({
   const r = reel;
   const ready = r.videoAssetId !== null && Boolean(r.caption?.trim());
   const dry = dryRun || r.dryRun;
+  const confirm = confirmId === r.id;
+  const busy = busyId === r.id;
+  const settle = (id: string | null) => (id === r.id ? null : id);
 
   async function saveHook(value = hook) {
     const v = value.trim();
-    if (!hookSession || v === hookAt) return;
+    if (!hookSession || v === hookAt.value) return;
     if (SLOT.test(v)) {
       toast.error("Điền chỗ trống {...} trong hook trước khi lưu.");
       return;
@@ -491,7 +494,7 @@ function ReelDrawer({
       toast.error(res.error);
       return;
     }
-    setHookAt(v);
+    setHookAt((h) => (h.id === r.id ? { id: r.id, value: v } : h));
     toast.success("Đã lưu hook");
     router.refresh();
   }
@@ -514,10 +517,10 @@ function ReelDrawer({
   }
 
   async function publish() {
-    setBusy(true);
+    setBusyId(r.id);
     const res = await publishNowAction(r.id);
-    setBusy(false);
-    setConfirm(false);
+    setBusyId(settle);
+    setConfirmId(settle);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -537,9 +540,9 @@ function ReelDrawer({
   }
 
   async function retry() {
-    setBusy(true);
+    setBusyId(r.id);
     const res = await retryFailedPublishAction(r.id);
-    setBusy(false);
+    setBusyId(settle);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -731,7 +734,7 @@ function ReelDrawer({
                   {dry ? "Đang ở chế độ dry run: không có gì lên Instagram." : "Sau khi đăng không hoàn tác được."}
                 </span>
                 <span className="flex justify-end gap-1.5">
-                  <Button size="sm" variant="outline" onClick={() => setConfirm(false)} data-testid="week-publish-cancel">
+                  <Button size="sm" variant="outline" onClick={() => setConfirmId(null)} data-testid="week-publish-cancel">
                     Huỷ
                   </Button>
                   <Button size="sm" disabled={busy} onClick={publish} data-testid="week-publish-go">
@@ -740,7 +743,7 @@ function ReelDrawer({
                 </span>
               </div>
             ) : (
-              <Button size="sm" onClick={() => setConfirm(true)} data-testid="week-publish">
+              <Button size="sm" onClick={() => setConfirmId(r.id)} data-testid="week-publish">
                 Duyệt đăng
               </Button>
             )}
