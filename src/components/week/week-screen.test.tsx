@@ -140,4 +140,26 @@ describe("week screen", () => {
     fireEvent.click(screen.getByTestId("week-today-card"));
     expect((screen.getByTestId("week-hook-input") as HTMLInputElement).value).toBe("Hook thật");
   });
+
+  test("a card opens the drawer; arrow keys step to the next reel in the same drawer with that reel's own note", () => {
+    const two = [
+      plan({ id: "t1", title: "Hôm nay một", plannedDate: "2026-10-21" }),
+      plan({ id: "t2", title: "Hôm nay hai", plannedDate: "2026-10-21", plannedTime: "19:00", note: "Ghi chú hai" }),
+    ];
+    render(<WeekScreen {...screenProps(two)} />);
+    expect(screen.queryByTestId("week-drawer")).toBeNull();
+    fireEvent.click(screen.getAllByTestId("week-today-card")[0]);
+    const drawer = screen.getByTestId("week-drawer");
+    expect(within(drawer).getByRole("heading", { name: "Hôm nay một" })).toBeTruthy();
+    fireEvent.change(screen.getByTestId("week-note-input"), { target: { value: "đang gõ" } });
+
+    fireEvent.keyDown(drawer, { key: "ArrowDown" });
+    expect(screen.getByTestId("week-drawer")).toBe(drawer);
+    expect(within(drawer).getByRole("heading", { name: "Hôm nay hai" })).toBeTruthy();
+    expect((screen.getByTestId("week-note-input") as HTMLTextAreaElement).value).toBe("Ghi chú hai");
+
+    fireEvent.keyDown(drawer, { key: "ArrowUp" });
+    expect(within(drawer).getByRole("heading", { name: "Hôm nay một" })).toBeTruthy();
+    expect((screen.getByTestId("week-note-input") as HTMLTextAreaElement).value).toBe("");
+  });
 });
