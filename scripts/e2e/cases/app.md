@@ -42,6 +42,12 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 2. For `tools/list`, `crowsnest_plans`, `crowsnest_feed`, `crowsnest_channels`: `mcp.sh <tool>` and `mcp.sh --app <tool>`.
 3. Pass: each pair is byte-equal and `tools/list` has 38 `crowsnest_*` tools.
 
+### Launcher with a stale port
+
+1. Write a `mcp.port` naming a port nothing listens on into a temp dir.
+2. Pipe a `tools/list` request into `LEAD_STUDIO_USER_DATA=<dir> node scripts/lead-studio-mcp.mjs`.
+3. Pass: stdout has a -32000 "Lead Studio is not running" error for id 1, and `mcp.port` is gone.
+
 ### media-01: cn-media assets
 
 1. `app-up.sh --seed`, insert a `media_assets` row for a file under the checkout media dir.

@@ -1,11 +1,9 @@
-import { copyFileSync, existsSync, renameSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { app, protocol } from 'electron'
-import { JIRA_IMAGE_CUSTOM_SCHEME } from '../jira/attachments/image-protocol'
-import { MEDIA_PREVIEW_CUSTOM_SCHEME } from '../media/media-preview-protocol'
+import { copyDbOnce } from './copy-db'
 import { startMcpHttp } from './mcp-http'
 
-const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
+export const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
   scheme: 'cn-media',
   privileges: {
     standard: true,
@@ -14,28 +12,6 @@ const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
     supportFetchAPI: true,
     corsEnabled: true
   }
-}
-
-export const PRIVILEGED_CUSTOM_SCHEMES = [
-  MEDIA_PREVIEW_CUSTOM_SCHEME,
-  JIRA_IMAGE_CUSTOM_SCHEME,
-  CROWSNEST_MEDIA_SCHEME
-]
-
-// Copied as files, never opened: the :3000 server still owns the source DB.
-function copyDbOnce(source: string, target: string): void {
-  if (existsSync(target) || !existsSync(source)) {
-    return
-  }
-  for (const suffix of ['-wal', '']) {
-    if (existsSync(source + suffix)) {
-      copyFileSync(source + suffix, `${target}.copy${suffix}`)
-    }
-  }
-  if (existsSync(`${target}.copy-wal`)) {
-    renameSync(`${target}.copy-wal`, `${target}-wal`)
-  }
-  renameSync(`${target}.copy`, target)
 }
 
 /**
