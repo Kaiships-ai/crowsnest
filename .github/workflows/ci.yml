@@ -61,7 +61,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -105,4 +105,6 @@ jobs:
 
       - name: Test
         if: steps.scope.outputs.skip != '1'
+        env:
+          ORCA_BALANCE_UNIT_SHARDS: '1'
         run: pnpm test --shard=${{ matrix.shard }}/4 --passWithNoTests ${{ steps.scope.outputs.args }}

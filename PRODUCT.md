@@ -62,8 +62,8 @@ end-to-end loop is the thing every future decision must keep whole.
 ## Operating Context
 
 - Installed and run on the buyer's own Mac (**Apple Silicon only**). The app runs
-  locally; there is no hosted/cloud version and no account to sign into. The Kit runs a headless
-  server (`server.ts`, MCP and jobs, no UI) on `localhost:3000`.
+  locally; there is no hosted/cloud version and no account to sign into. The app serves its MCP
+  on a free `127.0.0.1` port and writes the port to `mcp.port` in its user data dir.
 - Setup is a terminal step, `kai kit init`, run after `kai login <license>`; it writes
   `.env.local`, creates the local sqlite database, and starts the app.
 - Instagram data is read through a **local Instagram sidecar** (instagrapi) that the app
@@ -154,7 +154,7 @@ The loop as the buyer runs it. Detail per part lives in `documents/architecture/
 | Sync | The sidecar reads a 30-day lookback per tracked channel, at most 200 items per run, with 3 retries per upstream call, and writes new videos scored against the channel's own baseline. | Runs in the background and never blocks the buyer. Defaults are env settings (`LOOKBACK_DAYS`, `MAX_ITEMS_PER_SYNC`, `SYNC_MAX_RETRIES` in `src/server/config.ts`). A failure is recorded on the run and classified by `getFailureStrip`. A video that vanishes from Instagram is soft-removed (`videos.deletedAt`): it stays in the feed flagged deleted, and its saved and planned posts stay. |
 | Analyze | The agent reads a video through `crowsnest_video` and writes hook type, structure beats, format and style tags, and a why-it-worked note through `crowsnest_save_analysis`. | No model key. The row is written whole or not at all. Save to vault and remix need an analysis first. |
 | Remix | Six stages in order: prompt, research (local), hook, style, script, finish. The app makes no model call. Hook, style, and script text is what the agent wrote over MCP. | Server-backed; the session records the furthest stage reached. Finish is idempotent and creates one undated draft planned post carrying the script. |
-| Hand off and publish | Reel Factory (any MCP client) calls the read tools at `/api/mcp` to pull the planned post, its script, and the source video's local media path, then produces the reel outside crowsnest. The creator schedules or publishes it to their own channel through the Graph API, or marks the plan published by hand. | Registered once with `claude mcp add crowsnest --transport http http://localhost:3000/api/mcp`. crowsnest does not render video. |
+| Hand off and publish | Reel Factory (any MCP client) calls the app's MCP read tools to pull the planned post, its script, and the source video's local media path, then produces the reel outside crowsnest. The creator schedules or publishes it to their own channel through the Graph API, or marks the plan published by hand. | Claude Code reaches the MCP through the `lead-studio` entry in `.mcp.json`, which reads `mcp.port`. crowsnest does not render video. |
 
 Planned posts move through draft (no date), scheduled (future date), missed (derived on read),
 and published, plus publishing and failed while a publish attempt runs.

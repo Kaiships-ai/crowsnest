@@ -194,7 +194,7 @@
     "check:process-host-imports": "node config/scripts/check-process-host-imports.mjs",
     "check:main-sync-spawn-ratchet": "node config/scripts/check-main-sync-spawn-ratchet.mjs",
     "check:compat-boundary-imports": "node config/scripts/check-compat-boundary-imports.mjs",
-    "test:changed": "pnpm run build:packages && node config/scripts/ensure-native-runtime.mjs --runtime=node && bash scripts/heavy.sh vitest run --config config/vitest.config.ts --changed origin/main",
+    "test:changed": "pnpm run build:packages && node config/scripts/ensure-native-runtime.mjs --runtime=node && bash scripts/heavy.sh node config/scripts/run-vitest.mjs run --config config/vitest.config.ts --changed origin/main",
     "server": "tsx server.ts",
     "db:generate": "drizzle-kit generate",
     "db:backup": "tsx scripts/backup-db.ts",

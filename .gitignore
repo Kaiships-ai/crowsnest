@@ -204,3 +204,7 @@ crowsnest.db-shm
 /packaging/worker/node_modules/
 /site/
 /.mkdocs-venv/
+
+# crowsnest: TypeScript build info and Vercel
+*.tsbuildinfo
+.vercel
