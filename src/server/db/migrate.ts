@@ -1,7 +1,7 @@
 import { backupDatabase } from "../../../scripts/backup-db";
 
 /**
- * CLI entry point (npm run db:migrate) that applies the committed ./drizzle
+ * CLI entry point (pnpm run db:migrate) that applies the committed ./drizzle
  * migrations to the dev database at CROWSNEST_DB_PATH (default data/crowsnest.db).
  * Same `migrate(db, { migrationsFolder })` mechanism used by test-migrate.ts.
  *
@@ -48,7 +48,7 @@ export async function main(): Promise<void> {
 }
 
 // CLI entry point guard (same pattern as bootstrap.ts / backup-db.ts): runs
-// automatically for `npm run db:migrate`, not when a test imports main() directly.
+// automatically for `pnpm run db:migrate`, not when a test imports main() directly.
 if (process.argv[1] && process.argv[1].endsWith("migrate.ts")) {
   main();
 }

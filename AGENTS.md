@@ -1,10 +1,14 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# What this repo is
 
-# This is NOT the Next.js you know
+crowsnest is one Electron app, Lead Studio. Its workspace (terminal, chat, browser tab, split
+panes, agents) comes from a one-time copy of Orca and lives at the repo root (`src/main/`,
+`src/renderer/`, `src/preload/`, `src/shared/`, `src/cli/`, `config/`). crowsnest's own server
+code runs inside the app's main process: `src/server/` (data, jobs, MCP), the parts of
+`src/lib/` it uses, `drizzle/` migrations, and the IG sidecar in `services/ig/`. The `kai` CLI
+for the packaged Kit is in `src/kai-cli/`. There is no web app and no Next.js.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-
-<!-- END:nextjs-agent-rules -->
+One toolchain: pnpm and node 24 (`package.json` `engines`). `scripts/heavy.sh` refuses any
+other node major and names the fix.
 
 # Skills
 
@@ -16,7 +20,7 @@ per skill, invoked by bare name:
 - Design lane (whenever work touches UI): `hallmark`, `apple-design`, `emil-design-eng`,
   `pick-ui-library`, `shadcn`, `find-animation-opportunities`, `improve-animations`,
   `review-animations`, `animation-vocabulary`.
-- `verify`: launch an isolated app on :3001, drive it, capture evidence.
+- `verify`: launch an isolated Lead Studio app, drive it with app journeys, capture evidence.
 - `proof-video` (UI proof recordings) and `product-description`.
 
 # Documentation
@@ -30,9 +34,11 @@ Docs live in `documents/` and render as an mkdocs-material site (`mkdocs.yml`,
   the data it holds, its boundaries, and its invariants.
 - `documents/decisions/`: big decisions still in force.
 - `documents/plans/`: running plans only. Delete a plan when it ships; git history keeps it.
-- `scripts/e2e/cases/<part>.md`: each part's built-feature list and browse-e2e test cases.
+- `scripts/e2e/cases/<part>.md`: each part's built-feature list and test cases.
 - Backlog: GitHub issues labelled `backlog` and `area:<part>`, never files.
 - `test-shots/` are local and gitignored.
+- `docs/` is Orca's engineering notes (`docs/STYLEGUIDE.md`, `docs/reference/`), kept for the
+  workspace code they describe.
 
 `documents/index.md` is the index. Preview with `mkdocs serve`.
 
@@ -45,13 +51,25 @@ architecture page and one cases file; no extra per-part docs. Plans live under `
 
 # Build and CI
 
-Before committing: `npm run build`, `npm run test`, `npm run lint`, `npm run typecheck`
-must all pass, and the working tree stays clean. CI on every PR (`.github/workflows/ci.yml`)
-runs typecheck, lint, vitest, `scripts/testid-audit.sh`, and `scripts/skill-lint.sh`
-(validates every `.claude/skills` skill: name matches folder, closed frontmatter, a
-description, sane `disable-model-invocation`, no duplicate names). Release is
-`scripts/release-prep.sh <ver>` then `.github/workflows/release.yml`; the Kit changelog
-is `packaging/CHANGELOG.md`.
+Before committing: `pnpm run build`, `pnpm test`, `pnpm run lint`, `pnpm run typecheck`
+must all pass, and the working tree stays clean. `pnpm dev` opens the app.
+
+- `build` is the Electron app (`electron-vite build`). Packaging (`build:mac` and friends) is
+  separate.
+- `typecheck` runs Orca's projects and `config/tsconfig.crowsnest.json` (server, lib, kai CLI,
+  scripts).
+- `lint` is oxlint plus Orca's ratchets. `.oxlintrc.json` keeps correctness rules on
+  crowsnest's own code and turns Orca's style rules off there; the code-quality audits skip
+  `src/server`, `src/lib` and `src/kai-cli`. `.oxfmtrc.json` keeps oxfmt (and the pre-commit
+  hook) off crowsnest's files, which keep their own style.
+- `test` runs every vitest project in `config/vitest.config.ts`; crowsnest's tests are the
+  `crowsnest` project (`pnpm test --project crowsnest`).
+
+CI on every PR (`.github/workflows/ci.yml`) runs typecheck, lint, the tests,
+`scripts/testid-audit.sh`, `scripts/skill-lint.sh` (validates every `.claude/skills` skill:
+name matches folder, closed frontmatter, a description, sane `disable-model-invocation`, no
+duplicate names), `scripts/check-migrations.mjs`, `scripts/check-doc-paths.mjs`, and
+`scripts/check-verify-coverage.mjs`. The Kit changelog is `packaging/CHANGELOG.md`.
 
 # Rules and what enforces them
 
@@ -70,11 +88,34 @@ broken again needs a check, not more words.
 | A Graph result that is partial or failed is never stored or reported as success | Not enforced yet (doc rule). The most repeated mistake in `fix(mine)`/`fix(graph)` history; it needs result types that make a partial batch unwritable |
 | Tests never hard-code a date that will pass (a fixed `2026-09-10` turned CI red) | Doc rule: compute it, as `FUTURE_SCHEDULE` in `src/server/actions/planned-post-actions.test.ts` does |
 | Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
-| Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. Its dev server on :3000 serves whatever that checkout has |
-| Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `npm run build`, `test`, `typecheck` and `lint`; `vitest.config.ts` caps `maxWorkers`. Call the npm scripts, never `next build` or `vitest` directly |
-| A PR that changes `studio/src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
-| Local test runs cover only what changed; the full Orca suite runs in CI (a full `studio/` run took 23 min for a 2-file fix) | `npm run test:changed` (`vitest run --changed origin/main`); tiers in `.agents/playbooks/lead-studio-v1.md` |
+| Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. The operator's app opens that checkout's `data/crowsnest.db` |
+| Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `pnpm run build`, `test`, `typecheck` and `lint`; `config/vitest.config.ts` caps `maxWorkers` at 2 off CI. Call the pnpm scripts, never `electron-vite` or `vitest` directly |
+| Every command runs under node 24 (Orca's native modules fail under 22, the Mac's default) | `scripts/heavy.sh` exits with the PATH fix when `node` is another major |
+| No Orca style rewrite of crowsnest code (the first pre-commit hook run reformatted the verify scripts) | `.oxfmtrc.json` `ignorePatterns` |
+| A PR that changes `src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
+| Local test runs cover only what changed; the full suite runs in CI (a full Orca run took 23 min for a 2-file fix) | `pnpm run test:changed` (`vitest run --changed origin/main`); tiers in `.agents/playbooks/lead-studio-v1.md` |
 | A verify run never changes the installed Orca.app's hooks (PR-M1 overwrote `~/.claude/settings.json`) | `app-down.sh` fails with `app: HOST CHANGED` |
+
+# Workspace code (from Orca)
+
+These rules come from Orca and still hold for `src/main/`, `src/renderer/`, `src/preload/`,
+`src/shared/` and `src/cli/`.
+
+- UI follows `DESIGN.md` first, then `docs/STYLEGUIDE.md`. Use the tokens in
+  `src/renderer/src/assets/main.css` and the shadcn primitives in
+  `src/renderer/src/components/ui/`; do not invent colors, font sizes, or shadow tiers.
+- Run tests and agent-launched apps in the background with `ORCA_BACKGROUND_LAUNCH=1`. Never
+  steal focus or reveal test windows; use CDP screenshots of hidden renderers.
+  `tests/AGENTS.md` has the launch rules for e2e helpers.
+- Reuse before reimplementing: check for an existing function, IPC channel, store, or flow
+  first and extend it.
+- Name files after what they contain, never `helpers`, `utils`, `common`, or `misc`.
+- Avoid type assertions except `as const`; an unavoidable cast carries a `SAFETY:` comment.
+- Guard platform-specific behavior at runtime. Before changing processes, shells, paths, or
+  native modules, read `docs/reference/cross-platform-support.md`.
+- Consider folder workspaces as well as git worktrees.
+- Code around `git`, `gh`, or source control: read `docs/reference/git-workflow.md`.
+- Avoid low-value tests (`docs/reference/test-antipatterns.md`).
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

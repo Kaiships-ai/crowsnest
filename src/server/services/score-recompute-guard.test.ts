@@ -113,7 +113,8 @@ describe("score recompute structural guard (review-engineering-2026-07-31.md §5
 
   test("no file outside the allow-list writes to tables.videos", () => {
     const offenders: string[] = [];
-    for (const file of listTsFiles(SRC_ROOT)) {
+    // Only crowsnest's own code holds `tables`; walking Orca's src/ too timed out under load.
+    for (const file of ["server", "lib", "kai-cli"].flatMap((dir) => listTsFiles(join(SRC_ROOT, dir)))) {
       const rel = relative(SRC_ROOT, file).split(sep).join("/");
       if (ALLOWED_FILES.has(rel)) continue;
       const lines = writeLineNumbers(readFileSync(file, "utf8"));

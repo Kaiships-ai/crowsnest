@@ -91,27 +91,15 @@ mv "$TMP_CHANGELOG" "$CHANGELOG"
 
 # ---------------------------------------------------------------- test gate
 
-say "running the test gate (npm test)"
-npm test
-
-if [ -f "$REPO/scripts/e2e/run.sh" ]; then
-  if confirm "scripts/e2e/run.sh exists. Run \`npm run e2e\` before releasing?"; then
-    npm run e2e
-  else
-    echo "   skipping e2e"
-  fi
-fi
+say "running the test gate (pnpm test)"
+pnpm test
 
 IG_CHANGED="$(git diff --name-only "$LOG_START"..HEAD -- services/ig src/server/ig 2>/dev/null || true)"
 if [ -n "$IG_CHANGED" ]; then
   echo
   echo "services/ig or src/server/ig changed since ${LAST_TAG:-the first commit}:"
   echo "$IG_CHANGED" | sed 's/^/     /'
-  if confirm "Run \`npm run verify:live\` against a real Instagram account before releasing?"; then
-    npm run verify:live
-  else
-    echo "   skipping verify:live -- make sure this was verified against a live account by hand."
-  fi
+  echo "   make sure this was verified against a live Instagram account by hand."
 fi
 
 # ---------------------------------------------------------------- commit + tag

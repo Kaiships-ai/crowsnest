@@ -126,7 +126,7 @@ export class IgError extends Error {
       case "IG_DRIFT":
         return "Instagram's response no longer matches what we expect — the mapper needs updating.";
       case "IG_SERVICE_DOWN":
-        return "The Instagram service isn't running. Start it with `npm run ig:service`.";
+        return "The Instagram service isn't running. Start it with `pnpm run ig:service`.";
       case "IG_SERVICE_UNAUTHORIZED":
         return "The app and the Instagram service disagree about IG_SERVICE_TOKEN — check .env.local.";
       default:

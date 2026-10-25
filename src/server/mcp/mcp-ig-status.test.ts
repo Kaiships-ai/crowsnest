@@ -36,7 +36,7 @@ test("crowsnest_ig_status reports reachable=true and loggedIn when the health pr
   const r = await callTool(server, "crowsnest_ig_status", {});
 
   expect(r.isError).not.toBe(true);
-  expect(r.structuredContent).toMatchObject({ reachable: true, loggedIn: true, bootstrap: "npm run ig:service" });
+  expect(r.structuredContent).toMatchObject({ reachable: true, loggedIn: true, bootstrap: "pnpm run ig:service" });
 });
 
 test("crowsnest_ig_status reports a future cooldown as retryAfterSec", async () => {
@@ -84,5 +84,5 @@ test("crowsnest_ig_status reports reachable=false and the bootstrap command when
   const r = await callTool(server, "crowsnest_ig_status", {});
 
   expect(r.isError).not.toBe(true);
-  expect(r.structuredContent).toMatchObject({ reachable: false, loggedIn: null, bootstrap: "npm run ig:service" });
+  expect(r.structuredContent).toMatchObject({ reachable: false, loggedIn: null, bootstrap: "pnpm run ig:service" });
 });

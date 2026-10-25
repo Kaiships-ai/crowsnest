@@ -16,7 +16,7 @@ for (const tag of tags) {
   byNumber.set(n, [...(byNumber.get(n) ?? []), tag]);
 }
 for (const [n, same] of byNumber) {
-  if (same.length > 1) problems.push(`two migrations share number ${n}: ${same.join(", ")}. Regenerate the newer one with npm run db:generate after merging main.`);
+  if (same.length > 1) problems.push(`two migrations share number ${n}: ${same.join(", ")}. Regenerate the newer one with pnpm run db:generate after merging main.`);
 }
 for (const tag of tags) {
   if (!journal.includes(tag)) problems.push(`${dir}/${tag}.sql is not in ${dir}/meta/_journal.json, so drizzle will never run it.`);

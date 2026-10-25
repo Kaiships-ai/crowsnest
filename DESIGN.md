@@ -62,16 +62,15 @@ components:
 # Design system: Crowsnest
 
 crowsnest uses a stock shadcn/ui theme: the `base-maia` style, the neutral base color, the
-standard radius, and shadcn's own chart palette. Tokens live in `src/app/globals.css`,
-primitives under `src/components/ui/`, and feature components under `src/components/`. The
-frontmatter above is the dark theme, which is the default; `:root` in `globals.css` holds the
-light values and next-themes toggles the `.dark` class (themes: dark, light; no system mode).
+standard radius, and shadcn's own chart palette. The frontmatter above is the dark theme,
+which is the default, and the light values mirror it (themes: dark, light; no system mode).
+The Next.js web app that carried these tokens and its components is deleted. Its screens move
+into Lead Studio boards in the Electron app (`src/renderer/`), whose shadcn primitives live in
+`src/renderer/src/components/ui/`; this page is the visual system those boards follow.
 
 This page is the playbook for changing UI without reaching for a generic design skill. Routine
 fixes follow these rules. Design skills are for a net-new surface with no precedent here, not
-for keeping the house style. Anything in the shadcn docs applies directly. The `/gallery`
-route renders the shadcn `preview` showcase (ported into `src/components/blocks/preview/`)
-for eyeballing the system in light and dark.
+for keeping the house style. Anything in the shadcn docs applies directly.
 
 ## Character
 
@@ -83,8 +82,8 @@ of stock shadcn. The rest of the chromatic range is the orange chart ramp and `d
 
 ## Color tokens
 
-Use the semantic token, never a raw Tailwind color. All are defined in `src/app/globals.css`
-and available as `bg-*`, `text-*`, `border-*`.
+Use the semantic token, never a raw Tailwind color. They are the frontmatter values above,
+used as `bg-*`, `text-*`, `border-*`.
 
 | Token | Use for |
 | --- | --- |
@@ -109,7 +108,7 @@ There is no separate warn color: a degraded state reads as muted text or a `dest
 Tailwind's stock scale, because that is what the shadcn primitives are authored against:
 `CardTitle` is `text-base`, `CardDescription`, `FieldDescription` and `Item` are `text-sm`.
 Overriding the scale inflates every composition, so do not. One extra step is defined as
-`--text-2xs` in `globals.css`, a notch below `text-xs`, for labels the stock scale has no size
+`--text-2xs`, a notch below `text-xs`, for labels the stock scale has no size
 for.
 
 | Class | Size | Role |
@@ -139,13 +138,13 @@ reduced motion.
 
 ## Which primitive for what
 
-Check `src/components/ui/` before writing custom markup. Reach for a feature component under
-`src/components/` before duplicating one. The shadcn skill (`.claude/skills/shadcn/`) holds
+Check `src/renderer/src/components/ui/` before writing custom markup. Reach for an existing
+feature component before duplicating one. The shadcn skill (`.claude/skills/shadcn/`) holds
 the full composition rules; these are the crowsnest specifics.
 
 | Need | Use | Not |
 | --- | --- | --- |
-| A whole panel or view with no data | `Empty` (`ui/empty.tsx`) | A hand-built centered div |
+| A whole panel or view with no data | `Empty` | A hand-built centered div |
 | One "no items yet" line inside a list or log | A single `text-sm text-muted-foreground` line | `Empty` (too heavy for an inline state) |
 | A panel with a title, body and optional header action | `Card` + `CardHeader` / `CardTitle` / `CardAction` / `CardContent` / `CardFooter` | A `div` with `border border-border bg-card` |
 | A labelled control with a hint or an error | `Field` + `FieldLabel` / `FieldDescription` / `FieldError`, grouped by `FieldGroup`, sectioned by `FieldSet` | A hand-stacked `Label` + control + `p` |
@@ -154,8 +153,7 @@ the full composition rules; these are the crowsnest specifics.
 | An input with a leading icon, or an input plus a button | `InputGroup` + `InputGroupInput` / `InputGroupAddon` / `InputGroupButton` | A `relative` wrapper with an absolute icon and `pl-8` |
 | Adjacent buttons forming a toolbar | `ButtonGroup` | Bare siblings with `gap-2` |
 | Exclusive selection among options | `ToggleGroup` (this build takes `value` as an array) | Raw buttons with `aria-pressed` |
-| The page gutter | `PageContainer` (`layout/page-container.tsx`) | A hand-written `mx-auto max-w-[1120px] p-6` |
-| Inline loading indicator | `Spinner` (`ui/spinner.tsx`) | A raw `Loader2` with `animate-spin` |
+| Inline loading indicator | `Spinner` | A raw `Loader2` with `animate-spin` |
 | Content-shaped loading placeholder | `Skeleton` | A custom `animate-pulse` div |
 | Status pill | `Badge` with a variant | A styled `span` |
 | Vertical or horizontal spacing | `flex` + `gap-*` | `space-y-*` / `space-x-*` |
@@ -168,21 +166,18 @@ Primitive behaviors that callers rely on:
 
 | Case | What to write | Why |
 | --- | --- | --- |
-| A link that looks like a button | `<Button render={<Link href="..." />}>` | `Button` renders the link itself with button styling, so it keeps anchor semantics and Base UI never warns. Passing `nativeButton` opts back into Base UI's button. |
 | A one-line `ItemTitle` that must ellipsize | `className="block truncate"` | `ItemTitle` is `display: flex`, which clips text but never draws the ellipsis. `ItemContent` is `min-w-0`, so the title can shrink. |
 | A stack of `Card`s in a height-bounded scroller | `*:shrink-0` on the scroller | `Card` is `overflow-hidden`, which drops its flex minimum height to 0, so the cards shrink and clip instead of the list scrolling. |
-| A client chart fed from a big list | Shape the data on the server and pass only the result | A client prop is serialized into the page, so a whole library passed as `items` ships every row on every load. |
 | A `ToggleGroup` whose labels can outgrow a phone | `className="flex-wrap"` | `ToggleGroup` is single-line by default and clips past the edge. |
-| `DndContext` in a server-rendered page | A fixed `id` | dnd-kit numbers its aria ids from a counter that differs between server and client, which breaks hydration. |
 
 ## Fixing UI without a design skill
 
-1. Find the component under `src/components/<feature>/`.
+1. Find the component under `src/renderer/src/components/`.
 2. Change layout with `className` (`flex`, `grid`, `gap-*`), never override a primitive's
    colors or typography.
 3. Use the token or type-scale class for the role, from the tables above.
 4. Run impact analysis before editing a shared primitive (see the GitNexus rules in
-   `AGENTS.md`), then `npm run build && npm run test && npm run lint && npm run typecheck`.
+   `AGENTS.md`), then `pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck`.
 
 Invoke a design skill only for a net-new surface with no precedent here, or a deliberate
 redesign the team has agreed to.
@@ -191,7 +186,7 @@ redesign the team has agreed to.
 
 - **Do** use semantic tokens, `text-2xs` mono labels, and `data-num` on numbers.
 - **Do** keep one primary action and one success color per screen.
-- **Do** compose from `src/components/ui/` primitives at their defaults.
+- **Do** compose from `src/renderer/src/components/ui/` primitives at their defaults.
 - **Don't** reach for a raw Tailwind color or a shadow on a card.
 - **Don't** set numbers in a proportional font or drop tabular figures.
 - **Don't** invent metrics, counts, or states the app cannot produce. A capability the app
@@ -202,8 +197,7 @@ redesign the team has agreed to.
 Every action in the core loop passes through five phases, and a feature's docs narrate it in
 those phases.
 
-- **Arrive.** The page or dialog opens. Pages render on the server, so what the user sees is a
-  snapshot read at load time.
+- **Arrive.** The view or dialog opens. What the user sees is a snapshot read when it opened.
 - **Leave without acting.** The user backs out before changing anything. Usually nothing is
   recorded.
 - **Begin acting.** The first edit or click that starts real work.
@@ -218,65 +212,20 @@ which may already have side effects. **Interrupt** is anything the user did not 
 that ends an action: a backing service failing, the target record changing underneath, a
 reload, a second tab.
 
-There are two ways to reach the server. A **direct server read** is a page that queries the
-database as it renders (feed, video detail); there is no action to fail, and filters
-change the read by changing the URL. A **server action** is a write from a client component,
-and it returns `{ ok: true, ... }` or `{ ok: false, error, code }` instead of throwing. The
-code lets a caller tell "already saved" from "gone". While an action runs the trigger is
-disabled (a React transition); when it settles the client shows a toast and calls
-`router.refresh()` so server-rendered state appears without a manual reload.
+A write reaches the server through a server action (`src/server/actions/`), which returns
+`{ ok: true, ... }` or `{ ok: false, error, code }` instead of throwing. The code lets a caller
+tell "already saved" from "gone". While an action runs its trigger is disabled.
 
-The app makes no model call. Text an agent writes over MCP lands in the same records and
-appears on the next page load.
+The app makes no model call. Text an agent writes over MCP lands in the same records the
+boards read.
 
-Edge cases: a page is a snapshot, so a record can change under an open page and the action
-answers "no longer exists" or "already done" as a toast. A pending transition blocks a double
-click but not a separate navigation control. The degradation contract (sidecar down,
-Graph token invalid, no own channel) is in `PRODUCT.md`.
+Edge cases: a record can change under an open view, and the action answers "no longer exists"
+or "already done". The degradation contract (sidecar down, Graph token invalid, no own
+channel) is in `PRODUCT.md`.
 
 ## Navigation and shell
 
-Every core-loop page renders inside the `(shell)` layout (`src/app/(shell)/layout.tsx`): a
-navigation blocker, a command menu, the client error reporter, then a two-column frame with
-the sidebar on the left and a column holding the topbar (with the failure strip) above the
-scrolling page. Components live in `src/components/layout/`.
-
-- **Sidebar.** Exactly three items, no groups (`src/components/layout/nav-items.ts`). The only count is the new-outlier badge on Nguồn, shown when above zero:
-  Tuần này (`/`, the landing route), Nguồn (`/feed`, also lit on `/feed/*` and `/channels*`), and
-  Cài đặt (`/settings`, also lit on `/logs` and `/runs*`). The current page gets a neutral accent
-  bar; a click lights the target immediately and reconciles when the route commits. A get-started
-  checklist shows four live facts read on each navigation: Finish setup, Add a source, Plan a reel,
-  Publish a reel (a publish that is not a dry run).
-- **Nguồn.** Link tabs (`src/components/layout/section-tabs.tsx`), each its own route so Back and
-  deep links work: Feed (`/feed`), Kênh (`/channels`), Khám phá (`/channels/discover`). The tab that holds the path most closely is lit, so a channel page
-  lights Kênh. `/sources` redirects to `/feed`. Khám phá copy is Vietnamese; a follow while the
-  Instagram service is down still adds the channel and the toast says the posts come when it is back. The Kênh empty state has two exits, add a channel and "Chọn từ Khám phá".
-  Khám phá with no creator seeds says "Chưa có gợi ý creator nào."
-- **Cài đặt.** Link tabs Cấu hình (`/settings`) and Nhật ký sự cố (`/logs`). Nhật ký sự cố has
-  sub-tabs Log (`/logs`) and Lần chạy (`/runs`). Logs default to warn and error; any other set, "Show everything" included,
-  is written to `?levels=`. Cấu hình opens with the stack health panel, and its Graph API card is the connect
-  panel (`settings-graph-card`) with Check connection.
-- **Tuần này.** The landing screen: one next-action chip as the only primary button, "Hôm nay"
-  open as cards, "Cả tuần" collapsed as one list per day. Rows drag to another day and save
-  optimistically with undo. A row opens the reel drawer (a sheet): the five steps, the hook
-  edited inline on the remix session (Esc saves and closes; no session means an empty step with one way out), hook template chips, a note saved on blur, a "Chuyển sang ngày" select as the keyboard move, video, the publish gate with an inline confirm (a failed reel offers "Thử đăng lại" instead, a reel with a publish time offers "Huỷ lịch đăng" behind a confirm), "Sửa plan" (the plan dialog) and "Xoá reel" (with undo), and the
-  funnel tiles, where an unmeasured metric reads "chưa đo". Arrow keys step through the week's
-  reels in the drawer. Status text is muted, only errors take a hue; light `muted-foreground` is `oklch(0.51 0 0)` so it stays at or above 4.5:1 on a `muted` fill.
-- **Redirects.** `/persona`, `/ideas`, `/vault`, and `/mine`, with any sub-path, redirect to `/`
-  (`next.config.ts`), and any `/?tab=` value redirects to `/` (`src/proxy.ts`). Those screens no longer exist; the
-  server data and the MCP tools that read it are unchanged.
-- **Graph token line.** When the cached Graph token state is `auth_failed` or `permission_denied`,
-  Tuần này and the Nguồn pages show one red line (`graph-token-line`) linking to `/settings#graph-api`.
-  The line reads the last status a Check or a measurement left in the server cache, never Graph itself, so it never delays a render; after a restart it shows nothing until one of them runs. A measurement that hits an auth failure records `auth_failed`. Check connection replaces an `auth_failed` with its live answer, so a fixed token clears the line. `/me` cannot see the insights permission, so a `permission_denied` stays until a measurement succeeds or the token secret is saved again. A missing token shows no line.
-- **First-run gate.** Before anything else the shell checks setup: a fresh install with setup
-  not completed and no channels tracked redirects to `/first-run` and never sees the shell.
-- **Freshness.** The layout is `force-dynamic`, so counts and the failure strip re-read on
-  every full navigation. Nothing polls. After a write, the client calls `router.refresh()`.
-  A change made by a background job appears after the next navigation or refresh.
-- **Navigation blocker.** A page with unsaved work can register to stop a navigation and ask.
-  Unregistered pages navigate immediately and discard uncommitted work.
-- **Deep links.** The remix page takes a stage or quick-remix seed in its query string; the feed
-  carries its filters in the URL, so a saved view is a link and back and forward move
-  between states. There is no shell-level undo.
-- **Command menu.** A keyboard-driven menu for jumping between pages and actions, on every
-  core-loop page.
+The Next.js shell (sidebar, Nguồn and Cài đặt tabs, the Tuần này screen, redirects, the
+first-run gate, the command menu) is deleted with the web app. The shell is now the Lead
+Studio Electron app; see `documents/architecture/app.md`. The screens move into Lead Studio
+boards. The server data and the MCP tools that fed the old screens are unchanged.

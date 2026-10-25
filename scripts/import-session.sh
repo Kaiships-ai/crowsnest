@@ -29,7 +29,7 @@ TOKEN=$(grep '^IG_SERVICE_TOKEN=' .env.local 2>/dev/null | cut -d= -f2-)
 URL="${IG_SERVICE_URL:-http://127.0.0.1:8765}"
 
 curl -sf -o /dev/null -H "X-IG-Token: $TOKEN" "$URL/health" \
-  || fail "sidecar unreachable at $URL — run 'npm run ig:service'"
+  || fail "sidecar unreachable at $URL — run 'pnpm run ig:service'"
 
 # No sessionid given: try to read one out of the browse browser's cookie jar.
 if [ -z "$SESSIONID" ] && [ -x "$BROWSE" ]; then
@@ -62,4 +62,4 @@ echo
 echo "=== health after import ==="
 curl -s -H "X-IG-Token: $TOKEN" "$URL/health" | python3 -m json.tool | grep -E 'logged_in|username|session_loaded'
 echo
-echo "Session adopted. Next:  npm run verify:live -- @kallaway"
+echo "Session adopted. Next: open the app and run a sync."
