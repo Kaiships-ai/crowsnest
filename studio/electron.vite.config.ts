@@ -240,7 +240,10 @@ export const electronViteConfig: UserConfig = {
       // directory cannot reach into app.asar; startup-critical pure JS must
       // also survive a partially copied Windows resources tree.
       externalizeDeps: {
-        exclude: [...BUNDLED_MAIN_DEPENDENCIES]
+        exclude: [...BUNDLED_MAIN_DEPENDENCIES],
+        // Why: crowsnest's src/server is bundled from the repo root's node_modules; its
+        // one native addon loads at runtime from there (N-API, so Node and Electron share it).
+        include: ['better-sqlite3']
       },
       rollupOptions: {
         input: MAIN_BUILD_ENTRY_POINTS,
@@ -275,6 +278,9 @@ export const electronViteConfig: UserConfig = {
     // directly at the published main file so the bundler can inline it.
     resolve: {
       alias: {
+        '@': resolve('../src'),
+        'next/cache': resolve('src/main/crowsnest/next-shims.ts'),
+        'next/server': resolve('src/main/crowsnest/next-shims.ts'),
         '@xterm/headless': resolve('node_modules/@xterm/headless/lib-headless/xterm-headless.js'),
         '@xterm/addon-serialize': resolve(
           'node_modules/@xterm/addon-serialize/lib/addon-serialize.js'
