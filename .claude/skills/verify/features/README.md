@@ -5,5 +5,6 @@ One file per user-facing feature of the Lead Studio Electron app, driven with `a
 | Feature | Where | Journey | File |
 |---|---|---|---|
 | Lead Studio app shell: window, terminal, split, MCP, engine bridge, `cn-media:` | Electron app, `pnpm dev` | `app-drive.sh shell-01`, `bridge-01`, `media-01` | [app-shell.md](app-shell.md) |
+| Boards: board tab, channels board, load states, new-tab and app menu entries | Electron app, tab bar "+" menu | `app-drive.sh board-01` | [boards.md](boards.md) |
 
-The Next.js screens (Tuần này, Feed, Kênh, Khám phá, Cài đặt) are deleted. A board that replaces one adds its own file here.
+The Next.js screens (Tuần này, Feed, Kênh, Khám phá, Cài đặt) are deleted. Boards live in [boards.md](boards.md).

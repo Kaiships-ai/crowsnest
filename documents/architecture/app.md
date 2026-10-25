@@ -1,6 +1,6 @@
 # App
 
-Lead Studio is crowsnest: one Electron app at the repo root. Its workspace (terminal, chat, browser tab, split panes and the agent table) is a one-time copy of Orca (MIT, Lovecast Inc) under a new identity, and crowsnest's `src/server` runs in its main process. `pnpm dev` opens it; it is not packaged yet. Crowsnest boards are built into it step by step.
+Lead Studio is crowsnest: one Electron app at the repo root. Its workspace (terminal, chat, browser tab, split panes and the agent table) is a one-time copy of Orca (MIT, Lovecast Inc) under a new identity, and crowsnest's `src/server` runs in its main process. `pnpm dev` opens it; it is not packaged yet. Crowsnest boards open as workspace tabs; see [boards](boards.md).
 
 ## What it holds
 
@@ -45,6 +45,10 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 | Window title | Lead Studio | `src/renderer/index.html`, `src/main/window/createMainWindow.ts` |
 | CLI command | `lead` (packaged, `/usr/local/bin/lead`), `lead-dev` (dev, the shim in `<user data>/cli/bin`) | `package.json`, `src/main/cli/cli-install-constants.ts`, `src/main/runtime/orchestration/cli-command.ts` |
 | Home dir | `~/.lead-studio`: agent hook scripts, keybindings, the hook install lock, API key and credential files | `src/main/agent-hooks/installer-utils.ts`, `src/main/agent-hooks/runtime-home-hook-command.ts`, `src/main/keybindings/keybinding-file.ts` |
+
+## Menus and visible names
+
+The app menu has a top-level Lead Studio menu that opens boards ([boards](boards.md)). Menus, window titles, the tray and the titlebar app name say Lead Studio: Explore Lead Studio, Getting Started with Lead Studio, Show Lead Studio Mobile Button, Open Lead Studio, the tray tooltip, the Lead Studio Agent Dashboard and Lead Studio Space Beta windows, and the tray notice. Only the English fallbacks and locale values changed; code identifiers and i18n keys (`menu.exploreOrca`, `tray.openOrca`) still say Orca. Other in-app copy still says Orca.
 
 ## Boundaries
 

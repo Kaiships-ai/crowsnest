@@ -1,6 +1,6 @@
 # App shell
 
-Lead Studio is the Electron app at the repo root, Orca's workspace under its own identity: terminal, chat, browser tab, split panes and the agent table. Crowsnest's `src/server` runs in its main process on the checkout's `data/crowsnest.db`, and the renderer reaches it through the engine bridge. No crowsnest board lives in it yet.
+Lead Studio is the Electron app at the repo root, Orca's workspace under its own identity: terminal, chat, browser tab, split panes and the agent table. Crowsnest's `src/server` runs in its main process on the checkout's `data/crowsnest.db`, and the renderer reaches it through the engine bridge. Crowsnest boards open as tabs; see [boards.md](boards.md).
 
 ## Sub-features
 
@@ -58,7 +58,7 @@ CN_MEDIA_ASSET=v1 .claude/skills/verify/scripts/app-drive.sh media-01
 
 - The CLI socket lives in the user data dir and macOS caps a socket path at 104 bytes, so `app-host.mjs` uses a short temp dir. A long one fails with `EINVAL` on `listen`.
 - Add project opens a native folder picker that CDP cannot drive. A scripted lane adds the repo with `window.api.repos.add({ path })`, the call the picker makes.
-- In-app copy still says Orca (sidebar header, empty state, Orca Mobile). Only the window title, dock name and identity are renamed so far.
+- Menus, window titles, the tray, the tray notice and the titlebar app name say Lead Studio. Other in-app copy still says Orca (sidebar header, empty state, Orca Mobile pairing screens, settings).
 - `mcp.sh --app` is the only target. The app's MCP refuses non-local Host and Origin headers.
 - A lane never opens the checkout's `data/crowsnest.db`: `app-host.mjs` sets `CROWSNEST_DB_PATH` to `<userData>/crowsnest.db` in a fresh temp user data dir, copied from the seed (`--seed`) or `APP_REAL_DB` (`--real`) with `scripts/copy-db.ts`, or empty. `pnpm dev` does open the checkout's DB.
 - Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
