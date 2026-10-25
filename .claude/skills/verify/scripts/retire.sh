@@ -18,6 +18,19 @@ B="$HOME/.claude/skills/gstack/browse/dist/browse"
 if [ -d "$WT/.gstack/browse-cwd" ] && [ -x "$B" ]; then (cd "$WT/.gstack/browse-cwd" && "$B" stop >/dev/null 2>&1) || true; fi
 HELD="$(lsof -a -d cwd -Fpn 2>/dev/null | awk '/^p/{p=substr($0,2)} /^n/{print "pid " p ": " substr($0,2)}' | grep -F "$WT" || true)"
 [ -z "$HELD" ] || { printf 'verify: processes still run inside %s, stop them first:\n%s\n' "$WT" "$HELD" >&2; exit 1; }
+# An Electron helper or daemon can hold the worktree through its command line, not its cwd. List them and stop.
+STRAY="$(pgrep -fl -- "$WT(/| |\$)" | grep -v 'retire\.sh' | grep -vE "^($$|$PPID) " || true)"
+[ -z "$STRAY" ] || { printf 'verify: processes started from %s still run, stop them first:\n%s\n' "$WT" "$STRAY" >&2; exit 1; }
+# Nested worktrees agents made under this worktree, or under a scratchpad folder named exactly after it. Dirty ones are kept.
+NAME="$(basename "$WT")"
+git -C "$MAIN" worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' \
+  | { grep -E -- "^$WT/|/[^/]*-$NAME/" || true; } | while read -r NESTED; do
+    if [ -z "$(git -C "$NESTED" status --porcelain 2>/dev/null)" ]; then
+      git -C "$MAIN" worktree remove "$NESTED" && echo "verify: removed nested worktree $NESTED"
+    else
+      echo "verify: kept nested worktree $NESTED, it has uncommitted changes" >&2
+    fi
+  done
 S="$WT/.claude/skills/verify/scripts"
 if [ -x "$S/down.sh" ]; then "$S/down.sh"; fi
 if [ -x "$S/keep-evidence.sh" ]; then "$S/keep-evidence.sh"; else

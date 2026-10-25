@@ -13,6 +13,7 @@
     "db:backup": "tsx scripts/backup-db.ts",
     "db:migrate": "tsx src/server/db/migrate.ts",
     "test": "bash scripts/heavy.sh vitest run",
+    "test:changed": "bash scripts/heavy.sh vitest run --changed origin/main",
     "test:watch": "vitest",
     "ig:service": "bash scripts/ig-service.sh",
     "typecheck": "bash scripts/heavy.sh tsc --noEmit",

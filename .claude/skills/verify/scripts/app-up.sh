@@ -24,6 +24,12 @@ if [ "${APP_SKIP_BUILD:-0}" != 1 ]; then
     || { echo "app: build failed, see $DIR/build.log" >&2; tail -30 "$DIR/build.log" >&2; exit 1; }
 fi
 
+# Lead Studio must never touch the installed Orca.app's hooks: app-down.sh compares these after the run.
+host_fingerprint() {
+  { jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1
+}
+host_fingerprint >"$DIR/host.fingerprint"
+
 rm -f "$DIR/state.json"
 set -m
 node_modules/.bin/tsx .claude/skills/verify/scripts/app-host.mjs >"$DIR/host.log" 2>&1 &

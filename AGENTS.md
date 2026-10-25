@@ -73,6 +73,8 @@ broken again needs a check, not more words.
 | Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. Its dev server on :3000 serves whatever that checkout has |
 | Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `npm run build`, `test`, `typecheck` and `lint`; `vitest.config.ts` caps `maxWorkers`. Call the npm scripts, never `next build` or `vitest` directly |
 | A PR that changes `studio/src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
+| Local test runs cover only what changed; the full Orca suite runs in CI (a full `studio/` run took 23 min for a 2-file fix) | `npm run test:changed` (`vitest run --changed origin/main`); tiers in `.agents/playbooks/lead-studio-v1.md` |
+| A verify run never changes the installed Orca.app's hooks (PR-M1 overwrote `~/.claude/settings.json`) | `app-down.sh` fails with `app: HOST CHANGED` |
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
