@@ -2,7 +2,7 @@
 // does, in a disposable user data dir and HOME. Seeds a git repo with a terminal tab, writes
 // data/verify/app/state.json with the CDP port for app-drive.mjs, prints "app: ready", and
 // keeps the app open until SIGTERM. Run through app-up.sh.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
@@ -101,7 +101,7 @@ for (let i = 0; !(await openRepoTerminal(repoId)); i++) {
 mkdirSync(STATE_DIR, { recursive: true });
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
-  JSON.stringify({ hostPid: process.pid, appPid: app.process().pid, cdpPort, userDataDir, home, repoPath }, null, 2),
+  JSON.stringify({ cdpPort, userDataDir }, null, 2),
 );
 console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir})`);
 
@@ -110,6 +110,8 @@ async function shutdown() {
   if (closing) return;
   closing = true;
   await app.close().catch(() => app.process().kill("SIGKILL"));
+  // The terminal daemon is detached by design so terminals outlive the app; stop this profile's.
+  spawnSync("pkill", ["-f", "--", `--socket ${userDataDir}/daemon`]);
   rmSync(tmp, { recursive: true, force: true });
   rmSync(path.join(STATE_DIR, "state.json"), { force: true });
   console.log("app: closed");

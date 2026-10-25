@@ -11,7 +11,7 @@ Lead Studio is the Electron app in `studio/`, Orca's workspace under its own ide
 
 ## How to get to it (user POV)
 
-`npm run studio` from the repo root. It runs `pnpm --dir app dev`, which builds `studio/out/` and opens the window. Add a project with the sidebar plus button to get a terminal.
+`npm run studio` from the repo root. It runs `cd studio && pnpm dev`, which builds `studio/out/` and opens the window; the dev runner logs `[orca-dev] Remote debugging on http://127.0.0.1:<port>`. Add a project with the sidebar plus button to get a terminal. `Cmd+D` splits the terminal and `Cmd+Shift+B` opens a browser tab.
 
 ## Setup
 
@@ -36,6 +36,9 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse studio/out
 ## Gotchas
 
 - The CLI socket lives in the user data dir and macOS caps a socket path at 104 bytes, so `app-host.mjs` uses a short temp dir. A long one fails with `EINVAL` on `listen`.
+- The script runs pnpm from inside `studio/`. `pnpm --dir studio` from the root fails under corepack, which stays on its default pnpm instead of the `pnpm@12` that `studio/package.json` pins.
+- Add project opens a native folder picker that CDP cannot drive. A scripted lane adds the repo with `window.api.repos.add({ path })`, the call the picker makes.
+- In-app copy still says Orca (sidebar header, empty state, Orca Mobile). Only the window title, dock name and identity are renamed so far.
 - Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
 - `~/.orca` (keybindings, agent hook scripts, some credential files) is shared with Orca.app, the same split upstream uses between `pnpm dev` and the packaged app. The verify launch isolates HOME, so it never touches it.
 - The in-terminal agent CLI is still `orca-dev`. Its shim lives under the `lead-studio` user data dir, so it reaches this app, not Orca.app.

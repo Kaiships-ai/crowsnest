@@ -2,7 +2,7 @@
 //   app-drive.mjs <journey> [run-id]   run app-journeys/<journey>.mjs, write transcript + screenshots
 //   app-drive.mjs --console            print the host log (main process and renderer console)
 //   app-drive.mjs --timing [rounds]    interleaved cold starts of Orca.app and Lead Studio
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
@@ -16,7 +16,7 @@ const STATE = path.join(ROOT, "data/verify/app/state.json");
 const LOG = path.join(ROOT, "data/verify/app/host.log");
 const { chromium } = createRequire(path.join(APP, "package.json"))("@playwright/test");
 
-const MAIN_WINDOW = (url) => /\/renderer\/index\.html|localhost:\d+\/?$|\/index\.html$/.test(url);
+const MAIN_WINDOW = (url) => /\/renderer\/index\.html$|^http:\/\/localhost:\d+\/$/.test(url);
 
 async function mainPage(browser) {
   for (let i = 0; i < 100; i++) {
@@ -44,9 +44,8 @@ async function runJourney(name, runId) {
     page,
     async step(label, fn) {
       try {
-        const result = await fn();
+        await fn();
         log(`ok: ${label}`);
-        return result;
       } catch (error) {
         log(`FAIL: ${label}: ${String(error?.message ?? error).split("\n")[0]}`);
         await ctx.snap(`${name}-fail`).catch(() => {});
@@ -86,7 +85,7 @@ async function coldStart(label, executable, args, env) {
   const port = await freePort();
   const t0 = Date.now();
   const child = spawn(executable, [`--remote-debugging-port=${port}`, ...args(tmp)], {
-    env: { ...env(tmp, home) },
+    env: env(tmp, home),
     stdio: "ignore",
   });
   try {
@@ -113,6 +112,7 @@ async function coldStart(label, executable, args, env) {
   } finally {
     child.kill("SIGTERM");
     await new Promise((r) => (child.exitCode !== null ? r() : child.once("exit", r)));
+    spawnSync("pkill", ["-f", "--", tmp]);
     rmSync(tmp, { recursive: true, force: true });
   }
 }
