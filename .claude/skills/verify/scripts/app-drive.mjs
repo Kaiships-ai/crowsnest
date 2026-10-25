@@ -7,7 +7,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(import.meta.dirname, "../../../..");
-const APP = path.join(ROOT, "studio");
+const APP = ROOT;
 const STATE = path.join(ROOT, "data/verify/app/state.json");
 const LOG = path.join(ROOT, "data/verify/app/host.log");
 const { chromium } = createRequire(path.join(APP, "package.json"))("@playwright/test");

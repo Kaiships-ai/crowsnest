@@ -8,19 +8,19 @@ if [ -f "$DIR/host.pid" ] && kill -0 "$(cat "$DIR/host.pid")" 2>/dev/null; then
   echo "app: already running (host pid $(cat "$DIR/host.pid")). Run app-down.sh first." >&2
   exit 1
 fi
-[ -d studio/node_modules ] || { echo "app: run 'scripts/studio-run.sh pnpm install' first" >&2; exit 1; }
+[ -d node_modules/electron ] || { echo "app: run 'pnpm install' first (node 24)" >&2; exit 1; }
 
 unset APP_DB
 case "${1:-}" in
   --seed)
-    CROWSNEST_DB_PATH="$DIR/seed.db" npx tsx scripts/seed-e2e.ts >"$DIR/seed.log" 2>&1 \
+    CROWSNEST_DB_PATH="$DIR/seed.db" node_modules/.bin/tsx scripts/seed-e2e.ts >"$DIR/seed.log" 2>&1 \
       || { echo "app: seed failed, see $DIR/seed.log" >&2; tail -20 "$DIR/seed.log" >&2; exit 1; }
     export APP_DB="$DIR/seed.db" ;;
   --real) export APP_DB="${APP_REAL_DB:-data/crowsnest.db}" ;;
 esac
 
 if [ "${APP_SKIP_BUILD:-0}" != 1 ]; then
-  scripts/studio-run.sh sh -c 'pnpm run build:packages && VITE_EXPOSE_STORE=true npx electron-vite build --mode e2e' >"$DIR/build.log" 2>&1 \
+  { pnpm run build:packages && VITE_EXPOSE_STORE=true scripts/heavy.sh pnpm exec electron-vite build --mode e2e; } >"$DIR/build.log" 2>&1 \
     || { echo "app: build failed, see $DIR/build.log" >&2; tail -30 "$DIR/build.log" >&2; exit 1; }
 fi
 

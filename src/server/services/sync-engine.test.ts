@@ -1362,7 +1362,7 @@ describe("runSync — retry", () => {
 
     // A refused connection to our OWN localhost process is not a transient upstream: the
     // service is starting or it isn't. One retry covers a restart; making every channel
-    // wait out a doubling ladder just delays the "run `npm run ig:service`" message.
+    // wait out a doubling ladder just delays the "run `pnpm run ig:service`" message.
     expect(calls).toBe(2);
     // Backoff is slept in slices so a cancel can interrupt it, so assert the total waited
     // rather than the number of sleep calls.

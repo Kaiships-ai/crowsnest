@@ -90,7 +90,7 @@ export async function bootstrapCreatorSeeds(): Promise<{ created: number; existi
   return { created, existing };
 }
 
-// CLI entry point: `npm run db:bootstrap`
+// CLI entry point: `pnpm run db:bootstrap`
 if (process.argv[1] && process.argv[1].endsWith("bootstrap.ts")) {
   Promise.all([bootstrapSystemFilters(), bootstrapCreatorSeeds()])
     .then(([filters, seeds]) => {

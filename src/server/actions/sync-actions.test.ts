@@ -10,7 +10,7 @@ beforeAll(async () => {
   // fails fast instead of quietly driving a real sidecar that happens to be running.
   process.env.IG_SERVICE_URL = "http://127.0.0.1:1";
 
-  // Warm the import chain (next/server, the sync engine, drizzle, better-sqlite3) here,
+  // Warm the import chain (the sync engine, drizzle, better-sqlite3) here,
   // after the env above is set and before any test runs. Left to the first test it costs
   // that test ~1.2s of pure module loading, and under a parallel full-suite run it pushed
   // it past vitest's 5s per-test ceiling — a timeout that had nothing to do with what the

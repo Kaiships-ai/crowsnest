@@ -1,7 +1,6 @@
 "use server";
 
 import { and, desc, eq, isNull, or, sql, type SQL } from "drizzle-orm";
-import { after } from "next/server";
 import { db, nowIso, tables } from "../db";
 import { log } from "../lib/logger";
 import { errorMessage, type ActionResult } from "../lib/action-result";
@@ -84,25 +83,6 @@ async function markJobFailed(jobId: string, err: unknown): Promise<void> {
 }
 
 /**
- * Hands the still-running sync to Next so it outlives the response.
- *
- * `after` is the only supported way to do this: on a self-hosted Node server it is
- * backed by the server's own `waitUntil` (an `AwaiterOnce` drained on server close), so
- * the promise is tracked rather than merely floating. It throws when there is no
- * request scope — which is every call that did not arrive over HTTP, i.e. a test. In
- * those contexts the promise still runs to completion, because nothing is tearing a
- * request down around it; losing the hand-off is a downgrade in bookkeeping, not a lost
- * run. That is why this swallows the throw instead of failing the start.
- */
-function keepAlive(work: Promise<void>): void {
-  try {
-    after(work);
-  } catch (err) {
-    log.debug("sync.detached.no_request_scope", { message: errorMessage(err) });
-  }
-}
-
-/**
  * Starts a sync and returns the moment the engine has won the lock — not when the run
  * finishes. Everything after that is read back through `getSyncProgressAction`.
  *
@@ -127,10 +107,7 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
 
     let failure: unknown;
 
-    // Deliberately not awaited. `keepAlive` below is what carries it past the response;
-    // the rejection handler is what keeps a mid-sync failure from surfacing as an
-    // unhandled rejection and killing the server out from under the run.
-    const detached = runSync({
+    void runSync({
       ...(channelIds ? { channelIds } : {}),
       onJobStarted: resolveJobId,
     }).then(
@@ -166,7 +143,6 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
       };
     }
 
-    keepAlive(detached);
     log.info("sync.started.detached", { jobId });
     return { ok: true, jobId };
   } catch (err) {
@@ -191,7 +167,7 @@ export async function startViewCountBackfillAction(): Promise<ActionResult<{ job
     });
 
     let failure: unknown;
-    const detached = runViewCountBackfill({ onJobStarted: resolveJobId }).then(
+    void runViewCountBackfill({ onJobStarted: resolveJobId }).then(
       () => {},
       async (err: unknown) => {
         failure = err;
@@ -216,7 +192,6 @@ export async function startViewCountBackfillAction(): Promise<ActionResult<{ job
       return { ok: false, error: `Backfill did not start within ${LOCK_TIMEOUT_MS}ms`, code: "BACKFILL_NOT_STARTED" };
     }
 
-    keepAlive(detached);
     log.info("backfill.started.detached", { jobId });
     return { ok: true, jobId };
   } catch (err) {

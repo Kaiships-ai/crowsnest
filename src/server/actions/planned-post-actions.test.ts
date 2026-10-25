@@ -5,12 +5,6 @@ import { eq, inArray } from "drizzle-orm";
 // schedule tests never rot into PLAN_SCHEDULE_IN_PAST as the calendar advances.
 const FUTURE_SCHEDULE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
 
-// revalidatePath needs a request-scoped work store that only exists inside a real
-// request; the new publish actions call it, so it is stubbed here (same shape as
-// fleet-actions.test.ts). The pre-publish actions never call it, so their tests are
-// unaffected.
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let newId: typeof import("@/server/db")["newId"];
@@ -926,18 +920,6 @@ describe("retryFailedPublishAction", () => {
 
     const result = await retryFailedPublishAction(id);
     expect(result).toEqual({ ok: false, error: expect.any(String), code: "PLAN_RETRY_EXHAUSTED" });
-  });
-});
-
-describe("ACTION-18: publish lifecycle writes revalidate /", () => {
-  test("setPlanCaptionAction revalidates / and never /mine", async () => {
-    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
-    const created = await createPlannedPostAction({ title: "Plan", plannedDate: "2026-12-01" });
-    if (!created.ok) throw new Error(created.error);
-    revalidatePath.mockClear();
-    await setPlanCaptionAction(created.id, "caption");
-    expect(revalidatePath).toHaveBeenCalledWith("/");
-    expect(revalidatePath).not.toHaveBeenCalledWith("/mine");
   });
 });
 

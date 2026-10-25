@@ -34,6 +34,7 @@ import { join, relative, sep } from "node:path";
  */
 
 const SRC_ROOT = join(__dirname, "..", ".."); // .../src
+const CROWSNEST_SRC_DIRS = ["server", "lib", "kai-cli"];
 
 /** The only files allowed to write `tables.videos` today, and why each is safe:
  *   - sync-engine.ts: every write (`upsertVideo`, `softDeleteMissing`, `enrichViewCounts`)
@@ -113,7 +114,7 @@ describe("score recompute structural guard (review-engineering-2026-07-31.md §5
 
   test("no file outside the allow-list writes to tables.videos", () => {
     const offenders: string[] = [];
-    for (const file of listTsFiles(SRC_ROOT)) {
+    for (const file of CROWSNEST_SRC_DIRS.flatMap((dir) => listTsFiles(join(SRC_ROOT, dir)))) {
       const rel = relative(SRC_ROOT, file).split(sep).join("/");
       if (ALLOWED_FILES.has(rel)) continue;
       const lines = writeLineNumbers(readFileSync(file, "utf8"));

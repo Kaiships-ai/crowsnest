@@ -2,7 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
-import { type SimpleResult } from "../lib/action-result";
+import type { SimpleResult } from "../lib/action-result";
 
 // SimpleResult imported from ../lib/action-result: both actions below have no success
 // payload, and the generic `ActionResult<T extends object>` shape the other action

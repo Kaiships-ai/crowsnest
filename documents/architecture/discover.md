@@ -1,6 +1,6 @@
 # Discover
 
-Discover is a curated directory of Instagram creators to follow, at `/channels/discover`. A fixed list of real handles, one JSON file per niche, is loaded into a `creator_seeds` table by `npm run db:bootstrap`. The page groups the seeds under niche tabs (All, Fitness, Finance, Tech, Business) with one card per creator: handle, niche badge, and a one-line reason to follow. It is for a buyer with no tracked channels yet. A second component, `SeedPicker`, offers the same list as a capped multi-select inside the first-run sources step.
+Discover is a curated directory of Instagram creators to follow. A fixed list of real handles, one JSON file per niche, is loaded into a `creator_seeds` table by `pnpm run db:bootstrap`. Each seed carries a handle, a niche, and a one-line reason to follow. It is for a buyer with no tracked channels yet. The web app's discover page and first-run seed picker are retired with the web app; the list and the follow action stay in the server for a Lead Studio board to use.
 
 ## Data it holds
 
@@ -10,8 +10,8 @@ Discover is a curated directory of Instagram creators to follow, at `/channels/d
 
 ## Boundaries
 
-- Owns: `src/server/db/bootstrap.ts` (`bootstrapCreatorSeeds`), `src/server/queries/discover.ts` (`listCreatorSeeds`), `src/server/actions/discover-actions.ts` (`followCreatorAction`), `src/components/discover/` (`DiscoverBoard`, `CreatorSeedCard`, `SeedPicker`), the discover route, the Khám phá tab in `src/components/layout/section-tabs.tsx`, and `scripts/verify-seeds.ts`.
-- Called by: the Nguồn tabs and the Kênh empty state ("Chọn từ Khám phá"), the first-run sources step (`src/components/first-run/sources-step.tsx` mounts `SeedPicker`), `npm run db:bootstrap`.
+- Owns: `src/server/db/bootstrap.ts` (`bootstrapCreatorSeeds`), `src/server/queries/discover.ts` (`listCreatorSeeds`), `src/server/actions/discover-actions.ts` (`followCreatorAction`), and `scripts/verify-seeds.ts`.
+- Called by: `pnpm run db:bootstrap`. No screen calls `listCreatorSeeds` or `followCreatorAction` while the Lead Studio boards are not built.
 - Calls: `normalizeHandle` in `src/server/services/sync-engine.ts`, then `addChannelAction` and `startSyncAction` in `src/server/actions/sync-actions.ts`. Discover never reads `videos` or scoring data.
 
 ## Invariants
@@ -21,10 +21,8 @@ Discover is a curated directory of Instagram creators to follow, at `/channels/d
 - Bootstrap is idempotent. It reads the four files in a fixed order (`SEED_NICHES`, not globbed), trims each handle, strips a leading `@`, and skips rows already present for `(platform, handle)`.
 - The tracked check lives in the join predicate, not a `WHERE`. `listCreatorSeeds` left-joins `channels` with `deletedAt IS NULL` in the `ON` clause, so a soft-deleted channel leaves the seed visible and untracked. `src/server/queries/discover.test.ts` guards this.
 - Ordering is niche then handle, ascending. There is no ranking or personalization, and a creator belongs to exactly one niche.
-- Niche tabs filter in memory. The page fetches the full list once; the query's `niche` parameter exists but the page does not pass it.
+- `listCreatorSeeds` takes an optional `niche` filter.
 - `why` never carries a metric (no follower, view, or engagement number). This is a curation-time rule in `data/seeds/README.md`; no runtime check enforces it.
-- `SeedPicker` caps selection at `maxSelect` (default 10), disables unchecked rows at the cap and tracked rows always, follows handles sequentially through `followCreatorAction`, and passes only successful channel ids to `onDone` (`src/components/discover/seed-picker.tsx`). A failed follow is dropped silently with no per-row error.
-- With an empty `creator_seeds`, the board shows a message pointing at `npm run db:bootstrap` instead of an empty grid (`src/components/discover/discover-board.tsx`).
 - `scripts/verify-seeds.ts` drops a handle only on an affirmative IG_NOT_FOUND. A private account is kept, and any other error stops the run rather than emptying the seed files.
 
 ## Where to look
@@ -32,7 +30,5 @@ Discover is a curated directory of Instagram creators to follow, at `/channels/d
 - `src/server/actions/discover-actions.ts`
 - `src/server/queries/discover.ts`
 - `src/server/db/bootstrap.ts`
-- `src/components/discover/discover-board.tsx`
-- `src/components/discover/seed-picker.tsx`
 - `data/seeds/README.md`
 - `scripts/verify-seeds.ts`

@@ -58,7 +58,7 @@ test("crowsnest_sync_selected's sidecar-down error carries the exact bootstrap c
   const r = await callTool(server, "crowsnest_sync_selected", { channelIds: ["c1"] });
 
   expect(r.isError).toBe(true);
-  expect(r.structuredContent).toMatchObject({ code: "IG_SERVICE_DOWN", bootstrap: "npm run ig:service" });
+  expect(r.structuredContent).toMatchObject({ code: "IG_SERVICE_DOWN", bootstrap: "pnpm run ig:service" });
 });
 
 test("crowsnest_sync_selected's non-sidecar error does not carry a bootstrap field", async () => {

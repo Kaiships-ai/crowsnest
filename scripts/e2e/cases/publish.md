@@ -6,195 +6,82 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
-| 2 | Attach a video and write a caption | Uploads the mp4 a plan publishes and its caption, saved even when publishing itself is not yet possible | ● | `publish-dialog.tsx`, `uploadPlanVideoAction`, `setPlanCaptionAction` | none |
-| 3 | Schedule a publish | Arms a plan so the in-process scheduler publishes it automatically at a chosen time | ● | `publish-dialog.tsx`, `schedulePublishAction`, `publish-scheduler.ts` | none |
-| 4 | Publish now | Publishes a plan immediately instead of waiting on a schedule | ● | `publish-dialog.tsx`, `publishNowAction` | none |
-| 5 | Track and recover a publish | The Tuần này reel drawer shows the lifecycle and offers "Thử đăng lại" on a failed reel and "Huỷ lịch đăng" on a reel with a publish time (cases in `week.md`) | ● | `src/components/week/week-screen.tsx`, `cancelScheduledPublishAction`, `retryFailedPublishAction` | none |
-| 6 | See what publishing needs, honestly | States exactly which of the storage bucket or the Graph token is missing, and never fabricates a publish | ● | `publish-dialog.tsx`, `getStorageProvider`, `isGraphConfigured` | none |
+| 2 | Attach a video and write a caption | Stores the mp4 a plan publishes and its caption, saved even when publishing itself is not yet possible | ● | `uploadPlanVideoAction`, `setPlanCaptionAction`, `crowsnest_attach_video` | none |
+| 3 | Schedule a publish | Arms a plan so the in-process scheduler publishes it automatically at a chosen time | ● | `schedulePublishAction`, `publish-scheduler.ts` | none |
+| 4 | Publish now | Publishes a plan immediately instead of waiting on a schedule | ● | `publishNowAction` | none |
+| 5 | Track and recover a publish | Retry a failed plan under the attempt cap, or cancel a scheduled one | ● | `retryFailedPublishAction`, `cancelScheduledPublishAction` | none |
+| 6 | See what publishing needs, honestly | Refuses with a code naming which of the storage bucket or the Graph token is missing, and never fabricates a publish | ● | `getStorageProvider`, `isGraphConfigured` | none |
+
+The web app's publish dialog and Tuần này reel drawer are retired with the web app; a Lead Studio board replaces them. Every rule below is enforced in the server actions in `src/server/actions/planned-post-actions.ts` and the services they call.
 
 ### 2. Attach a video and write a caption
 
-### Who uses it
+`uploadPlanVideoAction` and `crowsnest_attach_video` attach an mp4 through `attachPlanVideo`; `setPlanCaptionAction` stores the caption.
 
-The user, from the reel drawer on Tuần này.
-
-### What it does
-
-Clicking "Upload & schedule" (or "Edit publish" once a video is already attached) on a draft, scheduled, missed, or failed plan opens the publish dialog. A drop zone accepts an `.mp4` file, by drag or by a file picker; the upload runs immediately and the plan keeps whatever video and caption it already had if the dialog is closed before scheduling. The caption field shows a live character count against Instagram's 2200-character ceiling and saves on blur, independent of whether the plan is ever scheduled.
-
-### How to access it
-
-The "Upload & schedule" or "Edit publish" button in a plan's day detail panel.
-
-### Business rules
-
-- Only a file whose type or extension is `.mp4` is accepted; anything else is refused with an inline error before an upload is attempted.
-- An empty file is refused.
+- Only an mp4 (an `ftyp` box) is accepted, at most 200 MB; an empty file is refused.
 - The caption is trimmed before it is measured against the 2200-character ceiling; a caption over that length is refused rather than truncated.
-- Uploading and saving a caption both persist immediately, on their own, independent of the Schedule or Publish now action below; closing the dialog without scheduling still keeps the video and caption on the plan.
-
-### Limitations
-
-- There is no video preview or trim tool in this dialog; whatever mp4 is uploaded is the file that publishes, unedited.
-- Replacing an already-attached video overwrites it; the dialog does not keep the previous upload.
-
-### User guide
-
-Open a reel on Tuần này and press "Gắn video và caption". Drop an mp4, or click Choose file. Write the caption underneath it, watching the character count. Both save right away, even if you close the dialog before picking a time.
+- Uploading and saving a caption both persist on their own, independent of scheduling or publishing.
+- Replacing an already-attached video overwrites it; a `publishing` or `published` plan refuses with `PLAN_LOCKED`.
 
 ### 3. Schedule a publish
 
-### Who uses it
+`schedulePublishAction` arms the plan: `state` becomes `scheduled`, `scheduledAt` records the instant, and the in-process scheduler publishes it once that moment passes.
 
-The user, once a plan carries a video and a caption.
-
-### What it does
-
-Setting both a date and a time in the publish dialog and clicking Schedule arms the plan: `state` becomes `scheduled`, `scheduledAt` records the real instant, and the in-process scheduler takes it from there, publishing it automatically once that moment passes, with no further action needed. The scheduler ticks on an interval (about every 30 seconds) and claims each due row exactly once, so a scheduled publish survives a dev-server restart between the time it was scheduled and the time it goes out.
-
-### How to access it
-
-The publish dialog's Date and Time fields, then the Schedule button, which appears in place of Publish now once both fields are filled.
-
-### Business rules
-
-- The Schedule action is offered only once a video is attached, a caption is written, the storage bucket is configured, and the Graph token is configured; missing any one of the four disables it (see feature 6).
-- Leaving the time blank publishes immediately instead of scheduling (feature 4); a date with no time behaves the same as neither being set.
+- It is refused unless a video is attached, a caption is written, the storage bucket is configured, and the Graph token is configured; each missing one has its own code (see feature 6).
 - Scheduling can be cancelled at any point before it publishes (feature 5); it cannot be cancelled once the scheduler has claimed the row.
-- Scheduling keeps the plan's own date fields in sync, so a scheduled reel shows on its day in Tuần này.
-
-### Limitations
-
-- The schedule time has no time zone picker; it is read as the browser's local wall-clock time, matching the plan's date-only fields.
-- There is no way to schedule two different publish attempts for the same plan at once; scheduling again while already scheduled simply re-arms the same row to the new time.
-
-### User guide
-
-Once your video and caption are saved, pick a date and a time and click Schedule. Your plan is now armed. You do not need to keep the app open in the foreground for it to publish at that time, but the app itself does need to be running.
+- Scheduling keeps `plannedDate` and `plannedTime` in sync with `scheduledAt`.
+- Scheduling again while already scheduled re-arms the same row to the new time.
+- The scheduler runs only while the process that started `startJobs` runs.
 
 ### 4. Publish now
 
-### Who uses it
+`publishNowAction` runs the whole publish path immediately: upload to the bucket, create the Reel container, poll it, publish (or stop short of publishing on a dry run).
 
-The user, when they want a plan to go out immediately rather than at a future time.
-
-### What it does
-
-Leaving the date and time blank in the publish dialog changes its one primary action to Publish now. Clicking it runs the whole publish path immediately: upload to the bucket, create the Reel container, poll it, publish (or stop short of publishing on a dry run), and report success or the specific reason it failed.
-
-### How to access it
-
-The publish dialog's Publish now button, shown whenever the date or time is blank.
-
-### Business rules
-
-- The same four preconditions as scheduling (video, caption, bucket, Graph token) gate this action too.
-- Publish now claims the row atomically before publishing, the same guard the scheduler uses, so a plan already publishing or already published cannot be started a second time from this button.
-- A failure here writes the plan to `failed` with an error class and message, exactly as a scheduled publish that fails would; nothing about the manual path skips the lifecycle.
-
-### Limitations
-
-- There is no progress indicator beyond the dialog's own "Working…" label while the request is in flight; the container-creation and polling steps happen server-side without a step-by-step status.
-- Closing the browser tab mid-publish does not cancel it; the server-side call keeps running.
-
-### User guide
-
-To publish right away instead of scheduling, open a plan's publish dialog, leave the date and time blank, and click Publish now. The dialog stays open with a working state until the whole path finishes, then closes with a toast.
+- The same four preconditions as scheduling gate it.
+- It claims the row atomically before publishing, the same guard the scheduler uses, so a plan already publishing or published cannot be started a second time.
+- A failure writes the plan to `failed` with an error class and message, exactly as a scheduled publish that fails would.
 
 ### 5. Track and recover a publish
 
-### Who uses it
-
-The user, watching a scheduled, in-flight, failed, or published reel on Tuần này.
-
-### What it does
-
-The reel row and the reel drawer read the plan's live state: "Đang đăng" while the scheduler holds it, "Đăng lỗi" with the last error after a failure, "Đã đăng (dry run)" or "Đã đăng" after a publish. In the drawer a failed reel offers "Thử đăng lại", which re-arms it to `scheduled` for the next tick, and a reel with a publish time shows that time and "Huỷ lịch đăng" behind a designed confirm.
-
-### How to access it
-
-Open the reel from Tuần này. Retry and cancel show only in the states where they apply.
-
-### Business rules
-
-- Cancelling only works on a `scheduled` plan that has a `scheduledAt`. It clears `scheduledAt` and `idempotencyKey` and keeps the day, the video and the caption, so the reel stays on Tuần này and can be scheduled again without a new upload.
-- Retry is refused once `attemptCount` reaches the cap of three (`PLAN_RETRY_EXHAUSTED`, shown as a toast).
-- Retrying re-arms the plan to `scheduled` at once; the scheduler's backoff applies only to retries it arms itself.
-- `missed` is derived only for a plain `scheduled` plan whose date has passed with no attempt yet; `publishing`, `failed` and `published` are always read as stored.
-- Deleting refuses a `publishing` plan. Undo re-creates the plan's fields, not its video, caption or publish history.
-
-### Limitations
-
-- There is no progress detail while a plan is `publishing`.
-- The retry button shows at the cap too; the action refuses it.
-
-### User guide
-
-Open the reel on Tuần này. If it failed, read the error and press "Thử đăng lại". To stop a scheduled publish, press "Huỷ lịch đăng" and confirm.
+- `cancelScheduledPublishAction` works only on a `scheduled` plan. It clears `scheduledAt` and `idempotencyKey` and keeps the day, the video, and the caption, so the plan can be scheduled again without a new upload.
+- `retryFailedPublishAction` is refused once `attemptCount` reaches the cap of three (`PLAN_RETRY_EXHAUSTED`). Retrying re-arms the plan to `scheduled` at once; the scheduler's backoff applies only to retries it arms itself.
+- `missed` is derived only for a plain `scheduled` plan whose date has passed with no attempt yet; `publishing`, `failed`, and `published` are always read as stored.
+- `deletePlannedPostAction` refuses a `publishing` plan.
 
 ### 6. See what publishing needs, honestly
 
-### Who uses it
+Both requirements are checked before a schedule or publish: whether an S3-compatible bucket is configured (`S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET`, `S3_PUBLIC_BASE`), through `getStorageProvider`, and whether the Graph API token is configured, through `isGraphConfigured`.
 
-The user, on a machine where the storage bucket, the Graph token, or both, are not yet configured.
-
-### What it does
-
-The publish dialog checks both requirements before offering to schedule or publish: whether an S3-compatible bucket is configured (`S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET`, `S3_PUBLIC_BASE`) and whether the Graph API token is configured (`IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`). Either missing disables the one primary action and states exactly which environment variables to set; the video upload and the caption still save, so nothing about the plan is lost while configuration catches up. Outside production, a configured setup still shows a dry-run banner explaining that the whole path runs but the final publish call is skipped.
-
-### How to access it
-
-Automatic: this is what the publish dialog shows in place of an enabled Schedule/Publish now action whenever either requirement is missing.
-
-### Business rules
-
-- The bucket and the Graph token are checked independently; the dialog names whichever one, or both, are missing, never a generic "not configured" line.
-- A dry-run publish still writes the plan `published`, with `dryRun` set, so it is never left looking mid-flight or failed just because the final call was intentionally skipped.
-- Whether a given run is a dry run is decided once, per attempt, from `PUBLISH_DRY_RUN` and the environment; a plan does not carry a fixed dry-run setting of its own that would let one plan behave differently from another on the same machine.
-
-### Limitations
-
-- The bucket and the Graph token are both environment-only configuration; there is no in-app settings screen to set them, matching the same limitation mine's own Graph connect panel already has for read-only Insights.
-- The reel row reads "Đã đăng (dry run)" for a dry run, never a plain publish.
-
-### User guide
-
-If Schedule or Publish now is greyed out, the dialog tells you exactly what to set, either the storage bucket variables or the Instagram Graph token, in `.env.local`. Your video and caption are still saved while you fix it. On a development machine, expect to see a dry-run notice even once everything is configured; that is normal until the app is actually running in production.
+- The bucket and the Graph token are checked independently, each with its own refusal code (`PLAN_NO_BUCKET`, `PLAN_NO_GRAPH`).
+- A dry-run publish still writes the plan `published`, with `dryRun` set, so it is never left looking mid-flight or failed.
+- Whether a run is a dry run is decided once, per attempt, from `PUBLISH_DRY_RUN` and the environment.
+- The bucket is environment-only configuration.
 
 ### 7. Interactions with other systems
 
-Publish extends `planned_posts`, the table [mine](mine.md) already owns; every feature above is additional state and additional UI on plans mine's own planning features (create, edit, delete, mark published by hand) still fully control. Marking a plan published by hand (mine's own `markPlanPublishedAction`) and a real publish reaching `published` through this component both end in the same `state: "published"`, but only a real publish also sets `dryRun` and `publishedAt` from this component's own writes. The scheduler shares the Graph client and the `IG_GRAPH_TOKEN`/`IG_GRAPH_USER_ID` credentials with mine's own read-only Insights panel; a token that is invalid for reading Insights is exactly as invalid for publishing, since both go through the same `isGraphConfigured()` check. The instagrapi sidecar ig-sync depends on is never touched by any feature here.
+Publish extends `planned_posts`, the table [mine](mine.md) already owns; every feature above is additional state on plans mine's own planning features (create, edit, delete, mark published by hand) still fully control. Marking a plan published by hand (mine's own `markPlanPublishedAction`) and a real publish reaching `published` through this component both end in the same `state: "published"`, but only a real publish also sets `dryRun` and `publishedAt` from this component's own writes. The scheduler shares the Graph client and the `IG_GRAPH_TOKEN`/`IG_GRAPH_USER_ID` credentials with mine's own read-only Insights measurement; a token that is invalid for reading Insights is exactly as invalid for publishing, since both go through the same `isGraphConfigured()` check. The instagrapi sidecar ig-sync depends on is never touched by any feature here.
 
 ### 8. Edge cases
 
 - A plan scheduled, then deleted before the scheduler claims it, is simply gone; the scheduler's next tick finds no such row and does nothing.
-- Two tabs open on the same plan cannot both publish it: whichever caller's atomic claim (the scheduler's tick, or a hand click of Publish now) lands first wins, and the other sees zero rows changed and no-ops.
-- A plan that fails on its final attempt (`attemptCount` at the cap) stays `failed` forever unless a human clicks Retry; nothing re-arms it automatically past the cap.
+- Two callers cannot both publish one plan: whichever atomic claim (the scheduler's tick, or `publishNowAction`) lands first wins, and the other sees zero rows changed and no-ops.
+- A plan that fails on its final attempt (`attemptCount` at the cap) stays `failed` unless a human retries it; nothing re-arms it automatically past the cap.
 - If the whole server process is killed between the atomic claim and the terminal write, the row stays `publishing` until it is older than 20 minutes; the scheduler's next tick then re-claims and finishes it.
-- Restarting the dev server does not lose a schedule: `scheduledAt` is durable on the row, and the scheduler's next tick after boot picks up any row already due.
+- Restarting the server does not lose a schedule: `scheduledAt` is durable on the row, and the scheduler's next tick after boot picks up any row already due.
 
 ## publish: test cases
 
 Result markers: 🟢 pass, 🔴 bug, 🟡 blocked (missing dependency named in the cell). Rows still reading "not run" were not driven in QA round 1.
 
-How to run these: start the dev server and open `http://localhost:3001` (never `127.0.0.1`) for the behavior and browse-e2e cases, on a plan that already has an own channel and a Graph token connected (see mine's own test-cases doc for that setup). Route and action cases run with `vitest` against a temporary SQLite database and mocked Graph client and storage provider; `src/server/services/publish-post.test.ts`, `src/server/services/publish-scheduler.test.ts`, and the publish-related suites in `src/server/actions/planned-post-actions.test.ts` cover this component today, so no live Graph token, no live bucket, and no real Instagram call is required for that lens. For the behavior and browse-e2e lenses, a real, configured `S3_*` bucket and a real `IG_GRAPH_TOKEN`/`IG_GRAPH_USER_ID` are needed to reach the scheduled/publishing/published states through the actual UI; without them, only the not-configured surface (feature 6) is reachable. Needs column values: `mouse` and `keyboard` are the input; `not-configured` means the bucket or the Graph token, or both, are cleared; `configured, dry-run` means both are set and `PUBLISH_DRY_RUN` is unset outside production (the default); `configured, live` means a real Business or Creator account and a real bucket, with `PUBLISH_DRY_RUN=0`.
+How to run these: route and action cases run with `pnpm test --project crowsnest` (vitest) against a temporary SQLite database and a mocked Graph client and storage provider. The web app's behavior cases, browser journeys, and its :3001 dev server are retired with the web app.
 
 ## 1. behavior
 
-| ID | P | Needs | Claim | Setup | Steps | Expected | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| PUB-01 | P1 | mouse | Uploading a non-mp4 file is refused inline before any upload is attempted ([attach a video and write a caption](#2-attach-a-video-and-write-a-caption)). | Publish dialog open on a draft plan. | 1. Drop or pick a `.mov` file.<br>2. Read the dialog. | An inline error reads that only an `.mp4` video can be published; no upload runs. | 🟢 pass (browser): created a plan, opened its publish dialog, picked a `.mov` file; the dialog showed "Only an .mp4 video can be published." inline, no upload attempted (see test-shots/publish/PUB-01.png) |
-| PUB-02 | P1 | mouse | The caption count and the 2200 ceiling are enforced, and the caption saves on blur independent of scheduling ([attach a video and write a caption](#2-attach-a-video-and-write-a-caption)). | Publish dialog open, video already attached. | 1. Type a caption.<br>2. Read the character count.<br>3. Click outside the field.<br>4. Close the dialog without scheduling.<br>5. Reopen it. | The count updates live against `/ 2200`; the caption is still there on reopen. | 🟢 pass (browser): attached a real mp4, typed a caption, count read "N / 2200" live; blurred (db row updated immediately, no schedule needed); closed with Cancel and reopened via Edit publish, the caption and video were both still there (see test-shots/publish/PUB-02.png, PUB-02-reopen.png) |
-| PUB-03 | P1 | configured, dry-run | Scheduling a plan with a future date and time arms it, and the scheduler publishes it as a dry run once the time passes ([schedule a publish](#3-schedule-a-publish)). | Plan with a video and caption attached, bucket and Graph token configured, dry run on. | 1. Set a date and time a few minutes out.<br>2. Click Schedule.<br>3. Wait past the scheduled time.<br>4. Reload Tuần này. | The dialog closes with a "Scheduled" toast; after the time passes the row reads "Đang đăng" then "Đã đăng (dry run)". | 🟡 blocked: S3 not configured in this sandbox (no `S3_*` values anywhere, not `.env.local` nor the secrets table), so `Schedule`/`Publish now` stays disabled and a real schedule cannot be armed through the UI without faking the bucket |
-| PUB-04 | P1 | configured, dry-run | Leaving date and time blank changes the primary action to Publish now, and clicking it runs the whole path immediately ([publish now](#4-publish-now)). | Plan with a video and caption attached, bucket and Graph token configured, dry run on. | 1. Leave date and time blank.<br>2. Click Publish now.<br>3. Wait for the dialog to close. | The button reads "Publish now"; after it resolves, a "Dry-run publish complete" toast shows and the plan reads published, dry run. | 🟡 blocked: same reason as PUB-03, S3 not configured. Did confirm the button-label half for free: with date and time blank the primary action reads "Publish now" (see test-shots/publish/PUB-01.png), it is just disabled |
-| PUB-05 | P2 | not-configured | With the bucket or the Graph token missing, the dialog names exactly what is missing and disables the primary action, while the upload and caption still save ([see what publishing needs, honestly](#6-see-what-publishing-needs-honestly)). | `S3_BUCKET` cleared, Graph token left set. | 1. Open the publish dialog.<br>2. Read the not-configured block.<br>3. Attach a video and caption anyway. | The block names the missing `S3_*` variables; Schedule/Publish now is disabled; the video and caption still save. | 🟢 pass (browser): this sandbox already has no `S3_*` configured and a working Graph token, matching the setup exactly. The block read "Set S3_* to publish (S3_ENDPOINT, S3_BUCKET, S3_KEY, S3_SECRET, S3_PUBLIC_BASE)" only (no Graph line); Publish now stayed disabled; attaching a real mp4 and a caption both saved to the plan row regardless (see test-shots/publish/PUB-05.png) |
-| PUB-07 | P1 | mouse | Cancelling a scheduled publish goes through a designed confirm and keeps the reel on its day with its video and caption ([track and recover a publish](#5-track-and-recover-a-publish)). | A `scheduled` plan with a `scheduledAt` on this week. | 1. Open it on Tuần này.<br>2. Press "Huỷ lịch đăng".<br>3. Confirm. | A designed confirm appears; after confirming the plan is `scheduled` on the same day with `scheduled_at` null, caption and video unchanged. | not run in browser here; see week.md "Cancel publish" and `week-screen.actions.test.tsx` |
-| PUB-09 | P2 | mouse | Deleting a plan that carries an uploaded video goes through the designed confirm; a plan with no video deletes without one ([track and recover a publish](#5-track-and-recover-a-publish)). | One plan with a video attached, one without. | 1. Click delete on each. | The plan with a video shows the confirm dialog first; the plan without deletes immediately. | 🟢 pass (browser): deleting the plan with an attached video showed a "Keep it / Delete plan" confirm first; confirming removed the row. Deleting an undated draft with no video removed it immediately, no confirm dialog (see test-shots/publish/PUB-09-confirm.png, PUB-09.png) |
+Retired with the web app (the publish dialog and reel drawer no longer exist): PUB-01, PUB-02, PUB-03, PUB-04, PUB-05, PUB-07, PUB-09. Their server claims are covered by ACTION-P01 through ACTION-P14.
 
 Not checkable by hand:
 
 - Whether a real live publish (not a dry run) against a genuine Business or Creator account completes end to end within the polling window; only a dry-run path has been exercised.
-- Whether the scheduler actually survives a real `next dev` process restart mid-schedule outside a deliberate manual test, since the interval and the claim are read from code, not observed across a real kill.
 
 ## 2. route and action
 
@@ -223,21 +110,7 @@ Not checkable by hand:
 
 ## 3. browse-e2e
 
-Real browser journeys driven by the `browse` skill against the dev server on port 3001, one checked-in `scripts/e2e/publish-<id>.sh` per row. Coverage: one happy-path journey per built feature (features 2, 3, 4, 5, and 6, all `●`; the `03` summary table has no `○` roadmap rows to exempt), plus five distinct corner-case types (`invalid`, `empty`, `boundary`, `auth`, `failure`). All five built features carry a happy row (Feat 2 = E2E-01, Feat 3 = E2E-02, Feat 4 = E2E-03, Feat 5 = E2E-04, Feat 6 = E2E-05).
-
-The `concurrency`, `repeat`, `stale`, and `network` types do apply to publish (a double-clicked Publish now, a re-scheduled plan, the optimistic day-panel state before a reload, and a Graph or bucket outage mid-publish), but every one of them is only reachable once storage and Graph are configured, so they are deferred to the live QA round rather than scripted offline here; the five offline corner types above are the runnable floor.
-
-Testid gap: the caption character count in `publish-dialog.tsx` is a bare `<span>` with no `data-testid`, so E2E-08 reads it with `assert_text` on the "/ 2200" text. Filed as PUB-08 in GitHub issues (label `backlog`).
-
-| ID | P | Feat | Type | Mode | Journey | Setup | Steps | Expected | Script | Result |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-
-None of these journeys have been driven through `browse` against a running dev server as part of this authoring pass; every `Result` is `not run` until the QA round drives it (an `offline` row to 🟢/🔴 with a `test-shots/` screenshot, a `live` row honestly to 🟡 in a bare sandbox naming its missing Graph or storage dependency).
-
-Not checkable by hand:
-
-- Any journey through a real, non-dry-run publish is not scripted here, since it needs a real Business or Creator account and would post a real Reel; that path is exercised at the action layer instead (ACTION-P08 through ACTION-P10, with the Graph client mocked).
-- The `concurrency`, `repeat`, `stale`, and `network` corner types (a double-clicked Publish now, a re-armed re-schedule, the optimistic pre-reload day-panel state, a mid-publish Graph or bucket outage) all need storage and Graph configured to reach, so they are left to the live QA round rather than scripted offline.
+Retired with the web app: every browser journey and its per-row shell script. No browser journey exists until a Lead Studio board is built.
 
 ## 4. security-lite
 

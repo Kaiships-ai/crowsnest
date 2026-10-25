@@ -9,8 +9,8 @@
 # Real passwords contain exactly those characters — this bit us with a live account.
 #
 # Variables exported in your shell still win over the file, so one-off overrides work:
-#   IG_PROXY='socks5://...' npm run ig:service
-#   LOG_LEVEL=debug npm run ig:service
+#   IG_PROXY='socks5://...' pnpm run ig:service
+#   LOG_LEVEL=debug pnpm run ig:service
 #
 set -euo pipefail
 

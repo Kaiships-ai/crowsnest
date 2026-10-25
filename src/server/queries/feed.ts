@@ -65,8 +65,7 @@ export interface FeedItem {
  *
  * `thumbnailUrl`/`avatarUrl` no longer exist on the schema (expiring CDN URLs are never
  * stored) — this selects the `*AssetId` foreign keys instead. Callers resolve them to a
- * servable URL via `assetUrl()` from `src/lib/media-url.ts`; this layer never builds a
- * URL string itself.
+ * servable URL; this layer never builds a URL string itself.
  *
  * `likeCount`, `commentCount` and `deletedAt` are raw inputs, not part of `FeedItem` —
  * `toFeedItem` below turns them into the derived `engagementRate` and `deleted` fields.

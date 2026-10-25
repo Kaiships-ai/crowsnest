@@ -20,16 +20,15 @@ publishing under the PR's existing authorization.
 
 ## Record against the real, seeded UI
 
-Record against the seeded, mocked crowsnest UI, the same isolation the e2e
-harness uses: a fresh fixture database at `CROWSNEST_DB_PATH=data/e2e.db` and the
-dev server on `:3001` (see `scripts/e2e/run.sh` and `scripts/seed-e2e.ts`).
+Record against the seeded Lead Studio app, the same isolation the verify lanes
+use: `.claude/skills/verify/scripts/app-up.sh --seed` (a fresh `scripts/seed-e2e.ts`
+database in a temp user data dir), with `APP_RECORD_VIDEO=<dir>` for a webm.
 Never record against an operator's real data or a live Instagram session unless
 the proof is specifically about live sync, and then redact.
 
-The recording is browser-driven. The existing browse-e2e harness drives the UI
-but does not itself capture video. Until a Playwright recording helper (context
-video plus a caption, zoom, and speed cue API) exists in `e2e/`, capture the raw video with a Playwright context recorder or a screen
-recorder and hand-write the cue sidecar below.
+The app journeys (`app-drive.sh`) drive the UI; `APP_RECORD_VIDEO` captures the raw
+video. There is no caption, zoom, or speed cue API yet, so hand-write the cue sidecar
+below.
 
 While recording, keep narration to one or two short lines per caption; oversized
 text should fail rather than clip. Avoid clipped, locator, or full-page

@@ -10,7 +10,7 @@ web
 
 Primary user: a **solo content creator** growing their own Instagram, working alone on
 their own Mac. They install crowsnest once from a terminal, then run it as a local desktop
-app in the browser. They care about knowing what to make next, low setup friction, and
+app. They care about knowing what to make next, low setup friction, and
 speed. They are not an agency or a team; there is one operator, one machine, one vault, one
 license seat. There are no roles, plans, or second users.
 
@@ -61,8 +61,9 @@ end-to-end loop is the thing every future decision must keep whole.
 
 ## Operating Context
 
-- Installed and run on the buyer's own Mac (**Apple Silicon only**). The dashboard runs
-  locally at `localhost:3000`; there is no hosted/cloud version and no account to sign into.
+- Installed and run on the buyer's own Mac (**Apple Silicon only**). The app runs
+  locally; there is no hosted/cloud version and no account to sign into. The app serves its MCP
+  on a free `127.0.0.1` port and writes the port to `mcp.port` in its user data dir.
 - Setup is a terminal step, `kai kit init`, run after `kai login <license>`; it writes
   `.env.local`, creates the local sqlite database, and starts the app.
 - Instagram data is read through a **local Instagram sidecar** (instagrapi) that the app
@@ -75,15 +76,16 @@ end-to-end loop is the thing every future decision must keep whole.
   license gate checked before the tarball is served and again by size/checksum after
   download. The Kit bundles its own Node, Python, and package manager. The buyer-facing
   install guide is `packaging/buyer-quickstart.md`.
-- The in-app **first-run flow** (`/first-run`) takes a fresh install to a tracked channel
-  and a first sync: FOCUS, INSTAGRAM (the read key), CHANNELS, FIRST SYNC.
+- The web app's in-app first-run flow is retired with the web app; a Lead Studio board
+  replaces it.
 
 ## Actors
 
 - **The buyer.** The single human. Every action in the loop is theirs: browse the feed, analyze,
   remix, plan, hand off, publish.
-- **The app.** The Next.js surface under `src/app/(shell)`, its server actions and queries, and
-  the local database. Its outer edge is an MCP server at `/api/mcp` that owns no tables and
+- **The app.** The Lead Studio Electron app (`src/renderer/`, `src/main/`), the server actions,
+  queries, and jobs under `src/server/`, and the local database. The old Next.js web app is
+  deleted; its screens move into Lead Studio boards. Its outer edge is an MCP server at `/api/mcp` that owns no tables and
   projects what the feed, remix, and planner already store.
 - **The IG sidecar.** A local service over localhost that fetches posts from tracked channels
   and is the only writer of the feed's contents. Started by the Kit, not hosted by crowsnest.
@@ -95,39 +97,41 @@ end-to-end loop is the thing every future decision must keep whole.
 
 ## Capabilities and Constraints
 
-- Core loop is built and runs: sync, feed and filters, video detail + analysis, save to
-  the six-stage remix studio, and the Tuần này week screen. The
+- Core loop is built and runs in the server and over MCP: sync, feed and filters, video
+  detail + analysis, the six-stage remix session, and the planner. The web app screens for
+  them are deleted and move into Lead Studio boards. The
   finished remix hands off through the MCP server to Reel Factory, which produces the video.
   Scheduled and immediate publish to the creator's own channel is built on the Graph API,
   dry-run by default outside production; a live publish needs a configured S3-compatible
   bucket, a Graph API token, and a Business or Creator Instagram account (Reels publish
   requires one).
-- Discover (`/channels/discover`) is built and runs: a curated, niche-grouped list of real
+- Discover is built in the server: a curated, niche-grouped list of real
   Instagram creators (fitness, finance, tech, business) with a one-line, metric-free reason
-  for each. Follow is one click, reusing the same add-channel and start-sync path a manual
+  for each. Follow reuses the same add-channel and start-sync path a manual
   add uses; no follower or view count is shown for a creator that has not been followed and
   synced.
 - Degradation contract: a missing service removes only the step that needs it. With the sidecar not running, no new videos arrive and the feed
   goes stale instead of erroring. With the Graph token invalid, only own-channel metrics are
   unavailable. With no own channel set, the planner and publish still work.
 - Constraints future work must respect: Apple Silicon only; single-user local install; local
-  sqlite (`data/crowsnest.db`, plaintext secrets, never returned to the browser); Instagram
+  sqlite (`data/crowsnest.db`, plaintext secrets, never returned to a client); Instagram
   access is read-only and depends on a running local sidecar logged into a throwaway account
   (no sidecar / no read key means no sync).
-- This is not the stock Next.js. APIs, conventions, and file structure diverge; a custom
-  `tsx server.ts` fronts the app, with a Python sidecar under `services/ig/`.
+- The app is the Lead Studio Electron app, which runs `src/server` in its own process. A
+  headless `tsx server.ts` serves the same MCP and jobs for the Kit, with a Python sidecar
+  under `services/ig/`.
 - Terminology to keep consistent: **read key** (the throwaway-account Instagram session),
   **channel** (a watched competitor account), **sync**, **vault**, **remix**.
 - The MCP server at `/api/mcp` exposes 30 tools. Crowsnest holds the data and actions and the
   connected agent is the only reasoning brain, so the full workflow (sync, inspect, save an
   analysis, remix, brief) runs with no model key. A brief returned over MCP carries local
   file paths for the video and thumbnail. Transcription needs whisper.cpp locally or `GROQ_API_KEY`.
-- Sync can be cancelled, run for selected channels, and put on an automatic cadence in Settings
-  (0 is off). Several burner accounts can be added and channels stick to one; one account's
+- Sync can be cancelled, run for selected channels, and put on an automatic cadence with the
+  `syncCadenceMinutes` setting (0 is off). Several burner accounts can be added and channels stick to one; one account's
   cooldown does not stop the others, but live parallel traffic across accounts is not built.
-- Own-channel numbers come from the official Graph API with a token set in Settings. Own reels
+- Own-channel numbers come from the official Graph API with a token stored in the secrets store or `.env.local`. Own reels
   are measured automatically while the app runs, hourly for the first 72 hours and daily after,
-  and "Measure now" runs it on demand. Insights can lag Instagram by up to 48 hours.
+  and `measureOwnChannelAction` runs it on demand. Insights can lag Instagram by up to 48 hours.
 - Publish: uploads are mp4 only, up to 200 MB, captions up to 2200 characters. A transient
   failure retries automatically up to 3 attempts. A missing bucket or Graph token disables the
   action and names the missing variables.
@@ -146,11 +150,11 @@ The loop as the buyer runs it. Detail per part lives in `documents/architecture/
 
 | Use case | What happens | Rules |
 | --- | --- | --- |
-| Track a channel | Add a handle on `/channels` (or follow from Discover). Exactly one channel can be marked own; the rest are competitors or references. | The next sync picks the channel up. Setting a new own channel demotes the old one. |
-| Sync | The sidecar reads a 30-day lookback per tracked channel, at most 200 items per run, with 3 retries per upstream call, and writes new videos scored against the channel's own baseline. | Runs in the background and never blocks the buyer. Defaults are env settings (`LOOKBACK_DAYS`, `MAX_ITEMS_PER_SYNC`, `SYNC_MAX_RETRIES` in `src/server/config.ts`). A failure surfaces in the shell failure strip on the next navigation. A video that vanishes from Instagram is soft-removed (`videos.deletedAt`): it stays in the feed marked "No longer on Instagram", and its saved and planned posts stay. |
-| Analyze | The agent reads a video through `crowsnest_video` and writes hook type, structure beats, format and style tags, and a why-it-worked note through `crowsnest_save_analysis`. The detail page shows it on the next load. | No model key. The row is written whole or not at all. Save to vault and remix need an analysis first. |
-| Remix | Six stages in order: prompt, research (local), hook, style, script, finish. The app makes no model call. Hook, style, and script show what the agent wrote over MCP, each with a Copy prompt for Claude button that copies that stage's MCP steps. | Autosaved and server-backed; leaving resumes at the furthest stage. New agent text appears after a reload. Finish is idempotent and creates one undated draft planned post carrying the script. |
-| Hand off and publish | Reel Factory (any MCP client) calls the read tools at `/api/mcp` to pull the planned post, its script, and the source video's local media path, then produces the reel outside crowsnest. The creator schedules or publishes it to their own channel through the Graph API, or marks the plan published by hand. | Registered once with `claude mcp add crowsnest --transport http http://localhost:3000/api/mcp`. crowsnest does not render video. |
+| Track a channel | Add a channel through `addChannelAction` (or follow from Discover). Exactly one channel can be marked own; the rest are competitors or references. | The next sync picks the channel up. Setting a new own channel demotes the old one. |
+| Sync | The sidecar reads a 30-day lookback per tracked channel, at most 200 items per run, with 3 retries per upstream call, and writes new videos scored against the channel's own baseline. | Runs in the background and never blocks the buyer. Defaults are env settings (`LOOKBACK_DAYS`, `MAX_ITEMS_PER_SYNC`, `SYNC_MAX_RETRIES` in `src/server/config.ts`). A failure is recorded on the run and classified by `getFailureStrip`. A video that vanishes from Instagram is soft-removed (`videos.deletedAt`): it stays in the feed flagged deleted, and its saved and planned posts stay. |
+| Analyze | The agent reads a video through `crowsnest_video` and writes hook type, structure beats, format and style tags, and a why-it-worked note through `crowsnest_save_analysis`. | No model key. The row is written whole or not at all. Save to vault and remix need an analysis first. |
+| Remix | Six stages in order: prompt, research (local), hook, style, script, finish. The app makes no model call. Hook, style, and script text is what the agent wrote over MCP. | Server-backed; the session records the furthest stage reached. Finish is idempotent and creates one undated draft planned post carrying the script. |
+| Hand off and publish | Reel Factory (any MCP client) calls the app's MCP read tools to pull the planned post, its script, and the source video's local media path, then produces the reel outside crowsnest. The creator schedules or publishes it to their own channel through the Graph API, or marks the plan published by hand. | Claude Code reaches the MCP through the `lead-studio` entry in `.mcp.json`, which reads `mcp.port`. crowsnest does not render video. |
 
 Planned posts move through draft (no date), scheduled (future date), missed (derived on read),
 and published, plus publishing and failed while a publish attempt runs.
@@ -162,31 +166,31 @@ end-to-end proof on a buyer's machine.
 
 - **IG sync.** Track a channel, 30-day window sync of posts, reels, and carousels with
   thumbnails, per-reel play counts, rescoring against the channel baseline, launchd sidecar.
-- **Discover.** Curated niche-grouped creator directory loaded by `npm run db:bootstrap`,
+- **Discover.** Curated niche-grouped creator directory loaded by `pnpm run db:bootstrap`,
   idempotent one-click follow.
-- **Feed.** Outlier grid and list, URL-driven filter bar (search, score, views, engagement,
+- **Feed.** Outlier list with filters (search, score, views, engagement,
   timeframe, follower band, analyzed), saved views (seeded Balanced and High Conviction),
   live follower-band counts (nano under 10k, micro 10k to 100k, mid 100k to 1M, macro 1M and
-  up), quick preview sheet, keep-this-post shortlist, save to vault, manual import of one
+  up), one-video preview read, keep-this-post shortlist, save to vault, manual import of one
   pasted post URL.
 - **Analyze.** Agent-written analysis over MCP, on-demand transcription (whisper.cpp or Groq).
-- **Mine.** Tuần này week screen with the planner, own-channel Graph measurement stored for MCP,
-  and the Graph API card in Cài đặt.
+- **Mine.** The planner (planned posts and plan versions), and own-channel Graph measurement
+  stored for MCP.
 - **Remix.** Six-stage pipeline, local research assembly, hook, outline, and script prompts
-  grounded in the source pattern and niche for the agent to fulfill over MCP, Copy
-  prompt for Claude on each of those stages, idempotent finish to plan.
+  grounded in the source pattern and niche for the agent to fulfill over MCP, idempotent finish to plan.
 - **Publish.** Scheduled and immediate publish of a planned Reel via the Graph API.
 - **MCP.** Typed read-and-remix tool surface for Reel Factory.
 - **Kit.** One-command install under `~/.kai`, arm64 only, Polar license gate, `kai` CLI,
-  launchd services for the Next server and the IG sidecar.
-- **Onboarding.** First-run gate and four-step flow, `kai kit init` terminal setup.
+  launchd services for the headless server and the IG sidecar.
+- **Onboarding.** First-run gate rule and credential path in the server, `kai kit init`
+  terminal setup.
 
 ## Roadmap
 
 Open items stay open until built. Detail lives in each component's backlog (GitHub issues).
 
-- **Onboarding redesign.** Move Instagram login and keys into the dashboard with live
-  validation.
+- **Onboarding redesign.** Move Instagram login and keys into a Lead Studio board with
+  live validation.
 - **Bug board.** Work the open backlog items across feed, remix, mine, analyze, ig-sync, and
   onboarding. Run `scripts/plan-status.sh` for the current count; no count is committed.
 - **Verify a real Kit install** end to end with real credentials.

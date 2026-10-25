@@ -1,13 +1,14 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { getE2ECompletedOnboardingProfile } from "../../../../studio/tests/e2e/helpers/e2e-completed-onboarding-profile.ts";
+import { copyDbOnce } from "../../../../scripts/copy-db.ts";
+import { getE2ECompletedOnboardingProfile } from "../../../../tests/e2e/helpers/e2e-completed-onboarding-profile.ts";
 
 const ROOT = path.resolve(import.meta.dirname, "../../../..");
-const APP = path.join(ROOT, "studio");
+const APP = ROOT;
 const STATE_DIR = path.join(ROOT, "data/verify/app");
 const { _electron: electron } = createRequire(path.join(APP, "package.json"))("@playwright/test");
 
@@ -39,12 +40,8 @@ mkdirSync(userDataDir, { recursive: true });
 mkdirSync(home, { recursive: true, mode: 0o700 });
 writeFileSync(path.join(userDataDir, "orca-data.json"), JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2));
 const repoPath = seedRepo(path.join(tmp, "repo"));
-if (process.env.APP_DB) {
-  for (const suffix of ["", "-wal"]) {
-    const source = path.resolve(ROOT, process.env.APP_DB + suffix);
-    if (existsSync(source)) copyFileSync(source, path.join(userDataDir, `crowsnest.db${suffix}`));
-  }
-}
+const dbPath = path.join(userDataDir, "crowsnest.db");
+if (process.env.APP_DB) copyDbOnce(path.resolve(ROOT, process.env.APP_DB), dbPath);
 
 const cdpPort = await freePort();
 const { ELECTRON_RUN_AS_NODE: _drop, ...inherited } = process.env;
@@ -64,6 +61,7 @@ const app = await electron.launch({
     HOME: home,
     ORCA_E2E_HOME_DIR: home,
     ORCA_E2E_USER_DATA_DIR: userDataDir,
+    CROWSNEST_DB_PATH: dbPath,
     NODE_ENV: "development",
     ...(headless ? { ORCA_E2E_HEADLESS: "1" } : { ORCA_E2E_HEADFUL: "1" }),
   },

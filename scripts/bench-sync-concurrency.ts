@@ -171,7 +171,7 @@ async function main() {
   // a first (full) sync and a second (incremental) sync can be compared.
   const INC_PAGES = 5;
   const INC_ITEMS = 6;
-  function incClient(mode: "serialized") {
+  function incClient() {
     const lock = makeSidecarLock();
     const state = { requests: 0, medias: 0 };
     const igCall = <T>(value: T): Promise<T> =>
@@ -203,7 +203,7 @@ async function main() {
   }
 
   async function incRun(channelIds: string[]) {
-    const { client, state } = incClient("serialized");
+    const { client, state } = incClient();
     const started = performance.now();
     const result = await runSync({ channelIds, client, concurrency: 1, sleep: () => Promise.resolve() });
     return { ms: performance.now() - started, requests: state.requests, medias: state.medias, stopReason: result.stopReason };

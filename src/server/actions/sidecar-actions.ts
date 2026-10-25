@@ -33,7 +33,7 @@ async function waitForHealthy(intervalMs: number, timeoutMs: number): Promise<bo
 }
 
 /** Starts the sidecar unless it already answers its health check, in which case this
- *  is a no-op success, clicking Start twice, or Start after a manual `npm run
+ *  is a no-op success, clicking Start twice, or Start after a manual `pnpm run
  *  ig:service`, should never spawn a second process.
  *
  *  A successful `startSidecar()` call only means the process was launched, not that it

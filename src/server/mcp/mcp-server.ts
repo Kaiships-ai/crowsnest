@@ -74,7 +74,7 @@ export function errorResult(payload: Record<string, unknown>) {
 // The exact shell command that brings the Instagram sidecar up (scripts/ig-service.sh via
 // the npm script). An external agent has no other way to learn this, so both the readiness
 // tool and a sidecar-down sync error carry it verbatim rather than a paraphrase.
-const IG_SERVICE_BOOTSTRAP = "npm run ig:service";
+const IG_SERVICE_BOOTSTRAP = "pnpm run ig:service";
 
 // Seconds left on an in-effect rate-limit cooldown, or undefined when there is none or it
 // has already passed. cooldownUntil is the ISO timestamp the sidecar sets while backing

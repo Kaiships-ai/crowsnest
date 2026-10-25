@@ -3,11 +3,11 @@ import test from "node:test";
 import { uncoveredFiles } from "./check-verify-coverage.mjs";
 
 test("a renderer change alone fails", () => {
-  assert.deepEqual(uncoveredFiles(["studio/src/renderer/x.tsx"]), ["studio/src/renderer/x.tsx"]);
+  assert.deepEqual(uncoveredFiles(["src/renderer/x.tsx"]), ["src/renderer/x.tsx"]);
 });
 
 test("a renderer change with its verify feature passes", () => {
-  assert.deepEqual(uncoveredFiles(["studio/src/renderer/x.tsx", ".claude/skills/verify/features/x.md"]), []);
+  assert.deepEqual(uncoveredFiles(["src/renderer/x.tsx", ".claude/skills/verify/features/x.md"]), []);
 });
 
 test("a server change alone fails", () => {
@@ -19,7 +19,7 @@ test("a change outside the guarded paths passes", () => {
 });
 
 test("touching only the feature index does not cover a renderer change", () => {
-  assert.deepEqual(uncoveredFiles(["studio/src/renderer/x.tsx", ".claude/skills/verify/features/README.md"]), [
-    "studio/src/renderer/x.tsx",
+  assert.deepEqual(uncoveredFiles(["src/renderer/x.tsx", ".claude/skills/verify/features/README.md"]), [
+    "src/renderer/x.tsx",
   ]);
 });

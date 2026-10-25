@@ -11,8 +11,8 @@ Tables are defined in `src/server/db/schema.ts`.
 
 ## Boundaries
 
-- Owns: `src/server/services/analyze.ts` (`saveAgentAnalysis`, `rowToAnalysis`), the Hook and structure and Why it worked tabs in `src/components/video/video-detail.tsx`.
-- Called by: external MCP agents (`crowsnest_save_analysis`, `crowsnest_video` in `src/server/mcp/mcp-server.ts`), the video detail page, remix (reads the row through `rowToAnalysis`), save to vault (offered once an analysis exists).
+- Owns: `src/server/services/analyze.ts` (`saveAgentAnalysis`, `rowToAnalysis`).
+- Called by: external MCP agents (`crowsnest_save_analysis`, `crowsnest_video` in `src/server/mcp/mcp-server.ts`), remix (reads the row through `rowToAnalysis`), save to vault (offered once an analysis exists).
 - Calls: the database only. It never talks to Instagram and never writes `videos`.
 
 ## Invariants
@@ -23,13 +23,11 @@ Tables are defined in `src/server/db/schema.ts`.
 - A re-save updates the row in place with no history. A re-save without a `summary` leaves a stored summary alone; an explicit empty string clears it.
 - `summary` is validated by a local extension of the schema, not by widening `VideoAnalysisSchema`, so remix and `rowToAnalysis` stay unchanged.
 - Layout is never derived from the text analysis. The five layout columns stay null until a frame pass runs.
-- The video detail page shows an existing idea's status as a disabled button once an analysis exists. It has no control that creates an idea (`src/components/video/video-detail.tsx`).
-- A beat with no per-beat transcript renders a plain placeholder, never an invented quote. Style tags render muted with an "unverified" marker, because a text-only reading can only guess visual style.
+- The web app's video detail screen is retired; its analysis tabs move into a Lead Studio board.
 
 ## Where to look
 
 - `src/server/services/analyze.ts`
 - `src/server/mcp/mcp-server.ts`
 - `src/server/schemas.ts`
-- `src/components/video/video-detail.tsx`
 - `src/server/queries/video.ts`

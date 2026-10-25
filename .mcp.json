@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "crowsnest": {
-      "type": "http",
-      "url": "http://localhost:3000/api/mcp"
-    },
     "lead-studio": {
       "command": "node",
       "args": ["scripts/lead-studio-mcp.mjs"]

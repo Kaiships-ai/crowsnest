@@ -4,7 +4,7 @@ import {
   getTerminalContent,
   splitActiveTerminalPane,
   waitForActiveTerminalManager,
-} from "../../../../../studio/tests/e2e/helpers/terminal.ts";
+} from "../../../../../tests/e2e/helpers/terminal.ts";
 
 const until = async (probe, ms, what) => {
   const end = Date.now() + ms;

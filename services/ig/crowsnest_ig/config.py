@@ -27,7 +27,7 @@ def load_env_file(path: Path | None = None) -> int:
 
     Next.js reads ``.env.local`` automatically; this is a separate Python process
     and does not, so without this the documented setup ("put IG_USERNAME /
-    IG_PASSWORD in .env.local, then run npm run ig:service") fails at boot.
+    IG_PASSWORD in .env.local, then run pnpm run ig:service") fails at boot.
 
     Parsed here in Python rather than by ``. ./.env.local`` in a shell wrapper,
     because sourcing executes the file: a password containing a quote aborts the
@@ -36,7 +36,7 @@ def load_env_file(path: Path | None = None) -> int:
     passwords contain exactly those characters.
 
     Variables already present in the environment win, so explicit overrides
-    (``IG_PROXY=... npm run ig:service``) still work.
+    (``IG_PROXY=... pnpm run ig:service``) still work.
 
     Returns the number of variables actually applied.
     """

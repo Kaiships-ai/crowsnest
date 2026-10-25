@@ -121,7 +121,7 @@ describe("getIgStatusAction", () => {
     expect(result.ok).toBe(false);
     if (result.ok) throw new Error("unreachable");
     expect(result.code).toBe("IG_SERVICE_DOWN");
-    expect(result.error).toBe("The Instagram service isn't running. Start it with `npm run ig:service`.");
+    expect(result.error).toBe("The Instagram service isn't running. Start it with `pnpm run ig:service`.");
     expect(result.retryable).toBe(true);
     // The distinguishing assertion: no `status` object at all, so no UI path can read
     // `loggedIn: false` off a service that never answered.

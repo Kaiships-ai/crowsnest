@@ -1,6 +1,5 @@
-import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, test } from "vitest";
 
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { eq } from "drizzle-orm";
 
 // B-04: editing a planned post fired up to four separate awaited action calls
