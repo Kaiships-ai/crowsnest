@@ -73,9 +73,6 @@ type LatestRow = { key: string; keyword: string; source: FunnelSource; metric: s
 type PlanRow = { key: string; id: string; title: string; keyword: string; published_own_post_id: string | null };
 type InsightRow = typeof tables.ownPostInsights.$inferSelect;
 
-/** Every keyword a plan holds or a snapshot names, with each ledger metric read from its
- *  source: the newest snapshot per source and metric, or the newest successful insights
- *  capture of the plan's published reel. Keywords match case-insensitively (SQLite lower()). */
 export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
   const only = keyword?.trim() ? sql`lower(keyword) = lower(${keyword.trim()})` : sql`1`;
   const snapshots = db.all<LatestRow>(sql`
@@ -125,8 +122,6 @@ function readInsight(row: InsightRow | undefined, column: Extract<MetricSource, 
   return row && value != null ? { status: "value", value, capturedAt: row.capturedAt } : { status: "missing" };
 }
 
-/** A rate is not-connected when either side is, missing when either side is missing or
- *  the denominator is 0, and carries the older side's capture time. */
 function ratio(numerator: Reading, denominator: Reading): Reading {
   if (numerator.status === "not-connected") return numerator;
   if (denominator.status === "not-connected") return denominator;

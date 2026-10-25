@@ -2,14 +2,11 @@ import type { FUNNEL_SOURCES } from "@/server/db/schema";
 
 type FunnelSource = (typeof FUNNEL_SOURCES)[number];
 
-/** Where a count comes from. `not-connected` names the connector W2 has not built yet, so
- *  a reading of it is `not-connected`, never 0. */
 export type MetricSource =
   | { kind: "own_post_insights"; column: "views" | "followsFromPost" | "bioLinkTaps" }
   | { kind: "reel_funnel"; source: FunnelSource; metric: string }
   | { kind: "not-connected"; connector: "umami" | "polar" | "chatbotx" };
 
-/** Every number is the reel's newest lifetime snapshot. DA-05 adds the 48 h, 7 and 30 day windows. */
 export type MetricWindow = "reel-lifetime";
 
 interface MetricBase {
@@ -55,9 +52,6 @@ const RATES = {
   purchase_rate: { kind: "rate", label: "Purchase rate", window: "reel-lifetime", target: null, numerator: "purchase", denominator: "checkout" },
 } as const satisfies Record<string, RateMetric>;
 
-/** The one definition of every funnel number, in funnel order: counts, then the rates
- *  between them. Boards and MCP tools read numbers through `services/funnel.ts`, which
- *  computes them from this table, so a target or formula changes here and nowhere else. */
 export const METRIC_LEDGER = { ...COUNTS, ...RATES };
 
 export type MetricId = keyof typeof METRIC_LEDGER;
