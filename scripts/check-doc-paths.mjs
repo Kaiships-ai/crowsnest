@@ -13,7 +13,9 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const BASELINE = "scripts/doc-paths.baseline";
-const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+// studio/ (the Orca subtree, 39k files) is left out: it overflows the ls-files buffer and
+// would make dead short citations resolve by tail. Cite app files by their full studio/ path.
+const tracked = execFileSync("git", ["ls-files", "--", ".", ":!studio"], { encoding: "utf8" }).split("\n").filter(Boolean);
 const docs = tracked.filter(
   (f) =>
     f.endsWith(".md") &&
