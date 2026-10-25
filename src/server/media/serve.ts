@@ -5,10 +5,8 @@ import { parseRangeHeader } from "@/server/media/range";
 import { getAsset, resolveAssetPath, type MediaAsset } from "@/server/media/store";
 
 /**
- * `GET|HEAD /api/media/<assetId>` — serves a stored asset out of `MEDIA_ROOT`.
- *
- * Node runtime, not edge: this streams real files off local disk with byte-range
- * support, which the edge runtime has no `fs` for.
+ * `GET|HEAD cn-media://<assetId>`: serves a stored asset out of `MEDIA_ROOT` with byte-range
+ * support. The app registers it as a protocol handler in `src/main/crowsnest/start.ts`.
  *
  * Design notes worth keeping:
  *  - Every failure is a bare **404** with no detail. Whether an id is malformed, absent
@@ -22,8 +20,6 @@ import { getAsset, resolveAssetPath, type MediaAsset } from "@/server/media/stor
  *  - `Cache-Control: immutable` is safe because the URL is content-addressed — an asset
  *    id maps to one sha256 forever.
  */
-export const runtime = "nodejs";
-
 const CACHE_CONTROL = "public, max-age=31536000, immutable";
 
 type Ctx = { params: Promise<{ assetId: string }> };

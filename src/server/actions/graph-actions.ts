@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import type { GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
 import { cachedTokenStatus } from "../graph/token-status";
@@ -19,17 +18,14 @@ import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: GraphErrorCode | "GRAPH_UNKNOWN" };
 
 /** "Measure now": every listed post, plus comments, through the one measurement service.
- *  Waits its turn when a scheduled run holds the lock. Revalidates even on a failure: rows
- *  written before it stay, and the token state may have changed. A non-Graph throw (a DB
- *  error) is logged and returned as MEASURE_FAILED so the panel can toast it. */
+ *  Waits its turn when a scheduled run holds the lock. A non-Graph throw (a DB error) is logged and
+ *  returned as MEASURE_FAILED so the panel can toast it. */
 export async function measureOwnChannelAction(): Promise<MeasureResult> {
   try {
     return await measureOwnChannel({ scope: "all" });
   } catch (err) {
     log.error("graph.measure.unexpected", { error: messageOf(err) });
     return { ok: false, error: messageOf(err), code: "MEASURE_FAILED" };
-  } finally {
-    revalidatePath("/");
   }
 }
 

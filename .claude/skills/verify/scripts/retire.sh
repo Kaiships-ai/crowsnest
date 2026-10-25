@@ -32,7 +32,7 @@ git -C "$MAIN" worktree list --porcelain | awk '/^worktree /{print substr($0,10)
     fi
   done
 S="$WT/.claude/skills/verify/scripts"
-if [ -x "$S/down.sh" ]; then "$S/down.sh"; fi
+if [ -x "$S/app-down.sh" ]; then "$S/app-down.sh"; fi
 if [ -x "$S/keep-evidence.sh" ]; then "$S/keep-evidence.sh"; else
   [ -d "$WT/data/verify/evidence" ] && mkdir -p "$MAIN/data/verify/evidence/${BRANCH//\//-}" \
     && cp -R "$WT/data/verify/evidence/." "$MAIN/data/verify/evidence/${BRANCH//\//-}/"

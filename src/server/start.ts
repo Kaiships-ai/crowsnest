@@ -6,7 +6,7 @@ import { startPublishScheduler } from "./services/publish-scheduler";
 import { startSyncScheduler } from "./services/sync-scheduler";
 
 export { handleMcpRequest } from "./mcp/http";
-export { GET as getMedia, HEAD as headMedia } from "../app/api/media/[assetId]/route";
+export { GET as getMedia, HEAD as headMedia } from "./media/serve";
 
 const JOBS = [startPublishScheduler, startSyncScheduler, startOwnMeasureScheduler];
 

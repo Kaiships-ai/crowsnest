@@ -57,7 +57,7 @@ afterAll(() => {
 
 describe("GET /api/media/[assetId]", () => {
   test("200 with the full file, correct headers, and byte-identical body", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId);
 
     expect(res.status).toBe(200);
@@ -75,7 +75,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("206 for `bytes=0-1023` returns exactly the first 1024 bytes", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId, { Range: "bytes=0-1023" });
 
     expect(res.status).toBe(206);
@@ -90,7 +90,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("206 for a mid-file range returns that slice, not the head of the file", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId, { Range: "bytes=1500-2499" });
 
     expect(res.status).toBe(206);
@@ -103,7 +103,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("206 for a suffix range returns the tail", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId, { Range: "bytes=-500" });
 
     expect(res.status).toBe(206);
@@ -113,7 +113,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("206 for an open-ended range clamps to EOF", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId, { Range: "bytes=4000-" });
 
     expect(res.status).toBe(206);
@@ -123,7 +123,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("the concatenation of two adjacent ranges reproduces the whole file", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const head = Buffer.from(await (await call(GET, assetId, { Range: "bytes=0-2047" })).arrayBuffer());
     const tail = Buffer.from(await (await call(GET, assetId, { Range: "bytes=2048-" })).arrayBuffer());
     const joined = Buffer.concat([head, tail]);
@@ -132,7 +132,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("416 with `Content-Range: bytes */size` when the range starts past EOF", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const res = await call(GET, assetId, { Range: "bytes=5000-6000" });
 
     expect(res.status).toBe(416);
@@ -141,7 +141,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("a malformed or multi-range header is ignored and the full file is served (RFC 9110)", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     for (const range of ["bytes=abc", "items=0-10", "bytes=0-99,200-299", "bytes=500-100"]) {
       const res = await call(GET, assetId, { Range: range });
       expect(res.status, range).toBe(200);
@@ -152,7 +152,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("304 when If-None-Match matches, 200 when it does not", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
 
     const notModified = await call(GET, assetId, { "If-None-Match": `"${assetSha}"` });
     expect(notModified.status).toBe(304);
@@ -174,7 +174,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("404 for an unknown or malformed asset id", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     for (const id of ["does-not-exist", "../../etc/passwd", "%2e%2e", " "]) {
       const res = await call(GET, id);
       expect(res.status, id).toBe(404);
@@ -182,7 +182,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("404 (never invented bytes) when the row exists but the file is gone", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const { resolveAssetPath } = await import("@/server/media/store");
     const ghost = await storeBytes(randomBytes(128), "image/jpeg", "thumbnail");
     rmSync(resolveAssetPath(ghost.storagePath));
@@ -193,7 +193,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("404 when a row's storage_path escapes the media root", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const { db, newId, nowIso, tables } = await import("@/server/db");
     // Written straight to the table, bypassing recordAsset's validation, to prove the
     // serving path re-checks containment rather than trusting the row.
@@ -213,7 +213,7 @@ describe("GET /api/media/[assetId]", () => {
   });
 
   test("serves a second, differently-typed asset with its own content type", async () => {
-    const { GET } = await import("./route");
+    const { GET } = await import("./serve");
     const bytes = randomBytes(777);
     const thumb = await storeBytes(bytes, "image/jpeg", "thumbnail");
     const res = await call(GET, thumb.id);
@@ -226,7 +226,7 @@ describe("GET /api/media/[assetId]", () => {
 
 describe("HEAD /api/media/[assetId]", () => {
   test("200 with the same headers as GET and an empty body", async () => {
-    const { GET, HEAD } = await import("./route");
+    const { GET, HEAD } = await import("./serve");
     const head = await call(HEAD, assetId);
     const get = await call(GET, assetId);
 
@@ -240,22 +240,15 @@ describe("HEAD /api/media/[assetId]", () => {
   });
 
   test("404 for an unknown id", async () => {
-    const { HEAD } = await import("./route");
+    const { HEAD } = await import("./serve");
     expect((await call(HEAD, "nope")).status).toBe(404);
   });
 
   test("range headers are honoured with no body", async () => {
-    const { HEAD } = await import("./route");
+    const { HEAD } = await import("./serve");
     const res = await call(HEAD, assetId, { Range: "bytes=0-1023" });
     expect(res.status).toBe(206);
     expect(res.headers.get("Content-Range")).toBe(`bytes 0-1023/${SIZE}`);
     expect((await res.arrayBuffer()).byteLength).toBe(0);
-  });
-});
-
-describe("route segment config", () => {
-  test("runs on the node runtime (fs streaming is not available on edge)", async () => {
-    const mod = await import("./route");
-    expect(mod.runtime).toBe("nodejs");
   });
 });

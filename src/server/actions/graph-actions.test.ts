@@ -10,7 +10,6 @@ const graphClient = vi.hoisted(() => ({
 // CLASSIFIER_VERSION is imported by own-measure.ts directly, so the mock must supply
 // it too, not just graphClient — same shape the real module exports.
 vi.mock("../graph/client", () => ({ graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
-vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 const measureOwnChannel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/services/own-measure", async (orig) => ({ ...(await orig<typeof import("@/server/services/own-measure")>()), measureOwnChannel }));
 
@@ -29,30 +28,22 @@ beforeEach(() => {
 });
 
 describe("measureOwnChannelAction", () => {
-  test("ACTION-18: delegates with scope all and revalidates / on success, never /mine", async () => {
+  test("ACTION-18: delegates with scope all on success", async () => {
     measureOwnChannel.mockResolvedValue({ ok: true, measuredAt: "t", postsSeen: 1, postsMeasured: 1, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 4, stoppedEarly: null });
-    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
     const r = await measureOwnChannelAction();
     expect(measureOwnChannel).toHaveBeenCalledWith({ scope: "all" });
     expect(r).toMatchObject({ ok: true, postsMeasured: 1 });
-    expect(revalidatePath).toHaveBeenCalledWith("/");
-    expect(revalidatePath).not.toHaveBeenCalledWith("/mine");
   });
-  test("a failure is returned and / is still revalidated: rows written before it stay and the token state changed", async () => {
+  test("a failure is returned", async () => {
     measureOwnChannel.mockResolvedValue({ ok: false, error: "bad token", code: "GRAPH_AUTH_FAILED" });
-    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
-    (revalidatePath as ReturnType<typeof vi.fn>).mockClear();
     expect(await measureOwnChannelAction()).toMatchObject({ ok: false, code: "GRAPH_AUTH_FAILED" });
-    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
-  test("a non-Graph throw (a DB error) is logged and returned as MEASURE_FAILED, never thrown, and / is still revalidated", async () => {
+  test("a non-Graph throw (a DB error) is logged and returned as MEASURE_FAILED, never thrown", async () => {
     measureOwnChannel.mockRejectedValue(new Error("SQLITE_BUSY: database is locked"));
-    const { revalidatePath } = (await import("next/cache")) as unknown as { revalidatePath: ReturnType<typeof vi.fn> };
     const { log } = await import("../lib/logger");
     const error = vi.spyOn(log, "error");
     expect(await measureOwnChannelAction()).toEqual({ ok: false, code: "MEASURE_FAILED", error: "SQLITE_BUSY: database is locked" });
     expect(error.mock.calls.some(([event]) => event === "graph.measure.unexpected")).toBe(true);
-    expect(revalidatePath).toHaveBeenCalledWith("/");
   });
 });
 

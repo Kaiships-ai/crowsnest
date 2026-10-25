@@ -1,20 +1,10 @@
 "use server";
 
 import { eq, inArray, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string };
-
-/** Revalidate the board and the feed. Both, always: /feed renders a filter chip per
- *  fleet off `getFleets()`, so a rename or a reorder changes that row just as much as a
- *  membership move does, and a create or delete adds or removes a whole chip. Gating the
- *  feed on membership left those chips showing stale names in stale order. */
-function revalidateChannels() {
-  revalidatePath("/channels");
-  revalidatePath("/feed");
-}
 
 export async function createFleetAction(name: string): Promise<ActionResult<{ fleetId: string }>> {
   try {
@@ -23,7 +13,6 @@ export async function createFleetAction(name: string): Promise<ActionResult<{ fl
     const [{ max }] = await db.select({ max: sql<number | null>`max(${tables.fleets.sortOrder})` }).from(tables.fleets);
     const id = newId();
     await db.insert(tables.fleets).values({ id, name: trimmed, createdAt: nowIso(), sortOrder: (max ?? -1) + 1 });
-    revalidateChannels();
     return { ok: true, fleetId: id };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -35,7 +24,6 @@ export async function renameFleetAction(fleetId: string, name: string): Promise<
     const trimmed = name.trim();
     if (!trimmed) return { ok: false, error: "Fleet name can't be empty." };
     await db.update(tables.fleets).set({ name: trimmed }).where(eq(tables.fleets.id, fleetId));
-    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -47,7 +35,6 @@ export async function renameFleetAction(fleetId: string, name: string): Promise<
 export async function deleteFleetAction(fleetId: string): Promise<SimpleResult> {
   try {
     await db.delete(tables.fleets).where(eq(tables.fleets.id, fleetId));
-    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -61,7 +48,6 @@ export async function reorderFleetsAction(orderedFleetIds: string[]): Promise<Si
         tx.update(tables.fleets).set({ sortOrder: index }).where(eq(tables.fleets.id, id)).run();
       });
     });
-    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -87,7 +73,6 @@ export async function moveChannelsAction(
         .map((m) => ({ fleetId: m.fleetId as string, channelId: m.channelId }));
       if (inserts.length > 0) tx.insert(tables.fleetChannels).values(inserts).run();
     });
-    revalidateChannels();
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

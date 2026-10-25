@@ -4,7 +4,6 @@ import { rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { db, newId, nowIso, tables } from "../db";
 import { errorMessage, type ActionResult, type SimpleResult } from "../lib/action-result";
 import { isGraphConfigured } from "../graph/client";
@@ -202,7 +201,6 @@ export async function savePlanEditAction(
       .set(fields)
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, plan.state)));
     if ((res as { changes?: number }).changes !== 1) return CHANGED;
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -304,7 +302,6 @@ export async function movePlannedPostAction(
       .set({ ...next, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, plan.state)));
     if ((res as { changes?: number }).changes !== 1) return CHANGED;
-    revalidatePath("/");
     return { ok: true, prior: { plannedDate: plan.plannedDate, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt } };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -338,7 +335,6 @@ export async function deletePlannedPostAction(id: string): Promise<ActionResult<
       .where(and(eq(tables.plannedPosts.id, id), ne(tables.plannedPosts.state, "publishing")))
       .returning();
     if (snapshot) {
-      revalidatePath("/");
       return { ok: true, snapshot };
     }
     return (await getPlan(id)) ? IN_FLIGHT : { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
@@ -359,7 +355,6 @@ export async function restorePlannedPostAction(snapshot: PlanRow): Promise<Actio
     const disarmed = armsInPast(snapshot);
     const row = disarmed ? { ...snapshot, state: "draft", scheduledAt: null, idempotencyKey: null } : snapshot;
     await db.insert(tables.plannedPosts).values(row);
-    revalidatePath("/");
     return { ok: true, disarmed };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -459,7 +454,6 @@ export async function uploadPlanVideoAction(id: string, formData: FormData): Pro
     if (!takes.ok) return takes;
     await writeFile(tmpPath, Buffer.from(await file.arrayBuffer()));
     const result = await attachPlanVideo(id, tmpPath);
-    if (result.ok) revalidatePath("/");
     return result;
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -479,7 +473,6 @@ export async function setPlanCaptionAction(id: string, caption: string): Promise
     if (trimmed.length > CAPTION_MAX) return { ok: false, error: `A caption can be at most ${CAPTION_MAX} characters.`, code: "PLAN_CAPTION_TOO_LONG" };
 
     await db.update(tables.plannedPosts).set({ caption: trimmed || null, updatedAt: nowIso() }).where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -582,7 +575,6 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
         updatedAt: nowIso(),
       })
       .where(eq(tables.plannedPosts.id, id));
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -601,7 +593,6 @@ export async function cancelScheduledPublishAction(id: string): Promise<SimpleRe
       .set({ state: "draft", scheduledAt: null, idempotencyKey: null, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "scheduled"), isNotNull(tables.plannedPosts.scheduledAt)));
     if ((res as { changes?: number }).changes !== 1) return CHANGED;
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -640,7 +631,6 @@ export async function publishNowAction(id: string): Promise<SimpleResult> {
     // publish-post must act on the now-"publishing" row rather than treat it as a stale
     // in-flight row and no-op. See the claim-token guard in publish-post.ts.
     const result = await publishPlannedPost(id, { claimed: true });
-    revalidatePath("/");
     if (!result.ok) return { ok: false, error: result.lastError ?? "The publish failed.", code: "PLAN_PUBLISH_FAILED" };
     return { ok: true };
   } catch (err) {
@@ -661,7 +651,6 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
       .update(tables.plannedPosts)
       .set({ state: "scheduled", scheduledAt: nowIso(), lastError: null, errorClass: null, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, id), eq(tables.plannedPosts.state, "failed")));
-    revalidatePath("/");
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -671,7 +660,6 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
 export async function approvePlanVersionAction(versionId: string): Promise<ApproveResult> {
   try {
     const r = approvePlanVersion(versionId);
-    if (r.ok && r.changed) revalidatePath("/");
     return r;
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
@@ -681,7 +669,6 @@ export async function approvePlanVersionAction(versionId: string): Promise<Appro
 export async function undoPlanVersionAction(ref: PlanRef, expectLiveId?: string): Promise<UndoResult> {
   try {
     const r = undoPlanVersion(ref, expectLiveId);
-    if (r.ok) revalidatePath("/");
     return r;
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
