@@ -45,7 +45,7 @@ export function createOrFocusWorkspaceSpaceWindow(store: Store): BrowserWindow {
     height: 820,
     minWidth: 700,
     minHeight: 520,
-    title: 'Orca Space Beta',
+    title: 'Lead Studio Space Beta',
     show: false,
     autoHideMenuBar: true,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#ffffff',

@@ -432,8 +432,8 @@
   "menu": {
     "checkForUpdates": "Rechercher les mises à jour...",
     "settings": "Paramètres",
-    "exploreOrca": "Découvrir Orca",
-    "gettingStarted": "Premiers pas avec Orca",
+    "exploreOrca": "Découvrir Lead Studio",
+    "gettingStarted": "Premiers pas avec Lead Studio",
     "reportCrash": "Signaler un plantage...",
     "file": "Fichier",
     "exit": "Quitter",
@@ -445,7 +445,7 @@
     "showStatusBar": "Afficher la barre d'état",
     "showTasksButton": "Afficher le bouton Tâches",
     "showAutomationsButton": "Afficher le bouton Automatisations",
-    "showMobileButton": "Afficher le bouton Orca Mobile",
+    "showMobileButton": "Afficher le bouton Lead Studio Mobile",
     "showTitlebarAppName": "Afficher le nom de l'app dans la barre de titre",
     "view": "Affichage",
     "reload": "Recharger",
@@ -461,12 +461,12 @@
     "selectAll": "Tout sélectionner"
   },
   "tray": {
-    "openOrca": "Ouvrir Orca",
+    "openOrca": "Ouvrir Lead Studio",
     "quit": "Quitter",
     "minimizeNotice": {
-      "body": "Orca continue de tourner dans la zone de notification"
+      "body": "Lead Studio continue de tourner dans la zone de notification"
     },
-    "activityWaiting": "Orca - activité en attente",
+    "activityWaiting": "Lead Studio - activité en attente",
     "activityWaitingSuffix": "activité en attente"
   },
   "worktreeJumpPalette": {
@@ -552,7 +552,7 @@
       "df1d56bf87": "Le shell de l'espace de travail a rencontré une erreur.",
       "9e0b441a91": "Basculer la barre latérale droite",
       "e81217c1b7": "Masquer le nom de l'app",
-      "5096cbbc86": "Orca",
+      "5096cbbc86": "Lead Studio",
       "8b0b8eb54f": "Menu de l'application",
       "caea5b51b9": "Redémarrer maintenant",
       "0a9e810705": "Les modifications ne seront enregistrées qu'après redémarrage. Vos onglets précédents sont en sécurité sur le disque.",
