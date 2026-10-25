@@ -5,7 +5,15 @@
 set -uo pipefail
 [ $# -gt 0 ] || { echo "usage: heavy.sh <command...>" >&2; exit 2; }
 
-# Nested calls (up.sh -> npm run build) already hold the lock; CI runners are not shared.
+# One toolchain: package.json engines pins the node major, and Orca's native modules fail under another.
+want="$(sed -n '/"engines"/,/}/s/.*"node": *"\([0-9]*\).*/\1/p' "$(dirname "$0")/../package.json")"
+have="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null)"
+if [ "$have" != "$want" ]; then
+  echo "heavy: node $have is on PATH, this repo needs node $want: export PATH=/opt/homebrew/opt/node@$want/bin:\$PATH" >&2
+  exit 1
+fi
+
+# Nested calls (a build inside a test run) already hold the lock; CI runners are not shared.
 if [ -n "${HEAVY_HELD:-}" ] || [ -n "${CI:-}" ]; then exec "$@"; fi
 
 if [ "$(uname)" = Darwin ]; then

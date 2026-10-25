@@ -76,7 +76,7 @@ test("crowsnest_remix_save_script's schema takes the agent's own script text, no
   const tools = await client.listTools();
   const saveScript = tools.tools.find((t) => t.name === "crowsnest_remix_save_script");
   expect(saveScript).toBeDefined();
-  const props = (saveScript?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+  const props = (saveScript?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
   expect(props).toHaveProperty("script");
   expect(props).toHaveProperty("title");
   expect(props).toHaveProperty("sessionId");
@@ -111,7 +111,7 @@ test("crowsnest_remix_outline's schema takes an optional outline to save, bidire
   const tools = await client.listTools();
   const outlineTool = tools.tools.find((t) => t.name === "crowsnest_remix_outline");
   expect(outlineTool).toBeDefined();
-  const props = (outlineTool?.inputSchema as { properties?: Record<string, unknown> }).properties ?? {};
+  const props = (outlineTool?.inputSchema as { properties?: Record<string, unknown> } | undefined)?.properties ?? {};
   expect(props).toHaveProperty("outline");
   expect(props).toHaveProperty("sessionId");
 });

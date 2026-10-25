@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-const GUARDED = ["studio/src/renderer/", "src/server/"];
+const GUARDED = ["src/renderer/", "src/server/"];
 const FEATURES = ".claude/skills/verify/features/";
 const isFeatureFile = (f) => f.startsWith(FEATURES) && f.endsWith(".md") && f !== `${FEATURES}README.md`;
 
