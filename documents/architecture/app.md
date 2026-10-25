@@ -27,7 +27,7 @@ The renderer reaches the engine through one IPC channel, `crowsnest:call`, as `w
 
 Every call returns `{ ok: true, value }` or `{ ok: false, error: { code, message } }`. The codes are `unknown_call`, `bad_args`, `failed`, and `untrusted_sender`. `value` is the engine function's own result, so an action that reports its own `{ ok: false }` still arrives as a bridge `ok: true`. The handler in `src/main/crowsnest/engine-ipc.ts` exists before the engine finishes starting. A call made earlier waits until migrations have run, and a call after a failed start gets `failed`.
 
-`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver. It leaves out the calls that only the deleted Next screens used.
+`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver, and secret set, clear and token rotation until the Vault board adds a confirmed path. It leaves out the calls that only the deleted Next screens used.
 
 ### How the main build gets `src/server`
 
@@ -57,7 +57,7 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 
 - The app reads Instagram: sync and own-channel measurement always run. It never auto-publishes until the publish step ships: `startInApp` starts the publish scheduler only with `LEAD_STUDIO_PUBLISH_JOBS=1`. `src/server/start.test.ts` checks both.
 - Lead Studio never opens or writes the installed Orca.app profile, lock, socket, keychain item, `~/.orca` or `/usr/local/bin/orca`. Changing a value in the identity table must keep it distinct from Orca's. Lane 2 in `scripts/e2e/cases/app.md` checks that `~/.orca` is unchanged after `pnpm dev`.
-- The renderer is untrusted. The bridge answers only the app window (`isTrustedBrowserRenderer`) and parses every argument against its tuple before the engine runs. It never returns a secret value: secrets cross only renderer to main (`setSecretAction`), status reads return `configured` and `source`, and an error message has every stored secret value replaced with `[redacted]`. `src/server/bridge/engine-calls.test.ts` checks the parsing, that no read returns a stored secret, and that no gated call (publish, approve and undo, IG login, sidecar) is exposed.
+- The renderer is untrusted. The bridge answers only the app window (`isTrustedBrowserRenderer`), and `src/main/crowsnest/engine-ipc.test.ts` checks that another window or a webview guest is refused. It parses every argument against its tuple before the engine runs. It never sets, clears or returns a secret. Status reads return `configured` and `source`. A thrown error message, and the `error` of an engine result with `ok: false`, have every stored secret value of 8 or more characters replaced with `[redacted]`. `src/server/bridge/engine-calls.test.ts` checks the parsing, runs every read on fixture rows and checks that none returns a stored secret, and checks that no gated call (publish, approve and undo, secret writes, IG login, sidecar) is exposed.
 - Agents in a Lead Studio terminal run `lead-dev`, which reaches this instance through `ORCA_USER_DATA_PATH`. Dev mode is detected by `lead-studio` in that path (`src/cli/handlers/orchestration/runtime-compatibility.ts`). Orca's bundled agent skill guides still say `orca`.
 
 ## Verify

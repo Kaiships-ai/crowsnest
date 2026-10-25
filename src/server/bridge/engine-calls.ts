@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { getSecret, MANAGED_SECRETS } from "@/server/secrets/store";
 import { errorMessage } from "@/server/lib/action-result";
-import { listPlanVersions } from "@/server/services/plan-versions";
+import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
 import { getFunnel } from "@/server/services/funnel";
 import {
   getChannelDetail,
@@ -54,7 +54,7 @@ import {
   unschedulePlannedPostAction,
   updatePlannedPostAction,
 } from "@/server/actions/planned-post-actions";
-import { clearSecretAction, getSecretStatusAction, regenerateServiceTokenAction, setSecretAction } from "@/server/actions/secrets-actions";
+import { getSecretStatusAction } from "@/server/actions/secrets-actions";
 import {
   addChannelAction,
   cancelSyncAction,
@@ -78,7 +78,7 @@ function call<S extends z.ZodType<unknown[]>, R>(args: S, run: (...args: NoInfer
     const parsed = args.safeParse(raw ?? []);
     if (!parsed.success) return { ok: false, error: { code: "bad_args", message: z.prettifyError(parsed.error) } };
     try {
-      return { ok: true, value: await run(...parsed.data) };
+      return { ok: true, value: scrubFailure(await run(...parsed.data)) };
     } catch (err) {
       return { ok: false, error: { code: "failed", message: scrubSecrets(errorMessage(err)) } };
     }
@@ -86,11 +86,19 @@ function call<S extends z.ZodType<unknown[]>, R>(args: S, run: (...args: NoInfer
   return { args, run, invoke };
 }
 
+const MIN_SCRUBBED_SECRET = 8;
+
 function scrubSecrets(message: string): string {
   return MANAGED_SECRETS.reduce((text, name) => {
     const value = getSecret(name);
-    return value ? text.replaceAll(value, "[redacted]") : text;
+    return value && value.length >= MIN_SCRUBBED_SECRET ? text.replaceAll(value, "[redacted]") : text;
   }, message);
+}
+
+function scrubFailure<T>(value: T): T {
+  if (typeof value !== "object" || value === null || !("ok" in value) || value.ok !== false) return value;
+  if (!("error" in value) || typeof value.error !== "string") return value;
+  return { ...value, error: scrubSecrets(value.error) };
 }
 
 const none = z.tuple([]);
@@ -146,7 +154,10 @@ export const ENGINE_CALLS = {
   getPlannedPostById: call(id, getPlannedPostById),
   getCalendarMonth: call(z.tuple([z.string().regex(/^\d{4}-\d{2}$/)]), getCalendarMonth),
   getScripts: call(none, getScripts),
-  listPlanVersions: call(z.tuple([z.unknown()]), listPlanVersions),
+  listPlanVersions: call(
+    z.tuple([PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().min(1).max(50).optional() }))]),
+    listPlanVersions,
+  ),
   createPlannedPostAction: call(
     z.tuple([
       z.object({
@@ -214,9 +225,6 @@ export const ENGINE_CALLS = {
   getLastRunHealth: call(none, getLastRunHealth),
 
   getSecretStatusAction: call(none, getSecretStatusAction),
-  setSecretAction: call(z.tuple([z.enum(MANAGED_SECRETS), z.string()]), setSecretAction),
-  clearSecretAction: call(z.tuple([z.enum(MANAGED_SECRETS)]), clearSecretAction),
-  regenerateServiceTokenAction: call(none, regenerateServiceTokenAction),
 
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),
