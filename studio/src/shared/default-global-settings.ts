@@ -230,7 +230,8 @@ export function buildDefaultSettings(args: {
     agentYoloDefaultsMigrated: true,
     agentPermissionDefault: 'full-access',
     agentPermissionOverrides: {},
-    agentStatusHooksEnabled: true,
+    // Why off: Lead Studio's hook entry in shared agent configs (~/.claude/settings.json) replaces Orca.app's.
+    agentStatusHooksEnabled: false,
     agentWorkspaceTrustEnabled: true,
     codexTerminalServerIsolation: true,
     codexSharedServerWarning: true,

@@ -595,7 +595,7 @@ describe('agent hooks CLI handler', () => {
     expect(
       JSON.parse(readFileSync(getOrcaProfileDataFile(profileId, userDataPath), 'utf-8')).settings
         .agentStatusHooksEnabled
-    ).toBe(true)
+    ).toBe(getDefaultPersistedState(userDataPath).settings.agentStatusHooksEnabled)
     const opened = openProfileStateDatabase(
       getOrcaProfileStateDatabaseFile(profileId, userDataPath),
       profileId
