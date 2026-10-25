@@ -13,11 +13,7 @@ export const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
   }
 }
 
-/**
- * Runs crowsnest's `src/server` in this process on the checkout's `data/crowsnest.db`, or
- * on CROWSNEST_DB_PATH when a verify lane sets it: migrations, the MCP on a free 127.0.0.1
- * port, `cn-media:` assets, and the jobs. Call after app ready.
- */
+/** Call after app ready: Electron's `protocol` module works only after it. */
 export async function startCrowsnest(): Promise<void> {
   const checkout = app.getAppPath()
   const userData = app.getPath('userData')

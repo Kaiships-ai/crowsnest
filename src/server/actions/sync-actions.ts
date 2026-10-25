@@ -107,8 +107,6 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
 
     let failure: unknown;
 
-    // Deliberately not awaited: the run outlives this call. The rejection handler keeps a
-    // mid-sync failure from surfacing as an unhandled rejection and killing the process.
     void runSync({
       ...(channelIds ? { channelIds } : {}),
       onJobStarted: resolveJobId,

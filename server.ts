@@ -1,6 +1,3 @@
-// Headless crowsnest: the MCP at /api/mcp and the jobs, with no app window. The Lead Studio
-// app serves the same MCP itself (src/main/crowsnest/start.ts); this entry is for the
-// packaged LaunchAgent (src/kai-cli/service-darwin.ts).
 import { createServer } from "node:http";
 import { handleMcpRequest } from "./src/server/mcp/http";
 import { startJobs } from "./src/server/start";

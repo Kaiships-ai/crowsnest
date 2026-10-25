@@ -5,9 +5,6 @@ import { parseRangeHeader } from "@/server/media/range";
 import { getAsset, resolveAssetPath, type MediaAsset } from "@/server/media/store";
 
 /**
- * `GET|HEAD cn-media://<assetId>`: serves a stored asset out of `MEDIA_ROOT` with byte-range
- * support. The app registers it as a protocol handler in `src/main/crowsnest/start.ts`.
- *
  * Design notes worth keeping:
  *  - Every failure is a bare **404** with no detail. Whether an id is malformed, absent
  *    from the DB, points outside the media root, or points at a file that is not on disk

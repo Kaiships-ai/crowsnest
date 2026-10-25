@@ -17,7 +17,6 @@ function copyPair(source: string, temp: string, copy: Copy): boolean {
   return stamp(source) === before
 }
 
-// Copied as files, never opened: the operator's app may still be writing the source DB.
 export function copyDbOnce(
   source: string,
   target: string,

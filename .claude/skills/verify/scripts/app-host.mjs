@@ -40,7 +40,6 @@ mkdirSync(userDataDir, { recursive: true });
 mkdirSync(home, { recursive: true, mode: 0o700 });
 writeFileSync(path.join(userDataDir, "orca-data.json"), JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2));
 const repoPath = seedRepo(path.join(tmp, "repo"));
-// A lane never opens the checkout's data/crowsnest.db: it runs on its own DB, a copy of APP_DB.
 const dbPath = path.join(userDataDir, "crowsnest.db");
 if (process.env.APP_DB) copyDbOnce(path.resolve(ROOT, process.env.APP_DB), dbPath);
 

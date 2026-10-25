@@ -28,8 +28,7 @@ export const pythonBin = isBundle
   : "python3";
 export const wheelhouse = isBundle ? join(bundleRoot, "wheelhouse") : "";
 
-/** tsx entry point, so commands can spawn node -> tsx -> script. The JS file, not
- *  node_modules/.bin/tsx: pnpm makes that a shell shim, which node cannot run. */
+/** Not node_modules/.bin/tsx: pnpm makes that a shell shim, which node cannot run. */
 export const tsxBin = join(appRoot, "node_modules", "tsx", "dist", "cli.mjs");
 
 export const igDir = join(appRoot, "services", "ig");

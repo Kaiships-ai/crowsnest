@@ -10,8 +10,6 @@ export { GET as getMedia, HEAD as headMedia } from "./media/serve";
 const READ_JOBS = [startSyncScheduler, startOwnMeasureScheduler];
 const ALL_JOBS = [startPublishScheduler, ...READ_JOBS];
 
-/** Starts the given schedulers, by default publish, sync and own-measure. A job that fails
- *  to start is logged and skipped, so it never stops its host from serving. */
 export function startJobs(jobs = ALL_JOBS): () => void {
   const stops = jobs.map((start) => {
     try {
@@ -24,11 +22,6 @@ export function startJobs(jobs = ALL_JOBS): () => void {
   return () => stops.forEach((stop) => stop());
 }
 
-/**
- * Lead Studio's server boot. Migrates the DB, then starts sync and own-measure. The publish
- * scheduler starts only with LEAD_STUDIO_PUBLISH_JOBS=1, so the app never auto-publishes
- * until the publish step ships.
- */
 export function startInApp({ migrationsFolder, env = process.env }: { migrationsFolder: string; env?: Record<string, string | undefined> }): () => void {
   migrate(db, { migrationsFolder });
   return startJobs(env.LEAD_STUDIO_PUBLISH_JOBS === "1" ? ALL_JOBS : READ_JOBS);

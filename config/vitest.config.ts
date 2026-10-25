@@ -15,7 +15,6 @@ const measurementFile = 'src/main/foreign-sqlite-readers/foreign-sqlite-reader-e
 const paletteMeasurementFile =
   'src/renderer/src/lib/palette-match/palette-match-performance.test.ts'
 const measurementFiles = [measurementFile, paletteMeasurementFile]
-// crowsnest's server code: its own `@` alias and DB setup, always on Node for better-sqlite3.
 const crowsnestTests = [
   'src/server/**/*.test.ts',
   'src/lib/**/*.test.ts',
@@ -160,7 +159,6 @@ export default defineConfig({
         }
       : {}),
     projects,
-    // scripts/heavy.sh drops it to 1 when the Mac is low on memory; agents share one Mac.
     maxWorkers: Number(process.env.HEAVY_WORKERS) || (process.env.CI ? undefined : 2),
     ...(process.platform === 'win32' ? { maxWorkers: 4 } : {})
   }

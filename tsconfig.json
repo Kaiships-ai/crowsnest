@@ -7,8 +7,6 @@
   ],
   "compilerOptions": {
     "baseUrl": ".",
-    // tsx reads this file for scripts/ and the kai CLI, where `@/` is crowsnest's src/.
-    // The renderer's `@/` (src/renderer/src) is set in config/tsconfig.web.json.
     "paths": {
       "@/*": ["src/*"]
     }
