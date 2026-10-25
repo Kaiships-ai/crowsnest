@@ -6,5 +6,3 @@ src/main/cli/cli-command-installation-races.test.ts
 src/main/cli/cli-installer-command-conflicts.test.ts
 src/main/local-builds/local-build-compatibility-contract.test.ts
 src/main/minimax/minimax-api-key-store.test.ts
-# Diffs this repo against origin/main. On PR #189 (the whole tree moved) it ran 29 min in CI
-# shard 2 and failed with spawnSync ENOBUFS. Delete this line once #189 is merged.
