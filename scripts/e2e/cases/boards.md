@@ -12,7 +12,7 @@
 
 ## boards: test cases
 
-Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `board-01` runs BOARDS-01 to BOARDS-04 on a seeded lane (`app-up.sh --seed`).
+Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `board-01` runs BOARDS-01 to BOARDS-04 and BOARDS-07 on a seeded lane (`app-up.sh --seed`).
 
 | ID | P | Needs | Claim | Steps | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -22,3 +22,4 @@ Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `board-01` runs BOARD
 | BOARDS-04 | P0 | seed | Retry recovers once the query works | 1. Rename the table back.<br>2. Click Retry. | The rows return. | 🟢 `board-01`, and vitest (`ChannelsBoard.test.tsx`) |
 | BOARDS-05 | P2 | empty DB | Zero channels shows the empty state | 1. Open Channels on an empty DB. | "No tracked channels yet." | 🟢 covered by vitest (`ChannelsBoard.test.tsx`) |
 | BOARDS-06 | P2 | open project | The app menu opens the board | 1. Boards menu, Channels. | The board opens in the active group. | unit: `src/main/menu/register-app-menu.test.ts` checks the click sends `channels`; the native click is not reachable over CDP |
+| BOARDS-07 | P1 | seed | Each value sits under its header | 1. Open Channels from "+". | Each header cell and the row cell in the same position overlap on x. | 🟢 `board-01` |

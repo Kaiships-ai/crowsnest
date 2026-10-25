@@ -22,8 +22,11 @@ export function ChannelsBoard(): React.ReactNode {
       emptyMessage={translate('boards.channels.empty', 'No tracked channels yet.')}
     >
       {(rows) => (
-        <div className="scrollbar-sleek h-full overflow-auto">
-          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
+        <div className="scrollbar-sleek grid h-full grid-cols-[1fr_auto_auto_auto_auto] content-start gap-x-6 overflow-auto">
+          <div
+            data-testid="board-channels-header"
+            className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground"
+          >
             <span>{translate('boards.channels.column', 'Channel')}</span>
             <span className="text-right">
               {translate('boards.channels.followers', 'Followers')}
@@ -48,7 +51,7 @@ export function ChannelsBoard(): React.ReactNode {
             <div
               key={row.id}
               data-testid="board-channels-row"
-              className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 border-b border-border px-4 py-2 text-sm"
+              className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-2 text-sm"
             >
               <span className="min-w-0 truncate">
                 <span className="text-foreground">{row.handle}</span>

@@ -4,7 +4,7 @@ A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. 
 
 ## What it holds
 
-A board holds no data of its own. Each board reads the engine through the engine bridge (`window.api.crowsnest.call`, see [app](app.md)) every time it mounts, and on Retry or Refresh. The `channels` board calls `getChannelsList` and shows each row's handle, display name, follower count, median views and 30-day outliers.
+A board holds no data of its own. Each board reads the engine through the engine bridge (`window.api.crowsnest.call`, see [app](app.md)) every time it mounts, and on Retry or Refresh. The `channels` board calls `getChannelsList` and shows each row's handle, display name, follower count, median views and 30-day outliers. The header and the rows are subgrids of one grid, so each value sits in the same column as its header.
 
 A board tab is an editor-family open file (`src/renderer/src/store/slices/editor/types/open-file.ts`) with `mode: 'board'` and a `boardId`. Its tab content type stays `editor`. Its `filePath` is the synthetic id `board::<id>`, and its label is the board's label.
 

@@ -21,7 +21,7 @@ Open a project, click "+" in the tab bar, then Channels under Lead Studio. Or us
 .claude/skills/verify/scripts/app-down.sh
 ```
 
-`board-01` prints `ok: open the channels board from the new-tab menu`, `ok: opening it again reuses the tab`, `ok: a failed query shows the error state`, `ok: Retry brings the rows back`, and saves `board-01-ready.png` and `board-01-error.png`. It forces the error the way a real query fails: it drops the `channels_single_own` partial index (SQLite will not rename a table under a partial index that names it) and renames the `channels` table in the lane DB (`<userDataDir>/crowsnest.db`, with `userDataDir` read from the lane state file that `app-host.mjs` writes) with `sqlite3`, clicks Refresh, then renames it back and recreates the index in a `finally` and clicks Retry.
+`board-01` prints `ok: open the channels board from the new-tab menu`, `ok: each value sits under its header` (each header cell and the fixture row's cell in the same position overlap on x), `ok: opening it again reuses the tab`, `ok: a failed query shows the error state`, `ok: Retry brings the rows back`, and saves `board-01-ready.png` and `board-01-error.png`. It forces the error the way a real query fails: it drops the `channels_single_own` partial index (SQLite will not rename a table under a partial index that names it) and renames the `channels` table in the lane DB (`<userDataDir>/crowsnest.db`, with `userDataDir` read from the lane state file that `app-host.mjs` writes) with `sqlite3`, clicks Refresh, then renames it back and recreates the index in a `finally` and clicks Retry.
 
 ## Gotchas
 
