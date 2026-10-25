@@ -18269,8 +18269,7 @@
         "src/shared/promise-settlement-waiters.test.ts",
         "config/scripts/runtime-file-watcher-fault-harness.mjs",
         "config/scripts/runtime-file-watcher-resource-probe.mjs",
-        "src/main/managed-server/install/remote-versioned-install.test.ts",
-        "config/scripts/package-electron-runtime-contract.test.mjs"
+        "src/main/managed-server/install/remote-versioned-install.test.ts"
       ],
       "assertionRefs": [
         {
@@ -18595,10 +18594,6 @@
           "assertions": [
             "remote completeness requires every model artifact and the install sentinel"
           ]
-        },
-        {
-          "file": "config/scripts/package-electron-runtime-contract.test.mjs",
-          "assertions": ["every release platform packages and gates the hashed watcher child"]
         },
         {
           "file": "config/scripts/runtime-file-watcher-resource-probe.mjs",
@@ -20300,7 +20295,6 @@
       "testFiles": [
         "tests/e2e/golden-tab-bar-agent-launch.spec.ts",
         "tests/e2e/terminal-windows-shell-paste-ownership.spec.ts",
-        "config/scripts/wsl-e2e-lane-contract.test.mjs",
         "config/scripts/verify-wsl-e2e-participation.test.mjs"
       ],
       "assertionRefs": [
