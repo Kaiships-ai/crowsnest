@@ -18,6 +18,15 @@ B="$HOME/.claude/skills/gstack/browse/dist/browse"
 if [ -d "$WT/.gstack/browse-cwd" ] && [ -x "$B" ]; then (cd "$WT/.gstack/browse-cwd" && "$B" stop >/dev/null 2>&1) || true; fi
 HELD="$(lsof -a -d cwd -Fpn 2>/dev/null | awk '/^p/{p=substr($0,2)} /^n/{print "pid " p ": " substr($0,2)}' | grep -F "$WT" || true)"
 [ -z "$HELD" ] || { printf 'verify: processes still run inside %s, stop them first:\n%s\n' "$WT" "$HELD" >&2; exit 1; }
+# An Electron helper or daemon can hold the worktree through its command line, not its cwd.
+STRAY="$(pgrep -fl -- "$WT" | grep -v 'retire\.sh' | awk '{print $1}' | grep -vx -e "$$" -e "$PPID" || true)"
+if [ -n "$STRAY" ]; then
+  echo "verify: stopping processes started from $WT: $(echo $STRAY)"
+  kill $STRAY 2>/dev/null || true; sleep 2; kill -9 $STRAY 2>/dev/null || true
+fi
+# ponytail: nested worktrees are found by the worktree's folder name in their path; agents put them in scratchpads named after it.
+git -C "$MAIN" worktree list --porcelain | awk '/^worktree /{print substr($0,10)}' | grep -F -- "$(basename "$WT")" | grep -vx -- "$WT" \
+  | while read -r NESTED; do git -C "$MAIN" worktree remove --force "$NESTED" && echo "verify: removed nested worktree $NESTED"; done
 S="$WT/.claude/skills/verify/scripts"
 if [ -x "$S/down.sh" ]; then "$S/down.sh"; fi
 if [ -x "$S/keep-evidence.sh" ]; then "$S/keep-evidence.sh"; else

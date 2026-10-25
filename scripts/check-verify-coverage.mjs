@@ -12,11 +12,7 @@ export function uncoveredFiles(files) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const base = process.argv[2];
-  if (!base) {
-    console.log("usage: node scripts/check-verify-coverage.mjs <base-ref>");
-    process.exit(2);
-  }
+  const base = process.argv[2] ?? "origin/main";
   const files = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], {
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,

@@ -80,7 +80,8 @@ crowsnest.db-shm
 /evidence
 
 # local agent scratch mirrors (real skills live in .claude/skills/)
-/.agents/
+/.agents/*
+!/.agents/playbooks/
 /.codex/
 
 # local retro/analytics scratch
