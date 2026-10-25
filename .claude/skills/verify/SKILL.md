@@ -71,7 +71,9 @@ Use `localhost`, never `127.0.0.1`: Next 16 silently blocks Server Actions from 
 VERIFY_SKIP_BUILD=1 .claude/skills/verify/scripts/up.sh   # reuse the last build
 ```
 
-Ready when it prints `verify: ready on http://localhost:3001`. It means `GET /feed` returned 200 against a freshly seeded DB. It runs `npm run build` then `npm run start` (production) because Next 16 refuses a second `next dev` in one checkout ("Another next dev server is already running"). So rebuild after every code change; `VERIFY_SKIP_BUILD=1` only when nothing changed. Logs: `data/verify/{build,seed,server}.log`. It refuses to start if :3001 is taken; set `VERIFY_PORT` to move it.
+A fresh worktree has no `node_modules`: run `npm ci` first (about 10 s). Do not symlink another checkout's `node_modules`; Turbopack fails the build with "Symlink [project]/node_modules is invalid". The build goes through `scripts/heavy.sh`, so it waits with "heavy: another heavy job holds ..." while another worktree builds or tests.
+
+Ready when it prints `verify: ready on http://localhost:3001`. It means `GET /feed` returned 200 against a freshly seeded DB. It runs `npm run build` then `npm run start` (production) because Next 16 refuses a second `next dev` in one checkout ("Another next dev server is already running"). So rebuild after every code change; `VERIFY_SKIP_BUILD=1` only when nothing changed. Logs: `data/verify/{build,seed,server}.log`. It refuses to start if :3001 is taken, which happens when another worktree's verify instance is up; set `VERIFY_PORT` (for example 3002) to move it.
 
 The server runs with `PUBLISH_DRY_RUN=1` and preloads `scripts/e2e/graph-offline.mjs`, which answers every graph.instagram.com call with a rejected-token error, so nothing reaches Instagram. A worktree has no `.env.local`, so no `S3_*` vars are set and any publish stops at "No storage bucket configured" (see `features/week.md`).
 
