@@ -84,9 +84,7 @@ import { initCodexUsagePath } from '../codex-usage/store'
 import { initOpenCodeUsagePath } from '../opencode-usage/store'
 import { initMuseUsagePath } from '../muse-usage/store'
 import { registerDocPreviewSchemePrivileges } from '../browser/doc-preview-protocol'
-import { MEDIA_PREVIEW_CUSTOM_SCHEME } from '../media/media-preview-protocol'
-import { CROWSNEST_MEDIA_SCHEME } from '../crowsnest/start'
-import { JIRA_IMAGE_CUSTOM_SCHEME } from '../jira/attachments/image-protocol'
+import { PRIVILEGED_CUSTOM_SCHEMES } from '../crowsnest/start'
 import { startCrashpadCapture } from '../crash-reporting/crashpad-capture'
 import { CrashReportStore } from '../crash-reporting/crash-report-store'
 import { recordCrashBreadcrumb } from '../crash-reporting/crash-breadcrumb-store'
@@ -361,11 +359,7 @@ function initializeMainProcessPreflight(options: MainProcessPreflightOptions): b
   initMuseUsagePath()
   // Why: Electron freezes the privileged scheme table at ready, so the doc-preview
   // scheme must be declared here or its webview loses fetch/secure-origin privileges.
-  registerDocPreviewSchemePrivileges([
-    MEDIA_PREVIEW_CUSTOM_SCHEME,
-    JIRA_IMAGE_CUSTOM_SCHEME,
-    CROWSNEST_MEDIA_SCHEME
-  ])
+  registerDocPreviewSchemePrivileges(PRIVILEGED_CUSTOM_SCHEMES)
   // Why: must precede app.whenReady() so Crashpad is installed before the
   // first renderer spawns; a CHECK before this point is still exit-code-only.
   startCrashpadCapture()

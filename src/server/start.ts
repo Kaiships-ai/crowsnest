@@ -26,8 +26,6 @@ export function startJobs(): () => void {
 
 const INSTAGRAM_HOSTS = new Set(["graph.instagram.com", new URL(config.IG_SERVICE_URL).host]);
 
-/** Makes every fetch to the Graph API or the instagrapi sidecar fail, so a process that
- *  is not the primary writer cannot reach Instagram through a tool call. */
 function refuseInstagram(): () => void {
   const realFetch = globalThis.fetch;
   globalThis.fetch = (input, init) => {

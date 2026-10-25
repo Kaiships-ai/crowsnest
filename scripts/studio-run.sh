@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# studio-run.sh <command...> -- runs a command inside studio/ under the node major its
-# package.json engines pins, through heavy.sh, with vitest capped at 2 workers. On node 22
-# about 116 Orca tests fail for no reason but the runtime.
+# studio-run.sh [--no-lock] <command...> -- runs a command inside studio/ under the node major
+# its package.json engines pins, through heavy.sh (skipped with --no-lock, for the app itself),
+# with vitest capped at 2 workers.
 set -euo pipefail
-[ $# -gt 0 ] || { echo "usage: studio-run.sh <command...>" >&2; exit 2; }
+lock=1
+[ "${1:-}" = --no-lock ] && { lock=0; shift; }
+[ $# -gt 0 ] || { echo "usage: studio-run.sh [--no-lock] <command...>" >&2; exit 2; }
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 major="$(sed -n '/"engines"/,/}/s/.*"node": *"\([0-9]*\).*/\1/p' "$root/studio/package.json")"
@@ -15,7 +17,5 @@ export PATH="$bin:$PATH"
 case " $* " in *" vitest "* | " pnpm test "* | " pnpm run test "*) set -- "$@" --maxWorkers=2 ;; esac
 
 cd "$root/studio"
-# The app itself stays open for hours; holding the machine-wide heavy lock that long would
-# stall every other agent's build, so `pnpm dev` only gets the node pin.
-[ "$1 ${2:-}" = "pnpm dev" ] && exec "$@"
+[ "$lock" = 1 ] || exec "$@"
 exec bash "$root/scripts/heavy.sh" "$@"

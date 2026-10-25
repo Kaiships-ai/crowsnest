@@ -1,18 +1,28 @@
 import { copyFileSync, existsSync, renameSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { app, protocol } from 'electron'
+import { JIRA_IMAGE_CUSTOM_SCHEME } from '../jira/attachments/image-protocol'
+import { MEDIA_PREVIEW_CUSTOM_SCHEME } from '../media/media-preview-protocol'
 import { startMcpHttp } from './mcp-http'
 
-export const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
+const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
   scheme: 'cn-media',
-  privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true }
+  privileges: {
+    standard: true,
+    secure: true,
+    stream: true,
+    supportFetchAPI: true,
+    corsEnabled: true
+  }
 }
 
-/**
- * Copies the checkout's `data/crowsnest.db` to `target` once, with its WAL so writes
- * :3000 has not checkpointed yet come along. The source is only read as files, never
- * opened as a database, because :3000 still owns it.
- */
+export const PRIVILEGED_CUSTOM_SCHEMES = [
+  MEDIA_PREVIEW_CUSTOM_SCHEME,
+  JIRA_IMAGE_CUSTOM_SCHEME,
+  CROWSNEST_MEDIA_SCHEME
+]
+
+// Copied as files, never opened: the :3000 server still owns the source DB.
 function copyDbOnce(source: string, target: string): void {
   if (existsSync(target) || !existsSync(source)) {
     return
@@ -38,18 +48,19 @@ export async function startCrowsnest(): Promise<void> {
   const userData = app.getPath('userData')
   const dbPath = join(userData, 'crowsnest.db')
   copyDbOnce(join(checkout, 'data/crowsnest.db'), dbPath)
-  // src/server reads both at import time, so they are set before the import below.
   process.env.CROWSNEST_DB_PATH = dbPath
   process.env.MEDIA_ROOT ??= join(checkout, 'data/media')
 
   const server = await import('../../../../src/server/start')
   const stopJobs = server.startInApp({ migrationsFolder: join(checkout, 'drizzle') })
   const stopMcp = await startMcpHttp(server.handleMcpRequest, join(userData, 'mcp.port'))
-  protocol.handle(CROWSNEST_MEDIA_SCHEME.scheme, (request) => {
+  protocol.handle(CROWSNEST_MEDIA_SCHEME.scheme, async (request) => {
     const params = Promise.resolve({ assetId: new URL(request.url).pathname.slice(1) })
-    return request.method === 'HEAD'
-      ? server.headMedia(request, { params })
-      : server.getMedia(request, { params })
+    const res = await (request.method === 'HEAD' ? server.headMedia : server.getMedia)(request, {
+      params
+    })
+    res.headers.set('Access-Control-Allow-Origin', '*')
+    return res
   })
   app.once('will-quit', () => {
     stopMcp()

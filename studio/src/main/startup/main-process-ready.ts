@@ -23,7 +23,6 @@ export async function initializeMainProcessReady(
   try {
     await initializeReadyFoundation()
     await initializeReadyRuntimeServices()
-    // The workspace must still open when the crowsnest server cannot start.
     void startCrowsnest().catch((error) => console.error('[crowsnest] start failed:', error))
     // Window creation can proceed while translations and the native menu initialize.
     const i18nAndMenuReady = initializeMainProcessI18nAndMenu()

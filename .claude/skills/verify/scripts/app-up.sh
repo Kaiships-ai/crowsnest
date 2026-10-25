@@ -10,8 +10,6 @@ if [ -f "$DIR/host.pid" ] && kill -0 "$(cat "$DIR/host.pid")" 2>/dev/null; then
 fi
 [ -d studio/node_modules ] || { echo "app: run 'scripts/studio-run.sh pnpm install' first" >&2; exit 1; }
 
-# --seed gives the app a fresh seeded DB, --real a copy of data/crowsnest.db (APP_REAL_DB
-# to name another). With neither, the app copies the checkout's data/crowsnest.db itself.
 unset APP_DB
 case "${1:-}" in
   --seed)

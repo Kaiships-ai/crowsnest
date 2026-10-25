@@ -25,9 +25,6 @@ app.prepare().then(() => {
     handle(req, res);
   });
 
-  // Start the publish, sync and own-measure schedulers (src/server/start.ts). This is the
-  // only place :3000 boots them, and server.ts runs only as the server entrypoint, never
-  // under tests or the CLI. A job that fails to start never stops the server listening.
   startJobs();
 
   // HOST is unset in dev (binds all interfaces, unchanged). The packaged LaunchAgent sets
