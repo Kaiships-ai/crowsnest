@@ -11,19 +11,19 @@ describe("startInApp", () => {
     vi.useRealTimers();
   });
 
-  it("starts no publish, sync or measure timer when LEAD_STUDIO_PRIMARY is unset", () => {
+  it("starts sync and own-measure but not the publish timer when LEAD_STUDIO_PUBLISH_JOBS is unset", () => {
     stop = startInApp({ migrationsFolder, env: {} });
-    expect(vi.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(3);
   });
 
-  it("refuses Graph and sidecar fetches when LEAD_STUDIO_PRIMARY is unset", async () => {
+  it("leaves fetch alone, so sync and measure can reach Instagram", () => {
+    const before = globalThis.fetch;
     stop = startInApp({ migrationsFolder, env: {} });
-    await expect(fetch("https://graph.instagram.com/me")).rejects.toThrow("not the primary writer");
-    await expect(fetch("http://127.0.0.1:8765/health")).rejects.toThrow("not the primary writer");
+    expect(globalThis.fetch).toBe(before);
   });
 
-  it("starts the publish, sync and measure timers when LEAD_STUDIO_PRIMARY=1", () => {
-    stop = startInApp({ migrationsFolder, env: { LEAD_STUDIO_PRIMARY: "1" } });
+  it("also starts the publish timer when LEAD_STUDIO_PUBLISH_JOBS=1", () => {
+    stop = startInApp({ migrationsFolder, env: { LEAD_STUDIO_PUBLISH_JOBS: "1" } });
     expect(vi.getTimerCount()).toBe(4);
   });
 });

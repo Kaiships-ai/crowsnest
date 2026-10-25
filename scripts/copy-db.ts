@@ -17,7 +17,7 @@ function copyPair(source: string, temp: string, copy: Copy): boolean {
   return stamp(source) === before
 }
 
-// Copied as files, never opened: the :3000 server still owns the source DB.
+// Copied as files, never opened: the operator's app may still be writing the source DB.
 export function copyDbOnce(
   source: string,
   target: string,
@@ -31,7 +31,7 @@ export function copyDbOnce(
     rmSync(temp, { force: true })
     rmSync(`${temp}-wal`, { force: true })
     throw new Error(
-      `${source} changed during both copy attempts; stop the :3000 server and relaunch to take a consistent copy`
+      `${source} changed during both copy attempts; quit the app that writes it and relaunch to take a consistent copy`
     )
   }
   if (existsSync(`${temp}-wal`)) {
