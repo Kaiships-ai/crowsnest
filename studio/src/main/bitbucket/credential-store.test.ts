@@ -119,7 +119,7 @@ describe('Bitbucket credential store', () => {
     })
 
     for (const file of ['bitbucket-credential.enc', 'bitbucket-credential.json']) {
-      expect(statSync(join(tempHome, '.orca', file)).mode & 0o777).toBe(0o600)
+      expect(statSync(join(tempHome, '.lead-studio', file)).mode & 0o777).toBe(0o600)
     }
   })
 
@@ -137,12 +137,12 @@ describe('Bitbucket credential store', () => {
     save('first')
     const { chmodSync } = await import('node:fs')
     for (const file of ['bitbucket-credential.enc', 'bitbucket-credential.json']) {
-      chmodSync(join(tempHome, '.orca', file), 0o644)
+      chmodSync(join(tempHome, '.lead-studio', file), 0o644)
     }
     save('second')
 
     for (const file of ['bitbucket-credential.enc', 'bitbucket-credential.json']) {
-      expect(statSync(join(tempHome, '.orca', file)).mode & 0o777).toBe(0o600)
+      expect(statSync(join(tempHome, '.lead-studio', file)).mode & 0o777).toBe(0o600)
     }
   })
 
@@ -189,11 +189,11 @@ describe('Bitbucket credential store', () => {
     })
 
     writeFileSync(
-      join(tempHome, '.orca', 'bitbucket-credential.json'),
+      join(tempHome, '.lead-studio', 'bitbucket-credential.json'),
       JSON.stringify({ version: 1, authMode: 'basic', email: { evil: true }, account: 42 })
     )
     writeFileSync(
-      join(tempHome, '.orca', 'bitbucket-credential.enc'),
+      join(tempHome, '.lead-studio', 'bitbucket-credential.enc'),
       JSON.stringify({ accessToken: ['nope'], apiToken: 7 })
     )
     store._resetBitbucketCredentialCache()
@@ -216,7 +216,7 @@ describe('Bitbucket credential store', () => {
       apiToken: 'first-token'
     })
     const { readFileSync } = await import('node:fs')
-    const before = readFileSync(join(tempHome, '.orca', 'bitbucket-credential.enc'))
+    const before = readFileSync(join(tempHome, '.lead-studio', 'bitbucket-credential.enc'))
 
     const failing = await loadStore({ writeError: new Error('disk full') })
     expect(() =>
@@ -230,8 +230,8 @@ describe('Bitbucket credential store', () => {
       })
     ).toThrow(/disk full/)
 
-    expect(readFileSync(join(tempHome, '.orca', 'bitbucket-credential.enc'))).toEqual(before)
-    expect(readdirSync(join(tempHome, '.orca')).filter((name) => name.endsWith('.tmp'))).toEqual([])
+    expect(readFileSync(join(tempHome, '.lead-studio', 'bitbucket-credential.enc'))).toEqual(before)
+    expect(readdirSync(join(tempHome, '.lead-studio')).filter((name) => name.endsWith('.tmp'))).toEqual([])
   })
 
   it('authenticates from the envelope when metadata is stale (STA-3941)', async () => {
@@ -248,7 +248,7 @@ describe('Bitbucket credential store', () => {
     // Simulate interruption after secret publication but before metadata publication.
     const { writeFileSync } = await import('node:fs')
     writeFileSync(
-      join(tempHome, '.orca', 'bitbucket-credential.json'),
+      join(tempHome, '.lead-studio', 'bitbucket-credential.json'),
       JSON.stringify({
         version: 1,
         authMode: 'basic',
@@ -279,7 +279,7 @@ describe('Bitbucket credential store', () => {
     })
     const { writeFileSync } = await import('node:fs')
     writeFileSync(
-      join(tempHome, '.orca', 'bitbucket-credential.enc'),
+      join(tempHome, '.lead-studio', 'bitbucket-credential.enc'),
       JSON.stringify({ accessToken: null, apiToken: 'legacy-token' })
     )
     store._resetBitbucketCredentialCache()
@@ -325,8 +325,8 @@ describe('Bitbucket credential store', () => {
 
     expect(store.hasStoredBitbucketCredential()).toBe(false)
     expect(store.getStoredBitbucketMetadata()).toBeNull()
-    expect(existsSync(join(tempHome, '.orca', 'bitbucket-credential.enc'))).toBe(false)
-    expect(existsSync(join(tempHome, '.orca', 'bitbucket-credential.json'))).toBe(false)
+    expect(existsSync(join(tempHome, '.lead-studio', 'bitbucket-credential.enc'))).toBe(false)
+    expect(existsSync(join(tempHome, '.lead-studio', 'bitbucket-credential.json'))).toBe(false)
   })
 
   it('surfaces a non-ENOENT delete failure instead of silently keeping the files', async () => {
@@ -344,7 +344,7 @@ describe('Bitbucket credential store', () => {
     })
 
     expect(() => store.clearStoredBitbucketCredential()).toThrow(/permission denied/)
-    expect(existsSync(join(tempHome, '.orca', 'bitbucket-credential.enc'))).toBe(true)
+    expect(existsSync(join(tempHome, '.lead-studio', 'bitbucket-credential.enc'))).toBe(true)
   })
 
   it('ignores a missing file on disconnect', async () => {

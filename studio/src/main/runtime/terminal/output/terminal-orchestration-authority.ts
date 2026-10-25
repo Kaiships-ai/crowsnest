@@ -286,10 +286,10 @@ export abstract class OrcaRuntimeWithGetOrchestrationDispatchAuthority extends O
       const ptyId = this.resolveLeafForHandle(handle)?.ptyId
       pty = ptyId ? (this.ptysById.get(ptyId) ?? null) : null
     } catch {
-      return 'orca'
+      return 'lead'
     }
     if (!pty) {
-      return 'orca'
+      return 'lead'
     }
     return resolveTerminalOrchestrationCliCommand({
       connectionId: pty.connectionId,

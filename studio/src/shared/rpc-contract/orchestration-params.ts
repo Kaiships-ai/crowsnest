@@ -42,7 +42,7 @@ export const CheckParams = z
     ack: OptionalString,
     compatibilityAck: OptionalString,
     compatibilityQuestionAck: OptionalString,
-    compatibilityCliCommand: z.enum(['orca', 'orca-ide', 'orca-dev']).optional(),
+    compatibilityCliCommand: z.enum(['lead', 'lead-dev', 'orca', 'orca-ide']).optional(),
     run: OptionalString,
     wait: OptionalBoolean,
     timeoutMs: OptionalFiniteNumber
@@ -134,7 +134,7 @@ export const AskParams = z
     timeoutMs: OptionalFiniteNumber,
     from: OptionalString,
     run: OptionalString,
-    compatibilityCliCommand: z.enum(['orca', 'orca-ide', 'orca-dev']).optional(),
+    compatibilityCliCommand: z.enum(['lead', 'lead-dev', 'orca', 'orca-ide']).optional(),
     compatibilityWindowsCommand: z.enum(['orca', 'orca-ide']).optional()
   })
   .superRefine((params, ctx) => {

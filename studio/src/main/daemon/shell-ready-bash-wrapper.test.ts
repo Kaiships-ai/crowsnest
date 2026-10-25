@@ -67,7 +67,7 @@ describePosix('daemon shell-ready bash wrapper', () => {
     mkdirSync(cliBin, { recursive: true })
     mkdirSync(ambientBin)
     for (const bin of [cliBin, ambientBin]) {
-      const launcher = join(bin, 'orca-dev')
+      const launcher = join(bin, 'lead-dev')
       writeFileSync(launcher, '#!/bin/sh\nexit 0\n')
       chmodSync(launcher, 0o755)
     }
@@ -87,7 +87,7 @@ describePosix('daemon shell-ready bash wrapper', () => {
     )
     const rcfile = join(userDataPath, 'cli-path-rcfile')
     writeFileSync(rcfile, content())
-    const result = spawnSync('bash', ['-c', '. "$1"; command -v orca-dev', 'bash', rcfile], {
+    const result = spawnSync('bash', ['-c', '. "$1"; command -v lead-dev', 'bash', rcfile], {
       env,
       encoding: 'utf8',
       timeout: 5000

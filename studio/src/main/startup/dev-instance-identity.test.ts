@@ -19,9 +19,10 @@ describe('dev-instance-identity', () => {
 
     // Per-branch label differs (window title / app menu)...
     expect(a.name).not.toBe(b.name)
-    // ...but the Keychain-driving appName is identical, so the key is 'Lead Studio Safe Storage'.
-    expect(a.appName).toBe('Lead Studio')
-    expect(b.appName).toBe('Lead Studio')
+    // ...but the Keychain-driving appName is identical and distinct from prod.
+    expect(a.appName).toBe('Lead Studio Dev')
+    expect(b.appName).toBe('Lead Studio Dev')
+    expect(a.appName).not.toBe('Lead Studio')
   })
 
   it('never renames a packaged build before ready', () => {

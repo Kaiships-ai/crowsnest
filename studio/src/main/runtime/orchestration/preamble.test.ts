@@ -56,7 +56,7 @@ describe('buildDispatchPreamble', () => {
     const result = buildDispatchPreamble(baseParams())
     const commandLines = result
       .split('\n')
-      .filter((line) => line.trimStart().startsWith('orca orchestration'))
+      .filter((line) => line.trimStart().startsWith('lead orchestration'))
 
     expect(commandLines).toHaveLength(5)
     expect(result).not.toContain('\\\n')
@@ -133,12 +133,12 @@ describe('buildDispatchPreamble', () => {
     expect(section).not.toMatch(/may exit/)
   })
 
-  it('uses orca-dev CLI when devMode is true', () => {
+  it('uses lead-dev CLI when devMode is true', () => {
     const result = buildDispatchPreamble(baseParams({ devMode: true, cliCommand: 'orca-ide' }))
-    expect(result).toContain('orca-dev orchestration send')
-    expect(result).toContain('orca-dev orchestration check')
-    expect(result).toContain('orca-dev orchestration ask')
-    const fragments = result.split('orca-dev')
+    expect(result).toContain('lead-dev orchestration send')
+    expect(result).toContain('lead-dev orchestration check')
+    expect(result).toContain('lead-dev orchestration ask')
+    const fragments = result.split('lead-dev')
     for (const fragment of fragments) {
       expect(fragment).not.toMatch(/orca orchestration/)
     }

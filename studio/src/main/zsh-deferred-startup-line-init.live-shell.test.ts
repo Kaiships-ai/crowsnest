@@ -85,8 +85,8 @@ describe('zsh deferred startup after prompt-hook replacement', () => {
         mkdirSync(bin, { recursive: true })
       }
       for (const bin of [cliBin, ambientBin]) {
-        writeFileSync(join(bin, 'orca-dev'), '#!/bin/sh\nexit 0\n')
-        chmodSync(join(bin, 'orca-dev'), 0o755)
+        writeFileSync(join(bin, 'lead-dev'), '#!/bin/sh\nexit 0\n')
+        chmodSync(join(bin, 'lead-dev'), 0o755)
       }
       writeFileSync(
         join(home, '.zshenv'),
@@ -164,7 +164,7 @@ describe('zsh deferred startup after prompt-hook replacement', () => {
           ...(repeatSource
             ? ['source -- "$HOME/wrapper/.zshenv"', 'source -- "$HOME/wrapper/.zshenv"']
             : []),
-          'O_LK=$(command -v orca-dev)',
+          'O_LK=$(command -v lead-dev)',
           'O_SR=${+widgets[__orca_saved_line_init]}',
           ...(scheduleCleanup
             ? [

@@ -1,11 +1,11 @@
 import { RuntimeClientError } from '../../runtime-client'
 
-export function resolveCompatibilityCliCommand(): 'orca' | 'orca-ide' | 'orca-dev' {
+export function resolveCompatibilityCliCommand(): 'lead' | 'lead-dev' | 'orca' | 'orca-ide' {
   const configured = process.env.ORCA_CLI_COMMAND
-  if (configured === 'orca' || configured === 'orca-ide' || configured === 'orca-dev') {
+  if (configured === 'lead' || configured === 'lead-dev' || configured === 'orca' || configured === 'orca-ide') {
     return configured
   }
-  return process.platform === 'linux' ? 'orca-ide' : 'orca'
+  return process.platform === 'linux' ? 'orca-ide' : 'lead'
 }
 
 export function resolvePackagedWindowsCompatibilityCommand(): 'orca' | 'orca-ide' | undefined {

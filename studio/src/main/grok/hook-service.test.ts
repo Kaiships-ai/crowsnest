@@ -273,12 +273,12 @@ describe('GrokHookService', () => {
     expect(registersManagedGrokScript(config.hooks.PostToolUse[0].hooks[0].command)).toBe(true)
     if (process.platform !== 'win32') {
       const command = config.hooks.PostToolUse[0].hooks[0].command
-      expect(command).toContain(join(homeDir, '.orca'))
+      expect(command).toContain(join(homeDir, '.lead-studio'))
       expect(command).toMatch(/^if \[ -n "\$\{ORCA_PANE_KEY-\}" \] && /)
     }
 
     const script = readFileSync(
-      join(homeDir, '.orca', 'agent-hooks', GROK_SCRIPT_FILE_NAME),
+      join(homeDir, '.lead-studio', 'agent-hooks', GROK_SCRIPT_FILE_NAME),
       'utf8'
     )
     expect(script).toContain('/hook/grok')

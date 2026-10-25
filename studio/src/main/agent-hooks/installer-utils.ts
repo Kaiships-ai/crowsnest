@@ -110,7 +110,7 @@ function decodePowerShellEncodedCommand(command: string): string | null {
 
 // Parallel Orca instances must share one user-wide script path.
 export function getSharedManagedScriptPath(scriptFileName: string): string {
-  return join(homedir(), '.orca', 'agent-hooks', scriptFileName)
+  return join(homedir(), '.lead-studio', 'agent-hooks', scriptFileName)
 }
 
 export { wrapPosixHookCommand } from './posix-hook-command'

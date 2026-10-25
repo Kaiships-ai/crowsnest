@@ -40,14 +40,14 @@ function hasManagedCommand(hook: TestHook, matcher: (command: string | undefined
 }
 
 describe('getWindowsManagedLifecycleHook', () => {
-  const SAFE_SCRIPT_PATH = 'C:\\Users\\alice\\.orca\\agent-hooks\\claude-hook.cmd'
-  const UNSAFE_SCRIPT_PATH = 'C:\\Users\\%name%\\a^b&c\\.orca\\agent-hooks\\claude-hook.cmd'
+  const SAFE_SCRIPT_PATH = 'C:\\Users\\alice\\.lead-studio\\agent-hooks\\claude-hook.cmd'
+  const UNSAFE_SCRIPT_PATH = 'C:\\Users\\%name%\\a^b&c\\.lead-studio\\agent-hooks\\claude-hook.cmd'
 
   it('registers the script itself, with no interpreter in front of it (#18875)', () => {
     const hook = getWindowsManagedLifecycleHook(SAFE_SCRIPT_PATH)
 
     expect(hook.args).toBeUndefined()
-    expect(hook.command).toBe('C:/Users/alice/.orca/agent-hooks/claude-hook.cmd')
+    expect(hook.command).toBe('C:/Users/alice/.lead-studio/agent-hooks/claude-hook.cmd')
     expect(hook.command).not.toMatch(/powershell|-EncodedCommand|conhost/i)
     expect(hook.command).not.toMatch(/\\/)
     expect(hook.command).not.toMatch(/ \/[a-zA-Z]+( |$)/)
@@ -64,14 +64,14 @@ describe('getWindowsManagedLifecycleHook', () => {
     const encoded = hook.command.match(/-EncodedCommand (\S+)$/)?.[1]
     const decoded = Buffer.from(encoded ?? '', 'base64').toString('utf16le')
     expect(decoded).toContain('$env:USERPROFILE')
-    expect(decoded).toContain('.orca\\agent-hooks\\claude-hook.cmd')
+    expect(decoded).toContain('.lead-studio\\agent-hooks\\claude-hook.cmd')
   })
 
   it('does not consult Git Bash availability', () => {
     gitBashAvailableMock.value = false
     try {
       expect(getWindowsManagedLifecycleHook(SAFE_SCRIPT_PATH).command).toBe(
-        'C:/Users/alice/.orca/agent-hooks/claude-hook.cmd'
+        'C:/Users/alice/.lead-studio/agent-hooks/claude-hook.cmd'
       )
     } finally {
       gitBashAvailableMock.value = true
@@ -199,7 +199,7 @@ describe('ClaudeHookService.install', () => {
                 hooks: [
                   {
                     type: 'command',
-                    command: '/Users/old/.orca/agent-hooks/claude-hook.sh'
+                    command: '/Users/old/.lead-studio/agent-hooks/claude-hook.sh'
                   }
                 ]
               }
@@ -239,7 +239,7 @@ describe('ClaudeHookService.install', () => {
       ).toBe(true)
       expect(
         legacyHooks.some((hook: TestHook) =>
-          hook.command.includes('/Users/old/.orca/agent-hooks/claude-hook.sh')
+          hook.command.includes('/Users/old/.lead-studio/agent-hooks/claude-hook.sh')
         )
       ).toBe(false)
       expect(hasManagedCommand(legacy.hooks.StopFailure[0].hooks[0], isClaudeManagedCommand)).toBe(
@@ -248,7 +248,7 @@ describe('ClaudeHookService.install', () => {
       const managedScript = readFileSync(
         join(
           tmpHome,
-          '.orca',
+          '.lead-studio',
           'agent-hooks',
           process.platform === 'win32' ? 'claude-hook-impl.cmd' : CLAUDE_SCRIPT_FILE_NAME
         ),
@@ -321,13 +321,13 @@ describe('ClaudeHookService.install', () => {
       expect(settings.statusLine?.type).toBe('command')
       if (process.platform !== 'win32') {
         expect(settings.statusLine?.command).toContain(
-          '"${HOME-}/.orca/agent-hooks/claude-statusline.sh"'
+          '"${HOME-}/.lead-studio/agent-hooks/claude-statusline.sh"'
         )
         expect(settings.statusLine?.command).not.toContain(tmpHome)
       }
 
       const script = readFileSync(
-        join(tmpHome, '.orca', 'agent-hooks', STATUSLINE_SCRIPT_FILE_NAME),
+        join(tmpHome, '.lead-studio', 'agent-hooks', STATUSLINE_SCRIPT_FILE_NAME),
         'utf-8'
       )
       expect(script).toContain('/statusline/claude')
@@ -450,7 +450,7 @@ describe('ClaudeHookService.install', () => {
           readFileSync(join(tmpHome, '.claude', 'settings.json'), 'utf-8')
         ) as { hooks: Record<string, { hooks: TestHook[] }[]> }
 
-        const scriptPath = join(tmpHome, '.orca', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
+        const scriptPath = join(tmpHome, '.lead-studio', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
 
         for (const eventName of ['UserPromptSubmit', 'Stop', 'StopFailure']) {
           const hook = settings.hooks[eventName]?.[0]?.hooks?.[0]
@@ -461,7 +461,7 @@ describe('ClaudeHookService.install', () => {
           const encoded = hook?.command.match(/-EncodedCommand (\S+)$/)?.[1]
           const decoded = Buffer.from(encoded ?? '', 'base64').toString('utf16le')
           expect(decoded).toContain('$env:USERPROFILE')
-          expect(decoded).toContain(`.orca\\agent-hooks\\${CLAUDE_SCRIPT_FILE_NAME}`)
+          expect(decoded).toContain(`.lead-studio\\agent-hooks\\${CLAUDE_SCRIPT_FILE_NAME}`)
         }
       } finally {
         vi.unstubAllEnvs()
@@ -476,7 +476,7 @@ describe('ClaudeHookService.install', () => {
       const tmpHome = mkdtempSync(join(tmpdir(), 'orca-claude-direct-'))
       vi.stubEnv('HOME', tmpHome)
       vi.stubEnv('USERPROFILE', tmpHome)
-      const scriptPath = join(tmpHome, '.orca', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
+      const scriptPath = join(tmpHome, '.lead-studio', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
       if (!WINDOWS_CMD_SAFE_PATH.test(scriptPath)) {
         vi.unstubAllEnvs()
         rmSync(tmpHome, { recursive: true, force: true })
@@ -510,7 +510,7 @@ describe('ClaudeHookService.install', () => {
       const tmpHome = mkdtempSync(join(tmpdir(), 'orca-claude-migrate-'))
       vi.stubEnv('HOME', tmpHome)
       vi.stubEnv('USERPROFILE', tmpHome)
-      const scriptPath = join(tmpHome, '.orca', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
+      const scriptPath = join(tmpHome, '.lead-studio', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
       if (!WINDOWS_CMD_SAFE_PATH.test(scriptPath)) {
         vi.unstubAllEnvs()
         rmSync(tmpHome, { recursive: true, force: true })
@@ -520,7 +520,7 @@ describe('ClaudeHookService.install', () => {
         const settingsPath = join(tmpHome, '.claude', 'settings.json')
         mkdirSync(join(tmpHome, '.claude'), { recursive: true })
         const stale = getWindowsManagedLifecycleHook(
-          'C:\\Users\\%name%\\.orca\\agent-hooks\\claude-hook.cmd'
+          'C:\\Users\\%name%\\.lead-studio\\agent-hooks\\claude-hook.cmd'
         )
         writeFileSync(
           settingsPath,
@@ -558,7 +558,7 @@ describe('ClaudeHookService.install', () => {
       const tmpHome = mkdtempSync(join(tmpdir(), 'orca-claude-moved-'))
       vi.stubEnv('HOME', tmpHome)
       vi.stubEnv('USERPROFILE', tmpHome)
-      const scriptPath = join(tmpHome, '.orca', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
+      const scriptPath = join(tmpHome, '.lead-studio', 'agent-hooks', CLAUDE_SCRIPT_FILE_NAME)
       if (!WINDOWS_CMD_SAFE_PATH.test(scriptPath)) {
         vi.unstubAllEnvs()
         rmSync(tmpHome, { recursive: true, force: true })
@@ -567,7 +567,7 @@ describe('ClaudeHookService.install', () => {
       try {
         const settingsPath = join(tmpHome, '.claude', 'settings.json')
         mkdirSync(join(tmpHome, '.claude'), { recursive: true })
-        const staleCommand = 'C:/Users/someone-else/.orca/agent-hooks/claude-hook.cmd || echo {}'
+        const staleCommand = 'C:/Users/someone-else/.lead-studio/agent-hooks/claude-hook.cmd || echo {}'
         const stale = { type: 'command', command: staleCommand, timeout: 10 }
         writeFileSync(
           settingsPath,
@@ -604,7 +604,7 @@ describe('ClaudeHookService.install', () => {
       try {
         expect(new ClaudeHookService().install().state).toBe('installed')
         const script = readFileSync(
-          join(tmpHome, '.orca', 'agent-hooks', 'claude-hook-impl.cmd'),
+          join(tmpHome, '.lead-studio', 'agent-hooks', 'claude-hook-impl.cmd'),
           'utf-8'
         )
         expect(script).toContain('%SystemRoot%\\System32\\curl.exe')
@@ -644,7 +644,7 @@ describe('backgrounded-session pane guard (#9236)', () => {
         const script = readFileSync(
           join(
             tmpHome,
-            '.orca',
+            '.lead-studio',
             'agent-hooks',
             target === 'win32' ? 'claude-statusline.cmd' : 'claude-statusline.sh'
           ),
@@ -675,7 +675,7 @@ describe('backgrounded-session pane guard (#9236)', () => {
     try {
       expect(new ClaudeHookService().install().state).toBe('installed')
       const script = readFileSync(
-        join(tmpHome, '.orca', 'agent-hooks', 'claude-hook-impl.cmd'),
+        join(tmpHome, '.lead-studio', 'agent-hooks', 'claude-hook-impl.cmd'),
         'utf-8'
       )
       const guard = script.split('\r\n').find((line) => line.includes('CLAUDE_JOB_DIR'))
@@ -826,18 +826,18 @@ describe('OpenClaudeHookService-compatible install', () => {
       for (const event of ['UserPromptSubmit', 'Stop', 'StopFailure']) {
         const command = parsed.hooks[event][0].hooks[0].command as string
         expect(isOpenClaudeManagedCommand(command)).toBe(true)
-        expect(command).toContain('"${HOME-}/.orca/agent-hooks/openclaude-hook.cmd"')
-        expect(command).toContain('"${HOME-}/.orca/agent-hooks/openclaude-hook.sh"')
+        expect(command).toContain('"${HOME-}/.lead-studio/agent-hooks/openclaude-hook.cmd"')
+        expect(command).toContain('"${HOME-}/.lead-studio/agent-hooks/openclaude-hook.sh"')
         expect(command).not.toContain(tmpHome.replaceAll('\\', '/'))
       }
       expect(
-        readFileSync(join(tmpHome, '.orca', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
+        readFileSync(join(tmpHome, '.lead-studio', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
       ).toContain('/hook/claude')
       expect(
-        readFileSync(join(tmpHome, '.orca', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
+        readFileSync(join(tmpHome, '.lead-studio', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
       ).not.toContain('DEVIN_PROJECT_DIR')
       expect(
-        readFileSync(join(tmpHome, '.orca', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
+        readFileSync(join(tmpHome, '.lead-studio', 'agent-hooks', OPENCLAUDE_SCRIPT_FILE_NAME), 'utf-8')
       ).not.toContain('GROK_HOOK_EVENT')
       expect(parsed.statusLine).toBeUndefined()
       expect(existsSync(join(tmpHome, '.claude', 'settings.json'))).toBe(false)

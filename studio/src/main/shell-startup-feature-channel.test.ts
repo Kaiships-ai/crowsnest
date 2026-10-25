@@ -109,7 +109,7 @@ describePosix('zsh launch config', () => {
       mkdirSync(cliBin, { recursive: true })
       mkdirSync(ambientBin)
       for (const bin of [cliBin, ambientBin]) {
-        const launcher = join(bin, 'orca-dev')
+        const launcher = join(bin, 'lead-dev')
         writeFileSync(launcher, '#!/bin/sh\nexit 0\n')
         chmodSync(launcher, 0o755)
       }
@@ -134,7 +134,7 @@ describePosix('zsh launch config', () => {
       const config = getShellLaunchConfig(ZSH_PATH, features)
       const result = await runZshPty({
         env: { ...env, ...config.env },
-        commands: ['ORCA_LOOKUP=$(command -v orca-dev)'],
+        commands: ['ORCA_LOOKUP=$(command -v lead-dev)'],
         report: ['ORCA_LOOKUP']
       })
       expect(result.values.ORCA_LOOKUP).toBe(launcher)

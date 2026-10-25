@@ -70,7 +70,7 @@ describe('CliInstaller', () => {
 
       const initial = await installer.getStatus()
       expect(initial.state).toBe('not_installed')
-      expect(initial.launcherPath).toContain(join('userData', 'cli', 'bin', 'orca'))
+      expect(initial.launcherPath).toContain(join('userData', 'cli', 'bin', 'lead'))
 
       const installed = await installer.install()
       expect(installed.state).toBe('installed')
@@ -135,9 +135,9 @@ describe('CliInstaller', () => {
 
       const installed = await installer.install()
       expect(installed.state).toBe('installed')
-      expect(installed.commandName).toBe('orca-dev')
-      expect(installed.commandPath).toBe(join(commandDir, 'orca-dev'))
-      expect(installed.launcherPath).toBe(join(fixture.userDataPath, 'cli', 'bin', 'orca-dev'))
+      expect(installed.commandName).toBe('lead-dev')
+      expect(installed.commandPath).toBe(join(commandDir, 'lead-dev'))
+      expect(installed.launcherPath).toBe(join(fixture.userDataPath, 'cli', 'bin', 'lead-dev'))
       await expect(readlink(installed.commandPath as string)).resolves.toBe(installed.launcherPath)
       await expect(
         readFile(join(fixture.userDataPath, 'cli', 'bin', 'orca'), 'utf8')
@@ -301,8 +301,8 @@ describe('CliInstaller', () => {
       const commandDir = join(homePath, '.local', 'bin')
       const resourcesPath = join(fixture.root, 'resources')
       const launcherPath = join(resourcesPath, 'bin', 'orca-ide')
-      const oldLauncherPath = join(resourcesPath, 'bin', 'orca')
-      const legacyCommandPath = join(commandDir, 'orca')
+      const oldLauncherPath = join(resourcesPath, 'bin', 'lead')
+      const legacyCommandPath = join(commandDir, 'lead')
       await mkdir(commandDir, { recursive: true })
       await mkdir(join(resourcesPath, 'bin'), { recursive: true })
       await writeFile(launcherPath, '#!/usr/bin/env bash\n', 'utf8')
@@ -331,7 +331,7 @@ describe('CliInstaller', () => {
       const fixture = await makeFixture()
       const homePath = join(fixture.root, 'home')
       const commandDir = join(homePath, '.local', 'bin')
-      const legacyCommandPath = join(commandDir, 'orca')
+      const legacyCommandPath = join(commandDir, 'lead')
       const appImagePath = join(fixture.root, 'Orca.AppImage')
       const cacheRootPath = join(fixture.root, 'cache')
       await mkdir(commandDir, { recursive: true })
@@ -340,7 +340,7 @@ describe('CliInstaller', () => {
         mode: 0o755
       })
       const extractedRoot = resolveAppImageExtractedRoot({ appImagePath, cacheRootPath })!
-      await symlink(join(dirname(extractedRoot.payloadLauncherPath), 'orca'), legacyCommandPath)
+      await symlink(join(dirname(extractedRoot.payloadLauncherPath), 'lead'), legacyCommandPath)
 
       const installer = new CliInstaller({
         platform: 'linux',
@@ -366,7 +366,7 @@ describe('CliInstaller', () => {
       const fixture = await makeFixture()
       const homePath = join(fixture.root, 'home')
       const commandDir = join(homePath, '.local', 'bin')
-      const legacyCommandPath = join(commandDir, 'orca')
+      const legacyCommandPath = join(commandDir, 'lead')
       const appImagePath = join(fixture.root, 'Orca.AppImage')
       const foreignAppImagePath = join(fixture.root, 'Other.AppImage')
       const cacheRootPath = join(fixture.root, 'cache')

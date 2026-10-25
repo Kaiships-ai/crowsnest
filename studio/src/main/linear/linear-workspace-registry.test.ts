@@ -26,7 +26,7 @@ describe('Linear workspace credential cache reset', () => {
       decryptString: (value) => value.toString('utf-8'),
       describeProtectionGap: () => null
     })
-    const tokenDirectory = join(directory, '.orca', 'linear-tokens')
+    const tokenDirectory = join(directory, '.lead-studio', 'linear-tokens')
     mkdirSync(tokenDirectory, { recursive: true })
     writeFileSync(
       join(tokenDirectory, `${Buffer.from('workspace').toString('base64url')}.enc`),

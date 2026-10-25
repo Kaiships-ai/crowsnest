@@ -17,6 +17,7 @@ const AGENT_HOME_ENTRIES = [
   '.codex',
   '.claude',
   '.orca',
+  '.lead-studio',
   '.cursor',
   '.copilot',
   '.gemini',

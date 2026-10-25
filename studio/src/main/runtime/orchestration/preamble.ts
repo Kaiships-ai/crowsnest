@@ -70,10 +70,10 @@ function dispatchIdentityLines(params: PreambleParams): string {
 // not as a separate prose block — LLM readers anchor on examples and skim
 // trailing prose, so rules must land at the point of use.
 export function buildDispatchPreamble(params: PreambleParams): string {
-  // Why: in dev mode, agents must use orca-dev to connect to the dev runtime's
+  // Why: in dev mode, agents must use lead-dev to connect to the dev runtime's
   // socket. Without this, agents inside the dev Electron app would call the
   // production CLI and talk to the wrong Orca instance (Section 6.4).
-  const cli = params.devMode ? 'orca-dev' : (params.cliCommand ?? 'orca')
+  const cli = params.devMode ? 'lead-dev' : (params.cliCommand ?? 'lead')
   const chat = isSessionHandle(params.workerHandle)
   const surface = chat ? 'chat' : 'terminal'
   const postDoneInstructions = buildPostWorkerDoneInstructions({

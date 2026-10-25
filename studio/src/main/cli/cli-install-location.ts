@@ -66,7 +66,7 @@ export abstract class CliInstallLocation {
       // Why: development builds must not claim the production shell command.
       return DEV_COMMAND_NAME
     }
-    return this.platform === 'linux' ? LINUX_CLI_COMMAND_NAME : 'orca'
+    return this.platform === 'linux' ? LINUX_CLI_COMMAND_NAME : 'lead'
   }
 
   constructor(options: CliInstallerOptions = {}) {
@@ -88,7 +88,7 @@ export abstract class CliInstallLocation {
     const candidateMacPath = options.defaultMacCommandPath ?? DEFAULT_MAC_COMMAND_PATH
     this.macCommandPath = existsSync(dirname(candidateMacPath))
       ? candidateMacPath
-      : join(this.homePath, '.local', 'bin', 'orca')
+      : join(this.homePath, '.local', 'bin', 'lead')
     this.privilegedRunner = options.privilegedRunner ?? runMacPrivilegedCommand
     this.userPathReader = options.userPathReader ?? readWindowsUserPathRegistry
     this.userPathMutationReader =

@@ -109,6 +109,7 @@ const JSON_INSTALLERS = [
 ] as const
 
 const MANAGED_HOOKS_DIR_NEEDLE = '/.orca/agent-hooks/'
+const LOCAL_MANAGED_HOOKS_DIR_NEEDLE = '/.lead-studio/agent-hooks/'
 // Claude's statusLine schema has no timeout field and cannot block agent turns.
 const STATUSLINE_SCRIPT_NEEDLE = '-statusline.'
 
@@ -201,7 +202,7 @@ describe('managed agent hook timeouts', () => {
         config,
         MANAGED_HOOK_TIMEOUT_SECONDS,
         (command) =>
-          command.replaceAll('\\', '/').includes(MANAGED_HOOKS_DIR_NEEDLE) ||
+          command.replaceAll('\\', '/').includes(LOCAL_MANAGED_HOOKS_DIR_NEEDLE) ||
           (process.platform === 'win32' && command.includes('-EncodedCommand'))
       )
       expect(carriers).toBeGreaterThan(0)

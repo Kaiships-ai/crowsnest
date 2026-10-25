@@ -5,7 +5,8 @@
   "homepage": "https://github.com/stablyai/orca",
   "author": "stablyai",
   "bin": {
-    "lead": "./config/scripts/orca-dev.mjs"
+    "lead": "./out/cli/index.js",
+    "lead-dev": "./config/scripts/orca-dev.mjs"
   },
   "main": "./out/main/index.js",
   "scripts": {

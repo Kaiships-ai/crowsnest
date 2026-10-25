@@ -47,6 +47,7 @@ import {
   removeManagedStatusLine,
   type ClaudeCompatibleHookSettings
 } from './hook-settings'
+import { REMOTE_HOOKS_DIR } from '../agent-hooks/runtime-home-hook-command'
 import {
   getClaudeManagedHookPlan,
   OPENCLAUDE_MANAGED_HOOK_PLAN,
@@ -250,7 +251,7 @@ export class ClaudeHookService {
     // Remote hook installation targets POSIX hosts regardless of the client platform.
     const remoteConfigPath = getRemoteConfigPath(remoteHome, this.options.settings)
     const remoteScriptFileName = getPosixManagedScriptFileName(this.options.settings)
-    const remoteScriptPath = `${remoteHome.replace(/\/$/, '')}/.orca/agent-hooks/${remoteScriptFileName}`
+    const remoteScriptPath = `${remoteHome.replace(/\/$/, '')}/${REMOTE_HOOKS_DIR}/agent-hooks/${remoteScriptFileName}`
     try {
       const config = await readHooksJsonRemote(sftp, remoteConfigPath)
       if (!config) {
@@ -267,7 +268,9 @@ export class ClaudeHookService {
       const nextConfig = applyManagedHooks(
         config,
         (eventName) =>
-          buildManagedCommandHook(getRemoteManagedEventCommand(eventName, remoteScriptPath)),
+          buildManagedCommandHook(
+            getRemoteManagedEventCommand(eventName, remoteScriptPath, REMOTE_HOOKS_DIR)
+          ),
         remoteScriptFileName,
         this.managedHookPlan(options)
       )

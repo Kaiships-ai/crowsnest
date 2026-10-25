@@ -57,7 +57,7 @@ describe('managed WSL CLI provisioning', () => {
     writeFileSync(cliEntryPath, 'fixture')
     installFakeAppEnvironment({ getPath: () => host.userDataPath, getAppPath: () => appPath })
     const directory = getManagedWslCliDir({ ...host, isPackaged: false }) ?? ''
-    expect(readFileSync(join(directory, 'orca-dev'), 'utf8')).toContain(process.execPath)
+    expect(readFileSync(join(directory, 'lead-dev'), 'utf8')).toContain(process.execPath)
     const bridge = readFileSync(join(directory, 'orca-wsl-bridge.ps1'), 'utf8')
     expect(bridge.startsWith('\uFEFF')).toBe(true)
     expect(bridge).toContain(host.userDataPath)

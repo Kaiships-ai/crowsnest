@@ -95,7 +95,7 @@ function getScriptBaseName(scriptPath: string): string {
 
 export function getManagedCommand(
   scriptPath: string,
-  options: { neutralJsonWhenMissing?: boolean } = {}
+  options: { neutralJsonWhenMissing?: boolean; hooksDir?: string } = {}
 ): string {
   return wrapRuntimeHomeHookCommand(getScriptBaseName(scriptPath), options)
 }
@@ -112,10 +112,14 @@ export function getManagedEventHook(
 }
 
 // Claude adds the full PostCompact command to the model's context after compaction.
-export function getRemoteManagedEventCommand(eventName: string, scriptPath: string): string {
+export function getRemoteManagedEventCommand(
+  eventName: string,
+  scriptPath: string,
+  hooksDir?: string
+): string {
   return eventName === 'PostCompact'
-    ? wrapRuntimeHomePosixHookCommand(getScriptBaseName(scriptPath))
-    : getRemoteManagedCommand(scriptPath)
+    ? wrapRuntimeHomePosixHookCommand(getScriptBaseName(scriptPath), hooksDir)
+    : getRemoteManagedCommand(scriptPath, hooksDir)
 }
 
 export function getManagedLifecycleHook(
@@ -164,7 +168,7 @@ export function getWindowsManagedLifecycleHook(scriptPath: string): HookCommandC
 
 function getWindowsPowerShellLifecycleCommand(scriptPath: string): string {
   const scriptFileName = win32.basename(scriptPath)
-  const quotedRelativePath = quotePowerShellLiteral(`.orca\\agent-hooks\\${scriptFileName}`)
+  const quotedRelativePath = quotePowerShellLiteral(`.lead-studio\\agent-hooks\\${scriptFileName}`)
   return (
     `$scriptPath = Join-Path $env:USERPROFILE ${quotedRelativePath}; ` +
     'if (Test-Path -LiteralPath $scriptPath -PathType Leaf) { & $scriptPath; exit $LASTEXITCODE }; ' +
@@ -208,8 +212,8 @@ export function findManagedEventHookForms(
   return { missing, matchedForms }
 }
 
-export function getRemoteManagedCommand(scriptPath: string): string {
-  return getManagedCommand(scriptPath, { neutralJsonWhenMissing: true })
+export function getRemoteManagedCommand(scriptPath: string, hooksDir?: string): string {
+  return getManagedCommand(scriptPath, { neutralJsonWhenMissing: true, hooksDir })
 }
 
 export function applyManagedHooks(

@@ -87,7 +87,7 @@ function harness(options: {
     getMessageWaiters: (handle) => options.waiters?.get(handle),
     resolveStructuredTarget: (mailboxHandle) =>
       mailboxHandle === mailbox ? { sessionId: IDENTITY.sessionId, dispatchId } : null,
-    getCliCommand: () => 'orca-dev',
+    getCliCommand: () => 'lead-dev',
     senderName: (party) => (party.address === 'term_coord' ? 'Coordinator' : null),
     host: {
       readSessionFacts: async () => (attached ? { submissions } : null),
@@ -639,7 +639,7 @@ describe('a mailbox a /clear moves while its nudge is in flight', () => {
       getDb: () => db as never,
       getMessageWaiters: () => undefined,
       resolveStructuredTarget: () => ({ sessionId: target, dispatchId: 'd1' }),
-      getCliCommand: () => 'orca-dev',
+      getCliCommand: () => 'lead-dev',
       senderName: () => null,
       host: {
         readSessionFacts: async () => ({ submissions: [] }),

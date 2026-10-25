@@ -102,7 +102,7 @@ export async function handleLegacyCheck(args: {
               authority: formattingAuthority,
               supportedActionHints: readOnly
                 ? []
-                : supportedLegacyHints(message, principal, params.compatibilityCliCommand ?? 'orca')
+                : supportedLegacyHints(message, principal, params.compatibilityCliCommand ?? 'lead')
             })
           )
           .join('\n\n')

@@ -45,11 +45,11 @@ afterEach(() => {
 })
 
 const configPath = (): string => join(home, '.config', 'muse', 'settings.json')
-const managedHooksPath = (): string => join(home, '.orca', 'agent-hooks', 'muse-hooks.json')
+const managedHooksPath = (): string => join(home, '.lead-studio', 'agent-hooks', 'muse-hooks.json')
 const scriptPath = (): string =>
   join(
     home,
-    '.orca',
+    '.lead-studio',
     'agent-hooks',
     process.platform === 'win32' ? 'muse-hook.cmd' : 'muse-hook.sh'
   )
@@ -128,8 +128,8 @@ describe('MuseHookService', () => {
 
   it('treats malformed managed hook entries as absent instead of throwing', () => {
     mkdirSync(join(home, '.config', 'muse'), { recursive: true })
-    mkdirSync(join(home, '.orca', 'agent-hooks'), { recursive: true })
-    const managedPath = join(home, '.orca', 'agent-hooks', 'muse-hooks.json')
+    mkdirSync(join(home, '.lead-studio', 'agent-hooks'), { recursive: true })
+    const managedPath = join(home, '.lead-studio', 'agent-hooks', 'muse-hooks.json')
     writeFileSync(configPath(), JSON.stringify({ schema_version: 1 }))
     const service = new MuseHookService()
     expect(service.install().state).toBe('installed')

@@ -128,7 +128,7 @@ describe('managed hook script refresh', () => {
     homedirMock.mockReturnValue(home)
     try {
       // Simulate a prior install whose CLI and provider config directory are now absent.
-      const hooksDir = join(home, '.orca', 'agent-hooks')
+      const hooksDir = join(home, '.lead-studio', 'agent-hooks')
       mkdirSync(hooksDir, { recursive: true })
       writeFileSync(join(hooksDir, 'claude-hook.cmd'), STALE_WINDOWS_HOOK)
 
@@ -160,14 +160,14 @@ describe('managed hook script refresh', () => {
           await install()
         }
       })
-      const hooksDir = join(home, '.orca', 'agent-hooks')
+      const hooksDir = join(home, '.lead-studio', 'agent-hooks')
       const files = readdirSync(hooksDir)
       expect(files.length).toBeGreaterThan(0)
       const refresherAgents = MANAGED_AGENT_HOOK_SCRIPT_REFRESHERS.map(([agent]) => agent)
       for (const file of files) {
         expect(
           refresherAgents.some((agent) => file.startsWith(`${agent}-`)),
-          `${file} is written to ~/.orca/agent-hooks but no refresher owns it`
+          `${file} is written to ~/.lead-studio/agent-hooks but no refresher owns it`
         ).toBe(true)
       }
       for (const agent of refresherAgents) {

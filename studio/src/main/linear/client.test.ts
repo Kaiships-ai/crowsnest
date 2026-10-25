@@ -35,7 +35,7 @@ function writeLegacyLinearFiles(token: string, viewer: Record<string, unknown>):
 }
 
 function writeLegacyLinearToken(token: string | Buffer, viewer: Record<string, unknown>): void {
-  const orcaDir = join(tempHome, '.orca')
+  const orcaDir = join(tempHome, '.lead-studio')
   mkdirSync(orcaDir, { recursive: true })
   writeFileSync(join(orcaDir, 'linear-token.enc'), token)
   writeFileSync(join(orcaDir, 'linear-viewer.json'), JSON.stringify(viewer), {
@@ -46,7 +46,7 @@ function writeLegacyLinearToken(token: string | Buffer, viewer: Record<string, u
 function workspaceTokenPath(workspaceId: string): string {
   return join(
     tempHome,
-    '.orca',
+    '.lead-studio',
     'linear-tokens',
     `${Buffer.from(workspaceId).toString('base64url')}.enc`
   )
@@ -56,7 +56,7 @@ function writeMultiWorkspaceFiles(
   workspaces: { id: string; token: string | Buffer; credentialRevision?: number }[],
   selectedWorkspaceId: string
 ): void {
-  const orcaDir = join(tempHome, '.orca')
+  const orcaDir = join(tempHome, '.lead-studio')
   mkdirSync(join(orcaDir, 'linear-tokens'), { recursive: true })
   writeFileSync(
     join(orcaDir, 'linear-workspaces.json'),
@@ -249,8 +249,8 @@ describe('Linear client workspace storage', () => {
       workspaces: [{ id: 'org-alpha', organizationName: 'Alpha' }]
     })
     expect(status.workspaces?.some((workspace) => workspace.id === 'legacy')).toBe(false)
-    expect(existsSync(join(tempHome, '.orca', 'linear-token.enc'))).toBe(false)
-    expect(readFileSync(join(tempHome, '.orca', 'linear-workspaces.json'), 'utf-8')).toContain(
+    expect(existsSync(join(tempHome, '.lead-studio', 'linear-token.enc'))).toBe(false)
+    expect(readFileSync(join(tempHome, '.lead-studio', 'linear-workspaces.json'), 'utf-8')).toContain(
       'org-alpha'
     )
   })
@@ -277,7 +277,7 @@ describe('Linear client workspace storage', () => {
   })
 
   it('does not pass encrypted safeStorage bytes to the Linear SDK when encryption is unavailable', async () => {
-    const tokenPath = join(tempHome, '.orca', 'linear-token.enc')
+    const tokenPath = join(tempHome, '.lead-studio', 'linear-token.enc')
     writeLegacyLinearToken(Buffer.from([0x76, 0x31, 0x30, 0xff, 0xfe]), {
       displayName: 'Ada',
       email: 'ada@example.com',
@@ -302,7 +302,7 @@ describe('Linear client workspace storage', () => {
   })
 
   it('does not clear the Linear token when safeStorage decryption fails', async () => {
-    const tokenPath = join(tempHome, '.orca', 'linear-token.enc')
+    const tokenPath = join(tempHome, '.lead-studio', 'linear-token.enc')
     writeLegacyLinearToken(Buffer.from([0x76, 0x31, 0x30, 0xff, 0xfe]), {
       displayName: 'Ada',
       email: 'ada@example.com',
@@ -494,7 +494,7 @@ describe('Linear workspace file cross-process visibility', () => {
     })
     const linear = await loadClientModule()
     expect(linear.getClients('legacy')[0]?.apiKey).toBe('token-alpha')
-    const path = join(tempHome, '.orca', 'linear-token.enc')
+    const path = join(tempHome, '.lead-studio', 'linear-token.enc')
     writeFileSync(path, 'token-beta')
     expect(linear.getClients('legacy')[0]?.apiKey).toBe('token-beta')
     rmSync(path)
@@ -508,7 +508,7 @@ describe('Linear workspace file cross-process visibility', () => {
       'ws-alpha'
     )
     // Equal timestamps isolate credential revisions from filesystem clock resolution.
-    utimesSync(join(tempHome, '.orca', 'linear-workspaces.json'), 1, 1)
+    utimesSync(join(tempHome, '.lead-studio', 'linear-workspaces.json'), 1, 1)
     const linear = await loadClientModule()
     const signal = new AbortController().signal
     const captured = linear.getClients('ws-alpha', signal)[0]

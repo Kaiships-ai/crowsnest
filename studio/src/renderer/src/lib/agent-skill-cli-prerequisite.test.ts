@@ -20,7 +20,7 @@ function cliStatus(overrides: Partial<CliInstallStatus> = {}): CliInstallStatus 
   return {
     platform: 'darwin',
     commandName: 'orca',
-    commandPath: '/usr/local/bin/orca',
+    commandPath: '/usr/local/bin/lead',
     pathDirectory: '/usr/local/bin',
     pathConfigured: true,
     launcherPath: '/Applications/Orca.app/Contents/MacOS/orca',

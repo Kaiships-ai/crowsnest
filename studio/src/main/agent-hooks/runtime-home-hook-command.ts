@@ -10,6 +10,9 @@ import {
 } from './windows-powershell-hook-launcher'
 
 const MANAGED_SCRIPT_BASE_NAME = /^[A-Za-z0-9_-]+$/
+const LOCAL_HOOKS_DIR = '.lead-studio'
+// Why: SSH hosts keep Orca's `.orca` layout; only this machine's home moved to `.lead-studio`.
+export const REMOTE_HOOKS_DIR = '.orca'
 const WINDOWS_GIT_BASH_RUNTIME_HOME_UNSAFE = '*\\&*|*\\^*|*\\(*|*\\)*|*\\;*|*,*|*=*|*%*|*\\!*'
 
 function assertManagedScriptBaseName(scriptBaseName: string): void {
@@ -21,9 +24,9 @@ function assertManagedScriptBaseName(scriptBaseName: string): void {
 function buildPosixBranch(
   scriptBaseName: string,
   missingScriptFallback: string,
-  options: { requireHome?: boolean } = {}
+  options: { requireHome?: boolean; hooksDir?: string } = {}
 ): string {
-  const posixScript = `"\${HOME-}/.orca/agent-hooks/${scriptBaseName}.sh"`
+  const posixScript = `"\${HOME-}/${options.hooksDir ?? LOCAL_HOOKS_DIR}/agent-hooks/${scriptBaseName}.sh"`
   const homeGuard = options.requireHome ? '[ -n "${HOME-}" ] && ' : ''
   const parentCapture =
     scriptBaseName === 'claude-hook' || scriptBaseName === 'openclaude-hook'
@@ -32,18 +35,25 @@ function buildPosixBranch(
   return `if ${homeGuard}[ -f ${posixScript} ] && [ -r ${posixScript} ] && [ -x ${posixScript} ]; then ${parentCapture}/bin/sh ${posixScript}; else ${missingScriptFallback}; fi`
 }
 
-export function wrapRuntimeHomePosixHookCommand(scriptBaseName: string): string {
+export function wrapRuntimeHomePosixHookCommand(
+  scriptBaseName: string,
+  hooksDir = LOCAL_HOOKS_DIR
+): string {
   assertManagedScriptBaseName(scriptBaseName)
-  return buildPosixBranch(scriptBaseName, POSIX_HOOK_STDIN_DRAIN_COMMAND, { requireHome: true })
+  return buildPosixBranch(scriptBaseName, POSIX_HOOK_STDIN_DRAIN_COMMAND, {
+    requireHome: true,
+    hooksDir
+  })
 }
 
 export function wrapRuntimeHomeHookCommand(
   scriptBaseName: string,
-  options: { neutralJsonWhenMissing?: boolean } = {}
+  options: { neutralJsonWhenMissing?: boolean; hooksDir?: string } = {}
 ): string {
   assertManagedScriptBaseName(scriptBaseName)
+  const hooksDir = options.hooksDir ?? LOCAL_HOOKS_DIR
   // Grok rejects unresolved bare variables even in untaken platform branches.
-  const windowsScript = `"\${HOME-}/.orca/agent-hooks/${scriptBaseName}.cmd"`
+  const windowsScript = `"\${HOME-}/${hooksDir}/agent-hooks/${scriptBaseName}.cmd"`
   const drain = POSIX_HOOK_STDIN_DRAIN_COMMAND
   const neutralJson = options.neutralJsonWhenMissing ? `printf '{}\\n'` : ''
   // POSIX drains before answering; Windows answers and checks Orca context before reading abandoned stdin.
@@ -57,13 +67,13 @@ export function wrapRuntimeHomeHookCommand(
   const missingScriptFallback = `case "\${OSTYPE-}" in msys*|cygwin*|win32*) ${windowsMissingScriptFallback} ;; *) ${posixMissingScriptFallback} ;; esac`
   const powershell = '"${SYSTEMROOT-}/System32/WindowsPowerShell/v1.0/powershell.exe"'
   const powershellFallback = options.neutralJsonWhenMissing ? "; Write-Output '{}'" : ''
-  const powershellCommand = `$homePath = $env:HOME -replace '^/([A-Za-z])/', '$1:/'; $scriptPath = Join-Path $homePath '.orca\\agent-hooks\\${scriptBaseName}.cmd'; if (Test-Path -LiteralPath $scriptPath -PathType Leaf) { & $scriptPath; exit $LASTEXITCODE }${powershellFallback}; ${WINDOWS_POWERSHELL_HOOK_ENVIRONMENT_GUARD}; [Console]::In.ReadToEnd() | Out-Null; exit 0`
+  const powershellCommand = `$homePath = $env:HOME -replace '^/([A-Za-z])/', '$1:/'; $scriptPath = Join-Path $homePath '${hooksDir}\\agent-hooks\\${scriptBaseName}.cmd'; if (Test-Path -LiteralPath $scriptPath -PathType Leaf) { & $scriptPath; exit $LASTEXITCODE }${powershellFallback}; ${WINDOWS_POWERSHELL_HOOK_ENVIRONMENT_GUARD}; [Console]::In.ReadToEnd() | Out-Null; exit 0`
   const encodedCommand = encodeWindowsPowerShellHookCommand(powershellCommand)
   // Match native launcher switches to preserve AV compatibility across both entry paths.
   const powershellInvocation = `${powershell} ${WINDOWS_POWERSHELL_HOOK_SWITCHES} -EncodedCommand ${encodedCommand}`
   const encodedWindowsBranch = `if [ -f ${powershell} ]; then ${powershellInvocation}; else ${windowsMissingScriptFallback}; fi`
   const windowsBranch = `if [ -f ${windowsScript} ]; then case "\${HOME-}" in ${WINDOWS_GIT_BASH_RUNTIME_HOME_UNSAFE}) ${encodedWindowsBranch} ;; *) ${windowsScript} ;; esac; else ${windowsMissingScriptFallback}; fi`
-  const posixBranch = buildPosixBranch(scriptBaseName, posixMissingScriptFallback)
+  const posixBranch = buildPosixBranch(scriptBaseName, posixMissingScriptFallback, { hooksDir })
   // Shell-owned OSTYPE avoids spawning a process for each platform check.
   return `if [ -z "\${HOME-}" ]; then ${missingScriptFallback}; else case "\${OSTYPE-}" in msys*|cygwin*|win32*) ${windowsBranch} ;; *) ${posixBranch} ;; esac; fi`
 }

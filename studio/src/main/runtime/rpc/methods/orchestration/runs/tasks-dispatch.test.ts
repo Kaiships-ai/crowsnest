@@ -348,7 +348,7 @@ describe('orchestration RPC methods', () => {
 
       expect(send).toHaveBeenCalledWith(
         'term_a',
-        expect.stringContaining('orca-dev orchestration send'),
+        expect.stringContaining('lead-dev orchestration send'),
         expect.objectContaining(dispatchPreambleSendOptions(expect.any(String)))
       )
     })

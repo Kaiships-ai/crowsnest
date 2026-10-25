@@ -78,13 +78,13 @@ export function resolveClaudeAgentTeamsShimBin(
     return bundled
   }
   return (
-    findExecutableOnPath(process.platform === 'win32' ? 'orca-dev.cmd' : 'orca-dev', pathValue) ??
+    findExecutableOnPath(process.platform === 'win32' ? 'lead-dev.cmd' : 'lead-dev', pathValue) ??
     findExecutableOnPath(getOrcaCliCommandNameForPlatform(process.platform), pathValue)
   )
 }
 
 function defaultShimRoot(): string {
-  return join(homedir(), '.orca', 'claude-agent-teams-bin')
+  return join(homedir(), '.lead-studio', 'claude-agent-teams-bin')
 }
 
 function bundledLauncherPath(): string | null {

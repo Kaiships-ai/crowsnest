@@ -183,7 +183,7 @@ describe('a chat agent and a terminal agent see the same text but for how each i
         worktreeId: 'repo::/tmp/wt',
         runtimeCliCommand: runtimeOrchestrationCliCommand()
       })
-      expect(terminalCli).toBe(packaged ? 'orca' : 'orca-dev')
+      expect(terminalCli).toBe(packaged ? 'lead' : 'lead-dev')
 
       for (const mailbox of ['run:run_parity', CHAT_ADDRESS]) {
         expect(await renderChatPointer(mailbox)).toBe(
