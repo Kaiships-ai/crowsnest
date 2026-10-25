@@ -49,6 +49,7 @@ function buildMenuOptions() {
     onZoomReset: vi.fn(),
     onToggleLeftSidebar: vi.fn(),
     onToggleRightSidebar: vi.fn(),
+    onOpenBoard: vi.fn(),
     onToggleAppearance: vi.fn(),
     getAppearanceState: vi.fn(() => ({
       showTasksButton: true,
@@ -469,8 +470,8 @@ describe('registerAppMenu', () => {
     expect(helpLabels).toEqual(
       expect.arrayContaining([
         'Report Crash...',
-        'Getting Started with Orca',
-        'Explore Orca',
+        'Getting Started with Lead Studio',
+        'Explore Lead Studio',
         'Check for Updates...'
       ])
     )
@@ -488,17 +489,17 @@ describe('registerAppMenu', () => {
     expect(helpLabels).toEqual([
       'Report Crash...',
       undefined,
-      'Explore Orca',
-      'Getting Started with Orca'
+      'Explore Lead Studio',
+      'Getting Started with Lead Studio'
     ])
   })
 
-  it('routes Getting Started with Orca through its callback', () => {
+  it('routes Getting Started with Lead Studio through its callback', () => {
     const options = buildMenuOptions()
     registerAppMenu(options)
 
     const setupGuideItem = getSubmenu(getTemplate(), 'Help').find(
-      (entry) => entry.label === 'Getting Started with Orca'
+      (entry) => entry.label === 'Getting Started with Lead Studio'
     )
     expect(setupGuideItem?.accelerator).toBeUndefined()
 
@@ -514,7 +515,7 @@ describe('registerAppMenu', () => {
     registerAppMenu(options)
 
     const featureTourItem = getSubmenu(getTemplate(), 'Help').find(
-      (entry) => entry.label === 'Explore Orca'
+      (entry) => entry.label === 'Explore Lead Studio'
     )
     expect(featureTourItem?.accelerator).toBeUndefined()
 
@@ -567,7 +568,9 @@ describe('registerAppMenu', () => {
     expect(automationsItem?.type).toBe('checkbox')
     expect(automationsItem?.checked).toBe(false)
 
-    const mobileItem = appearanceSubmenu.find((item) => item.label === 'Show Orca Mobile Button')
+    const mobileItem = appearanceSubmenu.find(
+      (item) => item.label === 'Show Lead Studio Mobile Button'
+    )
     expect(mobileItem?.type).toBe('checkbox')
     expect(mobileItem?.checked).toBe(true)
 
@@ -593,7 +596,7 @@ describe('registerAppMenu', () => {
       .find((item) => item.label === 'Show Automations Button')
       ?.click?.({} as never, {} as never, {} as never)
     appearanceSubmenu
-      .find((item) => item.label === 'Show Orca Mobile Button')
+      .find((item) => item.label === 'Show Lead Studio Mobile Button')
       ?.click?.({} as never, {} as never, {} as never)
     appearanceSubmenu
       .find((item) => item.label === 'Show Titlebar App Name')

@@ -1,3 +1,4 @@
+import { openBoardInActiveWorkspace } from '@/lib/open-board-tab'
 import { canShowRightSidebarForView } from '@/lib/right-sidebar-visibility'
 import { showTerminalShortcutCaptureNotification } from '@/lib/terminal-shortcut-capture-notification'
 import { TOGGLE_FLOATING_TERMINAL_EVENT } from '@/lib/floating-terminal'
@@ -148,6 +149,8 @@ export function registerSettingsAndSidebarIpcBridge(unsubs: (() => void)[]): voi
       useAppStore.getState().toggleSidebar()
     })
   )
+
+  unsubs.push(window.api.ui.onOpenBoard(openBoardInActiveWorkspace))
 
   unsubs.push(
     window.api.ui.onToggleRightSidebar(() => {

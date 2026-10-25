@@ -74,6 +74,7 @@ export async function initializeMainProcessI18nAndMenu(): Promise<void> {
     },
     onToggleLeftSidebar: () => state.mainWindow?.webContents.send('ui:toggleLeftSidebar'),
     onToggleRightSidebar: () => state.mainWindow?.webContents.send('ui:toggleRightSidebar'),
+    onOpenBoard: (boardId) => state.mainWindow?.webContents.send('ui:openBoard', boardId),
     onToggleAppearance: (key) => {
       if (key === 'statusBarVisible') {
         // Why: status bar visibility lives in persisted UI state (not settings) and the renderer owns the toggle — forward the event, let it flip + store.

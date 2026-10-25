@@ -1,3 +1,4 @@
+import type { BoardId } from '../../shared/lead-studio-boards'
 import type {
   RuntimeEditorTabReveal,
   RuntimeFileOpenPosition
@@ -89,6 +90,7 @@ export type UiCommandEventApi = {
   onOpenCrashReport: (callback: () => void) => () => void
   onToggleLeftSidebar: (callback: () => void) => () => void
   onToggleRightSidebar: (callback: () => void) => () => void
+  onOpenBoard: (callback: (boardId: BoardId) => void) => () => void
   onToggleWorktreePalette: (callback: () => void) => () => void
   onToggleFloatingTerminal: (callback: () => void) => () => void
   onTerminalShortcutCaptured: (

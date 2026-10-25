@@ -78,6 +78,10 @@ export function isMobileFileDiffSource(
 }
 
 export function isMobilePublishableOpenFile(file: AppState['openFiles'][number]): boolean {
+  // A board tab has no file a phone could read.
+  if (file.mode === 'board') {
+    return false
+  }
   // Combined diff tabs use display labels as paths and need the desktop renderer.
   if (
     file.diffSource === 'combined-all' ||

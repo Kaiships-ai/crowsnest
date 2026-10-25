@@ -6,10 +6,13 @@ import {
   type KeybindingOverrides
 } from '../../shared/keybindings'
 import type { UpdateCheckOptions } from '../../shared/update-status-types'
+import type { BoardId } from '../../shared/lead-studio-boards'
 import { translateMain } from '../i18n/main-i18n'
 import { createAppMenuSelectionItem, resolveNativeEditTarget } from './app-menu-selection-item'
 import { createAppMenuQuitItem } from './app-menu-quit-item'
 import { createAppWindowMenu } from './app-menu-window'
+import { createCheckForUpdatesItem } from './app-menu-check-for-updates-item'
+import { createLeadStudioMenu } from './app-menu-lead-studio'
 
 export type AppearanceMenuState = {
   showTasksButton: boolean
@@ -37,6 +40,7 @@ type RegisterAppMenuOptions = {
   onZoomReset: () => void
   onToggleLeftSidebar: () => void
   onToggleRightSidebar: () => void
+  onOpenBoard: (boardId: BoardId) => void
   onToggleAppearance: (key: AppearanceMenuKey) => void
   getAppearanceState: () => AppearanceMenuState
   getKeybindings?: () => KeybindingOverrides | undefined
@@ -58,6 +62,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     onZoomReset,
     onToggleLeftSidebar,
     onToggleRightSidebar,
+    onOpenBoard,
     onToggleAppearance,
     getAppearanceState,
     getKeybindings
@@ -90,28 +95,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     webContents.reload()
   }
 
-  // Share modifier-click release-channel routing across platform-specific update menu locations.
-  const checkForUpdatesClick: Electron.MenuItemConstructorOptions['click'] = (
-    _menuItem,
-    _window,
-    event
-  ) => {
-    const modifierClick = !event.triggeredByAccelerator
-    const localBuild = isMac && modifierClick && event.altKey === true
-    const includePerfPrerelease =
-      !localBuild && modifierClick && (isMac ? event.metaKey === true : event.ctrlKey === true)
-    const includePrerelease = !localBuild && modifierClick && event.shiftKey === true
-    onCheckForUpdates({
-      includePrerelease,
-      includePerfPrerelease,
-      ...(localBuild ? { localBuild: true } : {})
-    })
-  }
-
-  const checkForUpdatesItem: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.checkForUpdates', 'Check for Updates...'),
-    click: checkForUpdatesClick
-  }
+  const checkForUpdatesItem = createCheckForUpdatesItem(onCheckForUpdates, isMac)
 
   const settingsBindings = getEffectiveKeybindingsForAction(
     'app.settings',
@@ -127,12 +111,12 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
   }
 
   const featureTourItem: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.exploreOrca', 'Explore Orca'),
+    label: translateMain('menu.exploreOrca', 'Explore Lead Studio'),
     click: (_menuItem, window) => onOpenFeatureTour(window)
   }
 
   const setupGuideItem: Electron.MenuItemConstructorOptions = {
-    label: translateMain('menu.gettingStarted', 'Getting Started with Orca'),
+    label: translateMain('menu.gettingStarted', 'Getting Started with Lead Studio'),
     click: (_menuItem, window) => onOpenSetupGuide(window)
   }
 
@@ -242,7 +226,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
         click: () => onToggleAppearance('showAutomationsButton')
       },
       {
-        label: translateMain('menu.showMobileButton', 'Show Orca Mobile Button'),
+        label: translateMain('menu.showMobileButton', 'Show Lead Studio Mobile Button'),
         type: 'checkbox',
         checked: appearance.showMobileButton,
         click: () => onToggleAppearance('showMobileButton')
@@ -317,6 +301,7 @@ function buildAndApplyMenu(options: RegisterAppMenuOptions): void {
     ...(isMac ? [] : [fileMenu]),
     editMenu,
     viewMenu,
+    createLeadStudioMenu(onOpenBoard),
     windowMenu,
     helpMenu
   ]

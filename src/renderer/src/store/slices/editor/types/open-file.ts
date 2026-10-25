@@ -1,3 +1,4 @@
+import type { BoardId } from '../../../../../../shared/lead-studio-boards'
 import type { RecentlyClosedTabPosition } from '../../recently-closed-tabs'
 import type { EditorFileOperationProvenance } from '@/lib/editor-file-operation-owner'
 import type {
@@ -91,7 +92,9 @@ export type OpenFile = {
   csvPreviewOnly?: boolean
   /** Why: explicit live tail, only meaningful for a read-only local log. */
   liveTail?: boolean
-  mode: 'edit' | 'diff' | 'conflict-review' | 'markdown-preview' | 'check-details'
+  /** Set only on `mode: 'board'` tabs: which Lead Studio board the tab shows. */
+  boardId?: BoardId
+  mode: 'edit' | 'diff' | 'conflict-review' | 'markdown-preview' | 'check-details' | 'board'
 }
 
 export type ActivityBarPosition = 'top' | 'side'

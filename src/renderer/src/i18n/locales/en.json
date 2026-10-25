@@ -513,8 +513,8 @@
   "menu": {
     "checkForUpdates": "Check for Updates...",
     "settings": "Settings",
-    "exploreOrca": "Explore Orca",
-    "gettingStarted": "Getting Started with Orca",
+    "exploreOrca": "Explore Lead Studio",
+    "gettingStarted": "Getting Started with Lead Studio",
     "reportCrash": "Report Crash...",
     "file": "File",
     "exit": "Exit",
@@ -526,7 +526,7 @@
     "showStatusBar": "Show Status Bar",
     "showTasksButton": "Show Tasks Button",
     "showAutomationsButton": "Show Automations Button",
-    "showMobileButton": "Show Orca Mobile Button",
+    "showMobileButton": "Show Lead Studio Mobile Button",
     "showTitlebarAppName": "Show Titlebar App Name",
     "view": "View",
     "reload": "Reload",
@@ -542,12 +542,12 @@
     "selectAll": "Select All"
   },
   "tray": {
-    "openOrca": "Open Orca",
+    "openOrca": "Open Lead Studio",
     "quit": "Quit",
     "minimizeNotice": {
-      "body": "Orca is still running in the system tray"
+      "body": "Lead Studio is still running in the system tray"
     },
-    "activityWaiting": "Orca - activity waiting",
+    "activityWaiting": "Lead Studio - activity waiting",
     "activityWaitingSuffix": "activity waiting"
   },
   "worktreeJumpPalette": {
@@ -633,7 +633,7 @@
       "df1d56bf87": "The workspace shell hit an error.",
       "9e0b441a91": "Toggle right sidebar",
       "e81217c1b7": "Hide App Name",
-      "5096cbbc86": "Orca",
+      "5096cbbc86": "Lead Studio",
       "8b0b8eb54f": "Application menu",
       "caea5b51b9": "Restart now",
       "0a9e810705": "Changes won't be saved until restart. Your previous tabs are safe on disk.",
@@ -21195,5 +21195,17 @@
     "restartLocal": "Restart local daemon",
     "killAllLocal": "Kill all local sessions",
     "killFailed": "The terminal could not be ended. Last-observed sessions are retained."
+  },
+  "boards": {
+    "retry": "Retry",
+    "refresh": "Refresh",
+    "leadStudio": "Lead Studio",
+    "channels": {
+      "column": "Channel",
+      "followers": "Followers",
+      "medianViews": "Median views",
+      "outliers30d": "Outliers 30d",
+      "empty": "No tracked channels yet."
+    }
   }
 }

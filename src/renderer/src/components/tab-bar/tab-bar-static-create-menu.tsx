@@ -1,7 +1,14 @@
 import React from 'react'
-import { FilePlus, FileText, Globe, Smartphone, TerminalSquare } from 'lucide-react'
+import { FilePlus, FileText, Globe, LayoutGrid, Smartphone, TerminalSquare } from 'lucide-react'
 import { translate } from '@/i18n/i18n'
-import { DropdownMenuItem, DropdownMenuShortcut } from '@/components/ui/dropdown-menu'
+import {
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut
+} from '@/components/ui/dropdown-menu'
+import { openBoardTab } from '@/lib/open-board-tab'
+import { LEAD_STUDIO_BOARDS } from '../../../../shared/lead-studio-boards'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { MobileEmulatorTabIntroCallout } from '../emulator-pane/MobileEmulatorTabIntroCallout'
 import { ShellIcon } from './shell-icons'
@@ -168,6 +175,26 @@ export function TabBarStaticCreateMenu({
         ) : null}
       </DropdownMenuItem>
     ) : null
+  const boardMenuItems = terminalOnly ? null : (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel className="px-2 py-1 text-[11px] text-muted-foreground">
+        {translate('boards.leadStudio', 'Lead Studio')}
+      </DropdownMenuLabel>
+      {LEAD_STUDIO_BOARDS.map((board) => (
+        <DropdownMenuItem
+          key={board.id}
+          data-testid="new-tab-board"
+          data-board-id={board.id}
+          onSelect={() => openBoardTab(board.id, props.worktreeId, props.groupId)}
+          className="gap-2 rounded-[7px] px-2 py-1.5 text-[12px] leading-5 font-medium"
+        >
+          <LayoutGrid className="size-4 text-muted-foreground" />
+          {board.label}
+        </DropdownMenuItem>
+      ))}
+    </>
+  )
   const mobileEmulatorIntroMenuBlock =
     showMobileEmulatorIntroCallout &&
     !terminalOnly &&
@@ -185,6 +212,7 @@ export function TabBarStaticCreateMenu({
       {defaultTerminalMenuItems}
       {newBrowserMenuItem}
       {newSimulatorMenuItem}
+      {boardMenuItems}
       {mobileEmulatorIntroMenuBlock}
     </>
   ) : (
@@ -194,6 +222,7 @@ export function TabBarStaticCreateMenu({
       {newMarkdownMenuItem}
       {openMarkdownMenuItem}
       {newSimulatorMenuItem}
+      {boardMenuItems}
       {mobileEmulatorIntroMenuBlock}
     </>
   )
