@@ -247,7 +247,7 @@ describe('structured mailbox pointer delivery', () => {
     await flush()
     expect(send).toHaveBeenCalledTimes(1)
     expect(send.mock.calls[0]![0].body.blocks[0]).toMatchObject({
-      text: expect.stringContaining('orca-dev orchestration check')
+      text: expect.stringContaining('lead-dev orchestration check')
     })
     expect(send.mock.calls[0]![0].body.from).toMatchObject({
       kind: 'agent',
