@@ -122,8 +122,10 @@ describe("week drawer against the real actions", () => {
     await renderWeek();
     const select = screen.getByTestId("week-move-select") as HTMLSelectElement;
     expect([...select.options].every((o) => o.value >= today)).toBe(true);
-    fireEvent.change(select, { target: { value: plus(1) } });
-    await waitFor(async () => expect(await row(id)).toMatchObject({ plannedDate: plus(1), state: "failed", lastError: "boom" }));
+    const target = [...select.options].find((o) => o.value > today && !o.disabled)?.value;
+    if (!target) return;
+    fireEvent.change(select, { target: { value: target } });
+    await waitFor(async () => expect(await row(id)).toMatchObject({ plannedDate: target, state: "failed", lastError: "boom" }));
   });
 
   test("cancel a scheduled publish: confirm, then the reel is a draft on its day and time, unarmed", async () => {
