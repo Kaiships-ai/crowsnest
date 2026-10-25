@@ -29,7 +29,7 @@ Every real defect review found in PR-15s, PR-M1, and PR-M2 was a small diff with
 ## Changes to the bundled playbooks
 
 - **In** "Run the owner loop unchanged." apply the tier table. A docs or small change skips the independent review and merges as soon as its gate is green. Only a complex change runs the full owner loop.
-- **In** "Run the owner loop unchanged." an owner runs only the tests related to the files it changed (`pnpm run test:changed`, which runs `vitest run --changed origin/main` at the root). The full suite runs only in CI. Every command runs under node 24; `scripts/heavy.sh` refuses another major.
+- **In** "Run the owner loop unchanged." an owner runs only the tests related to the files it changed (`pnpm run test:changed`, which runs `vitest run --changed origin/main` at the root). CI runs the affected tests on a PR and the full suite nightly. Every command runs under node 24; `scripts/heavy.sh` refuses another major.
 - **In** "Audit on the wake chain." the tick also reads each open PR's state with `gh pr view <n> --json state,mergeCommit`. A merge it sees triggers `retire.sh` for that worktree and starts the next owner, so Kai never has to say a PR merged.
 - **In** "Audit on the wake chain." before the tick replaces a slow or stuck lane, it reads that lane's brief for the cause and fixes the brief first.
 - **In** "Verify each round." label each verdict `full` or `scoped`. A scoped round also reruns the core live lane at the final head.

@@ -65,7 +65,8 @@ must all pass, and the working tree stays clean. `pnpm dev` opens the app.
 - `test` runs every vitest project in `config/vitest.config.ts`; crowsnest's tests are the
   `crowsnest` project (`pnpm test --project crowsnest`).
 
-CI on every PR (`.github/workflows/ci.yml`) runs typecheck, lint, the tests,
+CI on every PR (`.github/workflows/ci.yml`) runs typecheck, lint, the tests the change can
+affect (`vitest --changed`, four shards, none for a docs-only change),
 `scripts/testid-audit.sh`, `scripts/skill-lint.sh` (validates every `.claude/skills` skill:
 name matches folder, closed frontmatter, a description, sane `disable-model-invocation`, no
 duplicate names), `scripts/check-migrations.mjs`, `scripts/check-doc-paths.mjs`, and
@@ -93,7 +94,7 @@ broken again needs a check, not more words.
 | Every command runs under node 24 (Orca's native modules fail under 22, the Mac's default) | `scripts/heavy.sh` exits with the PATH fix when `node` is another major |
 | No Orca style rewrite of crowsnest code (the first pre-commit hook run reformatted the verify scripts) | `.oxfmtrc.json` `ignorePatterns` |
 | A PR that changes `src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
-| Local test runs cover only what changed; the full suite runs in CI (a full Orca run took 23 min for a 2-file fix) | `pnpm run test:changed` (`vitest run --changed origin/main`); tiers in `.agents/playbooks/lead-studio-v1.md` |
+| Test runs cover only what changed (a full Orca run took 23 min locally and about 90 min on one CI runner) | Locally `pnpm run test:changed` (`vitest run --changed origin/main`). On a PR, `ci.yml` runs `--changed` in four shards and no tests for a docs-only change; the full suite runs nightly. Tiers in `.agents/playbooks/lead-studio-v1.md` |
 | A verify run never changes the installed Orca.app's hooks (PR-M1 overwrote `~/.claude/settings.json`) | `app-down.sh` fails with `app: HOST CHANGED` |
 
 # Workspace code (from Orca)

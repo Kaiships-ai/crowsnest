@@ -230,15 +230,15 @@ describe('profile-state candidate cutover soak', () => {
     }
 
     const beforeOffline = readAgentHookSettingsFromProfileState(profile.location)
-    const offlineUpdate = updateAgentHookSettingsInProfileState(profile.location, false)
+    const offlineUpdate = updateAgentHookSettingsInProfileState(profile.location, true)
     expect(offlineUpdate.settingsPath).toBe(profile.options.databaseFile)
     expect(readAgentHookSettingsFromProfileState(profile.location).agentStatusHooksEnabled).toBe(
-      false
+      true
     )
 
     const afterOffline = reopen(profile)
     const persisted = exportJson(afterOffline.store)
-    expect(afterOffline.store.getSettings().agentStatusHooksEnabled).toBe(false)
+    expect(afterOffline.store.getSettings().agentStatusHooksEnabled).toBe(true)
     expect(afterOffline.store.getSettings().opencodeSessionCookie).toBe('fixture-secret')
     expect(afterOffline.store.getWorkspaceSession('ssh:build-host').activeTabId).toBe('tab-remote')
     expect(afterOffline.store.getFolderWorkspace(folderWorkspace.id)).toMatchObject({
@@ -260,7 +260,7 @@ describe('profile-state candidate cutover soak', () => {
       bytes: 'x'.repeat(96 * 1024),
       nullable: null
     })
-    expect(beforeOffline.agentStatusHooksEnabled).toBe(true)
+    expect(beforeOffline.agentStatusHooksEnabled).toBe(false)
     expect(existsSync(profile.options.dataFile)).toBe(false)
     expect(canonicalProfileStateJson(persisted)).not.toBe(canonicalProfileStateJson(initial))
     afterOffline.store.freezeWrites()

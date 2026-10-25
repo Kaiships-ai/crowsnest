@@ -1,11 +1,16 @@
 name: ci
 
+# A PR runs only the tests its change can affect (vitest --changed, by module graph), split in
+# four shards, and none for a docs-only change. The full suite runs nightly and on demand: a
+# full run on one runner took about 90 minutes.
 on:
   workflow_dispatch:
   pull_request:
   push:
     branches:
       - main
+  schedule:
+    - cron: '0 19 * * *'
 
 permissions:
   contents: read
@@ -15,8 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  checks:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,9 +44,6 @@ jobs:
       - name: Lint
         run: pnpm run lint
 
-      - name: Test
-        run: pnpm test
-
       - name: Testid audit
         run: bash scripts/testid-audit.sh
 
@@ -58,3 +61,51 @@ jobs:
         run: |
           node --test scripts/check-verify-coverage.test.mjs
           node scripts/check-verify-coverage.mjs origin/${{ github.base_ref }}
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Pick the tests
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          case "$EVENT" in
+            pull_request) since="origin/$BASE" ;;
+            push) since="$BEFORE" ;;
+            *) echo "args=" >> "$GITHUB_OUTPUT"; exit 0 ;;
+          esac
+          code="$(git diff --name-only "$since"...HEAD | grep -vE '\.md$|^documents/|^docs/|^\.claude/|^\.agents/|^mkdocs\.yml$' || true)"
+          if [ -z "$code" ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "args=--changed $since" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: pnpm/action-setup@v4
+        if: steps.scope.outputs.skip != '1'
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.skip != '1'
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        if: steps.scope.outputs.skip != '1'
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        if: steps.scope.outputs.skip != '1'
+        run: pnpm test --shard=${{ matrix.shard }}/4 --passWithNoTests ${{ steps.scope.outputs.args }}
