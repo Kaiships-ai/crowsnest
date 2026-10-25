@@ -31,7 +31,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 1. With Orca.app open, run `npm run studio` from a clean worktree.
 2. Type `echo hi` in the terminal, split the pane, open a browser tab.
-3. Pass: the terminal prints `hi`, Orca.app keeps its own window, profile and CLI socket, and `~/.orca` is unchanged: `find ~/.orca -newer <stamp>` lists nothing, where `<stamp>` is a file touched just before `npm run studio`.
+3. Pass: the terminal prints `hi`, Orca.app keeps its own window, profile and CLI socket, and `~/.orca` is unchanged: `find ~/.orca -newer <stamp>` lists nothing, where `<stamp>` is a file touched just before `npm run studio`. With a fresh profile, `~/.claude/settings.json` is also unchanged, since agent status hooks default to off.
 
 ### Cold start
 

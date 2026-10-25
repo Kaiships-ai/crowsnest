@@ -23,7 +23,7 @@ The app keeps its state in its own user data dir, `~/Library/Application Support
 
 - Orca code changes only in `studio/`. `git subtree pull --prefix studio --squash` brings upstream changes, so edits there stay small and named.
 - The root toolchain (npm, eslint, tsc, vitest, `scripts/check-doc-paths.mjs`) skips `studio/`. `studio/` has its own pnpm install and tests.
-- Agent config files that are not Orca's own, such as `~/.claude/settings.json`, are shared with Orca.app. Both apps write a managed hook entry there and each install replaces the other's entry, since the matcher keys on the script name, not its folder. Each entry runs its own app's script, and the script posts to the hook endpoint in the terminal's env, so a hook from either app still reaches the app that owns the terminal.
+- Lead Studio leaves agent config files alone, such as `~/.claude/settings.json` and `~/.codex/hooks.json`. Agent status hooks default to off (`agentStatusHooksEnabled: false` in `studio/src/shared/default-global-settings.ts`), so startup neither installs nor removes managed hook entries there. With hooks on, its entry would replace Orca.app's, because the matcher in `studio/src/main/agent-hooks/installer-utils.ts` keys on the script name, not its folder. A backlog issue tracks an entry that coexists with Orca.app's; until then, keep hooks off.
 - Remote and WSL hosts keep Orca's `~/.orca` layout and the `orca` command there.
 
 ## Invariants
