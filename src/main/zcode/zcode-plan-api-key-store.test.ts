@@ -36,7 +36,7 @@ vi.mock('../../shared/secure-file', () => ({
   writeSecureFile: writeSecureFileMock
 }))
 
-const storePath = '/home/test/.orca/zcode-plan-api-key.enc'
+const storePath = '/home/test/.lead-studio/zcode-plan-api-key.enc'
 const envelope = (kind: 'encrypted' | 'plaintext', value: string): string =>
   `orca-zcode-plan-api-key:v1:${kind}:${Buffer.from(value, 'utf8').toString('base64')}`
 

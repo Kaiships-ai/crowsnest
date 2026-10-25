@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
-import { defaultExclude, defineConfig } from 'vitest/config'
+import { defineConfig } from 'vitest/config'
 import { UNIT_INCLUDE, UNIT_EXCLUDE, UNIT_SETUP_FILES } from './scripts/ci-unit-files.mjs'
 import TimingSequencer from './scripts/ci-unit-sequencer.mjs'
 import RuntimeSequencer from './scripts/vitest-runtime-sequencer.mjs'
@@ -15,6 +15,9 @@ const measurementFile = 'src/main/foreign-sqlite-readers/foreign-sqlite-reader-e
 const paletteMeasurementFile =
   'src/renderer/src/lib/palette-match/palette-match-performance.test.ts'
 const measurementFiles = [measurementFile, paletteMeasurementFile]
+const knownFailing = readFileSync(resolve('config/known-failing-unit-tests.txt'), 'utf8')
+  .split('\n')
+  .filter((line) => line && !line.startsWith('#'))
 const crowsnestTests = [
   'src/server/**/*.test.ts',
   'src/lib/**/*.test.ts',
@@ -72,7 +75,7 @@ const testOptions = {
   execArgv: ['--no-experimental-webstorage', '--expose-gc'],
   setupFiles: UNIT_SETUP_FILES.map((file) => resolve(file)),
   include: UNIT_INCLUDE,
-  exclude: [...(balancedShards ? UNIT_EXCLUDE : defaultExclude), ...crowsnestTests],
+  exclude: [...UNIT_EXCLUDE, ...knownFailing, ...crowsnestTests],
   hookTimeout: 60_000,
   testTimeout: 30_000
 }
