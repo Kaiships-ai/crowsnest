@@ -1200,12 +1200,8 @@ async function clearCursor(channelId: string): Promise<void> {
     .where(eq(tables.channels.id, channelId));
 }
 
-// ---------------------------------------------------------------- channel pull
-
 type ThumbResult = { assetId: string | null; failed: boolean };
 
-/** One channel's pull: the profile and every media item its walk fetched, plus the
- *  thumbnails downloaded along the way, keyed by URL. */
 interface ChannelPull {
   profile: IgProfile;
   avatarAssetId: string | null;
@@ -1213,7 +1209,6 @@ interface ChannelPull {
   thumbs: Map<string, ThumbResult>;
 }
 
-/** Which of these posts the DB already holds, for the incremental walk's stop. */
 async function knownExternalIds(externalIds: string[]): Promise<Set<string>> {
   if (externalIds.length === 0) return new Set();
   const rows = await db
@@ -1223,11 +1218,6 @@ async function knownExternalIds(externalIds: string[]): Promise<Set<string>> {
   return new Set(rows.map((r) => r.externalId));
 }
 
-/**
- * The one writer of a channel's current numbers: its profile row, its posts, their
- * children and snapshots. Takes a complete pull only, so a walk cut short cannot move a
- * number the boards show. Returns the external ids it stored, for the soft-delete.
- */
 async function storeChannelPull(
   channel: ChannelRow,
   pull: CompletePull<ChannelPull>,
@@ -1424,14 +1414,10 @@ async function syncOneChannel(
       })
     );
 
-  // On resume the walk starts from the saved cursor, not page 1.
   let cursor: string | undefined = resumed ? saved?.syncCursor ?? undefined : undefined;
-  // The `nextCursor` of the last page fetched, i.e. where a capped run would continue.
   let pageNextCursor: string | null = null;
   let stopReason: StopReason | null = null;
 
-  /** Profile and every media page, with nothing written but asset downloads. A call
-   *  failing after a page landed makes the pull partial; one failing before makes it failed. */
   const walk = async (): Promise<PullResult<ChannelPull, unknown>> => {
     const items: IgMedia[] = [];
     const thumbs = new Map<string, ThumbResult>();
@@ -1651,9 +1637,6 @@ async function syncOneChannel(
   }
 }
 
-/** Records a channel's failure on its row and shapes the gap the job row carries. `missing`
- *  is set when the pull was partial: pages landed, then one call did not, and none of it
- *  was stored. */
 async function channelGap(channel: ChannelRow, err: unknown, runId: string, missing: string | null): Promise<SyncGap> {
   const code = errorCode(err);
   const message = errorMessage(err);
@@ -1866,9 +1849,8 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     const stopReason: StopReason | null = cancelObserved ? "cancelled" : lastStopReason;
     // 'partial' has to mean partial. A run where every channel failed used to record
     // 'partial' too, so the UI reported partial success for a total failure — the one
-    // status a user must be able to trust. Partial now requires a survivor.
-    // A channel whose pull was cut short after a page landed is partial, not failed, even
-    // though none of it was stored: the gap says what never came back.
+    // status a user must be able to trust. Partial now requires a survivor, or a channel
+    // whose pull was cut after a page landed: it stored nothing, but the gap says what is missing.
     const everythingFailed = gaps.length > 0 && channelsSynced === 0 && !gaps.some((g) => g.partial);
     const status: SyncJobStatus = everythingFailed ? "failed" : gaps.length > 0 || cancelLeftWorkUndone ? "partial" : "success";
     await tracker.flush({ phase: "finalizing", currentChannelHandle: null });

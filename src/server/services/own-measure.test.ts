@@ -39,6 +39,7 @@ function insights(o: Partial<GraphPostInsights> = {}): GraphPostInsights {
 const complete = <T>(rows: T) => ({ kind: "complete" as const, rows });
 const failed = (reason: GraphApiError) => ({ kind: "failed" as const, reason });
 const refused = (message: string) => failed(new GraphApiError("GRAPH_UNKNOWN", message));
+const insightsFailed = (error: GraphApiError, endsRun: boolean) => ({ kind: "failed" as const, reason: { error, endsRun } });
 
 /** A mocked client call that spends n Graph calls, as the real transport would count them. */
 function spend<T>(n: number, value: T) {
@@ -89,7 +90,7 @@ describe("measureOwnChannel, scope all", () => {
   test("a run with no successful insights call keeps a remembered permission refusal", async () => {
     expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true, postsMeasured: 0 });
     graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
-    graphClient.fetchPostInsights.mockImplementation(spend(2, refused("HTTP 400: nope")));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, insightsFailed(new GraphApiError("GRAPH_UNKNOWN", "HTTP 400: nope"), false)));
     expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true, postsMeasured: 0 });
     expect(rememberTokenStatus).not.toHaveBeenCalled();
   });
@@ -114,7 +115,7 @@ describe("measureOwnChannel, scope all", () => {
 
   test("a per-post insights error is stored on the row and counted failed", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
-    graphClient.fetchPostInsights.mockImplementation(spend(2, refused("HTTP 500")));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, insightsFailed(new GraphApiError("GRAPH_UNKNOWN", "HTTP 500"), false)));
     const r = await svc.measureOwnChannel({ scope: "all" });
     expect(r).toMatchObject({ ok: true, postsFailed: 1, postsMeasured: 0 });
     const [row] = await db.select().from(tables.ownPostInsights);
@@ -302,7 +303,7 @@ describe("measureOwnChannel, scope due", () => {
 
   test("a rate limit on a reel's last call stores that partial capture as failed and stops the run", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("a"), media("b")]));
-    graphClient.fetchPostInsights.mockImplementationOnce(spend(2, { kind: "partial", rows: insights({ bioLinkTaps: null }), missing: "bio link taps", reason: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
+    graphClient.fetchPostInsights.mockImplementationOnce(spend(2, { kind: "partial", rows: insights({ bioLinkTaps: null }), missing: "bio link taps", reason: { error: new GraphApiError("GRAPH_RATE_LIMITED", "slow down"), endsRun: true } }));
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 0, postsFailed: 1, callsUsed: 4 });
     expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(1);
@@ -344,7 +345,7 @@ describe("measureOwnChannel, scope due", () => {
 
   test("a per-post insights error does not bump own_posts.last_measured_at", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("a")]));
-    graphClient.fetchPostInsights.mockImplementation(spend(2, refused("HTTP 400: nope")));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, insightsFailed(new GraphApiError("GRAPH_UNKNOWN", "HTTP 400: nope"), false)));
     await svc.measureOwnChannel({ scope: "due", now: NOW });
     const [post] = await db.select().from(tables.ownPosts);
     expect(post.lastMeasuredAt).toBeNull();
@@ -378,7 +379,7 @@ describe("measureOwnChannel, scope due", () => {
     graphClient.fetchMedia.mockImplementation(spend(1, ["a", "b", "c"].map((id) => media(id))));
     graphClient.fetchPostInsights
       .mockImplementationOnce(spend(2, complete(insights())))
-      .mockImplementationOnce(spend(2, failed(new GraphApiError("GRAPH_PERMISSION_DENIED", "HTTP 403"))));
+      .mockImplementationOnce(spend(2, insightsFailed(new GraphApiError("GRAPH_PERMISSION_DENIED", "HTTP 403"), true)));
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(r).toMatchObject({ ok: false, code: "GRAPH_PERMISSION_DENIED" });
     expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(2);
@@ -411,7 +412,7 @@ describe("comments", () => {
 
   test("comments skipped by a rate limit say so, not that the budget was spent", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("a", { commentsCount: 1 })]));
-    graphClient.fetchPostInsights.mockImplementation(spend(2, { kind: "partial", rows: insights(), missing: "bio link taps", reason: new GraphApiError("GRAPH_RATE_LIMITED", "slow down") }));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, { kind: "partial", rows: insights(), missing: "bio link taps", reason: { error: new GraphApiError("GRAPH_RATE_LIMITED", "slow down"), endsRun: true } }));
     await svc.measureOwnChannel({ scope: "all", now: NOW });
     const skip = (await db.select().from(tables.appSettings)).find((s) => s.key === "own_comments_fetch_error")?.value;
     expect(skip).toMatch(/rate limit/i);

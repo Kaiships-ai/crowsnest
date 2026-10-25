@@ -1088,7 +1088,6 @@ describe("runSync — live progress", () => {
     expect(midRun).not.toBeNull();
     const snapshot = midRun as unknown as typeof tables.syncJobs.$inferSelect;
     expect(snapshot.itemsSeen).toBe(2);
-    // Nothing is stored until the channel's pull is complete.
     expect(snapshot.itemsCreated).toBe(0);
     expect(snapshot.phase).toBe("fetching");
     expect(snapshot.currentChannelHandle).toBe("@progress");
@@ -1479,7 +1478,6 @@ describe("runSync — co-operative cancel", () => {
     expect(job.stopReason).toBe("cancelled");
     expect(job.finishedAt).not.toBeNull();
 
-    // The walk was cut, so page 1 is not stored either, and nothing was buried.
     const rows = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
     expect(rows.map((r) => r.externalId)).toEqual(["survivor"]);
     expect(rows.every((r) => r.deletedAt === null)).toBe(true);

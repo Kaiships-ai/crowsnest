@@ -117,13 +117,20 @@ export interface GraphTokenStatus {
   checkedAt: string;
 }
 
+/** Why a post's insights pull did not complete, and whether every other post would fail
+ *  the same way (auth, rate limit, or a token without the insights grant). */
+export interface InsightsFailure {
+  error: GraphApiError;
+  endsRun: boolean;
+}
+
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
   fetchMedia(limit?: number): Promise<GraphMedia[]>;
   /** One post's insights. Partial when a reel's metrics landed and its profile_activity
    *  call was then stopped. A reason that is auth, rate limit or a token-wide permission
    *  refusal must end the run. Calls are counted by the transport (graphCallLedger). */
-  fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, GraphApiError>>;
+  fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, InsightsFailure>>;
   fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
   /** Comments for the given media (the run's own media list), one call per post with
    *  comments. Partial when any post's call failed after another landed; `missing` lists
@@ -549,13 +556,13 @@ export const graphClient: GraphClient = {
     return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
   },
 
-  async fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, GraphApiError>> {
+  async fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, InsightsFailure>> {
     const { token } = requireConfigured();
     const path = `${media.externalId}/insights`;
     const isReel = media.productType === "REELS";
     let r = await graphGet<unknown>(path, { metric: isReel ? REEL_EXTENDED_METRICS : FEED_EXTENDED_METRICS }, token);
     let stop = fatalOf(r);
-    if (stop) return { kind: "failed", reason: stop };
+    if (stop) return { kind: "failed", reason: { error: stop, endsRun: true } };
     if (!r.ok) {
       // One unsupported metric name fails the whole call; retry once with the set that
       // worked before the rework, so the post keeps its core numbers. Logged with Graph's
@@ -565,17 +572,14 @@ export const graphClient: GraphClient = {
       // The core set refused for a missing scope too: the token lacks the insights grant, so
       // every other post would fail the same way. A refused extended set alone is not fatal.
       stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" && tokenWidePermission(r.message) ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
-      if (stop) return { kind: "failed", reason: stop };
+      if (stop) return { kind: "failed", reason: { error: stop, endsRun: true } };
     }
-    // Still refused but not token-wide: this post's own refusal ("not enough viewers"), so
-    // it never carries GRAPH_PERMISSION_DENIED, which callers read as the run's stop.
-    if (!r.ok) return { kind: "failed", reason: new GraphApiError(r.kind === "permission" ? "GRAPH_INVALID_REQUEST" : errorCodeFor(r.kind), r.message) };
+    if (!r.ok) return { kind: "failed", reason: { error: errorOf(r), endsRun: false } };
     const insights = mapInsights(r.data, isReel);
     if (!isReel) return { kind: "complete", rows: insights };
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
     stop = fatalOf(activity);
-    if (stop) return { kind: "partial", rows: insights, missing: "bio link taps", reason: stop };
-    // A refused profile_activity is Instagram's answer for this reel, not a cut pull.
+    if (stop) return { kind: "partial", rows: insights, missing: "bio link taps", reason: { error: stop, endsRun: true } };
     insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
     return { kind: "complete", rows: insights };
   },

@@ -214,7 +214,7 @@ describe("graphClient.fetchPostInsights", () => {
   test("a rate limit returns a stop so the run can end", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_RATE_LIMITED" }, endsRun: true } });
     expect(calls()).toBe(1);
   });
 
@@ -223,7 +223,7 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
       .mockResolvedValueOnce({ ok: false, status: 429, json: async () => ({ error: { code: 4 } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "partial", rows: { views: 10, reach: 8, bioLinkTaps: null }, missing: "bio link taps", reason: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "partial", rows: { views: 10, reach: 8, bioLinkTaps: null }, missing: "bio link taps", reason: { error: { code: "GRAPH_RATE_LIMITED" }, endsRun: true } });
     expect(calls()).toBe(2);
   });
 
@@ -232,7 +232,7 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100 } }) })
       .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 190 } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_AUTH_FAILED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_AUTH_FAILED" }, endsRun: true } });
     expect(calls()).toBe(2);
   });
 
@@ -266,7 +266,7 @@ describe("graphClient.fetchPostInsights", () => {
       .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) })
       .mockResolvedValueOnce({ ok: false, status: 403, json: async () => ({ error: { ...error, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_PERMISSION_DENIED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_PERMISSION_DENIED" }, endsRun: true } });
     expect(calls()).toBe(2);
   });
 
@@ -275,28 +275,28 @@ describe("graphClient.fetchPostInsights", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(notEnough).mockResolvedValueOnce(notEnough));
     const { graphClient } = await loadClient();
     const out = await graphClient.fetchPostInsights(REEL);
-    expect(out).toMatchObject({ kind: "failed", reason: { code: "GRAPH_INVALID_REQUEST" } });
+    expect(out).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_PERMISSION_DENIED" }, endsRun: false } });
     expect(calls()).toBe(2);
-    expect(out.kind === "failed" && out.reason.message).toContain("Not enough viewers");
+    expect(out.kind === "failed" && out.reason.error.message).toContain("Not enough viewers");
   });
 
   test("Meta's real envelope: a rate limit (code 4, type OAuthException) is rate_limited, not auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 4, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_RATE_LIMITED" }, endsRun: true } });
   });
 
   test("an IG business use case throttle (HTTP 400, code 80002) stops the run as rate_limited", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 80002, type: "OAuthException", is_transient: true } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_RATE_LIMITED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_RATE_LIMITED" }, endsRun: true } });
     expect(calls()).toBe(1);
   });
 
   test("a dead token (code 190) still ends the run as auth", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: { code: 190, type: "OAuthException" } }) }));
     const { graphClient } = await loadClient();
-    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { code: "GRAPH_AUTH_FAILED" } });
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "failed", reason: { error: { code: "GRAPH_AUTH_FAILED" }, endsRun: true } });
   });
 
   test("a non-reel asks for follows and profile visits in one call", async () => {
