@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphBreakdownRow, type GraphComment, type GraphMedia, type GraphPostInsights, type InsightsFailure } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, GRAPH_CALLS_PER_HOUR, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphBreakdownRow, type GraphComment, type GraphMedia, type GraphPostInsights, type InsightsFailure } from "@/server/graph/client";
 import type { CompletePull, PullResult } from "@/server/lib/pull-result";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { rememberTokenStatus } from "@/server/graph/token-status";
@@ -24,8 +24,7 @@ import { newestCaptureByPost, OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_E
 export const OWN_MEASURE_CALL_BUDGET = 150;
 /** Measure now: close to the 200-an-hour Graph limit. The rate-limit stop is the real guard. */
 export const OWN_MEASURE_MANUAL_CALL_BUDGET = 190;
-/** Instagram's per-account Graph limit, and the calls kept free under it for anything else. */
-const GRAPH_CALLS_PER_HOUR = 200;
+/** Calls kept free under Instagram's hourly limit for anything else. */
 const GRAPH_CALL_HEADROOM = 10;
 
 export type MeasureScope = "all" | "due";
@@ -245,7 +244,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   const start = ledger.total;
   const used = () => ledger.total - start;
   const runBudget = opts.budget ?? (opts.scope === "all" ? OWN_MEASURE_MANUAL_CALL_BUDGET : OWN_MEASURE_CALL_BUDGET);
-  const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - graphCallsInLastHour(now.getTime()) - GRAPH_CALL_HEADROOM);
+  const budget = Math.min(runBudget, GRAPH_CALLS_PER_HOUR - graphCallsInLastHour(now) - GRAPH_CALL_HEADROOM);
   const limitedByRecentCalls = budget < runBudget;
   // Account and media plus one post, before any Graph call: below that the run could only
   // write a snapshot and spend calls the hour no longer has.
@@ -399,9 +398,10 @@ function shared(): OwnMeasureState {
   return (g.__crowsnestOwnMeasure ??= {});
 }
 
-export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number }): Promise<MeasureResult> {
+/** A due run finding another run in flight returns MEASURE_BUSY unless `wait` is set. */
+export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number; wait?: true }): Promise<MeasureResult> {
   const state = shared();
-  if (state.inFlight && opts.scope === "due") return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
+  if (state.inFlight && opts.scope === "due" && !opts.wait) return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
   while (state.inFlight) await state.inFlight.catch(() => undefined);
   const now = opts.now ?? new Date();
   const run = runMeasure({ ...opts, now });

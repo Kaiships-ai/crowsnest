@@ -246,6 +246,13 @@
       "when": 1792966824288,
       "tag": "0034_sealed_secrets",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1792970353484,
+      "tag": "0035_pull_schedule",
+      "breakpoints": true
     }
   ]
 }

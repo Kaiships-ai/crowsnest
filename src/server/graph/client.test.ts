@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 /**
@@ -706,9 +709,36 @@ describe("shared Graph call ledger", () => {
     await pollReelContainer("c1", { sleep: async () => {} });
     expect(graphCallLedger().total).toBe(3);
     expect(graphCallsInLastHour()).toBe(3);
+    expect(graphCallsInLastHour(new Date(Date.now() + 3_600_001))).toBe(0);
     // A second copy of the module (tsx scheduler vs the Next bundle) reads the same ledger.
     vi.resetModules();
     expect((await import("./client")).graphCallLedger().total).toBe(3);
-    expect(graphCallsInLastHour(Date.now() + 3_600_001)).toBe(0);
+  });
+
+  test("a restart mid-hour keeps the hour's count: 199 calls before, the 200th goes out, the 201st is refused", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "graph-budget-"));
+    process.env.CROWSNEST_DB_PATH = join(dir, "crowsnest.db");
+    process.env.IG_GRAPH_TOKEN = "tok_secret";
+    process.env.IG_GRAPH_USER_ID = "17841400000000000";
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ id: "1", username: "k" }) }));
+    vi.stubGlobal("fetch", fetchMock);
+    const boot = async () => {
+      vi.resetModules();
+      delete (globalThis as { __crowsnestOwnMeasure?: unknown }).__crowsnestOwnMeasure;
+      (await import("@/server/db/test-migrate")).migrate();
+      return import("./client");
+    };
+    try {
+      const before = await boot();
+      for (let i = 0; i < 199; i++) await before.graphClient.checkToken();
+      const after = await boot();
+      expect(after.graphCallsInLastHour()).toBe(199);
+      expect((await after.graphClient.checkToken()).state).toBe("ok");
+      expect(await after.graphClient.checkToken()).toMatchObject({ state: "rate_limited" });
+      expect(fetchMock).toHaveBeenCalledTimes(200);
+      expect(after.graphCallsInLastHour()).toBe(200);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

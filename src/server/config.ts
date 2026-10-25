@@ -102,6 +102,11 @@ const schema = z.object({
   IG_GRAPH_TOKEN: z.string().optional(),
   IG_GRAPH_USER_ID: z.string().optional(),
   IG_GRAPH_API_VERSION: z.string().min(1).optional().default("v21.0"),
+  // A verify lane points Graph at a local fake so it never reaches Instagram.
+  IG_GRAPH_HOST: z.url().optional().default("https://graph.instagram.com"),
+  // Starts the app clock at this instant and lets it run, so a lane can cross 05:00
+  // without changing the Mac's clock. Unset in normal use.
+  LEAD_STUDIO_CLOCK_START: z.iso.datetime({ offset: true, local: true }).optional(),
 });
 
 export type Config = z.infer<typeof schema>;

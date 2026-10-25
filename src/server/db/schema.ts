@@ -923,3 +923,32 @@ export const planVersions = sqliteTable(
     uniqueIndex("plan_versions_single_live").on(t.period, t.periodKey).where(sql`${t.status} = 'live'`),
   ],
 );
+
+/** One row per call made to a rate-limited outside source, so the hourly limit survives a
+ *  restart. Rows older than an hour are pruned on each spend. */
+export const sourceCalls = sqliteTable(
+  "source_calls",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    source: text("source").notNull(),
+    calledAt: integer("called_at").notNull(),
+  },
+  (t) => [index("source_calls_source_at").on(t.source, t.calledAt)],
+);
+
+export const DAILY_PULL_OUTCOMES = ["complete", "partial", "failed", "skipped"] as const;
+
+/** One row per connector per daily pull slot (the local date of its 05:00). The row is
+ *  claimed before the pull starts, so a slot never runs twice, even after a crash. */
+export const dailyPulls = sqliteTable(
+  "daily_pulls",
+  {
+    slot: text("slot").notNull(),
+    connectorId: text("connector_id").notNull(),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    outcome: text("outcome", { enum: DAILY_PULL_OUTCOMES }),
+    detail: text("detail"),
+  },
+  (t) => [primaryKey({ columns: [t.slot, t.connectorId] })],
+);
