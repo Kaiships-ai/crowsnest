@@ -1,6 +1,6 @@
 import { config } from "../config";
 import { log } from "../lib/logger";
-import { getOrCreateServiceToken } from "../secrets/store";
+import { getOrCreateServiceToken } from "../connectors/ig-sidecar/service-token";
 import { fromEnvelope, IgError } from "./errors";
 
 /**

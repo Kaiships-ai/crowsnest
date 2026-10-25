@@ -38,7 +38,7 @@ afterAll(() => vi.unstubAllGlobals());
 beforeEach(async () => {
   failureStrip.mode = "real";
   migrate();
-  for (const t of [tables.ownPosts, tables.plannedPosts, tables.syncJobs, tables.videos, tables.channels, tables.secrets]) await db.delete(t);
+  for (const t of [tables.ownPosts, tables.plannedPosts, tables.syncJobs, tables.videos, tables.channels, tables.secrets, tables.sealedSecrets]) await db.delete(t);
   const now = new Date().toISOString();
   await db.insert(tables.channels).values({ id: "ch-1", platform: "instagram", handle: "@bridge_fixture", trackedSince: now, isOwn: true });
   await db.insert(tables.videos).values({ id: "v-1", channelId: "ch-1", platform: "instagram", externalId: "x1", url: "https://instagram.com/p/x1", postedAt: now, firstSeenAt: now });
@@ -89,6 +89,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getRun: ["job-1"],
   getLastRunHealth: [],
   getSecretStatusAction: [],
+  listConnectors: [],
   listNotificationsAction: [],
 };
 

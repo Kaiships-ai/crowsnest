@@ -744,9 +744,19 @@ export const ownAccountBreakdowns = sqliteTable("own_account_breakdowns", {
   timeframe: text("timeframe"),
 }, (t) => [index("own_account_breakdowns_metric_captured").on(t.metric, t.capturedAt)]);
 
+/** Legacy plaintext secrets. Nothing writes here any more; `migrateSecretsToKeychain`
+ *  drains each row into `sealed_secrets` on boot. */
 export const secrets = sqliteTable("secrets", {
   name: text("name").primaryKey(),
   value: text("value").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+/** Secrets sealed by the OS keychain through Orca's `SecretStore` (Electron safeStorage):
+ *  base64 ciphertext that only this user's Keychain key opens. Never plaintext. */
+export const sealedSecrets = sqliteTable("sealed_secrets", {
+  name: text("name").primaryKey(),
+  sealed: text("sealed").notNull(),
   updatedAt: text("updated_at").notNull(),
 });
 
@@ -845,8 +855,8 @@ export const contentArtifacts = sqliteTable(
  * Isolation is the point: a 429 or ban on one account sets only that account's
  * `cooldownUntil` and never touches another's, and the sync planner (services/accounts.ts)
  * skips a cooled-down account while letting its siblings run. The password is NOT stored
- * here; it lives in the secrets table keyed `IG_PASSWORD::<accountId>`, the same plaintext
- * -local, never-returned-to-the-browser handling as every other secret.
+ * here; it lives in sealed_secrets keyed `IG_PASSWORD::<accountId>`, sealed by the
+ * keychain and never returned to the renderer, like every other secret.
  *
  * `port` and `sessionPath` are the hooks for running an isolated sidecar per account. They
  * are optional and unset on a single-account install; wiring N live sidecars to them, and

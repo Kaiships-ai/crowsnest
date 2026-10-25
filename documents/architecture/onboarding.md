@@ -7,13 +7,13 @@ Onboarding takes an empty install to a tracked channel and a first sync underway
 Onboarding owns no table of its own; schemas are in `src/server/db/schema.ts`.
 
 - `app_settings`: `first_run_completed` (the flag the gate reads), `niche_profile` and `niche_keywords` (read by `services/remix.ts`).
-- `secrets`: `name`, `value`, `updated_at`, holding the seven `MANAGED_SECRETS` (`IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD`, `IG_SESSIONID`, `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`, `GROQ_API_KEY`). A db value wins over the env var of the same name. Plaintext in sqlite, never returned to a client or logged.
+- The seven managed secrets (`IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD`, `IG_SESSIONID`, `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`, `GROQ_API_KEY`), declared by the connector manifests and sealed by the Keychain ([connectors](connectors.md)). A stored value wins over the env var of the same name. Never returned to a client or logged.
 - `channels` rows, written through the shared `addChannelAction`, and a `sync_jobs` row from the first sync. Both belong to ig-sync.
 - `.env.local`, the only artifact the two halves share. `kai kit init` writes it at mode `0600` (it can hold the Instagram password).
 
 ## Boundaries
 
-- Owns: the first run gate (`src/server/queries/first-run-gate.ts`), `cmdKitInit` and the shared prompt helpers in `src/kai-cli/kai.ts`, and the secrets store.
+- Owns: the first run gate (`src/server/queries/first-run-gate.ts`), `cmdKitInit` and the shared prompt helpers in `src/kai-cli/kai.ts`. The secrets themselves belong to [connectors](connectors.md).
 - Called by: the packaged launchd job. No screen calls the gate or the login actions while the Lead Studio boards are not built.
 - Calls: the Instagram sidecar (owned by ig-sync) for login and the first sync, always through server actions another part owns (`igLoginAction`, `igLoginWithCredentialsAction`, `saveNicheSettingsAction`, `addChannelAction`, `startSyncAction`, `updateAppSettingsAction`). Instagram is never reached directly.
 
@@ -33,5 +33,5 @@ Onboarding owns no table of its own; schemas are in `src/server/db/schema.ts`.
 
 - `src/server/queries/first-run-gate.ts` (the gate)
 - `src/kai-cli/kai.ts` (`cmdKitInit`, `ask`, `readSecretLine`, `checkPairedIgCreds`)
-- `src/server/actions/ig-actions.ts` (login actions) and `src/server/secrets/store.ts`
+- `src/server/actions/ig-actions.ts` (login actions) and `src/server/actions/secrets-actions.ts`
 - `src/kai-cli/service-darwin.ts` and `src/server/sidecar/control.ts` (credential delivery)

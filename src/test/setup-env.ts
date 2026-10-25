@@ -1,3 +1,5 @@
+import { setSecretStore } from "../shared/secret-store";
+
 /**
  * Global vitest setup (registered via `test.setupFiles` in vitest.config.ts).
  *
@@ -20,6 +22,15 @@
 process.env.CROWSNEST_DB_PATH ??= ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
 process.env.LOG_LEVEL ??= "error"; // quiet info/warn in tests; a test can override to assert a log line
+
+/** A fake keychain: tests never touch the real one. The sealed form reverses the bytes,
+ *  so a stored value never contains the plaintext. */
+setSecretStore({
+  isEncryptionAvailable: () => true,
+  encryptString: (plain) => Buffer.from(plain, "utf8").reverse(),
+  decryptString: (cipher) => Buffer.from(cipher).reverse().toString("utf8"),
+  describeProtectionGap: () => null,
+});
 
 /**
  * jsdom shims, guarded so the ~128 node-environment test files are untouched.

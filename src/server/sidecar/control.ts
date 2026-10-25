@@ -2,7 +2,9 @@ import { spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { log } from "@/server/lib/logger";
-import { getOrCreateServiceToken, getSecret } from "@/server/secrets/store";
+import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
+import { getOrCreateServiceToken } from "@/server/connectors/ig-sidecar/service-token";
+import { readSecret } from "@/server/connectors/secrets";
 
 const PID_FILE = "data/sidecar.pid";
 const SIDECAR_CWD = path.resolve(process.cwd(), "services/ig");
@@ -12,18 +14,17 @@ function ingestUrl(): string {
   return process.env.CROWSNEST_INGEST_URL ?? `http://127.0.0.1:${port}/api/logs/ingest`;
 }
 
-/** Env injected into the sidecar child. A value the store returns wins over .env.local
- *  because the child receives it directly (config.py: an already-present var beats the
- *  file). Only defined values are passed. `IG_PROXY` and `IG_DEVICE_SEED` are not in
- *  MANAGED_SECRETS, so `getSecret` reads them from env only — that's intentional, they
- *  stay dev-machine-only settings rather than something the Settings UI manages. */
+/** Env injected into the sidecar child. A stored secret wins over .env.local because the
+ *  child receives it directly (config.py: an already-present var beats the file). Only
+ *  defined values are passed. `IG_PROXY` and `IG_DEVICE_SEED` are dev-machine settings,
+ *  read from env only. */
 function childEnv(): NodeJS.ProcessEnv {
   const inject: Record<string, string | undefined> = {
     IG_SERVICE_TOKEN: getOrCreateServiceToken(),
-    IG_USERNAME: getSecret("IG_USERNAME"),
-    IG_PASSWORD: getSecret("IG_PASSWORD"),
-    IG_PROXY: getSecret("IG_PROXY"),
-    IG_DEVICE_SEED: getSecret("IG_DEVICE_SEED"),
+    IG_USERNAME: readSecret(igSidecar, "IG_USERNAME"),
+    IG_PASSWORD: readSecret(igSidecar, "IG_PASSWORD"),
+    IG_PROXY: process.env.IG_PROXY,
+    IG_DEVICE_SEED: process.env.IG_DEVICE_SEED,
     CROWSNEST_INGEST_URL: ingestUrl(),
   };
   const env: NodeJS.ProcessEnv = { ...process.env };

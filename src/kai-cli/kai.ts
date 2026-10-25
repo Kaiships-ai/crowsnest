@@ -49,7 +49,7 @@ const isMain = typeof require !== "undefined" && require.main === module;
 
 // `kai` can be invoked from any cwd (packaging/build-bundle.sh's launcher execs tsx
 // without a `cd` first). tsx resolves `@/`-aliased imports (service-darwin.ts's
-// services() reaches `@/server/secrets/store` -> `@/server/db`, loaded lazily inside
+// services() reaches `@/server/connectors/secrets` -> `@/server/db`, loaded lazily inside
 // igEnv()) against a project root it locates once, before this file's own top-level
 // code runs at all -- confirmed by direct experiment: even `process.chdir(REPO)` as the
 // very first statement of a throwaway entry script, before any import, does not change

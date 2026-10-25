@@ -17,7 +17,7 @@ The schema is `src/server/db/schema.ts`. Tables by purpose:
 | Agent output | `content_artifacts`, `reel_funnel` (append-only funnel snapshots per reel keyword) |
 | Accounts | `ig_accounts` |
 | Jobs and observability | `sync_jobs`, `log_events`, `notifications` |
-| Configuration | `app_settings`, `secrets` |
+| Configuration | `app_settings`, `sealed_secrets`, `secrets` (legacy, drained on boot) |
 
 The pipeline is a chain of separate rows linked by id: a video becomes the source of a remix session, the session produces a script, the script is carried by a planned post. Deleting a later row never deletes an earlier one.
 
@@ -29,7 +29,7 @@ Files outside the database:
 
 ## Boundaries
 
-- Owns: `src/server/db/` (schema, bootstrap, migrate), `drizzle/` (generated migrations), `src/server/settings/`, `src/server/secrets/`, `scripts/backup-db.ts`.
+- Owns: `src/server/db/` (schema, bootstrap, migrate), `drizzle/` (generated migrations), `src/server/settings/`, `scripts/backup-db.ts`. Secrets belong to [connectors](connectors.md).
 - Called by: every server action, query, service, scheduler and MCP tool. Pages read through `src/server/queries/`; writes go through `src/server/actions/` and `src/server/services/`.
 - Calls: nothing off-box. Persistence never depends on an external service.
 
@@ -47,7 +47,7 @@ Files outside the database:
 - **Own-channel data is a separate table set.** Own posts never appear in the outlier feed or scoring, structurally rather than by a filter someone must remember.
 - **Own median reach has its own function.** `src/server/services/own-metrics.ts` computes reach medians; it must not reuse the view-count median in `outlier-calc.ts`, because reach and views are different quantities.
 - **A sync lock lives in the database.** `sync_jobs_lock_running` is a partial unique index on `lock_key` where status is running, so a second process cannot start an overlapping run. A crashed run's stale lock is reaped by heartbeat (see [jobs-and-failures](jobs-and-failures.md)).
-- **Secrets are plaintext in the local database and never returned to a client.** `secretStatus()` reports configured and source only (`src/server/secrets/store.ts`). The Instagram password for a non-default account is stored as `IG_PASSWORD::<accountId>`.
+- **No secret is plaintext in the database.** `sealed_secrets` holds Keychain ciphertext and the boot migration drains the legacy `secrets` table ([connectors](connectors.md)). The Instagram password for a non-default account is keyed `IG_PASSWORD::<accountId>`.
 - **Settings precedence is database, then environment, then default.** An invalid stored value is treated as absent, never thrown (`src/server/settings/index.ts`).
 - **The platform column is plain text.** `channels.platform` and `videos.platform` allow another source later without a migration; only Instagram is ingested.
 - **A "video" is any tracked post.** The `videos` table also holds photos and carousels; `mediaType` says which, and a carousel is one row plus rows in `video_children`.
@@ -109,5 +109,5 @@ On an installed Kit the same files sit in the state directory (`~/.kai/state`, s
 
 - `src/server/db/schema.ts`, `src/server/db/index.ts`, `src/server/db/migrate.ts`
 - `scripts/backup-db.ts`, `scripts/check-migrations.mjs`, `drizzle/`
-- `src/server/settings/index.ts`, `src/server/secrets/store.ts`
+- `src/server/settings/index.ts`
 - `src/server/services/accounts.ts`

@@ -16,6 +16,7 @@ boundaries, and its invariants.
 | Data, persistence, multi-account, recovery | [data](architecture/data.md) |
 | Background jobs and failure surfaces | [jobs-and-failures](architecture/jobs-and-failures.md) |
 | External services | [external-services](architecture/external-services.md) |
+| Connectors and keychain secrets | [connectors](architecture/connectors.md) |
 | Vocabulary | [glossary](architecture/glossary.md) |
 | kit | [kit](architecture/kit.md) |
 | onboarding | [onboarding](architecture/onboarding.md) |
