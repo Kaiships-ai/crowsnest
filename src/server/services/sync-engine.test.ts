@@ -1088,7 +1088,8 @@ describe("runSync — live progress", () => {
     expect(midRun).not.toBeNull();
     const snapshot = midRun as unknown as typeof tables.syncJobs.$inferSelect;
     expect(snapshot.itemsSeen).toBe(2);
-    expect(snapshot.itemsCreated).toBe(2);
+    // Nothing is stored until the channel's pull is complete.
+    expect(snapshot.itemsCreated).toBe(0);
     expect(snapshot.phase).toBe("fetching");
     expect(snapshot.currentChannelHandle).toBe("@progress");
     expect(snapshot.channelsTotal).toBe(1);
@@ -1100,6 +1101,7 @@ describe("runSync — live progress", () => {
     expect(job.channelsTotal).toBe(1);
     expect(job.phase).toBe("finalizing");
     expect(job.itemsSeen).toBe(3);
+    expect(job.itemsCreated).toBe(3);
   });
 
   test("counters accumulate across channels rather than resetting per channel", async () => {
@@ -1430,7 +1432,7 @@ describe("runSync — retry", () => {
 });
 
 describe("runSync — co-operative cancel", () => {
-  test("cancel observed MID-walk keeps committed work and does NOT soft-delete", async () => {
+  test("cancel observed MID-walk stores nothing from the cut walk and does NOT soft-delete", async () => {
     const { db, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { runSync, requestCancel } = await import("./sync-engine");
@@ -1477,9 +1479,9 @@ describe("runSync — co-operative cancel", () => {
     expect(job.stopReason).toBe("cancelled");
     expect(job.finishedAt).not.toBeNull();
 
-    // Page 1's work is committed, page 3 was never fetched, and nothing was buried.
+    // The walk was cut, so page 1 is not stored either, and nothing was buried.
     const rows = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
-    expect(rows.map((r) => r.externalId).sort()).toEqual(["cx1", "cx2", "survivor"]);
+    expect(rows.map((r) => r.externalId)).toEqual(["survivor"]);
     expect(rows.every((r) => r.deletedAt === null)).toBe(true);
   });
 
@@ -1892,6 +1894,56 @@ describe("runSync — stale-lock safety (audit F3)", () => {
     expect(still.status).toBe("running");
 
     await db.delete(tables.syncJobs).where(eq(tables.syncJobs.id, quietId));
+  });
+});
+
+describe("runSync — a partial pull is never stored as success (B1-07)", () => {
+  test("a walk cut on page 2 moves no board number and marks the job partial", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { getChannelsList } = await import("../queries/channels");
+    const { IgError } = await import("../ig/errors");
+    migrate();
+    const { channelId } = await setupChannel("@cut-mid-walk");
+
+    await runSync({
+      channelIds: [channelId],
+      client: stubClient({ pages: [{ items: ["a", "b", "c", "d", "e"].map((id, i) => makeMedia(`cut-${id}`, i + 1, { viewCount: (i + 1) * 1_000 })), nextCursor: null, stopReason: "lookback" }] }).client,
+      sleep: noopSleep,
+    });
+    const boardNumbers = async () => {
+      const row = (await getChannelsList()).find((c) => c.id === channelId);
+      return { followerCount: row?.followerCount, medianViews: row?.medianViews, outliers30d: row?.outliers30d };
+    };
+    const before = await boardNumbers();
+    expect(before.medianViews).not.toBeNull();
+    const videosBefore = await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId));
+    const snapshotsBefore = await db.select().from(tables.videoSnapshots);
+
+    const { client: base } = stubClient({
+      profile: makeProfile("@cut-mid-walk", { followerCount: 999_999 }),
+      pages: [{ items: [makeMedia("cut-a", 1, { viewCount: 5_000_000 }), makeMedia("cut-new", 0)], nextCursor: "cursor-2", stopReason: null }],
+    });
+    let call = 0;
+    const client = {
+      ...base,
+      async medias(input: { handle: string; sinceIso: string; maxItems: number; cursor?: string }) {
+        call += 1;
+        if (call === 2) throw new IgError("IG_NOT_FOUND", "page 2 vanished");
+        return base.medias(input);
+      },
+    } as unknown as IgClient;
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(call).toBe(2);
+    expect(await boardNumbers()).toEqual(before);
+    expect(await db.select().from(tables.videos).where(eq(tables.videos.channelId, channelId))).toEqual(videosBefore);
+    expect(await db.select().from(tables.videoSnapshots)).toEqual(snapshotsBefore);
+
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+    expect(job.gaps).toEqual([expect.objectContaining({ channelId, error: "page 2 vanished", partial: true })]);
   });
 });
 

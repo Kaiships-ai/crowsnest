@@ -71,6 +71,11 @@ export interface SyncGap {
    * honest; a guessed one is exactly the fabrication the brief forbids.
    */
   retryAfterSec?: number;
+  /** Set when the channel's pull was partial: some media pages landed, then a call failed.
+   *  None of it was stored (see `PullResult` in src/server/lib/pull-result.ts). */
+  partial?: true;
+  /** What the partial pull never fetched. Present only with `partial`. */
+  missing?: string;
 }
 
 /** Everything the progress UI renders, in one poll. */
