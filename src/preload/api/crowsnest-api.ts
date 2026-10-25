@@ -7,7 +7,6 @@ import type {
 
 export type { EngineCallName, EngineResult }
 
-/** Derived from `ENGINE_CALLS` in src/server/bridge/engine-calls.ts; add a call there, never here. */
 export type CrowsnestApi = {
   call: <N extends EngineCallName>(
     name: N,

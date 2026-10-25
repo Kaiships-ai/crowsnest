@@ -73,7 +73,6 @@ interface EngineCall<S extends z.ZodType<unknown[]>, R> {
   invoke: (raw: unknown) => Promise<EngineResult<Awaited<R>>>;
 }
 
-/** Ties the schema to the function: a tuple whose output the function cannot take is a compile error. */
 function call<S extends z.ZodType<unknown[]>, R>(args: S, run: (...args: NoInfer<z.output<S>>) => R): EngineCall<S, R> {
   const invoke = async (raw: unknown): Promise<EngineResult<Awaited<R>>> => {
     const parsed = args.safeParse(raw ?? []);
@@ -111,13 +110,6 @@ const feedFilters = z.object({
   analyzed: z.enum(["yes", "no"]).optional(),
 });
 
-/**
- * Every engine function the renderer can call, keyed by its export name. The preload bridge and the
- * renderer client type derive from this object, so a new call is one line here.
- *
- * Not here on purpose: anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) waits
- * for gate 2, and plan approve and undo wait for the approver in W3.
- */
 export const ENGINE_CALLS = {
   getDashboardStats: call(none, getDashboardStats),
   getStackHealth: call(none, getStackHealth),
@@ -240,7 +232,6 @@ function isEngineCallName(name: unknown): name is EngineCallName {
   return typeof name === "string" && Object.hasOwn(ENGINE_CALLS, name);
 }
 
-/** The bridge's one entry: an unknown name or arguments that fail the tuple never reach the engine. */
 export async function dispatchEngineCall(name: unknown, args: unknown): Promise<EngineResult<unknown>> {
   if (!isEngineCallName(name)) return { ok: false, error: { code: "unknown_call", message: `no engine call named ${String(name)}` } };
   return ENGINE_CALLS[name].invoke(args);

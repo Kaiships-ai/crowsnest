@@ -4,9 +4,8 @@ import type { dispatchEngineCall, EngineResult } from '../../server/bridge/engin
 
 type EngineDispatch = typeof dispatchEngineCall
 
-/** Registered before the engine has migrated and started, so an early call waits for it instead of hitting "No handler registered". */
-export function registerEngineIpc(engine: Promise<EngineDispatch>): void {
-  engine.catch(() => {})
+export function registerEngineIpc(engineStarting: Promise<EngineDispatch>): void {
+  engineStarting.catch(() => {})
   ipcMain.handle(
     'crowsnest:call',
     async (event, name: unknown, args: unknown): Promise<EngineResult<unknown>> => {
@@ -19,7 +18,7 @@ export function registerEngineIpc(engine: Promise<EngineDispatch>): void {
           }
         }
       }
-      const dispatch = await engine.catch(() => null)
+      const dispatch = await engineStarting.catch(() => null)
       if (!dispatch) {
         return {
           ok: false,

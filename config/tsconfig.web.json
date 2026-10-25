@@ -13,10 +13,12 @@
     "jsx": "react-jsx",
     "paths": {
       "@renderer/*": ["../src/renderer/src/*"],
-      // Why: window.api.crowsnest derives its types from the engine with
-      // type-only imports, so the engine's own @/server and @/lib imports must resolve here too.
       "@/server/*": ["../src/server/*"],
-      "@/lib/*": ["../src/renderer/src/lib/*", "../src/lib/*"],
+      "@/lib/format": ["../src/lib/format"],
+      "@/lib/outlier-constants": ["../src/lib/outlier-constants"],
+      "@/lib/publish-attempts": ["../src/lib/publish-attempts"],
+      "@/lib/run-enrichment": ["../src/lib/run-enrichment"],
+      "@/lib/script-title": ["../src/lib/script-title"],
       "@/*": ["../src/renderer/src/*"]
     }
   }

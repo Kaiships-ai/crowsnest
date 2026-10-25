@@ -68,6 +68,24 @@ describe("dispatchEngineCall", () => {
     expect(res).toEqual({ ok: false, error: { code: "failed", message: "Graph said no to access_token=[redacted]" } });
   });
 
+  test("exposes no call that writes outside the Mac or skips the plan approver", () => {
+    const gated = [
+      "publishNowAction",
+      "schedulePublishAction",
+      "cancelScheduledPublishAction",
+      "retryFailedPublishAction",
+      "markPlanPublishedAction",
+      "approvePlanVersionAction",
+      "undoPlanVersionAction",
+      "igLoginAction",
+      "igLoginWithCredentialsAction",
+      "igLoginBySessionAction",
+      "startSidecarAction",
+      "stopSidecarAction",
+    ];
+    expect(gated.filter((n) => Object.hasOwn(ENGINE_CALLS, n))).toEqual([]);
+  });
+
   test("no read returns a stored secret value", async () => {
     const reads = Object.keys(ENGINE_CALLS).filter((n) => /^(get|list)/.test(n) && n !== "getIgStatusAction");
     const leaks: string[] = [];
