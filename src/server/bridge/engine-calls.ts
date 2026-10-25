@@ -4,6 +4,7 @@ import { getSecret, MANAGED_SECRETS } from "@/server/secrets/store";
 import { errorMessage } from "@/server/lib/action-result";
 import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
 import { getFunnel } from "@/server/services/funnel";
+import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
   getChannelDetail,
   getChannelMedianHistory,
@@ -149,6 +150,7 @@ export const ENGINE_CALLS = {
   getOwnReels: call(none, () => getOwnReels()),
   getReelViewHistory: call(none, getReelViewHistory),
   getFunnel: call(z.tuple([z.string().max(64).optional()]), getFunnel),
+  getMetricLedger: call(none, () => METRIC_LEDGER),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),
