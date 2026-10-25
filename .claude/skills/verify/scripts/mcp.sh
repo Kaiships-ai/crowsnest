@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# mcp.sh [--app] <tool | tools/list> [json-args] -- one JSON-RPC call against the verify
-# instance's MCP at /api/mcp (local-host requests only, no token). --app targets the Lead
-# Studio app that app-up.sh launched. Prints the server's SSE reply.
+# mcp.sh [--app] <tool | tools/list> [json-args] -- one JSON-RPC call against the MCP of the
+# Lead Studio app that app-up.sh launched (local-host requests only, no token). --app is
+# accepted and changes nothing. Prints the server's SSE reply.
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
-if [ "${1:-}" = --app ]; then
-  shift
-  PORT="$(cat data/verify/app/mcp.port 2>/dev/null)" || { echo "mcp: no app running (data/verify/app/mcp.port)" >&2; exit 1; }
-else
-  PORT="$(cat data/verify/server.port 2>/dev/null || echo 3001)"
-fi
+[ "${1:-}" = --app ] && shift
+PORT="$(cat data/verify/app/mcp.port 2>/dev/null)" || { echo "mcp: no app running (data/verify/app/mcp.port)" >&2; exit 1; }
 T="${1:?usage: mcp.sh [--app] <tool, e.g. crowsnest_plans | tools/list> [json-args]}"
 if [ "$T" = tools/list ]; then
   BODY='{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
