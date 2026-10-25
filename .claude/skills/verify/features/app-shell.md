@@ -41,4 +41,4 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse studio/out
 - In-app copy still says Orca (sidebar header, empty state, Orca Mobile). Only the window title, dock name and identity are renamed so far.
 - Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
 - Lead Studio writes `~/.lead-studio`, never `~/.orca`. The agent's own settings file, such as `~/.claude/settings.json`, is shared: each app's hook install replaces the other's entry there.
-- The in-terminal CLI is `lead-dev` (and `lead`). The shims live under the `lead-studio` user data dir, so they reach this app, not Orca.app. Orca's bundled agent skill guides still say `orca`.
+- The in-terminal CLI is `lead-dev` (and `lead`). The shims live under the `lead-studio` user data dir, so they reach this app, not Orca.app. Orca's bundled agent skill guides still say `orca`. On zsh with Orca.app's CLI installed, `orca` in a Lead Studio terminal resolves to `/usr/local/bin/orca` first, as it does in upstream Orca dev; use `lead-dev`.
