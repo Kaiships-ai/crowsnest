@@ -3,16 +3,6 @@ import { db } from "@/server/db";
 import { sealedSecrets, secrets } from "@/server/db/schema";
 import { getSecretStore, hasSecretStore } from "../../shared/secret-store";
 
-/**
- * The keychain vault. A value is sealed by Orca's `SecretStore` (Electron safeStorage,
- * whose key lives in the macOS Keychain) and only the ciphertext is stored, in
- * `sealed_secrets`. Read order: sealed value, then a legacy plaintext row the migration
- * has not moved yet, then the env var of the same name (dev machines, tsx scripts).
- *
- * Only `src/server/connectors/secrets.ts` reads and writes through here, keyed by a
- * connector manifest; `connectors/secrets.test.ts` fails on any other importer.
- */
-
 export type SecretSource = "keychain" | "db" | "env" | "none";
 
 function keychain() {
@@ -50,9 +40,6 @@ export function secretSource(name: string): SecretSource {
   return envValue(name) ? "env" : "none";
 }
 
-/** Seals `value`, reads it back, and only then drops any legacy plaintext row, in one
- *  transaction. Throws when the keychain cannot seal or the read-back differs, leaving
- *  every stored row as it was. */
 export function setSecret(name: string, value: string): void {
   const v = value.trim();
   if (!v) throw new Error("secret value is empty");
@@ -85,9 +72,6 @@ export interface SecretMigrationReport {
   failed: { name: string; reason: string }[];
 }
 
-/** Moves every legacy plaintext row into the keychain vault. A row whose seal or
- *  read-back fails stays in place and is reported. Rerunning after a clean pass is a
- *  no-op: the legacy table is empty. */
 export function migrateSecretsToKeychain(): SecretMigrationReport {
   const report: SecretMigrationReport = { moved: [], failed: [] };
   for (const row of db.select().from(secrets).all()) {

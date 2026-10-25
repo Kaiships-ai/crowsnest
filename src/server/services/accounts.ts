@@ -13,9 +13,6 @@ import { deleteSecret, readSecret, writeSecret } from "@/server/connectors/secre
  * documents/architecture/data.md, Multi-account sync). Everything here is additive and back
  * compatible: with a single (default) account, planAccountSync returns one group with every
  * channel, so the existing single-account sync path is byte-for-byte unchanged.
- *
- * A per-account password is never stored on the account row; it is the sidecar connector's
- * `IG_PASSWORD` secret for that account, sealed like every other secret.
  */
 
 export interface IgAccount {
@@ -263,7 +260,6 @@ export function accountChildEnv(account: IgAccount, password: string | undefined
   return env;
 }
 
-/** Read an account's password (for launching its sidecar). */
 export function accountPassword(accountId: string): string | undefined {
   return readSecret(igSidecar, "IG_PASSWORD", accountId);
 }

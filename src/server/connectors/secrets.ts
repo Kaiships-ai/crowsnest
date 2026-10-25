@@ -1,8 +1,6 @@
 import { clearSecret, getSecret, secretSource, setSecret, type SecretSource } from "@/server/secrets/store";
 import type { ConnectorManifest, SecretName } from "./types";
 
-/** The engine's only way to a secret: a connector manifest names every secret it may
- *  read, so a key no manifest declares does not type-check. */
 function key<M extends ConnectorManifest>(manifest: M, name: SecretName<M>, accountId?: string): string {
   const spec = manifest.secrets.find((s) => s.name === name);
   if (!spec) throw new Error(`${manifest.id} declares no secret ${name}`);

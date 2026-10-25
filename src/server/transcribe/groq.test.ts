@@ -1,8 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 
-// `./groq` reads its key through the keychain store, which imports `@/server/db` at
-// module load: CROWSNEST_DB_PATH must be ":memory:" and migrations must run before
-// "./groq" is imported, so the read never touches the real on-disk db.
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];

@@ -17,17 +17,6 @@ export type Service = {
 
 const AGENTS = join(homedir(), "Library", "LaunchAgents");
 
-/**
- * Pins CROWSNEST_DB_PATH to an absolute path under `appRoot` before this process's first
- * import of the connector secrets (which open the sqlite db at import time).
- * `@/server/db`'s own resolution is `process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"`
- * relative to `process.cwd()`, fine for the spawned server (always `cwd: appRoot`, see
- * `services()` below) but not for the `kai` CLI binary itself, which a buyer can invoke
- * from any directory. Without this, `readSecret` below would silently open (or create) the
- * wrong database and this file's whole fix would look like it works while doing nothing.
- * Skips pinning when CROWSNEST_DB_PATH is already ":memory:" or already absolute, so
- * tests (which set ":memory:" before importing this module) are unaffected.
- */
 function pinDbPathEnv(): void {
   const current = process.env.CROWSNEST_DB_PATH;
   if (current === ":memory:" || (current && isAbsolute(current))) return;
@@ -38,19 +27,6 @@ function pinDbPathEnv(): void {
 }
 pinDbPathEnv();
 
-/**
- * A static top-level import of the connector secrets would defeat
- * `pinDbPathEnv()` above: ES module semantics fully evaluate an imported module (and
- * its own imports, including `@/server/db`, which opens the sqlite connection at import
- * time) before *any* of this importing module's top-level code runs, regardless of
- * where the `import` line sits in this file's source. A dynamic `import()` has no such
- * hoisting: calling it inside `igEnv()` below defers loading the secrets store (and
- * opening the db) until `services()` actually runs, well after `pinDbPathEnv()` above
- * has already set `CROWSNEST_DB_PATH`. This is the same reasoning as
- * `src/server/queries/feed.test.ts` and this file's own test: a `require()` was also
- * tried and rejected because vitest's SSR `require()` cannot resolve an extensionless
- * relative `.ts` module the way `import()` can.
- */
 async function sidecarSecrets() {
   const [{ readSecret }, { igSidecar }, { getOrCreateServiceToken }] = await Promise.all([
     import("../server/connectors/secrets"),
@@ -60,16 +36,6 @@ async function sidecarSecrets() {
   return { getOrCreateServiceToken, read: (name: "IG_USERNAME" | "IG_PASSWORD") => readSecret(igSidecar, name) };
 }
 
-/**
- * Env injected into the packaged sidecar's launchd job, the same shape as
- * `src/server/sidecar/control.ts`'s `childEnv()` (the dev/`uv run` launcher), ported to
- * the path a buyer's Kit install actually runs. `IG_PROXY`/`IG_DEVICE_SEED` are
- * dev-machine settings read from env only, same as `childEnv()`. Only defined
- * values are added: a credential never saved through the dashboard is simply absent from
- * this dict, leaving `crowsnest_ig/config.py`'s own `load_env_file()` free to fill it from
- * `.env.local` exactly as it does today for a `kai kit init`-only buyer who never touched
- * the dashboard.
- */
 async function igEnv(): Promise<Record<string, string>> {
   const { getOrCreateServiceToken, read } = await sidecarSecrets();
   const inject: Record<string, string | undefined> = {

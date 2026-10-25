@@ -70,6 +70,12 @@ describe("connector registry", () => {
     expect(JSON.stringify(listConnectors())).not.toContain("graph-sentinel-token");
   });
 
+  test("a connection check that throws comes back as a failed check", async () => {
+    const sample = SAMPLE["./__fixtures__/sample-crm/index.ts"].connector;
+    const throwing = { "./sample-crm/index.ts": { connector: { ...sample, adapter: { testConnection: () => Promise.reject(new Error("ECONNREFUSED")) } } } };
+    expect(await testConnector("sample-crm", buildRegistry(throwing))).toEqual({ ok: false, message: "ECONNREFUSED" });
+  });
+
   test("a manifest-only connector is never called", async () => {
     expect(await testConnector("polar")).toEqual({ ok: false, message: "polar is not connected" });
   });

@@ -14,10 +14,6 @@ function ingestUrl(): string {
   return process.env.CROWSNEST_INGEST_URL ?? `http://127.0.0.1:${port}/api/logs/ingest`;
 }
 
-/** Env injected into the sidecar child. A stored secret wins over .env.local because the
- *  child receives it directly (config.py: an already-present var beats the file). Only
- *  defined values are passed. `IG_PROXY` and `IG_DEVICE_SEED` are dev-machine settings,
- *  read from env only. */
 function childEnv(): NodeJS.ProcessEnv {
   const inject: Record<string, string | undefined> = {
     IG_SERVICE_TOKEN: getOrCreateServiceToken(),

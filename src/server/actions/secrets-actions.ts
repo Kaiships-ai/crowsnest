@@ -20,11 +20,6 @@ function managed(name: string) {
   return managedSecrets().find((m) => m.spec.name === name);
 }
 
-/**
- * Settings panel's "Set"/"Replace" action for any managed secret. The value is write-only
- * end to end: it is sealed by the keychain and this action returns only `{ ok }`, never
- * the value or anything derived from it.
- */
 export async function setSecretAction(name: string, value: string): Promise<SimpleResult> {
   const m = managed(name);
   if (!m) return { ok: false, error: "unknown secret" };
@@ -37,8 +32,6 @@ export async function setSecretAction(name: string, value: string): Promise<Simp
   }
 }
 
-/** Settings panel's "Clear" action. An env-sourced value stays, since the env var itself
- *  is untouched. */
 export async function clearSecretAction(name: string): Promise<SimpleResult> {
   const m = managed(name);
   if (!m) return { ok: false, error: "unknown secret" };
@@ -47,7 +40,6 @@ export async function clearSecretAction(name: string): Promise<SimpleResult> {
   return { ok: true };
 }
 
-/** Configured and source only, never a value. */
 export async function getSecretStatusAction(): Promise<SecretStatus[]> {
   return managedSecrets().map(({ manifest, spec }) => {
     const source = readSecretSource(manifest, spec.name);
@@ -55,8 +47,6 @@ export async function getSecretStatusAction(): Promise<SecretStatus[]> {
   });
 }
 
-/** The sidecar token is generated server-side: a token strong enough to authenticate the
- *  sidecar is never generated in a browser context. */
 export async function regenerateServiceTokenAction(): Promise<SimpleResult> {
   try {
     writeSecret(igSidecar, "IG_SERVICE_TOKEN", randomBytes(32).toString("hex"));

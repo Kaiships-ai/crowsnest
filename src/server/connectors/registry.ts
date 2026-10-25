@@ -2,8 +2,6 @@ import type { SecretSource } from "@/server/secrets/store";
 import { readSecretSource } from "./secrets";
 import type { AuthKind, ConnectionCheck, Connector, ConnectorManifest, SecretSpec } from "./types";
 
-/** Every folder here with an `index.ts` exporting `connector` is a connector; there is no
- *  list to edit. Throws on boot when a folder's id or a secret name clashes. */
 export function buildRegistry(modules: Record<string, { connector: Connector }>): Connector[] {
   const owners = new Map<string, string>();
   const connectors = Object.entries(modules).map(([path, { connector }]) => {
@@ -38,17 +36,20 @@ function view({ manifest, adapter }: Connector): ConnectorView {
   return { id: manifest.id, label: manifest.label, auth: manifest.auth, feeds: manifest.feeds, status, secrets };
 }
 
-/** For boards and the bridge: state and where each secret comes from, never a value. */
 export function listConnectors(registry: Connector[] = CONNECTORS): ConnectorView[] {
   return registry.map(view);
 }
 
 export async function testConnector(id: string, registry: Connector[] = CONNECTORS): Promise<ConnectionCheck> {
   const adapter = registry.find((c) => c.manifest.id === id)?.adapter;
-  return adapter ? adapter.testConnection() : { ok: false, message: `${id} is not connected` };
+  if (!adapter) return { ok: false, message: `${id} is not connected` };
+  try {
+    return await adapter.testConnection();
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : `${id} connection check failed` };
+  }
 }
 
-/** Secrets the Settings panel sets and clears: one value each, on a connector that runs. */
 export function managedSecrets(registry: Connector[] = CONNECTORS): { manifest: ConnectorManifest; spec: SecretSpec }[] {
   return registry.filter((c) => c.adapter).flatMap(({ manifest }) => manifest.secrets.map((spec) => ({ manifest, spec })));
 }
