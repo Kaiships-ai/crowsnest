@@ -8,7 +8,7 @@ Cài đặt at `/settings`, and its second tab Nhật ký sự cố: the log at 
 - `/settings`: a stack health panel, then sections with anchors `#instagram`, `#accounts`, `#graph-api`, `#scoring`, `#feed-defaults`, `#api-keys`, `#local-binaries`, `#sync`, `#runs-alerts`, `#publish`, `#onboarding`, `#appearance`.
 - Graph card `settings-graph-card` "Instagram Graph API" with `mine-connect-check`; after a check, `mine-connect-checked` reads "last checked ...".
 - Secrets rows: `secrets-<slug>-badge` ("Configured" or "Not set") and `secrets-<slug>-edit` ("Set" or "Replace"), e.g. `secrets-ig-graph-token-badge`. Values never reach the browser.
-- `/logs`: a level, source, and time filter over `log_events` (query params `levels`, `source`, `event`, `since`, `until`, `search`). Empty: "No log events match this filter."
+- `/logs`: a level, source, event-prefix, time, and text-search filter over `log_events` (query params `levels`, `source`, `event`, `since`, `until`, `search`). Empty: "No log events match this filter."
 - `/runs`: "N runs" and the runs table. Empty: "No runs yet."
 
 ## How to get to it (user POV)
