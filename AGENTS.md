@@ -71,6 +71,7 @@ broken again needs a check, not more words.
 | Tests never hard-code a date that will pass (a fixed `2026-09-10` turned CI red) | Doc rule: compute it, as `FUTURE_SCHEDULE` in `src/server/actions/planned-post-actions.test.ts` does |
 | Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
 | Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. Its dev server on :3000 serves whatever that checkout has |
+| Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `npm run build`, `test`, `typecheck` and `lint`; `vitest.config.ts` caps `maxWorkers`. Call the npm scripts, never `next build` or `vitest` directly |
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

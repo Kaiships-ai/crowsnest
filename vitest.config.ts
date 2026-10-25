@@ -24,6 +24,8 @@ export default defineConfig({
     // CROWSNEST_DB_PATH default of ":memory:" at module-load time — see
     // src/test/setup-env.ts for why this is needed.
     setupFiles: ["./src/test/setup-env.ts"],
+    // Half the cores by default; scripts/heavy.sh drops it to 1 when the Mac is low on memory.
+    maxWorkers: Number(process.env.HEAVY_WORKERS) || "50%",
   },
   resolve: {
     alias: {
