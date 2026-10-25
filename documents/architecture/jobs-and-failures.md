@@ -17,7 +17,7 @@ The web app's Log, Runs, and failure strip screens are retired with the web app;
 
 ## Boundaries
 
-- Owns: `src/server/services/sync-engine.ts`, `sync-scheduler.ts`, `publish-scheduler.ts`, `own-measure-scheduler.ts`, `frame-pass-runner.ts`, `src/server/runs/sla.ts`, `src/server/notifications/`, `src/server/logs/`, `src/server/queries/failure-surface.ts`, `src/server/queries/runs.ts`.
+- Owns: `src/server/services/sync-engine.ts`, `sync-scheduler.ts`, `publish-scheduler.ts`, `own-measure-scheduler.ts`, `daily-pull.ts`, `frame-pass-runner.ts`, `src/server/runs/sla.ts`, `src/server/notifications/`, `src/server/logs/`, `src/server/queries/failure-surface.ts`, `src/server/queries/runs.ts`.
 - Called by: `server.ts` (boots the three schedulers), server actions (manual sync, cancel, retry), the shell layout (failure strip), the Cài đặt tabs (Log and Lần chạy), `/api/runs/stream` (server-sent events refreshed every 2 seconds).
 - Calls: the Instagram sidecar, the Graph API, the local `claude` CLI (frame pass). See [external-services](external-services.md).
 
@@ -27,6 +27,7 @@ The web app's Log, Runs, and failure strip screens are retired with the web app;
 | --- | --- | --- | --- |
 | Sync (channel or library sweep) | Manual action, or the sync scheduler when `syncCadenceMinutes` has elapsed since the newest `sync_jobs` row (0 disables it; tick every 60 s) | Partial unique index `sync_jobs_lock_running` on `lock_key` where status is running | A running row silent for 10 times `SYNC_STALL_SECONDS` (90 s) is reaped as stuck and raises an `sla_breach` notification. A run is read as dead after the stall threshold. |
 | Publish | Publish scheduler, tick every 30 s, or an immediate publish | Atomic `UPDATE ... WHERE state='scheduled'` claim. A tick that changes 0 rows lost the race. | A failed post under 3 attempts is re-armed with backoff. A row stuck in `publishing` past 20 minutes without a heartbeat is re-claimed. |
+| Daily pull | `startDailyPullScheduler`, tick every 60 s (first tick 15 s after boot), or `pullAgain` for one connector | A `daily_pulls` row per connector per slot, claimed with an insert before the pull | The slot is the local date of the newest 05:00 (`pullSlot`). A slot missed while the app was closed or the Mac asleep runs on the next tick. A claimed slot never runs again, even after a crash. Each connector with a `pull` and status `configured` pulls in turn; the rest are recorded as `skipped` with the status. |
 | Own-channel measurement | Own-measure scheduler, hourly tick (first tick 30 s after boot), or a manual action | Reentrancy guard in the process; due posts are derived from stored captures | Budget of 150 Graph calls per scheduled run, 190 for a manual full run. Posts under 72 hours old are measured hourly, older posts daily. Snapshots are appended, never overwritten. |
 | Frame pass | Manual action | Partial unique index `frame_pass_jobs_lock_running` | A running row with a heartbeat older than 120 s is reaped. |
 
@@ -67,7 +68,8 @@ Each action returns an `ActionResult` for its caller. Standing state comes from 
 ## Where to look
 
 - `src/server/services/sync-engine.ts`, `sync-types.ts`, `sync-scheduler.ts`
-- `src/server/services/publish-scheduler.ts`, `own-measure-scheduler.ts`
+- `src/server/services/publish-scheduler.ts`, `own-measure-scheduler.ts`, `daily-pull.ts`
+- `src/server/lib/clock.ts` (`clockNow`; `LEAD_STUDIO_CLOCK_START` starts the app clock at a set instant)
 - `src/server/queries/failure-surface.ts`
 - `src/server/queries/runs.ts`
 - `src/server/notifications/store.ts`, `src/server/logs/store.ts`
