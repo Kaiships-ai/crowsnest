@@ -1,0 +1,93 @@
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import type { SectionList, SectionListData } from 'react-native'
+
+type WithId = { worktreeId: string; isActive?: boolean }
+
+// Scrolls the highlighted (isActive) worktree into view when the highlight
+// moves to a different workspace. A highlight a search or fold hides and then
+// shows again is the same workspace, so it never yanks the list. Returns the
+// ref to attach to the SectionList and the onScrollToIndexFailed handler it
+// needs for rows that aren't measured yet (variable heights from the inline
+// agent list).
+export function useActiveWorktreeScroll<T extends WithId, S>(
+  sections: readonly (SectionListData<T, S> & { data: readonly T[] })[],
+  /** The folded sections: a highlight an unfold first reveals is not scrolled to either. */
+  collapsedGroups?: ReadonlySet<string>
+): {
+  sectionListRef: React.RefObject<SectionList<T, S> | null>
+  onScrollToIndexFailed: (info: { averageItemLength: number }) => void
+} {
+  const sectionListRef = useRef<SectionList<T, S>>(null)
+  const lastScrolledActiveIdRef = useRef<string | null>(null)
+  // The last workspace highlighted, scrolled to or not: a hidden row coming back is no change.
+  const seenActiveIdRef = useRef<string | null>(null)
+  const collapsedGroupsRef = useRef(collapsedGroups)
+
+  const activeWorktreeId = useMemo(() => {
+    for (const section of sections) {
+      const match = section.data.find((w) => w.isActive)
+      if (match) {
+        return match.worktreeId
+      }
+    }
+    return null
+  }, [sections])
+
+  // Live mirror of the current active id so the deferred retry can bail if the
+  // selection changed during its timeout (avoids a brief scroll to a stale row).
+  const activeWorktreeIdRef = useRef<string | null>(activeWorktreeId)
+  activeWorktreeIdRef.current = activeWorktreeId
+
+  const scrollToWorktree = useCallback(
+    (worktreeId: string): boolean => {
+      for (let sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
+        const itemIndex = sections[sectionIndex].data.findIndex((w) => w.worktreeId === worktreeId)
+        if (itemIndex !== -1) {
+          sectionListRef.current?.scrollToLocation({
+            sectionIndex,
+            itemIndex,
+            viewPosition: 0.5,
+            animated: true
+          })
+          return true
+        }
+      }
+      return false
+    },
+    [sections]
+  )
+
+  useEffect(() => {
+    const folded = collapsedGroupsRef.current !== collapsedGroups
+    collapsedGroupsRef.current = collapsedGroups
+    if (!activeWorktreeId || activeWorktreeId === seenActiveIdRef.current) {
+      return
+    }
+    seenActiveIdRef.current = activeWorktreeId
+    if (!folded && scrollToWorktree(activeWorktreeId)) {
+      lastScrolledActiveIdRef.current = activeWorktreeId
+    }
+  }, [collapsedGroups, activeWorktreeId, scrollToWorktree])
+
+  const onScrollToIndexFailed = useCallback(
+    (info: { averageItemLength: number }) => {
+      const target = lastScrolledActiveIdRef.current
+      if (!target) {
+        return
+      }
+      setTimeout(
+        () => {
+          // Bail if the active selection moved on while we waited — otherwise we'd
+          // scroll to a now-stale row before the effect corrects it.
+          if (activeWorktreeIdRef.current === target) {
+            scrollToWorktree(target)
+          }
+        },
+        info.averageItemLength > 0 ? 120 : 0
+      )
+    },
+    [scrollToWorktree]
+  )
+
+  return { sectionListRef, onScrollToIndexFailed }
+}
