@@ -27,6 +27,7 @@ boundaries, and its invariants.
 | publish | [publish](architecture/publish.md) |
 | ig-sync | [ig-sync](architecture/ig-sync.md) |
 | mcp | [mcp](architecture/mcp.md) |
+| app (Lead Studio Electron shell) | [app](architecture/app.md) |
 
 ## Where things live
 
