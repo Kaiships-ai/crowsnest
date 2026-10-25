@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 import type { AppIdentity } from '../../shared/app-identity'
 
-const BASE_APP_NAME = 'Orca'
-const BASE_APP_USER_MODEL_ID = 'com.stablyai.orca'
+const BASE_APP_NAME = 'Lead Studio'
+const BASE_APP_USER_MODEL_ID = 'ai.kaiships.leadstudio'
 const MAX_LABEL_LENGTH = 80
 
 export type DevInstanceIdentity = AppIdentity & {
@@ -90,10 +90,10 @@ export function getDevInstanceIdentity(
 
   return {
     name: dockTitle,
-    // Why: one stable Keychain key ('Orca Dev Safe Storage') for all dev
+    // Why: one stable Keychain key ('Lead Studio Safe Storage') for all dev
     // branches; the per-branch identity still shows via `name` (window title,
-    // app menu, renderer label).
-    appName: `${BASE_APP_NAME} Dev`,
+    // app menu, renderer label). Lead Studio only runs unpackaged, so no ' Dev' suffix.
+    appName: BASE_APP_NAME,
     isDev: true,
     devLabel,
     devBranch: branch,

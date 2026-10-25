@@ -82,7 +82,7 @@ function formatDevInstanceLabel(branch, worktreeName) {
 }
 
 function createDockTitle(branch, label) {
-  return `Orca: ${branch || label || 'dev'}`
+  return `Lead Studio: ${branch || label || 'dev'}`
 }
 
 function seedDevInstanceIdentityEnv() {
