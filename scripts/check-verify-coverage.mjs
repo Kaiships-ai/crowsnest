@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// Fails when a change touches studio/src/renderer/ or src/server/ without touching a verify
-// feature in .claude/skills/verify/features/. Rule G-03: every PR that adds or changes a
-// feature updates its verify feature and the journey that runs it on the Lead Studio app.
-//   node scripts/check-verify-coverage.mjs <base-ref>    diff <base-ref>...HEAD
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 

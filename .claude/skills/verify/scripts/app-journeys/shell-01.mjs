@@ -1,4 +1,3 @@
-// The Lead Studio shell opens, a terminal runs a command, and the pane splits.
 import {
   countVisibleTerminalPanes,
   focusActiveTerminalInput,

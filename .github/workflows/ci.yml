@@ -15,7 +15,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # check-verify-coverage diffs against the PR base.
           fetch-depth: 0
 
       - uses: actions/setup-node@v4

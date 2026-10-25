@@ -11,7 +11,7 @@ export type DevInstanceIdentity = AppIdentity & {
   // Why: drives app.setName → the macOS safeStorage Keychain item name
   // ("<appName> Safe Storage"). Kept stable across dev branches (unlike the
   // per-branch `name`) so every dev instance shares one Keychain key instead of
-  // creating a new one per branch and re-prompting. Distinct from prod's 'Orca'.
+  // creating a new one per branch and re-prompting. Distinct from Orca's 'Orca' and 'Orca Dev'.
   appName: string
 }
 
@@ -92,7 +92,7 @@ export function getDevInstanceIdentity(
     name: dockTitle,
     // Why: one stable Keychain key ('Lead Studio Safe Storage') for all dev
     // branches; the per-branch identity still shows via `name` (window title,
-    // app menu, renderer label). Lead Studio only runs unpackaged, so no ' Dev' suffix.
+    // app menu, renderer label).
     appName: BASE_APP_NAME,
     isDev: true,
     devLabel,

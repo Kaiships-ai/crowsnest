@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Stops only the app app-up.sh started (its host process group), removes its temp profile, and
-# in a worktree copies data/verify/evidence to the main checkout (keep-evidence.sh).
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 DIR=data/verify/app

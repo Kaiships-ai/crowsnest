@@ -21,7 +21,6 @@ const eslintConfig = defineConfig([
     // GitNexus generated runner and index cache (its own CommonJS runtime), gitignored,
     // not app source.
     ".gitnexus/**",
-    // Lead Studio Electron app (Orca subtree), linted by its own oxlint config.
     "studio/**",
   ]),
 ]);

@@ -19,9 +19,7 @@ export default defineConfig({
       // Without this, vitest collects them and each throws "Playwright Test did not
       // expect test() to be called here."
       "e2e/**",
-      // Lead Studio Electron app (Orca subtree) runs its own vitest under pnpm.
       "studio/**",
-      // node:test files, run by `node --test` in CI.
       "scripts/**/*.test.mjs",
     ],
     // Runs before each test file's own imports, so db/index.ts always reads a

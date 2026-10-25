@@ -1,7 +1,3 @@
-// Drives the Lead Studio app that app-host.mjs launched, over CDP. Run through app-drive.sh.
-//   app-drive.mjs <journey> [run-id]   run app-journeys/<journey>.mjs, write transcript + screenshots
-//   app-drive.mjs --console            print the host log (main process and renderer console)
-//   app-drive.mjs --timing [rounds]    interleaved cold starts of Orca.app and Lead Studio
 import { spawn, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -76,9 +72,7 @@ const freePort = () =>
     });
   });
 
-// Seconds from spawn to the main window's first contentful paint, read from the page's own
-// performance timeline so CDP polling latency does not count.
-async function coldStart(label, executable, args, env) {
+async function secondsToFirstContentfulPaint(label, executable, args, env) {
   const tmp = mkdtempSync(path.join(os.tmpdir(), "lead-studio-timing-"));
   const home = path.join(tmp, "home");
   mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -121,14 +115,14 @@ async function timing(rounds) {
   const { ELECTRON_RUN_AS_NODE: _drop, ...inherited } = process.env;
   const electronBin = createRequire(path.join(APP, "package.json"))("electron");
   const orca = () =>
-    coldStart(
+    secondsToFirstContentfulPaint(
       "Orca.app",
       "/Applications/Orca.app/Contents/MacOS/Orca",
       (tmp) => [`--user-data-dir=${path.join(tmp, "user-data")}`, "--password-store=basic", "--use-mock-keychain"],
       (_tmp, home) => ({ ...inherited, HOME: home }),
     );
   const lead = () =>
-    coldStart(
+    secondsToFirstContentfulPaint(
       "Lead Studio",
       electronBin,
       () => ["--password-store=basic", "--use-mock-keychain", APP],

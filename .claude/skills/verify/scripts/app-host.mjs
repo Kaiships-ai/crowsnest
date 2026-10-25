@@ -1,7 +1,3 @@
-// Launches Lead Studio with Playwright _electron.launch, the way studio/tests/e2e/helpers/orca-app.ts
-// does, in a disposable user data dir and HOME. Seeds a git repo with a terminal tab, writes
-// data/verify/app/state.json with the CDP port for app-drive.mjs, prints "app: ready", and
-// keeps the app open until SIGTERM. Run through app-up.sh.
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -105,13 +101,14 @@ writeFileSync(
 );
 console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir})`);
 
+const stopDetachedTerminalDaemon = (profile) => spawnSync("pkill", ["-f", "--", `--socket ${profile}/daemon`]);
+
 let closing = false;
 async function shutdown() {
   if (closing) return;
   closing = true;
   await app.close().catch(() => app.process().kill("SIGKILL"));
-  // The terminal daemon is detached by design so terminals outlive the app; stop this profile's.
-  spawnSync("pkill", ["-f", "--", `--socket ${userDataDir}/daemon`]);
+  stopDetachedTerminalDaemon(userDataDir);
   rmSync(tmp, { recursive: true, force: true });
   rmSync(path.join(STATE_DIR, "state.json"), { force: true });
   console.log("app: closed");

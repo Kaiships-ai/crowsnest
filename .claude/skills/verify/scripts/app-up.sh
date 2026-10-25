@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Builds studio/ (electron-vite) and launches Lead Studio with Playwright _electron.launch in a
-# disposable user data dir and HOME, with a seeded git repo and one terminal tab. Ready when it
-# prints "app: ready". Never touches the installed Orca.app profile or the operator's checkout.
-#   APP_SKIP_BUILD=1   reuse studio/out from the last build
-#   APP_HEADLESS=1     keep the window hidden
 set -euo pipefail
 cd "$(dirname "$0")/../../../.."
 DIR=data/verify/app
@@ -16,7 +11,6 @@ fi
 [ -d studio/node_modules ] || { echo "app: run 'pnpm install' in studio/ first" >&2; exit 1; }
 
 if [ "${APP_SKIP_BUILD:-0}" != 1 ]; then
-  # --mode e2e and VITE_EXPOSE_STORE expose window.__store, as studio/tests/e2e/global-setup.ts builds it.
   (cd studio && pnpm run build:packages && VITE_EXPOSE_STORE=true npx electron-vite build --mode e2e) >"$DIR/build.log" 2>&1 \
     || { echo "app: build failed, see $DIR/build.log" >&2; tail -30 "$DIR/build.log" >&2; exit 1; }
 fi
