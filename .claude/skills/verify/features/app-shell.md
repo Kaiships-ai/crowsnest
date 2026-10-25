@@ -41,7 +41,12 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse out/
 
 `shell-01` prints `ok: window`, `ok: terminal echo`, `ok: split` and saves `shell-01.png`. After `close-terminal`, a rerun of `shell-01` fails with `FAIL: terminal echo`.
 
-`media-01` fetches `cn-media://asset/no-such-asset` from the renderer and expects 404. With `CN_MEDIA_ASSET` it also expects a 200 body and a 10-byte 206 for `bytes=0-9`. The seed has no assets; insert a `media_assets` row into the lane's `<userData>/crowsnest.db` (the user data dir `app-up.sh` prints) pointing at a file under the checkout media dir.
+`media-01` fetches `cn-media://asset/no-such-asset` from the renderer and expects 404. With `CN_MEDIA_ASSET` it also expects a 200 body and a 10-byte 206 for `bytes=0-9`. The seed has no assets; insert a `media_assets` row into the lane's `<userData>/crowsnest.db` (the user data dir `app-up.sh` prints) whose `storage_path` is relative to `MEDIA_ROOT`, which a lane leaves at `<checkout>/data/media` (`src/main/crowsnest/start.ts`). For example, with a 30-byte `data/media/verify/a.txt`:
+
+```bash
+sqlite3 <userData>/crowsnest.db "insert into media_assets(id,sha256,kind,content_type,byte_size,storage_path,downloaded_at) values('v1','v1sha','image','text/plain',30,'verify/a.txt','2026-01-01T00:00:00Z')"
+CN_MEDIA_ASSET=v1 .claude/skills/verify/scripts/app-drive.sh media-01
+```
 
 `app-host.mjs` waits for `mcp.port` before `app: ready`, so a crowsnest start failure shows as `crowsnest MCP never wrote mcp.port` with `[crowsnest] start failed` in `host.log`.
 
