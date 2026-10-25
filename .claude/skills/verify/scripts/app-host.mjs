@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
@@ -39,6 +39,12 @@ mkdirSync(userDataDir, { recursive: true });
 mkdirSync(home, { recursive: true, mode: 0o700 });
 writeFileSync(path.join(userDataDir, "orca-data.json"), JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2));
 const repoPath = seedRepo(path.join(tmp, "repo"));
+if (process.env.APP_DB) {
+  for (const suffix of ["", "-wal"]) {
+    const source = path.resolve(ROOT, process.env.APP_DB + suffix);
+    if (existsSync(source)) copyFileSync(source, path.join(userDataDir, `crowsnest.db${suffix}`));
+  }
+}
 
 const cdpPort = await freePort();
 const { ELECTRON_RUN_AS_NODE: _drop, ...inherited } = process.env;
@@ -94,7 +100,13 @@ for (let i = 0; !(await openRepoTerminal(repoId)); i++) {
   await new Promise((r) => setTimeout(r, 1000));
 }
 
+const mcpPortFile = path.join(userDataDir, "mcp.port");
+for (let i = 0; !existsSync(mcpPortFile); i++) {
+  if (i === 60) throw new Error("crowsnest MCP never wrote mcp.port");
+  await new Promise((r) => setTimeout(r, 500));
+}
 mkdirSync(STATE_DIR, { recursive: true });
+writeFileSync(path.join(STATE_DIR, "mcp.port"), readFileSync(mcpPortFile, "utf8"));
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
   JSON.stringify({ cdpPort, userDataDir }, null, 2),
@@ -111,6 +123,7 @@ async function shutdown() {
   stopDetachedTerminalDaemon(userDataDir);
   rmSync(tmp, { recursive: true, force: true });
   rmSync(path.join(STATE_DIR, "state.json"), { force: true });
+  rmSync(path.join(STATE_DIR, "mcp.port"), { force: true });
   console.log("app: closed");
   process.exit(0);
 }

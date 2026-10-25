@@ -1,3 +1,4 @@
+import { startCrowsnest } from '../crowsnest/start'
 import { initializeMainProcessI18nAndMenu } from './main-process-i18n-menu'
 import { mainProcessState as state } from './main-process-state'
 import { initializeReadyFoundation } from './main-process-ready-foundation'
@@ -22,6 +23,7 @@ export async function initializeMainProcessReady(
   try {
     await initializeReadyFoundation()
     await initializeReadyRuntimeServices()
+    void startCrowsnest().catch((error) => console.error('[crowsnest] start failed:', error))
     // Window creation can proceed while translations and the native menu initialize.
     const i18nAndMenuReady = initializeMainProcessI18nAndMenu()
     state.mainProcessI18nReady = i18nAndMenuReady.catch(() => {})
