@@ -1,5 +1,5 @@
-import { and, eq } from "drizzle-orm";
-import { CONNECTORS, listConnectors } from "@/server/connectors/registry";
+import { and, eq, sql } from "drizzle-orm";
+import { CONNECTORS, listConnectors, type ConnectorStatus } from "@/server/connectors/registry";
 import type { Connector } from "@/server/connectors/types";
 import { db, tables } from "@/server/db";
 import type { DAILY_PULL_OUTCOMES } from "@/server/db/schema";
@@ -24,12 +24,20 @@ function textOf(reason: unknown): string {
   return reason instanceof Error ? reason.message : String(reason);
 }
 
-async function pullConnector(connector: Connector, registry: Connector[]): Promise<PullOutcome> {
+type Statuses = Map<string, ConnectorStatus>;
+const statusesOf = (registry: Connector[]): Statuses => new Map(listConnectors(registry).map((c) => [c.id, c.status]));
+
+function notReady(connector: Connector, statuses: Statuses): string | null {
+  const status = statuses.get(connector.manifest.id) ?? "not-connected";
+  if (status !== "configured") return status;
+  return connector.adapter?.pull ? null : "has no pull";
+}
+
+async function pullConnector(connector: Connector, statuses: Statuses): Promise<PullOutcome> {
   const connectorId = connector.manifest.id;
-  const status = listConnectors(registry).find((c) => c.id === connectorId)?.status;
-  if (status !== "configured") return { connectorId, outcome: "skipped", detail: status ?? "not-connected" };
+  const skip = notReady(connector, statuses);
   const pull = connector.adapter?.pull;
-  if (!pull) return { connectorId, outcome: "skipped", detail: "has no pull" };
+  if (skip || !pull) return { connectorId, outcome: "skipped", detail: skip };
   try {
     const result = await pull();
     if (result.kind === "complete") return { connectorId, outcome: "complete", detail: null };
@@ -40,14 +48,40 @@ async function pullConnector(connector: Connector, registry: Connector[]): Promi
   }
 }
 
+export const MAX_PULL_ATTEMPTS = 3;
+export const RETRY_AFTER_MS = 5 * 60_000;
+const processStartedAt = clockNow().toISOString();
+
+/** Claims the connector's row for the slot. An existing row is taken over when an earlier
+ *  process left it unfinished, when it was skipped and the connector is ready now, or when
+ *  it failed with attempts left and RETRY_AFTER_MS has passed. */
+function claim(slot: string, connectorId: string, ready: boolean): boolean {
+  const { dailyPulls: t } = tables;
+  const now = clockNow();
+  const retryIfFinishedBy = new Date(now.getTime() - RETRY_AFTER_MS).toISOString();
+  const row = db
+    .insert(t)
+    .values({ slot, connectorId, startedAt: now.toISOString() })
+    .onConflictDoUpdate({
+      target: [t.slot, t.connectorId],
+      set: { startedAt: now.toISOString(), finishedAt: null, outcome: null, detail: null, attempts: sql`case when ${t.outcome} = 'skipped' then 1 else ${t.attempts} + 1 end` },
+      setWhere: sql`(${t.outcome} is null and ${t.startedAt} < ${processStartedAt})
+        or (${t.outcome} = 'skipped' and ${ready ? 1 : 0} = 1)
+        or (${t.outcome} = 'failed' and ${t.attempts} < ${MAX_PULL_ATTEMPTS} and ${t.finishedAt} <= ${retryIfFinishedBy})`,
+    })
+    .returning()
+    .get();
+  return row !== undefined;
+}
+
 export async function runDailyPull(now: Date = clockNow(), registry: Connector[] = CONNECTORS): Promise<PullOutcome[]> {
   const slot = pullSlotDate(now);
+  const statuses = statusesOf(registry);
   const outcomes: PullOutcome[] = [];
   for (const connector of registry) {
     const connectorId = connector.manifest.id;
-    const claimed = db.insert(tables.dailyPulls).values({ slot, connectorId, startedAt: clockNow().toISOString() }).onConflictDoNothing().returning().get();
-    if (!claimed) continue;
-    const outcome = await pullConnector(connector, registry);
+    if (!claim(slot, connectorId, notReady(connector, statuses) === null)) continue;
+    const outcome = await pullConnector(connector, statuses);
     db.update(tables.dailyPulls)
       .set({ finishedAt: clockNow().toISOString(), outcome: outcome.outcome, detail: outcome.detail })
       .where(and(eq(tables.dailyPulls.slot, slot), eq(tables.dailyPulls.connectorId, connectorId)))
@@ -61,7 +95,7 @@ export async function runDailyPull(now: Date = clockNow(), registry: Connector[]
 export async function pullAgain(connectorId: string, registry: Connector[] = CONNECTORS): Promise<PullOutcome> {
   const connector = registry.find((c) => c.manifest.id === connectorId);
   if (!connector) throw new Error(`no connector ${connectorId}`);
-  const outcome = await pullConnector(connector, registry);
+  const outcome = await pullConnector(connector, statusesOf(registry));
   log.info("daily_pull.pull_again", { ...outcome });
   return outcome;
 }

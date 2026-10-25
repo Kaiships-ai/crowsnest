@@ -945,6 +945,7 @@ export const dailyPulls = sqliteTable(
     finishedAt: text("finished_at"),
     outcome: text("outcome", { enum: DAILY_PULL_OUTCOMES }),
     detail: text("detail"),
+    attempts: integer("attempts").notNull().default(1),
   },
   (t) => [primaryKey({ columns: [t.slot, t.connectorId] })],
 );

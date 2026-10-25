@@ -5,6 +5,7 @@ CREATE TABLE `daily_pulls` (
 	`finished_at` text,
 	`outcome` text,
 	`detail` text,
+	`attempts` integer DEFAULT 1 NOT NULL,
 	PRIMARY KEY(`slot`, `connector_id`)
 );
 --> statement-breakpoint

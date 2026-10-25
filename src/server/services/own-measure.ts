@@ -1,5 +1,6 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
+import { clockNow } from "@/server/lib/clock";
 import { log } from "@/server/lib/logger";
 import { CLASSIFIER_VERSION, GRAPH_CALLS_PER_HOUR, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphBreakdownRow, type GraphComment, type GraphMedia, type GraphPostInsights, type InsightsFailure } from "@/server/graph/client";
 import type { CompletePull, PullResult } from "@/server/lib/pull-result";
@@ -401,7 +402,7 @@ export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date;
   const state = shared();
   if (state.inFlight && opts.scope === "due" && !opts.wait) return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
   while (state.inFlight) await state.inFlight.catch(() => undefined);
-  const now = opts.now ?? new Date();
+  const now = opts.now ?? clockNow();
   const run = runMeasure({ ...opts, now });
   state.inFlight = run;
   try {
