@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx server.ts",
+    "studio": "cd studio && pnpm dev",
     "build": "bash scripts/heavy.sh next build",
     "start": "NODE_ENV=production tsx server.ts",
     "lint": "bash scripts/heavy.sh eslint",

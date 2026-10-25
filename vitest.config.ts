@@ -19,6 +19,8 @@ export default defineConfig({
       // Without this, vitest collects them and each throws "Playwright Test did not
       // expect test() to be called here."
       "e2e/**",
+      "studio/**",
+      "scripts/**/*.test.mjs",
     ],
     // Runs before each test file's own imports, so db/index.ts always reads a
     // CROWSNEST_DB_PATH default of ":memory:" at module-load time — see

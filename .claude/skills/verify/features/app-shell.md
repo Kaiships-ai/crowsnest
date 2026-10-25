@@ -1,0 +1,44 @@
+# App shell
+
+Lead Studio is the Electron app in `studio/`, Orca's workspace under its own identity: terminal, chat, browser tab, split panes and the agent table. No crowsnest board lives in it yet.
+
+## Sub-features
+
+- Window titled Lead Studio (`studio/src/renderer/index.html`, `studio/src/main/window/createMainWindow.ts`).
+- Terminal tab in the active worktree, typed into through xterm's helper textarea.
+- Split of the active terminal pane, through the same split request the pane menu sends (`studio/src/renderer/src/constants/terminal.ts`).
+- Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Dev Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`, home dir `~/.lead-studio`, CLI `lead-dev` in its terminals.
+
+## How to get to it (user POV)
+
+`npm run studio` from the repo root. It runs `cd studio && pnpm dev`, which builds `studio/out/` and opens the window; the dev runner logs `[orca-dev] Remote debugging on http://127.0.0.1:<port>`. Add a project with the sidebar plus button to get a terminal. `Cmd+D` splits the terminal and `Cmd+Shift+B` opens a browser tab.
+
+## Setup
+
+- `pnpm install` once in `studio/` (pnpm 12, Xcode command line tools). `postinstall` rebuilds node-pty for Electron.
+- Orca asks for Node 24. Node 22 installs, builds and runs the app; about 116 of Orca's own unit tests fail on Node 22 on this machine before and after the rename.
+- `npm run studio` and `app-up.sh` both write `studio/out/`. `app-up.sh` builds with `--mode e2e` so `window.__store` is exposed. Do not run both from one worktree at once.
+
+## Driving it
+
+```bash
+.claude/skills/verify/scripts/app-up.sh                  # build (e2e mode) + launch, prints "app: ready"
+APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse studio/out
+.claude/skills/verify/scripts/app-drive.sh shell-01 [run-id]
+.claude/skills/verify/scripts/app-drive.sh close-terminal [run-id]  # negative control
+.claude/skills/verify/scripts/app-drive.sh --console      # host log
+.claude/skills/verify/scripts/app-drive.sh --timing 3     # cold start vs Orca.app
+.claude/skills/verify/scripts/app-down.sh
+```
+
+`shell-01` prints `ok: window`, `ok: terminal echo`, `ok: split` and saves `shell-01.png`. After `close-terminal`, a rerun of `shell-01` fails with `FAIL: terminal echo`.
+
+## Gotchas
+
+- The CLI socket lives in the user data dir and macOS caps a socket path at 104 bytes, so `app-host.mjs` uses a short temp dir. A long one fails with `EINVAL` on `listen`.
+- The script runs pnpm from inside `studio/`. `pnpm --dir studio` from the root fails under corepack, which stays on its default pnpm instead of the `pnpm@12` that `studio/package.json` pins.
+- Add project opens a native folder picker that CDP cannot drive. A scripted lane adds the repo with `window.api.repos.add({ path })`, the call the picker makes.
+- In-app copy still says Orca (sidebar header, empty state, Orca Mobile). Only the window title, dock name and identity are renamed so far.
+- Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
+- Lead Studio writes `~/.lead-studio`, never `~/.orca`. It also leaves agent config files such as `~/.claude/settings.json` alone: agent status hooks default to off, because with them on each app's hook install replaces the other's entry. A profile created before that default still holds `agentStatusHooksEnabled: true`; turn it off in Settings or start from a fresh `lead-studio` user data dir.
+- The in-terminal CLI is `lead-dev` (and `lead`). The shims live under the `lead-studio` user data dir, so they reach this app, not Orca.app. Orca's bundled agent skill guides still say `orca`. On zsh with Orca.app's CLI installed, `orca` in a Lead Studio terminal resolves to `/usr/local/bin/orca` first, as it does in upstream Orca dev; use `lead-dev`.

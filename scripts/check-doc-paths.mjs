@@ -13,7 +13,8 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 const BASELINE = "scripts/doc-paths.baseline";
-const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
+const WITHOUT_ORCA_SUBTREE = ":!studio";
+const tracked = execFileSync("git", ["ls-files", "--", ".", WITHOUT_ORCA_SUBTREE], { encoding: "utf8" }).split("\n").filter(Boolean);
 const docs = tracked.filter(
   (f) =>
     f.endsWith(".md") &&

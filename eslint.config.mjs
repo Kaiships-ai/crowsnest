@@ -21,6 +21,7 @@ const eslintConfig = defineConfig([
     // GitNexus generated runner and index cache (its own CommonJS runtime), gitignored,
     // not app source.
     ".gitnexus/**",
+    "studio/**",
   ]),
 ]);
 

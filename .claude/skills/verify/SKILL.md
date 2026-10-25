@@ -1,15 +1,29 @@
 ---
 name: verify
-description: Bring up the crowsnest stack and prove behavior in it. Two modes. The operator stack (9router, migrated data/crowsnest.db, dev server on :3000, browser) for daily use, and an isolated verify instance (production build on :3001 against the seeded data/e2e.db) driven by the browse CLI journeys with screenshot, transcript, and DB evidence. Use to start crowsnest, or to prove a UI or server-action change works in the real app, not just in vitest.
+description: Bring up the crowsnest stack and prove behavior in it. Three modes. The Lead Studio Electron app in studio/, launched with Playwright _electron.launch and driven by app journeys (app-up.sh, app-drive.sh, app-down.sh). The operator stack (9router, migrated data/crowsnest.db, dev server on :3000, browser) for daily use, and an isolated verify instance (production build on :3001 against the seeded data/e2e.db) driven by the browse CLI journeys with screenshot, transcript, and DB evidence. Use to start crowsnest, or to prove a UI or server-action change works in the real app, not just in vitest.
 ---
 
 # Verify crowsnest
 
-The primary surface is the Next.js web UI served by `server.ts` (it also hosts the MCP at `/api/mcp`). Other surfaces (the `kai` CLI in `src/cli/`, the IG sidecar in `services/ig/`) are not covered here.
+Two surfaces. The Lead Studio Electron app in `studio/` is where boards move, one PR at a time. The Next.js web UI served by `server.ts` (it also hosts the MCP at `/api/mcp`) keeps every screen not moved yet. Other surfaces (the `kai` CLI in `src/cli/`, the IG sidecar in `services/ig/`) are not covered here.
 
 Use the operator stack to run crowsnest day to day. Use the verify instance for proof: it never touches the operator's app. It runs on **:3001** against **`data/e2e.db`**, rebuilt from `scripts/seed-e2e.ts` on every launch. The operator's own server is usually on :3000 with `data/crowsnest.db`; never drive or kill it.
 
 All helpers live in `.claude/skills/verify/scripts/` and run from any cwd.
+
+## Lead Studio app
+
+Rule G-03: every PR that adds or changes a feature adds or updates its file in `features/` and a journey that runs it on the Lead Studio Electron app; the journey fails when that step breaks. `scripts/check-verify-coverage.mjs` fails CI when a PR touches `studio/src/renderer/` or `src/server/` without touching a feature file in `features/` other than `README.md`.
+
+```bash
+.claude/skills/verify/scripts/app-up.sh                       # build studio/ in e2e mode, launch, wait for "app: ready"
+.claude/skills/verify/scripts/app-drive.sh shell-01 [run-id]  # run app-journeys/shell-01.mjs
+.claude/skills/verify/scripts/app-down.sh                     # stop it, keep evidence
+```
+
+`app-up.sh` runs `app-host.mjs`, which launches the app with Playwright `_electron.launch` the way `studio/tests/e2e/helpers/orca-app.ts` does: a disposable user data dir and HOME, mock keychain, a seeded git repo with one terminal tab. It never uses the installed Orca.app profile. `APP_SKIP_BUILD=1` reuses `studio/out/`; `APP_HEADLESS=1` hides the window; `APP_RECORD_VIDEO=<dir>` records a webm. Logs: `data/verify/app/{build,host}.log`.
+
+`app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. The transcript and screenshots go to `data/verify/evidence/<run-id>/`. Journeys reuse Orca's own e2e helpers from `studio/tests/e2e/helpers/`. `--console` prints the host log; `--timing [rounds]` times cold starts of Orca.app and Lead Studio to first contentful paint and fails over 1.5x. Setup and gotchas are in `features/app-shell.md`.
 
 ## Operator stack (:3000)
 
