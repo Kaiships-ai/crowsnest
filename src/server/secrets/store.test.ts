@@ -1,5 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
-import { getSecretStore, setSecretStore, type SecretStore } from "../../shared/secret-store";
+import { _resetSecretStoreForTests, getSecretStore, setSecretStore, type SecretStore } from "../../shared/secret-store";
 
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
@@ -65,6 +65,29 @@ describe("keychain store", () => {
   });
 });
 
+describe("a host with no SecretStore (kai CLI, tsx scripts)", () => {
+  test("a sealed secret fails loudly instead of reading as missing, unless env sets it", () => {
+    store.setSecret("IG_USERNAME", "burner.acct");
+    _resetSecretStoreForTests();
+    expect(() => store.getSecret("IG_USERNAME")).toThrow("IG_USERNAME is sealed in the macOS Keychain, which only Lead Studio opens. Run this from Lead Studio, or set IG_USERNAME in the environment.");
+    expect(store.secretSource("IG_USERNAME")).toBe("keychain");
+    process.env.IG_USERNAME = "env.acct";
+    expect(store.getSecret("IG_USERNAME")).toBe("env.acct");
+    delete process.env.IG_USERNAME;
+  });
+
+  test("a legacy row nobody migrated still reads", () => {
+    legacyRow("GROQ_API_KEY", "legacy-key");
+    _resetSecretStoreForTests();
+    expect(store.getSecret("GROQ_API_KEY")).toBe("legacy-key");
+  });
+
+  test("a write is refused", () => {
+    _resetSecretStoreForTests();
+    expect(() => store.setSecret("GROQ_API_KEY", "v")).toThrow("Keychain is unavailable");
+  });
+});
+
 describe("migrateSecretsToKeychain", () => {
   test("moves each legacy row and clears it only after the read-back", () => {
     legacyRow("IG_GRAPH_TOKEN", "graph-plain-token");
@@ -88,6 +111,14 @@ describe("migrateSecretsToKeychain", () => {
     legacyRow("IG_GRAPH_TOKEN", "graph-plain-token");
     setSecretStore(brokenKeychain({ decryptString: () => "something else" }));
     expect(store.migrateSecretsToKeychain().failed).toEqual([{ name: "IG_GRAPH_TOKEN", reason: "the Keychain read-back did not match, so the secret was not saved" }]);
+    expect(db.select().from(tables.secrets).all()).toHaveLength(1);
+    expect(db.select().from(tables.sealedSecrets).all()).toEqual([]);
+  });
+
+  test("a store that reports a protection gap keeps the row and reports it", () => {
+    legacyRow("IG_GRAPH_TOKEN", "graph-plain-token");
+    setSecretStore(brokenKeychain({ describeProtectionGap: () => "basic_text backend" }));
+    expect(store.migrateSecretsToKeychain().failed).toEqual([{ name: "IG_GRAPH_TOKEN", reason: "the Keychain does not protect secrets on this host (basic_text backend), so the secret was not saved" }]);
     expect(db.select().from(tables.secrets).all()).toHaveLength(1);
     expect(db.select().from(tables.sealedSecrets).all()).toEqual([]);
   });

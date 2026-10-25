@@ -32,7 +32,8 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 - **A secret is stored sealed or not at all.** `setSecret` seals, reads the row back and unseals it, and only then drops a legacy row of the same name, in one transaction. When the Keychain cannot seal, it throws and nothing changes.
 - **The boot migration keeps what it cannot move.** `migrateSecretsToKeychain` moves each legacy row; a failed seal or read-back leaves that row and is logged as `secrets.keychain_move_failed`. A rerun after a clean pass is a no-op.
 - **Read order:** sealed value, then a legacy row not yet moved, then the env var of the same name. `IG_PROXY` and `IG_DEVICE_SEED` stay env only.
-- **Outside Electron there is no Keychain.** A tsx script or the `kai` CLI has no `SecretStore`, so it reads legacy rows and env only, and a write throws.
+- **Outside Electron there is no Keychain.** A tsx script or the `kai` CLI has no `SecretStore`. It reads a legacy row the app has not migrated yet, or the env var. A secret the app has already sealed throws `SecretLockedError`, which says to run from Lead Studio or set the env var, unless the env var is set. A write throws, and `getOrCreateServiceToken` with no token says to open Lead Studio once or set `IG_SERVICE_TOKEN`.
+- **A secret is sealed only when the store reports no protection gap.** If `describeProtectionGap()` names a gap, `setSecret` throws and the migration keeps the legacy row and reports it.
 
 ## Key files
 

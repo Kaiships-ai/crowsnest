@@ -11,10 +11,25 @@ function keychain() {
   return store.isEncryptionAvailable() ? store : null;
 }
 
+export class SecretLockedError extends Error {
+  constructor(name: string) {
+    super(`${name} is sealed in the macOS Keychain, which only Lead Studio opens. Run this from Lead Studio, or set ${name} in the environment.`);
+    this.name = "SecretLockedError";
+  }
+}
+
+function sealedRow(name: string) {
+  return db.select().from(sealedSecrets).where(eq(sealedSecrets.name, name)).get();
+}
+
 function unseal(name: string): string | undefined {
-  const row = db.select().from(sealedSecrets).where(eq(sealedSecrets.name, name)).get();
+  const row = sealedRow(name);
   const store = row && keychain();
-  if (!row || !store) return undefined;
+  if (!row) return undefined;
+  if (!store) {
+    if (envValue(name)) return undefined;
+    throw new SecretLockedError(name);
+  }
   try {
     return store.decryptString(Buffer.from(row.sealed, "base64")) || undefined;
   } catch {
@@ -35,7 +50,7 @@ export function getSecret(name: string): string | undefined {
 }
 
 export function secretSource(name: string): SecretSource {
-  if (unseal(name)) return "keychain";
+  if (keychain() ? unseal(name) : sealedRow(name)) return "keychain";
   if (legacyValue(name)) return "db";
   return envValue(name) ? "env" : "none";
 }
@@ -45,6 +60,8 @@ export function setSecret(name: string, value: string): void {
   if (!v) throw new Error("secret value is empty");
   const store = keychain();
   if (!store) throw new Error("the macOS Keychain is unavailable, so the secret was not saved");
+  const gap = store.describeProtectionGap();
+  if (gap) throw new Error(`the Keychain does not protect secrets on this host (${gap}), so the secret was not saved`);
   const sealed = store.encryptString(v).toString("base64");
   const now = new Date().toISOString();
   db.transaction((tx) => {
