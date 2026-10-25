@@ -72,7 +72,7 @@ broken again needs a check, not more words.
 | Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
 | Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. Its dev server on :3000 serves whatever that checkout has |
 | Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `npm run build`, `test`, `typecheck` and `lint`; `vitest.config.ts` caps `maxWorkers`. Call the npm scripts, never `next build` or `vitest` directly |
-| A PR that changes `studio/src/renderer/` or `src/server/` adds or updates its verify feature and app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
+| A PR that changes `studio/src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence

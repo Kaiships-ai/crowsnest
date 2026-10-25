@@ -4,9 +4,10 @@ import { pathToFileURL } from "node:url";
 
 const GUARDED = ["studio/src/renderer/", "src/server/"];
 const FEATURES = ".claude/skills/verify/features/";
+const isFeatureFile = (f) => f.startsWith(FEATURES) && f.endsWith(".md") && f !== `${FEATURES}README.md`;
 
 export function uncoveredFiles(files) {
-  if (files.some((f) => f.startsWith(FEATURES))) return [];
+  if (files.some(isFeatureFile)) return [];
   return files.filter((f) => GUARDED.some((g) => f.startsWith(g)));
 }
 
@@ -25,7 +26,7 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const uncovered = uncoveredFiles(files);
   if (uncovered.length) {
     console.log(
-      `FAIL  ${uncovered.length} changed file(s) under ${GUARDED.join(" or ")} and no change under ${FEATURES}. ` +
+      `FAIL  ${uncovered.length} changed file(s) under ${GUARDED.join(" or ")} and no feature file (other than README.md) changed under ${FEATURES}. ` +
         "Add or update the feature's verify file and its app journey (G-03). First: " +
         uncovered.slice(0, 5).join(", "),
     );

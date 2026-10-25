@@ -17,3 +17,9 @@ test("a server change alone fails", () => {
 test("a change outside the guarded paths passes", () => {
   assert.deepEqual(uncoveredFiles(["app/src/main/index.ts", "src/app/page.tsx", "documents/index.md"]), []);
 });
+
+test("touching only the feature index does not cover a renderer change", () => {
+  assert.deepEqual(uncoveredFiles(["studio/src/renderer/x.tsx", ".claude/skills/verify/features/README.md"]), [
+    "studio/src/renderer/x.tsx",
+  ]);
+});

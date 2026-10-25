@@ -11,7 +11,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 1 | Window | Opens a window titled Lead Studio | ● | `studio/src/renderer/index.html` | none |
 | 2 | Terminal | Runs a shell in a terminal tab of the active worktree | ● | `studio/tests/e2e/helpers/terminal.ts` | none |
 | 3 | Split | Splits the active terminal pane | ● | `studio/src/renderer/src/constants/terminal.ts` | none |
-| 4 | Side by side with Orca.app | Uses its own user data dir, lock, socket and keychain item | ● | `studio/src/main/startup/configure-process.ts` | none |
+| 4 | Side by side with Orca.app | Uses its own user data dir, lock, socket, keychain item, `~/.lead-studio` and CLI name | ● | `studio/src/main/startup/configure-process.ts` | none |
 
 ## Test cases
 
@@ -31,7 +31,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 1. With Orca.app open, run `npm run studio` from a clean worktree.
 2. Type `echo hi` in the terminal, split the pane, open a browser tab.
-3. Pass: the terminal prints `hi`, and Orca.app keeps its own window, profile and CLI socket.
+3. Pass: the terminal prints `hi`, Orca.app keeps its own window, profile and CLI socket, and `~/.orca` is unchanged: `find ~/.orca -newer <stamp>` lists nothing, where `<stamp>` is a file touched just before `npm run studio`.
 
 ### Cold start
 

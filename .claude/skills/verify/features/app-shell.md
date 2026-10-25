@@ -7,7 +7,7 @@ Lead Studio is the Electron app in `studio/`, Orca's workspace under its own ide
 - Window titled Lead Studio (`studio/src/renderer/index.html`, `studio/src/main/window/createMainWindow.ts`).
 - Terminal tab in the active worktree, typed into through xterm's helper textarea.
 - Split of the active terminal pane, through the same split request the pane menu sends (`studio/src/renderer/src/constants/terminal.ts`).
-- Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`.
+- Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Dev Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`, home dir `~/.lead-studio`, CLI `lead-dev` in its terminals.
 
 ## How to get to it (user POV)
 
@@ -40,5 +40,5 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse studio/out
 - Add project opens a native folder picker that CDP cannot drive. A scripted lane adds the repo with `window.api.repos.add({ path })`, the call the picker makes.
 - In-app copy still says Orca (sidebar header, empty state, Orca Mobile). Only the window title, dock name and identity are renamed so far.
 - Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
-- `~/.orca` (keybindings, agent hook scripts, some credential files) is shared with Orca.app, the same split upstream uses between `pnpm dev` and the packaged app. The verify launch isolates HOME, so it never touches it.
-- The in-terminal agent CLI is still `orca-dev`. Its shim lives under the `lead-studio` user data dir, so it reaches this app, not Orca.app.
+- Lead Studio writes `~/.lead-studio`, never `~/.orca`. The agent's own settings file, such as `~/.claude/settings.json`, is shared: each app's hook install replaces the other's entry there.
+- The in-terminal CLI is `lead-dev` (and `lead`). The shims live under the `lead-studio` user data dir, so they reach this app, not Orca.app. Orca's bundled agent skill guides still say `orca`.

@@ -13,7 +13,7 @@ All helpers live in `.claude/skills/verify/scripts/` and run from any cwd.
 
 ## Lead Studio app
 
-Rule G-03: every PR that adds or changes a feature adds or updates its file in `features/` and a journey that runs it on the Lead Studio Electron app; the journey fails when that step breaks. `scripts/check-verify-coverage.mjs` fails CI when a PR touches `studio/src/renderer/` or `src/server/` without touching `features/`.
+Rule G-03: every PR that adds or changes a feature adds or updates its file in `features/` and a journey that runs it on the Lead Studio Electron app; the journey fails when that step breaks. `scripts/check-verify-coverage.mjs` fails CI when a PR touches `studio/src/renderer/` or `src/server/` without touching a feature file in `features/` other than `README.md`.
 
 ```bash
 .claude/skills/verify/scripts/app-up.sh                       # build studio/ in e2e mode, launch, wait for "app: ready"
