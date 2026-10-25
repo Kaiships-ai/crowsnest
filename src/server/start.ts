@@ -4,6 +4,7 @@ import { startOwnMeasureScheduler } from "./services/own-measure-scheduler";
 import { startPublishScheduler } from "./services/publish-scheduler";
 import { startSyncScheduler } from "./services/sync-scheduler";
 
+export { dispatchEngineCall } from "./bridge/engine-calls";
 export { handleMcpRequest } from "./mcp/http";
 export { GET as getMedia, HEAD as headMedia } from "./media/serve";
 

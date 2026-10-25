@@ -1,6 +1,6 @@
 # App shell
 
-Lead Studio is the Electron app at the repo root, Orca's workspace under its own identity: terminal, chat, browser tab, split panes and the agent table. Crowsnest's `src/server` runs in its main process on the checkout's `data/crowsnest.db`; no crowsnest board lives in it yet.
+Lead Studio is the Electron app at the repo root, Orca's workspace under its own identity: terminal, chat, browser tab, split panes and the agent table. Crowsnest's `src/server` runs in its main process on the checkout's `data/crowsnest.db`, and the renderer reaches it through the engine bridge. No crowsnest board lives in it yet.
 
 ## Sub-features
 
@@ -8,6 +8,7 @@ Lead Studio is the Electron app at the repo root, Orca's workspace under its own
 - Terminal tab in the active worktree, typed into through xterm's helper textarea.
 - Split of the active terminal pane, through the same split request the pane menu sends (`src/renderer/src/constants/terminal.ts`).
 - Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 38 `crowsnest_*` tools.
+- Engine bridge: `window.api.crowsnest.call(name, ...args)` runs an entry of `ENGINE_CALLS` (`src/server/bridge/engine-calls.ts`) over the `crowsnest:call` channel and returns `{ ok, value }` or `{ ok: false, error: { code, message } }`.
 - `cn-media://asset/<assetId>` serves stored assets with byte ranges (`src/main/crowsnest/start.ts`).
 - Jobs: sync and own-measure always run and reach Instagram; the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
 - Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Dev Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`, home dir `~/.lead-studio`, CLI `lead-dev` in its terminals.
@@ -32,6 +33,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # app DB = copy
 .claude/skills/verify/scripts/mcp.sh --app crowsnest_plans
 CN_MEDIA_ASSET=<asset id> .claude/skills/verify/scripts/app-drive.sh media-01 [run-id]
 APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse out/
+.claude/skills/verify/scripts/app-drive.sh bridge-01 [run-id]   # engine bridge, needs --seed
 .claude/skills/verify/scripts/app-drive.sh shell-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh close-terminal [run-id]  # negative control
 .claude/skills/verify/scripts/app-drive.sh --console      # host log
@@ -40,6 +42,8 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse out/
 ```
 
 `shell-01` prints `ok: window`, `ok: terminal echo`, `ok: split` and saves `shell-01.png`. After `close-terminal`, a rerun of `shell-01` fails with `FAIL: terminal echo`.
+
+`bridge-01` calls the bridge from the renderer on the seeded DB and prints `ok: query returns seeded rows`, `ok: query with an argument`, `ok: secret status carries no value`, `ok: bad arguments are a typed error`, `ok: unknown call is a typed error`. It logs each result, so the transcript shows the rows.
 
 `media-01` fetches `cn-media://asset/no-such-asset` from the renderer and expects 404. With `CN_MEDIA_ASSET` it also expects a 200 body and a 10-byte 206 for `bytes=0-9`. The seed has no assets; insert a `media_assets` row into the lane's `<userData>/crowsnest.db` (the user data dir `app-up.sh` prints) whose `storage_path` is relative to `MEDIA_ROOT`, which a lane leaves at `<checkout>/data/media` (`src/main/crowsnest/start.ts`). For example, with a 30-byte `data/media/verify/a.txt`:
 

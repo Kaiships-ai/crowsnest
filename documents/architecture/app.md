@@ -13,7 +13,7 @@ The app opens the database of the checkout it runs from, `data/crowsnest.db`, di
 `startCrowsnest` in `src/main/crowsnest/start.ts` runs after the ready-phase runtime services (`src/main/startup/main-process-ready.ts`). It does not block the window, and a failure only logs `[crowsnest] start failed`. In order, it:
 
 1. sets `CROWSNEST_DB_PATH` and `MEDIA_ROOT` when unset, which `src/server` reads at import time;
-2. imports `src/server/start.ts` and calls `startInApp`, which applies the `drizzle/` migrations and starts the jobs;
+2. registers the engine bridge (below), then imports `src/server/start.ts` and calls `startInApp`, which applies the `drizzle/` migrations and starts the jobs;
 3. serves the MCP at `http://127.0.0.1:<mcp.port>/api/mcp` (`src/main/crowsnest/mcp-http.ts`) with the 38 `crowsnest_*` tools;
 4. serves stored assets on `cn-media://asset/<assetId>` through `src/server/media/serve.ts`, with byte ranges.
 
@@ -21,9 +21,17 @@ The `.mcp.json` entry `lead-studio` runs `scripts/lead-studio-mcp.mjs`, a stdio 
 
 `server.ts` is a headless host for the packaged Kit's LaunchAgent: the same MCP and all three jobs on `PORT`, with no window.
 
+### Engine bridge
+
+The renderer reaches the engine through one IPC channel, `crowsnest:call`, as `window.api.crowsnest.call(name, ...args)`. `ENGINE_CALLS` in `src/server/bridge/engine-calls.ts` is the only list of what it can call. Each entry is keyed by the engine export name and pairs a zod tuple for the arguments with the function. The compiler rejects a tuple the function cannot take. The preload bridge (`src/preload/api/crowsnest-bridge.ts`) holds no list, and the renderer type (`src/preload/api/crowsnest-api.ts`) derives arguments and return values from `ENGINE_CALLS` with type-only imports. To expose another engine function, add one entry to `ENGINE_CALLS`.
+
+Every call returns `{ ok: true, value }` or `{ ok: false, error: { code, message } }`. The codes are `unknown_call`, `bad_args`, `failed`, and `untrusted_sender`. `value` is the engine function's own result, so an action that reports its own `{ ok: false }` still arrives as a bridge `ok: true`. The handler in `src/main/crowsnest/engine-ipc.ts` exists before the engine finishes starting. A call made earlier waits until migrations have run, and a call after a failed start gets `failed`.
+
+`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver. It leaves out the calls that only the deleted Next screens used.
+
 ### How the main build gets `src/server`
 
-The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm, the MCP SDK, zod, p-queue). `electron.vite.config.ts` maps `@/` to `src/` for main and keeps `better-sqlite3` external. Its binary is N-API, so the same build loads in Node for the tests and in Electron, with no Electron rebuild. `config/tsconfig.node.json` maps `@/*` the same way, so the main typecheck follows the imports into `src/server`; `config/tsconfig.crowsnest.json` checks the rest of `src/server`, `src/lib`, `src/kai-cli` and `scripts/`. In the renderer `@/` is `src/renderer/src`.
+The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm, the MCP SDK, zod, p-queue). `electron.vite.config.ts` maps `@/` to `src/` for main and keeps `better-sqlite3` external. Its binary is N-API, so the same build loads in Node for the tests and in Electron, with no Electron rebuild. `config/tsconfig.node.json` maps `@/*` the same way, so the main typecheck follows the imports into `src/server`; `config/tsconfig.crowsnest.json` checks the rest of `src/server`, `src/lib`, `src/kai-cli` and `scripts/`. In the renderer `@/` is `src/renderer/src`. The web tsconfigs (`config/tsconfig.web.json`, `config/tsconfig.tc.web.json`) also map `@/server/*` and `@/lib/*` to the engine, so the bridge's renderer type resolves. Only types cross, so no `src/server` code reaches the renderer bundle.
 
 ## Identity
 
@@ -49,6 +57,7 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 
 - The app reads Instagram: sync and own-channel measurement always run. It never auto-publishes until the publish step ships: `startInApp` starts the publish scheduler only with `LEAD_STUDIO_PUBLISH_JOBS=1`. `src/server/start.test.ts` checks both.
 - Lead Studio never opens or writes the installed Orca.app profile, lock, socket, keychain item, `~/.orca` or `/usr/local/bin/orca`. Changing a value in the identity table must keep it distinct from Orca's. Lane 2 in `scripts/e2e/cases/app.md` checks that `~/.orca` is unchanged after `pnpm dev`.
+- The renderer is untrusted. The bridge answers only the app window (`isTrustedBrowserRenderer`) and parses every argument against its tuple before the engine runs. It never returns a secret value: secrets cross only renderer to main (`setSecretAction`), status reads return `configured` and `source`, and an error message has every stored secret value replaced with `[redacted]`. `src/server/bridge/engine-calls.test.ts` checks the parsing and that no read returns a stored secret.
 - Agents in a Lead Studio terminal run `lead-dev`, which reaches this instance through `ORCA_USER_DATA_PATH`. Dev mode is detected by `lead-studio` in that path (`src/cli/handlers/orchestration/runtime-compatibility.ts`). Orca's bundled agent skill guides still say `orca`.
 
 ## Verify

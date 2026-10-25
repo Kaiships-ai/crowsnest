@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { app, protocol } from 'electron'
+import { registerEngineIpc } from './engine-ipc'
 import { startMcpHttp } from './mcp-http'
 
 export const CROWSNEST_MEDIA_SCHEME: Electron.CustomScheme = {
@@ -20,8 +21,12 @@ export async function startCrowsnest(): Promise<void> {
   process.env.CROWSNEST_DB_PATH ??= join(checkout, 'data/crowsnest.db')
   process.env.MEDIA_ROOT ??= join(checkout, 'data/media')
 
-  const server = await import('../../server/start')
-  const stopJobs = server.startInApp({ migrationsFolder: join(checkout, 'drizzle') })
+  const starting = import('../../server/start').then((server) => ({
+    server,
+    stopJobs: server.startInApp({ migrationsFolder: join(checkout, 'drizzle') })
+  }))
+  registerEngineIpc(starting.then(({ server }) => server.dispatchEngineCall))
+  const { server, stopJobs } = await starting
   const stopMcp = await startMcpHttp(server.handleMcpRequest, join(userData, 'mcp.port'))
   protocol.handle(CROWSNEST_MEDIA_SCHEME.scheme, async (request) => {
     const params = Promise.resolve({ assetId: new URL(request.url).pathname.slice(1) })
