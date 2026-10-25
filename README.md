@@ -149,8 +149,8 @@ pnpm run lint       # oxlint and the repo's ratchets
 pnpm run typecheck  # the app's projects and config/tsconfig.crowsnest.json
 ```
 
-Locally, run only the tests your change touches with `pnpm run test:changed`. CI runs the
-affected tests on a PR and the full suite nightly. Heavy jobs go through `scripts/heavy.sh`, one at a time per machine. Prove behavior in
+Locally, run only the tests your change touches with `pnpm run test:changed`. CI runs only the
+affected tests; nothing runs the full suite. Heavy jobs go through `scripts/heavy.sh`, one at a time per machine. Prove behavior in
 the real app with the `verify` skill (`.claude/skills/verify/SKILL.md`): `app-up.sh --seed`,
 `app-drive.sh <journey>`, `app-down.sh`.
 
