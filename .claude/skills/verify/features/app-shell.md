@@ -41,7 +41,7 @@ APP_SKIP_BUILD=1 .claude/skills/verify/scripts/app-up.sh # reuse studio/out
 
 `shell-01` prints `ok: window`, `ok: terminal echo`, `ok: split` and saves `shell-01.png`. After `close-terminal`, a rerun of `shell-01` fails with `FAIL: terminal echo`.
 
-`media-01` fetches `cn-media://asset/no-such-asset` from the renderer and expects 404. With `CN_MEDIA_ASSET` it also expects a 200 body and a 10-byte 206 for `bytes=0-9`. The seed has no assets; insert a `media_assets` row into the app's `<userData>/crowsnest.db` (path in `data/verify/app/state.json`) pointing at a file under `data/media/`.
+`media-01` fetches `cn-media://asset/no-such-asset` from the renderer and expects 404. With `CN_MEDIA_ASSET` it also expects a 200 body and a 10-byte 206 for `bytes=0-9`. The seed has no assets; insert a `media_assets` row into the app's `<userData>/crowsnest.db` (the user data dir `app-up.sh` prints) pointing at a file under the checkout media dir.
 
 `app-host.mjs` waits for `mcp.port` before `app: ready`, so a crowsnest start failure shows as `crowsnest MCP never wrote mcp.port` with `[crowsnest] start failed` in `host.log`.
 

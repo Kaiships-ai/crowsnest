@@ -44,7 +44,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 
 ### media-01: cn-media assets
 
-1. `app-up.sh --seed`, insert a `media_assets` row for a file under `data/media/`.
+1. `app-up.sh --seed`, insert a `media_assets` row for a file under the checkout media dir.
 2. `CN_MEDIA_ASSET=<id> app-drive.sh media-01`.
 3. Pass: `ok: missing asset is 404`, `ok: asset 200`, `ok: asset range 206`.
 
