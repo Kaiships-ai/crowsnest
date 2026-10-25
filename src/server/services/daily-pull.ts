@@ -6,12 +6,6 @@ import type { DAILY_PULL_OUTCOMES } from "@/server/db/schema";
 import { clockNow } from "@/server/lib/clock";
 import { log } from "@/server/lib/logger";
 
-/**
- * Every connector pulls once a day at 05:00 local time. A slot missed while the app was
- * closed or the Mac asleep runs on the next tick after start or wake. Each connector's
- * row in daily_pulls is claimed before its pull starts, so a slot never runs twice.
- */
-
 export const DAILY_PULL_HOUR = 5;
 
 export interface PullOutcome {
@@ -20,8 +14,7 @@ export interface PullOutcome {
   detail: string | null;
 }
 
-/** The local date of the newest 05:00 at or before `now`. */
-export function pullSlot(now: Date): string {
+export function pullSlotDate(now: Date): string {
   const d = new Date(now);
   if (d.getHours() < DAILY_PULL_HOUR) d.setDate(d.getDate() - 1);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -47,9 +40,8 @@ async function pullConnector(connector: Connector, registry: Connector[]): Promi
   }
 }
 
-/** Runs every connector not yet run for the slot `now` falls in. Returns what ran. */
 export async function runDailyPull(now: Date = clockNow(), registry: Connector[] = CONNECTORS): Promise<PullOutcome[]> {
-  const slot = pullSlot(now);
+  const slot = pullSlotDate(now);
   const outcomes: PullOutcome[] = [];
   for (const connector of registry) {
     const connectorId = connector.manifest.id;
@@ -66,7 +58,6 @@ export async function runDailyPull(now: Date = clockNow(), registry: Connector[]
   return outcomes;
 }
 
-/** Pulls one connector now, outside the daily slot. A pull only reads from its source. */
 export async function pullAgain(connectorId: string, registry: Connector[] = CONNECTORS): Promise<PullOutcome> {
   const connector = registry.find((c) => c.manifest.id === connectorId);
   if (!connector) throw new Error(`no connector ${connectorId}`);
@@ -78,7 +69,6 @@ export async function pullAgain(connectorId: string, registry: Connector[] = CON
 const TICK_MS = 60_000;
 const BOOT_TICK_DELAY_MS = 15_000;
 
-/** A tick a minute, so a slot missed while the Mac slept runs within a minute of waking. */
 export function startDailyPullScheduler({ intervalMs = TICK_MS, registry = CONNECTORS }: { intervalMs?: number; registry?: Connector[] } = {}): () => void {
   let running = false;
   const tick = () => {

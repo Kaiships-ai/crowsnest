@@ -2,7 +2,6 @@ import { createServer } from "node:http";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-// A local stand-in for graph.instagram.com: one account, no media, empty insights.
 const portFile = path.resolve(import.meta.dirname, "../../../../data/verify/app/fake-graph.port");
 let calls = 0;
 const server = createServer((req, res) => {

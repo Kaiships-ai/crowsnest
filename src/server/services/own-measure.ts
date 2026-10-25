@@ -24,7 +24,6 @@ import { newestCaptureByPost, OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_E
 export const OWN_MEASURE_CALL_BUDGET = 150;
 /** Measure now: close to the 200-an-hour Graph limit. The rate-limit stop is the real guard. */
 export const OWN_MEASURE_MANUAL_CALL_BUDGET = 190;
-/** Calls kept free under Instagram's hourly limit for anything else. */
 const GRAPH_CALL_HEADROOM = 10;
 
 export type MeasureScope = "all" | "due";
@@ -398,7 +397,6 @@ function shared(): OwnMeasureState {
   return (g.__crowsnestOwnMeasure ??= {});
 }
 
-/** A due run finding another run in flight returns MEASURE_BUSY unless `wait` is set. */
 export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number; wait?: true }): Promise<MeasureResult> {
   const state = shared();
   if (state.inFlight && opts.scope === "due" && !opts.wait) return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };

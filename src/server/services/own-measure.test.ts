@@ -20,14 +20,14 @@ let migrate: typeof import("@/server/db/test-migrate")["migrate"];
 let svc: typeof import("./own-measure");
 // Captured once: a later test resets modules, and a fresh import would be a different logger.
 let log: typeof import("@/server/lib/logger")["log"];
-let spendCall: typeof import("@/server/lib/call-budget")["spendCall"];
+let trySpendCall: typeof import("@/server/lib/call-budget")["trySpendCall"];
 
 beforeAll(async () => {
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   svc = await import("./own-measure");
   ({ log } = await import("@/server/lib/logger"));
-  ({ spendCall } = await import("@/server/lib/call-budget"));
+  ({ trySpendCall } = await import("@/server/lib/call-budget"));
 });
 
 const ACCOUNT = { id: "acct1", username: "kallaway", followersCount: 1000, followsCount: 50, mediaCount: 10 };
@@ -47,7 +47,7 @@ const insightsFailed = (error: GraphApiError, endsRun: boolean) => ({ kind: "fai
 function spend<T>(n: number, value: T) {
   return async () => {
     (await import("@/server/graph/client")).graphCallLedger().total += n;
-    for (let i = 0; i < n; i++) spendCall("instagram-graph", Infinity, new Date());
+    for (let i = 0; i < n; i++) trySpendCall("instagram-graph", Infinity, new Date());
     return value;
   };
 }

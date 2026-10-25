@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Boots the seeded app against a fake Graph with its clock 30 s before today's 05:00, then runs schedule-01.
-# Leaves the app up for more journeys; app-down.sh stops it and the fake Graph.
 set -euo pipefail
 cd "$(dirname "$0")/../../../.."
 DIR=data/verify/app

@@ -3,7 +3,7 @@ import type { Connector } from "@/server/connectors/types";
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
 import type { PullResult } from "@/server/lib/pull-result";
-import { pullAgain, pullSlot, runDailyPull, startDailyPullScheduler } from "./daily-pull";
+import { pullAgain, pullSlotDate, runDailyPull, startDailyPullScheduler } from "./daily-pull";
 
 const at = (day: number, h: number, m = 0) => new Date(2026, 9, day, h, m);
 
@@ -22,11 +22,11 @@ beforeEach(async () => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("pullSlot", () => {
+describe("pullSlotDate", () => {
   test("before 05:00 a time belongs to yesterday's slot, from 05:00 to today's", () => {
-    expect(pullSlot(at(27, 4, 59))).toBe("2026-10-26");
-    expect(pullSlot(at(27, 5, 0))).toBe("2026-10-27");
-    expect(pullSlot(at(1, 3))).toBe("2026-09-30");
+    expect(pullSlotDate(at(27, 4, 59))).toBe("2026-10-26");
+    expect(pullSlotDate(at(27, 5, 0))).toBe("2026-10-27");
+    expect(pullSlotDate(at(1, 3))).toBe("2026-09-30");
   });
 });
 

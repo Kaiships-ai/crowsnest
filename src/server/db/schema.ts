@@ -924,8 +924,6 @@ export const planVersions = sqliteTable(
   ],
 );
 
-/** One row per call made to a rate-limited outside source, so the hourly limit survives a
- *  restart. Rows older than an hour are pruned on each spend. */
 export const sourceCalls = sqliteTable(
   "source_calls",
   {
@@ -938,8 +936,6 @@ export const sourceCalls = sqliteTable(
 
 export const DAILY_PULL_OUTCOMES = ["complete", "partial", "failed", "skipped"] as const;
 
-/** One row per connector per daily pull slot (the local date of its 05:00). The row is
- *  claimed before the pull starts, so a slot never runs twice, even after a crash. */
 export const dailyPulls = sqliteTable(
   "daily_pulls",
   {

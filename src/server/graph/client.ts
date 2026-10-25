@@ -1,5 +1,5 @@
 import { config } from "../config";
-import { callsInLastHour, spendCall } from "../lib/call-budget";
+import { callsInLastHour, trySpendCall } from "../lib/call-budget";
 import { clockNow } from "../lib/clock";
 import { log } from "../lib/logger";
 import { instagramGraph } from "../connectors/instagram-graph/manifest";
@@ -323,12 +323,9 @@ export function redactToken(text: string, token: string): string {
 
 // ---------------------------------------------------------------- call ledger
 
-/** Instagram's per-account Graph limit. The transport refuses any call past it. */
+/** Instagram's per-account Graph limit. */
 export const GRAPH_CALLS_PER_HOUR = 200;
 
-/** `total` counts this process's Graph calls, so a run reads its own spend as the growth
- *  since it started. Kept on globalThis next to the measure lock, because a second copy of
- *  this module in the same process must read the same count. */
 export interface GraphCallLedger {
   total: number;
 }
@@ -336,12 +333,11 @@ export function graphCallLedger(): GraphCallLedger {
   const g = globalThis as { __crowsnestOwnMeasure?: { graphCalls?: GraphCallLedger } };
   return ((g.__crowsnestOwnMeasure ??= {}).graphCalls ??= { total: 0 });
 }
-/** Every process's Graph calls in the last hour, from SQLite, so a restart keeps the count. */
 export function graphCallsInLastHour(at = clockNow()): number {
   return callsInLastHour(instagramGraph.id, at);
 }
 function spendGraphCall(): boolean {
-  if (!spendCall(instagramGraph.id, GRAPH_CALLS_PER_HOUR, clockNow())) return false;
+  if (!trySpendCall(instagramGraph.id, GRAPH_CALLS_PER_HOUR, clockNow())) return false;
   graphCallLedger().total += 1;
   return true;
 }
