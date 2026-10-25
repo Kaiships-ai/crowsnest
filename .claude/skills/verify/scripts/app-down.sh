@@ -14,9 +14,9 @@ fi
 rm -f "$DIR/host.pid" "$DIR/state.json"
 rc=0
 if [ -f "$DIR/host.fingerprint" ]; then
-  now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; ls -lT "$HOME/.orca/agent-hooks" 2>/dev/null; } | shasum | cut -d' ' -f1)"
+  now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1)"
   if [ "$now" != "$(cat "$DIR/host.fingerprint")" ]; then
-    echo "app: HOST CHANGED: ~/.claude/settings.json hooks or ~/.orca/agent-hooks differ from before app-up. Report it with a revert path." >&2
+    echo "app: HOST CHANGED: ~/.claude/settings.json hooks or ~/.orca/agent-hooks differ from before app-up. Report it with a revert path; a plugin install or Orca.app restart during the run also trips it." >&2
     rc=1
   fi
   rm -f "$DIR/host.fingerprint"
