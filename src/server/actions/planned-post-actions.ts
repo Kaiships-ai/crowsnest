@@ -659,8 +659,7 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
 
 export async function approvePlanVersionAction(versionId: string): Promise<ApproveResult> {
   try {
-    const r = approvePlanVersion(versionId);
-    return r;
+    return approvePlanVersion(versionId);
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }
@@ -668,8 +667,7 @@ export async function approvePlanVersionAction(versionId: string): Promise<Appro
 
 export async function undoPlanVersionAction(ref: PlanRef, expectLiveId?: string): Promise<UndoResult> {
   try {
-    const r = undoPlanVersion(ref, expectLiveId);
-    return r;
+    return undoPlanVersion(ref, expectLiveId);
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }
