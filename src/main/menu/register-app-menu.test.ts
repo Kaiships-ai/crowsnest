@@ -526,6 +526,18 @@ describe('registerAppMenu', () => {
     expect(options.onOpenFeatureTour).toHaveBeenCalledWith(targetWindow)
   })
 
+  it('opens the Channels board from the Boards menu', () => {
+    const options = buildMenuOptions()
+    registerAppMenu(options)
+
+    const channelsItem = getSubmenu(getTemplate(), 'Boards').find(
+      (entry) => entry.label === 'Channels'
+    )
+    channelsItem?.click?.({} as never, undefined, {} as Electron.KeyboardEvent)
+
+    expect(options.onOpenBoard).toHaveBeenCalledWith('channels')
+  })
+
   it('routes Report Crash through its callback', () => {
     const options = buildMenuOptions()
     registerAppMenu(options)

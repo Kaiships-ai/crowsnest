@@ -3,10 +3,13 @@ import { readFileSync } from "node:fs";
 
 const STATE = new URL("../../../../../data/verify/app/state.json", import.meta.url);
 const FIXTURE = "@e2e_fixture_creator";
+// SQLite refuses to rename a table under a partial index that names it, so the index goes first.
+const OWN_INDEX = 'create unique index channels_single_own on channels (is_own) where "channels"."is_own" = 1';
 
 const openFromNewTabMenu = async (page) => {
   await page.getByRole("button", { name: "New tab" }).first().click();
   await page.locator('[data-testid="new-tab-board"][data-board-id="channels"]').click();
+  await page.getByRole("menu").waitFor({ state: "detached" });
 };
 
 export default async function board01({ page, step, snap }) {
@@ -28,7 +31,7 @@ export default async function board01({ page, step, snap }) {
     if (views !== 1) throw new Error(`${views} board views`);
   });
 
-  sql("alter table channels rename to channels_off");
+  sql("drop index channels_single_own; alter table channels rename to channels_off");
   try {
     await step("a failed query shows the error state", async () => {
       await board.getByTestId("board-refresh").click();
@@ -38,7 +41,7 @@ export default async function board01({ page, step, snap }) {
     });
     await snap("board-01-error");
   } finally {
-    sql("alter table channels_off rename to channels");
+    sql(`alter table channels_off rename to channels; ${OWN_INDEX}`);
   }
   await step("Retry brings the rows back", async () => {
     await board.getByTestId("board-retry").click();

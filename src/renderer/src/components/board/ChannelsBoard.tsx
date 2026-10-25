@@ -23,7 +23,7 @@ export function ChannelsBoard(): React.ReactNode {
     >
       {(rows) => (
         <div className="scrollbar-sleek h-full overflow-auto">
-          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 border-b border-border px-4 py-1 text-xs text-muted-foreground">
+          <div className="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-6 border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
             <span>{translate('boards.channels.column', 'Channel')}</span>
             <span className="text-right">
               {translate('boards.channels.followers', 'Followers')}

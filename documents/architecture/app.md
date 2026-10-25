@@ -48,7 +48,7 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 
 ## Menus and visible names
 
-The app menu has a top-level Lead Studio menu that opens boards ([boards](boards.md)). Menus, window titles, the tray and the titlebar app name say Lead Studio: Explore Lead Studio, Getting Started with Lead Studio, Show Lead Studio Mobile Button, Open Lead Studio, the tray tooltip, the Lead Studio Agent Dashboard and Lead Studio Space Beta windows, and the tray notice. Only the English fallbacks and locale values changed; code identifiers and i18n keys (`menu.exploreOrca`, `tray.openOrca`) still say Orca. Other in-app copy still says Orca.
+The app menu has a top-level Boards menu that opens boards ([boards](boards.md)). Menus, window titles, the tray and the titlebar app name say Lead Studio: Explore Lead Studio, Getting Started with Lead Studio, Show Lead Studio Mobile Button, Open Lead Studio, the tray tooltip, the Lead Studio Agent Dashboard and Lead Studio Space Beta windows, and the tray notice. Only the English fallbacks and locale values changed; code identifiers and i18n keys (`menu.exploreOrca`, `tray.openOrca`) still say Orca. Other in-app copy still says Orca.
 
 ## Boundaries
 
