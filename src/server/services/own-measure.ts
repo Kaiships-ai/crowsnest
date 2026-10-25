@@ -1,7 +1,8 @@
 import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
-import { CLASSIFIER_VERSION, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphComment, type GraphCommentsResult, type GraphMedia, type GraphPostInsights, type PostInsightsResult } from "@/server/graph/client";
+import { CLASSIFIER_VERSION, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphBreakdownRow, type GraphComment, type GraphMedia, type GraphPostInsights } from "@/server/graph/client";
+import type { CompletePull, PullResult } from "@/server/lib/pull-result";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
 import { rememberTokenStatus } from "@/server/graph/token-status";
 import { newestCaptureByPost, OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_ERROR_KEY, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY } from "@/server/queries/own-channel";
@@ -17,6 +18,10 @@ import { newestCaptureByPost, OWN_AUDIENCE_FETCH_ERROR_KEY, OWN_COMMENTS_FETCH_E
  * Never deletes: a post that disappears from the account stays in own_posts with its
  * history intact. The account call failing is a hard failure (nothing to show); comments
  * failing after posts succeeded is ok with partial: true.
+ *
+ * Every Graph pull here is a `PullResult`. Only a complete one becomes current numbers: a
+ * partial post capture is stored as a failed capture (fetchError set), which readers skip,
+ * and a partial breakdown batch is not stored.
  */
 
 /** Scheduled runs leave headroom under Instagram's 200 calls an hour for Measure now. */
@@ -153,8 +158,30 @@ function insightColumns(i: GraphPostInsights) {
     reach: i.reach, saved: i.saved, shares: i.shares, totalInteractions: i.totalInteractions, comments: i.comments,
     likes: i.likes, views: i.views, profileVisits: i.profileVisits, followsFromPost: i.followsFromPost,
     watchTimeSec: i.watchTimeSec, reposts: i.reposts, skipRate: i.skipRate, bioLinkTaps: i.bioLinkTaps,
-    avgWatchTimeMs: i.avgWatchTimeMs, totalWatchTimeMs: i.totalWatchTimeMs, fetchError: i.error,
+    avgWatchTimeMs: i.avgWatchTimeMs, totalWatchTimeMs: i.totalWatchTimeMs,
   };
+}
+
+/** The one writer of a post's current numbers: a successful capture, and the post's
+ *  lastMeasuredAt. Takes a complete pull only. */
+async function storePostCapture(ownPostId: string, measuredAt: string, pull: CompletePull<GraphPostInsights>): Promise<void> {
+  await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
+  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(pull.rows) });
+}
+
+/** A post capture that did not complete, kept as a failed capture so isDue backs the post
+ *  off and readers, which pick the newest successful capture, never show it. A partial one
+ *  keeps the metrics that landed as raw history. */
+async function storeFailedCapture(ownPostId: string, measuredAt: string, pull: Exclude<PullResult<GraphPostInsights, GraphApiError>, { kind: "complete" }>): Promise<void> {
+  const fetchError = pull.kind === "partial" ? `partial, missing ${pull.missing}: ${pull.reason.message}` : pull.reason.message;
+  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...(pull.kind === "partial" ? insightColumns(pull.rows) : {}), fetchError });
+}
+
+/** The newest breakdown batch per metric is what the screen shows, so each batch lands only
+ *  from a complete pull: one cut short would hide the last full one. */
+async function storeBreakdowns(measuredAt: string, pulls: CompletePull<GraphBreakdownRow[]>[]): Promise<void> {
+  const rows = pulls.flatMap((p) => p.rows);
+  if (rows.length > 0) await db.insert(tables.ownAccountBreakdowns).values(rows.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
 }
 
 /** Upserts one own_comments row keyed on externalId (the Graph comment id). A comment
@@ -196,23 +223,25 @@ async function measureComments(
   media: GraphMedia[],
   measuredAt: string
 ): Promise<{ commentsSeen: number; partial: boolean; stop: GraphApiError | null }> {
-  let fetched: GraphCommentsResult;
+  let pull: PullResult<GraphComment[], GraphApiError>;
   try {
-    fetched = await graphClient.fetchComments(account.username, media);
+    pull = await graphClient.fetchComments(account.username, media);
   } catch (err) {
     // Not configured, or a malformed comment mid-pull.
     await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(err));
     log.warn("graph.measure.comments_failed", { message: messageOf(err) });
     return { commentsSeen: 0, partial: true, stop: fatalStop(err) };
   }
-  const { comments, stop } = fetched;
+  // Each comment is a whole record, so the ones a partial pull brought back are stored;
+  // only a complete pull marks the comments current (OWN_COMMENTS_FETCHED_AT_KEY).
+  const comments = pull.kind === "failed" ? [] : pull.rows;
   const allOwnPosts = await db.select({ id: tables.ownPosts.id, permalink: tables.ownPosts.permalink }).from(tables.ownPosts);
   const postIdByPermalink = new Map(allOwnPosts.map((p) => [p.permalink, p.id]));
   for (const c of comments) await upsertOwnComment(c, postIdByPermalink);
-  if (stop) {
-    await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(stop));
-    log.warn("graph.measure.comments_failed", { message: messageOf(stop) });
-    return { commentsSeen: comments.length, partial: true, stop };
+  if (pull.kind !== "complete") {
+    await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, messageOf(pull.reason));
+    log.warn("graph.measure.comments_failed", { kind: pull.kind, message: messageOf(pull.reason) });
+    return { commentsSeen: comments.length, partial: true, stop: fatalStop(pull.reason) };
   }
   await setAppSetting(OWN_COMMENTS_FETCH_ERROR_KEY, null);
   await setAppSetting(OWN_COMMENTS_FETCHED_AT_KEY, measuredAt);
@@ -288,9 +317,10 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
       stoppedEarly = "budget";
       break;
     }
-    let fetched: PostInsightsResult;
+    const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
+    let pull: PullResult<GraphPostInsights, GraphApiError>;
     try {
-      fetched = await graphClient.fetchPostInsights(m);
+      pull = await graphClient.fetchPostInsights(m);
     } catch (err) {
       // The token vanished mid-run: every other post would throw the same way.
       if (err instanceof GraphApiError && err.code === "GRAPH_NOT_CONFIGURED") return toFailure(err);
@@ -298,24 +328,29 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
       if (!fatal) {
         log.warn("own_measure.post_failed", { externalId: m.externalId, error: messageOf(err) });
         // Stored as a failed capture so isDue backs this post off like any other failure.
-        await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId: ownPostIdByExternalId.get(m.externalId) as string, capturedAt: measuredAt, fetchError: messageOf(err) });
+        await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, fetchError: messageOf(err) });
         postsFailed += 1;
         continue;
       }
-      fetched = { insights: null, stop: fatal };
+      pull = { kind: "failed", reason: fatal };
     }
-    if (fetched.insights) {
-      const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
-      if (!fetched.insights.error) await db.update(tables.ownPosts).set({ lastMeasuredAt: measuredAt }).where(eq(tables.ownPosts.id, ownPostId));
-      await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...insightColumns(fetched.insights) });
-      if (fetched.insights.error) postsFailed += 1;
-      else postsMeasured += 1;
+    if (pull.kind === "complete") {
+      await storePostCapture(ownPostId, measuredAt, pull);
+      postsMeasured += 1;
+      continue;
+    }
+    // A stop (dead token, missing insights grant, rate limit) with nothing landed ends the
+    // run before this post is recorded; a partial one keeps what landed as a failed capture.
+    const stop = fatalStop(pull.reason) ?? (pull.reason.code === "GRAPH_PERMISSION_DENIED" ? pull.reason : null);
+    if (!stop || pull.kind === "partial") {
+      await storeFailedCapture(ownPostId, measuredAt, pull);
+      postsFailed += 1;
     }
     // A dead token, or one without the insights permission, ends the run as a failure
     // (rows already written stay), so the action surfaces it and the scheduler logs
     // failed. A rate limit stops the run early.
-    if (fetched.stop && fetched.stop.code !== "GRAPH_RATE_LIMITED") return toFailure(fetched.stop);
-    if (fetched.stop) {
+    if (stop && stop.code !== "GRAPH_RATE_LIMITED") return toFailure(stop);
+    if (stop) {
       stoppedEarly = "rate_limited";
       break;
     }
@@ -346,24 +381,18 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   // tick (4 calls an hour); store a refusal timestamp if that ever matters.
   if (stoppedEarly === null && used() + 4 <= budget && (await breakdownsStale(now))) {
     try {
-      const b = await graphClient.fetchAccountBreakdowns();
-      // The reader shows the newest batch per metric. The follower split is its own metric and
-      // its call finished, so it is always kept; the demographics are kept only as a finished
-      // batch, because one cut short (a stop, or a later dimension failing) would hide the last
-      // full one. It retries next tick.
-      const complete = !b.stop && !b.incomplete;
-      const keep = b.rows.filter((r) => complete || r.metric === "views");
-      if (keep.length > 0) {
-        await db.insert(tables.ownAccountBreakdowns).values(keep.map((r) => ({ id: newId(), capturedAt: measuredAt, ...r })));
-      }
-      // Stored even when a later audience call stopped the run: the split call itself
-      // finished. Undefined when the split call was the stop, so nothing is stored.
-      if (b.splitError !== undefined) await setAppSetting(OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY, b.splitError);
-      if (b.stop?.code === "GRAPH_AUTH_FAILED") return toFailure(b.stop);
-      if (b.stop) stoppedEarly = "rate_limited";
-      else await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, b.audienceError);
+      const { split, audience } = await graphClient.fetchAccountBreakdowns();
+      await storeBreakdowns(measuredAt, [split, audience].filter((p): p is CompletePull<GraphBreakdownRow[]> => p.kind === "complete"));
+      const stop = [split, audience].map((p) => (p.kind === "complete" ? null : fatalStop(p.reason))).find((e) => e !== null) ?? null;
+      // The split's own outcome is stored even when a later audience call stopped the run;
+      // nothing is learned when the split call itself was the stop.
+      if (split.kind === "complete") await setAppSetting(OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY, null);
+      else if (!fatalStop(split.reason)) await setAppSetting(OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY, split.reason.message);
+      if (stop?.code === "GRAPH_AUTH_FAILED") return toFailure(stop);
+      if (stop) stoppedEarly = "rate_limited";
+      else await setAppSetting(OWN_AUDIENCE_FETCH_ERROR_KEY, audience.kind === "complete" ? null : audience.reason.message);
     } catch (err) {
-      // Only a non-Graph failure lands here (the client returns auth and rate limit as stop).
+      // Only a non-Graph failure lands here (the client returns auth and rate limit as reasons).
       log.warn("own_measure.breakdowns_failed", { error: messageOf(err) });
     }
   }

@@ -1,6 +1,7 @@
 import { config } from "../config";
 import { log } from "../lib/logger";
 import { getSecret } from "../secrets/store";
+import type { PullResult } from "../lib/pull-result";
 import { GraphApiError, type GraphErrorCode } from "./errors";
 
 /**
@@ -21,8 +22,8 @@ import { GraphApiError, type GraphErrorCode } from "./errors";
  *  1. The token never leaves this module in any error, string, log line or thrown
  *     value. Every message that can reach a caller or a log line is passed through
  *     `redactToken` first.
- *  2. A per-post insights failure is a field on that post (`GraphPostInsights.error`),
- *     never an exception, except auth and rate-limit failures, which must end the run.
+ *  2. A pull of several calls returns a `PullResult`, never throws a per-item failure:
+ *     auth and rate-limit failures come back as its reason, which must end the run.
  *  3. This client never touches the instagrapi sidecar's credentials or transport
  *     (`src/server/ig/`), and the sidecar never touches this token. Separate transports,
  *     separate tables, separate code paths — including a separate error hierarchy
@@ -65,8 +66,6 @@ export interface GraphPostInsights {
   avgWatchTimeMs: number | null;
   totalWatchTimeMs: number | null;
   bioLinkTaps: number | null;
-  /** Non-null when this one post's insights call failed while others succeeded. */
-  error: string | null;
 }
 
 export interface GraphMedia {
@@ -90,24 +89,13 @@ export interface GraphBreakdownRow {
   timeframe: string | null;
 }
 
+/** Two pulls: the follower split (views by follower_type, one call) and the engaged
+ *  audience demographics (age, country, gender). Each failed reason is the call's error;
+ *  an auth or rate-limit reason must end the run. When the split is that stop, the
+ *  audience was never asked and carries the same reason. */
 export interface GraphAccountBreakdowns {
-  rows: GraphBreakdownRow[];
-  /** Set when Instagram refused the engaged-audience demographics (for example, too few engagements). */
-  audienceError: string | null;
-  /** Set when the follower split (views by follower_type) call failed without ending the
-   *  run; undefined when the split call itself was the run-ending stop (nothing learned). */
-  splitError?: string | null;
-  /** Auth or rate limit: the run must end. rows holds whatever landed before it. */
-  stop?: GraphApiError | null;
-  /** A later audience dimension failed after an earlier one landed: rows is a partial
-   *  batch, not to be stored. audienceError holds the failure. */
-  incomplete?: boolean;
-}
-
-export interface GraphCommentsResult {
-  comments: GraphComment[];
-  /** Auth or rate limit on a per-media call: the pull stopped there and the run must end. */
-  stop: GraphApiError | null;
+  split: PullResult<GraphBreakdownRow[], GraphApiError>;
+  audience: PullResult<GraphBreakdownRow[], GraphApiError>;
 }
 
 export interface GraphComment {
@@ -129,21 +117,18 @@ export interface GraphTokenStatus {
   checkedAt: string;
 }
 
-export interface PostInsightsResult {
-  insights: GraphPostInsights | null;
-  stop?: GraphApiError | null;
-}
-
 export interface GraphClient {
   fetchAccount(): Promise<GraphAccount>;
   fetchMedia(limit?: number): Promise<GraphMedia[]>;
-  /** One post's insights. An auth or rate-limit failure comes back as `stop` (the run
-   *  must end) next to whatever insights were already fetched (null when none); any other
-   *  failure lands in insights.error. Calls are counted by the transport (graphCallLedger). */
-  fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult>;
+  /** One post's insights. Partial when a reel's metrics landed and its profile_activity
+   *  call was then stopped. A reason that is auth, rate limit or a token-wide permission
+   *  refusal must end the run. Calls are counted by the transport (graphCallLedger). */
+  fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, GraphApiError>>;
   fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns>;
-  /** Comments for the given media (the run's own media list), one call per post with comments. */
-  fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult>;
+  /** Comments for the given media (the run's own media list), one call per post with
+   *  comments. Partial when any post's call failed after another landed; `missing` lists
+   *  the media ids whose comments never came back. */
+  fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<PullResult<GraphComment[], GraphApiError>>;
   /** Cheapest authenticated call. Used by the settings token strip and "Test token".
    *  Never throws. */
   checkToken(): Promise<GraphTokenStatus>;
@@ -206,27 +191,6 @@ function buildMedia(raw: Record<string, unknown>): GraphMedia {
   };
 }
 
-function emptyInsights(error: string): GraphPostInsights {
-  return {
-    reach: null,
-    saved: null,
-    shares: null,
-    totalInteractions: null,
-    comments: null,
-    likes: null,
-    views: null,
-    profileVisits: null,
-    followsFromPost: null,
-    watchTimeSec: null,
-    reposts: null,
-    skipRate: null,
-    avgWatchTimeMs: null,
-    totalWatchTimeMs: null,
-    bioLinkTaps: null,
-    error,
-  };
-}
-
 /** Maps the Graph API's `{data: [{name, values: [{value}]}]}` insights envelope onto
  *  the app's flat shape. `isReel` gates `views`, matching ig_stats.py exactly: `views`
  *  is only ever requested for `media_product_type === "REELS"`, so a non-reel post must
@@ -257,7 +221,6 @@ export function mapInsights(raw: unknown, isReel: boolean): GraphPostInsights {
     avgWatchTimeMs: stats.ig_reels_avg_watch_time ?? null,
     totalWatchTimeMs: stats.ig_reels_video_view_total_time ?? null,
     bioLinkTaps: null,
-    error: null,
   };
 }
 
@@ -539,6 +502,10 @@ function fatalOf(result: GraphGetResult<unknown>): GraphApiError | null {
   return !result.ok && (result.kind === "auth" || result.kind === "rate_limit") ? new GraphApiError(errorCodeFor(result.kind), result.message) : null;
 }
 
+function errorOf(result: { ok: false; message: string; kind: GraphFailureKind }): GraphApiError {
+  return new GraphApiError(errorCodeFor(result.kind), result.message);
+}
+
 // ---------------------------------------------------------------- configuration gate
 
 /** Synchronous, network-free check used by the query layer: is there a token to read
@@ -582,13 +549,13 @@ export const graphClient: GraphClient = {
     return arr(result.data.data).map((raw) => buildMedia(rec(raw)));
   },
 
-  async fetchPostInsights(media: GraphMedia): Promise<PostInsightsResult> {
+  async fetchPostInsights(media: GraphMedia): Promise<PullResult<GraphPostInsights, GraphApiError>> {
     const { token } = requireConfigured();
     const path = `${media.externalId}/insights`;
     const isReel = media.productType === "REELS";
     let r = await graphGet<unknown>(path, { metric: isReel ? REEL_EXTENDED_METRICS : FEED_EXTENDED_METRICS }, token);
     let stop = fatalOf(r);
-    if (stop) return { insights: null, stop };
+    if (stop) return { kind: "failed", reason: stop };
     if (!r.ok) {
       // One unsupported metric name fails the whole call; retry once with the set that
       // worked before the rework, so the post keeps its core numbers. Logged with Graph's
@@ -598,76 +565,74 @@ export const graphClient: GraphClient = {
       // The core set refused for a missing scope too: the token lacks the insights grant, so
       // every other post would fail the same way. A refused extended set alone is not fatal.
       stop = fatalOf(r) ?? (!r.ok && r.kind === "permission" && tokenWidePermission(r.message) ? new GraphApiError("GRAPH_PERMISSION_DENIED", r.message) : null);
-      if (stop) return { insights: null, stop };
+      if (stop) return { kind: "failed", reason: stop };
     }
-    if (!r.ok) return { insights: emptyInsights(r.message), stop: null };
+    // Still refused but not token-wide: this post's own refusal ("not enough viewers"), so
+    // it never carries GRAPH_PERMISSION_DENIED, which callers read as the run's stop.
+    if (!r.ok) return { kind: "failed", reason: new GraphApiError(r.kind === "permission" ? "GRAPH_INVALID_REQUEST" : errorCodeFor(r.kind), r.message) };
     const insights = mapInsights(r.data, isReel);
-    if (!isReel) return { insights, stop: null };
+    if (!isReel) return { kind: "complete", rows: insights };
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
-    // A fatal here still returns the insights already fetched, with bio link taps null.
+    stop = fatalOf(activity);
+    if (stop) return { kind: "partial", rows: insights, missing: "bio link taps", reason: stop };
+    // A refused profile_activity is Instagram's answer for this reel, not a cut pull.
     insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
-    return { insights, stop: fatalOf(activity) };
+    return { kind: "complete", rows: insights };
   },
 
   async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
     const { token, userId } = requireConfigured();
-    const rows: GraphBreakdownRow[] = [];
     // Meta's documented shape for views: period=day, metric_type=total_value, breakdown
     // follower_type. since/until are optional; without them the API looks back 24 hours,
     // recorded as timeframe "day".
-    const split = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
-    const audienceError: string | null = null;
-    const splitError = split.ok ? null : split.message;
-    let stop = fatalOf(split);
-    if (stop) return { rows, audienceError, stop };
-    if (split.ok) rows.push(...mapBreakdown(split.data, "views", "follower_type", "day"));
-    else log.warn("graph.breakdowns.split_failed", { error: split.message });
-    for (const [i, dimension] of ["age", "country", "gender"].entries()) {
-      const r = await graphGet<unknown>(
+    const r = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
+    const stop = fatalOf(r);
+    if (stop) return { split: { kind: "failed", reason: stop }, audience: { kind: "failed", reason: stop } };
+    if (!r.ok) log.warn("graph.breakdowns.split_failed", { error: r.message });
+    const split: PullResult<GraphBreakdownRow[], GraphApiError> = r.ok ? { kind: "complete", rows: mapBreakdown(r.data, "views", "follower_type", "day") } : { kind: "failed", reason: errorOf(r) };
+    const rows: GraphBreakdownRow[] = [];
+    const dimensions = ["age", "country", "gender"];
+    for (const [i, dimension] of dimensions.entries()) {
+      const d = await graphGet<unknown>(
         `${userId}/insights`,
         { metric: "engaged_audience_demographics", period: "lifetime", timeframe: "this_month", metric_type: "total_value", breakdown: dimension },
         token
       );
-      stop = fatalOf(r);
-      if (stop) return { rows, audienceError, splitError, stop };
-      if (!r.ok) {
+      if (!d.ok) {
         // Below 100 engagements Instagram refuses all three; one refusal answers for the rest.
-        // A later dimension failing leaves a partial batch, so the caller must not store it.
-        return { rows, audienceError: r.message, splitError, stop: null, incomplete: i > 0 };
+        const reason = fatalOf(d) ?? errorOf(d);
+        const audience: PullResult<GraphBreakdownRow[], GraphApiError> = i === 0 ? { kind: "failed", reason } : { kind: "partial", rows, missing: dimensions.slice(i).join(", "), reason };
+        return { split, audience };
       }
-      rows.push(...mapBreakdown(r.data, "engaged_audience_demographics", dimension, "this_month"));
+      rows.push(...mapBreakdown(d.data, "engaged_audience_demographics", dimension, "this_month"));
     }
-    return { rows, audienceError, splitError, stop: null };
+    return { split, audience: { kind: "complete", rows } };
   },
 
-  async fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<GraphCommentsResult> {
+  async fetchComments(accountUsername: string, media: Pick<GraphMedia, "externalId" | "permalink" | "commentsCount">[]): Promise<PullResult<GraphComment[], GraphApiError>> {
     const { token } = requireConfigured();
     const out: GraphComment[] = [];
+    const missing: string[] = [];
+    let landed = 0;
+    let reason: GraphApiError | null = null;
     for (const m of media) {
       if (!m.commentsCount) continue;
-      const mediaId = m.externalId;
-      const permalink = m.permalink;
-
-      const commentsResult = await graphGet<{ data?: unknown[] }>(`${mediaId}/comments`, { fields: "id,text,username,timestamp", limit: 100 }, token);
-      // A dead token or a rate limit ends the pull: every further call would fail too.
-      const stop = fatalOf(commentsResult);
-      if (stop) return { comments: out, stop };
-      if (!commentsResult.ok) {
-        // Unlike a post's insights, `GraphComment` has no per-item error slot (the
-        // contract does not give it one), so a single media's comment pull failing
-        // is logged and that media's comments are skipped rather than the whole
-        // batch throwing. This is a real gap versus ig_stats.py, which folds a
-        // per-media failure into the same list as a distinguishable row — see the
-        // report for why that shape could not be carried over unchanged.
-        log.warn("graph.comments.media_failed", { mediaId });
+      const result = await graphGet<{ data?: unknown[] }>(`${m.externalId}/comments`, { fields: "id,text,username,timestamp", limit: 100 }, token);
+      if (!result.ok) {
+        log.warn("graph.comments.media_failed", { mediaId: m.externalId });
+        missing.push(m.externalId);
+        // A dead token or a rate limit ends the pull: every further call would fail too.
+        const stop = fatalOf(result);
+        reason = stop ?? reason ?? errorOf(result);
+        if (stop) break;
         continue;
       }
-      const rows = Array.isArray(commentsResult.data.data) ? commentsResult.data.data : [];
-      for (const row of rows) {
-        out.push(buildComment(permalink, rec(row), accountUsername));
-      }
+      landed += 1;
+      for (const row of arr(result.data.data)) out.push(buildComment(m.permalink, rec(row), accountUsername));
     }
-    return { comments: out, stop: null };
+    if (reason === null) return { kind: "complete", rows: out };
+    if (landed === 0) return { kind: "failed", reason };
+    return { kind: "partial", rows: out, missing: missing.join(", "), reason };
   },
 
   async checkToken(): Promise<GraphTokenStatus> {

@@ -1481,7 +1481,6 @@ async function syncOneChannel(
           thumbs.set(url, result);
         }
 
-        // 0 new posts on a page is the signal that the incremental walk has caught up.
         const known = await knownExternalIds(inCap.map((i) => i.externalId));
         let newOnPage = 0;
         for (const item of page.items) {

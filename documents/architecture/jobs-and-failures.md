@@ -34,7 +34,7 @@ Behavior the user can depend on:
 
 - The feed reflects the last sync, not live Instagram. With the sidecar down, no new videos arrive and the feed goes stale rather than erroring. Save, remix and plan keep working on what is there.
 - A sync that no longer sees a post soft-deletes it (`deletedAt`). The row, its analysis, saved post and planned posts stay.
-- A sync runs in the background and does not block its caller. A sync is not undoable; a user can request cancel (`requestCancel`), which sets `cancel_requested`. The run stops cleanly at its next check and keeps what it already wrote.
+- A sync runs in the background and does not block its caller. A sync is not undoable; a user can request cancel (`requestCancel`), which sets `cancel_requested`. The run stops cleanly at its next check. Channels it already finished stay; the channel whose walk was cut stores nothing.
 - The sync window and retry tunables (lookback 30 days, 200 items per sync, 3 retries with jittered backoff) are env defaults in `src/server/config.ts`, overridable by `app_settings` rows. They are not part of the core loop.
 
 ## Failure surfaces
@@ -51,7 +51,7 @@ Each action returns an `ActionResult` for its caller. Standing state comes from 
 | `session_expired` | Login, 2FA, challenge or proxy block needs a human |
 | `cooldown` | Instagram rate-limited the whole connection |
 | `offline` | Network calls to Instagram failed |
-| `partial` | Some channels failed for their own reasons |
+| `partial` | Some channels failed for their own reasons, or a channel's pull was cut after a page landed (the gap has `partial: true`) |
 | `failed` | Every channel failed, connection intact |
 | `none`, `running` | Nothing to report, or a run in flight |
 

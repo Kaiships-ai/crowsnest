@@ -86,7 +86,7 @@ broken again needs a check, not more words.
 | Docs and agent files cite only files that exist (deletes and moves left dead citations) | `scripts/check-doc-paths.mjs` in CI; old debt in `scripts/doc-paths.baseline`, only new dead citations fail |
 | UI elements journeys drive carry a `data-testid` | `scripts/testid-audit.sh` in CI |
 | Graph API calls are counted against the hour's budget in one place | Architecture: `graphRequest` is private to `src/server/graph/client.ts`, so no other module can call Graph |
-| A Graph result that is partial or failed is never stored or reported as success | Not enforced yet (doc rule). The most repeated mistake in `fix(mine)`/`fix(graph)` history; it needs result types that make a partial batch unwritable |
+| A pull from Graph or the sidecar that is partial or failed is never stored or reported as success | The type: every pull returns `PullResult` (`src/server/lib/pull-result.ts`), and each writer of current numbers (`storeChannelPull` in `sync-engine.ts`, `storePostCapture` and `storeBreakdowns` in `own-measure.ts`) takes `CompletePull`, so passing a partial pull is a compile error |
 | Tests never hard-code a date that will pass (a fixed `2026-09-10` turned CI red) | Doc rule: compute it, as `FUTURE_SCHEDULE` in `src/server/actions/planned-post-actions.test.ts` does |
 | Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
 | Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. The operator's app opens that checkout's `data/crowsnest.db` |
