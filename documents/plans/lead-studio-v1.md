@@ -115,8 +115,8 @@ Leads, Tiền, and the context pack have no engine behind them, so their engine 
 
 | Item | Proposal ids | Needs from Kai |
 | --- | --- | --- |
-| Code signing and notarization | P4, PK-02 | Apple Developer ID |
-| Auto-update and rollback that keep data | PK-02 | none |
+| Unsigned DMG with an install guide (System Settings, Privacy & Security, Open Anyway) | P4, PK-02 | none |
+| Update check that offers the new DMG, and rollback that keeps data | PK-02 | none |
 | Signed licence checked against Polar | P4 | Polar product for Lead Studio |
 | Third-party notices (Orca, Lemo, edge-tts) | PK-03, NFR-18 | none |
 | Instagram and Anthropic terms review | P4 | Kai reads and decides |
@@ -134,7 +134,7 @@ W0 ──► W1 data backbone ──► W2 connectors ────────�
 
 - W1 and W3 start together after W0. They touch different files.
 - A W4 batch starts as soon as the engine data it shows exists. B1 and B2 can start right after the board tab kind lands, on the data that exists today.
-- W6 starts last, but Kai's Apple Developer ID and the Polar product should exist before it.
+- W6 starts last, but the Polar product should exist before it. Lead Studio ships unsigned, by Kai's decision.
 
 ## Milestones
 
@@ -146,7 +146,6 @@ W0 ──► W1 data backbone ──► W2 connectors ────────�
 | Action | Needed by |
 | --- | --- |
 | Merge complex PRs | Each complex item |
-| Apple Developer ID | W6 |
 | Polar product for Lead Studio | W6 licence |
 | hermes-mac on during ChatbotX lanes | W2 ChatbotX |
 | Read the Instagram and Anthropic terms review | W6 |
