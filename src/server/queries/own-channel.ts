@@ -161,7 +161,7 @@ export async function newestCaptureByPost(postIds: string[], successful: boolean
 /**
  * Every own_posts row (newest first) joined with its newest SUCCESSFUL own_post_insights
  * row, so a later failed capture never hides the last good numbers. A post with no
- * successful capture falls back to its newest failed row, so the failed state still shows.
+ * successful capture shows its newest failed row's time and error, never its numbers.
  */
 export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const posts = await db.select().from(tables.ownPosts).orderBy(desc(tables.ownPosts.postedAt));
@@ -171,7 +171,8 @@ export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
   const failedByPost = await newestCaptureByPost(posts.filter((p) => !okByPost.has(p.id)).map((p) => p.id), false);
 
   return posts.map((p) => {
-    const latest = okByPost.get(p.id) ?? failedByPost.get(p.id);
+    const ok = okByPost.get(p.id);
+    const latest = ok ?? failedByPost.get(p.id);
     return {
       ownPostId: p.id,
       externalId: p.externalId,
@@ -182,15 +183,15 @@ export async function getPostsWithLatestInsights(): Promise<JoinedOwnPost[]> {
       caption: p.caption,
       postedAt: p.postedAt,
       durationSec: p.durationSec,
-      latestOk: okByPost.get(p.id) ?? null,
-      reach: latest?.reach ?? null,
-      saved: latest?.saved ?? null,
-      shares: latest?.shares ?? null,
-      likes: latest?.likes ?? null,
-      views: latest?.views ?? null,
-      profileVisits: latest?.profileVisits ?? null,
-      followsFromPost: latest?.followsFromPost ?? null,
-      watchTimeSec: latest?.watchTimeSec ?? null,
+      latestOk: ok ?? null,
+      reach: ok?.reach ?? null,
+      saved: ok?.saved ?? null,
+      shares: ok?.shares ?? null,
+      likes: ok?.likes ?? null,
+      views: ok?.views ?? null,
+      profileVisits: ok?.profileVisits ?? null,
+      followsFromPost: ok?.followsFromPost ?? null,
+      watchTimeSec: ok?.watchTimeSec ?? null,
       measuredAt: latest?.capturedAt ?? null,
       insightsError: latest?.fetchError ?? null,
     };

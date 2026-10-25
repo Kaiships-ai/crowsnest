@@ -167,7 +167,16 @@ describe("graphClient.fetchPostInsights", () => {
 
   beforeEach(() => { process.env.IG_GRAPH_TOKEN = "tok_secret"; process.env.IG_GRAPH_USER_ID = "17841400000000000"; });
 
-  test("ACTION-22: bio link taps from profile_activity by action_type, 0 when absent, null when the call failed", async () => {
+  test("a non-fatal profile_activity failure makes the pull partial, missing bio link taps, without ending the run", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "(#100) profile_activity not supported" } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "partial", rows: { views: 10 }, missing: "bio link taps", reason: { error: { code: "GRAPH_INVALID_REQUEST" }, endsRun: false } });
+    expect(calls()).toBe(2);
+  });
+
+  test("ACTION-22: bio link taps from profile_activity by action_type, 0 when absent", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(7)))
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(null)));

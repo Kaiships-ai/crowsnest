@@ -123,6 +123,28 @@ describe("measureOwnChannel, scope all", () => {
   });
 });
 
+describe("a partial capture never reaches the posts table", () => {
+  test("a new reel whose first capture is partial shows its error and no numbers", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, { kind: "partial", rows: insights(), missing: "bio link taps", reason: { error: new GraphApiError("GRAPH_INVALID_REQUEST", "HTTP 400: refused"), endsRun: false } }));
+    expect(await svc.measureOwnChannel({ scope: "all", now: NOW })).toMatchObject({ ok: true, postsMeasured: 0, postsFailed: 1 });
+    const { getPostsWithLatestInsights } = await import("@/server/queries/own-channel");
+    const [post] = await getPostsWithLatestInsights();
+    expect(post).toMatchObject({ externalId: "r1", latestOk: null, reach: null, views: null, likes: null, saved: null, measuredAt: NOW.toISOString() });
+    expect(post.insightsError).toContain("partial, missing bio link taps");
+  });
+
+  test("a failed row with numbers in it (written before this rule) still shows no numbers", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, [media("r1")]));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, insightsFailed(new GraphApiError("GRAPH_UNKNOWN", "HTTP 500"), false)));
+    await svc.measureOwnChannel({ scope: "all", now: NOW });
+    await db.update(tables.ownPostInsights).set({ reach: 999, views: 999 });
+    const { getPostsWithLatestInsights } = await import("@/server/queries/own-channel");
+    const [post] = await getPostsWithLatestInsights();
+    expect(post).toMatchObject({ reach: null, views: null, insightsError: "HTTP 500" });
+  });
+});
+
 describe("single-flight lock", () => {
   test("ACTION-28: a due run while another run is in flight returns busy without calling Graph", async () => {
     let release!: () => void;
@@ -301,14 +323,14 @@ describe("measureOwnChannel, scope due", () => {
     expect(await db.select().from(tables.ownPostInsights)).toHaveLength(4);
   });
 
-  test("a rate limit on a reel's last call stores that partial capture as failed and stops the run", async () => {
+  test("a rate limit on a reel's last call stores that partial capture as failed, with no numbers, and stops the run", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, [media("a"), media("b")]));
     graphClient.fetchPostInsights.mockImplementationOnce(spend(2, { kind: "partial", rows: insights({ bioLinkTaps: null }), missing: "bio link taps", reason: { error: new GraphApiError("GRAPH_RATE_LIMITED", "slow down"), endsRun: true } }));
     const r = await svc.measureOwnChannel({ scope: "due", now: NOW });
     expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 0, postsFailed: 1, callsUsed: 4 });
     expect(graphClient.fetchPostInsights).toHaveBeenCalledTimes(1);
     const rows = await db.select().from(tables.ownPostInsights);
-    expect(rows).toEqual([expect.objectContaining({ reach: 100, fetchError: "partial, missing bio link taps: slow down" })]);
+    expect(rows).toEqual([expect.objectContaining({ reach: null, views: null, fetchError: "partial, missing bio link taps: slow down" })]);
     const [post] = await db.select().from(tables.ownPosts).where(eq(tables.ownPosts.externalId, "a"));
     expect(post.lastMeasuredAt).toBeNull();
   });

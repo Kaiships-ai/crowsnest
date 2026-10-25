@@ -1782,7 +1782,8 @@ describe("runSync — stale-lock safety (audit F3)", () => {
       assetDeps,
     });
 
-    expect(observed.every((n) => n === 0)).toBe(true);
+    expect(observed.length).toBeGreaterThan(0);
+    expect(new Set(observed).size).toBe(1);
   });
 
   test("a slow in-flight request keeps the heartbeat fresh", async () => {

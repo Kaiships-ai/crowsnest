@@ -578,9 +578,11 @@ export const graphClient: GraphClient = {
     const insights = mapInsights(r.data, isReel);
     if (!isReel) return { kind: "complete", rows: insights };
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
-    stop = fatalOf(activity);
-    if (stop) return { kind: "partial", rows: insights, missing: "bio link taps", reason: { error: stop, endsRun: true } };
-    insights.bioLinkTaps = activity.ok ? mapBioLinkTaps(activity.data) : null;
+    if (!activity.ok) {
+      const stop = fatalOf(activity);
+      return { kind: "partial", rows: insights, missing: "bio link taps", reason: { error: stop ?? errorOf(activity), endsRun: stop !== null } };
+    }
+    insights.bioLinkTaps = mapBioLinkTaps(activity.data);
     return { kind: "complete", rows: insights };
   },
 

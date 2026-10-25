@@ -165,7 +165,7 @@ async function storePostCapture(ownPostId: string, measuredAt: string, pull: Com
 
 async function storeFailedCapture(ownPostId: string, measuredAt: string, pull: Exclude<PullResult<GraphPostInsights, InsightsFailure>, { kind: "complete" }>): Promise<void> {
   const fetchError = pull.kind === "partial" ? `partial, missing ${pull.missing}: ${pull.reason.error.message}` : pull.reason.error.message;
-  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, ...(pull.kind === "partial" ? insightColumns(pull.rows) : {}), fetchError });
+  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId, capturedAt: measuredAt, fetchError });
 }
 
 async function storeBreakdowns(measuredAt: string, pulls: CompletePull<GraphBreakdownRow[]>[]): Promise<void> {

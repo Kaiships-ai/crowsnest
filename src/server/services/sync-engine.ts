@@ -1204,9 +1204,9 @@ type ThumbResult = { assetId: string | null; failed: boolean };
 
 interface ChannelPull {
   profile: IgProfile;
-  avatarAssetId: string | null;
   items: IgMedia[];
-  thumbs: Map<string, ThumbResult>;
+  /** Thumbnail URLs of in-cap posts and slides the DB holds no asset for yet. */
+  missingThumbs: Set<string>;
 }
 
 async function knownExternalIds(externalIds: string[]): Promise<Set<string>> {
@@ -1223,14 +1223,30 @@ async function storeChannelPull(
   pull: CompletePull<ChannelPull>,
   ctx: { counters: SyncCounters; tracker: RunTracker; assetDeps: EnsureAssetDeps; runId: string }
 ): Promise<string[]> {
-  const { profile, avatarAssetId, items, thumbs } = pull.rows;
+  const { profile, items, missingThumbs } = pull.rows;
   const { counters, tracker, runId } = ctx;
+  const avatar = await tryEnsureAsset(profile.avatarUrl, "avatar", { channelHandle: channel.handle }, ctx.assetDeps);
+  if (avatar.assetId) counters.assetsDownloaded += 1;
+  if (avatar.failed) counters.assetsFailed += 1;
+  // Fetched in parallel on `thumbQueue`, then the item loop below runs serially against the
+  // results. A URL with no entry (already stored, or none given) reads as "not fetched",
+  // which upsertVideo and upsertChildren treat as "keep the asset".
+  const thumbs = new Map(
+    await thumbQueue.addAll(
+      [...missingThumbs].map((url) => async () => {
+        const result = await tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, ctx.assetDeps);
+        // A download can take up to IG_DOWNLOAD_TIMEOUT_MS; keep the row alive meanwhile.
+        await tracker.flushIfDue({ phase: "saving", counters });
+        return [url, result] as const;
+      })
+    )
+  );
   await db
     .update(tables.channels)
     .set({
       externalId: profile.externalId,
       displayName: profile.displayName,
-      avatarAssetId: avatarAssetId ?? channel.avatarAssetId,
+      avatarAssetId: avatar.assetId ?? channel.avatarAssetId,
       followerCount: profile.followerCount,
       followingCount: profile.followingCount,
       mediaCount: profile.mediaCount,
@@ -1365,9 +1381,6 @@ async function syncOneChannel(
   const fullSyncFresh =
     channel.lastFullSyncAt != null && opts.now().getTime() - new Date(channel.lastFullSyncAt).getTime() < freshnessMs;
 
-  const downloadThumb = async (url: string | null) =>
-    tryEnsureAsset(url, "thumbnail", { channelHandle: channel.handle }, opts.assetDeps);
-
   /** Every upstream call that is worth retrying goes through here, so the retry count and
    *  the "retrying" phase reach the job row the user is watching. */
   const attempt = <T>(label: string, fn: () => Promise<T>): Promise<T> =>
@@ -1420,14 +1433,11 @@ async function syncOneChannel(
 
   const walk = async (): Promise<PullResult<ChannelPull, unknown>> => {
     const items: IgMedia[] = [];
-    const thumbs = new Map<string, ThumbResult>();
+    const missingThumbs = new Set<string>();
     let pages = 0;
     let profile: IgProfile | undefined;
     try {
       profile = await upstream("profile", "profile", () => opts.client.profile(channel.handle));
-      const avatar = await tryEnsureAsset(profile.avatarUrl, "avatar", { channelHandle: channel.handle }, opts.assetDeps);
-      if (avatar.assetId) counters.assetsDownloaded += 1;
-      if (avatar.failed) counters.assetsFailed += 1;
 
       for (;;) {
         await tracker.flush({ phase: "fetching", counters });
@@ -1443,28 +1453,15 @@ async function syncOneChannel(
         pages += 1;
         pageNextCursor = page.nextCursor;
 
-        // Fetch the page's missing thumbnails up front, in parallel on `thumbQueue`. Only
-        // items under the cap: the walk stops there, so a thumbnail past it would be
-        // downloaded for nothing. A URL with no entry (already stored, or none given) reads
-        // as "not fetched", which upsertVideo and upsertChildren treat as "keep the asset".
+        // Only items under the cap: the walk stops there, so a thumbnail past it would be
+        // downloaded for nothing.
         const inCap = page.items.slice(0, Math.max(0, opts.maxItems - counters.itemsSeen));
         const stored = await storedThumbs(inCap.map((i) => i.externalId));
-        const missing = new Set<string>();
         for (const item of inCap) {
-          if (item.thumbnailUrl && !stored.has(item.externalId)) missing.add(item.thumbnailUrl);
+          if (item.thumbnailUrl && !stored.has(item.externalId)) missingThumbs.add(item.thumbnailUrl);
           for (const c of item.children) {
-            if (c.thumbnailUrl && !stored.has(`${item.externalId}/${c.externalId}`)) missing.add(c.thumbnailUrl);
+            if (c.thumbnailUrl && !stored.has(`${item.externalId}/${c.externalId}`)) missingThumbs.add(c.thumbnailUrl);
           }
-        }
-        for (const [url, result] of await thumbQueue.addAll(
-          [...missing].map((url) => async () => {
-            const result = await downloadThumb(url);
-            // A download can take up to IG_DOWNLOAD_TIMEOUT_MS; keep the row alive meanwhile.
-            await tracker.flushIfDue({ phase: "saving", counters });
-            return [url, result] as const;
-          })
-        )) {
-          thumbs.set(url, result);
         }
 
         const known = await knownExternalIds(inCap.map((i) => i.externalId));
@@ -1506,10 +1503,10 @@ async function syncOneChannel(
         cursor = page.nextCursor;
         await opts.sleep(jitterMs());
       }
-      return { kind: "complete", rows: { profile, avatarAssetId: avatar.assetId, items, thumbs } };
+      return { kind: "complete", rows: { profile, items, missingThumbs } };
     } catch (err) {
       if (pages === 0 || !profile) return { kind: "failed", reason: err };
-      return { kind: "partial", rows: { profile, avatarAssetId: null, items, thumbs }, missing: `media pages after page ${pages}`, reason: err };
+      return { kind: "partial", rows: { profile, items, missingThumbs }, missing: `media pages after page ${pages}`, reason: err };
     }
   };
 
