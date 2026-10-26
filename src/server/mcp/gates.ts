@@ -4,7 +4,9 @@ import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/proto
 import type { CallToolResult, ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
 
 import { GATE_LEVELS } from "@/server/db/schema";
-import { draftGatedCall, recordAgentAction, type GateLevel } from "@/server/services/agent-journal";
+import { errorMessage } from "@/server/lib/action-result";
+import { log } from "@/server/lib/logger";
+import { draftGatedCall, journalOutcome, journalPending, type GateLevel, type JournaledCall } from "@/server/services/agent-journal";
 
 export const TOOL_LEVELS = {
   crowsnest_ig_status: "read",
@@ -63,6 +65,10 @@ function callerOf(server: McpServer, extra: Extra): string {
   return server.server.getClientVersion()?.name ?? (typeof userAgent === "string" ? userAgent : "unknown");
 }
 
+function refused(value: { error: string; code: string }): CallToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], structuredContent: value, isError: true };
+}
+
 function drafted(tool: string, draftId: string): CallToolResult {
   const value = { status: "pending_approval", draftId, tool, message: `${tool} touches people outside, so it waits for Kai's approval in Lead Studio. Nothing was sent.` };
   return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], structuredContent: value };
@@ -75,14 +81,28 @@ export function gatedRegistrar<L extends Record<string, GateLevel>>(server: McpS
       if (level === "read") return handler(args, extra);
       const caller = callerOf(server, extra);
       if (level === "gate2") return drafted(name, draftGatedCall(caller, name, args));
+      let call: JournaledCall;
       try {
-        const res = await handler(args, extra);
-        recordAgentAction({ caller, tool: name, input: args, result: res.isError ? "error" : "ok", gate: level });
-        return res;
+        call = journalPending(caller, name, args, level);
       } catch (err) {
-        recordAgentAction({ caller, tool: name, input: args, result: "error", gate: level });
+        return refused({ error: `the agent journal could not record this call, so ${name} did not run: ${errorMessage(err)}`, code: "JOURNAL_UNAVAILABLE" });
+      }
+      const outcome = (result: "ok" | "error") => {
+        try {
+          journalOutcome(call, result);
+        } catch (err) {
+          log.error("mcp.journal_outcome_failed", { tool: name, callId: call.callId, result, error: errorMessage(err) });
+        }
+      };
+      let res: CallToolResult;
+      try {
+        res = await handler(args, extra);
+      } catch (err) {
+        outcome("error");
         throw err;
       }
+      outcome(res.isError ? "error" : "ok");
+      return res;
     };
     // SAFETY: ToolCallback<S> is a conditional type TypeScript cannot resolve for a generic S; for a raw shape it is exactly Handler<S>.
     server.registerTool(name, config, gated as ToolCallback<S>);

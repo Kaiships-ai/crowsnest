@@ -7,7 +7,8 @@ Every MCP tool has a level in `TOOL_LEVELS` (`src/server/mcp/gates.ts`): read, f
 - Level per tool, checked at registration: a tool with no level does not compile and throws at startup.
 - Journal row per free, gate 1 and gate 2 call: time, caller (`User-Agent` over HTTP), tool, scrubbed input, result, gate, draft id.
 - Gate 2 draft: `{ status: "pending_approval", draftId }`, nothing sent. No tool is gate 2 yet, so the app lane proves read, free and gate 1; `src/server/mcp/gates.test.ts` proves gate 2 with a fixture tool.
-- `crowsnest_attach_video` refuses a scheduled plan with `PLAN_SCHEDULED`.
+- `crowsnest_attach_video` takes only a draft; a scheduled or failed plan returns `PLAN_NOT_DRAFT`.
+- A free or gate 1 call writes a `pending` row before it runs and an outcome row after, with one `call_id`. No `pending` row, no run (`JOURNAL_UNAVAILABLE`).
 
 ## How to get to it (user POV)
 

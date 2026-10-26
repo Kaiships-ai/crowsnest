@@ -1,5 +1,6 @@
 CREATE TABLE `agent_actions` (
 	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`call_id` text NOT NULL,
 	`at` text NOT NULL,
 	`caller` text NOT NULL,
 	`tool` text NOT NULL,

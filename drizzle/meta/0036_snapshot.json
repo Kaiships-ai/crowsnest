@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b24a6ff7-ebfb-49d4-8298-89c056e61650",
+  "id": "2e099e8d-fb69-4444-8c97-9846979cacce",
   "prevId": "dfabc23d-cae5-41a1-b395-72f21f5d17b9",
   "tables": {
     "agent_actions": {
@@ -13,6 +13,13 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": true
+        },
+        "call_id": {
+          "name": "call_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
         },
         "at": {
           "name": "at",

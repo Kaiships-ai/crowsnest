@@ -951,10 +951,11 @@ export const dailyPulls = sqliteTable(
 );
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
-export const AGENT_ACTION_RESULTS = ["ok", "error", "drafted"] as const;
+export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted"] as const;
 
 export const agentActions = sqliteTable("agent_actions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
+  callId: text("call_id").notNull(),
   at: text("at").notNull(),
   caller: text("caller").notNull(),
   tool: text("tool").notNull(),
