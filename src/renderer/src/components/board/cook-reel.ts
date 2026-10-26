@@ -1,5 +1,6 @@
 import { translate } from '@/i18n/i18n'
 import { useAppStore } from '@/store'
+import { selectFolderWorkspaces } from '@/store/workspace-record-selectors'
 import { newAgentLaunchRequestId } from '@/lib/agent-launch-request-id'
 import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
@@ -36,7 +37,7 @@ export async function cookReel(card: PlanCard, onLaunchFailed: () => void): Prom
   const name = `Reel: ${cooked.title}`
   // A retry reuses the workspace an earlier try opened on the same folder.
   const workspace =
-    state.folderWorkspaces.find((w) => w.folderPath === cooked.root && w.name === name) ??
+    selectFolderWorkspaces(state).find((w) => w.folderPath === cooked.root && w.name === name) ??
     (await state.createFolderWorkspace(
       { projectGroupId: group.id, name, folderPath: cooked.root },
       { runtimeEnvironmentId: null }
