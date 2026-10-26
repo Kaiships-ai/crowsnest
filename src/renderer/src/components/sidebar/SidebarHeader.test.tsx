@@ -292,13 +292,13 @@ describe('SidebarHeader', () => {
     expect(mockState.setSidebarBody).toHaveBeenCalledWith('workspaces')
   })
 
-  it('uses the legacy title based on workspace grouping', () => {
+  it('titles the list Workspaces whatever the grouping', () => {
     act(() => {
       root.render(<SidebarHeader onWorkspaceBoardMenuOpenChange={vi.fn()} />)
     })
 
     expect(container.querySelector('[data-sidebar-section-title="projects"]')?.textContent).toBe(
-      'Projects'
+      'Workspaces'
     )
 
     mockState.groupBy = 'workspace-status'

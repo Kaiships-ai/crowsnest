@@ -32,5 +32,7 @@ export function startInApp({ migrationsFolder, env = process.env }: { migrations
   const secrets = migrateSecretsToKeychain();
   if (secrets.moved.length) log.info("secrets.moved_to_keychain", { names: secrets.moved });
   for (const { name, reason } of secrets.failed) log.warn("secrets.keychain_move_failed", { name, reason });
-  return startJobs(env.LEAD_STUDIO_PUBLISH_JOBS === "1" ? ALL_JOBS : READ_JOBS);
+  // LEAD_STUDIO_READ_JOBS=0 keeps a verify lane still: no pull, sync or measure rewrites its seed.
+  const read = env.LEAD_STUDIO_READ_JOBS === "0" ? [] : READ_JOBS;
+  return startJobs(env.LEAD_STUDIO_PUBLISH_JOBS === "1" ? [startPublishScheduler, ...read] : read);
 }

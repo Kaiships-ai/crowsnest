@@ -916,6 +916,8 @@ export const planVersions = sqliteTable(
     reels: text("reels", { mode: "json" }).notNull(),
     agent: text("agent").notNull(),
     approvedAt: text("approved_at"),
+    /** Who made this version live: "kai" from Gate 1 in the app, or "mcp" from an agent. */
+    approvedBy: text("approved_by"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },

@@ -2133,13 +2133,26 @@
           "scopedTo": "{{value0}} visible"
         },
         "SidebarNav": {
-          "9c95e1ce91": "Agents"
+          "1b5c41caee": "Orca Mobile",
+          "9c95e1ce91": "Agents",
+          "c86d83b5c3": "New",
+          "f323383e9a": "Automations"
         },
         "SidebarSettingsHelpMenu": {
-          "d396773ef0": "checking"
+          "4cf5b868d7": "Send Feedback",
+          "5687ab246a": "GitHub",
+          "5f83d86d92": "Changelog",
+          "c4f8e1b72a": "X",
+          "cdc87f897e": "Docs",
+          "d396773ef0": "checking",
+          "eb9884e55b": "Discord",
+          "f8a2c91d4e": "Milestones"
         },
         "SidebarToolbar": {
           "19e32d0e5f": "Open folder picker to add a project",
+          "49f62c5665": "Workspace board",
+          "87d0064026": "Workspace board moved to the bottom bar",
+          "a30e34eb5c": "Close workspace board",
           "abc62b6328": "Add Project"
         },
         "SidebarWorkspaceOptionsMenu": {
@@ -2992,26 +3005,68 @@
   "boards": {
     "funnel": {
       "step": {
-        "checkout": "Bấm checkout",
-        "comment_keyword": "Comment keyword",
-        "dm": "Nhận DM quà",
-        "gift_page_visit": "Vào trang quà",
-        "purchase": "Mua",
-        "view": "Xem reel"
+        "checkout": "Checkout clicks",
+        "comment_keyword": "Keyword comments",
+        "dm": "Gift DMs",
+        "gift_page_visit": "Gift page visits",
+        "purchase": "Purchases",
+        "view": "Reel views"
       }
     },
     "own": {
       "col": {
-        "comments": "Cmt",
-        "dm": "DM",
-        "gift_page_visit": "Web",
-        "latest": "Mới nhất",
-        "likes": "Thích",
-        "purchase": "Đơn",
-        "saved": "Lưu",
-        "shares": "Chia sẻ",
-        "views": "Xem"
+        "comments": "Cmts",
+        "dm": "DMs",
+        "gift_page_visit": "Site",
+        "latest": "Latest",
+        "likes": "Likes",
+        "purchase": "Orders",
+        "saved": "Saves",
+        "shares": "Shares",
+        "views": "Views"
       }
+    },
+    "today": {
+      "ledger": "metrics ledger",
+      "live": "live"
+    },
+    "vault": {
+      "edit": "Edit",
+      "empty": "No sources yet.",
+      "fix": {
+        "error": "Click Test to check the connection, fix the key with Edit, then Pull again.",
+        "missing": "Click Edit and enter {{missing}}.",
+        "noAdapter": "You can save the key now with Edit; the app pulls once a connector exists.",
+        "partial": "Pull again later, once the source limit resets.",
+        "stale": "Click Pull again, or wait for the 05:00 pull."
+      },
+      "graphLeft": "Graph calls left/hr",
+      "lastPull": "Last pull",
+      "nextPull": "Next pull",
+      "noSecrets": "This source needs no key.",
+      "problem": {
+        "error": "The last pull failed.",
+        "missing": "Missing {{missing}}.",
+        "never": "Never pulled.",
+        "noAdapter": "The app has no connector for this source yet.",
+        "partial": "The last pull was partial ({{detail}}), so the old numbers are kept.",
+        "stale": "No complete pull since 05:00 today."
+      },
+      "pull": "Pull again",
+      "save": "Save",
+      "secretMissing": "not set",
+      "secretSaved": "saved · source {{source}}",
+      "source": "Source",
+      "state": {
+        "column": "State",
+        "error": "error",
+        "notConnected": "not connected",
+        "partial": "partial",
+        "running": "running",
+        "stale": "stale"
+      },
+      "test": "Test",
+      "testOk": "Connected."
     }
   },
   "browser": {
@@ -3433,7 +3488,8 @@
     "sidebar": {
       "closeActivity": "Turn off activity view",
       "label": "Agents",
-      "openActivity": "View activity"
+      "openActivity": "View activity",
+      "projects": "Projects"
     }
   },
   "dashboardPopout": {
@@ -3456,6 +3512,23 @@
   "jira": {
     "workspace": {
       "open": "Open workspace linked to {{key}}"
+    }
+  },
+  "leadStudio": {
+    "nav": {
+      "agents": "Agents",
+      "funnel": "Funnel",
+      "group": {
+        "create": "Create",
+        "insight": "Insight",
+        "system": "System"
+      },
+      "own": "My channel",
+      "plan": "Plan",
+      "rivals": "Rivals",
+      "sources": "Sources",
+      "studio": "Studio",
+      "today": "Today"
     }
   },
   "menu": {

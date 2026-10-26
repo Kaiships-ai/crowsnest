@@ -37,7 +37,7 @@ function BreakdownList({
       <h3 className="text-sm font-medium">{title}</h3>
       {rows.length === 0 ? (
         <span className="font-mono text-xs text-muted-foreground">
-          {translate('boards.funnel.missing', 'chưa có số')}
+          {translate('boards.funnel.missing', 'no data yet')}
         </span>
       ) : (
         rows.slice(0, 6).map((r) => (
@@ -87,7 +87,7 @@ function OwnView({
       <header className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-1">
           <h1 className="text-xl font-medium">
-            {translate('boards.own.title', 'Kênh tôi')}
+            {translate('boards.own.title', 'My channel')}
             {board.username ? (
               <span className="ml-2 text-muted-foreground">@{board.username}</span>
             ) : null}
@@ -95,7 +95,7 @@ function OwnView({
           <p className="text-sm text-muted-foreground">
             {translate(
               'boards.own.subtitle',
-              'Cấu trúc như dashboard Instagram, thêm phần Instagram không có: reel nào ra DM, lượt vào web và đơn.'
+              'Laid out like the Instagram dashboard, plus what Instagram lacks: which reel drives DMs, site visits and orders.'
             )}
           </p>
         </div>
@@ -108,7 +108,7 @@ function OwnView({
               size="xs"
               onClick={() => setDays(d)}
             >
-              {translate('boards.own.days', '{{count}} ngày', { count: d })}
+              {translate('boards.own.days', '{{count}} days', { count: d })}
             </Button>
           ))}
         </div>
@@ -126,25 +126,25 @@ function OwnView({
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList variant="line">
           <TabsTrigger data-testid="own-tab-home" value="home">
-            {translate('boards.own.tab.home', 'Tổng quan')}
+            {translate('boards.own.tab.home', 'Overview')}
           </TabsTrigger>
           <TabsTrigger data-testid="own-tab-perf" value="perf">
-            {translate('boards.own.tab.perf', 'Hiệu suất')}
+            {translate('boards.own.tab.perf', 'Performance')}
           </TabsTrigger>
           <TabsTrigger data-testid="own-tab-content" value="content">
-            {translate('boards.own.tab.content', 'Nội dung')}
+            {translate('boards.own.tab.content', 'Content')}
           </TabsTrigger>
           <TabsTrigger data-testid="own-tab-aud" value="aud">
-            {translate('boards.own.tab.aud', 'Khán giả')}
+            {translate('boards.own.tab.aud', 'Audience')}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="home" data-testid="own-panel-home" className="flex flex-col gap-6 pt-3">
           <div className="grid grid-cols-3 gap-6">
-            {ig('views', translate('boards.own.views', 'Lượt xem của bài trong kỳ'))}
+            {ig('views', translate('boards.own.views', 'Post views in range'))}
             <Stat
               testId="own-stat-followers"
-              label={translate('boards.own.followers', 'Người theo dõi')}
+              label={translate('boards.own.followers', 'Followers')}
               source={INSTAGRAM}
               at={capturedAt(board.followers)}
             >
@@ -152,7 +152,7 @@ function OwnView({
             </Stat>
             <Stat
               testId="own-stat-net"
-              label={translate('boards.own.net', 'Theo dõi ròng')}
+              label={translate('boards.own.net', 'Net follows')}
               source={INSTAGRAM}
               at={capturedAt(board.netFollowers)}
             >
@@ -165,10 +165,10 @@ function OwnView({
           >
             <div className="flex items-baseline gap-3">
               <h2 className="text-sm font-medium">
-                {translate('boards.own.afterTitle', 'Sau Instagram · Lead Studio')}
+                {translate('boards.own.afterTitle', 'After Instagram · Lead Studio')}
               </h2>
               <Button variant="link" size="xs" onClick={() => openBoardInActiveWorkspace('funnel')}>
-                {translate('boards.own.openFunnel', 'Mở Phễu')}
+                {translate('boards.own.openFunnel', 'Open Funnel')}
               </Button>
             </div>
             <div className="grid grid-cols-4 gap-6">
@@ -189,15 +189,15 @@ function OwnView({
 
         <TabsContent value="perf" data-testid="own-panel-perf" className="flex flex-col gap-6 pt-3">
           <div className="grid grid-cols-3 gap-6">
-            {ig('views', translate('boards.own.views', 'Lượt xem của bài trong kỳ'))}
-            {ig('likes', translate('boards.own.likes', 'Thích'))}
-            {ig('comments', translate('boards.own.comments', 'Comment'))}
-            {ig('shares', translate('boards.own.shares', 'Chia sẻ'))}
-            {ig('saved', translate('boards.own.saved', 'Lưu'))}
+            {ig('views', translate('boards.own.views', 'Post views in range'))}
+            {ig('likes', translate('boards.own.likes', 'Likes'))}
+            {ig('comments', translate('boards.own.comments', 'Comments'))}
+            {ig('shares', translate('boards.own.shares', 'Shares'))}
+            {ig('saved', translate('boards.own.saved', 'Saves'))}
           </div>
           <section data-testid="own-by-format" className="flex flex-col gap-2">
             <h2 className="text-sm font-medium">
-              {translate('boards.own.byFormat', 'Lượt xem theo loại nội dung')}
+              {translate('boards.own.byFormat', 'Views by content type')}
             </h2>
             {board.viewsByFormat.map((f) => (
               <div key={f.format} className="flex items-baseline gap-3 text-sm">
@@ -209,12 +209,12 @@ function OwnView({
           </section>
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium">
-              {translate('boards.own.profile', 'Hoạt động trang cá nhân')}
+              {translate('boards.own.profile', 'Profile activity')}
             </h2>
             <div className="grid grid-cols-3 gap-6">
-              {ig('profileVisits', translate('boards.own.profileVisits', 'Vào trang cá nhân'))}
-              {ig('bioLinkTaps', translate('boards.own.bioLinkTaps', 'Bấm link bio'))}
-              {ig('followsFromPost', translate('boards.own.follows', 'Follow từ bài'))}
+              {ig('profileVisits', translate('boards.own.profileVisits', 'Profile visits'))}
+              {ig('bioLinkTaps', translate('boards.own.bioLinkTaps', 'Bio link taps'))}
+              {ig('followsFromPost', translate('boards.own.follows', 'Follows from posts'))}
             </div>
           </section>
         </TabsContent>
@@ -226,7 +226,10 @@ function OwnView({
         <TabsContent value="aud" data-testid="own-panel-aud" className="flex flex-col gap-6 pt-3">
           <div className="flex items-baseline gap-3">
             <span className="font-mono text-2xs text-muted-foreground">
-              {translate('boards.own.audienceNote', 'Khán giả là số cả tài khoản, không theo kỳ.')}
+              {translate(
+                'boards.own.audienceNote',
+                'Audience numbers are account-wide, not per range.'
+              )}
             </span>
             <SourceLabel
               source={INSTAGRAM}
@@ -241,22 +244,25 @@ function OwnView({
           <div className="grid grid-cols-2 gap-8">
             <BreakdownList
               testId="own-follower-split"
-              title={translate('boards.own.followerSplit', 'Lượt xem từ follower và người lạ')}
+              title={translate(
+                'boards.own.followerSplit',
+                'Views from followers and non-followers'
+              )}
               rows={audience.followerSplit}
             />
             <BreakdownList
               testId="own-audience-gender"
-              title={translate('boards.own.gender', 'Giới tính')}
+              title={translate('boards.own.gender', 'Gender')}
               rows={audience.audience.gender}
             />
             <BreakdownList
               testId="own-audience-age"
-              title={translate('boards.own.age', 'Tuổi')}
+              title={translate('boards.own.age', 'Age')}
               rows={audience.audience.age}
             />
             <BreakdownList
               testId="own-audience-country"
-              title={translate('boards.own.country', 'Quốc gia')}
+              title={translate('boards.own.country', 'Country')}
               rows={audience.audience.country}
             />
           </div>
@@ -291,7 +297,7 @@ export function OwnBoard(): React.ReactNode {
       retry={retry}
       emptyMessage={translate(
         'boards.own.empty',
-        'Chưa đo kênh Instagram lần nào. Nối Instagram ở Vault, app đo lúc 05:00.'
+        'Instagram has never been measured. Connect Instagram in Sources; the app measures at 05:00.'
       )}
     >
       {([board]) => (

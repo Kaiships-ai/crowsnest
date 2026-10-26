@@ -27,7 +27,7 @@ The renderer reaches the engine through one IPC channel, `crowsnest:call`, as `w
 
 Every call returns `{ ok: true, value }` or `{ ok: false, error: { code, message } }`. The codes are `unknown_call`, `bad_args`, `failed`, and `untrusted_sender`. `value` is the engine function's own result, so an action that reports its own `{ ok: false }` still arrives as a bridge `ok: true`. The handler in `src/main/crowsnest/engine-ipc.ts` exists before the engine finishes starting. A call made earlier waits until migrations have run, and a call after a failed start gets `failed`.
 
-`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver, and secret read-back, clear and token rotation. The one secret write it has is the write-only `setConnectorSecret` that the Vault board's Sửa uses (see [connectors](connectors.md)). It leaves out the calls that only the deleted Next screens used.
+`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists, and secret read-back, clear and token rotation. Plan approve and undo are there only as Gate 1's `approvePlanChanges` and `undoPlanApproval`, which record the approver on the version and journal the call as caller `kai` at gate `gate1` (`asOperator`); the bare `approvePlanVersionAction` and `undoPlanVersionAction` stay out. The one secret write it has is the write-only `setConnectorSecret` that Settings > Sources uses (see [connectors](connectors.md)). It leaves out the calls that only the deleted Next screens used.
 
 ### How the main build gets `src/server`
 
@@ -46,6 +46,16 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 | CLI command | `lead` (packaged, `/usr/local/bin/lead`), `lead-dev` (dev, the shim in `<user data>/cli/bin`) | `package.json`, `src/main/cli/cli-install-constants.ts`, `src/main/runtime/orchestration/cli-command.ts` |
 | Home dir | `~/.lead-studio`: agent hook scripts, keybindings, the hook install lock, API key and credential files | `src/main/agent-hooks/installer-utils.ts`, `src/main/agent-hooks/runtime-home-hook-command.ts`, `src/main/keybindings/keybinding-file.ts` |
 
+## Shell
+
+The left sidebar keeps Orca's Search row, then Lead Studio's rows (`LeadStudioNavRows` in `src/renderer/src/components/sidebar/LeadStudioNavRows.tsx`): Today; Insight: Funnel, My channel, Rivals; Create: Plan, Studio; System: Sources, Agents. A board row opens its board in the active workspace and is marked while that board is the active tab. Sources opens Settings > Sources. Studio has no board yet and shows Soon. Below the rows sits Orca's workspace list, titled Workspaces.
+
+Lead Studio drops these Orca surfaces: the Tasks, Automations and Orca Mobile rows and the onboarding checklist entry (`SidebarNav.tsx`), the workspace kanban toggle (`SidebarToolbar.tsx`), the floating terminal button (`AppWorkspaceShell.tsx`), the feature tips Orca opened on its own at launch (`use-onboarding-and-feature-tips.ts`), and the Help menu's Orca links: Send Feedback, Milestones, Docs, Changelog, GitHub, Discord and X (`SidebarSettingsHelpMenu.tsx`). Their code stays; nothing renders them.
+
+Settings lists only the panes a creator needs (`leadStudioSettingsSections` in `src/renderer/src/lib/lead-studio-settings-allowlist.ts`, applied in `useSettingsNavigationMetadata`, so the sidebar, search and Cmd+J agree): Agents, AI Provider Accounts, General, Sources, Terminal, Browser, Appearance, Input & Editing, Notifications, Shortcuts, macOS Permissions, Privacy & Telemetry and Advanced. Run with `VITE_LEAD_STUDIO_ALL_SETTINGS=1` to list every Orca pane. A deep link to a hidden pane still opens it.
+
+The visual system is Orca's: tokens in `src/renderer/src/assets/main.css` and the `ui/` primitives; see `DESIGN.md`.
+
 ## Menus and visible names
 
 The app menu has a top-level Boards menu that opens boards ([boards](boards.md)). Menus, window titles, the tray and the titlebar app name say Lead Studio: Explore Lead Studio, Getting Started with Lead Studio, Show Lead Studio Mobile Button, Open Lead Studio, the tray tooltip, the Lead Studio Agent Dashboard and Lead Studio Space Beta windows, and the tray notice. Only the English fallbacks and locale values changed; code identifiers and i18n keys (`menu.exploreOrca`, `tray.openOrca`) still say Orca. Other in-app copy still says Orca.
@@ -59,9 +69,9 @@ The app menu has a top-level Boards menu that opens boards ([boards](boards.md))
 
 ## Invariants
 
-- The app reads Instagram: sync and own-channel measurement always run. It never auto-publishes until the publish step ships: `startInApp` starts the publish scheduler only with `LEAD_STUDIO_PUBLISH_JOBS=1`. `src/server/start.test.ts` checks both.
+- The app reads Instagram: sync and own-channel measurement run unless `LEAD_STUDIO_READ_JOBS=0`, which only a verify lane sets so nothing rewrites its seed. It never auto-publishes until the publish step ships: `startInApp` starts the publish scheduler only with `LEAD_STUDIO_PUBLISH_JOBS=1`. `src/server/start.test.ts` checks both.
 - Lead Studio never opens or writes the installed Orca.app profile, lock, socket, keychain item, `~/.orca` or `/usr/local/bin/orca`. Changing a value in the identity table must keep it distinct from Orca's. Lane 2 in `scripts/e2e/cases/app.md` checks that `~/.orca` is unchanged after `pnpm dev`.
-- The renderer is untrusted. The bridge answers only the app window (`isTrustedBrowserRenderer`), and `src/main/crowsnest/engine-ipc.test.ts` checks that another window or a webview guest is refused. It parses every argument against its tuple before the engine runs. It never sets, clears or returns a secret. Status reads return `configured` and `source`. A thrown error message, and the `error` of an engine result with `ok: false`, have every stored secret value of 8 or more characters replaced with `[redacted]`. `src/server/bridge/engine-calls.test.ts` checks the parsing, runs every read on fixture rows and checks that none returns a stored secret, and checks that no gated call (publish, approve and undo, secret writes, IG login, sidecar) is exposed.
+- The renderer is untrusted. The bridge answers only the app window (`isTrustedBrowserRenderer`), and `src/main/crowsnest/engine-ipc.test.ts` checks that another window or a webview guest is refused. It parses every argument against its tuple before the engine runs. It never sets, clears or returns a secret. Status reads return `configured` and `source`. A thrown error message, and the `error` of an engine result with `ok: false`, have every stored secret value of 8 or more characters replaced with `[redacted]`. `src/server/bridge/engine-calls.test.ts` checks the parsing, runs every read on fixture rows and checks that none returns a stored secret, and checks that no gated call (publish, the bare approve and undo actions, secret writes, IG login, sidecar) is exposed and that Gate 1's approve records and journals kai.
 - Agents in a Lead Studio terminal run `lead-dev`, which reaches this instance through `ORCA_USER_DATA_PATH`. Dev mode is detected by `lead-studio` in that path (`src/cli/handlers/orchestration/runtime-compatibility.ts`). Orca's bundled agent skill guides still say `orca`.
 
 ## Verify

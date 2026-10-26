@@ -1,6 +1,7 @@
 import { and, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
 
 import { db, tables } from "@/server/db";
+import { clockNow } from "@/server/lib/clock";
 
 export type PlanCardState = "draft" | "plan" | "missed" | "scheduled" | "publishing" | "published" | "failed";
 export type PlanItem = "script" | "caption" | "reference" | "time" | "key" | "gift" | "offer";
@@ -67,7 +68,7 @@ function monthGrid(month: string): { date: string; inMonth: boolean }[] {
   return days;
 }
 
-export async function getPlanBoard(month: string, now = new Date()): Promise<PlanBoard> {
+export async function getPlanBoard(month: string, now = clockNow()): Promise<PlanBoard> {
   const today = ymd(now);
   const grid = monthGrid(month);
   const from = grid[0].date;

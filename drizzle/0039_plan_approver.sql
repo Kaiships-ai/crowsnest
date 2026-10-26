@@ -1,0 +1,1 @@
+ALTER TABLE `plan_versions` ADD `approved_by` text;

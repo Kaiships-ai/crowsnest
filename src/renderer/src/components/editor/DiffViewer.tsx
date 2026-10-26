@@ -50,7 +50,8 @@ export default function DiffViewer({
   onContentChange,
   onSave,
   largeDiffRenderLimit,
-  largeDiffSaveContentAvailable
+  largeDiffSaveContentAvailable,
+  markedLines
 }: DiffViewerProps): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const isDark = useDocumentDarkTheme()
@@ -277,6 +278,30 @@ export default function DiffViewer({
     },
     [editable, setupCopy, modelKey, filePath, sideBySide, registerDiffEditor, unregisterDiffEditor]
   )
+
+  useEffect(() => {
+    const diffEditor = diffEditorRef.current
+    if (!diffEditor || !modifiedEditor || !markedLines) {
+      return
+    }
+    const decorate = (lines: readonly number[]): editor.IModelDeltaDecoration[] =>
+      lines.map((line) => ({
+        range: { startLineNumber: line, startColumn: 1, endLineNumber: line, endColumn: 1 },
+        options: {
+          isWholeLine: true,
+          className: markedLines.className,
+          marginClassName: markedLines.className
+        }
+      }))
+    const original = diffEditor
+      .getOriginalEditor()
+      .createDecorationsCollection(decorate(markedLines.original))
+    const modified = modifiedEditor.createDecorationsCollection(decorate(markedLines.modified))
+    return () => {
+      original.clear()
+      modified.clear()
+    }
+  }, [modifiedEditor, markedLines, originalContent, modifiedContent])
 
   // Why: snapshot view state on deactivation (layoutEffect cleanup fires before unmount), not on scroll.
   useLayoutEffect(() => {

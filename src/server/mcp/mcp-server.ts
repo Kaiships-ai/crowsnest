@@ -419,7 +419,7 @@ export function buildMcpServer(agent?: string): McpServer {
       inputSchema: { versionId: z.string().describe("The plan version id, from crowsnest_propose_plan or crowsnest_plan_versions.") },
     },
     async (args) => {
-      const r = approvePlanVersion(args.versionId);
+      const r = approvePlanVersion(args.versionId, "mcp");
       return r.ok ? result(r) : errorResult({ error: r.error, code: r.code });
     }
   );

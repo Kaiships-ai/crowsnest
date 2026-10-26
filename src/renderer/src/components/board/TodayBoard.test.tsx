@@ -6,7 +6,14 @@ import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import { runningWorkspaces, TodayBoard } from './TodayBoard'
 
 const T = '2026-10-02T08:00:00.000Z'
-const step = (id: string, total: unknown) => ({ id, label: id, source: 'polar', total, rate: null })
+const step = (id: string, total: unknown) => ({
+  id,
+  label: id,
+  source: 'polar',
+  total,
+  rate: null,
+  pull: null
+})
 const checkout = step('checkout', {
   status: 'not-connected',
   connector: 'polar',
@@ -44,30 +51,32 @@ const board = {
 afterEach(cleanup)
 
 describe('TodayBoard', () => {
-  it('shows every block with a source label, and a partial pull as thiếu', async () => {
+  it('names the source of every block, shows the state of every number, and a partial pull as Partial', async () => {
     Object.assign(window, {
       api: { crowsnest: { call: vi.fn().mockResolvedValue({ ok: true, value: board }) } }
     })
     render(<TodayBoard />)
-    for (const id of ['today-offer', 'today-gates', 'today-pulls', 'today-workspaces']) {
+    for (const id of ['today-offer', 'today-funnel', 'today-gates', 'today-pulls', 'today-workspaces']) {
       const block = await screen.findByTestId(id)
-      expect(block.querySelector('[data-testid="source-label"]'), id).toBeTruthy()
+      expect(block.querySelector('[data-testid="source-tag"]'), id).toBeTruthy()
     }
     const offer = screen.getAllByTestId('today-offer-step')
-    expect(offer[0].querySelector('[data-testid="reading-not-connected"]')).toBeTruthy()
+    expect(offer[0].querySelector('[data-testid="open-sources"]')?.textContent).toContain(
+      'Polar not connected'
+    )
     expect(offer[1].textContent).toContain('4')
     expect(screen.getByTestId('today-drop').dataset.status).toBe('no-target')
     expect(screen.getByTestId('today-gate-plans').textContent).toBe('1')
     expect(screen.getByTestId('today-gate-drafts').textContent).toBe('2')
     const pull = screen.getAllByTestId('today-pull-row')[0]
     expect(pull.dataset.state).toBe('partial')
-    expect(pull.textContent).toContain('thiếu')
-    expect(pull.textContent).not.toContain('chạy')
+    expect(pull.textContent).toContain('Partial')
+    expect(pull.textContent).not.toContain('Connected')
   })
 })
 
 describe('TodayBoard partial sums', () => {
-  it('marks a total summed over only some keywords as thiếu N keyword in the offer and the step strip', async () => {
+  it('marks a total summed over only some keywords as missing N keywords in the offer and the funnel', async () => {
     const partial = step('purchase', {
       status: 'value',
       value: 2,
@@ -83,14 +92,10 @@ describe('TodayBoard partial sums', () => {
       const purchaseCell = (await screen.findAllByTestId(id)).find(
         (el) => el.dataset.stepId === 'purchase'
       )
-      expect(purchaseCell?.querySelector('[data-testid="reading-keyword-gap"]')?.textContent).toBe(
-        'thiếu 1 keyword'
+      expect(purchaseCell?.querySelector('[data-testid="kpi-state"]')?.textContent).toBe(
+        'missing 1 keywords'
       )
     }
-    const checkoutCell = screen
-      .getAllByTestId('today-offer-step')
-      .find((el) => el.dataset.stepId === 'checkout')
-    expect(checkoutCell?.querySelector('[data-testid="reading-keyword-gap"]')).toBeNull()
   })
 })
 

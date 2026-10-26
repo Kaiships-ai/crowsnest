@@ -87,11 +87,7 @@ vi.mock('@/components/ui/context-menu', () => ({
   )
 }))
 
-import SidebarNav, {
-  shouldShowAutomationsButton,
-  shouldShowArtifactsButton,
-  shouldShowMobileButton
-} from './SidebarNav'
+import SidebarNav, { shouldShowArtifactsButton } from './SidebarNav'
 
 function gitRepo(): Repo {
   return {
@@ -101,17 +97,6 @@ function gitRepo(): Repo {
     badgeColor: 'gray',
     addedAt: 1,
     kind: 'git'
-  }
-}
-
-function folderRepo(): Repo {
-  return {
-    id: 'folder-1',
-    path: '/tmp/folder-1',
-    displayName: 'folder-1',
-    badgeColor: 'gray',
-    addedAt: 1,
-    kind: 'folder'
   }
 }
 
@@ -263,11 +248,6 @@ describe('SidebarNav', () => {
     expect(idle?.querySelector('svg')).toBeNull()
   })
 
-  it('shows the Mobile entry by default for older settings', () => {
-    expect(shouldShowMobileButton(null)).toBe(true)
-    expect(shouldShowMobileButton({})).toBe(true)
-  })
-
   it('hides the Artifacts entry by default for older settings', () => {
     expect(shouldShowArtifactsButton(null)).toBe(false)
     expect(shouldShowArtifactsButton({})).toBe(false)
@@ -299,24 +279,6 @@ describe('SidebarNav', () => {
     expect(mocks.updateSettings).toHaveBeenCalledWith({ showArtifactsButton: false })
   })
 
-  it('hides the Mobile entry when the sidebar setting is off', () => {
-    expect(shouldShowMobileButton({ showMobileButton: false })).toBe(false)
-  })
-
-  it('updates localized labels when the language changes after mount', async () => {
-    const container = await renderSidebarNav()
-
-    expect(queryButtonByText(container, 'Automations')).not.toBeNull()
-    expect(queryButtonByText(container, 'Orca Mobile')).not.toBeNull()
-
-    await act(async () => {
-      await i18n.changeLanguage('zh')
-    })
-
-    expect(queryButtonByText(container, '自动化')).not.toBeNull()
-    expect(queryButtonByText(container, 'Orca 手机端')).not.toBeNull()
-  })
-
   it('updates labels when pseudo-localization is enabled after mount', async () => {
     const container = await renderSidebarNav()
 
@@ -324,73 +286,26 @@ describe('SidebarNav', () => {
       await i18n.changeLanguage(PSEUDO_LOCALIZATION_LOCALE)
     })
 
-    expect(queryButtonByText(container, '[Automations]')).not.toBeNull()
-    expect(queryButtonByText(container, '[Orca Mobile]')).not.toBeNull()
+    expect(queryButtonByText(container, '[Today]')).not.toBeNull()
+    expect(queryButtonByText(container, '[Funnel]')).not.toBeNull()
   })
 
-  it('shows the inline hide control only once a device is paired', async () => {
-    const beforePairing = await renderSidebarNav()
-    expect(queryButtonByText(beforePairing, 'Orca Mobile')).not.toBeNull()
-    expect(beforePairing.querySelector('button[aria-label="Hide from sidebar"]')).toBeNull()
-
-    mocks.hasPairedMobileDevice = true
+  it('lists Lead Studio rows under Search and none of the Orca rows a creator does not use', async () => {
     const container = await renderSidebarNav()
-    const hideButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Hide from sidebar"]'
-    )
-
-    expect(queryButtonByText(container, 'Orca Mobile')).not.toBeNull()
-    expect(hideButton).not.toBeNull()
-    expect(hideButton?.querySelector('svg')).not.toBeNull()
-
-    await clickButton(hideButton as HTMLButtonElement)
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({ showMobileButton: false })
-    expect(mocks.openMobilePage).not.toHaveBeenCalled()
-  })
-
-  it('shows the Automations entry by default for older settings', () => {
-    expect(shouldShowAutomationsButton(null)).toBe(true)
-    expect(shouldShowAutomationsButton({})).toBe(true)
-  })
-
-  it('omits the Automations row when the sidebar setting is off', async () => {
-    setSidebarState({
-      settings: {
-        ...getDefaultSettings('/tmp'),
-        showAutomationsButton: false
-      }
-    })
-
-    const container = await renderSidebarNav()
-
-    expect(queryButtonByText(container, 'Automations')).toBeNull()
-  })
-
-  it('hides Automations from its sidebar context menu', async () => {
-    const container = await renderSidebarNav()
-
-    const automationsMenu = getButtonByText(container, 'Automations').closest(
-      '[data-testid="context-menu"]'
-    )
-    expect(automationsMenu).not.toBeNull()
-
-    await clickButton(getHideButton(automationsMenu as HTMLElement))
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({ showAutomationsButton: false })
-  })
-
-  it('hides Mobile from its sidebar context menu', async () => {
-    const container = await renderSidebarNav()
-
-    const mobileMenu = getButtonByText(container, 'Orca Mobile').closest(
-      '[data-testid="context-menu"]'
-    )
-    expect(mobileMenu).not.toBeNull()
-
-    await clickButton(getHideButton(mobileMenu as HTMLElement))
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({ showMobileButton: false })
+    const rows = Array.from(container.querySelectorAll('[data-testid="ls-nav-row"]'))
+    expect(rows.map((row) => row.textContent)).toEqual([
+      'Today',
+      'Funnel',
+      'My channel',
+      'Rivals',
+      'Plan',
+      'StudioSoon',
+      'Sources',
+      'Agents'
+    ])
+    for (const hidden of ['Tasks', 'Automations', 'Orca Mobile', 'Onboarding checklist']) {
+      expect(queryButtonByText(container, hidden), hidden).toBeNull()
+    }
   })
 
   it('places the worktree palette search above the sidebar nav rows', async () => {
@@ -399,7 +314,7 @@ describe('SidebarNav', () => {
     const searchButton = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Search worktrees and browser tabs"]'
     )
-    const tasksButton = getButtonByText(container, 'Tasks')
+    const tasksButton = getButtonByText(container, 'Today')
 
     expect(nav?.firstElementChild).toBe(searchButton)
     if (!searchButton) {
@@ -426,56 +341,5 @@ describe('SidebarNav', () => {
     expect(shortcuts?.textContent).toContain('⌘')
     expect(shortcuts?.textContent).toContain('J')
     expect(searchButton?.querySelector('kbd')).toBeNull()
-  })
-
-  it('keeps task source shortcuts keyboard-reachable and revealed on Tasks row hover or focus', async () => {
-    const container = await renderSidebarNav()
-
-    const tasksButton = getButtonByText(container, 'Tasks')
-    const githubShortcut = tasksButton.parentElement?.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open GitHub tasks"]'
-    )
-    expect(githubShortcut).not.toBeNull()
-    expect(githubShortcut?.tabIndex).toBe(0)
-    expect(tasksButton.contains(githubShortcut ?? null)).toBe(false)
-
-    const shortcuts = githubShortcut?.parentElement
-    expect(shortcuts?.className).toContain('can-hover:opacity-0')
-    expect(shortcuts?.className).toContain('can-hover:group-hover:opacity-100')
-    expect(shortcuts?.className).toContain('can-hover:group-focus-within:opacity-100')
-  })
-
-  it('hides available Tasks from its sidebar context menu', async () => {
-    const container = await renderSidebarNav()
-
-    const tasksButton = getButtonByText(container, 'Tasks')
-
-    const tasksMenu = tasksButton.closest('[data-testid="context-menu"]')
-    expect(tasksMenu).not.toBeNull()
-    await clickButton(getHideButton(tasksMenu as HTMLElement))
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({ showTasksButton: false })
-  })
-
-  it('keeps Tasks enabled with no git repos so the page can explain the empty state', async () => {
-    setSidebarState({ repos: [folderRepo()] })
-    const container = await renderSidebarNav()
-
-    const tasksButton = getButtonByText(container, 'Tasks')
-    expect(tasksButton.getAttribute('aria-disabled')).toBeNull()
-    expect(tasksButton.disabled).toBe(false)
-    expect(tasksButton.className).not.toContain('opacity-50')
-    expect(
-      tasksButton.parentElement?.querySelector('button[aria-label="Open GitHub tasks"]')
-    ).not.toBeNull()
-
-    await clickButton(tasksButton)
-    expect(mocks.openTaskPage).toHaveBeenCalled()
-
-    const tasksMenu = tasksButton.closest('[data-testid="context-menu"]')
-    expect(tasksMenu).not.toBeNull()
-    await clickButton(getHideButton(tasksMenu as HTMLElement))
-
-    expect(mocks.updateSettings).toHaveBeenCalledWith({ showTasksButton: false })
   })
 })

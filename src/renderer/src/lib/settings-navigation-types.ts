@@ -15,6 +15,7 @@ export type SettingsNavInstallStatus =
 
 const SETTINGS_NAV_TARGETS = [
   'general',
+  'lead-sources',
   'integrations',
   'accounts',
   'browser',
