@@ -1,6 +1,8 @@
 import { instagramGraph } from "@/server/connectors/instagram-graph/manifest";
 import { CONNECTORS } from "@/server/connectors/registry";
 import type { Connector } from "@/server/connectors/types";
+import { GIFT_PAGE_PREFIX } from "@/server/connectors/umami/days";
+import { db, tables } from "@/server/db";
 import { clockNow } from "@/server/lib/clock";
 import { FUNNEL_STEPS, METRIC_LEDGER, type CountId, type MetricId, type MetricSource } from "@/server/metrics/ledger";
 import { getVaultBoard, type VaultRow } from "@/server/queries/vault-board";
@@ -52,6 +54,23 @@ function sumReadings(readings: Reading[], notConnected: Reading | null): TotalRe
     capturedAt: values.reduce((oldest, r) => (r.capturedAt < oldest ? r.capturedAt : oldest), values[0].capturedAt),
     keywordsWithoutNumber: readings.length - values.length,
   };
+}
+
+/** Every clean gift-page pageview Umami stored, tagged or not: the denominator of visit coverage. */
+function allGiftPageviews(): number | null {
+  const days = db.select({ clean: tables.umamiDays.clean }).from(tables.umamiDays).all();
+  if (days.length === 0) return null;
+  return days.reduce((sum, d) => sum + Object.entries(d.clean.paths).reduce((s, [path, n]) => s + (path.startsWith(GIFT_PAGE_PREFIX) ? n : 0), 0), 0);
+}
+
+function visitCoverage(entries: FunnelEntry[]): Coverage {
+  const total = allGiftPageviews();
+  if (total === null) return { status: "missing" };
+  const tied = entries.reduce((sum, e) => {
+    const r = entryReading(e, "gift_page_visit");
+    return sum + (e.plan && r.status === "value" ? r.value : 0);
+  }, 0);
+  return { status: "value", tied, total };
 }
 
 function coverage(entries: FunnelEntry[], id: CountId): Coverage {
@@ -110,6 +129,6 @@ export async function getFunnelBoard(now: Date = clockNow(), registry: Connector
   return {
     steps: withPulls(funnelSteps(entries), getVaultBoard(now, registry)),
     keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => entryReading(e, count)) })),
-    coverage: { visits: coverage(entries, "gift_page_visit"), orders: coverage(entries, "purchase") },
+    coverage: { visits: visitCoverage(entries), orders: coverage(entries, "purchase") },
   };
 }

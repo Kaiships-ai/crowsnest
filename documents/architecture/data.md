@@ -60,11 +60,10 @@ Files outside the database:
   | --- | --- |
   | `view`, `follow`, `bio_link_tap` | `own_post_insights` (`views`, `followsFromPost`, `bioLinkTaps`), newest successful capture of the plan's reel |
   | `dm` | `reel_funnel` `chatbotx` `dms` |
-  | `gift_page_visit`, `email` | `reel_funnel` `umami` `visits`, `emails`, written by the Umami pull |
+  | `gift_page_visit`, `email`, `checkout` | `reel_funnel` `umami` `visits`, `emails`, `checkouts`, written by the Umami pull (`checkouts` is each campaign's `checkout_click`) |
   | `purchase`, `revenue` | `reel_funnel` `polar` `orders`, `revenue` |
   | `skool_member` | `reel_funnel` `skool` `members` |
   | `comment_keyword` | not connected (`chatbotx`) |
-  | `checkout` | not connected (`polar`) |
 
   The rates are `follow_rate` and `bio_link_tap_rate` (over `view`), `comment_rate` (`comment_keyword` over `view`), `dm_rate` (over `comment_keyword`), `visit_rate` (`gift_page_visit` over `dm`), `checkout_rate` (`checkout` over `gift_page_visit`) and `purchase_rate` (`purchase` over `checkout`). Every target is null until Kai sets one.
 - **A plan reaches its reel one way per column.** `planned_posts.published_own_post_id` is always an internal `own_posts.id`, set by a hand mark (`markPlanPublishedAction`). `published_media_id` is Instagram's media id, set by publish. `getFunnel` and the own board read a plan's reel as `coalesce(published_own_post_id, own_posts.id where external_id = published_media_id)` (`PLAN_OWN_POST_ID` in `services/funnel.ts`), so an app-published reel links to its numbers once own-measure has stored it. Migration `0041_plan_media_id` moved every stored value that was not an `own_posts.id` into `published_media_id`.

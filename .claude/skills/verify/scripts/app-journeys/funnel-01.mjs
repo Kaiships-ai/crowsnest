@@ -52,11 +52,13 @@ export default async function funnel01({ page, step, snap }) {
     }
     console.log(`dm: ${JSON.stringify(metric(fromMcp, "dm"))}`);
   });
-  await step("a metric with no source reads not-connected, never 0", async () => {
+  await step("a metric with no source reads not-connected, never 0, and checkout reads Umami", async () => {
     const res = await call(page, "getFunnel", "ledger01");
-    const checkout = metric(res.value, "checkout");
-    if (checkout?.status !== "not-connected" || "value" in checkout) throw new Error(JSON.stringify(checkout));
-    console.log(`checkout: ${JSON.stringify(checkout)}`);
+    const comments = metric(res.value, "comment_keyword");
+    if (comments?.status !== "not-connected" || "value" in comments) throw new Error(JSON.stringify(comments));
+    if (ledger.checkout.source.source !== "umami" || ledger.checkout.source.metric !== "checkouts") throw new Error(JSON.stringify(ledger.checkout));
+    if (metric(res.value, "checkout")?.status === "not-connected") throw new Error("checkout is not connected");
+    console.log(`comment_keyword: ${JSON.stringify(comments)}; checkout: ${JSON.stringify(metric(res.value, "checkout"))}`);
   });
   await snap("funnel-01");
 
@@ -79,14 +81,23 @@ export default async function funnel01({ page, step, snap }) {
     if (dm !== want) throw new Error(`dm ${dm}, bridge ${want}`);
     if ((await board.locator('[data-testid="funnel-keyword-row"][data-row-key="LEDGER01"]').count()) !== 1) throw new Error("no LEDGER01 row");
   });
-  await step("a step with no source shows Polar not connected with a Sources link, never 0", async () => {
+  await step("a step with no source shows ChatbotX not connected with a Sources link, never 0", async () => {
+    const comments = board.locator('[data-testid="funnel-step"][data-step-id="comment_keyword"]');
+    if ((await comments.getAttribute("data-status")) !== "not-connected") throw new Error(await comments.innerText());
+    if ((await comments.locator("[data-num]").count()) !== 0) throw new Error("keyword comments show a number");
+    if ((await comments.getByTestId("kpi-value").getAttribute("data-state")) !== "not-connected") throw new Error("keyword comments state");
+    console.log(`comment_keyword: ${(await comments.innerText()).replace(/\s+/g, " ")}`);
+  });
+  await step("checkout is the Umami step and matches the bridge, and coverage matches the bridge", async () => {
+    const { value } = await call(page, "getFunnelBoard");
+    const want = value.steps.find((s) => s.id === "checkout");
+    if (want.source !== "umami") throw new Error(`checkout source ${want.source}`);
     const checkout = board.locator('[data-testid="funnel-step"][data-step-id="checkout"]');
-    if ((await checkout.getAttribute("data-status")) !== "not-connected") throw new Error(await checkout.innerText());
-    if ((await checkout.locator("[data-num]").count()) !== 0) throw new Error("checkout shows a number");
-    if ((await checkout.getByTestId("kpi-value").getAttribute("data-state")) !== "not-connected") throw new Error("checkout state");
-    console.log(`checkout: ${(await checkout.innerText()).replace(/\s+/g, " ")}`);
+    if ((await checkout.getAttribute("data-status")) !== want.total.status) throw new Error(`checkout ${await checkout.getAttribute("data-status")}, bridge ${want.total.status}`);
+    if (want.total.status === "value" && (await checkout.locator("[data-num]").innerText()) !== new Intl.NumberFormat().format(want.total.value)) throw new Error("checkout number");
+    console.log(`checkout: ${(await checkout.innerText()).replace(/\s+/g, " ")}; bridge ${JSON.stringify(want.total)}`);
     const coverage = await board.getByTestId("funnel-coverage-visits").innerText();
-    console.log(`coverage: ${coverage.replace(/\s+/g, " ")}`);
+    console.log(`coverage: ${coverage.replace(/\s+/g, " ")}; bridge ${JSON.stringify(value.coverage.visits)}`);
   });
   await setThemeWithoutTransition(page, "dark");
   await snap("funnel-01-board-dark");
@@ -94,7 +105,7 @@ export default async function funnel01({ page, step, snap }) {
   await snap("funnel-01-board-light");
   await setThemeWithoutTransition(page, "dark");
   await step("the not connected badge opens Settings > Sources", async () => {
-    await board.locator('[data-testid="funnel-step"][data-step-id="checkout"]').getByTestId("open-sources").click();
+    await board.locator('[data-testid="funnel-step"][data-step-id="comment_keyword"]').getByTestId("open-sources").click();
     await page.getByTestId("lead-sources").waitFor({ timeout: 10_000 });
     await page.getByRole("button", { name: "Back to app" }).click();
   });

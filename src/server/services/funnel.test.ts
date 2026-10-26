@@ -47,9 +47,9 @@ test("views, follows and link taps come from the plan's published reel, and rate
 test("a metric whose source is not connected reads not-connected, never 0", async () => {
   saveFunnel({ agent: "claude", rows: [{ keyword: "NC", source: "umami", metric: "visits", value: 12, capturedAt: T }] });
   const [nc] = await getFunnel("NC");
-  expect(metric(nc, "checkout")).toEqual({ id: "checkout", label: "Checkouts", window: "reel-lifetime", target: null, status: "not-connected", connector: "polar" });
-  expect(metric(nc, "comment_keyword")).toMatchObject({ status: "not-connected", connector: "chatbotx" });
-  expect(metric(nc, "checkout_rate")).toMatchObject({ status: "not-connected", connector: "polar" });
+  expect(metric(nc, "comment_keyword")).toEqual({ id: "comment_keyword", label: "Keyword comments", window: "reel-lifetime", target: null, status: "not-connected", connector: "chatbotx" });
+  expect(metric(nc, "dm_rate")).toMatchObject({ status: "not-connected", connector: "chatbotx" });
+  expect(metric(nc, "checkout")).toMatchObject({ status: "missing" });
   expect(nc.metrics.filter((m) => m.status === "not-connected").some((m) => "value" in m)).toBe(false);
 });
 

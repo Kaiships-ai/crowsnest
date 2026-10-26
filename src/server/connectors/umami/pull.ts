@@ -57,7 +57,7 @@ function firstDay(now: Date): string {
   return from < cap ? cap : from;
 }
 
-/** Each keyword's lifetime gift-page visits and gift signups: the sum over every stored day of the sessions that came with utm_campaign = the keyword. */
+/** Each keyword's lifetime gift-page visits, gift signups and checkout clicks: the sum over every stored day of the sessions that came with utm_campaign = the keyword. */
 function storeKeywordTotals(now: Date): number {
   const keywords = db.all<{ keyword: string }>(sql`SELECT keyword FROM planned_posts WHERE keyword IS NOT NULL`);
   const days = db.select({ clean: tables.umamiDays.clean }).from(tables.umamiDays).all();
@@ -66,9 +66,11 @@ function storeKeywordTotals(now: Date): number {
     const campaign = keyword.toLowerCase();
     const visits = days.reduce((sum, d) => sum + (d.clean.byCampaign[campaign]?.giftVisits ?? 0), 0);
     const emails = days.reduce((sum, d) => sum + (d.clean.byCampaign[campaign]?.gift_signup ?? 0), 0);
+    const checkouts = days.reduce((sum, d) => sum + (d.clean.byCampaign[campaign]?.checkout_click ?? 0), 0);
     return [
       { id: newId(), keyword, source: "umami" as const, metric: "visits", value: visits, capturedAt, agent: "umami", createdAt: capturedAt },
       { id: newId(), keyword, source: "umami" as const, metric: "emails", value: emails, capturedAt, agent: "umami", createdAt: capturedAt },
+      { id: newId(), keyword, source: "umami" as const, metric: "checkouts", value: checkouts, capturedAt, agent: "umami", createdAt: capturedAt },
     ];
   });
   if (rows.length > 0) db.insert(tables.reelFunnel).values(rows).run();

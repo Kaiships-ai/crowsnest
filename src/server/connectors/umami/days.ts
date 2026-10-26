@@ -30,7 +30,7 @@ export interface UmamiDay {
 }
 
 const VN_OFFSET_MS = 7 * 3_600_000;
-const GIFT_PAGE_PREFIX = "/get/";
+export const GIFT_PAGE_PREFIX = "/get/";
 
 // Whole-token match, as ksa_sync.py: test, r02test, coding-test; not latest, contest, testing.
 const TEST_CAMPAIGN = /(^|[-_])(r\d+)?test([-_]|$)/;

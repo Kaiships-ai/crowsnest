@@ -6,7 +6,7 @@ export const connector: Connector = {
     label: "Polar",
     auth: "api-key",
     secrets: [{ name: "POLAR_ACCESS_TOKEN", label: "Access token" }],
-    feeds: ["checkout", "purchase", "revenue"],
+    feeds: ["purchase", "revenue"],
   },
   adapter: null,
 };
