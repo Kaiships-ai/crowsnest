@@ -144,6 +144,7 @@ export default async function baseline({ page, step }) {
     await page.getByTestId("source-key-dialog").waitFor();
     await shoot("B1-01-sources-connect-dialog");
     await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Back to app" }).click();
   });
 
   console.log(`baseline: ${shots.length} shots in ${OUT}`);

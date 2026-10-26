@@ -112,4 +112,5 @@ export default async function umami01({ page, step, snap }) {
     }
   });
   await snap("umami-01-partial");
+  await backToApp(page);
 }

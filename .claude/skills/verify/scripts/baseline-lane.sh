@@ -25,6 +25,7 @@ export LEAD_STUDIO_CLOCK_START="2026-10-27T10:30:00"
 export LEAD_STUDIO_CLOCK_FROZEN=1
 export LEAD_STUDIO_READ_JOBS=0
 export APP_HEADLESS="${APP_HEADLESS:-1}"
+export APP_DEV="${APP_DEV:-1}"
 if [ "${1:-}" = --compare ]; then
   export BASELINE_DIR="$PWD/data/verify/baseline-new"
   rm -rf "$BASELINE_DIR"

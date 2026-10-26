@@ -49,7 +49,9 @@ export default async function plan01({ page, step, snap }) {
     const chips = await cell.getByTestId("plan-chip").evaluateAll((els) => els.map((e) => `${e.dataset.planId}:${e.dataset.state}:${e.querySelector('[data-testid="plan-flag"]') ? "flag" : "-"}`));
     const db = sql(`select id from planned_posts where planned_date = '${date}' order by planned_time, created_at`).split("\n");
     console.log(`${date}: ${chips.join(" ")} (db ${db.join(" ")})`);
-    if (chips.sort().join() !== ["plan-e2e-armed:scheduled:flag", "plan-e2e-draft:draft:flag", "plan-e2e-full:plan:flag"].join()) throw new Error("month chips differ");
+    // A run-all lane approves Gate 1 first, which syncs that week's plan drafts onto the same days.
+    const seeded = chips.filter((c) => c.startsWith("plan-e2e-"));
+    if (seeded.sort().join() !== ["plan-e2e-armed:scheduled:flag", "plan-e2e-draft:draft:flag", "plan-e2e-full:plan:flag"].join()) throw new Error("month chips differ");
   });
   await snapBoth(page, snap, "plan-01-month");
 

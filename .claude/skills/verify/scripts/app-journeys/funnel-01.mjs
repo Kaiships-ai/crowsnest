@@ -77,7 +77,7 @@ export default async function funnel01({ page, step, snap }) {
     const dm = await board.locator('[data-testid="funnel-step"][data-step-id="dm"] [data-num]').innerText();
     const want = new Intl.NumberFormat().format(board2.value.steps.find((s) => s.id === "dm").total.value);
     if (dm !== want) throw new Error(`dm ${dm}, bridge ${want}`);
-    if ((await board.locator('[data-testid="funnel-keyword-row"][data-keyword="LEDGER01"]').count()) !== 1) throw new Error("no LEDGER01 row");
+    if ((await board.locator('[data-testid="funnel-keyword-row"][data-row-key="LEDGER01"]').count()) !== 1) throw new Error("no LEDGER01 row");
   });
   await step("a step with no source shows Polar not connected with a Sources link, never 0", async () => {
     const checkout = board.locator('[data-testid="funnel-step"][data-step-id="checkout"]');
