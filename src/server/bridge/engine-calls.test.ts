@@ -177,30 +177,30 @@ describe("dispatchEngineCall", () => {
   });
 
   describe("setConnectorSecret", () => {
-    const VALUE = "sentinel-new-umami-key-77c1";
+    const VALUE = "sentinel-new-umami-password-77c1";
 
     test.each([
-      ["an unknown connector", ["nope", "UMAMI_API_KEY", VALUE], "no connector nope"],
+      ["an unknown connector", ["nope", "UMAMI_PASSWORD", VALUE], "no connector nope"],
       ["a field the manifest does not declare", ["umami", "IG_GRAPH_TOKEN", VALUE], "umami has no field IG_GRAPH_TOKEN"],
-      ["a blank value", ["umami", "UMAMI_API_KEY", "   "], "empty value"],
+      ["a blank value", ["umami", "UMAMI_PASSWORD", "   "], "empty value"],
     ])("refuses %s and stores nothing", async (_label, args, error) => {
       const res = await dispatchEngineCall("setConnectorSecret", args);
       expect(res).toEqual({ ok: true, value: { ok: false, error } });
       expect(JSON.stringify(res)).not.toContain(VALUE);
       const umami = await dispatchEngineCall("getVaultBoard", []);
-      expect(umami.ok && (umami.value as { id: string; secrets: { source: string }[] }[]).find((r) => r.id === "umami")?.secrets[0].source).toBe("none");
+      expect(umami.ok && (umami.value as { id: string; secrets: { name: string; source: string }[] }[]).find((r) => r.id === "umami")?.secrets.find((s) => s.name === "UMAMI_PASSWORD")?.source).toBe("none");
     });
 
     test("an empty value never reaches the engine", async () => {
-      expect(await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_API_KEY", ""])).toMatchObject({ ok: false, error: { code: "bad_args" } });
+      expect(await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_PASSWORD", ""])).toMatchObject({ ok: false, error: { code: "bad_args" } });
     });
 
     test("saves, flips the status to keychain, and no bridge result carries the value", async () => {
-      const res = await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_API_KEY", VALUE]);
+      const res = await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_PASSWORD", VALUE]);
       expect(res).toEqual({ ok: true, value: { ok: true } });
       const board = await dispatchEngineCall("getVaultBoard", []);
       const umami = board.ok ? (board.value as { id: string; secrets: { name: string; source: string }[] }[]).find((r) => r.id === "umami") : undefined;
-      expect(umami?.secrets).toEqual([expect.objectContaining({ name: "UMAMI_API_KEY", source: "keychain" })]);
+      expect(umami?.secrets.map((s) => [s.name, s.source])).toEqual([["UMAMI_URL", "none"], ["UMAMI_WEBSITE_ID", "none"], ["UMAMI_USERNAME", "none"], ["UMAMI_PASSWORD", "keychain"]]);
       for (const [name, args] of Object.entries(READ_ARGS)) {
         expect(JSON.stringify(await dispatchEngineCall(name, args)), name).not.toContain(VALUE);
       }

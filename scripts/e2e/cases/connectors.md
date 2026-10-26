@@ -5,19 +5,20 @@
 | # | Feature | What it does | Status | Grounded in | Open item |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Connector registry | Lists every folder under `src/server/connectors/` as a connector with manifest, adapter and status | ● | `src/server/connectors/registry.ts` | none |
-| 2 | Manifest-only connectors | Umami, Polar and ChatbotX are listed `not-connected` with the ledger counts they will feed | ● | `src/server/connectors/umami/index.ts`, `polar/index.ts`, `chatbotx/index.ts` | adapters land in W2 |
+| 2 | Manifest-only connectors | Polar and ChatbotX are listed `not-connected` with the ledger counts they will feed | ● | `src/server/connectors/polar/index.ts`, `chatbotx/index.ts` | adapters land in W2 |
 | 3 | Keychain secrets | Every secret is sealed by the Keychain through `SecretStore`; only ciphertext is stored | ● | `src/server/secrets/store.ts` | none |
 | 4 | Boot migration | Legacy plaintext rows move to the keychain; a failed move keeps the row | ● | `src/server/start.ts`, `src/server/secrets/store.ts` | none |
 | 5 | Bridge calls | `listConnectors`, `testConnector` and `pullAgain` | ● | `src/server/bridge/engine-calls.ts` | shown on the Vault board (cases in `boards.md`) |
 | 6 | Daily pull | Every connector pulls at 05:00 local, a missed slot runs once on the next start or wake, results recorded per connector in `daily_pulls` | ● | `src/server/services/daily-pull.ts` | none |
+| 7 | Umami connector | Logs in with the four Vault secrets, pulls events by page, stores each VN day raw and clean in `umami_days` and each plan keyword's gift-page visits and signups in `reel_funnel` | ● | `src/server/connectors/umami/` | live check against Kai's Umami once |
 
 ## connectors: test cases
 
-Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `connectors-01` runs CONN-01, CONN-02 and CONN-05 on a seeded lane (`app-up.sh --seed`).
+Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `connectors-01` runs CONN-01, CONN-02 and CONN-05 on a seeded lane (`app-up.sh --seed`); `umami-01` runs CONN-18 and CONN-19 on `boards-lane.sh` with the fake Umami.
 
 | ID | P | Needs | Claim | Steps | Expected | Result |
 | --- | --- | --- | --- | --- | --- | --- |
-| CONN-01 | P0 | seed | The bridge lists six connectors; Umami, Polar and ChatbotX read `not-connected` | Call `listConnectors`. | Graph `configured`, the three manifest-only ones `not-connected`. | 🟢 `connectors-01` |
+| CONN-01 | P0 | seed | The bridge lists six connectors; Polar and ChatbotX read `not-connected`, Umami `needs-setup` until its secrets are saved | Call `listConnectors`. | Graph `configured`, the two manifest-only ones `not-connected`, Umami `needs-setup` or `configured`. | 🟢 `connectors-01` |
 | CONN-02 | P0 | seed | The seeded legacy Graph token moves to the keychain on boot and leaves no plaintext in SQLite | Boot the lane, read `listConnectors`, query `secrets` and `sealed_secrets`. | Source `keychain`; `secrets` empty; no sealed row holds the plaintext. | 🟢 `connectors-01` |
 | CONN-03 | P0 | none | A failed Keychain write keeps the legacy row and reports it; a mismatched read-back stores nothing | Migrate with a keychain whose seal throws, then one whose read-back differs. | Row intact, reported in `failed`. | 🟢 vitest (`store.test.ts`) |
 | CONN-09 | P1 | none | Outside Electron a sealed secret fails with a clear message, a legacy row still reads, a missing sidecar token says to open Lead Studio or set `IG_SERVICE_TOKEN` | Unset the `SecretStore`, read and create. | `SecretLockedError`, legacy value, the token message. | 🟢 vitest (`store.test.ts`, `service-token.test.ts`) |
@@ -34,3 +35,7 @@ Result markers: 🟢 pass, 🔴 bug, 🟡 blocked. Journey `connectors-01` runs 
 | CONN-17 | P0 | none | A failed pull retries 5 minutes later, at most 3 attempts in a slot | A source that always fails; ticks at 05:00, 05:02, 05:06, 05:12, 06:00. | Pulls 1, 1, 2, 3, 3; the row reads `failed`, attempts 3. | 🟢 vitest (`daily-pull.test.ts`) |
 | CONN-14 | P0 | seed, fake Graph | Past 05:00 on the app clock every source pulls with no command and a new snapshot appears; `pullAgain` pulls again | `schedule-lane.sh`. | Yesterday's and today's slots each hold six rows, Graph `complete`, a snapshot captured after 05:00, `daily_pull.connector` log lines, `pullAgain` adds a snapshot. | 🟢 `schedule-01` |
 | CONN-08 | P0 | real Keychain, lane-only app name | A seal and unseal through Electron safeStorage uses the real login Keychain under a lane-only item, deleted after | Run `.claude/skills/verify/scripts/keychain-lane.sh`. | Value round-trips; the item exists during the run and is gone after. | 🟢 `keychain-lane.sh` |
+| CONN-18 | P0 | seed, fake Umami | With the four Umami secrets saved in Vault, Kéo lại stores the day and OWN01's visits and signups, and Phễu and Kênh tôi show them | `umami-01`: Sửa, Kiểm tra, Kéo lại, then open Phễu and Kênh tôi. | Row `running`; `umami_days` today with 1 test session dropped, clean 4 and raw 5 gift visits for `own01`; `reel_funnel` OWN01 `visits` 4, `emails` 2; the gift-page step, the OWN01 row and the reel's Web cell show 4. | 🟢 `umami-01` |
+| CONN-19 | P0 | seed, fake Umami | A 503 on a later events page reads partial and stores nothing | `umami-01`: the fake answers 503 on page 2, Kéo lại. | Row `partial`, detail names HTTP 503; `reel_funnel` and `umami_days` unchanged. | 🟢 `umami-01`, vitest (`umami.test.ts`) |
+| CONN-20 | P0 | none | Day split in VN time, test sessions dropped, lifetime sums per keyword, resume from the open day | `pullUmami` against an in-test Umami server. | Literal day counts and `reel_funnel` rows; the second pull starts at the open day. | 🟢 vitest (`umami.test.ts`) |
+| CONN-21 | P0 | none | The Graph pull is partial when any post's insights failed | The adapter over `measureOwnChannel` results. | `partial`, missing "insights for 2 of 12 posts". | 🟢 vitest (`instagram-graph.test.ts`) |

@@ -1,6 +1,6 @@
 # Connectors
 
-A connector is one outside source crowsnest reads from: Instagram Graph, the instagrapi sidecar, Groq, and later Umami, Polar and ChatbotX. Each is a manifest (what it is, as data) plus an adapter (the code that talks to it). The connector also owns the secrets the source needs, and those secrets are sealed by the macOS Keychain.
+A connector is one outside source crowsnest reads from: Instagram Graph, the instagrapi sidecar, Groq, Umami, and later Polar and ChatbotX. Each is a manifest (what it is, as data) plus an adapter (the code that talks to it). The connector also owns the secrets the source needs, and those secrets are sealed by the macOS Keychain.
 
 ## Data it holds
 
@@ -8,13 +8,14 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 - An adapter or `null` (`ConnectorAdapter`): `testConnection()` never throws; `pull()` returns a `PullResult` (`src/server/lib/pull-result.ts`). `null` is a manifest-only connector: listed with status `not-connected`, never called.
 - `sealed_secrets`: `name`, `sealed`, `updated_at`. `sealed` is base64 ciphertext from Orca's `SecretStore` (`src/shared/secret-store.ts`, Electron safeStorage), whose key lives in the login Keychain as the app's Safe Storage item. A per-account Instagram password is keyed `IG_PASSWORD::<accountId>`.
 - `secrets`: the legacy plaintext table. Nothing writes to it; the boot migration drains it.
+- `umami_days`: one row per Asia/Ho_Chi_Minh day that a complete Umami pull counted: `raw` and `clean` counts (visitors, pageviews, custom events, paths, utm query strings, and per `utm_campaign` the pageviews, gift-page visits, `gift_signup`, `checkout_click` and `purchase`), `test_sessions_dropped`, `final` (1 once a pull ran after the day ended) and `fetched_at`. `clean` drops every session that touched a test marker, as `ksa_sync.py` does: a `utm_campaign` with a whole-token `test`, `utm_source=verify`, or a `/__test-purchase` or `/__diag` path.
 
 | Connector | Auth | Secrets | Feeds | Adapter |
 | --- | --- | --- | --- | --- |
-| `instagram-graph` | oauth | `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID` | view, follow, bio_link_tap | `graphClient.checkToken`; pull is a due `measureOwnChannel` run |
+| `instagram-graph` | oauth | `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID` | view, follow, bio_link_tap | `graphClient.checkToken`; pull is a due `measureOwnChannel` run, partial when a post's insights, the comments or the breakdowns failed or the run stopped early |
 | `ig-sidecar` | browser-session | `IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD` (also per account), `IG_SESSIONID`, all optional | none | `igClient.health`; pull is a library `runSync`, read back from its `sync_jobs` row |
 | `groq` | api-key | `GROQ_API_KEY` | none | key present |
-| `umami` | api-key | `UMAMI_API_KEY` | gift_page_visit, email | manifest only |
+| `umami` | api-key | `UMAMI_URL`, `UMAMI_WEBSITE_ID`, `UMAMI_USERNAME`, `UMAMI_PASSWORD` | gift_page_visit, email | login, then the website by id; pull is `pullUmami` |
 | `polar` | api-key | `POLAR_ACCESS_TOKEN` | checkout, purchase, revenue | manifest only |
 | `chatbotx` | mcp | `CHATBOTX_API_KEY` | comment_keyword, dm | manifest only |
 
@@ -35,11 +36,13 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 - **Outside Electron there is no Keychain.** A tsx script or the `kai` CLI has no `SecretStore`. It reads a legacy row the app has not migrated yet, or the env var. A secret the app has already sealed throws `SecretLockedError`, which says to run from Lead Studio or set the env var, unless the env var is set. A write throws, and `getOrCreateServiceToken` with no token says to open Lead Studio once or set `IG_SERVICE_TOKEN`.
 - **A secret is sealed only when the store reports no protection gap.** If `describeProtectionGap()` names a gap, `setSecret` throws and the migration keeps the legacy row and reports it.
 
+- **An Umami pull stores only a complete pull.** `pullUmami` (`src/server/connectors/umami/pull.ts`) logs in, then reads `/api/websites/:id/events` page by page from the oldest day that is not final, or on the first pull from the oldest plan with a keyword (at most a year back), to now. Only when every page came back does it write, in one transaction, each day's counts to `umami_days` and two `reel_funnel` rows per plan keyword (`source` `umami`, `agent` `umami`): `visits`, the clean pageviews of a `/get/` page in sessions whose first `utm_campaign` is the keyword (case-insensitive), and `emails`, their `gift_signup` events, each summed over every stored day. Both are counts, so they add across days and keywords. A failed page after the first is `partial` and a failed login or first page is `failed`; either writes nothing, so the boards keep the last complete numbers and the Vault row reads `thiếu` or `lỗi`.
 - **A pull reports what came back.** The daily pull and `pullAgain` record `complete`, `partial` (with what is missing), `failed`, or `skipped` (status not `configured`, or no `pull`). The daily pull writes its `daily_pulls` row; `pullAgain` leaves the slot row alone and keeps its outcome in memory. `lastPulls()` in `daily-pull.ts` returns the newer of the two per connector, so a restart forgets a manual pull and falls back to the slot row. A pull only reads from its source.
 
 ## Key files
 
 - `src/server/connectors/types.ts`, `registry.ts`, `secrets.ts`
 - `src/server/connectors/<id>/index.ts` and `manifest.ts`
+- `src/server/connectors/umami/pull.ts` (HTTP and storage) and `days.ts` (day split and counts)
 - `src/server/secrets/store.ts`
 - `src/shared/secret-store.ts`, `src/main/host/electron-secret-store.ts`

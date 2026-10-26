@@ -267,6 +267,13 @@
       "when": 1792994891290,
       "tag": "0037_mcp_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1793021919356,
+      "tag": "0038_umami_days",
+      "breakpoints": true
     }
   ]
 }

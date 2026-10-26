@@ -28,7 +28,7 @@ describe("connector registry", () => {
       ["ig-sidecar", "adapter"],
       ["instagram-graph", "adapter"],
       ["polar", "manifest-only"],
-      ["umami", "manifest-only"],
+      ["umami", "adapter"],
     ]);
   });
 
