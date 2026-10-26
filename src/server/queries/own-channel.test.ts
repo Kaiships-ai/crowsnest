@@ -13,6 +13,7 @@ let getOwnComments: typeof import("./own-channel")["getOwnComments"];
 let OWN_COMMENTS_FETCH_ERROR_KEY: typeof import("./own-channel")["OWN_COMMENTS_FETCH_ERROR_KEY"];
 let getOwnReels: typeof import("./own-channel")["getOwnReels"];
 let getReelViewHistory: typeof import("./own-channel")["getReelViewHistory"];
+let getAccountBreakdowns: typeof import("./own-channel")["getAccountBreakdowns"];
 let getPostsWithLatestInsights: typeof import("./own-channel")["getPostsWithLatestInsights"];
 
 beforeAll(async () => {
@@ -20,7 +21,7 @@ beforeAll(async () => {
   process.env.IG_SERVICE_TOKEN ??= "test-token";
   ({ db, tables, newId } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
-  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY, getOwnReels, getReelViewHistory, getPostsWithLatestInsights } = await import("./own-channel"));
+  ({ getOwnChannelOverview, getOwnPosts, getOwnPostInsightHistory, getOwnComments, OWN_COMMENTS_FETCH_ERROR_KEY, getOwnReels, getReelViewHistory, getAccountBreakdowns, getPostsWithLatestInsights } = await import("./own-channel"));
 });
 
 beforeEach(async () => {
@@ -373,3 +374,28 @@ describe("one load for My reels", () => {
   });
 });
 
+describe("getAccountBreakdowns", () => {
+  test("newest batch per metric, sorted by value, with the stored refusal", async () => {
+    const row = (id: string, capturedAt: string, metric: string, dimension: string, key: string, value: number) => ({ id, capturedAt, metric, dimension, key, value, timeframe: null });
+    await db.insert(tables.ownAccountBreakdowns).values([
+      row("1", "2026-09-27T00:00:00.000Z", "views", "follower_type", "FOLLOWER", 1),
+      row("2", "2026-09-28T00:00:00.000Z", "views", "follower_type", "FOLLOWER", 30),
+      row("3", "2026-09-28T00:00:00.000Z", "views", "follower_type", "NON_FOLLOWER", 70),
+      row("4", "2026-09-28T00:00:00.000Z", "engaged_audience_demographics", "age", "18-24", 20),
+      row("5", "2026-09-28T00:00:00.000Z", "engaged_audience_demographics", "age", "25-34", 40),
+    ]);
+    await db.insert(tables.appSettings).values({ key: "own_audience_fetch_error", value: "not enough users" });
+    const b = await getAccountBreakdowns();
+    expect(b.followerSplit).toEqual([{ key: "NON_FOLLOWER", value: 70 }, { key: "FOLLOWER", value: 30 }]);
+    expect(b.audience.age.map((a) => a.key)).toEqual(["25-34", "18-24"]);
+    expect(b.audience.country).toEqual([]);
+    expect(b.audienceError).toBe("not enough users");
+    expect(b.followerSplitAt).toBe("2026-09-28T00:00:00.000Z");
+    expect(b.followerSplitError).toBeNull();
+  });
+
+  test("returns the stored follower split failure", async () => {
+    await db.insert(tables.appSettings).values({ key: "own_follower_split_fetch_error", value: "HTTP 400: bad" });
+    expect((await getAccountBreakdowns()).followerSplitError).toBe("HTTP 400: bad");
+  });
+});

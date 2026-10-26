@@ -27,7 +27,7 @@ function sourceOf(source: MetricSource): StepSource {
   return source.connector;
 }
 
-const reading = (entry: FunnelEntry, id: MetricId): MetricReading => {
+export const entryReading = (entry: FunnelEntry, id: MetricId): MetricReading => {
   const found = entry.metrics.find((m) => m.id === id);
   if (!found) throw new Error(`funnel entry ${entry.keyword} has no ${id}`);
   return found;
@@ -49,7 +49,7 @@ function coverage(entries: FunnelEntry[], id: CountId): Coverage {
   const metric = METRIC_LEDGER[id];
   if (metric.source.kind === "not-connected") return { status: "not-connected", connector: metric.source.connector };
   const valued = entries.flatMap((e) => {
-    const r = reading(e, id);
+    const r = entryReading(e, id);
     return r.status === "value" ? [{ tied: e.plan !== null, value: r.value }] : [];
   });
   if (valued.length === 0) return { status: "missing" };
@@ -65,10 +65,9 @@ function notConnectedReading(id: CountId): Reading | null {
   return source.kind === "not-connected" ? { status: "not-connected", connector: source.connector } : null;
 }
 
-export async function getFunnelBoard(): Promise<FunnelBoard> {
-  const entries = await getFunnel();
-  const totals = FUNNEL_STEPS.map(({ count }) => sumReadings(entries.map((e) => reading(e, count)), notConnectedReading(count)));
-  const steps = FUNNEL_STEPS.map(({ count, rate }, i): FunnelStep => {
+export function funnelSteps(entries: FunnelEntry[]): FunnelStep[] {
+  const totals = FUNNEL_STEPS.map(({ count }) => sumReadings(entries.map((e) => entryReading(e, count)), notConnectedReading(count)));
+  return FUNNEL_STEPS.map(({ count, rate }, i): FunnelStep => {
     const metric = METRIC_LEDGER[count];
     return {
       id: count,
@@ -78,9 +77,13 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
       rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: ratio(totals[i], totals[i - 1]) } : null,
     };
   });
+}
+
+export async function getFunnelBoard(): Promise<FunnelBoard> {
+  const entries = await getFunnel();
   return {
-    steps,
-    keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => reading(e, count)) })),
+    steps: funnelSteps(entries),
+    keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => entryReading(e, count)) })),
     coverage: { visits: coverage(entries, "gift_page_visit"), orders: coverage(entries, "purchase") },
   };
 }
