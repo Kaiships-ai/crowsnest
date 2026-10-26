@@ -33,18 +33,28 @@ export async function checkVideoFile(filePath: string): Promise<SimpleResult> {
 
 const LOCKED_STATES = ["publishing", "published"];
 const LOCKED: SimpleResult = { ok: false, error: "This post is already publishing or published, so its video is locked.", code: "PLAN_LOCKED" };
+const NOT_DRAFT: SimpleResult = {
+  ok: false,
+  error: "An agent can attach a video only to a draft. A scheduled or failed post can still go out on its own, so only Kai can change its video in Lead Studio.",
+  code: "PLAN_NOT_DRAFT",
+};
 
-export async function checkPlanTakesVideo(planId: string): Promise<SimpleResult> {
+interface VideoLock {
+  draftOnly?: boolean;
+}
+
+export async function checkPlanTakesVideo(planId: string, { draftOnly = false }: VideoLock = {}): Promise<SimpleResult> {
   const [plan] = await db.select({ state: tables.plannedPosts.state }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, planId));
   if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
   if (LOCKED_STATES.includes(plan.state)) return LOCKED;
+  if (draftOnly && plan.state !== "draft") return NOT_DRAFT;
   return { ok: true };
 }
 
 // Kept out of the "use server" actions module: every export there becomes a browser-callable server action.
-export async function attachPlanVideo(planId: string, filePath: string): Promise<SimpleResult> {
+export async function attachPlanVideo(planId: string, filePath: string, lock: VideoLock = {}): Promise<SimpleResult> {
   try {
-    const takes = await checkPlanTakesVideo(planId);
+    const takes = await checkPlanTakesVideo(planId, lock);
     if (!takes.ok) return takes;
     const check = await checkVideoFile(filePath);
     if (!check.ok) return check;
@@ -52,9 +62,9 @@ export async function attachPlanVideo(planId: string, filePath: string): Promise
     const updated = await db
       .update(tables.plannedPosts)
       .set({ videoAssetId: assetId, updatedAt: nowIso() })
-      .where(and(eq(tables.plannedPosts.id, planId), notInArray(tables.plannedPosts.state, LOCKED_STATES)))
+      .where(and(eq(tables.plannedPosts.id, planId), lock.draftOnly ? eq(tables.plannedPosts.state, "draft") : notInArray(tables.plannedPosts.state, LOCKED_STATES)))
       .returning({ id: tables.plannedPosts.id });
-    if (updated.length === 0) return LOCKED;
+    if (updated.length === 0) return lock.draftOnly ? NOT_DRAFT : LOCKED;
     return { ok: true };
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };

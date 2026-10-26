@@ -1,11 +1,12 @@
 import { z } from "zod";
 
-import { CONNECTORS, listConnectors, testConnector } from "@/server/connectors/registry";
-import { readSecret } from "@/server/connectors/secrets";
+import { listConnectors, testConnector } from "@/server/connectors/registry";
+import { scrubSecrets } from "@/server/connectors/scrub-secrets";
 import { errorMessage } from "@/server/lib/action-result";
 import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
 import { pullAgain } from "@/server/services/daily-pull";
 import { getFunnel } from "@/server/services/funnel";
+import { listAgentActions } from "@/server/services/agent-journal";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
   getChannelDetail,
@@ -87,16 +88,6 @@ function call<S extends z.ZodType<unknown[]>, R>(args: S, run: (...args: NoInfer
     }
   };
   return { args, run, invoke };
-}
-
-const MIN_SCRUBBED_SECRET = 8;
-
-function scrubSecrets(message: string): string {
-  const names = CONNECTORS.flatMap(({ manifest }) => manifest.secrets.map((s) => [manifest, s.name] as const));
-  return names.reduce((text, [manifest, name]) => {
-    const value = readSecret(manifest, name);
-    return value && value.length >= MIN_SCRUBBED_SECRET ? text.replaceAll(value, "[redacted]") : text;
-  }, message);
 }
 
 function scrubFailure<T>(value: T): T {
@@ -237,6 +228,8 @@ export const ENGINE_CALLS = {
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),
   markAllReadAction: call(none, markAllReadAction),
+
+  listAgentActions: call(z.tuple([z.number().int().min(1).max(500).optional()]), listAgentActions),
 };
 
 export type EngineCalls = typeof ENGINE_CALLS;
