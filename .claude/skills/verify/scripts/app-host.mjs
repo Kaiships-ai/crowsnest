@@ -160,7 +160,7 @@ copyMcpAccess();
 if (dev) watchFile(mcpPortFile, { interval: 1000 }, copyMcpAccess);
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
-  JSON.stringify({ cdpPort, userDataDir }, null, 2),
+  JSON.stringify({ cdpPort, userDataDir, cookRoot: process.env.LEAD_STUDIO_COOK_ROOT }, null, 2),
 );
 console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir}${dev ? ", dev mode" : ""})`);
 

@@ -36,6 +36,8 @@ async function runJourney(name, runId) {
     console.log(line);
     appendFileSync(transcript, `${line}\n`);
   };
+  // Imported before connecting, so a journey that refuses its lane exits instead of holding CDP open.
+  const journey = await import(pathToFileURL(path.join(import.meta.dirname, "app-journeys", `${name}.mjs`)).href);
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
   const page = await mainPage(browser);
   const ctx = {
@@ -79,7 +81,6 @@ async function runJourney(name, runId) {
     },
   };
   log(`journey: ${name} run: ${runId}`);
-  const journey = await import(pathToFileURL(path.join(import.meta.dirname, "app-journeys", `${name}.mjs`)).href);
   try {
     await journey.default(ctx);
     log(`journey: ${name} passed`);
