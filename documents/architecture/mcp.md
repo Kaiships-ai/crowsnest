@@ -110,7 +110,7 @@ Each agent calls with its own token. Logic lives in `src/server/services/mcp-tok
 - `crowsnest_scripts` and `crowsnest_ideas` slice in memory because their queries take no paging arguments. `crowsnest_feed` pages in SQL.
 - `crowsnest_metrics` returns `{ current, previous, posts }`; `previous` is the same-length window at offset `windowDays`. Without an own channel and a valid token it returns an error result.
 - `crowsnest_channel_stats.lastRun` is the last sync run overall, because `getLastRunHealth()` takes no channel id.
-- `crowsnest_save_analysis` confirms the video exists, validates against `VideoAnalysisSchema` (plus an optional `summary`), and writes nothing on failure. A second save updates the same row.
+- `crowsnest_save_analysis` confirms the video exists, validates against `VideoAnalysisSchema` (plus an optional `summary` and an optional `tag`, `take`, `learn` or `avoid`, which files a rival's post on the Rivals board), and writes nothing on failure. A second save updates the same row and keeps the earlier summary and tag when it carries none.
 - `crowsnest_transcribe` is cache-first and needs a live sidecar for a first download and a transcript provider (whisper.cpp, or Groq with `GROQ_API_KEY`). Missing either is an error result.
 - Own posts score on `reachIndex`, competitors on `outlierScore`; `research_set` and `outlier_pack` return both blocks and never merge them.
 - Every request needs a live token. Reach is also governed by the interface: the app listens on `127.0.0.1` only, `server.ts` on `HOST` (the packaged LaunchAgent sets `127.0.0.1`). `src/kai-cli/mcp-register.ts` registers and probes the plain URL with no token, so a Kit client gets 401 until it sends one.

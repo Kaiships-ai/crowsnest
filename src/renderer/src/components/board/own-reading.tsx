@@ -1,7 +1,8 @@
 import React from 'react'
 import { translate } from '@/i18n/i18n'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
-import { formatCount, ReadingValue, SourceLabel, type Reading } from './funnel-reading'
+import { formatCount, ReadingValue, type Reading } from './funnel-reading'
+import type { KpiData } from './kit/Kpi'
 
 type OwnBoardData = EngineCallValue<'getOwnBoard'>
 export type OwnTotal = OwnBoardData['totals']['views']
@@ -43,45 +44,33 @@ export function AfterValue({ reading }: { reading: AfterReading }): React.ReactN
   return <ReadingValue reading={reading} format={formatCount} vaultLink={false} />
 }
 
-export function TotalValue({
-  total,
-  format = formatCount
-}: {
-  total: OwnTotal
-  format?: (value: number) => string
-}): React.ReactNode {
-  return (
-    <span className="flex flex-col">
-      <ReadingValue reading={total} format={format} hero />
-      {total.status === 'value' && total.postsWithoutNumber > 0 ? (
-        <span data-testid="reading-post-gap" className="font-mono text-2xs text-muted-foreground">
-          {translate('boards.own.missingPosts', 'missing {{count}} posts', {
-            count: total.postsWithoutNumber
-          })}
-        </span>
-      ) : null}
-    </span>
-  )
+/** A reading as a Kpi. A total that lacks some posts' numbers is partial, and a failed newest pull marks the number it left behind. */
+export function kpiFromReading(
+  reading: Reading | OwnTotal,
+  source: string,
+  pullFailed = false
+): KpiData {
+  if (reading.status === 'not-connected') {
+    return { value: null, state: { kind: 'not-connected' }, source }
+  }
+  const value = reading.status === 'value' ? reading.value : null
+  if (pullFailed) {
+    return { value, state: { kind: 'pull-failed' }, source }
+  }
+  if (reading.status === 'missing') {
+    return { value: null, state: { kind: 'no-data' }, source }
+  }
+  const missing = 'postsWithoutNumber' in reading ? reading.postsWithoutNumber : 0
+  return missing > 0
+    ? { value, state: { kind: 'partial', missing, of: 'posts' }, source }
+    : { value, state: { kind: 'value' }, source }
 }
 
-export function Stat({
-  testId,
-  label,
-  source,
-  at,
-  children
-}: {
-  testId: string
-  label: string
-  source: string
-  at: string | undefined
-  children: React.ReactNode
-}): React.ReactNode {
-  return (
-    <div data-testid={testId} className="flex min-w-0 flex-col gap-1">
-      <span className="font-mono text-2xs text-muted-foreground">{label}</span>
-      <span className="text-2xl leading-8">{children}</span>
-      <SourceLabel source={source} at={at} />
-    </div>
-  )
-}
+/** The oldest pull time among a block's numbers, so its source tag never claims fresher data than it holds. */
+export const oldestAt = (readings: (Reading | AfterReading)[]): string | null =>
+  readings
+    .flatMap((r) => {
+      const at = capturedAt(r)
+      return at ? [at] : []
+    })
+    .reduce<string | null>((oldest, at) => (oldest === null || at < oldest ? at : oldest), null)

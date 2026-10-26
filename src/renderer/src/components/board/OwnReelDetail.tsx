@@ -9,13 +9,17 @@ import { BoardStates } from './BoardStates'
 import {
   formatCount,
   formatRate,
-  ReadingSource,
   ReadingValue,
-  SourceLabel,
+  sourceName,
+  StepsSourceTag,
   stepLabel
 } from './funnel-reading'
+import { Bar } from './kit/Bars'
+import { KpiTile, KpiValue } from './kit/Kpi'
+import { LineChart } from './kit/LineChart'
+import { BlockHeader, SourceTag } from './kit/SourceTag'
 import { openPostInBrowser } from './open-post'
-import { capturedAt, INSTAGRAM, Stat, type OwnPostCard } from './own-reading'
+import { capturedAt, INSTAGRAM, kpiFromReading, type OwnPostCard } from './own-reading'
 import { useBoardLoad } from './use-board-load'
 
 type ReelBoard = EngineCallValue<'getOwnReelBoard'>
@@ -35,14 +39,31 @@ function IgStat({
   format?: (value: number) => string
 }): React.ReactNode {
   return (
-    <Stat
+    <KpiTile
       testId={`own-reel-${field}`}
       label={label}
-      source={INSTAGRAM}
-      at={capturedAt(post.ig[field])}
-    >
-      <ReadingValue reading={post.ig[field]} format={format} hero />
-    </Stat>
+      data={kpiFromReading(post.ig[field], INSTAGRAM, post.pullError !== null)}
+      format={format}
+    />
+  )
+}
+
+function IgBlock({
+  post,
+  title,
+  children
+}: {
+  post: OwnPostCard
+  title: string
+  children: React.ReactNode
+}): React.ReactNode {
+  return (
+    <section className="flex flex-col gap-2">
+      <BlockHeader title={title}>
+        <SourceTag sources={[INSTAGRAM]} at={capturedAt(post.ig.views) ?? null} />
+      </BlockHeader>
+      <div className="grid grid-cols-3 gap-3">{children}</div>
+    </section>
   )
 }
 
@@ -57,28 +78,12 @@ function ViewsHistory({ history }: { history: ReelBoard['history'] }): React.Rea
       </p>
     )
   }
-  const [first] = history
-  const last = history.at(-1) ?? first
-  const max = Math.max(...history.map((h) => h.views), 1)
-  const points = history
-    .map((h, i) => `${(100 * i) / (history.length - 1)},${40 - (40 * h.views) / max}`)
-    .join(' ')
   return (
-    <div data-testid="own-reel-history" className="flex flex-col gap-1">
-      <svg viewBox="0 0 100 40" preserveAspectRatio="none" className="h-24 w-full text-chart-2">
-        <polyline
-          points={points}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="flex justify-between font-mono text-2xs text-muted-foreground">
-        <span>{formatBoardTime(first.capturedAt)}</span>
-        <span>{formatBoardTime(last.capturedAt)}</span>
-      </div>
-    </div>
+    <LineChart
+      testId="own-reel-history"
+      points={history.map((h) => ({ at: h.capturedAt, value: h.views }))}
+      format={formatCount}
+    />
   )
 }
 
@@ -93,8 +98,19 @@ function AfterReel({ reel }: { reel: ReelBoard }): React.ReactNode {
       </p>
     )
   }
+  const max = Math.max(
+    0,
+    ...reel.after.steps.map((step) => (step.total.status === 'value' ? step.total.value : 0))
+  )
   return (
-    <div className="flex flex-col gap-3">
+    <section className="flex flex-col gap-2">
+      <BlockHeader
+        title={translate('boards.own.afterReelTitle', 'After the reel · keyword {{keyword}}', {
+          keyword: reel.after.keyword
+        })}
+      >
+        <StepsSourceTag steps={reel.after.steps} />
+      </BlockHeader>
       <p className="text-sm text-muted-foreground">
         {translate(
           'boards.own.afterIntro',
@@ -102,40 +118,40 @@ function AfterReel({ reel }: { reel: ReelBoard }): React.ReactNode {
           { keyword: reel.after.keyword }
         )}
       </p>
-      <div className="grid grid-cols-[1fr_auto_auto] content-start gap-x-6">
+      <div className="grid grid-cols-[10rem_1fr_8rem_8rem] items-center gap-x-6">
         <div className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground">
           <span>{translate('boards.funnel.step.column', 'Step')}</span>
+          <span />
           <span className="text-right">{translate('boards.funnel.count', 'Count')}</span>
           <span className="text-right">
             {translate('boards.funnel.rate', 'From previous step')}
           </span>
         </div>
-        {reel.after.steps.map((step) => (
-          <div
-            key={step.id}
-            data-testid="own-after-step"
-            data-step-id={step.id}
-            data-status={step.total.status}
-            className="col-span-full grid grid-cols-subgrid items-center border-b border-border py-2 text-sm"
-          >
-            <span className="flex flex-col">
+        {reel.after.steps.map((step) => {
+          const data = kpiFromReading(step.total, sourceName(step.source))
+          return (
+            <div
+              key={step.id}
+              data-testid="own-after-step"
+              data-step-id={step.id}
+              data-status={step.total.status}
+              className="col-span-full grid grid-cols-subgrid items-center border-b border-border py-2.5 text-sm"
+            >
               <span>{stepLabel(step)}</span>
-              <ReadingSource step={step} reading={step.total} />
-            </span>
-            <span className="text-right">
-              <ReadingValue reading={step.total} format={formatCount} />
-            </span>
-            <span className="text-right text-xs">
-              {step.rate ? (
-                <ReadingValue reading={step.rate.reading} format={formatRate} vaultLink={false} />
-              ) : (
-                '-'
-              )}
-            </span>
-          </div>
-        ))}
+              <Bar value={data.value} max={max} muted={data.state.kind !== 'value'} />
+              <KpiValue data={data} format={formatCount} size="sm" align="end" />
+              <span className="self-start text-right font-mono text-xs">
+                {step.rate ? (
+                  <ReadingValue reading={step.rate.reading} format={formatRate} vaultLink={false} />
+                ) : (
+                  ''
+                )}
+              </span>
+            </div>
+          )
+        })}
       </div>
-    </div>
+    </section>
   )
 }
 
@@ -157,14 +173,17 @@ function BackButton({ onBack }: { onBack: () => void }): React.ReactNode {
 function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): React.ReactNode {
   const { post } = reel
   return (
-    <div className="scrollbar-sleek flex h-full flex-col gap-5 overflow-auto p-4">
+    <div className="scrollbar-sleek flex h-full flex-col gap-5 overflow-auto px-6 py-5">
       <header className="flex items-start gap-3">
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <BackButton onBack={onBack} />
           <h1 className="truncate text-xl font-medium">
             {post.caption?.split('\n')[0] || post.format}
           </h1>
-          <SourceLabel source={`${post.format} · ${formatBoardTime(post.postedAt)}`} />
+          <span className="font-mono text-2xs text-muted-foreground">
+            {post.format} · {formatBoardTime(post.postedAt)}
+            {post.keyword ? ` · ${post.keyword}` : ''}
+          </span>
         </div>
         <Button
           data-testid="own-reel-open"
@@ -203,11 +222,21 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
         <TabsContent
           value="ov"
           data-testid="own-reel-panel-ov"
-          className="flex flex-col gap-6 pt-3"
+          className="flex flex-col gap-6 pt-4"
         >
-          <div className="grid grid-cols-3 gap-6">
+          <IgBlock post={post} title={translate('boards.own.reelReach', 'Reach and watch time')}>
             <IgStat post={post} field="views" label={translate('boards.own.views1', 'Views')} />
             <IgStat post={post} field="reach" label={translate('boards.own.reach', 'Reach')} />
+            <KpiTile
+              testId="own-reel-index"
+              label={translate('boards.own.reachIndex', 'Reach vs channel median')}
+              data={{
+                value: post.reachIndex,
+                state: { kind: post.reachIndex === null ? 'no-data' : 'value' },
+                source: INSTAGRAM
+              }}
+              format={(value) => `${formatCount(value)}×`}
+            />
             <IgStat
               post={post}
               field="avgWatchTimeMs"
@@ -225,32 +254,18 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
               field="followsFromPost"
               label={translate('boards.own.follows', 'Follows from posts')}
             />
-            <Stat
-              testId="own-reel-index"
-              label={translate('boards.own.reachIndex', 'Reach vs channel median')}
-              source={INSTAGRAM}
-              at={capturedAt(post.ig.reach)}
-            >
-              {post.reachIndex === null ? (
-                <span className="font-mono text-xs text-muted-foreground">
-                  {translate('boards.funnel.missing', 'no data yet')}
-                </span>
-              ) : (
-                <span data-num className="font-mono tabular-nums">
-                  {formatCount(post.reachIndex)}×
-                </span>
-              )}
-            </Stat>
-          </div>
+          </IgBlock>
           <section className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium">
-              {translate('boards.own.history', 'Views across measurements')}
-            </h2>
-            <ViewsHistory history={reel.history} />
+            <BlockHeader title={translate('boards.own.history', 'Views across measurements')}>
+              <SourceTag sources={[INSTAGRAM]} at={reel.history.at(-1)?.capturedAt ?? null} />
+            </BlockHeader>
+            <div className="rounded-lg border border-border bg-card px-4 py-3">
+              <ViewsHistory history={reel.history} />
+            </div>
           </section>
         </TabsContent>
-        <TabsContent value="eng" data-testid="own-reel-panel-eng" className="pt-3">
-          <div className="grid grid-cols-3 gap-6">
+        <TabsContent value="eng" data-testid="own-reel-panel-eng" className="pt-4">
+          <IgBlock post={post} title={translate('boards.own.tab.eng', 'Engagement')}>
             <IgStat post={post} field="likes" label={translate('boards.own.likes', 'Likes')} />
             <IgStat
               post={post}
@@ -269,9 +284,9 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
               field="bioLinkTaps"
               label={translate('boards.own.bioLinkTaps', 'Bio link taps')}
             />
-          </div>
+          </IgBlock>
         </TabsContent>
-        <TabsContent value="after" data-testid="own-reel-panel-after" className="pt-3">
+        <TabsContent value="after" data-testid="own-reel-panel-after" className="pt-4">
           <AfterReel reel={reel} />
         </TabsContent>
       </Tabs>

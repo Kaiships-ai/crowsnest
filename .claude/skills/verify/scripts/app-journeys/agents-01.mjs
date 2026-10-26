@@ -28,7 +28,7 @@ async function setTheme(page, theme) {
   await page.evaluate(() => document.documentElement.classList.remove("theme-transition-disabled"));
 }
 
-export default async function agents01({ page, step, snap }) {
+export default async function agents01({ page, step, snap, snapAndCompare }) {
   const board = page.getByTestId("board-tab");
   const name = `agents-01-${Date.now()}`;
   const tokenRow = board.locator(`[data-testid="agents-token-row"][data-token-name="${name}"]`);
@@ -47,9 +47,13 @@ export default async function agents01({ page, step, snap }) {
     const sameCall = await board.locator(`[data-testid="agents-journal-row"][data-call-id="${top.callId}"]`).count();
     if (sameCall !== 1) throw new Error(`${sameCall} rows for one call`);
   });
-  await snap("agents-01-dark");
+  await step("the board reads in English: no Vietnamese on it", async () => {
+    const hit = (await board.innerText()).split("\n").find((line) => /[ăâđêôơưĂÂĐÊÔƠƯạ-ỹ]/.test(line));
+    if (hit) throw new Error(`Agents shows Vietnamese: ${hit}`);
+  });
+  await snapAndCompare("agents-01-dark", board);
   await setTheme(page, "light");
-  await snap("agents-01-light");
+  await snapAndCompare("agents-01-light", board);
   await setTheme(page, "dark");
 
   await step("the caller filter keeps only that caller's rows", async () => {

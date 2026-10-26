@@ -14,13 +14,16 @@ export function DataTable<Row>({
   rows,
   rowKey,
   testId,
-  rowTestId
+  rowTestId,
+  rowData
 }: {
   columns: DataColumn<Row>[]
   rows: Row[]
   rowKey: (row: Row) => string
   testId?: string
   rowTestId?: string
+  /** `data-*` attributes a journey or test reads off each row. */
+  rowData?: (row: Row) => Record<`data-${string}`, string | undefined>
 }): React.ReactNode {
   const align = (column: DataColumn<Row>): string =>
     column.align === 'end' ? 'text-right' : 'text-left'
@@ -41,6 +44,7 @@ export function DataTable<Row>({
             key={rowKey(row)}
             data-testid={rowTestId}
             data-row-key={rowKey(row)}
+            {...rowData?.(row)}
             className="border-b border-border"
           >
             {columns.map((column) => (

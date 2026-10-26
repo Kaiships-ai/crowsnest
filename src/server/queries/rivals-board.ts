@@ -2,11 +2,12 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { OUTLIERS_30D_MIN_SCORE } from "@/lib/outlier-constants";
 import { db, tables } from "@/server/db";
+import type { RivalTag } from "@/server/schemas";
 import { getChannelsList, type ChannelRow } from "./channels";
 import { feedItemColumns, getOutlierFeed, toFeedItem, type FeedItem } from "./feed";
 
 const OUTLIERS_PER_CHANNEL = 3;
-const EVIDENCE_LIMIT = 12;
+const EVIDENCE_LIMIT = 24;
 
 export interface RivalChannel extends ChannelRow {
   outliers: FeedItem[];
@@ -15,6 +16,7 @@ export interface RivalChannel extends ChannelRow {
 export interface RivalEvidence {
   post: FeedItem;
   analysis: {
+    tag: RivalTag | null;
     hookType: string | null;
     formatTags: string[];
     styleTags: string[];
@@ -50,6 +52,7 @@ export async function getRivalsBoard(): Promise<RivalsBoard> {
     evidence: rows.map(({ analysis, ...row }) => ({
       post: toFeedItem(row),
       analysis: {
+        tag: analysis.tag,
         hookType: analysis.hookType,
         formatTags: analysis.formatTags ?? [],
         styleTags: analysis.styleTags ?? [],

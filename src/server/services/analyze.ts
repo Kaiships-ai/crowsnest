@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db, nowIso, tables } from "@/server/db";
 import {
+  RivalTagSchema,
   VideoAnalysisSchema,
   type StoredAnalysisFields,
   type StoredVideoLayout,
@@ -16,7 +17,7 @@ import {
  * exactly as before; when it is sent, this is now the only thing that persists it, so the
  * video detail page's Summary section (`video-detail.tsx`) actually has something to show.
  */
-const AgentAnalysisSchema = VideoAnalysisSchema.extend({ summary: z.string().optional() });
+const AgentAnalysisSchema = VideoAnalysisSchema.extend({ summary: z.string().optional(), tag: RivalTagSchema.optional() });
 
 /**
  * `VideoAnalysis` plus the Layout section's provenance columns (V1 data contracts,
@@ -85,10 +86,11 @@ export async function saveAgentAnalysis(
     // `summary` is omitted from the SET entirely when the payload doesn't carry one, so a
     // re-save without a summary can't null out one stored by an earlier save. An explicit
     // "" still clears it, since that's a defined value distinct from undefined.
-    const update = a.summary !== undefined ? { ...textFields, summary: a.summary } : textFields;
+    // `tag` follows the same rule: a re-save that leaves it out keeps the card it was filed under.
+    const update = { ...textFields, ...(a.summary !== undefined && { summary: a.summary }), ...(a.tag && { tag: a.tag }) };
     await db.update(tables.videoAnalyses).set(update).where(eq(tables.videoAnalyses.videoId, videoId));
   } else {
-    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, summary: a.summary ?? null, createdAt: nowIso() });
+    await db.insert(tables.videoAnalyses).values({ videoId, ...textFields, summary: a.summary ?? null, tag: a.tag ?? null, createdAt: nowIso() });
   }
   return { ok: true };
 }

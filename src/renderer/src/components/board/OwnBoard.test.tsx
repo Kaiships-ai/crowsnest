@@ -123,17 +123,18 @@ describe('OwnBoard', () => {
     expect(screen.queryByTestId('own-stat-reach')).toBeNull()
   })
 
-  it('opens on Overview with each number next to its source, and a partial total says how many posts it misses', async () => {
+  it('opens on Overview with one source per block, and a partial total says how many posts it misses', async () => {
     stubCall({ ok: true, value: board })
     render(<OwnBoard />)
     const views = await screen.findByTestId('own-stat-views')
     expect(views.textContent).toContain('1,500')
-    expect(within(views).getByTestId('reading-post-gap').textContent).toBe('missing 1 posts')
-    expect(within(views).getByTestId('source-label').textContent).toMatch(/^Instagram · /)
+    expect(within(views).getByTestId('kpi-value').dataset.state).toBe('partial')
+    expect(within(views).getByTestId('kpi-state').textContent).toBe('missing 1 posts')
     expect(screen.getByTestId('own-stat-net').textContent).toContain('+100')
     expect(
-      within(screen.getByTestId('own-total-dm')).getByTestId('source-label').textContent
-    ).toMatch(/^ChatbotX · /)
+      screen.getAllByTestId('source-tag').map((t) => t.textContent?.split(' · pulled')[0])
+    ).toEqual(['Instagram', 'ChatbotX · Umami · Polar'])
+    expect(screen.getByTestId('own-views-line').dataset.points).toBe('30')
   })
 
   it('lists posts with DMs, Site and Orders, and a post with no keyword reads not connected, never 0', async () => {
@@ -187,7 +188,7 @@ describe('OwnBoard', () => {
       ['checkout', 'not-connected'],
       ['purchase', 'value']
     ])
-    expect(within(steps[1]).getByTestId('reading-not-connected').textContent).toContain('not connected')
+    expect(within(steps[1]).getByTestId('open-sources').textContent).toBe('Polar not connected')
     fireEvent.click(screen.getByTestId('own-reel-back'))
     expect(await screen.findAllByTestId('own-post-row')).toHaveLength(2)
   })

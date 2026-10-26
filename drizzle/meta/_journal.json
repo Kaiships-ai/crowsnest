@@ -302,6 +302,13 @@
       "when": 1793037835295,
       "tag": "0042_gate2_publish",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1793039264282,
+      "tag": "0043_rival_tag",
+      "breakpoints": true
     }
   ]
 }

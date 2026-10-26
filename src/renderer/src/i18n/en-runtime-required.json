@@ -3004,6 +3004,7 @@
   },
   "boards": {
     "funnel": {
+      "missingKeywords": "missing {{count}} keywords",
       "step": {
         "checkout": "Checkout clicks",
         "comment_keyword": "Keyword comments",
@@ -3024,7 +3025,8 @@
         "saved": "Saves",
         "shares": "Shares",
         "views": "Views"
-      }
+      },
+      "missingPosts": "missing {{count}} posts"
     },
     "today": {
       "ledger": "metrics ledger",

@@ -3,13 +3,16 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 import { formatBoardTime } from './board-time'
-import { formatCount, ReadingValue, SourceLabel, type Reading } from './funnel-reading'
+import { formatCount, ReadingValue } from './funnel-reading'
+import { DataTable, type DataColumn } from './kit/DataTable'
+import { BlockHeader, SourceTag } from './kit/SourceTag'
 import {
   AFTER_COLUMNS,
   AfterValue,
   capturedAt,
   columnLabel,
   INSTAGRAM,
+  oldestAt,
   valueOf,
   type OwnPostCard
 } from './own-reading'
@@ -27,12 +30,74 @@ const SORTS: { key: string; value: (post: OwnPostCard) => number }[] = [
   }))
 ]
 
-function sourceTitle(
-  reading: Reading | OwnPostCard['after']['dm'],
-  source: string
-): string | undefined {
-  const at = capturedAt(reading)
-  return at ? `${source} · ${formatBoardTime(at)}` : undefined
+function PostCell({
+  post,
+  onOpen
+}: {
+  post: OwnPostCard
+  onOpen: (id: string) => void
+}): React.ReactNode {
+  return (
+    <span className="flex min-w-0 flex-col">
+      <button
+        type="button"
+        data-testid="own-open-reel"
+        className="max-w-80 truncate text-left hover:underline"
+        onClick={() => onOpen(post.ownPostId)}
+      >
+        {post.caption?.split('\n')[0] || post.format}
+      </button>
+      <span className="font-mono text-2xs text-muted-foreground">
+        {formatBoardTime(post.postedAt)}
+        {post.keyword ? ` · ${post.keyword}` : ''}
+      </span>
+      {post.pullError ? (
+        <span
+          data-testid="own-post-pull-error"
+          title={post.pullError.error}
+          className="font-mono text-2xs text-destructive"
+        >
+          {translate('boards.own.pullFailedShort', '{{at}} measurement failed, old numbers', {
+            at: formatBoardTime(post.pullError.at)
+          })}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function columns(onOpen: (id: string) => void): DataColumn<OwnPostCard>[] {
+  return [
+    {
+      id: 'post',
+      header: translate('boards.own.post', 'Post'),
+      cell: (post) => <PostCell post={post} onOpen={onOpen} />
+    },
+    ...IG_COLUMNS.map((key): DataColumn<OwnPostCard> => ({
+      id: key,
+      align: 'end',
+      header: columnLabel(key),
+      cell: (post) => (
+        <span className="text-xs">
+          <ReadingValue reading={post.ig[key]} format={formatCount} vaultLink={false} />
+        </span>
+      )
+    })),
+    ...AFTER_COLUMNS.map((c): DataColumn<OwnPostCard> => ({
+      id: c.key,
+      align: 'end',
+      header: columnLabel(c.key),
+      cell: (post) => (
+        <span
+          data-testid={`own-after-${c.key}`}
+          data-status={post.after[c.key].status}
+          className="text-xs"
+        >
+          <AfterValue reading={post.after[c.key]} />
+        </span>
+      )
+    }))
+  ]
 }
 
 export function OwnContentTable({
@@ -45,7 +110,16 @@ export function OwnContentTable({
   const [sort, setSort] = useState(SORTS[0])
   const posts = [...board.posts].sort((a, b) => sort.value(b) - sort.value(a))
   return (
-    <div className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3">
+      <BlockHeader title={translate('boards.own.contentTitle', 'Posts in range')}>
+        <SourceTag
+          sources={[INSTAGRAM, ...AFTER_COLUMNS.map((c) => c.source)]}
+          at={oldestAt([
+            ...board.posts.flatMap((p) => (capturedAt(p.ig.views) ? [p.ig.views] : [])),
+            ...AFTER_COLUMNS.map((c) => board.after[c.key])
+          ])}
+        />
+      </BlockHeader>
       <div className="flex flex-wrap gap-1">
         {SORTS.map((s) => (
           <Button
@@ -59,94 +133,23 @@ export function OwnContentTable({
           </Button>
         ))}
       </div>
-      <SourceLabel source={INSTAGRAM} at={capturedAt(board.totals.views)} />
       {posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {translate('boards.own.noPosts', 'No posts in this range.')}
         </p>
       ) : (
-        <div className="grid grid-cols-[1fr_repeat(8,auto)] content-start gap-x-5">
-          <div
-            data-testid="own-content-header"
-            className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground"
-          >
-            <span>{translate('boards.own.post', 'Post')}</span>
-            {IG_COLUMNS.map((key) => (
-              <span key={key} className="text-right">
-                {columnLabel(key)}
-                <br />
-                {INSTAGRAM}
-              </span>
-            ))}
-            {AFTER_COLUMNS.map((c) => (
-              <span key={c.key} className="text-right">
-                {columnLabel(c.key)}
-                <br />
-                {c.source}
-              </span>
-            ))}
-          </div>
-          {posts.map((post) => (
-            <div
-              key={post.ownPostId}
-              data-testid="own-post-row"
-              data-post-id={post.ownPostId}
-              data-pull-error={post.pullError ? 'true' : undefined}
-              className="col-span-full grid grid-cols-subgrid items-center border-b border-border py-1.5 text-sm"
-            >
-              <span className="flex min-w-0 flex-col">
-                <button
-                  type="button"
-                  data-testid="own-open-reel"
-                  className="truncate text-left hover:underline"
-                  onClick={() => onOpen(post.ownPostId)}
-                >
-                  {post.caption?.split('\n')[0] || post.format}
-                </button>
-                <span className="font-mono text-2xs text-muted-foreground">
-                  {formatBoardTime(post.postedAt)}
-                  {post.keyword ? ` · ${post.keyword}` : ''}
-                </span>
-                {post.pullError ? (
-                  <span
-                    data-testid="own-post-pull-error"
-                    title={post.pullError.error}
-                    className="font-mono text-2xs text-destructive"
-                  >
-                    {translate(
-                      'boards.own.pullFailedShort',
-                      '{{at}} measurement failed, old numbers',
-                      {
-                        at: formatBoardTime(post.pullError.at)
-                      }
-                    )}
-                  </span>
-                ) : null}
-              </span>
-              {IG_COLUMNS.map((key) => (
-                <span
-                  key={key}
-                  className="text-right text-xs"
-                  title={sourceTitle(post.ig[key], INSTAGRAM)}
-                >
-                  <ReadingValue reading={post.ig[key]} format={formatCount} />
-                </span>
-              ))}
-              {AFTER_COLUMNS.map((c) => (
-                <span
-                  key={c.key}
-                  data-testid={`own-after-${c.key}`}
-                  data-status={post.after[c.key].status}
-                  className="text-right text-xs"
-                  title={sourceTitle(post.after[c.key], c.source)}
-                >
-                  <AfterValue reading={post.after[c.key]} />
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
+        <DataTable
+          testId="own-content-table"
+          rowTestId="own-post-row"
+          columns={columns(onOpen)}
+          rows={posts}
+          rowKey={(post) => post.ownPostId}
+          rowData={(post) => ({
+            'data-post-id': post.ownPostId,
+            'data-pull-error': post.pullError ? 'true' : undefined
+          })}
+        />
       )}
-    </div>
+    </section>
   )
 }

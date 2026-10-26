@@ -41,10 +41,23 @@ const board = {
     {
       post: post('v1', 6.4),
       analysis: {
+        tag: 'take',
         hookType: 'curiosity-gap',
         formatTags: ['talking-head'],
         styleTags: [],
         whyItWorked: 'Shows the result first.',
+        summary: null,
+        createdAt: T
+      }
+    },
+    {
+      post: post('v2', 3),
+      analysis: {
+        tag: null,
+        hookType: null,
+        formatTags: [],
+        styleTags: [],
+        whyItWorked: 'Asks and never answers.',
         summary: null,
         createdAt: T
       }
@@ -67,20 +80,37 @@ afterEach(() => {
 })
 
 describe('RivalsBoard', () => {
-  it('shows each channel with its outliers and source, and an evidence card opens the original post', async () => {
+  it('files each analysis under Take, Learn or Avoid, untagged ones under Not sorted, and a card opens the original post', async () => {
     stubCall({ ok: true, value: board })
     render(<RivalsBoard />)
-    const row = await screen.findByTestId('rivals-channel-row')
-    expect(
-      within(row)
-        .getAllByTestId('rivals-outlier')
-        .map((o) => o.dataset.videoId)
-    ).toEqual(['v1', 'v2'])
-    expect(within(row).getByTestId('source-label').textContent).toMatch(/^Radar · /)
-    const card = screen.getByTestId('rivals-evidence-card')
+    const groups = await screen.findAllByTestId('rivals-group')
+    const cards = (group: HTMLElement) =>
+      within(group)
+        .queryAllByTestId('rivals-evidence-card')
+        .map((c) => c.dataset.videoId)
+    expect(groups.map((g) => [g.dataset.group, cards(g)])).toEqual([
+      ['take', ['v1']],
+      ['learn', []],
+      ['avoid', []],
+      ['unsorted', ['v2']]
+    ])
+    const card = within(groups[0]).getByTestId('rivals-evidence-card')
     expect(card.textContent).toContain('Shows the result first.')
     fireEvent.click(within(card).getByTestId('rivals-evidence-open'))
     expect(openPost).toHaveBeenCalledWith('https://www.instagram.com/reel/v1/')
+  })
+
+  it('lists outliers best first and each channel once, each block naming Radar as its source', async () => {
+    stubCall({ ok: true, value: board })
+    render(<RivalsBoard />)
+    const outliers = await screen.findAllByTestId('rivals-outlier')
+    expect(outliers.map((o) => o.dataset.videoId)).toEqual(['v1', 'v2'])
+    expect(screen.getByTestId('rivals-channel-row').dataset.handle).toBe('@rival')
+    expect(screen.getAllByTestId('source-tag').map((t) => t.textContent?.split(' · ')[0])).toEqual([
+      'Analysis',
+      'Radar',
+      'Radar'
+    ])
   })
 
   it('adds a channel with a profile check, then reloads and keeps the confirmation', async () => {
@@ -104,7 +134,7 @@ describe('RivalsBoard', () => {
   it('shows why an add failed and writes nothing more', async () => {
     const call = stubCall(
       { ok: true, value: board },
-      { ok: true, value: { ok: false, error: 'Không tìm thấy kênh @typo.' } }
+      { ok: true, value: { ok: false, error: 'Channel @typo not found.' } }
     )
     render(<RivalsBoard />)
     fireEvent.change(await screen.findByTestId('rivals-add-input'), { target: { value: '@typo' } })
@@ -112,7 +142,7 @@ describe('RivalsBoard', () => {
     const message = await screen.findByTestId('rivals-add-message')
     expect([message.dataset.status, message.textContent]).toEqual([
       'error',
-      'Không tìm thấy kênh @typo.'
+      'Channel @typo not found.'
     ])
     expect(call).toHaveBeenCalledTimes(2)
   })
