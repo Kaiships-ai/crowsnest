@@ -42,7 +42,7 @@ export default async function own01({ page, step, snapAndCompare }) {
   const board = page.getByTestId("board-tab");
   await page.setViewportSize(SCREEN);
 
-  await step("open My channel from the new-tab menu: Overview shows the bridge's numbers in Kpi tiles, each block naming its source once", async () => {
+  await step("open My channel from the new-tab menu: Overview shows the bridge's numbers in Kpi tiles, each block naming its source once, and a failed post pull marks the per-post totals", async () => {
     await page.getByRole("button", { name: "New tab" }).first().click();
     await page.locator('[data-testid="new-tab-board"][data-board-id="own"]').click();
     await page.getByRole("menu").waitFor({ state: "detached" });
@@ -60,6 +60,11 @@ export default async function own01({ page, step, snapAndCompare }) {
     const days = await board.getByTestId("own-views-line").getAttribute("data-points");
     console.log(`views line: ${days} days`);
     if (days !== "30") throw new Error(`views line has ${days} points`);
+    // The seed's own-reel-3 has a failed newest pull, so its old numbers still sit in the totals.
+    const views = await board.getByTestId("own-stat-views").getByTestId("kpi-value").getAttribute("data-state");
+    const followers = await board.getByTestId("own-stat-followers").getByTestId("kpi-value").getAttribute("data-state");
+    console.log(`views tile: ${views}, followers tile: ${followers}`);
+    if (views !== "pull-failed" || followers !== "value") throw new Error("a failed post pull must mark the per-post totals, not the account numbers");
     await assertEnglish(board, "Overview");
   });
   await compareBoth(page, snapAndCompare, "own-01-home");

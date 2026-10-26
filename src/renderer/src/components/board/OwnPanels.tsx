@@ -50,6 +50,9 @@ export function viewsByPostDay(
   })
 }
 
+/** A post whose newest pull failed still adds its last good numbers, so per-post totals are marked, never shown clean. */
+const pullFailed = (board: OwnBoardData): boolean => board.posts.some((p) => p.pullError !== null)
+
 function BreakdownBars({
   testId,
   title,
@@ -73,7 +76,7 @@ function BreakdownBars({
             <span className="truncate">{r.key}</span>
             <Bar value={r.value} max={total} scale="linear" />
             <span data-num className="text-right font-mono text-xs tabular-nums">
-              {formatRate(r.value / total)}
+              {formatRate(total > 0 ? r.value / total : 0)}
             </span>
           </div>
         ))
@@ -96,7 +99,7 @@ function IgTiles({
           key={key}
           testId={`own-stat-${key}`}
           label={label}
-          data={kpiFromReading(board.totals[key], INSTAGRAM)}
+          data={kpiFromReading(board.totals[key], INSTAGRAM, pullFailed(board))}
           format={formatCount}
         />
       ))}
@@ -107,6 +110,7 @@ function IgTiles({
 export function OverviewPanel({ board }: { board: OwnBoardData }): React.ReactNode {
   const { totals, after } = board
   const viewsMissing = board.posts.filter((p) => valueOf(p.ig.views) === null).length
+  const viewsStale = board.posts.filter((p) => p.pullError !== null).length
   return (
     <>
       <section className="flex flex-col gap-2">
@@ -124,7 +128,7 @@ export function OverviewPanel({ board }: { board: OwnBoardData }): React.ReactNo
           <KpiTile
             testId="own-stat-views"
             label={translate('boards.own.views', 'Post views in range')}
-            data={kpiFromReading(totals.views, INSTAGRAM)}
+            data={kpiFromReading(totals.views, INSTAGRAM, pullFailed(board))}
             format={formatCount}
           />
           <KpiTile
@@ -147,6 +151,15 @@ export function OverviewPanel({ board }: { board: OwnBoardData }): React.ReactNo
               ? ` · ${translate('boards.kit.missingPosts', 'missing {{count}} posts', {
                   count: viewsMissing
                 })}`
+              : ''}
+            {viewsStale > 0
+              ? ` · ${translate(
+                  'boards.own.postsPullFailed',
+                  '{{count}} posts kept old numbers after a failed pull',
+                  {
+                    count: viewsStale
+                  }
+                )}`
               : ''}
           </span>
           <LineChart

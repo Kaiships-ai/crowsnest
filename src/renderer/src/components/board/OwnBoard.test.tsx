@@ -149,7 +149,7 @@ describe('OwnBoard', () => {
   })
 
   it('opens on Overview with one source per block, and a partial total says how many posts it misses', async () => {
-    stubCall({ ok: true, value: board })
+    stubCall({ ok: true, value: { ...board, posts: [alpha, { ...beta, pullError: null }] } })
     render(<OwnBoard />)
     const views = await screen.findByTestId('own-stat-views')
     expect(views.textContent).toContain('1,500')
@@ -160,6 +160,21 @@ describe('OwnBoard', () => {
       screen.getAllByTestId('source-tag').map((t) => t.textContent?.split(' · pulled')[0])
     ).toEqual(['Instagram', 'ChatbotX · Umami · Polar'])
     expect(screen.getByTestId('own-views-line').dataset.points).toBe('30')
+  })
+
+  it("marks every per-post total pull-failed when a post's newest pull failed, since it still adds its old numbers", async () => {
+    stubCall({ ok: true, value: board })
+    render(<OwnBoard />)
+    const views = await screen.findByTestId('own-stat-views')
+    expect(within(views).getByTestId('kpi-value').dataset.state).toBe('pull-failed')
+    expect(views.textContent).toContain('1,500')
+    expect(screen.getByTestId('own-stat-followers').textContent).not.toContain('pull failed')
+    expect(screen.getByTestId('own-views-line').parentElement?.textContent).toContain(
+      '1 posts kept old numbers after a failed pull'
+    )
+    openTab('own-tab-perf')
+    const likes = await screen.findByTestId('own-stat-likes')
+    expect(within(likes).getByTestId('kpi-value').dataset.state).toBe('pull-failed')
   })
 
   it('lists posts with DMs, Site and Orders, and a post with no keyword reads not connected, never 0', async () => {

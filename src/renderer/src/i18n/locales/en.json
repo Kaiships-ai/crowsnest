@@ -21389,7 +21389,8 @@
       "audienceTitle": "Audience",
       "contentTitle": "Posts in range",
       "afterReelTitle": "After the reel · keyword {{keyword}}",
-      "reelReach": "Reach and watch time"
+      "reelReach": "Reach and watch time",
+      "postsPullFailed": "{{count}} posts kept old numbers after a failed pull"
     },
     "rivals": {
       "added": "Added {{handle}}. Its posts and outliers appear after Radar reads the channel.",
