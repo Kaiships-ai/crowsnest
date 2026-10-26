@@ -21,7 +21,7 @@ Open a project, click "+" in the tab bar, then Hôm nay, Phễu, Kênh tôi, Đ�
 ## Driving it
 
 ```bash
-.claude/skills/verify/scripts/boards-lane.sh                # fake sidecar + app-up.sh --seed
+APP_DEV=1 .claude/skills/verify/scripts/boards-lane.sh      # fake sidecar and Umami + app-up.sh --seed
 .claude/skills/verify/scripts/app-drive.sh own-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh rivals-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh plan-01 [run-id]
