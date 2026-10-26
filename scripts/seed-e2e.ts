@@ -155,6 +155,7 @@ async function main(): Promise<void> {
 
   await seedOwnChannel(db, tables, daysAgo);
   const rivalId = await seedRival(db, tables, newId, daysAgo);
+  await seedPlan(db, tables);
 
   console.log(`seed-e2e: wrote ${dbPath}`);
   console.log(`seed-e2e: rival=${rivalId} (@e2e_fixture_rival, best 4.1x, one analyzed post)`);
@@ -228,6 +229,21 @@ async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"],
     whyItWorked: "Opens on the finished result, then shows the three steps.", summary: "Rival fixture analysis.", model: "fixture", source: "mcp", createdAt: now,
   });
   return id;
+}
+
+/** Kế hoạch reels for plan-01, all tomorrow: a bare draft, a full plan, and one armed with Instagram (scheduledAt set). The publish scheduler is off on a lane, so nothing posts. */
+async function seedPlan(db: Db["db"], tables: Db["tables"]): Promise<void> {
+  const now = new Date();
+  const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 19, 30);
+  const date = at.toLocaleDateString("sv-SE");
+  const stamp = now.toISOString();
+  await db.insert(tables.scripts).values({ id: "plan-e2e-script", title: "PLAN01 script", content: "Mở bằng kết quả, rồi 3 bước.", createdAt: stamp, updatedAt: stamp });
+  const plan = { state: "scheduled", plannedDate: date, createdAt: stamp, updatedAt: stamp };
+  await db.insert(tables.plannedPosts).values([
+    { ...plan, id: "plan-e2e-draft", state: "draft", title: "PLAN01 nháp" },
+    { ...plan, id: "plan-e2e-full", title: "PLAN01 đủ script", plannedTime: "09:00", scriptId: "plan-e2e-script", caption: "Caption PLAN01", sourceVideoId: "e2e-rival-video-0" },
+    { ...plan, id: "plan-e2e-armed", title: "PLAN01 đã hẹn IG", plannedTime: "19:30", caption: "Caption armed", scheduledAt: at.toISOString(), idempotencyKey: `plan-e2e-armed:${at.toISOString()}` },
+  ]);
 }
 
 main().catch((err: unknown) => {

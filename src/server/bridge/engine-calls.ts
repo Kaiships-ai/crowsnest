@@ -35,6 +35,7 @@ import { getLastRunHealth, getRun, listRuns } from "@/server/queries/runs";
 import { getScripts } from "@/server/queries/vault";
 import { getFunnelBoard } from "@/server/queries/funnel-board";
 import { getOwnBoard, getOwnReelBoard } from "@/server/queries/own-board";
+import { getPlanBoard } from "@/server/queries/plan-board";
 import { getRivalsBoard } from "@/server/queries/rivals-board";
 import { getTodayBoard } from "@/server/queries/today-board";
 import { getVaultBoard } from "@/server/queries/vault-board";
@@ -50,6 +51,7 @@ import {
 } from "@/server/actions/fleet-actions";
 import { checkGraphTokenAction, measureOwnChannelAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
+import { movePlanCardAction } from "@/server/actions/plan-board-actions";
 import { listNotificationsAction, markAllReadAction, markReadAction } from "@/server/actions/notification-actions";
 import {
   attachScriptToPlanAction,
@@ -156,6 +158,8 @@ export const ENGINE_CALLS = {
   getOwnBoard: call(z.tuple([z.union([z.literal(7), z.literal(30)]).optional()]), getOwnBoard),
   getOwnReelBoard: call(id, getOwnReelBoard),
   getRivalsBoard: call(none, getRivalsBoard),
+  getPlanBoard: call(z.tuple([z.string().regex(/^\d{4}-\d{2}$/)]), (month) => getPlanBoard(month)),
+  movePlanCardAction: call(z.tuple([z.string(), z.string()]), movePlanCardAction),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),

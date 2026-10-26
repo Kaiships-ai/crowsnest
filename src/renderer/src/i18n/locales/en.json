@@ -21394,6 +21394,29 @@
       "followers": "Follower",
       "median": "Trung vị view",
       "outliers": "Vượt 2× trong 30 ngày"
+    },
+    "plan": {
+      "added": "Đã thêm \"{{title}}\" vào {{day}}.",
+      "titlePlaceholder": "Tên reel",
+      "addSubmit": "Thêm",
+      "cancel": "Thôi",
+      "moved": "Đã dời \"{{title}}\" sang {{day}}.",
+      "month": "Tháng {{month}} · {{year}}",
+      "week": "Tuần {{from}} – {{to}}",
+      "title": "Kế hoạch",
+      "viewMonth": "Tháng",
+      "viewWeek": "Tuần",
+      "viewDay": "Ngày",
+      "prev": "Trước",
+      "today": "Hôm nay",
+      "next": "Sau",
+      "notYet": "chưa có",
+      "emptyDay": "Ngày này chưa có reel.",
+      "missing": "Còn thiếu: {{items}}",
+      "weekOf": "Tuần {{day}}",
+      "noTime": "chưa có giờ",
+      "missingCount": "Thiếu {{count}} mục",
+      "add": "Thêm reel"
     }
   }
 }
