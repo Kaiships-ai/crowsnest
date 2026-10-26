@@ -51,6 +51,8 @@ export default async function agents01({ page, step, snap, snapAndCompare }) {
     const hit = (await board.innerText()).split("\n").find((line) => /[ăâđêôơưĂÂĐÊÔƠƯạ-ỹ]/.test(line));
     if (hit) throw new Error(`Agents shows Vietnamese: ${hit}`);
   });
+  // The journey before this one may leave either theme on.
+  await setTheme(page, "dark");
   await snapAndCompare("agents-01-dark", board);
   await setTheme(page, "light");
   await snapAndCompare("agents-01-light", board);
