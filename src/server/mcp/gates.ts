@@ -6,11 +6,6 @@ import type { CallToolResult, ServerNotification, ServerRequest } from "@modelco
 import { GATE_LEVELS } from "@/server/db/schema";
 import { draftGatedCall, recordAgentAction, type GateLevel } from "@/server/services/agent-journal";
 
-/**
- * read: no write. free: a local write outside the plan. gate1: changes the plan.
- * gate2: touches people outside (publish, DM, comment reply, discount, ChatbotX flow,
- * website deploy); the call is stored as a pending draft and the tool never runs.
- */
 export const TOOL_LEVELS = {
   crowsnest_ig_status: "read",
   crowsnest_sync_status: "read",
@@ -73,7 +68,6 @@ function drafted(tool: string, draftId: string): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], structuredContent: value };
 }
 
-/** The only way to register a tool: the name must have a level, and every non-read call is journaled. */
 export function gatedRegistrar<L extends Record<string, GateLevel>>(server: McpServer, levels: L) {
   return <S extends ZodRawShapeCompat>(name: Extract<keyof L, string>, config: { title: string; description: string; inputSchema: S }, handler: Handler<S>): void => {
     const level = levelOf(levels, name);

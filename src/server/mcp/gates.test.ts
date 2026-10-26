@@ -4,6 +4,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { z } from "zod";
 
+import type { GateLevel } from "@/server/services/agent-journal";
+
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let buildMcpServer: typeof import("./mcp-server")["buildMcpServer"];
@@ -42,8 +44,8 @@ const journalSince = (id: number) => db.select().from(tables.agentActions).all()
 const lastJournalId = () => db.select().from(tables.agentActions).all().at(-1)?.id ?? 0;
 
 test("a tool with no gate level fails registration and names the tool", () => {
-  const tool = gates.gatedRegistrar(new McpServer({ name: "t", version: "0" }), gates.TOOL_LEVELS);
-  // @ts-expect-error crowsnest_unleveled is not in TOOL_LEVELS
+  const levels: Record<string, GateLevel> = gates.TOOL_LEVELS;
+  const tool = gates.gatedRegistrar(new McpServer({ name: "t", version: "0" }), levels);
   expect(() => tool("crowsnest_unleveled", { title: "x", description: "x", inputSchema: {} }, () => ({ content: [] }))).toThrow(
     "MCP tool crowsnest_unleveled has no gate level",
   );
@@ -77,7 +79,7 @@ test("every gate 2 tool stores a pending draft, journals scrubbed input, and nev
   expect(ran).not.toHaveBeenCalled();
   expect(fetchSpy).not.toHaveBeenCalled();
   const [draft] = db.select().from(tables.gateDrafts).all();
-  expect(draft).toMatchObject({ id: out.draftId, tool: "fixture_publish", status: "pending", caller: "gates-test", input: { caption: `token ${TOKEN}` } });
+  expect(draft).toMatchObject({ id: out.draftId, tool: "fixture_publish", status: "pending", caller: "gates-test", rawInput: { caption: `token ${TOKEN}` } });
   const [row] = journalSince(before);
   expect(row).toMatchObject({ tool: "fixture_publish", gate: "gate2", result: "drafted", draftId: out.draftId, caller: "gates-test" });
   expect(row.input).toBe(JSON.stringify({ caption: "token [redacted]" }));

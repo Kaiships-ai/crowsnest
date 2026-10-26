@@ -25,7 +25,7 @@ export function draftGatedCall(caller: string, tool: string, input: unknown): st
   const draftId = newId();
   const at = nowIso();
   db.transaction((tx) => {
-    tx.insert(tables.gateDrafts).values({ id: draftId, tool, input: input ?? {}, caller, createdAt: at }).run();
+    tx.insert(tables.gateDrafts).values({ id: draftId, tool, rawInput: input ?? {}, caller, createdAt: at }).run();
     tx.insert(tables.agentActions).values({ at, caller, tool, input: scrubbedJson(input), result: "drafted", gate: "gate2", draftId }).run();
   });
   return draftId;

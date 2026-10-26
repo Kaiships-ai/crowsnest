@@ -40,7 +40,6 @@ const SCHEDULED: SimpleResult = {
 };
 
 interface VideoLock {
-  /** An agent swapping a scheduled post's video would change what the publish scheduler sends without Kai's approval. */
   lockScheduled?: boolean;
 }
 

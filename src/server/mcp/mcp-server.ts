@@ -39,9 +39,7 @@ import { approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion } fr
 import { gatedRegistrar, TOOL_LEVELS } from "./gates";
 
 /**
- * The Crowsnest MCP server. Every tool is registered through `tool`, which takes its gate
- * level from TOOL_LEVELS (gates.ts) and journals every non-read call, and is a thin wrapper
- * over an existing query, action, or service function, so the MCP
+ * The Crowsnest MCP server. Every tool is a thin wrapper over an existing query function, so the MCP
  * surface and the dashboard read the same data through the same code. Mounted inside the
  * app's own server process (see server.ts), so it shares the one SQLite connection and
  * never becomes a second writer.
