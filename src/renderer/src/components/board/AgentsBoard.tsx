@@ -75,7 +75,7 @@ function NewTokenReveal({ created, onDone }: { created: NewToken; onDone: () => 
       <p className="text-xs text-muted-foreground">
         {translate(
           'boards.agents.newTokenOnce',
-          'Token cho {{name}}. Chép ngay: app chỉ hiện token này một lần.',
+          'Token for {{name}}. Copy it now: the app shows it only once.',
           { name: created.name }
         )}
       </p>
@@ -99,11 +99,11 @@ function NewTokenReveal({ created, onDone }: { created: NewToken; onDone: () => 
         >
           {copied ? <Check /> : <Copy />}
           {copied
-            ? translate('boards.agents.copied', 'Đã chép')
-            : translate('boards.agents.copy', 'Chép')}
+            ? translate('boards.agents.copied', 'Copied')
+            : translate('boards.agents.copy', 'Copy')}
         </Button>
         <Button data-testid="agents-new-token-done" size="xs" onClick={onDone}>
-          {translate('boards.agents.done', 'Xong')}
+          {translate('boards.agents.done', 'Done')}
         </Button>
       </div>
     </div>
@@ -141,7 +141,7 @@ function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void })
       <span className="flex justify-end gap-1">
         {token.revokedAt ? (
           <span className="font-mono text-2xs text-muted-foreground">
-            {translate('boards.agents.revokedAt', 'đã thu hồi {{at}}', {
+            {translate('boards.agents.revokedAt', 'revoked {{at}}', {
               at: formatBoardTime(token.revokedAt)
             })}
           </span>
@@ -153,10 +153,10 @@ function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void })
               size="xs"
               onClick={() => void revoke()}
             >
-              {translate('boards.agents.revokeConfirm', 'Thu hồi {{name}}', { name: token.name })}
+              {translate('boards.agents.revokeConfirm', 'Revoke {{name}}', { name: token.name })}
             </Button>
             <Button variant="ghost" size="xs" onClick={() => setConfirming(false)}>
-              {translate('boards.agents.cancel', 'Huỷ')}
+              {translate('boards.agents.cancel', 'Cancel')}
             </Button>
           </>
         ) : (
@@ -166,7 +166,7 @@ function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void })
             size="xs"
             onClick={() => setConfirming(true)}
           >
-            {translate('boards.agents.revoke', 'Thu hồi')}
+            {translate('boards.agents.revoke', 'Revoke')}
           </Button>
         )}
       </span>
@@ -193,7 +193,7 @@ function TokensSection() {
   }
   return (
     <section data-testid="agents-tokens" className="flex min-h-32 flex-col">
-      <SectionHeader title={translate('boards.agents.tokens', 'Token MCP')} onRefresh={retry}>
+      <SectionHeader title={translate('boards.agents.tokens', 'MCP tokens')} onRefresh={retry}>
         <form
           className="ml-auto flex items-center gap-2"
           onSubmit={(event) => {
@@ -205,8 +205,8 @@ function TokensSection() {
             data-testid="agents-token-name"
             density="compact"
             className="w-48"
-            placeholder={translate('boards.agents.tokenName', 'tên agent')}
-            aria-label={translate('boards.agents.tokenName', 'tên agent')}
+            placeholder={translate('boards.agents.tokenName', 'agent name')}
+            aria-label={translate('boards.agents.tokenName', 'agent name')}
             value={name}
             onChange={(event) => setName(event.target.value)}
           />
@@ -216,7 +216,7 @@ function TokensSection() {
             size="xs"
             disabled={name.trim() === ''}
           >
-            {translate('boards.agents.create', 'Tạo')}
+            {translate('boards.agents.create', 'Create')}
           </Button>
         </form>
       </SectionHeader>
@@ -226,14 +226,14 @@ function TokensSection() {
         <BoardStates
           state={state}
           retry={retry}
-          emptyMessage={translate('boards.agents.noTokens', 'Chưa có token nào.')}
+          emptyMessage={translate('boards.agents.noTokens', 'No tokens yet.')}
         >
           {(tokens) => (
             <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-6">
               <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
-                <span>{translate('boards.agents.tokenColumn', 'Tên')}</span>
-                <span>{translate('boards.agents.createdAt', 'Tạo lúc')}</span>
-                <span>{translate('boards.agents.lastUsed', 'Dùng lần cuối')}</span>
+                <span>{translate('boards.agents.tokenColumn', 'Name')}</span>
+                <span>{translate('boards.agents.createdAt', 'Created')}</span>
+                <span>{translate('boards.agents.lastUsed', 'Last used')}</span>
                 <span />
               </div>
               {sortTokens(tokens).map((token) => (
@@ -254,7 +254,7 @@ function JournalSection() {
     state.status === 'ready' ? [...new Set(state.rows.map((row) => row.caller))].sort() : []
   return (
     <section data-testid="agents-journal" className="flex min-h-48 flex-1 flex-col">
-      <SectionHeader title={translate('boards.agents.journal', 'Nhật ký')} onRefresh={retry}>
+      <SectionHeader title={translate('boards.agents.journal', 'Journal')} onRefresh={retry}>
         {callers.length > 0 ? (
           <ToggleGroup
             data-testid="agents-caller-filter"
@@ -264,11 +264,11 @@ function JournalSection() {
             spacing={1}
             value={caller}
             onValueChange={(next) => setCaller(next || ALL_CALLERS)}
-            aria-label={translate('boards.agents.filterByCaller', 'Lọc theo agent')}
+            aria-label={translate('boards.agents.filterByCaller', 'Filter by agent')}
             className="ml-auto flex-wrap"
           >
             <ToggleGroupItem value={ALL_CALLERS}>
-              {translate('boards.agents.allCallers', 'tất cả')}
+              {translate('boards.agents.allCallers', 'all')}
             </ToggleGroupItem>
             {callers.map((name) => (
               <ToggleGroupItem key={name} value={name} data-testid="agents-caller-option">
@@ -282,17 +282,17 @@ function JournalSection() {
         <BoardStates
           state={state}
           retry={retry}
-          emptyMessage={translate('boards.agents.noActions', 'Agent chưa gọi lần nào.')}
+          emptyMessage={translate('boards.agents.noActions', 'No agent has called yet.')}
         >
           {(rows) => (
             <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] gap-x-6">
               <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
-                <span>{translate('boards.agents.time', 'Lúc')}</span>
+                <span>{translate('boards.agents.time', 'Time')}</span>
                 <span>{translate('boards.agents.caller', 'Agent')}</span>
-                <span>{translate('boards.agents.tool', 'Công cụ')}</span>
-                <span>{translate('boards.agents.gate', 'Cổng')}</span>
-                <span>{translate('boards.agents.result', 'Kết quả')}</span>
-                <span>{translate('boards.agents.draft', 'Bản nháp')}</span>
+                <span>{translate('boards.agents.tool', 'Tool')}</span>
+                <span>{translate('boards.agents.gate', 'Gate')}</span>
+                <span>{translate('boards.agents.result', 'Result')}</span>
+                <span>{translate('boards.agents.draft', 'Draft')}</span>
               </div>
               {latestPerCall(rows)
                 .filter((row) => caller === ALL_CALLERS || row.caller === caller)
@@ -322,7 +322,7 @@ function JournalSection() {
                       }
                     >
                       {row.result === 'pending'
-                        ? translate('boards.agents.pending', 'chưa xong')
+                        ? translate('boards.agents.pending', 'pending')
                         : row.result}
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">

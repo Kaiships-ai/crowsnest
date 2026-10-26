@@ -12,7 +12,7 @@ describe('openBoardTab', () => {
 
     const boards = useAppStore.getState().openFiles.filter((file) => file.mode === 'board')
     expect(boards).toHaveLength(1)
-    expect(boards[0]).toMatchObject({ boardId: 'rivals', relativePath: 'Đối thủ' })
+    expect(boards[0]).toMatchObject({ boardId: 'rivals', relativePath: 'Rivals' })
     expect(isVirtualEditorFile(boards[0]!)).toBe(true)
   })
 })

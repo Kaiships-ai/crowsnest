@@ -1,46 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { onOnboardingReopened } from '../components/onboarding/show-onboarding-event'
 import { shouldShowOnboarding } from '../components/onboarding/should-show-onboarding'
-import {
-  getFeatureTipsAppOpenDecision,
-  isCliFeatureTipCompleted
-} from '../components/feature-tips/feature-tip-startup-gate'
-import {
-  trackCmdJPaletteFeatureTipShown,
-  trackOrcaCliFeatureTipShown
-} from '../components/feature-tips/feature-tip-telemetry'
 import { useAppStore } from '../store'
-import { isWebClientLocation } from '../lib/web-client-location'
 import type { OnboardingState } from '../../../shared/onboarding-state-types'
-import { isInNativeChatUpgradeTipAudience } from '../../../shared/native-chat-upgrade-tip-audience'
 
 export type OnboardingGate = ReturnType<typeof useOnboardingAndFeatureTips>
 
 /**
- * Owns first-run education: the onboarding flow's visibility plus the one-per-session
- * feature-tip prompt, which stays suppressed until onboarding's state is known.
+ * Owns first-run education: the onboarding flow's visibility. Lead Studio never opens
+ * Orca's feature tips on its own; they teach Orca features a creator does not use.
  */
 export function useOnboardingAndFeatureTips() {
   const [onboarding, setOnboarding] = useState<OnboardingState | null>(null)
   const [onboardingLoaded, setOnboardingLoaded] = useState(false)
-  const [featureTipCliInstalled, setFeatureTipCliInstalled] = useState<boolean | null>(null)
-  const promptedThisSessionRef = useRef(false)
-  const suppressedByOnboardingThisSessionRef = useRef(false)
-
-  const activeModal = useAppStore((s) => s.activeModal)
-  const settings = useAppStore((s) => s.settings)
   const persistedUIReady = useAppStore((s) => s.persistedUIReady)
-  const featureTipsSeenIds = useAppStore((s) => s.featureTipsSeenIds)
-  const featureInteractions = useAppStore((s) => s.featureInteractions)
-  const inNativeChatUpgradeTipAudience = useAppStore((s) =>
-    isInNativeChatUpgradeTipAudience(s.nativeChatUpgradeTipVariant)
-  )
   const contextualToursAutoEligible = useAppStore((s) => s.contextualToursAutoEligible)
   const actions = useAppStore(
     useShallow((s) => ({
-      openModal: s.openModal,
-      markFeatureTipsSeen: s.markFeatureTipsSeen,
       setNativeChatUpgradeTipVariant: s.setNativeChatUpgradeTipVariant,
       setContextualToursAutoEligible: s.setContextualToursAutoEligible,
       setContextualToursOnboardingVisible: s.setContextualToursOnboardingVisible
@@ -76,31 +53,6 @@ export function useOnboardingAndFeatureTips() {
     }
 
     let cancelled = false
-    void window.api.cli
-      .getInstallStatus()
-      .then((status) => {
-        if (cancelled) {
-          return
-        }
-        setFeatureTipCliInstalled(isCliFeatureTipCompleted(status))
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setFeatureTipCliInstalled(true)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [persistedUIReady])
-
-  useEffect(() => {
-    if (!persistedUIReady) {
-      return
-    }
-
-    let cancelled = false
     void window.api.onboarding
       .getNativeChatUpgradeTipVariant()
       .then((variant) => {
@@ -119,55 +71,6 @@ export function useOnboardingAndFeatureTips() {
       cancelled = true
     }
   }, [actions, persistedUIReady])
-
-  useEffect(() => {
-    const featureTipsDecision = getFeatureTipsAppOpenDecision({
-      activeModal,
-      cliInstalled: featureTipCliInstalled,
-      featureTipsSeenIds,
-      featureInteractions,
-      inNativeChatUpgradeTipAudience,
-      onboarding,
-      persistedUIReady,
-      promptedThisSession: promptedThisSessionRef.current,
-      settings,
-      suppressedByOnboardingThisSession: suppressedByOnboardingThisSessionRef.current,
-      webClient: isWebClientLocation()
-    })
-
-    if (featureTipsDecision.kind === 'suppress-for-onboarding') {
-      // Why: first-run users should finish onboarding without a second education modal in the same session.
-      suppressedByOnboardingThisSessionRef.current = true
-      return
-    }
-
-    if (featureTipsDecision.kind !== 'open') {
-      return
-    }
-
-    promptedThisSessionRef.current = true
-    if (featureTipsDecision.tipId === 'orca-cli') {
-      trackOrcaCliFeatureTipShown('app_open')
-    } else if (featureTipsDecision.tipId === 'cmd-j-palette') {
-      trackCmdJPaletteFeatureTipShown('app_open')
-    }
-    // Why: mark seen on show so a quit/crash before dismiss doesn't reappear it next launch.
-    actions.markFeatureTipsSeen([featureTipsDecision.tipId])
-    actions.openModal('feature-tips', {
-      source: 'app_open',
-      tipId: featureTipsDecision.tipId
-    })
-  }, [
-    activeModal,
-    actions,
-    featureTipCliInstalled,
-    featureInteractions,
-    featureTipsSeenIds,
-    inNativeChatUpgradeTipAudience,
-    onboarding,
-    persistedUIReady,
-    settings
-  ])
 
   return {
     applyStartupOnboardingState,

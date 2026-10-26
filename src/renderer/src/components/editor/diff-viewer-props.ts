@@ -28,4 +28,7 @@ export type DiffViewerProps = {
   // Why: main-process limited diffs intentionally blank text bodies before IPC;
   // the fallback must not treat that placeholder as a saveable draft.
   largeDiffSaveContentAvailable?: boolean
+  // Why: Monaco shows an edited line as a removal plus an addition; a host that knows
+  // which lines it edited (Lead Studio's Gate 1) paints them with its own class.
+  markedLines?: { original: readonly number[]; modified: readonly number[]; className: string }
 }

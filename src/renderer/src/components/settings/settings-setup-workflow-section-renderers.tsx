@@ -3,6 +3,7 @@ import { ArtifactsSettingsPane } from './ArtifactsSettingsPane'
 import { AutomationsSettingsPane } from './AutomationsSettingsPane'
 import { GeneralPane } from './GeneralPane'
 import { IntegrationsPane } from './IntegrationsPane'
+import { LeadSourcesPane } from './LeadSourcesPane'
 import { MobileSettingsPane } from './MobileSettingsPane'
 import { OrcaAccountSettingsPane } from './OrcaAccountSettingsPane'
 import { SettingsSetupGuidePane } from './SettingsSetupGuidePane'
@@ -73,6 +74,26 @@ export function renderGeneralSettingsSection(context: SettingsRenderContext): Re
           wslCapabilitiesLoading={terminal.localWindowsRuntimeCapabilities.isLoading}
         />
       ) : null}
+    </SettingsSection>
+  )
+}
+
+export function renderLeadSourcesSettingsSection(
+  context: SettingsRenderContext
+): React.JSX.Element {
+  const { navigation, view } = context
+  return (
+    <SettingsSection
+      id="lead-sources"
+      title={translate('leadStudio.sources.title', 'Sources')}
+      description={translate(
+        'leadStudio.sources.description',
+        'Connect the services Lead Studio pulls your numbers from.'
+      )}
+      searchEntries={navigation.getSectionSearchEntries('lead-sources')}
+      bodyClassName="rounded-none border-0 bg-transparent p-0 shadow-none"
+    >
+      {view.isSectionMounted('lead-sources') ? <LeadSourcesPane /> : null}
     </SettingsSection>
   )
 }

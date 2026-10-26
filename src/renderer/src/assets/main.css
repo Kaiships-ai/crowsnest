@@ -436,6 +436,8 @@
   --diff-added-gutter: color-mix(in srgb, var(--git-decoration-added) 26%, transparent);
   --diff-removed-ground: color-mix(in srgb, var(--git-decoration-deleted) 11%, transparent);
   --diff-removed-gutter: color-mix(in srgb, var(--git-decoration-deleted) 22%, transparent);
+  /* Lead Studio: a plan line Claude edited (Gate 1), yellow beside Monaco's red and green. */
+  --diff-modified-ground: color-mix(in srgb, var(--git-decoration-modified) 22%, transparent);
 }
 
 .dark,
@@ -464,6 +466,7 @@
   --diff-added-gutter: color-mix(in srgb, var(--git-decoration-added) 30%, transparent);
   --diff-removed-ground: color-mix(in srgb, var(--git-decoration-deleted) 18%, transparent);
   --diff-removed-gutter: color-mix(in srgb, var(--git-decoration-deleted) 32%, transparent);
+  --diff-modified-ground: color-mix(in srgb, var(--git-decoration-modified) 26%, transparent);
 }
 
 .plugin-security-chrome {
@@ -3440,4 +3443,9 @@ html.native-shell .app-layout {
     transform: translateX(var(--reference-title-offset));
     transition: transform var(--reference-title-duration) linear 400ms;
   }
+}
+
+/* Gate 1 marks a plan line Claude edited; Monaco alone shows it as a removal plus an addition. */
+.lead-diff-modified-line {
+  background: var(--diff-modified-ground) !important;
 }

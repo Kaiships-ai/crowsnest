@@ -1,4 +1,9 @@
+import { instagramGraph } from "@/server/connectors/instagram-graph/manifest";
+import { CONNECTORS } from "@/server/connectors/registry";
+import type { Connector } from "@/server/connectors/types";
+import { clockNow } from "@/server/lib/clock";
 import { FUNNEL_STEPS, METRIC_LEDGER, type CountId, type MetricId, type MetricSource } from "@/server/metrics/ledger";
+import { getVaultBoard, type VaultRow } from "@/server/queries/vault-board";
 import { getFunnel, ratio, type FunnelEntry, type MetricReading, type Reading } from "@/server/services/funnel";
 
 export type StepSource = "instagram" | Extract<MetricSource, { kind: "reel_funnel" }>["source"] | Extract<MetricSource, { kind: "not-connected" }>["connector"];
@@ -15,8 +20,12 @@ export interface FunnelStep {
 
 export type Coverage = { status: "value"; tied: number; total: number } | Exclude<Reading, { status: "value" }>;
 
+/** The newest pull of the step's source, when it did not complete. */
+export type StepPull = "failed" | "partial" | null;
+export type BoardStep = FunnelStep & { pull: StepPull };
+
 export interface FunnelBoard {
-  steps: FunnelStep[];
+  steps: BoardStep[];
   keywords: { keyword: string; plan: FunnelEntry["plan"]; steps: Reading[] }[];
   coverage: { visits: Coverage; orders: Coverage };
 }
@@ -79,10 +88,20 @@ export function funnelSteps(entries: FunnelEntry[]): FunnelStep[] {
   });
 }
 
-export async function getFunnelBoard(): Promise<FunnelBoard> {
+const CONNECTOR_OF_SOURCE: Partial<Record<StepSource, string>> = { instagram: instagramGraph.id };
+
+export function withPulls(steps: FunnelStep[], sources: Pick<VaultRow, "id" | "state">[]): BoardStep[] {
+  const stateOf = new Map(sources.map((s) => [s.id, s.state]));
+  return steps.map((step) => {
+    const state = stateOf.get(CONNECTOR_OF_SOURCE[step.source] ?? step.source);
+    return { ...step, pull: state === "error" ? "failed" : state === "partial" ? "partial" : null };
+  });
+}
+
+export async function getFunnelBoard(now: Date = clockNow(), registry: Connector[] = CONNECTORS): Promise<FunnelBoard> {
   const entries = await getFunnel();
   return {
-    steps: funnelSteps(entries),
+    steps: withPulls(funnelSteps(entries), getVaultBoard(now, registry)),
     keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => entryReading(e, count)) })),
     coverage: { visits: coverage(entries, "gift_page_visit"), orders: coverage(entries, "purchase") },
   };

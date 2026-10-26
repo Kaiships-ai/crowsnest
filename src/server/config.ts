@@ -104,6 +104,8 @@ const schema = z.object({
   IG_GRAPH_API_VERSION: z.string().min(1).optional().default("v21.0"),
   IG_GRAPH_HOST: z.url().optional().default("https://graph.instagram.com"),
   LEAD_STUDIO_CLOCK_START: z.iso.datetime({ offset: true, local: true }).optional(),
+  // "1" stops the app clock at LEAD_STUDIO_CLOCK_START, so a verify baseline shows the same times every run.
+  LEAD_STUDIO_CLOCK_FROZEN: z.literal("1").optional(),
 });
 
 export type Config = z.infer<typeof schema>;

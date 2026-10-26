@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
 import { saveFunnel } from "@/server/services/funnel";
-import { getFunnelBoard } from "./funnel-board";
+import { getFunnelBoard, withPulls } from "./funnel-board";
 
 const T = "2026-10-01T08:00:00.000Z";
 const T2 = "2026-10-02T08:00:00.000Z";
@@ -75,4 +75,22 @@ test("with no funnel rows a connected step is missing and a not-connected one sa
   expect(board.steps.map((s) => s.total.status)).toEqual(["missing", "not-connected", "missing", "missing", "not-connected", "missing"]);
   expect(board.steps.some((s) => "value" in s.total)).toBe(false);
   expect(board.coverage).toEqual({ visits: { status: "missing" }, orders: { status: "missing" } });
+});
+
+test("a step whose source's newest pull failed or was partial says so beside its number", async () => {
+  await seed();
+  const { steps } = await getFunnelBoard();
+  const marked = withPulls(steps, [
+    { id: "instagram-graph", state: "error" },
+    { id: "umami", state: "partial" },
+    { id: "chatbotx", state: "running" },
+  ]);
+  expect(marked.map((s) => [s.id, s.pull])).toEqual([
+    ["view", "failed"],
+    ["comment_keyword", null],
+    ["dm", null],
+    ["gift_page_visit", "partial"],
+    ["checkout", null],
+    ["purchase", null],
+  ]);
 });

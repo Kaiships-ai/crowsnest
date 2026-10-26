@@ -38,6 +38,7 @@ import { HostRenameDialog } from './HostRenameDialog'
 import { HostRemoveDialog } from './HostRemoveDialog'
 import { RuntimeRepairDialog } from '../settings/RuntimeRepairDialog'
 import { resolveHostRemoval } from './host-rename-remove'
+import { leadStudioPaneVisible } from '@/lib/lead-studio-settings-allowlist'
 
 function blockedTitle(reason: 'client-too-old' | 'server-too-old'): string {
   return reason === 'server-too-old'
@@ -53,6 +54,10 @@ function blockedTitle(reason: 'client-too-old' | 'server-too-old'): string {
 
 // Why: SSH and paired runtime hosts share the sidebar model, but Settings keeps
 // their management pages separate so each connection type can explain itself.
+function manageHostPane(row: HostHeaderRow): 'servers' | 'ssh' | 'general' {
+  return row.kind === 'runtime' ? 'servers' : row.kind === 'ssh' ? 'ssh' : 'general'
+}
+
 function openManageHost(row: HostHeaderRow): void {
   const state = useAppStore.getState()
   if (row.kind === 'runtime') {
@@ -242,6 +247,7 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
               <TooltipTrigger asChild>
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
+                  disabled={!leadStudioPaneVisible(manageHostPane(row))}
                   onSelect={() => openManageHost(row)}
                 >
                   <AlertTriangle className="size-3.5" />
@@ -286,10 +292,12 @@ export function HostSectionHeaderMenu({ row }: { row: HostHeaderRow }): React.JS
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={handleManage}>
-          <Settings2 className="size-3.5" />
-          {translate('auto.components.sidebar.HostSectionHeaderMenu.3c4d5e6f7a', 'Manage host…')}
-        </DropdownMenuItem>
+        {leadStudioPaneVisible(manageHostPane(row)) ? (
+          <DropdownMenuItem onSelect={handleManage}>
+            <Settings2 className="size-3.5" />
+            {translate('auto.components.sidebar.HostSectionHeaderMenu.3c4d5e6f7a', 'Manage host…')}
+          </DropdownMenuItem>
+        ) : null}
         {model.actions.includes('remove') && (
           <>
             <DropdownMenuSeparator />

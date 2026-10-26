@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import {
@@ -9,6 +10,7 @@ import {
   MissingFlag,
   StateBadge,
   StateDot,
+  STATE_LABEL,
   WEEKDAYS,
   type PlanBoardData,
   type PlanCard,
@@ -47,7 +49,7 @@ export function MonthView({
             className="self-start font-mono text-2xs text-muted-foreground"
             onClick={() => onWeek(week[0].date)}
           >
-            {translate('boards.plan.weekOf', 'Tuần {{day}}', { day: dayLabel(week[0].date) })}
+            {translate('boards.plan.weekOf', 'Week {{day}}', { day: dayLabel(week[0].date) })}
           </Button>
           {week.map((day) => (
             <div
@@ -65,19 +67,26 @@ export function MonthView({
                 {Number(day.date.slice(8))}
               </span>
               {day.cards.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  data-testid="plan-chip"
-                  data-plan-id={card.id}
-                  data-state={card.state}
-                  className="flex min-w-0 items-center gap-1 rounded px-1 text-left text-xs hover:bg-accent"
-                  onClick={() => onDay(day.date)}
-                >
-                  <StateDot state={card.state} />
-                  <span className="min-w-0 flex-1 truncate">{card.title}</span>
-                  <MissingFlag card={card} />
-                </button>
+                <Tooltip key={card.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      data-testid="plan-chip"
+                      data-plan-id={card.id}
+                      data-state={card.state}
+                      className="flex min-w-0 items-center gap-1 rounded px-1 text-left text-xs hover:bg-accent"
+                      onClick={() => onDay(day.date)}
+                    >
+                      <StateDot state={card.state} />
+                      <span className="min-w-0 flex-1 truncate">{card.title}</span>
+                      <MissingFlag card={card} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent data-testid="plan-chip-tooltip" side="top" sideOffset={4}>
+                    {card.title} ·{' '}
+                    {translate(`boards.plan.state.${card.state}`, STATE_LABEL[card.state])}
+                  </TooltipContent>
+                </Tooltip>
               ))}
               {day.cards.length === 0 && day.date >= board.today ? (
                 <AddButton date={day.date} onAdd={onAdd} compact />
@@ -170,7 +179,7 @@ export function WeekView({
               </span>
               <h4 className="text-sm leading-snug font-medium">{card.title}</h4>
               <span data-testid="plan-time" className="font-mono text-xs text-muted-foreground">
-                {card.time ?? translate('boards.plan.noTime', 'chưa có giờ')}
+                {card.time ?? translate('boards.plan.noTime', 'no time')}
               </span>
             </article>
           ))}

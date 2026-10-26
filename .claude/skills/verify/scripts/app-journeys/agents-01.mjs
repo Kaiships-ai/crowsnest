@@ -59,7 +59,7 @@ export default async function agents01({ page, step, snap }) {
   });
 
   let token;
-  await step("Tạo shows the new token once, and Xong hides it for good", async () => {
+  await step("Create shows the new token once, and Done hides it for good", async () => {
     await board.getByTestId("agents-token-name").fill(name);
     await board.getByTestId("agents-token-create").click();
     token = await board.getByTestId("agents-new-token-value").innerText();
@@ -73,7 +73,7 @@ export default async function agents01({ page, step, snap }) {
     if ((await mcpStatus(token)) !== 200) throw new Error("the new token is refused");
   });
 
-  await step("Thu hồi asks to confirm, then the token gets 401", async () => {
+  await step("Revoke asks to confirm, then the token gets 401", async () => {
     await tokenRow.getByTestId("agents-revoke").click();
     if ((await mcpStatus(token)) !== 200) throw new Error("revoked before the confirm");
     await tokenRow.getByTestId("agents-revoke-confirm").click();

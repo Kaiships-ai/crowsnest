@@ -45,19 +45,23 @@ if (dbPath !== ":memory:") {
 // Seeded posts link here so opening one from a board never calls Instagram.
 const FIXTURE_ORIGIN = "https://example.com";
 
+// Every seeded time counts back from the app's clock, so a lane with a fixed
+// LEAD_STUDIO_CLOCK_START (the v2 baseline) gets the same rows on every run.
+const NOW = process.env.LEAD_STUDIO_CLOCK_START ? new Date(process.env.LEAD_STUDIO_CLOCK_START) : new Date();
+
 async function main(): Promise<void> {
   // Imported after CROWSNEST_DB_PATH is set and the stale file is gone -- `./index`
   // opens (and creates) the database file as a side effect of module load, same
   // ordering constraint migrate.ts documents on its own db/index import.
   const { migrate } = await import("drizzle-orm/better-sqlite3/migrator");
-  const { db, newId, nowIso, tables } = await import("../src/server/db/index");
+  const { db, newId, tables } = await import("../src/server/db/index");
   const { bootstrapSystemFilters } = await import("../src/server/db/bootstrap");
 
   migrate(db, { migrationsFolder: "./drizzle" });
   await bootstrapSystemFilters();
 
-  const now = nowIso();
-  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+  const now = NOW.toISOString();
+  const daysAgo = (n: number) => new Date(NOW.getTime() - n * 86_400_000).toISOString();
 
   const channelId = newId();
   await db.insert(tables.channels).values({
@@ -156,6 +160,9 @@ async function main(): Promise<void> {
   await seedOwnChannel(db, tables, daysAgo);
   const rivalId = await seedRival(db, tables, newId, daysAgo);
   await seedPlan(db, tables);
+  await seedPlanVersions(db, tables);
+  // Only a stopped clock gets a fixed 05:00 pull; a running one pulls for real (schedule-01).
+  if (process.env.LEAD_STUDIO_CLOCK_FROZEN === "1") await seedPulls(db, tables);
 
   console.log(`seed-e2e: wrote ${dbPath}`);
   console.log(`seed-e2e: rival=${rivalId} (@e2e_fixture_rival, best 4.1x, one analyzed post)`);
@@ -192,12 +199,17 @@ async function seedOwnChannel(db: Db["db"], tables: Db["tables"], daysAgo: (n: n
   }
   await db.insert(tables.ownPostInsights).values({ id: "own-reel-3-failed", ownPostId: "own-reel-3", capturedAt: daysAgo(0.01), fetchError: "HTTP 400: media gone" });
   await db.insert(tables.ownPostInsights).values({ id: "own-reel-1-early", ownPostId: "own-reel-1", capturedAt: daysAgo(2.5), views: 4300, reach: 3600 });
-  const now = new Date().toISOString();
-  await db.insert(tables.plannedPosts).values({ id: "own-plan-1", state: "published", title: "OWN01 reel", keyword: "OWN01", publishedOwnPostId: "own-reel-1", createdAt: now, updatedAt: now });
+  const now = NOW.toISOString();
+  await db.insert(tables.plannedPosts).values([
+    { id: "own-plan-1", state: "published", title: "OWN01 reel", keyword: "OWN01", publishedOwnPostId: "own-reel-1", createdAt: now, updatedAt: now },
+    // A keyword with DMs but no gift page visits yet, so the funnel's visits total is partial.
+    { id: "own-plan-sales", state: "draft", title: "Sales reel: from 0 to 2 orders", keyword: "SALES", createdAt: now, updatedAt: now },
+  ]);
+  // No orders row: Purchases reads "no data yet", never 0.
   await db.insert(tables.reelFunnel).values([
     { id: "own-funnel-dm", keyword: "OWN01", source: "chatbotx", metric: "dms", value: 52, capturedAt: capture, agent: "seed-e2e", createdAt: now },
     { id: "own-funnel-visits", keyword: "OWN01", source: "umami", metric: "visits", value: 18, capturedAt: capture, agent: "seed-e2e", createdAt: now },
-    { id: "own-funnel-orders", keyword: "OWN01", source: "polar", metric: "orders", value: 3, capturedAt: capture, agent: "seed-e2e", createdAt: now },
+    { id: "sales-funnel-dm", keyword: "SALES", source: "chatbotx", metric: "dms", value: 30, capturedAt: capture, agent: "seed-e2e", createdAt: now },
   ]);
   const breakdown = (metric: string, dimension: string, key: string, value: number) => ({ id: `own-bd-${dimension}-${key}`, capturedAt: capture, metric, dimension, key, value, timeframe: null });
   await db.insert(tables.ownAccountBreakdowns).values([
@@ -210,7 +222,7 @@ async function seedOwnChannel(db: Db["db"], tables: Db["tables"], daysAgo: (n: n
 
 async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"], daysAgo: (n: number) => string): Promise<string> {
   const id = newId();
-  const now = new Date().toISOString();
+  const now = NOW.toISOString();
   await db.insert(tables.channels).values({
     id, platform: "instagram", handle: "@e2e_fixture_rival", externalId: "e2e-rival-1", displayName: "E2E Fixture Rival", followerCount: 18_000,
     trackedSince: daysAgo(60), lastSyncedAt: now, isOwn: false,
@@ -232,16 +244,70 @@ async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"],
 }
 
 async function seedPlan(db: Db["db"], tables: Db["tables"]): Promise<void> {
-  const now = new Date();
-  const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 19, 30);
+  const at = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + 1, 19, 30);
   const date = at.toLocaleDateString("sv-SE");
-  const stamp = now.toISOString();
-  await db.insert(tables.scripts).values({ id: "plan-e2e-script", title: "PLAN01 script", content: "Mở bằng kết quả, rồi 3 bước.", createdAt: stamp, updatedAt: stamp });
+  const stamp = NOW.toISOString();
+  await db.insert(tables.scripts).values({ id: "plan-e2e-script", title: "PLAN01 script", content: "Open on the result, then 3 steps.", createdAt: stamp, updatedAt: stamp });
   const plan = { state: "scheduled", plannedDate: date, createdAt: stamp, updatedAt: stamp };
   await db.insert(tables.plannedPosts).values([
-    { ...plan, id: "plan-e2e-draft", state: "draft", title: "PLAN01 nháp" },
-    { ...plan, id: "plan-e2e-full", title: "PLAN01 đủ script", plannedTime: "09:00", scriptId: "plan-e2e-script", caption: "Caption PLAN01", sourceVideoId: "e2e-rival-video-0" },
-    { ...plan, id: "plan-e2e-armed", title: "PLAN01 đã hẹn IG", plannedTime: "19:30", caption: "Caption armed", scheduledAt: at.toISOString(), idempotencyKey: `plan-e2e-armed:${at.toISOString()}` },
+    { ...plan, id: "plan-e2e-draft", state: "draft", title: "PLAN01 draft" },
+    { ...plan, id: "plan-e2e-full", title: "PLAN01 full script", plannedTime: "09:00", scriptId: "plan-e2e-script", caption: "Caption PLAN01", sourceVideoId: "e2e-rival-video-0" },
+    { ...plan, id: "plan-e2e-armed", title: "PLAN01 armed on Instagram", plannedTime: "19:30", caption: "Caption armed", scheduledAt: at.toISOString(), idempotencyKey: `plan-e2e-armed:${at.toISOString()}` },
+  ]);
+  // Month view: long titles on other days, so each chip shows one line and its tooltip the rest.
+  const day = (offset: number) => new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() + offset).toLocaleDateString("sv-SE");
+  const chips: [string, number, string, string][] = [
+    ["plan-month-1", -20, "published", "Cursor deleted my repo: 3 git commands to get it back"],
+    ["plan-month-2", -14, "published", "Hooks in one picture: run tests after every edit"],
+    ["plan-month-3", -12, "failed", "Week 42 in numbers: 591k views, 4 orders"],
+    ["plan-month-4", -12, "published", "Claude Code vs Cursor: which one to pick"],
+    ["plan-month-5", -5, "draft", "3 MCP mistakes and how to fix them"],
+    ["plan-month-6", 3, "draft", "Long prompt or short prompt: a real test"],
+  ];
+  await db.insert(tables.plannedPosts).values(chips.map(([id, offset, state, title]) => ({ id, state, title, plannedDate: day(offset), createdAt: stamp, updatedAt: stamp })));
+}
+
+/** Gate 1: this week's live plan v1 and Claude's proposal v2, which edits, adds and removes reels. */
+async function seedPlanVersions(db: Db["db"], tables: Db["tables"]): Promise<void> {
+  const monday = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - ((NOW.getDay() + 6) % 7));
+  const day = (offset: number) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + offset).toLocaleDateString("sv-SE");
+  const thursday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 3);
+  const yearStart = new Date(thursday.getFullYear(), 0, 1);
+  const week = Math.ceil((Math.round((thursday.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
+  const periodKey = `${thursday.getFullYear()}-W${String(week).padStart(2, "0")}`;
+  const ago = (days: number, hour: number, minute: number) => new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - days, hour, minute).toISOString();
+  const live = [
+    { key: "git-r12", title: "Cursor deleted my repo", date: day(0), keyword: "GITR12" },
+    { key: "mcp5", title: "5 MCP servers worth installing", date: day(1), keyword: "MCP5" },
+    { key: "hooks", title: "Hooks in one picture", date: day(2), keyword: "HOOKS" },
+    { key: "wk", title: `Week ${week} in numbers`, date: day(6), keyword: `WK${week}` },
+  ];
+  const proposed = [
+    live[0],
+    { ...live[2], keyword: "HOOKS14", note: "a new key counts the repost on its own" },
+    { key: "sale2", title: "Sales reel: 0 to 2 orders", date: day(3), keyword: "SALE2", note: "22 days without a sales reel" },
+    { key: "mcp3", title: "3 MCP mistakes", date: day(4), keyword: "MCP3", note: "replaces the dropped MCP reel; mistakes get the most comments" },
+    live[3],
+  ];
+  await db.insert(tables.planVersions).values([
+    { id: "plan-v1", period: "week", periodKey, version: 1, status: "live", reels: live, agent: "claude", approvedAt: ago(6, 7, 12), approvedBy: "kai", createdAt: ago(7, 6, 40), updatedAt: ago(6, 7, 12) },
+    { id: "plan-v2", period: "week", periodKey, version: 2, status: "proposed", reels: proposed, agent: "claude", createdAt: ago(0, 6, 40), updatedAt: ago(0, 6, 40) },
+  ]);
+}
+
+/** Today's 05:00 pull: the Graph pull failed for good, so Instagram numbers say so where they show. */
+async function seedPulls(db: Db["db"], tables: Db["tables"]): Promise<void> {
+  const slotDay = NOW.getHours() < 5 ? new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - 1) : NOW;
+  const slot = slotDay.toLocaleDateString("sv-SE");
+  const at = (minute: number) => new Date(slotDay.getFullYear(), slotDay.getMonth(), slotDay.getDate(), 5, minute).toISOString();
+  const row = (connectorId: string, minute: number, outcome: "complete" | "failed" | "skipped", detail: string | null, attempts = 1) => ({ slot, connectorId, startedAt: at(minute), finishedAt: at(minute), outcome, detail, attempts });
+  await db.insert(tables.dailyPulls).values([
+    row("instagram-graph", 0, "failed", "HTTP 400: Invalid OAuth access token", 3),
+    row("ig-sidecar", 1, "complete", null),
+    row("chatbotx", 1, "skipped", "not-connected"),
+    row("polar", 1, "skipped", "not-connected"),
+    row("umami", 1, "skipped", "not-connected"),
+    row("groq", 1, "skipped", "not-connected"),
   ]);
 }
 

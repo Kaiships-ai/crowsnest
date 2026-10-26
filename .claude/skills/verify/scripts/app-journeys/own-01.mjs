@@ -32,7 +32,7 @@ export default async function own01({ page, step, snap }) {
   const board = page.getByTestId("board-tab");
   await page.setViewportSize(SCREEN);
 
-  await step("open Kênh tôi from the new-tab menu: Tổng quan shows the bridge's numbers, each with its source", async () => {
+  await step("open My channel from the new-tab menu: Overview shows the bridge's numbers, each with its source", async () => {
     await page.getByRole("button", { name: "New tab" }).first().click();
     await page.locator('[data-testid="new-tab-board"][data-board-id="own"]').click();
     await page.getByRole("menu").waitFor({ state: "detached" });
@@ -48,14 +48,14 @@ export default async function own01({ page, step, snap }) {
   });
   await snapBoth(page, snap, "own-01-home");
 
-  await step("Hiệu suất shows views by content type", async () => {
+  await step("Performance shows views by content type", async () => {
     await openTab(board, "own-tab-perf");
     const formats = await board.getByTestId("own-by-format").innerText();
     console.log(`by format: ${formats.replaceAll("\n", " | ")}`);
     if (!formats.includes("Reel") || !formats.includes("Carousel")) throw new Error(formats);
   });
 
-  await step("Nội dung lists the window's posts from the DB with each post's own comments, shares and saves; DM is 52 by keyword, a reel with no keyword reads chưa nối, never 0, and a failed newest pull is marked on its row", async () => {
+  await step("Content lists the window's posts from the DB with each post's own comments, shares and saves; DM is 52 by keyword, a reel with no keyword reads not connected, never 0, and a failed newest pull is marked on its row", async () => {
     await openTab(board, "own-tab-content");
     const rows = board.getByTestId("own-post-row");
     await rows.first().waitFor();
@@ -65,7 +65,7 @@ export default async function own01({ page, step, snap }) {
     if (String(await rows.count()) !== inDb) throw new Error("row count differs from the DB");
     const dm = (id) => board.locator(`[data-testid="own-post-row"][data-post-id="${id}"] [data-testid="own-after-dm"]`);
     if ((await dm("own-reel-1").innerText()) !== "52") throw new Error(`own-reel-1 DM ${await dm("own-reel-1").innerText()}`);
-    if ((await dm("own-reel-2").getAttribute("data-status")) !== "no-keyword" || (await dm("own-reel-2").innerText()) !== "chưa nối") {
+    if ((await dm("own-reel-2").getAttribute("data-status")) !== "no-keyword" || (await dm("own-reel-2").innerText()) !== "not connected") {
       throw new Error(`own-reel-2 DM ${await dm("own-reel-2").innerText()}`);
     }
     const shown = await rows.evaluateAll((list) => list.map((r) => [r.dataset.postId, ...[...r.children].slice(3, 6).map((c) => c.textContent)].join(" ")).sort());
@@ -81,14 +81,14 @@ export default async function own01({ page, step, snap }) {
   });
   await snapBoth(page, snap, "own-01-content");
 
-  await step("Khán giả shows the follower split from the stored breakdowns", async () => {
+  await step("Audience shows the follower split from the stored breakdowns", async () => {
     await openTab(board, "own-tab-aud");
     const split = await board.getByTestId("own-follower-split").innerText();
     console.log(`split: ${split.replaceAll("\n", " | ")}`);
     if (!split.includes("NON_FOLLOWER") || !split.includes("87%")) throw new Error(split);
   });
 
-  await step("a reel opens on Tổng quan, and Sau reel walks OWN01's funnel with checkout chưa nối", async () => {
+  await step("a reel opens on Overview, and After the reel walks OWN01's funnel with checkout not connected", async () => {
     await openTab(board, "own-tab-content");
     await board.locator('[data-testid="own-post-row"][data-post-id="own-reel-1"] [data-testid="own-open-reel"]').click();
     await board.getByTestId("own-reel-panel-ov").waitFor({ timeout: 10_000 });
@@ -98,12 +98,12 @@ export default async function own01({ page, step, snap }) {
     await openTab(board, "own-reel-tab-after");
     const steps = await board.getByTestId("own-after-step").evaluateAll((rows) => rows.map((r) => `${r.dataset.stepId}:${r.dataset.status}:${r.querySelector('[data-testid="reading-value"]')?.textContent ?? "-"}`));
     console.log(`steps: ${steps.join(" ")}`);
-    const want = [`view:value:${fmt(12_400)}`, "comment_keyword:not-connected:-", "dm:value:52", "gift_page_visit:value:18", "checkout:not-connected:-", "purchase:value:3"];
+    const want = [`view:value:${fmt(12_400)}`, "comment_keyword:not-connected:-", "dm:value:52", "gift_page_visit:value:18", "checkout:not-connected:-", "purchase:missing:-"];
     if (JSON.stringify(steps) !== JSON.stringify(want)) throw new Error(`want ${want.join(" ")}`);
   });
   await snapBoth(page, snap, "own-01-after");
 
-  await step("back to the board, 7 ngày keeps only the last week's posts", async () => {
+  await step("back to the board, 7 days keeps only the last week's posts", async () => {
     await board.getByTestId("own-reel-back").click();
     await board.getByTestId("own-days-7").click();
     await openTab(board, "own-tab-content");

@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { db, newId, nowIso, tables } from "@/server/db";
-import { approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion, type Reel } from "./plan-versions";
+import { approvePlanChanges, approvePlanVersion, listPlanVersions, planChanges, proposePlan, undoPlanVersion, type Reel } from "./plan-versions";
 
 beforeAll(async () => {
   const { migrate } = await import("@/server/db/test-migrate");
@@ -52,17 +52,17 @@ test("an invalid reel list is refused and stores nothing", async () => {
 test("approve creates drafts, a second approve changes nothing, v2 updates only its changed reel, undo restores v1", async () => {
   const v1reels = reels("w", 3);
   const v1 = propose("2026-W44", v1reels);
-  expect(approvePlanVersion(v1.id)).toMatchObject({ ok: true, changed: true, created: 3, updated: 0, removed: 0, kept: [] });
+  expect(approvePlanVersion(v1.id, "kai")).toMatchObject({ ok: true, changed: true, created: 3, updated: 0, removed: 0, kept: [] });
   const afterV1 = await drafts("2026-W44");
   expect(afterV1.map((d) => [d.title, d.keyword, d.state])).toEqual([["Reel 0", "W0", "draft"], ["Reel 1", "W1", "draft"], ["Reel 2", "W2", "draft"]]);
-  expect(approvePlanVersion(v1.id)).toMatchObject({ ok: true, changed: false, created: 0 });
+  expect(approvePlanVersion(v1.id, "kai")).toMatchObject({ ok: true, changed: false, created: 0 });
   expect(await drafts("2026-W44")).toEqual(afterV1);
 
   const v2 = propose("2026-W44", [v1reels[0], { ...v1reels[1], title: "Reel 1 new hook" }, { key: "w-9", title: "Brand new" }]);
   const list = listPlanVersions({ period: "week", periodKey: "2026-W44" });
   expect(list.ok && list.versions[0].diff).toBe("vs v1: added Brand new. removed Reel 2. changed Reel 1 new hook (title)");
 
-  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, changed: true, created: 1, updated: 2, removed: 1 });
+  expect(approvePlanVersion(v2.id, "kai")).toMatchObject({ ok: true, changed: true, created: 1, updated: 2, removed: 1 });
   const listed = listPlanVersions({ period: "week", periodKey: "2026-W44" });
   expect(listed.ok && listed.versions.map((v) => v.status)).toEqual(["live", "superseded"]);
 
@@ -74,9 +74,9 @@ test("approve creates drafts, a second approve changes nothing, v2 updates only 
 
 test("undo keeps a draft that was scheduled meanwhile and reports it", async () => {
   const v1 = propose("2026-W45", reels("s", 2));
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   const v2 = propose("2026-W45", [...reels("s", 2), { key: "s-new", title: "Scheduled one", date: "2026-11-05" }]);
-  approvePlanVersion(v2.id);
+  approvePlanVersion(v2.id, "kai");
   const [scheduled] = await db.select().from(tables.plannedPosts).where(eq(tables.plannedPosts.planReelKey, "s-new"));
   await db.update(tables.plannedPosts).set({ state: "scheduled", scheduledAt: "2026-11-05T09:00:00.000Z" }).where(eq(tables.plannedPosts.id, scheduled.id));
 
@@ -88,7 +88,7 @@ test("undo keeps a draft that was scheduled meanwhile and reports it", async () 
 test("a reel keyword another plan holds fails the approve with nothing changed", async () => {
   await db.insert(tables.plannedPosts).values({ id: newId(), state: "draft", title: "Manual", keyword: "TAKEN", createdAt: nowIso(), updatedAt: nowIso() });
   const v = propose("2026-W46", [{ key: "t", title: "Clash", keyword: "taken" }]);
-  expect(approvePlanVersion(v.id)).toMatchObject({ ok: false, code: "KEYWORD_TAKEN" });
+  expect(approvePlanVersion(v.id, "kai")).toMatchObject({ ok: false, code: "KEYWORD_TAKEN" });
   const list = listPlanVersions({ period: "week", periodKey: "2026-W46" });
   expect(list.ok && list.versions[0].status).toBe("proposed");
   expect(await drafts("2026-W46")).toEqual([]);
@@ -96,7 +96,7 @@ test("a reel keyword another plan holds fails the approve with nothing changed",
 
 test("undo of the only live version refuses and keeps its drafts", async () => {
   const v = propose("2026-W47", reels("o", 2));
-  approvePlanVersion(v.id);
+  approvePlanVersion(v.id, "kai");
   expect(undoPlanVersion({ period: "week", periodKey: "2026-W47" })).toMatchObject({ ok: false, code: "NOTHING_TO_UNDO" });
   expect((await drafts("2026-W47")).length).toBe(2);
   const list = listPlanVersions({ period: "week", periodKey: "2026-W47" });
@@ -108,14 +108,14 @@ const postByKey = async (key: string) => (await db.select().from(P).where(eq(P.p
 
 test("attachments survive a remove-then-undo", async () => {
   const v1 = propose("2026-W48", reels("x", 2));
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   const asset = newId();
   await db.insert(tables.mediaAssets).values({ id: asset, sha256: asset, kind: "video", contentType: "video/mp4", byteSize: 1, storagePath: `v/${asset}.mp4`, downloadedAt: nowIso() });
   await db.update(P).set({ videoAssetId: asset, caption: "cap", magnetUrl: "https://example.com/g" }).where(eq(P.planReelKey, "x-0"));
   const before = await postByKey("x-0");
 
   const v2 = propose("2026-W48", [reels("x", 2)[1]]);
-  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, removed: 0, kept: [{ id: before.id, reelKey: "x-0", reason: "has_video", notApplied: ["removed"] }] });
+  expect(approvePlanVersion(v2.id, "kai")).toMatchObject({ ok: true, removed: 0, kept: [{ id: before.id, reelKey: "x-0", reason: "has_video", notApplied: ["removed"] }] });
   expect(await postByKey("x-0")).toEqual(before);
   expect(undoPlanVersion({ period: "week", periodKey: "2026-W48" })).toMatchObject({ ok: true, live: { version: 1 }, created: 0, kept: [{ reelKey: "x-0", reason: "has_video", notApplied: [] }] });
   expect(await postByKey("x-0")).toEqual(before);
@@ -123,14 +123,14 @@ test("attachments survive a remove-then-undo", async () => {
 
 test("a hand-edited draft is kept with the fields not applied, and a draft scheduled then back to draft follows the same rule", async () => {
   const v1 = propose("2026-W49", reels("e", 3));
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   await db.update(P).set({ note: "my edit" }).where(eq(P.planReelKey, "e-0"));
   await db.update(P).set({ state: "scheduled", scheduledAt: "2026-12-01T09:00:00.000Z" }).where(eq(P.planReelKey, "e-1"));
   await db.update(P).set({ state: "draft", scheduledAt: null }).where(eq(P.planReelKey, "e-1"));
   const edited = await postByKey("e-0");
 
   const v2 = propose("2026-W49", reels("e", 3).map((r) => ({ ...r, title: `${r.title} v2`, date: "2026-12-04" })));
-  const r = approvePlanVersion(v2.id);
+  const r = approvePlanVersion(v2.id, "kai");
   expect(r).toMatchObject({ ok: true, updated: 2, kept: [{ id: edited.id, reelKey: "e-0", reason: "edited", notApplied: ["title", "date"] }] });
   expect(await postByKey("e-0")).toEqual(edited);
   expect((await postByKey("e-1")).title).toBe("Reel 1 v2");
@@ -139,7 +139,7 @@ test("a hand-edited draft is kept with the fields not applied, and a draft sched
 test("double undo goes one further back, then refuses", async () => {
   const ref = { period: "week", periodKey: "2026-W50" } as const;
   const ids = [1, 2, 3].map((n) => propose("2026-W50", [{ key: "d", title: `T${n}` }]).id);
-  for (const id of ids) approvePlanVersion(id);
+  for (const id of ids) approvePlanVersion(id, "kai");
   expect(undoPlanVersion(ref)).toMatchObject({ ok: true, live: { version: 2 } });
   expect(undoPlanVersion(ref)).toMatchObject({ ok: true, live: { version: 1 } });
   expect((await postByKey("d")).title).toBe("T1");
@@ -150,9 +150,9 @@ test("double undo goes one further back, then refuses", async () => {
 test("approving an older superseded version brings its reels back", async () => {
   const v1 = propose("2026-W51", [{ key: "o1", title: "Old" }]);
   const v2 = propose("2026-W51", [{ key: "o2", title: "New" }]);
-  approvePlanVersion(v1.id);
-  approvePlanVersion(v2.id);
-  expect(approvePlanVersion(v1.id)).toMatchObject({ ok: true, changed: true, created: 1, removed: 1 });
+  approvePlanVersion(v1.id, "kai");
+  approvePlanVersion(v2.id, "kai");
+  expect(approvePlanVersion(v1.id, "kai")).toMatchObject({ ok: true, changed: true, created: 1, removed: 1 });
   expect((await drafts("2026-W51")).map((d) => d.title)).toEqual(["Old"]);
   const list = listPlanVersions({ period: "week", periodKey: "2026-W51" });
   expect(list.ok && list.versions.map((v) => [v.version, v.status])).toEqual([[2, "superseded"], [1, "live"]]);
@@ -160,17 +160,17 @@ test("approving an older superseded version brings its reels back", async () => 
 
 test("two reels can swap keywords", async () => {
   const v1 = propose("2026-W52", [{ key: "k1", title: "A", keyword: "SWAPA" }, { key: "k2", title: "B", keyword: "SWAPB" }]);
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   const v2 = propose("2026-W52", [{ key: "k1", title: "A", keyword: "SWAPB" }, { key: "k2", title: "B", keyword: "SWAPA" }]);
-  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, updated: 2 });
+  expect(approvePlanVersion(v2.id, "kai")).toMatchObject({ ok: true, updated: 2 });
   expect((await drafts("2026-W52")).map((d) => d.keyword)).toEqual(["SWAPB", "SWAPA"]);
 });
 
 test("a month and a week of the same dates are approved together without touching each other", async () => {
   const m = propose("2026-12", [{ key: "mw", title: "Month reel", date: "2026-12-29", keyword: "MWM" }], "month");
   const w = propose("2026-W53", [{ key: "mw", title: "Week reel", date: "2026-12-29", keyword: "MWW" }]);
-  expect(approvePlanVersion(m.id)).toMatchObject({ ok: true, created: 1 });
-  expect(approvePlanVersion(w.id)).toMatchObject({ ok: true, created: 1, removed: 0 });
+  expect(approvePlanVersion(m.id, "kai")).toMatchObject({ ok: true, created: 1 });
+  expect(approvePlanVersion(w.id, "kai")).toMatchObject({ ok: true, created: 1, removed: 0 });
   expect((await drafts("2026-12")).map((d) => d.title)).toEqual(["Month reel"]);
   expect((await drafts("2026-W53")).map((d) => d.title)).toEqual(["Week reel"]);
 });
@@ -196,7 +196,7 @@ test("a unique violation other than the keyword index is not KEYWORD_TAKEN", () 
   sqlite.exec("CREATE UNIQUE INDEX test_title_once ON planned_posts (title) WHERE title = 'U'");
   try {
     db.insert(P).values({ id: newId(), state: "draft", title: "U", createdAt: nowIso(), updatedAt: nowIso() }).run();
-    expect(approvePlanVersion(v.id)).toMatchObject({ ok: false, code: "PLAN_CONFLICT" });
+    expect(approvePlanVersion(v.id, "kai")).toMatchObject({ ok: false, code: "PLAN_CONFLICT" });
   } finally {
     sqlite.exec("DROP INDEX test_title_once");
   }
@@ -207,7 +207,7 @@ test("approving a 14-reel week takes under 150 ms at the median", () => {
   for (let i = 0; i < 10; i++) {
     const v = propose(`2025-W${String(10 + i).padStart(2, "0")}`, reels(`p${i}`, 14));
     const t = performance.now();
-    approvePlanVersion(v.id);
+    approvePlanVersion(v.id, "kai");
     times.push(performance.now() - t);
   }
   times.sort((a, b) => a - b);
@@ -216,19 +216,19 @@ test("approving a 14-reel week takes under 150 ms at the median", () => {
 
 test("a draft with a target length, video kind, or remix session is kept as has_settings", async () => {
   const v1 = propose("2025-W20", reels("g", 3));
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   await db.update(P).set({ videoKind: "talking_head" }).where(eq(P.planReelKey, "g-0"));
   await db.update(P).set({ targetLengthSec: 30 }).where(eq(P.planReelKey, "g-1"));
   const v2 = propose("2025-W20", [reels("g", 3)[2]]);
-  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, removed: 0, kept: [{ reelKey: "g-0", reason: "has_settings" }, { reelKey: "g-1", reason: "has_settings" }] });
+  expect(approvePlanVersion(v2.id, "kai")).toMatchObject({ ok: true, removed: 0, kept: [{ reelKey: "g-0", reason: "has_settings" }, { reelKey: "g-1", reason: "has_settings" }] });
 });
 
 test("a plan-linked draft with no planSynced is kept as edited with every reel field not applied", async () => {
   const v1 = propose("2025-W21", [{ key: "n", title: "N" }]);
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   await db.update(P).set({ planSynced: null }).where(eq(P.planReelKey, "n"));
   const v2 = propose("2025-W21", [{ key: "n", title: "N2" }]);
-  expect(approvePlanVersion(v2.id)).toMatchObject({ ok: true, kept: [{ reelKey: "n", reason: "edited", notApplied: ["title", "date", "time", "keyword", "note"] }] });
+  expect(approvePlanVersion(v2.id, "kai")).toMatchObject({ ok: true, kept: [{ reelKey: "n", reason: "edited", notApplied: ["title", "date", "time", "keyword", "note"] }] });
 });
 
 test("plan_versions always includes the asked version, refuses an unknown one, and clamps limit", () => {
@@ -245,11 +245,11 @@ test("plan_versions always includes the asked version, refuses an unknown one, a
 
 test("a keyword a kept draft holds names that post and reel key", async () => {
   const v1 = propose("2025-W23", [{ key: "h1", title: "Holder", keyword: "HELD" }]);
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   const holder = await postByKey("h1");
   await db.update(P).set({ caption: "mine" }).where(eq(P.id, holder.id));
   const v2 = propose("2025-W23", [{ key: "h1", title: "Holder", keyword: "OTHER" }, { key: "h2", title: "Taker", keyword: "held" }]);
-  const r = approvePlanVersion(v2.id);
+  const r = approvePlanVersion(v2.id, "kai");
   expect(r).toMatchObject({ ok: false, code: "KEYWORD_TAKEN" });
   expect(!r.ok && r.error).toContain(`post ${holder.id} (reel key h1)`);
 });
@@ -257,13 +257,83 @@ test("a keyword a kept draft holds names that post and reel key", async () => {
 test("undo pinned to the approved version: refused for the first version, and when another went live since", () => {
   const ref = { period: "week", periodKey: "2026-W30" } as const;
   const v1 = propose("2026-W30", reels("p", 1));
-  approvePlanVersion(v1.id);
+  approvePlanVersion(v1.id, "kai");
   expect(undoPlanVersion(ref, v1.id)).toMatchObject({ ok: false, code: "NOTHING_TO_UNDO" });
 
   const v2 = propose("2026-W30", reels("p", 2));
   const v3 = propose("2026-W30", reels("p", 3));
-  approvePlanVersion(v2.id);
-  approvePlanVersion(v3.id);
+  approvePlanVersion(v2.id, "kai");
+  approvePlanVersion(v3.id, "kai");
   expect(undoPlanVersion(ref, v2.id)).toMatchObject({ ok: false, code: "LIVE_CHANGED" });
   expect(undoPlanVersion(ref, v3.id)).toMatchObject({ ok: true, live: { id: v2.id } });
 });
+
+test("planChanges names each added, removed and edited reel in plan order", () => {
+  const live: Reel[] = [
+    { key: "a", title: "A", date: "2026-11-02" },
+    { key: "b", title: "B", date: "2026-11-03" },
+    { key: "c", title: "C", date: "2026-11-04" },
+  ];
+  const next: Reel[] = [
+    { key: "a", title: "A", date: "2026-11-02" },
+    { key: "c", title: "C again", date: "2026-11-04" },
+    { key: "d", title: "D", date: "2026-11-01" },
+  ];
+  expect(planChanges(live, next).map((c) => [c.key, c.kind])).toEqual([
+    ["d", "add"],
+    ["b", "remove"],
+    ["c", "edit"],
+  ]);
+});
+
+test("approving only some changes makes a new version of live plus those changes, records the approver, and leaves the proposal waiting", async () => {
+  const live = propose("2026-08", [
+    { key: "p", title: "Kept reel", date: "2026-11-09", keyword: "W46P" },
+    { key: "q", title: "Dropped reel", date: "2026-11-10", keyword: "W46Q" },
+  ], "month");
+  approvePlanVersion(live.id, "kai");
+  const proposal = propose("2026-08", [
+    { key: "p", title: "Kept reel, new title", date: "2026-11-09", keyword: "W46P" },
+    { key: "r", title: "New reel", date: "2026-11-11", keyword: "W46R" },
+  ], "month");
+  const r = approvePlanChanges(proposal.id, ["r"], "kai");
+  expect(r).toMatchObject({ ok: true, live: { version: 3 } });
+  const list = listPlanVersions({ period: "month", periodKey: "2026-08", version: 3 });
+  const v3 = list.ok ? list.versions.find((v) => v.version === 3) : undefined;
+  expect(v3?.agent).toBe("kai");
+  expect(v3?.reels?.map((x) => [x.key, x.title])).toEqual([
+    ["p", "Kept reel"],
+    ["q", "Dropped reel"],
+    ["r", "New reel"],
+  ]);
+  const row = await db.select().from(tables.planVersions).where(eq(tables.planVersions.id, r.ok ? r.live.id : "")).get();
+  expect(row?.approvedBy).toBe("kai");
+  expect(list.ok && list.versions.find((v) => v.version === 2)?.status).toBe("proposed");
+});
+
+test("approving with every change kept makes the proposal itself live; with none kept nothing changes", async () => {
+  const live = propose("2026-09", [{ key: "s", title: "S", date: "2026-11-16", keyword: "W47S" }], "month");
+  approvePlanVersion(live.id, "kai");
+  const proposal = propose("2026-09", [{ key: "t", title: "T", date: "2026-11-17", keyword: "W47T" }], "month");
+  expect(approvePlanChanges(proposal.id, [], "kai")).toMatchObject({ ok: false, code: "NOTHING_KEPT" });
+  expect(approvePlanChanges(proposal.id, ["s", "t"], "kai")).toMatchObject({ ok: true, live: { id: proposal.id, version: 2 } });
+});
+
+test("undoing a partial approval retires the composed version, so the agent's proposal waits again", () => {
+  const live = propose("2026-06", [{ key: "u", title: "U", date: "2026-10-05", keyword: "UNDOU" }], "month");
+  approvePlanVersion(live.id, "kai");
+  const proposal = propose("2026-06", [
+    { key: "u", title: "U again", date: "2026-10-05", keyword: "UNDOU" },
+    { key: "w", title: "W", date: "2026-10-06", keyword: "UNDOW" },
+  ], "month");
+  const r = approvePlanChanges(proposal.id, ["w"], "kai");
+  if (!r.ok) throw new Error(r.error);
+  expect(undoPlanVersion({ period: "month", periodKey: "2026-06" }, r.live.id, "kai")).toMatchObject({ ok: true, live: { id: live.id } });
+  const list = listPlanVersions({ period: "month", periodKey: "2026-06" });
+  expect(list.ok && list.versions.map((v) => [v.version, v.agent, v.status])).toEqual([
+    [3, "kai", "superseded"],
+    [2, "claude", "proposed"],
+    [1, "claude", "live"],
+  ]);
+});
+

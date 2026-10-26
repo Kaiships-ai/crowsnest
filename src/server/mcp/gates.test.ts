@@ -62,10 +62,10 @@ test("a tool with no gate level fails registration and names the tool", () => {
   );
 });
 
-test("the registered tools are exactly the 38 in TOOL_LEVELS", async () => {
+test("the registered tools are exactly the 36 in TOOL_LEVELS", async () => {
   const { tools } = await (await connect(buildMcpServer())).listTools();
   expect(tools.map((t) => t.name).sort()).toEqual(Object.keys(gates.TOOL_LEVELS).sort());
-  expect(tools).toHaveLength(38);
+  expect(tools).toHaveLength(36);
 });
 
 test("every gate 2 tool stores a pending draft, journals scrubbed input, and never runs or calls out", async () => {

@@ -12,6 +12,7 @@ import { getTerminalPaneSearchEntries } from '@/components/settings/terminal-sea
 import { isMacUserAgent, isWindowsUserAgent } from '@/components/terminal-pane/pane-helpers'
 import { useLinearProviderConnected } from '@/hooks/useLinearProviderConnected'
 import { getClientCreationActionPolicy } from '@/lib/client-creation-action-policy'
+import { leadStudioSettingsSections } from '@/lib/lead-studio-settings-allowlist'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
 import { isWebClientLocation } from '@/lib/web-client-location'
 import {
@@ -172,25 +173,27 @@ export function useSettingsNavigationMetadata(): SettingsNavSection[] {
   // imports; see docs/reference/cmd-j-settings-actions-plan.md.
   return useMemo(
     () =>
-      buildSettingsNavigationMetadata({
-        isMac,
-        isWindows,
-        isLocalWindowsHost,
-        isWindowsTerminalHost,
-        isWebClient,
-        nativeChatEnabled,
-        hostQueuesMessages,
-        typedChatPermissions,
-        managedBrowserCreationEnabled,
-        mobileEmulatorCreationEnabled,
-        isDev: import.meta.env.DEV,
-        isLinearConnected,
-        repos,
-        projectGrouping: {
-          projects: projectHostSetupProjection.projects,
-          projectHostSetups: projectHostSetupProjection.setups
-        }
-      }),
+      leadStudioSettingsSections(
+        buildSettingsNavigationMetadata({
+          isMac,
+          isWindows,
+          isLocalWindowsHost,
+          isWindowsTerminalHost,
+          isWebClient,
+          nativeChatEnabled,
+          hostQueuesMessages,
+          typedChatPermissions,
+          managedBrowserCreationEnabled,
+          mobileEmulatorCreationEnabled,
+          isDev: import.meta.env.DEV,
+          isLinearConnected,
+          repos,
+          projectGrouping: {
+            projects: projectHostSetupProjection.projects,
+            projectHostSetups: projectHostSetupProjection.setups
+          }
+        })
+      ),
     // oxlint-disable-next-line react-hooks/exhaustive-deps -- activeLocale is read implicitly by the translate() calls inside buildSettingsNavigationMetadata; without it the memo keeps the previous language's sections.
     [
       isMac,

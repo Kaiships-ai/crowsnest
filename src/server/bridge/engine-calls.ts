@@ -3,10 +3,10 @@ import { z } from "zod";
 import { listConnectors, testConnector } from "@/server/connectors/registry";
 import { scrubSecrets } from "@/server/connectors/scrub-secrets";
 import { errorMessage } from "@/server/lib/action-result";
-import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
+import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
 import { pullAgain } from "@/server/services/daily-pull";
 import { getFunnel } from "@/server/services/funnel";
-import { listAgentActions } from "@/server/services/agent-journal";
+import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
 import { createMcpToken, listMcpTokens, revokeMcpToken } from "@/server/services/mcp-tokens";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
@@ -35,6 +35,7 @@ import { getLastRunHealth, getRun, listRuns } from "@/server/queries/runs";
 import { getScripts } from "@/server/queries/vault";
 import { getFunnelBoard } from "@/server/queries/funnel-board";
 import { getOwnBoard, getOwnReelBoard } from "@/server/queries/own-board";
+import { getGateBoard } from "@/server/queries/gate-board";
 import { getPlanBoard } from "@/server/queries/plan-board";
 import { getRivalsBoard } from "@/server/queries/rivals-board";
 import { getTodayBoard } from "@/server/queries/today-board";
@@ -121,6 +122,22 @@ const feedFilters = z.object({
   analyzed: z.enum(["yes", "no"]).optional(),
 });
 
+/** Gate 1 from the app is the operator's own act: it is journaled under their name, and a plan
+ *  they approve records them as its approver. */
+const OPERATOR = "kai";
+
+function asOperator<R extends { ok: boolean }>(tool: string, input: unknown, run: () => R): R {
+  const entry = journalPending(OPERATOR, tool, input, "gate1");
+  try {
+    const result = run();
+    journalOutcome(entry, result.ok ? "ok" : "error");
+    return result;
+  } catch (err) {
+    journalOutcome(entry, "error");
+    throw err;
+  }
+}
+
 export const ENGINE_CALLS = {
   getDashboardStats: call(none, getDashboardStats),
   getStackHealth: call(none, getStackHealth),
@@ -168,6 +185,13 @@ export const ENGINE_CALLS = {
   listPlanVersions: call(
     z.tuple([PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().min(1).max(50).optional() }))]),
     listPlanVersions,
+  ),
+  getGateBoard: call(none, getGateBoard),
+  approvePlanChanges: call(z.tuple([z.string(), z.array(z.string()).max(62)]), (versionId, keys) =>
+    asOperator("approvePlanChanges", { versionId, keys }, () => approvePlanChanges(versionId, keys, OPERATOR)),
+  ),
+  undoPlanApproval: call(z.tuple([PlanRefSchema, z.string()]), (ref, expectLiveId) =>
+    asOperator("undoPlanApproval", { ...ref, expectLiveId }, () => undoPlanVersion(ref, expectLiveId, OPERATOR)),
   ),
   createPlannedPostAction: call(
     z.tuple([

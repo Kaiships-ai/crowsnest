@@ -84,8 +84,8 @@ describe('settings navigation metadata', () => {
       'orca-account',
       'setup-guide',
       'general',
-      'integrations',
-      'mobile'
+      'lead-sources',
+      'integrations'
     ])
   })
 
@@ -178,12 +178,13 @@ describe('settings navigation metadata', () => {
   })
 
   it('puts web-safe AI capability panes at the top while hiding desktop-only panes', () => {
-    expect(ids({ isWebClient: true }).slice(0, 6)).toEqual([
+    expect(ids({ isWebClient: true }).slice(0, 7)).toEqual([
       'agents',
       'accounts',
       'orchestration',
       'setup-guide',
       'general',
+      'lead-sources',
       'integrations'
     ])
   })

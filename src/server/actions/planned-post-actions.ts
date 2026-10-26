@@ -657,9 +657,9 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
   }
 }
 
-export async function approvePlanVersionAction(versionId: string): Promise<ApproveResult> {
+export async function approvePlanVersionAction(versionId: string, approver: string): Promise<ApproveResult> {
   try {
-    return approvePlanVersion(versionId);
+    return approvePlanVersion(versionId, approver);
   } catch (err) {
     return { ok: false, error: errorMessage(err), code: "PLAN_UNKNOWN" };
   }

@@ -10,7 +10,7 @@ const mcp = (tool, args) => {
   const reply = execFileSync("bash", [MCP_SH, "--app", tool, JSON.stringify(args)], { encoding: "utf8" });
   if (!reply.includes('"result"') || reply.includes('"isError":true')) throw new Error(`${tool}: ${reply.slice(0, 300)}`);
 };
-const BLOCKS = ["today-offer", "today-gates", "today-pulls", "today-workspaces"];
+const BLOCKS = ["today-offer", "today-funnel", "today-gates", "today-pulls", "today-workspaces"];
 
 async function setThemeWithoutTransition(page, theme) {
   await page.evaluate((dark) => {
@@ -42,33 +42,29 @@ export default async function today01({ page, step, snap }) {
     mcp("crowsnest_propose_plan", { agent: "today-01", period: "week", periodKey: "2099-W01", reels: [{ key: "today-01", title: "today-01 reel" }] });
   });
 
-  await step("open Hôm nay from the new-tab menu and see every block with a source label", async () => {
-    await page.getByRole("button", { name: "New tab" }).first().click();
-    await page.locator('[data-testid="new-tab-board"][data-board-id="today"]').click();
-    await page.getByRole("menu").waitFor({ state: "detached" });
+  await step("open Today from the sidebar and see every block name its source once", async () => {
+    await page.locator('[data-testid="ls-nav-row"][data-nav-id="today"]').click();
     for (const id of BLOCKS) {
       const block = board.getByTestId(id);
       await block.waitFor({ timeout: 10_000 });
-      const labels = await block.getByTestId("source-label").allInnerTexts();
-      if (labels.length === 0) throw new Error(`${id} has no source label`);
+      const labels = await block.getByTestId("source-tag").allInnerTexts();
+      if (labels.length !== 1) throw new Error(`${id} has ${labels.length} source tags`);
       console.log(`${id}: ${labels.join(" | ")}`);
     }
   });
 
   await step("every number on the board sits in a block that names its source", async () => {
-    const orphans = await board.locator('[data-num], [data-testid="reading-value"]').evaluateAll((nodes) =>
-      nodes.filter((n) => !n.closest('[data-testid="today-offer-step"], [data-testid="today-step"], [data-testid="today-gates"], [data-testid="today-pulls"], [data-testid="today-workspaces"]')).length,
+    const orphans = await board.locator("[data-num]").evaluateAll((nodes) =>
+      nodes.filter((n) => !n.closest('[data-testid="today-offer"], [data-testid="today-funnel"], [data-testid="today-gates"], [data-testid="today-pulls"], [data-testid="today-workspaces"]')).length,
     );
     if (orphans !== 0) throw new Error(`${orphans} numbers outside a sourced block`);
-    for (const s of await board.locator('[data-testid="today-step"], [data-testid="today-offer-step"]').all()) {
-      if ((await s.getByTestId("source-label").count()) !== 1) throw new Error(`step ${await s.getAttribute("data-step-id")} has no source label`);
-    }
   });
 
-  await step("checkout reads chưa nối, never 0, and with no targets the drop says chưa đặt chuẩn", async () => {
+  await step("checkout reads Polar not connected, never 0, and with no targets the drop says so", async () => {
     const checkout = board.locator('[data-testid="today-offer-step"][data-step-id="checkout"]');
-    if ((await checkout.getByTestId("reading-not-connected").count()) !== 1) throw new Error(await checkout.innerText());
-    if ((await checkout.getByTestId("reading-value").count()) !== 0) throw new Error("checkout shows a number");
+    if ((await checkout.getByTestId("kpi-value").getAttribute("data-state")) !== "not-connected") throw new Error(await checkout.innerText());
+    if ((await checkout.locator("[data-num]").count()) !== 0) throw new Error("checkout shows a number");
+    if (!(await checkout.getByTestId("open-sources").innerText()).includes("Polar not connected")) throw new Error(await checkout.innerText());
     const drop = board.getByTestId("today-drop");
     if ((await drop.getAttribute("data-status")) !== "no-target") throw new Error(await drop.innerText());
     console.log(`drop: ${await drop.innerText()}`);
@@ -82,7 +78,7 @@ export default async function today01({ page, step, snap }) {
     if (shown[0] !== plans || shown[1] !== drafts) throw new Error(JSON.stringify(shown));
   });
 
-  await step("last night's pulls show each connector's state from the Vault data", async () => {
+  await step("overnight pulls show each connector's state from the Sources data", async () => {
     const vault = await call(page, "getVaultBoard");
     const want = vault.value.map((r) => `${r.id}:${r.state}`);
     const shown = await board.getByTestId("today-pull-row").evaluateAll((rows) => rows.map((r) => `${r.dataset.connectorId}:${r.dataset.state}`));

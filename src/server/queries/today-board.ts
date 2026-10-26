@@ -5,7 +5,7 @@ import { CONNECTORS } from "@/server/connectors/registry";
 import { db } from "@/server/db";
 import { clockNow } from "@/server/lib/clock";
 import type { CountId } from "@/server/metrics/ledger";
-import { getFunnelBoard, type FunnelStep } from "@/server/queries/funnel-board";
+import { getFunnelBoard, type BoardStep, type FunnelStep } from "@/server/queries/funnel-board";
 import { getVaultBoard, type VaultRow } from "@/server/queries/vault-board";
 
 export type Drop =
@@ -15,8 +15,8 @@ export type Drop =
 
 export interface TodayBoard {
   at: string;
-  steps: FunnelStep[];
-  offer: FunnelStep[];
+  steps: BoardStep[];
+  offer: BoardStep[];
   drop: Drop;
   gates: { proposedPlansAhead: number; pendingDrafts: number };
   pulls: Pick<VaultRow, "id" | "label" | "state" | "lastPull">[];
@@ -45,7 +45,7 @@ function waitingGates(): TodayBoard["gates"] {
 }
 
 export async function getTodayBoard(now: Date = clockNow(), registry: Connector[] = CONNECTORS): Promise<TodayBoard> {
-  const { steps } = await getFunnelBoard();
+  const { steps } = await getFunnelBoard(now, registry);
   return {
     at: now.toISOString(),
     steps,

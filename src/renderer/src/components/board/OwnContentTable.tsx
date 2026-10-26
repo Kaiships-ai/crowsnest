@@ -62,7 +62,7 @@ export function OwnContentTable({
       <SourceLabel source={INSTAGRAM} at={capturedAt(board.totals.views)} />
       {posts.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {translate('boards.own.noPosts', 'Không có bài nào trong khoảng này.')}
+          {translate('boards.own.noPosts', 'No posts in this range.')}
         </p>
       ) : (
         <div className="grid grid-cols-[1fr_repeat(8,auto)] content-start gap-x-5">
@@ -70,7 +70,7 @@ export function OwnContentTable({
             data-testid="own-content-header"
             className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground"
           >
-            <span>{translate('boards.own.post', 'Bài')}</span>
+            <span>{translate('boards.own.post', 'Post')}</span>
             {IG_COLUMNS.map((key) => (
               <span key={key} className="text-right">
                 {columnLabel(key)}
@@ -113,9 +113,13 @@ export function OwnContentTable({
                     title={post.pullError.error}
                     className="font-mono text-2xs text-destructive"
                   >
-                    {translate('boards.own.pullFailedShort', 'lần đo {{at}} lỗi, số cũ', {
-                      at: formatBoardTime(post.pullError.at)
-                    })}
+                    {translate(
+                      'boards.own.pullFailedShort',
+                      '{{at}} measurement failed, old numbers',
+                      {
+                        at: formatBoardTime(post.pullError.at)
+                      }
+                    )}
                   </span>
                 ) : null}
               </span>

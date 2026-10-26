@@ -184,7 +184,7 @@ function guardKeywords<T>(run: () => T): T | Fail {
 
 export type ApproveResult = ({ ok: true; changed: boolean; live: { id: string; version: number } } & SyncResult) | Fail;
 
-export function approvePlanVersion(id: string): ApproveResult {
+export function approvePlanVersion(id: string, approver: string): ApproveResult {
   return guardKeywords(() =>
     db.transaction((tx): ApproveResult => {
       const v = findVersion(tx, id);
@@ -193,17 +193,69 @@ export function approvePlanVersion(id: string): ApproveResult {
       const now = nowIso();
       const V = tables.planVersions;
       tx.update(V).set({ status: "superseded", updatedAt: now }).where(and(eq(V.period, v.period), eq(V.periodKey, v.periodKey), eq(V.status, "live"))).run();
-      tx.update(V).set({ status: "live", approvedAt: now, updatedAt: now }).where(eq(V.id, v.id)).run();
+      tx.update(V).set({ status: "live", approvedAt: now, approvedBy: approver, updatedAt: now }).where(eq(V.id, v.id)).run();
       return { ok: true, changed: true, live: { id: v.id, version: v.version }, ...syncDrafts(tx, v) };
     }),
   );
 }
 
+export type PlanChange = { key: string; kind: "add" | "remove" | "edit"; before: Reel | null; after: Reel | null };
+
+const reelOrder = (a: Reel, b: Reel) => (a.date ?? "9999").localeCompare(b.date ?? "9999") || (a.time ?? "").localeCompare(b.time ?? "") || a.key.localeCompare(b.key);
+
+/** What a proposal changes against the live plan, one entry per reel key, in plan order. */
+export function planChanges(live: Reel[], proposed: Reel[]): PlanChange[] {
+  const before = new Map(live.map((r) => [r.key, r]));
+  const after = new Map(proposed.map((r) => [r.key, r]));
+  const changes: PlanChange[] = [];
+  for (const r of proposed) {
+    const old = before.get(r.key);
+    if (!old) changes.push({ key: r.key, kind: "add", before: null, after: r });
+    else if (!sameFields(synced(old), synced(r))) changes.push({ key: r.key, kind: "edit", before: old, after: r });
+  }
+  for (const r of live) if (!after.has(r.key)) changes.push({ key: r.key, kind: "remove", before: r, after: null });
+  return changes.sort((a, b) => reelOrder(a.after ?? a.before!, b.after ?? b.before!));
+}
+
+/** The live plan with only the chosen changes applied. */
+export function applyChanges(live: Reel[], changes: PlanChange[]): Reel[] {
+  const reels = new Map(live.map((r) => [r.key, r]));
+  for (const c of changes) {
+    if (c.after) reels.set(c.key, c.after);
+    else reels.delete(c.key);
+  }
+  return [...reels.values()].sort(reelOrder);
+}
+
+/** Approves a proposal with only the changes the approver kept. All kept: the proposal goes
+ *  live as it is. Some kept: a new version made of the live plan plus those changes is
+ *  proposed under the approver's name and goes live instead, and the proposal stays behind it. */
+export function approvePlanChanges(versionId: string, keys: string[], approver: string): ApproveResult {
+  const V = tables.planVersions;
+  const v = db.select().from(V).where(eq(V.id, versionId)).get();
+  if (!v) return fail("VERSION_NOT_FOUND", `no plan version ${versionId}`);
+  if (v.status !== "proposed") return fail("NOT_PROPOSED", `v${v.version} is ${v.status}, not waiting for approval`);
+  const live = db.select().from(V).where(and(eq(V.period, v.period), eq(V.periodKey, v.periodKey), eq(V.status, "live"))).get();
+  const changes = planChanges((live?.reels as Reel[] | undefined) ?? [], v.reels as Reel[]);
+  const kept = changes.filter((c) => keys.includes(c.key));
+  if (kept.length === 0) return fail("NOTHING_KEPT", "no change is switched on; nothing was approved");
+  if (kept.length === changes.length) return approvePlanVersion(v.id, approver);
+  const reels = applyChanges((live?.reels as Reel[] | undefined) ?? [], kept);
+  const proposed = proposePlan({ period: v.period, periodKey: v.periodKey, agent: approver, reels });
+  if (!proposed.ok) return proposed;
+  const approved = approvePlanVersion(proposed.id, approver);
+  // A refused approval leaves no half-made version behind.
+  if (!approved.ok) db.delete(V).where(eq(V.id, proposed.id)).run();
+  return approved;
+}
+
 export type UndoResult = ({ ok: true; live: { id: string; version: number } } & SyncResult) | Fail;
 
 /** `expectLiveId` pins the undo to the version the caller just approved: if another
- *  version went live since, nothing changes. */
-export function undoPlanVersion(ref: unknown, expectLiveId?: string): UndoResult {
+ *  version went live since, nothing changes. The undone version goes back to proposed,
+ *  except one the approver composed from a partial approval (`composedBy` is its agent):
+ *  that one is retired, so the agent's own proposal is the one waiting again. */
+export function undoPlanVersion(ref: unknown, expectLiveId?: string, composedBy?: string): UndoResult {
   const parsed = PlanRefSchema.safeParse(ref);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
   const { period, periodKey } = parsed.data;
@@ -217,7 +269,8 @@ export function undoPlanVersion(ref: unknown, expectLiveId?: string): UndoResult
       const prev = tx.select().from(V).where(and(inPeriod, eq(V.status, "superseded"), isNotNull(V.approvedAt))).orderBy(desc(V.approvedAt), desc(V.version)).get();
       if (!prev) return fail("NOTHING_TO_UNDO", `v${live.version} is the only version ever live for ${period} ${periodKey}; nothing earlier to restore`);
       const now = nowIso();
-      tx.update(V).set({ status: "proposed", approvedAt: null, updatedAt: now }).where(eq(V.id, live.id)).run();
+      const undone = composedBy !== undefined && live.agent === composedBy ? "superseded" : "proposed";
+      tx.update(V).set({ status: undone, approvedAt: null, approvedBy: null, updatedAt: now }).where(eq(V.id, live.id)).run();
       tx.update(V).set({ status: "live", updatedAt: now }).where(eq(V.id, prev.id)).run();
       return { ok: true, live: { id: prev.id, version: prev.version }, ...syncDrafts(tx, prev) };
     }),
