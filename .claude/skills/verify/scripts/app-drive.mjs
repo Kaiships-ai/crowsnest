@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
@@ -10,7 +10,28 @@ const ROOT = path.resolve(import.meta.dirname, "../../../..");
 const APP = ROOT;
 const STATE = path.join(ROOT, "data/verify/app/state.json");
 const LOG = path.join(ROOT, "data/verify/app/host.log");
-const { chromium } = createRequire(path.join(APP, "package.json"))("@playwright/test");
+const appRequire = createRequire(path.join(APP, "package.json"));
+const { chromium } = appRequire("@playwright/test");
+const { PNG } = appRequire("pngjs");
+const BASELINES = path.join(import.meta.dirname, "../baselines");
+
+// Share of pixels whose largest channel differs by more than 32 of 255; changed pixels go red in the diff image.
+function diffImages(actualPath, baselinePath, diffPath) {
+  const a = PNG.sync.read(readFileSync(actualPath));
+  const b = PNG.sync.read(readFileSync(baselinePath));
+  if (a.width !== b.width || a.height !== b.height) return { ratio: 1, note: `size ${a.width}x${a.height} vs baseline ${b.width}x${b.height}` };
+  const diff = new PNG({ width: a.width, height: a.height });
+  let changed = 0;
+  for (let i = 0; i < a.data.length; i += 4) {
+    const delta = Math.max(Math.abs(a.data[i] - b.data[i]), Math.abs(a.data[i + 1] - b.data[i + 1]), Math.abs(a.data[i + 2] - b.data[i + 2]));
+    const hit = delta > 32;
+    if (hit) changed++;
+    const grey = (a.data[i] + a.data[i + 1] + a.data[i + 2]) / 12 + 170;
+    diff.data.set(hit ? [255, 0, 0, 255] : [grey, grey, grey, 255], i);
+  }
+  writeFileSync(diffPath, PNG.sync.write(diff));
+  return { ratio: changed / (a.width * a.height), note: "" };
+}
 
 const MAIN_WINDOW = (url) => /\/renderer\/index\.html$|^http:\/\/localhost:\d+\/$/.test(url);
 
@@ -52,6 +73,27 @@ async function runJourney(name, runId) {
       const out = path.join(dir, `${file}.png`);
       await page.screenshot({ path: out });
       log(`snap: ${path.relative(ROOT, out)}`);
+    },
+    // Compares the shot with the approved baselines/<file>.png; APP_UPDATE_BASELINES=1 approves this run's shot.
+    // Pass `target` (a locator) to shoot one element, so tabs and clocks outside it never count as a change.
+    async snapAndCompare(file, { target = page, threshold = 0.005 } = {}) {
+      const out = path.join(dir, `${file}.png`);
+      await target.screenshot({ path: out });
+      log(`snap: ${path.relative(ROOT, out)}`);
+      const baseline = path.join(BASELINES, `${file}.png`);
+      if (process.env.APP_UPDATE_BASELINES === "1") {
+        mkdirSync(BASELINES, { recursive: true });
+        copyFileSync(out, baseline);
+        return log(`diff: ${file} baseline approved`);
+      }
+      if (!existsSync(baseline)) return log(`diff: ${file} no baseline; approve with APP_UPDATE_BASELINES=1`);
+      const { ratio, note } = diffImages(out, baseline, path.join(dir, `${file}.diff.png`));
+      const line = `${file} ${(ratio * 100).toFixed(2)}% changed (threshold ${(threshold * 100).toFixed(2)}%)${note ? `, ${note}` : ""}`;
+      if (ratio > threshold) {
+        log(`FAIL: diff: ${line}`);
+        throw new Error(`screenshot ${line}`);
+      }
+      log(`ok: diff: ${line}`);
     },
   };
   log(`journey: ${name} run: ${runId}`);

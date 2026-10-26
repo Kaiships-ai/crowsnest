@@ -2,6 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
+export const dod = ["B1-02", "B1-07"];
+
 const call = (page, name, ...args) => page.evaluate(([name, args]) => window.api.crowsnest.call(name, ...args), [name, args]);
 const state = (file) => readFileSync(path.join(import.meta.dirname, "../../../../../data/verify/app", file), "utf8").trim();
 const { userDataDir } = JSON.parse(state("state.json"));

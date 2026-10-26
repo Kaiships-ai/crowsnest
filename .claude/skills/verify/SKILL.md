@@ -36,6 +36,26 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 
 `app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
 
+## Run every journey
+
+```bash
+.claude/skills/verify/scripts/run-all.sh [run-id]   # dev mode; exits 1 when any journey failed
+```
+
+One dev-mode session on the boards lane (fake sidecar and Umami) runs every journey in `app-journeys/` except Orca's own `shell-01` and `close-terminal`, then `schedule-01` runs in its clock lane. `run-all-report.mjs` writes `data/verify/evidence/<run-id>/report.html`: each DoD id from the proposal's `data.js` with its pass criterion, the journeys that assert it and their state, then each journey's steps, DB checks, shots and diffs. A journey names its DoD ids in `export const dod = ["B2-02"];`.
+
+`snapAndCompare(name, { target, threshold })` shoots the page, or one locator as `target`, and compares it with `baselines/<name>.png`: over `threshold` (default 0.5%) of pixels changed fails the step and saves `<name>.diff.png` with changed pixels in red. Shoot the board, not the page, so tabs and the window chrome never count. `APP_UPDATE_BASELINES=1` approves this run's shots; look at each one before you commit it.
+
+## Add a journey for a new screen
+
+1. Give every element the journey drives a `data-testid` (`scripts/testid-audit.sh` checks).
+2. Copy `app-journeys/today-01.mjs` to `app-journeys/<screen>-01.mjs`; keep its `sql` and `mcp` helpers.
+3. Set `export const dod = [...]` to the DoD ids whose pass criterion it asserts.
+4. Set up data the way an agent does (`mcp(...)`), then open the screen from "+" in the tab bar.
+5. One `step` per criterion: read the number in the UI and the same number from the lane DB with `sql`, and throw when they differ.
+6. End with `snapAndCompare("<screen>-01", { target: board })`, run `run-all.sh` with `APP_UPDATE_BASELINES=1` once, check the shot, commit it.
+7. Add the journey to its `features/<part>.md`.
+
 ## Evidence
 
 `app-drive.sh` writes `data/verify/evidence/<run-id>/<journey>.transcript.txt` plus every `snap` screenshot there (`data/` is gitignored). A proof is:
