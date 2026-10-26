@@ -13,9 +13,9 @@ describe("startInApp", () => {
     vi.useRealTimers();
   });
 
-  it("starts sync and own-measure but not the publish timer when LEAD_STUDIO_PUBLISH_JOBS is unset", () => {
+  it("starts sync, own-measure and the daily pull but not the publish timer when LEAD_STUDIO_PUBLISH_JOBS is unset", () => {
     stop = startInApp({ migrationsFolder, env: {} });
-    expect(vi.getTimerCount()).toBe(3);
+    expect(vi.getTimerCount()).toBe(5);
   });
 
   it("leaves fetch alone, so sync and measure can reach Instagram", () => {
@@ -26,7 +26,7 @@ describe("startInApp", () => {
 
   it("also starts the publish timer when LEAD_STUDIO_PUBLISH_JOBS=1", () => {
     stop = startInApp({ migrationsFolder, env: { LEAD_STUDIO_PUBLISH_JOBS: "1" } });
-    expect(vi.getTimerCount()).toBe(4);
+    expect(vi.getTimerCount()).toBe(6);
   });
 
   it("moves legacy plaintext secrets into the keychain on boot", () => {

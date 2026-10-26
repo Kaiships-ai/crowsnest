@@ -4,6 +4,7 @@ import { CONNECTORS, listConnectors, testConnector } from "@/server/connectors/r
 import { readSecret } from "@/server/connectors/secrets";
 import { errorMessage } from "@/server/lib/action-result";
 import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
+import { pullAgain } from "@/server/services/daily-pull";
 import { getFunnel } from "@/server/services/funnel";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
@@ -231,6 +232,7 @@ export const ENGINE_CALLS = {
   getSecretStatusAction: call(none, getSecretStatusAction),
   listConnectors: call(none, () => listConnectors()),
   testConnector: call(id, (connectorId) => testConnector(connectorId)),
+  pullAgain: call(id, (connectorId) => pullAgain(connectorId)),
 
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),

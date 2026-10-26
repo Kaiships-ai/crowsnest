@@ -102,6 +102,8 @@ const schema = z.object({
   IG_GRAPH_TOKEN: z.string().optional(),
   IG_GRAPH_USER_ID: z.string().optional(),
   IG_GRAPH_API_VERSION: z.string().min(1).optional().default("v21.0"),
+  IG_GRAPH_HOST: z.url().optional().default("https://graph.instagram.com"),
+  LEAD_STUDIO_CLOCK_START: z.iso.datetime({ offset: true, local: true }).optional(),
 });
 
 export type Config = z.infer<typeof schema>;

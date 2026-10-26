@@ -12,6 +12,9 @@ else
   echo "app: no app of ours running"
 fi
 rm -f "$DIR/host.pid" "$DIR/state.json"
+FAKE="$(cat "$DIR/fake-graph.pid" 2>/dev/null || true)"
+[ -n "$FAKE" ] && kill "$FAKE" 2>/dev/null && echo "app: stopped fake Graph $FAKE"
+rm -f "$DIR/fake-graph.pid" "$DIR/fake-graph.port"
 rc=0
 if [ -f "$DIR/host.fingerprint" ]; then
   now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1)"

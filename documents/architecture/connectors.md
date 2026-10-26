@@ -11,8 +11,8 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 
 | Connector | Auth | Secrets | Feeds | Adapter |
 | --- | --- | --- | --- | --- |
-| `instagram-graph` | oauth | `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID` | view, follow, bio_link_tap | `graphClient.checkToken` |
-| `ig-sidecar` | browser-session | `IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD` (also per account), `IG_SESSIONID`, all optional | none | `igClient.health` |
+| `instagram-graph` | oauth | `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID` | view, follow, bio_link_tap | `graphClient.checkToken`; pull is a due `measureOwnChannel` run |
+| `ig-sidecar` | browser-session | `IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD` (also per account), `IG_SESSIONID`, all optional | none | `igClient.health`; pull is a library `runSync`, read back from its `sync_jobs` row |
 | `groq` | api-key | `GROQ_API_KEY` | none | key present |
 | `umami` | api-key | `UMAMI_API_KEY` | gift_page_visit, email | manifest only |
 | `polar` | api-key | `POLAR_ACCESS_TOKEN` | checkout, purchase, revenue | manifest only |
@@ -21,7 +21,7 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 ## Boundaries
 
 - Owns: `src/server/connectors/` (types, `registry.ts`, `secrets.ts`, one folder per connector) and `src/server/secrets/store.ts`.
-- Called by: the Graph client, the sidecar client and launcher, Groq transcription, IG accounts, the Settings secret actions, the engine bridge (`listConnectors`, `testConnector`, error scrubbing), the `kai` CLI, and boot (`startInApp` in `src/server/start.ts` runs the migration).
+- Called by: the Graph client, the sidecar client and launcher, Groq transcription, IG accounts, the Settings secret actions, the engine bridge (`listConnectors`, `testConnector`, `pullAgain`, error scrubbing), the daily pull (`src/server/services/daily-pull.ts`), the `kai` CLI, and boot (`startInApp` in `src/server/start.ts` runs the migration).
 - Calls: the source's own client through the adapter, and `SecretStore` for sealing.
 
 ## Invariants
@@ -34,6 +34,8 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 - **Read order:** sealed value, then a legacy row not yet moved, then the env var of the same name. `IG_PROXY` and `IG_DEVICE_SEED` stay env only.
 - **Outside Electron there is no Keychain.** A tsx script or the `kai` CLI has no `SecretStore`. It reads a legacy row the app has not migrated yet, or the env var. A secret the app has already sealed throws `SecretLockedError`, which says to run from Lead Studio or set the env var, unless the env var is set. A write throws, and `getOrCreateServiceToken` with no token says to open Lead Studio once or set `IG_SERVICE_TOKEN`.
 - **A secret is sealed only when the store reports no protection gap.** If `describeProtectionGap()` names a gap, `setSecret` throws and the migration keeps the legacy row and reports it.
+
+- **A pull reports what came back.** The daily pull and `pullAgain` record `complete`, `partial` (with what is missing), `failed`, or `skipped` (status not `configured`, or no `pull`). A pull only reads from its source.
 
 ## Key files
 

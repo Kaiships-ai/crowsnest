@@ -923,3 +923,29 @@ export const planVersions = sqliteTable(
     uniqueIndex("plan_versions_single_live").on(t.period, t.periodKey).where(sql`${t.status} = 'live'`),
   ],
 );
+
+export const sourceCalls = sqliteTable(
+  "source_calls",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    source: text("source").notNull(),
+    calledAt: integer("called_at").notNull(),
+  },
+  (t) => [index("source_calls_source_at").on(t.source, t.calledAt)],
+);
+
+export const DAILY_PULL_OUTCOMES = ["complete", "partial", "failed", "skipped"] as const;
+
+export const dailyPulls = sqliteTable(
+  "daily_pulls",
+  {
+    slot: text("slot").notNull(),
+    connectorId: text("connector_id").notNull(),
+    startedAt: text("started_at").notNull(),
+    finishedAt: text("finished_at"),
+    outcome: text("outcome", { enum: DAILY_PULL_OUTCOMES }),
+    detail: text("detail"),
+    attempts: integer("attempts").notNull().default(1),
+  },
+  (t) => [primaryKey({ columns: [t.slot, t.connectorId] })],
+);

@@ -1,4 +1,6 @@
 import { config } from "../config";
+import { callsInLastHour, trySpendCall } from "../lib/call-budget";
+import { clockNow } from "../lib/clock";
 import { log } from "../lib/logger";
 import { instagramGraph } from "../connectors/instagram-graph/manifest";
 import { readSecret } from "../connectors/secrets";
@@ -31,7 +33,6 @@ import { GraphApiError, type GraphErrorCode } from "./errors";
  *     (`./errors.ts`, not `../ig/errors.ts`).
  */
 
-const HOST = "https://graph.instagram.com";
 const REQUEST_TIMEOUT_MS = 30_000;
 
 // ---------------------------------------------------------------- public shapes
@@ -322,32 +323,23 @@ export function redactToken(text: string, token: string): string {
 
 // ---------------------------------------------------------------- call ledger
 
-const HOUR_MS = 3_600_000;
+/** Instagram's per-account Graph limit. */
+export const GRAPH_CALLS_PER_HOUR = 200;
 
-/** Every HTTP call this process makes to Graph, counted in the transport so no caller can
- *  miss one (measurement, token checks, account reads, publish). `total` gives a run its
- *  own count (calls since it started); `at` the rolling hour. Kept on globalThis next to
- *  the measure lock, because tsx server.ts and the Next bundle each load their own copy of
- *  this module in the same process.
- *  ponytail: in memory, so a restart forgets the last hour's calls; persist it if restarts
- *  mid-hour ever push a run over Instagram's limit. */
 export interface GraphCallLedger {
   total: number;
-  at: number[];
 }
 export function graphCallLedger(): GraphCallLedger {
   const g = globalThis as { __crowsnestOwnMeasure?: { graphCalls?: GraphCallLedger } };
-  return ((g.__crowsnestOwnMeasure ??= {}).graphCalls ??= { total: 0, at: [] });
+  return ((g.__crowsnestOwnMeasure ??= {}).graphCalls ??= { total: 0 });
 }
-export function graphCallsInLastHour(now = Date.now()): number {
-  return graphCallLedger().at.filter((t) => t > now - HOUR_MS && t <= now).length;
+export function graphCallsInLastHour(at = clockNow()): number {
+  return callsInLastHour(instagramGraph.id, at);
 }
-function noteGraphCall(): void {
-  const ledger = graphCallLedger();
-  const now = Date.now();
-  ledger.total += 1;
-  ledger.at = ledger.at.filter((t) => t > now - HOUR_MS);
-  ledger.at.push(now);
+function spendGraphCall(): boolean {
+  if (!trySpendCall(instagramGraph.id, GRAPH_CALLS_PER_HOUR, clockNow())) return false;
+  graphCallLedger().total += 1;
+  return true;
 }
 
 // ---------------------------------------------------------------- transport
@@ -440,7 +432,7 @@ async function graphRequest<T>(
   params: Record<string, string | number | undefined>,
   token: string
 ): Promise<GraphGetResult<T>> {
-  const url = new URL(`${HOST}/${config.IG_GRAPH_API_VERSION}/${path}`);
+  const url = new URL(`${config.IG_GRAPH_HOST}/${config.IG_GRAPH_API_VERSION}/${path}`);
   const init: RequestInit = { method, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) };
 
   if (method === "GET") {
@@ -457,9 +449,12 @@ async function graphRequest<T>(
     init.body = body;
   }
 
-  let res: Response;
   // Counted before the call: a timeout or dropped connection may still have reached Graph.
-  noteGraphCall();
+  if (!spendGraphCall()) {
+    log.warn("graph.request.hour_spent", { path });
+    return { ok: false, message: `the last hour already used all ${GRAPH_CALLS_PER_HOUR} Graph calls`, kind: "rate_limit" };
+  }
+  let res: Response;
   try {
     res = await fetch(url.toString(), init);
   } catch (err) {
