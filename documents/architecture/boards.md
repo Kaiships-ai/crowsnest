@@ -1,10 +1,10 @@
 # Boards
 
-A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are five: `today` (Hôm nay, the morning screen), `funnel` (Phễu, the six-step funnel), `channels` (the tracked channels), `vault` (each connector's state, with secret entry) and `agents` (the MCP journal and the agent tokens).
+A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are six: `today` (Hôm nay, the morning screen), `funnel` (Phễu, the six-step funnel), `own` (Kênh tôi, the own Instagram channel), `rivals` (Đối thủ, the tracked rival channels), `vault` (each connector's state, with secret entry) and `agents` (the MCP journal and the agent tokens).
 
 ## What it holds
 
-A board holds no data of its own. Each board reads the engine through the engine bridge (`window.api.crowsnest.call`, see [app](app.md)) every time it mounts, and on Retry or Refresh. The `channels` board calls `getChannelsList` and shows each row's handle, display name, follower count, median views and 30-day outliers. The header and the rows are subgrids of one grid, so each value sits in the same column as its header.
+A board holds no data of its own. Each board reads the engine through the engine bridge (`window.api.crowsnest.call`, see [app](app.md)) every time it mounts, and on Retry or Refresh. Table headers and rows are subgrids of one grid, so each value sits in the same column as its header.
 
 A board tab is an editor-family open file (`src/renderer/src/store/slices/editor/types/open-file.ts`) with `mode: 'board'` and a `boardId`. Its tab content type stays `editor`. Its `filePath` is the synthetic id `board::<id>`, and its label is the board's label.
 
@@ -32,6 +32,28 @@ Each step names its source (Instagram for the reel's insights, else the `reel_fu
 - Đêm qua đã chạy: each connector's Vault state and last pull time, from `getVaultBoard`, with the detail of a failed or partial pull. A partial pull reads "thiếu", never "chạy".
 - Workspace đang chạy: workspaces with an agent working, blocked or waiting, read in the renderer from the agent status store (`runningWorkspaces`), since the engine does not know panes.
 
+## Kênh tôi board
+
+`OwnBoard` in `src/renderer/src/components/board/OwnBoard.tsx` calls `getOwnBoard(7 | 30)` (`src/server/queries/own-board.ts`) and has the tabs of Instagram's own dashboard. The 7 ngày and 30 ngày buttons pick the window, which is the posts posted in it.
+
+- Every Instagram number is a reading from the post's newest successful `own_post_insights` capture, with that capture's time. A window total sums the posts that have the number, takes the oldest time, and shows "thiếu N bài" when some posts in the window lack it.
+- Tổng quan: views of the window's posts, followers from the newest `own_account_snapshots` row, and net followers against the newest snapshot at or before the window start (missing when there is none). Below, Sau Instagram: DM, Web and Đơn summed over the window's posts.
+- Hiệu suất: views, likes, comments, shares and saves; views per content type (`format`); profile visits, bio link taps and follows.
+- Nội dung: one row per post with views, likes, comments, shares and saves, then DM (ChatbotX), Web (Umami gift-page visits) and Đơn (Polar orders). Sorting is by date or by any column.
+- Khán giả: the follower split and the engaged audience by gender, age and country from `getAccountBreakdowns` (the newest batch per metric), with the stored refusal or failure when Instagram gave none. These are account numbers, not per window.
+
+DM, Web and Đơn come from the metric ledger through `getFunnel`: a post's keyword is the keyword of the plan whose `published_own_post_id` is that post, and its readings are that keyword's `dm`, `gift_page_visit` and `purchase`. A post no plan with a keyword was published as reads `no-keyword`, shown as "chưa nối", never 0. Reach has no window total: Instagram counts reach as unique accounts per post, so a sum would count one person once per post; reach shows per post only. A post whose newest pull failed after its last good one (`pullError`, from the newest failed `own_post_insights` row) keeps the older numbers and is marked on its Nội dung row and in the reel view. The views tile is the sum of the window's posts' own views, not Instagram's account views for the period, which no stored row holds.
+
+A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDetail.tsx`), which calls `getOwnReelBoard(ownPostId)`: Tổng quan (views, reach, average watch time, skip rate, follows, reach against the channel median, and the views of each capture as a line), Tương tác (likes, comments, shares, saves, reposts, bio link taps), and Sau reel. Sau reel is `funnelSteps` over the one funnel entry for the reel's keyword, the same six steps and ledger rates as Phễu, each with its source and time; a step with no connector reads "chưa nối". A reel with no keyword says so instead. Mở bài gốc opens the permalink in a workspace browser tab (`openPostInBrowser` in `src/renderer/src/components/board/open-post.ts`).
+
+## Đối thủ board
+
+`RivalsBoard` in `src/renderer/src/components/board/RivalsBoard.tsx` calls `getRivalsBoard` (`src/server/queries/rivals-board.ts`):
+
+- Kênh đang theo dõi: every tracked channel that is not the own one, from `getChannelsList`, with followers, median views, outliers of the last 30 days (score 2 or more), the last read as "Radar · time", and the sync error. Under each channel, its top 3 outliers from `getOutlierFeed`, each opening the original post.
+- Bằng chứng: the 12 newest `video_analyses` rows on rival posts, each a card with the channel, score, views, hook type, why it worked, tags, the analysis time, and a button that opens the original post. No stored field says whether an analysis is to take (Lấy về), learn from (Học) or avoid (Tránh), so the cards sit under one heading and the board says so.
+- Thêm đối thủ calls `addChannelAction(handle, { requireProfile: true })`: the sidecar must resolve the profile before a row is written, so a typo is refused with its reason and nothing is stored. On success the board reloads and the new channel shows with no numbers until a sync reads it.
+
 ## Vault board
 
 `VaultBoard` in `src/renderer/src/components/board/VaultBoard.tsx` calls `getVaultBoard` (`src/server/queries/vault-board.ts`). Each row is one connector from `listConnectors` with:
@@ -58,7 +80,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Load state
 
-`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Hôm nay and Phễu read one object, so their load wraps it in a one-row list: Phễu returns no row when no keyword has a number, and Hôm nay always has one. Its state is a union:
+`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Hôm nay, Phễu, Kênh tôi and Đối thủ read one object, so their load wraps it in a one-row list: Phễu returns no row when no keyword has a number, Kênh tôi none before the channel was ever measured, and Hôm nay and Đối thủ always have one (Đối thủ keeps its add form when nothing is tracked). Its state is a union:
 
 - `{ status: 'loading' }`: a spinner.
 - `{ status: 'ready', rows }`: the rows. Zero rows is the empty state, a quiet centered message.
@@ -69,14 +91,14 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- Hôm nay and Phễu are read-only. Every sum, rate and count they show is computed in `src/server/queries/`, never in the renderer.
+- Hôm nay, Phễu and Kênh tôi are read-only, and Đối thủ writes only through `addChannelAction`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
 - A board writes only through calls `ENGINE_CALLS` exposes. The Vault board writes secrets (`setConnectorSecret`) and runs pulls; the Agents board creates and revokes tokens.
 
 ## Invariants
 
 - A bridge result `{ ok: false, error }` becomes the error state with the bridge's message. A thrown invoke also becomes the error state. A board never shows stale rows as if they were current after a failed load.
 - Board tabs are virtual: `isVirtualEditorFile` is true for `mode: 'board'`. They have no path header, no file watcher, no git status and no path context-menu items, and `isMobilePublishableOpenFile` never sends them to a paired phone.
-- A funnel gap is never 0: a step with no source reads "chưa nối" and one with no number reads "chưa có số".
+- A funnel gap is never 0: a step with no source, or a post with no keyword, reads "chưa nối", and one with no number reads "chưa có số".
 - The Vault board never holds a stored secret. Its field is `type="password"`, cleared after each save, and every status comes from the secret's source.
 - A new MCP token lives only in the Agents board's component state until Xong; `listMcpTokens` never returns a token or its hash.
 - A board tab is not restored after a restart. Only `mode: 'edit'` files persist in the workspace session (`src/renderer/src/lib/workspace-session.ts`), as with markdown preview tabs.
@@ -84,4 +106,4 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Verify
 
-`.claude/skills/verify/features/boards.md` runs journeys `board-01`, `today-01`, `vault-01` and `agents-01`; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Phễu board. Cases are in `scripts/e2e/cases/boards.md`.
+`.claude/skills/verify/features/boards.md` runs journeys `today-01`, `own-01`, `rivals-01`, `vault-01` and `agents-01`; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Phễu board. Cases are in `scripts/e2e/cases/boards.md`.

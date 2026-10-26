@@ -7,12 +7,12 @@ import { openBoardTab } from './open-board-tab'
 
 describe('openBoardTab', () => {
   it('reuses one virtual tab when the same board opens twice', () => {
-    openBoardTab('channels', 'wt-1')
-    openBoardTab('channels', 'wt-1')
+    openBoardTab('rivals', 'wt-1')
+    openBoardTab('rivals', 'wt-1')
 
     const boards = useAppStore.getState().openFiles.filter((file) => file.mode === 'board')
     expect(boards).toHaveLength(1)
-    expect(boards[0]).toMatchObject({ boardId: 'channels', relativePath: 'Channels' })
+    expect(boards[0]).toMatchObject({ boardId: 'rivals', relativePath: 'Đối thủ' })
     expect(isVirtualEditorFile(boards[0]!)).toBe(true)
   })
 })

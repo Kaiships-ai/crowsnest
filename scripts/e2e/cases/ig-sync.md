@@ -25,7 +25,7 @@ The user or an agent, through `addChannelAction`.
 
 #### What it does
 
-The user types a handle (`@creator`, or bare `creator`), and confirms. The handle is normalized, and the sidecar is asked for the profile once; a resolvable handle writes a channel row with its display name, avatar, and follower count, and it appears on the channels board. Tracking a channel does not sync it: nothing runs until a sync is started separately, by the user or by the automatic pass where enabled.
+The user types a handle (`@creator`, or bare `creator`), and confirms. The handle is normalized, and the sidecar is asked for the profile once; a resolvable handle writes a channel row with its display name, avatar, and follower count, and it appears on the Đối thủ board. Tracking a channel does not sync it: nothing runs until a sync is started separately, by the user or by the automatic pass where enabled.
 
 #### How to access it
 

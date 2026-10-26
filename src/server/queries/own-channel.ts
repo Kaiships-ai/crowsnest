@@ -414,3 +414,26 @@ export interface AccountBreakdowns {
   audienceError: string | null;
 }
 
+export async function getAccountBreakdowns(): Promise<AccountBreakdowns> {
+  const [rows, errorRow, splitErrorRow] = await Promise.all([
+    db
+      .select()
+      .from(tables.ownAccountBreakdowns)
+      .where(sql`${tables.ownAccountBreakdowns.capturedAt} = (SELECT max(b.captured_at) FROM own_account_breakdowns b WHERE b.metric = ${tables.ownAccountBreakdowns.metric})`),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_AUDIENCE_FETCH_ERROR_KEY)).limit(1),
+    db.select().from(tables.appSettings).where(eq(tables.appSettings.key, OWN_FOLLOWER_SPLIT_FETCH_ERROR_KEY)).limit(1),
+  ]);
+  const newest = (metric: string) => rows.filter((r) => r.metric === metric);
+  const entries = (list: typeof rows) => list.map((r) => ({ key: r.key, value: r.value })).sort((a, b) => b.value - a.value);
+  const split = newest("views");
+  const audience = newest("engaged_audience_demographics");
+  const dim = (d: string) => entries(audience.filter((r) => r.dimension === d));
+  return {
+    followerSplit: entries(split),
+    followerSplitAt: split[0]?.capturedAt ?? null,
+    followerSplitError: splitErrorRow[0]?.value ?? null,
+    audience: { age: dim("age"), country: dim("country"), gender: dim("gender") },
+    audienceAt: audience[0]?.capturedAt ?? null,
+    audienceError: errorRow[0]?.value ?? null,
+  };
+}

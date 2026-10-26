@@ -5,7 +5,7 @@ One file per user-facing feature of the Lead Studio Electron app, driven with `a
 | Feature | Where | Journey | File |
 |---|---|---|---|
 | Lead Studio app shell: window, terminal, split, MCP, engine bridge, `cn-media:` | Electron app, `pnpm dev` | `app-drive.sh shell-01`, `bridge-01`, `media-01` | [app-shell.md](app-shell.md) |
-| Boards: board tab, Hôm nay, channels, Vault (connector state, Sửa secret entry) and Agents (journal, tokens) boards, load states, new-tab and app menu entries | Electron app, tab bar "+" menu | `app-drive.sh board-01`, `today-01`, `vault-01`, `agents-01` | [boards.md](boards.md) |
+| Boards: board tab, Hôm nay, Kênh tôi (with Sau reel), Đối thủ (with add channel), Vault (connector state, Sửa secret entry) and Agents (journal, tokens) boards, load states, new-tab and app menu entries | Electron app, tab bar "+" menu | `app-drive.sh own-01`, `rivals-01`, `today-01`, `vault-01`, `agents-01` | [boards.md](boards.md) |
 | Funnel and metric ledger: `crowsnest_funnel`, bridge `getFunnel`, `getMetricLedger` and `getFunnelBoard`, the Phễu board | App MCP, engine bridge, Electron app | `app-drive.sh funnel-01` | [funnel.md](funnel.md) |
 | Connectors and keychain secrets: bridge `listConnectors`, `testConnector`, boot migration | Engine bridge | `app-drive.sh connectors-01` | [connectors.md](connectors.md) |
 | Gate levels and agent journal: `TOOL_LEVELS`, `agent_actions`, bridge `listAgentActions` | App MCP and engine bridge | `app-drive.sh gates-01` | [gates.md](gates.md) |
