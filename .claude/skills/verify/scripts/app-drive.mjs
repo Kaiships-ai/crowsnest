@@ -74,19 +74,22 @@ async function runJourney(name, runId) {
       await page.screenshot({ path: out });
       log(`snap: ${path.relative(ROOT, out)}`);
     },
-    // Compares the shot with the approved baselines/<file>.png; APP_UPDATE_BASELINES=1 approves this run's shot.
+    // Compares the shot with the approved baselines/<file>.png; UPDATE_BASELINE=1 writes this run's shot as the baseline.
     // Pass `target` (a locator) to shoot one element, so tabs and clocks outside it never count as a change.
     async snapAndCompare(file, { target = page, threshold = 0.005 } = {}) {
       const out = path.join(dir, `${file}.png`);
       await target.screenshot({ path: out });
       log(`snap: ${path.relative(ROOT, out)}`);
       const baseline = path.join(BASELINES, `${file}.png`);
-      if (process.env.APP_UPDATE_BASELINES === "1") {
+      if (process.env.UPDATE_BASELINE === "1") {
         mkdirSync(BASELINES, { recursive: true });
         copyFileSync(out, baseline);
         return log(`diff: ${file} baseline approved`);
       }
-      if (!existsSync(baseline)) return log(`diff: ${file} no baseline; approve with APP_UPDATE_BASELINES=1`);
+      if (!existsSync(baseline)) {
+        log(`FAIL: diff: ${file} has no baseline; check the shot, then rerun with UPDATE_BASELINE=1 to write it`);
+        throw new Error(`no baseline for ${file}`);
+      }
       const { ratio, note } = diffImages(out, baseline, path.join(dir, `${file}.diff.png`));
       const line = `${file} ${(ratio * 100).toFixed(2)}% changed (threshold ${(threshold * 100).toFixed(2)}%)${note ? `, ${note}` : ""}`;
       if (ratio > threshold) {
