@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mcp.sh [--app] <tool | tools/list> [json-args] -- one JSON-RPC call against the MCP of the
-# Lead Studio app that app-up.sh launched (sends the app's `local` token from data/verify/app/mcp.token). --app is
+# Lead Studio app that app-up.sh launched. --app is
 # accepted and changes nothing. Prints the server's SSE reply.
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."

@@ -2,7 +2,7 @@ import { beforeAll, expect, test } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { eq } from "drizzle-orm";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import os from "node:os";
@@ -329,13 +329,13 @@ test("/api/mcp needs a live token, refuses before any tool runs, and journals th
     expect(journalRows()).toHaveLength(2);
     expect(tokens.revokeMcpToken(created.id)).toEqual({ revoked: false });
     expect(() => tokens.createMcpToken("auth-agent")).not.toThrow();
-    expect(() => tokens.createMcpToken("auth-agent")).toThrow(/UNIQUE/);
+    expect(() => tokens.createMcpToken("auth-agent")).toThrow("already named auth-agent");
   } finally {
     close();
   }
 });
 
-test("rotating the local token revokes the previous one", async () => {
+test("rotating the local token revokes the previous one and writes the new one to a 0600 file", async () => {
   const tokens = await import("@/server/services/mcp-tokens");
   const first = tokens.rotateLocalMcpToken();
   expect(tokens.authenticateMcpToken(`Bearer ${first}`)).toBe("local");
@@ -343,6 +343,13 @@ test("rotating the local token revokes the previous one", async () => {
   expect(tokens.authenticateMcpToken(`Bearer ${first}`)).toBeNull();
   expect(tokens.authenticateMcpToken(`Bearer ${second}`)).toBe("local");
   expect(tokens.listMcpTokens().filter((t) => t.name === "local" && t.revokedAt === null)).toHaveLength(1);
+
+  const file = path.join(mkdtempSync(path.join(os.tmpdir(), "crowsnest-token-")), "mcp.token");
+  writeFileSync(file, "stale", { mode: 0o644 });
+  tokens.writeLocalMcpTokenFile(file);
+  expect(statSync(file).mode & 0o777).toBe(0o600);
+  expect(tokens.authenticateMcpToken(`Bearer ${readFileSync(file, "utf8")}`)).toBe("local");
+  expect(tokens.authenticateMcpToken(`Bearer ${second}`)).toBeNull();
 });
 
 async function mcpHttp() {

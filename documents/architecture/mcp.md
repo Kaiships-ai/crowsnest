@@ -82,10 +82,10 @@ There is no MCP path to approve a gate 2 draft. Approval is a UI action that the
 
 Each agent calls with its own token. Logic lives in `src/server/services/mcp-tokens.ts`.
 
-- A token is `cn_` plus 32 random bytes in base64url. `createMcpToken(name)` returns it once; only its hash is stored. A name is 1 to 64 letters, digits, `.`, `_` or `-`, and a second live token with the same name is refused by the unique index.
+- A token is `cn_` plus 32 random bytes in base64url. `createMcpToken(name)` returns it once; only its hash is stored. A name is 1 to 64 letters, digits, `.`, `_` or `-`, and a second live token with the same name is refused (`already named`), backed by the unique index.
 - `authenticateMcpToken` takes the `Authorization` header, hashes the presented token, and compares it with every live hash using `timingSafeEqual`. A match stamps `last_used_at` and returns the token's name.
 - `revokeMcpToken(id)` sets `revoked_at`; the next request with that token gets 401. Revoked rows stay for the record.
-- The `local` token: only the hash is stored, so on every start the app revokes the live `local` token, mints a new one, and writes it to `<userData>/mcp.token` with mode 0600 before it writes `mcp.port` (`src/main/crowsnest/start.ts`). The quit hook removes both files. `server.ts` does the same with `mcp.token` next to the DB. `scripts/lead-studio-mcp.mjs` (the stdio bridge `.mcp.json` runs) reads `mcp.port` and `mcp.token` on every message, so a running Claude session follows a restart. Two app instances on one DB revoke each other's `local` token.
+- The `local` token: only the hash is stored, so on every start the app revokes the live `local` token, mints a new one, and writes it to `<userData>/mcp.token` with mode 0600 (`writeLocalMcpTokenFile`) before it writes `mcp.port` (`src/main/crowsnest/start.ts`). The quit hook removes both files. `server.ts` does the same with `mcp.token` next to the DB. `scripts/lead-studio-mcp.mjs` (the stdio bridge `.mcp.json` runs) reads `mcp.port` and `mcp.token` on every message, so a running Claude session follows a restart. Two app instances on one DB revoke each other's `local` token.
 - The renderer manages tokens through the engine bridge: `listMcpTokens` (no hash, no token), `createMcpToken(name)`, `revokeMcpToken(id)`. No board shows them yet.
 - The journal `caller` is the token's name. `gatedRegistrar` falls back to the MCP client name, then `User-Agent`, only when no agent name is given (the in-memory transport in tests).
 

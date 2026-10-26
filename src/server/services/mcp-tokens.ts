@@ -1,4 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { rmSync, writeFileSync } from "node:fs";
 import { and, eq, getTableColumns, isNull } from "drizzle-orm";
 import { z } from "zod";
 
@@ -21,9 +22,12 @@ export function listMcpTokens() {
   return db.select(columns).from(tables.mcpTokens).all();
 }
 
-/** The raw token is returned once here and never again. A live token already holding the name refuses (unique index). */
+const liveTokens = () => db.select().from(tables.mcpTokens).where(isNull(tables.mcpTokens.revokedAt)).all();
+
 export function createMcpToken(name: string): { id: string; name: string; token: string } {
-  return insertToken(TokenNameSchema.parse(name));
+  const valid = TokenNameSchema.parse(name);
+  if (liveTokens().some((t) => t.name === valid)) throw new Error(`a live MCP token is already named ${valid}; revoke it first`);
+  return insertToken(valid);
 }
 
 export function revokeMcpToken(id: string): { revoked: boolean } {
@@ -31,7 +35,6 @@ export function revokeMcpToken(id: string): { revoked: boolean } {
   return { revoked: res.changes > 0 };
 }
 
-/** Only the hash is stored, so each app start revokes the old `local` token and mints a fresh one for `<userData>/mcp.token`. */
 export function rotateLocalMcpToken(): string {
   return db.transaction(() => {
     db.update(tables.mcpTokens).set({ revokedAt: nowIso() }).where(and(eq(tables.mcpTokens.name, LOCAL_TOKEN_NAME), isNull(tables.mcpTokens.revokedAt))).run();
@@ -39,15 +42,23 @@ export function rotateLocalMcpToken(): string {
   });
 }
 
-/** The live token's name for an `Authorization: Bearer` header, or null. Compares every live hash in constant time. */
+export function writeLocalMcpTokenFile(file: string): void {
+  rmSync(file, { force: true });
+  writeFileSync(file, rotateLocalMcpToken(), { mode: 0o600 });
+}
+
+function findLiveTokenInConstantTime(presented: Buffer) {
+  let found: { id: string; name: string } | null = null;
+  for (const row of liveTokens()) {
+    if (timingSafeEqual(presented, Buffer.from(row.tokenHash, "hex"))) found = row;
+  }
+  return found;
+}
+
 export function authenticateMcpToken(authorization: string | undefined): string | null {
   const match = /^Bearer (\S+)$/.exec(authorization ?? "");
   if (!match) return null;
-  const presented = hashOf(match[1]);
-  let found: { id: string; name: string } | null = null;
-  for (const row of db.select().from(tables.mcpTokens).where(isNull(tables.mcpTokens.revokedAt)).all()) {
-    if (timingSafeEqual(presented, Buffer.from(row.tokenHash, "hex"))) found = row;
-  }
+  const found = findLiveTokenInConstantTime(hashOf(match[1]));
   if (found) db.update(tables.mcpTokens).set({ lastUsedAt: nowIso() }).where(eq(tables.mcpTokens.id, found.id)).run();
   return found?.name ?? null;
 }

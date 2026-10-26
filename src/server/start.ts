@@ -9,7 +9,7 @@ import { startSyncScheduler } from "./services/sync-scheduler";
 
 export { dispatchEngineCall } from "./bridge/engine-calls";
 export { handleMcpRequest } from "./mcp/http";
-export { rotateLocalMcpToken } from "./services/mcp-tokens";
+export { writeLocalMcpTokenFile } from "./services/mcp-tokens";
 export { GET as getMedia, HEAD as headMedia } from "./media/serve";
 
 const READ_JOBS = [startSyncScheduler, startOwnMeasureScheduler, startDailyPullScheduler];

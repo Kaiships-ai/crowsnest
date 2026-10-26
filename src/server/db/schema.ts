@@ -976,7 +976,6 @@ export const gateDrafts = sqliteTable("gate_drafts", {
   createdAt: text("created_at").notNull(),
 });
 
-/** One row per agent token. Only the SHA-256 of a token is stored; the raw token is shown once. */
 export const mcpTokens = sqliteTable(
   "mcp_tokens",
   {
