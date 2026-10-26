@@ -42,7 +42,7 @@ export default async function plan01({ page, step, snap }) {
   let target;
   await page.setViewportSize(SCREEN);
 
-  await step("open Kế hoạch from the new-tab menu: the month shows each seeded reel on its day with its state, flagged when it misses an item", async () => {
+  await step("open Plan from the new-tab menu: the month shows each seeded reel on its day with its state, flagged when it misses an item", async () => {
     await openFromNewTabMenu(page);
     const cell = board.locator(`[data-testid="plan-month-day"][data-date="${date}"]`);
     await cell.getByTestId("plan-chip").first().waitFor({ timeout: 10_000 });
@@ -99,14 +99,14 @@ export default async function plan01({ page, step, snap }) {
     console.log(`day ${await board.getByTestId("plan-day-view").getAttribute("data-date")}: ${await detail.getByTestId("plan-missing").innerText()}`);
   });
 
-  await step("a card opens in full: every item, chưa có for key, quà, offer, and the reference reel opens in a browser tab", async () => {
+  await step("a card opens in full: every item, not yet for key, gift, offer, and the reference reel opens in a browser tab", async () => {
     await board.getByTestId("plan-view-week").click();
     await board.locator(`[data-testid="plan-card"][data-plan-id="plan-e2e-full"]`).click();
     const detail = board.locator('[data-testid="plan-detail"][data-plan-id="plan-e2e-full"]');
     await detail.waitFor();
     const fields = await detail.getByTestId("plan-field").evaluateAll((els) => els.map((e) => `${e.dataset.item}:${e.dataset.missing === "true" ? e.lastElementChild.textContent : "ok"}`));
     console.log(`fields: ${fields.join(" ")}`);
-    if (fields.join() !== "script:ok,caption:ok,reference:ok,time:ok,key:chưa có,gift:chưa có,offer:chưa có") throw new Error("fields differ");
+    if (fields.join() !== "script:ok,caption:ok,reference:ok,time:ok,key:not yet,gift:not yet,offer:not yet") throw new Error("fields differ");
     const open = detail.getByTestId("plan-reference-open");
     const url = await open.getAttribute("data-url");
     if (url !== sql("select url from videos where id = 'e2e-rival-video-0'")) throw new Error(`reference ${url}`);

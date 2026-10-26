@@ -61,7 +61,7 @@ export default async function funnel01({ page, step, snap }) {
   await snap("funnel-01");
 
   const board = page.getByTestId("board-tab");
-  await step("open Phễu from the new-tab menu and see the six steps, each with its source", async () => {
+  await step("open Funnel from the new-tab menu and see the six steps under one source tag", async () => {
     await page.getByRole("button", { name: "New tab" }).first().click();
     await page.locator('[data-testid="new-tab-board"][data-board-id="funnel"]').click();
     await page.getByRole("menu").waitFor({ state: "detached" });
@@ -70,19 +70,20 @@ export default async function funnel01({ page, step, snap }) {
     console.log(`steps: ${steps.join(" ")}`);
     const ids = steps.map((s) => s.split(":")[0]);
     if (ids.join(",") !== "view,comment_keyword,dm,gift_page_visit,checkout,purchase") throw new Error(ids.join(","));
-    for (const row of await board.getByTestId("funnel-step").all()) {
-      if ((await row.getByTestId("source-label").count()) !== 1) throw new Error(`no source on ${await row.getAttribute("data-step-id")}`);
-    }
+    const tag = await board.getByTestId("source-tag").first().innerText();
+    console.log(`steps source: ${tag}`);
+    if (!tag.includes("Instagram") || !tag.includes("ChatbotX")) throw new Error(`source tag ${tag}`);
     const board2 = await call(page, "getFunnelBoard");
-    const dm = await board.locator('[data-testid="funnel-step"][data-step-id="dm"] [data-testid="reading-value"]').innerText();
+    const dm = await board.locator('[data-testid="funnel-step"][data-step-id="dm"] [data-num]').innerText();
     const want = new Intl.NumberFormat().format(board2.value.steps.find((s) => s.id === "dm").total.value);
     if (dm !== want) throw new Error(`dm ${dm}, bridge ${want}`);
     if ((await board.locator('[data-testid="funnel-keyword-row"][data-keyword="LEDGER01"]').count()) !== 1) throw new Error("no LEDGER01 row");
   });
-  await step("a step with no source shows chưa nối and a Vault link, never 0", async () => {
+  await step("a step with no source shows Polar not connected with a Sources link, never 0", async () => {
     const checkout = board.locator('[data-testid="funnel-step"][data-step-id="checkout"]');
     if ((await checkout.getAttribute("data-status")) !== "not-connected") throw new Error(await checkout.innerText());
-    if ((await checkout.getByTestId("reading-value").count()) !== 0) throw new Error("checkout shows a number");
+    if ((await checkout.locator("[data-num]").count()) !== 0) throw new Error("checkout shows a number");
+    if ((await checkout.getByTestId("kpi-value").getAttribute("data-state")) !== "not-connected") throw new Error("checkout state");
     console.log(`checkout: ${(await checkout.innerText()).replace(/\s+/g, " ")}`);
     const coverage = await board.getByTestId("funnel-coverage-visits").innerText();
     console.log(`coverage: ${coverage.replace(/\s+/g, " ")}`);
@@ -92,8 +93,9 @@ export default async function funnel01({ page, step, snap }) {
   await setThemeWithoutTransition(page, "light");
   await snap("funnel-01-board-light");
   await setThemeWithoutTransition(page, "dark");
-  await step("the Vault link opens the Vault board", async () => {
-    await board.locator('[data-testid="funnel-step"][data-step-id="checkout"]').getByTestId("open-vault").click();
-    await page.locator('[data-testid="board-tab"][data-board-id="vault"]').waitFor({ timeout: 10_000 });
+  await step("the not connected badge opens Settings > Sources", async () => {
+    await board.locator('[data-testid="funnel-step"][data-step-id="checkout"]').getByTestId("open-sources").click();
+    await page.getByTestId("lead-sources").waitFor({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Back to app" }).click();
   });
 }

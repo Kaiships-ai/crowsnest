@@ -297,13 +297,19 @@ function SourceCard({
               </Button>
             ) : null}
             {check?.ok ? (
-              <span className="flex items-center gap-1 text-xs text-status-success">
+              <span
+                data-testid="source-check"
+                className="flex items-center gap-1 text-xs text-status-success"
+              >
                 <CheckCircle2 className="size-3.5" />
                 {translate('leadStudio.sources.verified', 'Verified')}
               </span>
             ) : null}
             {check && !check.ok ? (
-              <span className="flex min-w-0 items-center gap-1 text-xs text-destructive">
+              <span
+                data-testid="source-check"
+                className="flex min-w-0 items-center gap-1 text-xs text-destructive"
+              >
                 <AlertCircle className="size-3.5 shrink-0" />
                 <span className="truncate">
                   {check.message ?? translate('leadStudio.sources.checkFailed', 'Check failed')}

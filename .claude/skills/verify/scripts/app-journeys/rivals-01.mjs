@@ -28,7 +28,7 @@ export default async function rivals01({ page, step, snap }) {
   const row = (handle) => board.locator(`[data-testid="rivals-channel-row"][data-handle="${handle}"]`);
   await page.setViewportSize(SCREEN);
 
-  await step("open Đối thủ from the new-tab menu: the rival shows with its source, the own channel does not", async () => {
+  await step("open Rivals from the new-tab menu: the rival shows with its source, the own channel does not", async () => {
     await openFromNewTabMenu(page);
     await row(RIVAL).waitFor({ timeout: 10_000 });
     const handles = await board.getByTestId("rivals-channel-row").evaluateAll((rows) => rows.map((r) => r.dataset.handle));
@@ -54,7 +54,7 @@ export default async function rivals01({ page, step, snap }) {
     await page.waitForFunction((want) => JSON.stringify(window.__store.getState().browserTabsByWorktree).includes(want), url, { timeout: 10_000 });
     console.log(`browser tab: ${url}`);
   });
-  await step("opening Đối thủ again comes back to the same board tab", async () => {
+  await step("opening Rivals again comes back to the same board tab", async () => {
     await openFromNewTabMenu(page);
     await row(RIVAL).waitFor({ timeout: 10_000 });
     if ((await page.getByTestId("board-tab").count()) !== 1) throw new Error("a second board view");
@@ -76,7 +76,7 @@ export default async function rivals01({ page, step, snap }) {
     if (sql("select count(*) from channels") !== before) throw new Error("a channel was written");
   });
 
-  await step("Thêm đối thủ adds a channel after the profile check, and the new row shows", async () => {
+  await step("Add rival adds a channel after the profile check, and the new row shows", async () => {
     const handle = `@e2e_new_rival_${Date.now()}`;
     await board.getByTestId("rivals-add-input").fill(handle);
     await board.getByTestId("rivals-add-submit").click();
