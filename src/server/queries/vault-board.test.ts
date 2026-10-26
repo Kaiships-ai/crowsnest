@@ -52,7 +52,7 @@ describe("getVaultBoard", () => {
       partial: "partial",
       broken: "error",
     });
-    expect(rows.find((r) => r.id === "needs-key")?.missing).toEqual(["API key"]);
+    expect(rows.find((r) => r.id === "needs-key")?.missingSecretLabels).toEqual(["API key"]);
     expect(rows.find((r) => r.id === "broken")?.lastPull).toMatchObject({ outcome: "failed", detail: "sidecar down" });
     expect(rows.find((r) => r.id === "partial")?.lastPull?.detail).toBe("missing page 2: rate limited");
   });

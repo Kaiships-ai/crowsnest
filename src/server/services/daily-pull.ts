@@ -99,10 +99,8 @@ export interface LastPull {
   detail: string | null;
 }
 
-// ponytail: in memory, so a restart forgets manual pulls and the board falls back to the slot rows; a table if that matters.
 const manualPulls = new Map<string, LastPull>();
 
-/** The newest finished pull of each connector: its latest slot row, or a newer pull-again. */
 export function lastPulls(): Map<string, LastPull> {
   const { dailyPulls: t } = tables;
   const rows = db.select().from(t).where(sql`${t.finishedAt} is not null`).orderBy(t.finishedAt).all();

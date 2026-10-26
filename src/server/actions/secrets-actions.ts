@@ -32,7 +32,6 @@ export async function setSecretAction(name: string, value: string): Promise<Simp
   }
 }
 
-/** Write-only: the result never carries the value, so the bridge can expose it. */
 export async function setConnectorSecret(connectorId: string, field: string, value: string): Promise<SimpleResult> {
   const manifest = CONNECTORS.find((c) => c.manifest.id === connectorId)?.manifest;
   if (!manifest) return { ok: false, error: `no connector ${connectorId}` };

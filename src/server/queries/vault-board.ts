@@ -11,13 +11,11 @@ export interface VaultRow {
   id: string;
   label: string;
   state: VaultState;
-  /** Labels of required secrets with no value anywhere. */
-  missing: string[];
+  missingSecretLabels: string[];
   secrets: ConnectorView["secrets"];
   canPull: boolean;
   lastPull: LastPull | null;
   nextPullAt: string;
-  /** Graph calls left in the rolling hour; only the Graph connector spends them. */
   graphCallsLeft: number | null;
 }
 
@@ -47,7 +45,7 @@ export function getVaultBoard(now: Date = clockNow(), registry: Connector[] = CO
       id: view.id,
       label: view.label,
       state: stateOf(view, canPull, lastPull, now),
-      missing: view.secrets.filter((s) => !s.optional && s.source === "none").map((s) => s.label),
+      missingSecretLabels: view.secrets.filter((s) => !s.optional && s.source === "none").map((s) => s.label),
       secrets: view.secrets,
       canPull,
       lastPull,

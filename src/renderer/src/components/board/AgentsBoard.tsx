@@ -18,7 +18,6 @@ const ALL_CALLERS = '*'
 const loadTokens = () => window.api.crowsnest.call('listMcpTokens')
 const loadJournal = () => window.api.crowsnest.call('listAgentActions', JOURNAL_LIMIT)
 
-/** Live tokens first, each group newest first. */
 export function sortTokens(tokens: Token[]): Token[] {
   return [...tokens].sort(
     (a, b) =>

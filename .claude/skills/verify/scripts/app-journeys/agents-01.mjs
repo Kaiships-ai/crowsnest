@@ -4,15 +4,14 @@ import path from "node:path";
 
 const port = readFileSync(path.join(import.meta.dirname, "../../../../../data/verify/app/mcp.port"), "utf8").trim();
 const MCP_SH = path.join(import.meta.dirname, "../mcp.sh");
-// A free tool, so the call lands in the journal (reads are not journaled).
-const TOOL = "crowsnest_save_funnel";
+const JOURNALED_TOOL = "crowsnest_save_funnel";
 const toolArgs = () => ({ agent: "agents-01", rows: [{ keyword: "AGENTS01", source: "chatbotx", metric: "dms", value: 1, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
 
 async function mcpStatus(token) {
   const res = await fetch(`http://localhost:${port}/api/mcp`, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${token}` },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: TOOL, arguments: toolArgs() } }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: JOURNALED_TOOL, arguments: toolArgs() } }),
   });
   await res.text();
   return res.status;
@@ -24,7 +23,7 @@ export default async function agents01({ page, step, snap }) {
   const tokenRow = board.locator(`[data-testid="agents-token-row"][data-token-name="${name}"]`);
 
   await step("one MCP call with the local token shows in the journal with caller local", async () => {
-    const reply = execFileSync("bash", [MCP_SH, "--app", TOOL, JSON.stringify(toolArgs())], { encoding: "utf8" });
+    const reply = execFileSync("bash", [MCP_SH, "--app", JOURNALED_TOOL, JSON.stringify(toolArgs())], { encoding: "utf8" });
     if (!reply.includes('"result"')) throw new Error(reply.slice(0, 200));
     await page.getByRole("button", { name: "New tab" }).first().click();
     await page.locator('[data-testid="new-tab-board"][data-board-id="agents"]').click();
@@ -32,7 +31,7 @@ export default async function agents01({ page, step, snap }) {
     await first.waitFor({ timeout: 10_000 });
     const top = await first.evaluate((r) => `${r.dataset.caller} ${r.dataset.tool}`);
     console.log(`newest journal row: ${top}`);
-    if (top !== `local ${TOOL}`) throw new Error(top);
+    if (top !== `local ${JOURNALED_TOOL}`) throw new Error(top);
   });
   await snap("agents-01-dark");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));

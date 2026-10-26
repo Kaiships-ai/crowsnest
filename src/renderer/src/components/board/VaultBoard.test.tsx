@@ -11,7 +11,7 @@ function row(overrides: Record<string, unknown>) {
     id: 'umami',
     label: 'Umami',
     state: 'not-connected',
-    missing: ['API key'],
+    missingSecretLabels: ['API key'],
     secrets: [{ name: 'UMAMI_API_KEY', label: 'API key', optional: false, source: 'none' }],
     canPull: false,
     lastPull: null,
@@ -40,7 +40,7 @@ describe('VaultBoard', () => {
             id: 'instagram-graph',
             label: 'Instagram Graph API',
             state: 'error',
-            missing: [],
+            missingSecretLabels: [],
             canPull: true,
             lastPull: {
               slot: '2026-10-26',

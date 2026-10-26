@@ -23,15 +23,14 @@ const STATE_LABELS: Record<VaultRow['state'], () => string> = {
   partial: () => translate('boards.vault.state.partial', 'partial')
 }
 
-/** The last problem in plain words and how to fix it, or null when the source is fine. */
 export function vaultProblem(row: VaultRow): { what: string; fix: string } | null {
-  const missing = row.missing.join(', ')
+  const missing = row.missingSecretLabels.join(', ')
   const detail = row.lastPull?.detail ?? ''
   switch (row.state) {
     case 'running':
       return null
     case 'not-connected':
-      return row.missing.length > 0
+      return row.missingSecretLabels.length > 0
         ? {
             what: translate('boards.vault.problem.missing', 'Thiếu {{missing}}.', { missing }),
             fix: translate('boards.vault.fix.missing', 'Bấm Sửa và nhập {{missing}}.', { missing })
