@@ -3,6 +3,7 @@ export const LEAD_STUDIO_BOARDS = [
   { id: 'funnel', label: 'Phễu' },
   { id: 'own', label: 'Kênh tôi' },
   { id: 'rivals', label: 'Đối thủ' },
+  { id: 'plan', label: 'Kế hoạch' },
   { id: 'vault', label: 'Vault' },
   { id: 'agents', label: 'Agents' }
 ] as const

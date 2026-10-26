@@ -79,6 +79,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getOwnBoard: [7],
   getOwnReelBoard: ["op-1"],
   getRivalsBoard: [],
+  getPlanBoard: [new Date().toISOString().slice(0, 7)],
   getPlannedPosts: [],
   getPlannedPostById: ["p-1"],
   getCalendarMonth: [new Date().toISOString().slice(0, 7)],
