@@ -507,6 +507,8 @@ export const plannedPosts = sqliteTable("planned_posts", {
   planReelKey: text("plan_reel_key"),
   /** The reel fields the last plan sync wrote. A draft whose fields still equal this, with nothing attached, is pristine and approve/undo may change or delete it. */
   planSynced: text("plan_synced", { mode: "json" }),
+  /** The Lead Studio folder workspace Cook opened for this reel, null until Cook. */
+  cookWorkspaceId: text("cook_workspace_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [

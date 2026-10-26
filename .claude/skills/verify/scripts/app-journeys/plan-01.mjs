@@ -25,13 +25,22 @@ async function snapBoth(page, snap, name) {
   await setThemeWithoutTransition(page, "dark");
 }
 
+// Baseline shots, light then dark, with the mouse parked off the board.
+async function compareBoth(page, snapAndCompare, name, locator) {
+  await page.mouse.move(SCREEN.width - 5, SCREEN.height - 5);
+  for (const theme of ["light", "dark"]) {
+    await setThemeWithoutTransition(page, theme);
+    await snapAndCompare(`${name}-${theme}`, locator);
+  }
+}
+
 async function openFromNewTabMenu(page) {
   await page.getByRole("button", { name: "New tab" }).first().click();
   await page.locator('[data-testid="new-tab-board"][data-board-id="plan"]').click();
   await page.getByRole("menu").waitFor({ state: "detached" });
 }
 
-export default async function plan01({ page, step, snap }) {
+export default async function plan01({ page, step, snap, snapAndCompare }) {
   const board = page.getByTestId("board-tab");
   const date = sql("select planned_date from planned_posts where id = 'plan-e2e-draft'");
   const weekStart = (() => {
@@ -65,7 +74,7 @@ export default async function plan01({ page, step, snap }) {
     if (!times.includes("plan-e2e-full=09:00") || !times.includes("plan-e2e-armed=19:30")) throw new Error("post times missing");
     target = columns.find((d) => d >= today && d !== date);
   });
-  await snapBoth(page, snap, "plan-01-week");
+  await compareBoth(page, snapAndCompare, "B3-06-plan-week");
 
   await step("a reel scheduled with Instagram cannot be dragged and says why; its day stays", async () => {
     const armed = board.locator('[data-testid="plan-card"][data-plan-id="plan-e2e-armed"]');
@@ -74,7 +83,9 @@ export default async function plan01({ page, step, snap }) {
     const message = board.getByTestId("plan-message");
     await message.waitFor();
     console.log(`refused: ${await message.innerText()}`);
-    if ((await message.getAttribute("data-status")) !== "error" || !/Instagram/.test(await message.innerText())) throw new Error("no refusal");
+    if ((await message.getAttribute("data-status")) !== "error" || (await message.innerText()) !== "Scheduled on Instagram. Unschedule it before you move its day.") throw new Error("no English refusal");
+    const vietnamese = (await board.innerText()).match(/[ăâđêôơưàáảãạèéẻẽẹìíỉĩịòóỏõọùúủũụỳýỷỹỵ]/i);
+    if (vietnamese) throw new Error(`Vietnamese on the board: ${vietnamese[0]}`);
     const stored = sql("select planned_date || ' ' || scheduled_at from planned_posts where id = 'plan-e2e-armed'");
     console.log(`db: ${stored}`);
     if (!stored.startsWith(`${date} `)) throw new Error("armed reel moved");
@@ -98,7 +109,9 @@ export default async function plan01({ page, step, snap }) {
     await chip.click();
     const detail = board.locator('[data-testid="plan-day-view"] [data-testid="plan-detail"][data-plan-id="plan-e2e-draft"]');
     await detail.waitFor();
-    console.log(`day ${await board.getByTestId("plan-day-view").getAttribute("data-date")}: ${await detail.getByTestId("plan-missing").innerText()}`);
+    const pills = await detail.getByTestId("plan-missing").getByTestId("state-pill").evaluateAll((els) => els.map((e) => `${e.dataset.state}=${e.textContent}`));
+    console.log(`day ${await board.getByTestId("plan-day-view").getAttribute("data-date")}: ${pills.join(" ")}`);
+    if (pills.join() !== "missing-script=Script,missing-caption=Caption,missing-reference=Reference reel,missing-time=Post time,missing-key=Key,missing-gift=Gift,missing-offer=Offer") throw new Error("missing pills differ");
   });
 
   await step("a card opens in full: every item, not yet for key, gift, offer, and the reference reel opens in a browser tab", async () => {
@@ -120,13 +133,14 @@ export default async function plan01({ page, step, snap }) {
   await board.getByTestId("plan-view-week").click();
   await board.locator('[data-testid="plan-card"][data-plan-id="plan-e2e-full"]').click();
   await board.locator('[data-testid="plan-detail"][data-plan-id="plan-e2e-full"]').waitFor();
-  await snapBoth(page, snap, "plan-01-day");
+  await compareBoth(page, snapAndCompare, "B3-07-plan-day");
+  await compareBoth(page, snapAndCompare, "B3-08-plan-card", board.locator('[data-testid="plan-detail"][data-plan-id="plan-e2e-full"]'));
 
   await step("an empty day takes a reel added by hand, written as a dated plan", async () => {
     await board.getByTestId("plan-view-week").click();
     const add = board.getByTestId("plan-add").first();
     const day = await add.getAttribute("data-date");
-    const title = `PLAN01 thêm tay ${Date.now()}`;
+    const title = `PLAN01 added by hand ${Date.now()}`;
     await add.click();
     await board.getByTestId("plan-add-title").fill(title);
     await board.getByTestId("plan-add-time").fill("08:15");

@@ -59,7 +59,7 @@ test("a draft moves to another day; a reel scheduled with Instagram is refused w
     plan("armed", { plannedDate: day(3), plannedTime: "19:30", scheduledAt: new Date(Date.now() + 3 * 86_400_000).toISOString(), idempotencyKey: "armed:x" }),
   ]);
   expect(await movePlanCardAction("draft", day(5))).toMatchObject({ ok: true, prior: { plannedDate: day(2) } });
-  expect(await movePlanCardAction("armed", day(5))).toEqual({ ok: false, error: "Đã hẹn đăng lên Instagram. Huỷ hẹn trước rồi mới dời ngày.", code: "PLAN_LOCKED" });
+  expect(await movePlanCardAction("armed", day(5))).toEqual({ ok: false, error: "Scheduled on Instagram. Unschedule it before you move its day.", code: "PLAN_LOCKED" });
   const rows = await db.select({ id: tables.plannedPosts.id, date: tables.plannedPosts.plannedDate }).from(tables.plannedPosts).orderBy(tables.plannedPosts.id);
   expect(rows).toEqual([
     { id: "armed", date: day(3) },

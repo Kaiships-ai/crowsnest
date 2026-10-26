@@ -34,7 +34,7 @@ echo "baseline: clock stopped at $LEAD_STUDIO_CLOCK_START, read jobs off, shots 
 "$S/app-up.sh" --seed
 RUN="baseline-$(date +%Y%m%d-%H%M%S)"
 rc=0
-for journey in baseline-v2 today-01 funnel-01 own-01 plan-01 rivals-01 agents-01 sources-01 umami-01; do
+for journey in baseline-v2 today-01 funnel-01 own-01 plan-01 cook-01 rivals-01 agents-01 sources-01 umami-01; do
   "$S/app-drive.sh" "$journey" "$RUN" || rc=1
 done
 if [ "${1:-}" = --compare ]; then

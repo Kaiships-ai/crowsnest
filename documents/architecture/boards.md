@@ -69,12 +69,22 @@ A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDeta
 `PlanBoard` in `src/renderer/src/components/board/PlanBoard.tsx` calls `getPlanBoard(month)` (`src/server/queries/plan-board.ts`) once per month and draws three views from that one result, so a change shows in all of them after the reload that follows it.
 
 - `getPlanBoard` returns the whole Monday-to-Sunday weeks covering the month (`gridDays`, each with `inMonth`), the server's local `today`, and every dated `planned_posts` row in that range as a card. Undated drafts are not on the board.
-- Card state: `publishing`, `published` and `failed` as stored; `scheduled` when `scheduledAt` is set (armed with Instagram); `draft` for a stored draft; otherwise `plan`, or `missed` once its date has passed.
+- Card state: `publishing`, `published` and `failed` as stored; `scheduled` when `scheduledAt` is set (armed with Instagram); `cooking` when Cook opened a workspace for it (`cook_workspace_id`); `draft` for a stored draft; otherwise `plan`, or `missed` once its date has passed.
 - A card carries its title, post time (`plannedTime`), script (title and text), caption, reference reel (`sourceVideoId` joined to the video's URL and channel handle) and `missing`: script, caption, reference and time when absent, plus key, gift and offer on every card, because no column stores them yet.
 - `lockReason` says why a card cannot change day; it is set for `scheduled`, `publishing`, `published` and `failed`.
 - Month: one cell per day with a chip per reel (state dot, one-line title, flag when `missing` is not empty); hovering a chip shows its full title and state in a tooltip. A week label opens that week; a chip opens its day. Week: seven columns of cards with state, post time and flag. Day: each reel in full, one row per item with "not yet" for a missing one, and the missing items listed. The reference reel opens in a browser tab (`openPostInBrowser`).
 - Drag in Week calls `movePlanCardAction(id, date)` (`src/server/actions/plan-board-actions.ts`). It refuses a card with a `lockReason` and otherwise calls `movePlannedPostAction`, so the board never moves a reel armed with Instagram. A locked card refuses the drag at its start and shows the reason. A day before today is refused by `movePlannedPostAction`.
 - An empty day from today on has Add reel: a title and an optional time, written by `createPlannedPostAction` as a dated plan.
+- Day shows each missing item as an attention `StatePill` from the board kit. Lock reasons and move errors come from the server in English.
+
+### Cook
+
+A Day card in `draft`, `plan` or `missed` with a script has Cook (B5-01). `cookReel` in `src/renderer/src/components/board/cook-reel.ts`:
+
+1. `cookPlanCardAction(id)` (`src/server/actions/cook-actions.ts`) writes the script to `workspace/scripts/<slug>.md` in studio-reel, in the format studio-reel's workspace README gives (front matter with slug, target seconds and CTA keyword, the title, `## Script`). The slug is the title plus the last six characters of the id, in ASCII lower case with dashes, so two reels never share a file. It refuses a reel already cooking (`COOK_ALREADY`), one not in `draft`, `plan` or `missed` (`COOK_LOCKED`), one with no script, and a missing studio-reel (`COOK_NO_STUDIO`). studio-reel is `LEAD_STUDIO_COOK_ROOT`, by default `~/Desktop/kaiships/studio-reel`; under a verify lane (`ORCA_E2E_USER_DATA_DIR` set) there is no default, so a lane never writes into the real checkout.
+2. It finds or creates the project group "Studio Reel" and reuses the folder workspace named `Reel: <title>` on studio-reel's folder, or creates it.
+3. Only then `markPlanCookingAction(id, workspaceId)` stores the workspace on `planned_posts.cook_workspace_id`, and only while it is empty, so a second window or a stale board cannot cook the same reel twice. The card reads Cooking and its Open workspace button activates that workspace.
+4. It activates the workspace and calls Orca's `launchAgentInNewTab` with Claude, `initialCwd` studio-reel and the prompt `/make-reel workspace/scripts/<slug>.md` with `promptDelivery: 'submit-after-ready'`, so the prompt is typed once Claude's TUI is ready. If the launch fails, or the prompt is never delivered, `clearPlanCookingAction` rolls Cooking back and the card offers Retry cook. Lead Studio shows no progress of its own; the terminal is the progress.
 
 ## Gate 1 board
 
@@ -114,7 +124,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction` and `createPlannedPostAction`, and Gate 1 only through `approvePlanChanges` and `undoPlanApproval`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
+- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction`, `createPlannedPostAction`, `cookPlanCardAction`, `markPlanCookingAction` and `clearPlanCookingAction`, and Gate 1 only through `approvePlanChanges` and `undoPlanApproval`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
 - A board writes only through calls `ENGINE_CALLS` exposes. The Agents board creates and revokes tokens.
 
 ## Invariants
@@ -131,4 +141,4 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Verify
 
-`.claude/skills/verify/features/boards.md` runs journeys `today-01`, `own-01`, `rivals-01`, `plan-01` and `agents-01`, and `.claude/skills/verify/features/baseline.md` runs `baseline-v2`, which shoots every v2 screen; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Funnel board. Cases are in `scripts/e2e/cases/boards.md`.
+`.claude/skills/verify/features/boards.md` runs journeys `today-01`, `own-01`, `rivals-01`, `plan-01`, `cook-01` and `agents-01`, and `.claude/skills/verify/features/baseline.md` runs `baseline-v2`, which shoots every v2 screen; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Funnel board. Cases are in `scripts/e2e/cases/boards.md`.
