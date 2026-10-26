@@ -45,7 +45,7 @@ Release infrastructure (outside the repo): a Cloudflare Worker gate (`crowsnest-
 
 `packaging/README.md` covers the bundle layout, the gate, one-time Cloudflare setup, and `release.sh`. These facts are not there.
 
-- Cutting a release: `scripts/release-prep.sh <version>` bumps the version, writes the CHANGELOG section, runs the test gate, commits, and tags, then stops. A human reviews and pushes `git push origin main v<version>`.
+- Cutting a release: `scripts/release-prep.sh <version>` first refuses unless the CI run for HEAD finished green (`gh run list --commit`), then bumps the version, writes the CHANGELOG section, commits, and tags, and stops. A human reviews and pushes `git push origin main v<version>`.
 - No CI workflow builds or uploads a release; `ci.yml` is the only workflow. Native modules and the arm64 wheelhouse must build on arm64.
 - `packaging/rollback.sh <version>` re-points `install.sh` and `latest.json` at an already uploaded version without rebuilding.
 - Worker secret: `TOKEN_SECRET`, set with `wrangler secret put TOKEN_SECRET`.

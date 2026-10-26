@@ -21,7 +21,7 @@ Click a row in the sidebar (Today, Funnel, My channel, Rivals, Plan, Agents), or
 ## Driving it
 
 ```bash
-.claude/skills/verify/scripts/boards-lane.sh                # fake sidecar + app-up.sh --seed
+APP_DEV=1 .claude/skills/verify/scripts/boards-lane.sh      # fake sidecar and Umami + app-up.sh --seed
 .claude/skills/verify/scripts/app-drive.sh own-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh rivals-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh plan-01 [run-id]

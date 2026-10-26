@@ -25,6 +25,8 @@ Settings > Sources shows each connector's last pull, the next 05:00 pull and a P
 
 ## Gotchas
 
+- Umami has credentials fields, so with none saved it skips as `needs-setup`; ChatbotX and Polar skip as `not-connected`. `schedule-01` checks each reason.
+
 - The restart-mid-hour budget proof is vitest (`client.test.ts`), not the lane: it boots the client twice on one file DB.
 - The sidecar is down in the lane, so `ig-sidecar` reads `failed (Instagram service is unreachable)`; that is the expected report, not a lane failure.
 - The own-measure scheduler also writes a snapshot on boot with the real time; the journey reads only snapshots between 05:00 and 06:00 on the app clock.

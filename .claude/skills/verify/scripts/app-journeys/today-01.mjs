@@ -2,6 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
+export const dod = ["B2-02"];
+
 const call = (page, name, ...args) => page.evaluate(([name, args]) => window.api.crowsnest.call(name, ...args), [name, args]);
 const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
@@ -24,7 +27,7 @@ async function setThemeWithoutTransition(page, theme) {
 
 const SCREEN = { width: 1440, height: 875 };
 
-export default async function today01({ page, step, snap }) {
+export default async function today01({ page, step, snapAndCompare }) {
   const board = page.getByTestId("board-tab");
 
   await step("the viewport is a 1440x900 screen less the menu bar", async () => {
@@ -103,8 +106,8 @@ export default async function today01({ page, step, snap }) {
     if (overflow.length || clipped.length) throw new Error("the board scrolls or clips");
   });
   await setThemeWithoutTransition(page, "dark");
-  await snap("today-01-dark");
+  await snapAndCompare("today-01-dark", board);
   await setThemeWithoutTransition(page, "light");
-  await snap("today-01-light");
+  await snapAndCompare("today-01-light", board);
   await setThemeWithoutTransition(page, "dark");
 }

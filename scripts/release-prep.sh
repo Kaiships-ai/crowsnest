@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prep a crowsnest release: bump the version, write the CHANGELOG section, run
-# the test gate, commit, and tag. Does NOT push -- it prints the push command
+# Prep a crowsnest release: check CI is green for HEAD, bump the version, write
+# the CHANGELOG section, commit, and tag. Does NOT push -- it prints the push command
 # and stops, so a human reviews the commit before it goes anywhere.
 #
 #   scripts/release-prep.sh <version>
@@ -43,6 +43,18 @@ BRANCH="$(git rev-parse --abbrev-ref HEAD)"
 [ -z "$(git status --porcelain)" ] || die "working tree is dirty. Commit or stash first."
 
 command -v npm >/dev/null || die "npm is required"
+
+# Test gate: tests run in CI, never on this Mac (scripts/heavy.sh refuses them off CI). Release
+# only a HEAD whose CI run on GitHub finished green.
+command -v gh >/dev/null || die "gh is required to check CI for HEAD"
+HEAD_SHA="$(git rev-parse HEAD)"
+CI_STATE="$(gh run list --commit "$HEAD_SHA" --workflow ci.yml --limit 1 --json status,conclusion,url \
+  -q '.[0] // empty | "\(.status) \(.conclusion) \(.url)"' 2>/dev/null || true)"
+case "$CI_STATE" in
+  "completed success "*) echo "CI is green for $HEAD_SHA: ${CI_STATE##* }" ;;
+  "") die "no CI run found for HEAD $HEAD_SHA. Push main and wait for CI to pass, then rerun." ;;
+  *) die "CI for HEAD $HEAD_SHA is not green ($CI_STATE). Wait for it to pass or fix it, then rerun." ;;
+esac
 
 LAST_TAG="$(git describe --tags --abbrev=0 2>/dev/null || true)"
 LOG_START="${LAST_TAG:-$(git rev-list --max-parents=0 HEAD | tail -1)}"
@@ -89,10 +101,7 @@ TMP_CHANGELOG="$(mktemp)"
 } >"$TMP_CHANGELOG"
 mv "$TMP_CHANGELOG" "$CHANGELOG"
 
-# ---------------------------------------------------------------- test gate
-
-say "running the test gate (pnpm test)"
-pnpm test
+# ---------------------------------------------------------------- live checks
 
 IG_CHANGED="$(git diff --name-only "$LOG_START"..HEAD -- services/ig src/server/ig 2>/dev/null || true)"
 if [ -n "$IG_CHANGED" ]; then

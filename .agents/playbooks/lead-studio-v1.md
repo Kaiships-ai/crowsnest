@@ -14,7 +14,7 @@ Every change gets exactly one tier before its owner starts. The owner's report n
 | Tier | Entry | Gate before merge | Who merges |
 | --- | --- | --- | --- |
 | docs | Docs, comments, plan text, skill text only | `node scripts/check-doc-paths.mjs` and `bash scripts/skill-lint.sh` locally; CI runs typecheck, lint, and tests on the PR | The root, once CI is green, no review |
-| small | Under about 1000 changed lines or under 7 to 10 files, and no external surface | `pnpm run test:changed`, plus the verify journeys for the screens it touches | The root, then the post-merge smoke |
+| small | Under about 1000 changed lines or under 7 to 10 files, and no external surface | Green CI (typecheck, lint, `test:changed`), plus the verify journeys for the screens it touches, run locally in dev mode | The root, then the post-merge smoke |
 | complex | Any external surface, whatever its size, or above the small size | An owner in its own worktree, one independent review with a full first round, and the live lanes | Kai |
 
 An external surface is any of these:
@@ -29,7 +29,7 @@ Every real defect review found in PR-15s, PR-M1, and PR-M2 was a small diff with
 ## Changes to the bundled playbooks
 
 - **In** "Run the owner loop unchanged." apply the tier table. A docs or small change skips the independent review and merges as soon as its gate is green. Only a complex change runs the full owner loop.
-- **In** "Run the owner loop unchanged." an owner runs only the tests related to the files it changed (`pnpm run test:changed`, which runs `vitest run --changed origin/main` at the root). CI runs only the affected tests; nothing runs the full suite. Every command runs under node 24; `scripts/heavy.sh` refuses another major.
+- **In** "Run the owner loop unchanged." an owner proves behavior locally with the verify journeys in dev mode (`APP_DEV=1 app-up.sh`), plus at most the one test file it writes. CI runs typecheck, lint, and only the affected tests (`vitest --changed`); nothing runs the full suite. `scripts/heavy.sh` refuses the rest off CI. Every command runs under node 24; `scripts/heavy.sh` refuses another major.
 - **In** "Audit on the wake chain." the tick also reads each open PR's state with `gh pr view <n> --json state,mergeCommit`. A merge it sees triggers `retire.sh` for that worktree and starts the next owner, so Kai never has to say a PR merged.
 - **In** "Audit on the wake chain." before the tick replaces a slow or stuck lane, it reads that lane's brief for the cause and fixes the brief first.
 - **In** "Verify each round." label each verdict `full` or `scoped`. A scoped round also reruns the core live lane at the final head.

@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
+export const dod = ["B2-03"];
+
 const call = (page, name, ...args) => page.evaluate(([name, args]) => window.api.crowsnest.call(name, ...args), [name, args]);
 const state = (file) => readFileSync(path.join(import.meta.dirname, "../../../../../data/verify/app", file), "utf8").trim();
 const port = state("mcp.port");

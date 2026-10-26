@@ -2,6 +2,9 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
+export const dod = ["B1-06"];
+
 const call = (page, name, ...args) => page.evaluate(([name, args]) => window.api.crowsnest.call(name, ...args), [name, args]);
 const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
@@ -40,7 +43,9 @@ export default async function schedule01({ page, step, snap }) {
     console.log(`today's slot started at ${started}, 05:00 local is ${fiveAm}`);
     if (started < fiveAm) throw new Error("today's slot ran before 05:00");
     if (!list.includes("instagram-graph=complete")) throw new Error("the Graph pull did not complete");
-    for (const id of ["chatbotx", "polar", "umami"]) if (!list.includes(`${id}=skipped (not-connected)`)) throw new Error(`${id} was not skipped and reported`);
+    for (const skip of ["chatbotx=skipped (not-connected)", "polar=skipped (not-connected)", "umami=skipped (needs-setup)"]) {
+      if (!list.includes(skip)) throw new Error(`${skip.split("=")[0]} was not skipped and reported`);
+    }
   });
   await step("the 05:00 pull wrote a new account snapshot", async () => {
     const snapshot = sql(`select captured_at || ' ' || username || ' followers=' || follower_count from own_account_snapshots where captured_at >= '${fiveAm}' and captured_at < '${sixAm}' order by captured_at limit 1`);

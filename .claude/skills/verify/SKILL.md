@@ -20,7 +20,7 @@ APP_DEV=1 .claude/skills/verify/scripts/app-up.sh --seed      # dev mode, the de
 APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy of <db> (default data/crowsnest.db)
 ```
 
-`app-up.sh` runs `app-host.mjs`, which launches the app the way `tests/e2e/helpers/orca-app.ts` does: a disposable user data dir and HOME, mock keychain, a seeded git repo with one terminal tab. It never uses the installed Orca.app profile. The lane's DB is always `<userData>/crowsnest.db` (`CROWSNEST_DB_PATH`), copied with `scripts/copy-db.ts`, so a lane never opens the checkout's `data/crowsnest.db`. The app runs sync and own-measure on that DB; the publish scheduler stays off unless `LEAD_STUDIO_PUBLISH_JOBS=1`. `APP_DEV=1` skips the build and runs `electron-vite dev --mode e2e --watch` with the same user data, HOME, DB, mock keychain and CDP port, so every journey connects unchanged: a renderer edit shows in the running app through HMR in about a second, and a main or preload edit rebuilds and restarts Electron (the MCP port file is recopied). Agents run dev mode only; the build path is for packaging checks. `APP_SKIP_BUILD=1` reuses `out/`; `APP_HEADLESS=1` hides the window; `APP_RECORD_VIDEO=<dir>` records a webm. Logs: `data/verify/app/{seed,build,host}.log`. The build goes through `scripts/heavy.sh`, so it waits with "heavy: another heavy job holds ..." while another worktree builds or tests.
+`app-up.sh` runs `app-host.mjs`, which launches the app the way `tests/e2e/helpers/orca-app.ts` does: a disposable user data dir and HOME, mock keychain, a seeded git repo with one terminal tab. It never uses the installed Orca.app profile. The lane's DB is always `<userData>/crowsnest.db` (`CROWSNEST_DB_PATH`), copied with `scripts/copy-db.ts`, so a lane never opens the checkout's `data/crowsnest.db`. The app runs sync and own-measure on that DB; the publish scheduler stays off unless `LEAD_STUDIO_PUBLISH_JOBS=1`. `APP_DEV=1` skips the build and runs `electron-vite dev --mode e2e --watch` with the same user data, HOME, DB, mock keychain and CDP port, so every journey connects unchanged, and serves the renderer on a free port (`app-dev.mjs`), never the 5173 of the operator's `pnpm dev`: a renderer edit shows in the running app through HMR in about a second, and a main or preload edit rebuilds and restarts Electron (the MCP port file is recopied). Agents run dev mode only; the build path is for packaging checks. `APP_SKIP_BUILD=1` reuses `out/`; `APP_HEADLESS=1` hides the window; `APP_RECORD_VIDEO=<dir>` records a webm. Logs: `data/verify/app/{seed,build,host}.log`. The build goes through `scripts/heavy.sh`, so it waits with "heavy: another heavy job holds ..." while another worktree builds or tests.
 
 `app-up.sh` fingerprints the Claude hooks in `~/.claude/settings.json` and `~/.orca/agent-hooks`; `app-down.sh` exits 1 with `app: HOST CHANGED` when they changed during the run. Report that with the revert path.
 
@@ -35,6 +35,26 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 ```
 
 `app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap, snapAndCompare })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. `snapAndCompare(name, locator?)` shoots the page (or one element) and fails when more than 0.5% of its pixels (`BASELINE_DIFF_MAX`) differ from `<name>.png` in the approved baseline (`~/.claude/orchestrate/lead-studio-v2/baseline`, or `BASELINE_APPROVED`); run it once with `UPDATE_BASELINE=1` to approve a new shot. Shoot on `baseline-lane.sh`, whose stopped clock keeps dates fixed. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
+
+## Run every journey
+
+```bash
+.claude/skills/verify/scripts/run-all.sh [run-id]   # dev mode; exits 1 when any journey failed
+```
+
+One dev-mode session on the boards lane (fake sidecar and Umami) runs every journey in `app-journeys/` except Orca's own `shell-01` and `close-terminal`, then `schedule-01` runs in its clock lane. `run-all-report.mjs` writes `data/verify/evidence/<run-id>/report.html`: each DoD id from the proposal's `data.js` with its pass criterion, the journeys that assert it and their state, then each journey's steps, DB checks, shots and diffs. A journey names its DoD ids in `export const dod = ["B2-02"];`.
+
+`snapAndCompare` (above) fails the step on a diff over the threshold and on a shot with no approved baseline. Shoot the board, not the page, so tabs and the window chrome never count. Baselines hold the state `run-all.sh` leaves after the journeys before it, so compare through `run-all.sh`, not a lone `app-drive.sh` run. `UPDATE_BASELINE=1` approves this run's shots; look at each one first.
+
+## Add a journey for a new screen
+
+1. Give every element the journey drives a `data-testid` (`scripts/testid-audit.sh` checks).
+2. Copy `app-journeys/today-01.mjs` to `app-journeys/<screen>-01.mjs`; keep its `sql` and `mcp` helpers.
+3. Set `export const dod = [...]` to the DoD ids whose pass criterion it asserts.
+4. Set up data the way an agent does (`mcp(...)`), then open the screen from "+" in the tab bar.
+5. One `step` per criterion: read the number in the UI and the same number from the lane DB with `sql`, and throw when they differ.
+6. End with `snapAndCompare("<screen>-01", board)`, run `run-all.sh` with `UPDATE_BASELINE=1` once, check the shot, commit it.
+7. Add the journey to its `features/<part>.md`.
 
 ## Evidence
 

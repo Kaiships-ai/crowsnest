@@ -78,12 +78,15 @@ async function launchBuilt() {
 }
 
 async function launchDev() {
-  const cli = path.join(path.dirname(appRequire.resolve("electron-vite/package.json")), "bin", "electron-vite.js");
-  const child = spawn(
-    process.execPath,
-    [cli, "dev", "--mode", "e2e", "--watch", "--", ...electronArgs, "-ApplePersistenceIgnoreState", "YES"],
-    { cwd: APP, env: { ...env, VITE_EXPOSE_STORE: "true" }, stdio: ["ignore", "pipe", "pipe"] },
-  );
+  const child = spawn(process.execPath, [path.join(import.meta.dirname, "app-dev.mjs"), String(await freePort())], {
+    cwd: APP,
+    env: {
+      ...env,
+      VITE_EXPOSE_STORE: "true",
+      ELECTRON_CLI_ARGS: JSON.stringify([...electronArgs, "-ApplePersistenceIgnoreState", "YES"]),
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   child.stdout.on("data", (d) => process.stdout.write(`[dev] ${d}`));
   child.stderr.on("data", (d) => process.stdout.write(`[dev] ${d}`));
   let exited = false;
@@ -160,7 +163,7 @@ copyMcpAccess();
 if (dev) watchFile(mcpPortFile, { interval: 1000 }, copyMcpAccess);
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
-  JSON.stringify({ cdpPort, userDataDir, cookRoot: process.env.LEAD_STUDIO_COOK_ROOT }, null, 2),
+  JSON.stringify({ cdpPort, userDataDir }, null, 2),
 );
 console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir}${dev ? ", dev mode" : ""})`);
 

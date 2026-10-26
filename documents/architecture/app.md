@@ -62,7 +62,7 @@ The app menu has a top-level Boards menu that opens boards ([boards](boards.md))
 
 ## Boundaries
 
-- One toolchain: pnpm and node 24 at the root. `scripts/heavy.sh` runs every heavy script one at a time per machine, niced, and exits with the PATH fix when `node` is another major.
+- One toolchain: pnpm and node 24 at the root. `scripts/heavy.sh` runs every heavy script one at a time per machine, niced, and exits with the PATH fix when `node` is another major. On `test`, `test:changed`, `typecheck` and `lint` it exits 1 unless `CI=true`, except a test run that names exactly one test file.
 - crowsnest's own code (`src/server`, `src/lib`, `src/kai-cli`, `scripts/`) keeps its style: oxlint runs its correctness rules there with Orca's style rules off, the code-quality audits skip it, and oxfmt ignores it. Its tests are the `crowsnest` vitest project in `config/vitest.config.ts`, with its own `@` alias and setup (`src/test/setup-env.ts`), on Node for `better-sqlite3`.
 - Lead Studio leaves agent config files alone, such as `~/.claude/settings.json` and `~/.codex/hooks.json`. Agent status hooks default to off (`agentStatusHooksEnabled: false` in `src/shared/default-global-settings.ts`), so startup neither installs nor removes managed hook entries there. With hooks on, its entry would replace Orca.app's, because the matcher in `src/main/agent-hooks/installer-utils.ts` keys on the script name, not its folder. A backlog issue tracks an entry that coexists with Orca.app's; until then, keep hooks off.
 - Remote and WSL hosts keep Orca's `~/.orca` layout and the `orca` command there.
