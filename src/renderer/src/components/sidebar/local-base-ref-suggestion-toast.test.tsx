@@ -72,6 +72,7 @@ afterEach(() => {
   mountedRoots.splice(0).forEach((root) => act(() => root.unmount()))
   document.body.innerHTML = ''
   vi.clearAllMocks()
+  vi.unstubAllEnvs()
 })
 
 describe('showLocalBaseRefUpdateSuggestionToast', () => {
@@ -116,6 +117,8 @@ describe('showLocalBaseRefUpdateSuggestionToast', () => {
   })
 
   it('deep-links to the Git setting and closes the toast from the Settings link', () => {
+    // Lead Studio hides the Git pane; the link shows only with every pane listed.
+    vi.stubEnv('VITE_LEAD_STUDIO_ALL_SETTINGS', '1')
     const deps = makeDeps()
     showLocalBaseRefUpdateSuggestionToast(SUGGESTION, deps)
     const body = renderToastBody()
@@ -136,6 +139,7 @@ describe('showLocalBaseRefUpdateSuggestionToast', () => {
   })
 
   it('does not record a permanent dismissal when opening the Git setting', async () => {
+    vi.stubEnv('VITE_LEAD_STUDIO_ALL_SETTINGS', '1')
     const deps = makeDeps()
     showLocalBaseRefUpdateSuggestionToast(SUGGESTION, deps)
     const body = renderToastBody()
@@ -150,5 +154,12 @@ describe('showLocalBaseRefUpdateSuggestionToast', () => {
     expect(deps.updateSettings).not.toHaveBeenCalledWith({
       localBaseRefSuggestionDismissed: true
     })
+  })
+
+  it('leaves out the Settings link while Lead Studio hides the Git pane', () => {
+    showLocalBaseRefUpdateSuggestionToast(SUGGESTION, makeDeps())
+    const body = renderToastBody()
+    expect(body.textContent).not.toContain('Settings ›')
+    expect(body.textContent).toContain('Let Lead Studio keep it up to date automatically.')
   })
 })
