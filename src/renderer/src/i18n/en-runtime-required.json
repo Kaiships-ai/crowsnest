@@ -2999,6 +2999,19 @@
         "purchase": "Mua",
         "view": "Xem reel"
       }
+    },
+    "own": {
+      "col": {
+        "comments": "Cmt",
+        "dm": "DM",
+        "gift_page_visit": "Web",
+        "latest": "Mới nhất",
+        "likes": "Thích",
+        "purchase": "Đơn",
+        "saved": "Lưu",
+        "shares": "Chia sẻ",
+        "views": "Xem"
+      }
     }
   },
   "browser": {
