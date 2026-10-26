@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
 import type { StoredStructureSegment, StoredVideoLayout } from "../schemas";
+import type { UmamiDayCounts } from "../connectors/umami/days";
 
 /**
  * Every binary we serve ourselves. Instagram CDN URLs are signed and expire within
@@ -988,3 +989,14 @@ export const mcpTokens = sqliteTable(
   },
   (t) => [uniqueIndex("mcp_tokens_hash").on(t.tokenHash), uniqueIndex("mcp_tokens_live_name").on(t.name).where(sql`revoked_at IS NULL`)],
 );
+
+/** One Umami day (Asia/Ho_Chi_Minh) as the last complete pull counted it. `final` is 1 once
+ *  that pull ran after the day ended; an open day is pulled again. */
+export const umamiDays = sqliteTable("umami_days", {
+  day: text("day").primaryKey(),
+  raw: text("raw", { mode: "json" }).notNull().$type<UmamiDayCounts>(),
+  clean: text("clean", { mode: "json" }).notNull().$type<UmamiDayCounts>(),
+  testSessionsDropped: integer("test_sessions_dropped").notNull(),
+  final: integer("final").notNull(),
+  fetchedAt: text("fetched_at").notNull(),
+});

@@ -14,6 +14,7 @@ The schema is `src/server/db/schema.ts`. Tables by purpose:
 | Remix | `remix_sessions` (one per source video), `remix_runs` (append-only attempt log), `scripts` |
 | Plan and publish | `planned_posts` |
 | Own channel (Graph) | `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns` |
+| Website (Umami) | `umami_days` (each VN day's counts, raw and without test sessions, described in [connectors](connectors.md)) |
 | Agent output | `content_artifacts`, `reel_funnel` (append-only funnel snapshots per reel keyword), `agent_actions` (append-only journal of MCP writes) and `gate_drafts` (gate 2 calls waiting for approval), both described in [mcp](mcp.md) |
 | Accounts | `ig_accounts` |
 | Jobs and observability | `sync_jobs`, `log_events`, `notifications` |
@@ -59,7 +60,7 @@ Files outside the database:
   | --- | --- |
   | `view`, `follow`, `bio_link_tap` | `own_post_insights` (`views`, `followsFromPost`, `bioLinkTaps`), newest successful capture of the plan's `publishedOwnPostId` |
   | `dm` | `reel_funnel` `chatbotx` `dms` |
-  | `gift_page_visit`, `email` | `reel_funnel` `umami` `visits`, `emails` |
+  | `gift_page_visit`, `email` | `reel_funnel` `umami` `visits`, `emails`, written by the Umami pull |
   | `purchase`, `revenue` | `reel_funnel` `polar` `orders`, `revenue` |
   | `skool_member` | `reel_funnel` `skool` `members` |
   | `comment_keyword` | not connected (`chatbotx`) |
