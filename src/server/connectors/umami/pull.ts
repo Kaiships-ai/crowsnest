@@ -17,6 +17,8 @@ export interface UmamiPull {
 }
 
 const PAGE_SIZE = 500;
+// ponytail: 200k events per pull; a bigger site needs a smaller pull window, not a higher cap.
+const MAX_PAGES = 400;
 const BACKFILL_CAP_DAYS = 365;
 
 async function getJson<T>(url: string, init: RequestInit = {}): Promise<T> {
@@ -86,7 +88,7 @@ function storeDays(days: UmamiDay[], now: Date): void {
   }
 }
 
-/** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted. Paging stops at the first empty page. Only a pull whose every page came back is stored; a partial or failed pull writes nothing. */
+/** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted. Paging stops at the first empty page; past MAX_PAGES the pull is partial. Only a pull whose every page came back is stored; a partial or failed pull writes nothing. */
 export async function pullUmami(access: UmamiAccess, now: Date): Promise<PullResult<UmamiPull>> {
   const days = daysBetween(firstDay(now), vnDay(now));
   const startAt = vnDayStart(days[0]).getTime() - 86_400_000;
@@ -95,6 +97,7 @@ export async function pullUmami(access: UmamiAccess, now: Date): Promise<PullRes
   try {
     const token = await login(access);
     for (let page = 1; ; page++) {
+      if (page > MAX_PAGES) throw new Error(`Umami still had events after ${MAX_PAGES} pages`);
       const query = new URLSearchParams({ startAt: String(startAt), endAt: String(endAt), pageSize: String(PAGE_SIZE), page: String(page) });
       const res = await getJson<{ data?: UmamiEvent[] }>(`${site(access)}/events?${query}`, { headers: bearer(token) });
       events.push(...(res.data ?? []));

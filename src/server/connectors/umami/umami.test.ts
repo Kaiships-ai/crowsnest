@@ -31,7 +31,7 @@ const EVENTS: UmamiEvent[] = [
 ];
 
 const NOW = new Date("2026-10-18T10:00:00.000Z");
-const fake = { failPage: 0, failLogin: false, eventCalls: [] as URLSearchParams[], events: EVENTS, pageSize: 4, sendCount: true };
+const fake = { failPage: 0, failLogin: false, eventCalls: [] as URLSearchParams[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false };
 let server: Server;
 let access: UmamiAccess;
 
@@ -61,7 +61,7 @@ beforeAll(async () => {
       const from = Number(url.searchParams.get("startAt"));
       const to = Number(url.searchParams.get("endAt"));
       const inRange = fake.events.filter((e) => Date.parse(e.createdAt) >= from && Date.parse(e.createdAt) <= to);
-      const data = inRange.slice((page - 1) * fake.pageSize, page * fake.pageSize);
+      const data = fake.ignorePage ? inRange.slice(0, fake.pageSize) : inRange.slice((page - 1) * fake.pageSize, page * fake.pageSize);
       return send(200, fake.sendCount ? { data, count: inRange.length, page, pageSize: fake.pageSize } : { data, page, pageSize: fake.pageSize });
     }
     send(404, { error: "not found" });
@@ -75,7 +75,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 beforeEach(async () => {
   migrate();
   for (const t of [tables.umamiDays, tables.reelFunnel, tables.plannedPosts, tables.sealedSecrets, tables.secrets]) await db.delete(t);
-  Object.assign(fake, { failPage: 0, failLogin: false, eventCalls: [], events: EVENTS, pageSize: 4, sendCount: true });
+  Object.assign(fake, { failPage: 0, failLogin: false, eventCalls: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false });
   const at = "2026-10-17T00:30:00.000Z";
   await db.insert(tables.plannedPosts).values([
     { id: "plan-shark", state: "published", title: "Shark reel", keyword: "SHARK", createdAt: at, updatedAt: at },
@@ -154,6 +154,18 @@ describe("Umami pull", () => {
     Object.assign(fake, { events: EVENTS.slice(0, 6), pageSize: 3, sendCount: false });
     expect(await pullUmami(access, NOW)).toEqual({ kind: "complete", rows: { days: ["2026-10-17", "2026-10-18"], events: 6, keywords: 2 } });
     expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3"]);
+  });
+
+  test("a server that never sends an empty page stops at the page cap as a partial pull and stores nothing", async () => {
+    fake.ignorePage = true;
+    expect(await pullUmami(access, NOW)).toEqual({
+      kind: "partial",
+      rows: { days: ["2026-10-17", "2026-10-18"], events: 1600, keywords: 0 },
+      missing: "events after the first 1600",
+      reason: "Umami still had events after 400 pages",
+    });
+    expect(fake.eventCalls).toHaveLength(400);
+    expect(db.select().from(tables.umamiDays).all()).toEqual([]);
   });
 
   test("a session that crosses VN midnight keeps its campaign on the next day, also when that day is pulled alone (R4)", async () => {
