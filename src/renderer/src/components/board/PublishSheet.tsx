@@ -33,10 +33,12 @@ function SheetBody({ card }: { card: PlanCard }): React.ReactNode {
       if (cancelled) {
         return
       }
-      if (res.ok && res.value.ok) {
-        setChecks(res.value.checks)
+      if (!res.ok) {
+        setSent({ status: 'error', message: res.error.message })
+      } else if (!res.value.ok) {
+        setSent({ status: 'error', message: res.value.error })
       } else {
-        setSent({ status: 'error', message: res.ok ? res.value.error : res.error.message })
+        setChecks(res.value.checks)
       }
     })
     return () => {
@@ -49,10 +51,12 @@ function SheetBody({ card }: { card: PlanCard }): React.ReactNode {
     setBusy(true)
     const res = await window.api.crowsnest.call('draftPublish', card.id, at)
     setBusy(false)
-    if (res.ok && res.value.ok) {
-      setSent({ status: 'sent' })
+    if (!res.ok) {
+      setSent({ status: 'error', message: res.error.message })
+    } else if (!res.value.ok) {
+      setSent({ status: 'error', message: res.value.error })
     } else {
-      setSent({ status: 'error', message: res.ok ? res.value.error : res.error.message })
+      setSent({ status: 'sent' })
     }
   }
 
