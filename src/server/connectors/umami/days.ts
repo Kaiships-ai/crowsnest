@@ -67,14 +67,18 @@ const bump = (counts: Record<string, number>, key: string) => {
 
 const isFunnelEvent = (name: string | null): name is FunnelEvent => FUNNEL_EVENTS.some((f) => f === name);
 
-function count(events: UmamiEvent[]): UmamiDayCounts {
-  const counts: UmamiDayCounts = { visitors: new Set(events.map((e) => e.sessionId)).size, pageviews: 0, events: {}, paths: {}, utmQuery: {}, byCampaign: {} };
-  // A session belongs to the first utm_campaign it carried.
+/** A session belongs to the first utm_campaign it carried anywhere in the pull, so a session that crosses midnight keeps it the next day. */
+function campaignsOf(events: UmamiEvent[]): Map<string, string> {
   const campaignOf = new Map<string, string>();
   for (const e of [...events].sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
     const campaign = utm(e.urlQuery).utm_campaign;
     if (campaign && !campaignOf.has(e.sessionId)) campaignOf.set(e.sessionId, campaign.toLowerCase());
   }
+  return campaignOf;
+}
+
+function count(events: UmamiEvent[], campaignOf: Map<string, string>): UmamiDayCounts {
+  const counts: UmamiDayCounts = { visitors: new Set(events.map((e) => e.sessionId)).size, pageviews: 0, events: {}, paths: {}, utmQuery: {}, byCampaign: {} };
   for (const e of events) {
     const campaign = campaignOf.get(e.sessionId);
     const c = campaign ? (counts.byCampaign[campaign] ??= { pageviews: 0, giftVisits: 0, gift_signup: 0, checkout_click: 0, purchase: 0 }) : null;
@@ -95,11 +99,12 @@ function count(events: UmamiEvent[]): UmamiDayCounts {
   return counts;
 }
 
-/** Splits a pull's events into Asia/Ho_Chi_Minh days and counts each, raw and with every test session dropped. */
+/** Splits a pull's events into Asia/Ho_Chi_Minh days and counts each of `days`, raw and with every test session dropped. Events outside `days` only seed session campaigns. */
 export function countDays(events: UmamiEvent[], days: string[]): UmamiDay[] {
+  const campaignOf = campaignsOf(events);
   return days.map((day) => {
     const own = events.filter((e) => vnDay(e.createdAt) === day);
     const testSessions = new Set(own.filter(isTest).map((e) => e.sessionId));
-    return { day, raw: count(own), clean: count(own.filter((e) => !testSessions.has(e.sessionId))), testSessionsDropped: testSessions.size };
+    return { day, raw: count(own, campaignOf), clean: count(own.filter((e) => !testSessions.has(e.sessionId)), campaignOf), testSessionsDropped: testSessions.size };
   });
 }
