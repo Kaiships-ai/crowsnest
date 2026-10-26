@@ -15,7 +15,8 @@ export default async function connectors01({ page, step, snap }) {
     connectors = res.value;
     const states = Object.fromEntries(connectors.map((c) => [c.id, c.status]));
     console.log(`listConnectors: ${JSON.stringify(states)}`);
-    for (const id of ["umami", "polar", "chatbotx"]) if (states[id] !== "not-connected") throw new Error(`${id} is ${states[id]}`);
+    for (const id of ["polar", "chatbotx"]) if (states[id] !== "not-connected") throw new Error(`${id} is ${states[id]}`);
+    if (!["needs-setup", "configured"].includes(states.umami)) throw new Error(`umami is ${states.umami}`);
     if (states["instagram-graph"] !== "configured") throw new Error(`instagram-graph is ${states["instagram-graph"]}`);
   });
   await step("the seeded Graph token moved to the keychain on boot and no value crosses the bridge", async () => {

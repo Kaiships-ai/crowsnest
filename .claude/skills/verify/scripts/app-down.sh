@@ -18,6 +18,9 @@ rm -f "$DIR/fake-graph.pid" "$DIR/fake-graph.port"
 SIDECAR="$(cat "$DIR/fake-sidecar.pid" 2>/dev/null || true)"
 [ -n "$SIDECAR" ] && kill "$SIDECAR" 2>/dev/null && echo "app: stopped fake sidecar $SIDECAR"
 rm -f "$DIR/fake-sidecar.pid" "$DIR/fake-sidecar.port"
+UMAMI="$(cat "$DIR/fake-umami.pid" 2>/dev/null || true)"
+[ -n "$UMAMI" ] && kill "$UMAMI" 2>/dev/null && echo "app: stopped fake Umami $UMAMI"
+rm -f "$DIR/fake-umami.pid" "$DIR/fake-umami.port"
 rc=0
 if [ -f "$DIR/host.fingerprint" ]; then
   now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1)"
