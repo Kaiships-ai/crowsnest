@@ -218,6 +218,7 @@ export function createWebUiApi(): NonNullable<Partial<PreloadApi>['ui']> {
     // No desktop main process to push state changes; the web client re-reads via ui.get on interaction.
     onStateChanged: () => noopUnsubscribe,
     onToggleLeftSidebar: () => noopUnsubscribe,
+    onOpenBoard: () => noopUnsubscribe,
     onToggleRightSidebar: () => noopUnsubscribe,
     onToggleWorktreePalette: () => noopUnsubscribe,
     onToggleFloatingTerminal: () => noopUnsubscribe,

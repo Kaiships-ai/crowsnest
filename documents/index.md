@@ -28,6 +28,7 @@ boundaries, and its invariants.
 | ig-sync | [ig-sync](architecture/ig-sync.md) |
 | mcp | [mcp](architecture/mcp.md) |
 | app (Lead Studio Electron shell) | [app](architecture/app.md) |
+| boards (workspace board tabs) | [boards](architecture/boards.md) |
 
 ## Where things live
 

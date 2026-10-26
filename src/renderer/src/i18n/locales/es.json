@@ -292,8 +292,8 @@
   "menu": {
     "checkForUpdates": "Buscar actualizaciones...",
     "settings": "Ajustes",
-    "exploreOrca": "Explorar Orca",
-    "gettingStarted": "Primeros pasos con Orca",
+    "exploreOrca": "Explorar Lead Studio",
+    "gettingStarted": "Primeros pasos con Lead Studio",
     "reportCrash": "Informar fallo...",
     "file": "Archivo",
     "exit": "Salir",
@@ -305,7 +305,7 @@
     "showStatusBar": "Mostrar barra de estado",
     "showTasksButton": "Botón Mostrar tareas",
     "showAutomationsButton": "Botón Mostrar automatizaciones",
-    "showMobileButton": "Mostrar botón móvil de Orca",
+    "showMobileButton": "Mostrar botón móvil de Lead Studio",
     "showTitlebarAppName": "Mostrar el nombre de la aplicación de la barra de título",
     "view": "Vista",
     "reload": "Recargar",
@@ -321,12 +321,12 @@
     "selectAll": "Seleccionar todo"
   },
   "tray": {
-    "openOrca": "Abrir Orca",
+    "openOrca": "Abrir Lead Studio",
     "quit": "Salir",
     "minimizeNotice": {
-      "body": "Orca sigue ejecutándose en la bandeja del sistema"
+      "body": "Lead Studio sigue ejecutándose en la bandeja del sistema"
     },
-    "activityWaiting": "Orca: actividad en espera",
+    "activityWaiting": "Lead Studio: actividad en espera",
     "activityWaitingSuffix": "activity waiting"
   },
   "worktreeJumpPalette": {
@@ -412,7 +412,7 @@
       "df1d56bf87": "La vista del espacio de trabajo tuvo un error.",
       "9e0b441a91": "Alternar barra lateral derecha",
       "e81217c1b7": "Ocultar nombre de la aplicación",
-      "5096cbbc86": "Orca",
+      "5096cbbc86": "Lead Studio",
       "8b0b8eb54f": "Menú de aplicaciones",
       "caea5b51b9": "Reiniciar ahora",
       "0a9e810705": "Hasta que reinicies, los cambios no se guardarán. Tus pestañas anteriores siguen guardadas en disco.",

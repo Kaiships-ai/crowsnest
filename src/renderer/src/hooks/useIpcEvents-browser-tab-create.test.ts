@@ -151,6 +151,7 @@ describe('useIpcEvents browser tab create routing', () => {
           consumePendingOpenSettings: () => Promise.resolve(false),
           onOpenFeatureTour: () => () => {},
           onToggleLeftSidebar: () => () => {},
+          onOpenBoard: () => () => {},
           onToggleRightSidebar: () => () => {},
           onToggleWorktreePalette: () => () => {},
           onToggleFloatingTerminal: () => () => {},

@@ -292,8 +292,8 @@
   "menu": {
     "checkForUpdates": "检查更新...",
     "settings": "设置",
-    "exploreOrca": "探索 Orca",
-    "gettingStarted": "Orca 入门",
+    "exploreOrca": "探索 Lead Studio",
+    "gettingStarted": "Lead Studio 入门",
     "reportCrash": "发送崩溃报告...",
     "file": "文件",
     "exit": "退出",
@@ -305,7 +305,7 @@
     "showStatusBar": "显示状态栏",
     "showTasksButton": "显示任务按钮",
     "showAutomationsButton": "显示自动化按钮",
-    "showMobileButton": "显示 Orca 手机端按钮",
+    "showMobileButton": "显示 Lead Studio 手机端按钮",
     "showTitlebarAppName": "显示标题栏应用名称",
     "view": "查看",
     "reload": "重新加载",
@@ -321,12 +321,12 @@
     "selectAll": "全选"
   },
   "tray": {
-    "openOrca": "打开 Orca",
+    "openOrca": "打开 Lead Studio",
     "quit": "退出",
     "minimizeNotice": {
-      "body": "Orca 仍在系统托盘中运行"
+      "body": "Lead Studio 仍在系统托盘中运行"
     },
-    "activityWaiting": "Orca - 活动等待中",
+    "activityWaiting": "Lead Studio - 活动等待中",
     "activityWaitingSuffix": "等待活动"
   },
   "worktreeJumpPalette": {
@@ -412,7 +412,7 @@
       "df1d56bf87": "工作区界面遇到错误。",
       "9e0b441a91": "切换右侧边栏",
       "e81217c1b7": "隐藏应用名称",
-      "5096cbbc86": "Orca",
+      "5096cbbc86": "Lead Studio",
       "8b0b8eb54f": "应用菜单",
       "caea5b51b9": "立即重启",
       "0a9e810705": "重新启动之前不会保存更改。您以前的选项卡在磁盘上是安全的。",

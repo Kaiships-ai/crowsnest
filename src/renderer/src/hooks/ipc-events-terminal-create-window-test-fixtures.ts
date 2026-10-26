@@ -38,6 +38,7 @@ export function buildTerminalCreateWindow(args: {
         consumePendingOpenSettings: () => Promise.resolve(false),
         onOpenFeatureTour: () => () => {},
         onToggleLeftSidebar: () => () => {},
+        onOpenBoard: () => () => {},
         onToggleRightSidebar: () => () => {},
         onToggleWorktreePalette: () => () => {},
         onToggleFloatingTerminal: () => () => {},

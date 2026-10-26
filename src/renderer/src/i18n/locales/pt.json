@@ -100,12 +100,12 @@
     }
   },
   "tray": {
-    "openOrca": "Abrir Orca",
+    "openOrca": "Abrir Lead Studio",
     "quit": "Sair",
     "minimizeNotice": {
-      "body": "O Orca continua em execução na bandeja do sistema"
+      "body": "O Lead Studio continua em execução na bandeja do sistema"
     },
-    "activityWaiting": "Orca - atividade em espera",
+    "activityWaiting": "Lead Studio - atividade em espera",
     "activityWaitingSuffix": "atividade em espera"
   },
   "dashboard": {
@@ -277,8 +277,8 @@
   "menu": {
     "checkForUpdates": "Verificar Atualizações...",
     "settings": "Configurações",
-    "exploreOrca": "Explorar o Orca",
-    "gettingStarted": "Primeiros Passos com o Orca",
+    "exploreOrca": "Explorar o Lead Studio",
+    "gettingStarted": "Primeiros Passos com o Lead Studio",
     "reportCrash": "Relatar Falha...",
     "file": "Arquivo",
     "exit": "Sair",
@@ -289,7 +289,7 @@
     "showStatusBar": "Mostrar Barra de Status",
     "showTasksButton": "Mostrar Botão de Tarefas",
     "showAutomationsButton": "Mostrar Botão de Automações",
-    "showMobileButton": "Mostrar Botão do Orca Mobile",
+    "showMobileButton": "Mostrar Botão do Lead Studio Mobile",
     "showTitlebarAppName": "Mostrar Nome do App na Barra de Título",
     "view": "Exibir",
     "reload": "Recarregar",
@@ -924,7 +924,7 @@
       "df1d56bf87": "A visualização do espaço de trabalho encontrou um erro.",
       "9e0b441a91": "Alternar barra lateral direita",
       "e81217c1b7": "Ocultar Nome do Aplicativo",
-      "5096cbbc86": "Orca",
+      "5096cbbc86": "Lead Studio",
       "8b0b8eb54f": "Menu do aplicativo",
       "caea5b51b9": "Reiniciar agora",
       "0a9e810705": "As alterações não serão salvas até reiniciar. Suas abas anteriores estão salvas no disco.",

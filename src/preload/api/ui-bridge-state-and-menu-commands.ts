@@ -1,3 +1,4 @@
+import { isBoardId, type BoardId } from '../../shared/lead-studio-boards'
 import type { MarkdownDocument } from '../../shared/filesystem-entry-types'
 import { ipcRenderer } from 'electron'
 import type { PersistedUIState } from '../../shared/persisted-ui-state-types'
@@ -68,6 +69,15 @@ export const uiStateAndMenuCommandsApi = {
     const listener = (_event: Electron.IpcRendererEvent) => callback()
     ipcRenderer.on('ui:toggleRightSidebar', listener)
     return () => ipcRenderer.removeListener('ui:toggleRightSidebar', listener)
+  },
+  onOpenBoard: (callback: (boardId: BoardId) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, boardId: unknown) => {
+      if (isBoardId(boardId)) {
+        callback(boardId)
+      }
+    }
+    ipcRenderer.on('ui:openBoard', listener)
+    return () => ipcRenderer.removeListener('ui:openBoard', listener)
   },
   onToggleWorktreePalette: (callback: () => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent) => callback()
