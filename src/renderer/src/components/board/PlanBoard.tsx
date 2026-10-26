@@ -114,6 +114,7 @@ function PlanView({
   reload: () => void
 }): React.ReactNode {
   const [adding, setAdding] = useState<string | null>(null)
+  const [failedCookId, setFailedCookId] = useState<string | null>(null)
   const index = Math.max(
     0,
     board.gridDays.findIndex((d) => d.date === focus)
@@ -273,7 +274,9 @@ function PlanView({
           day={board.gridDays[index]}
           today={board.today}
           onAdd={setAdding}
+          failedCookId={failedCookId}
           onCooked={(card, error) => {
+            setFailedCookId(error ? card.id : null)
             setMessage(
               error
                 ? { status: 'error', text: error, planId: card.id }

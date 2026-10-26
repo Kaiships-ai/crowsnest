@@ -17,7 +17,7 @@ export function openCookWorkspace(workspaceId: string): boolean {
 
 /** Cook (B5-01): write the script into studio-reel, open a "Reel: <title>" folder workspace
  *  there and type /make-reel into Claude once its TUI is ready. */
-export async function cookReel(card: PlanCard): Promise<CookOutcome> {
+export async function cookReel(card: PlanCard, onLaunchFailed: () => void): Promise<CookOutcome> {
   const result = await window.api.crowsnest.call('cookPlanCardAction', card.id)
   const cooked = result.ok ? result.value : { ok: false as const, error: result.error.message }
   if (!cooked.ok) {
@@ -33,10 +33,14 @@ export async function cookReel(card: PlanCard): Promise<CookOutcome> {
       error: translate('boards.plan.cookNoProject', 'Could not create the Studio Reel project.')
     }
   }
-  const workspace = await state.createFolderWorkspace(
-    { projectGroupId: group.id, name: `Reel: ${cooked.title}`, folderPath: cooked.root },
-    { runtimeEnvironmentId: null }
-  )
+  const name = `Reel: ${cooked.title}`
+  // A retry reuses the workspace an earlier try opened on the same folder.
+  const workspace =
+    state.folderWorkspaces.find((w) => w.folderPath === cooked.root && w.name === name) ??
+    (await state.createFolderWorkspace(
+      { projectGroupId: group.id, name, folderPath: cooked.root },
+      { runtimeEnvironmentId: null }
+    ))
   if (!workspace) {
     return {
       ok: false,
@@ -50,6 +54,11 @@ export async function cookReel(card: PlanCard): Promise<CookOutcome> {
   if (!markedOutcome.ok) {
     return markedOutcome
   }
+  const failed = translate(
+    'boards.plan.cookNoAgent',
+    'Could not start Claude in the reel workspace.'
+  )
+  const rollBack = () => window.api.crowsnest.call('clearPlanCookingAction', card.id, workspace.id)
   openCookWorkspace(workspace.id)
   const launched = launchAgentInNewTab({
     requestId: newAgentLaunchRequestId(),
@@ -59,10 +68,15 @@ export async function cookReel(card: PlanCard): Promise<CookOutcome> {
     initialCwd: cooked.root,
     promptDelivery: 'submit-after-ready'
   })
-  return launched
-    ? { ok: true }
-    : {
-        ok: false,
-        error: translate('boards.plan.cookNoAgent', 'Could not start Claude in the reel workspace.')
-      }
+  if (!launched) {
+    await rollBack()
+    return { ok: false, error: failed }
+  }
+  // Why: Claude may never reach a ready TUI; then the card leaves Cooking so Cook can be retried.
+  void launched.promptDeliveryResult?.then(({ delivered }) => {
+    if (!delivered) {
+      void rollBack().then(onLaunchFailed)
+    }
+  })
+  return { ok: true }
 }

@@ -39,9 +39,12 @@ const COOKABLE = new Set<PlanCard['state']>(['draft', 'plan', 'missed'])
 
 function CookButton({
   card,
+  retry,
   onCooked
 }: {
   card: PlanCard
+  /** The last Cook of this card failed, so the button offers to try again. */
+  retry: boolean
   onCooked: (error: string | null) => void
 }): React.ReactNode {
   const [busy, setBusy] = useState(false)
@@ -68,13 +71,19 @@ function CookButton({
       disabled={busy}
       onClick={async () => {
         setBusy(true)
-        const outcome = await cookReel(card)
+        const outcome = await cookReel(card, () =>
+          onCooked(
+            translate('boards.plan.cookNoAgent', 'Could not start Claude in the reel workspace.')
+          )
+        )
         setBusy(false)
         onCooked(outcome.ok ? null : outcome.error)
       }}
     >
       <ChefHat />
-      {translate('boards.plan.cook', 'Cook')}
+      {retry
+        ? translate('boards.plan.cookRetry', 'Retry cook')
+        : translate('boards.plan.cook', 'Cook')}
     </Button>
   )
 }
@@ -83,11 +92,13 @@ export function DayView({
   day,
   today,
   onAdd,
+  failedCookId,
   onCooked
 }: {
   day: PlanDay
   today: string
   onAdd: (date: string) => void
+  failedCookId: string | null
   onCooked: (card: PlanCard, error: string | null) => void
 }): React.ReactNode {
   return (
@@ -113,7 +124,11 @@ export function DayView({
               <span className="ml-auto font-mono text-xs text-muted-foreground">
                 {card.time ?? ''}
               </span>
-              <CookButton card={card} onCooked={(error) => onCooked(card, error)} />
+              <CookButton
+                card={card}
+                retry={failedCookId === card.id}
+                onCooked={(error) => onCooked(card, error)}
+              />
             </header>
             {card.lockReason ? (
               <p data-testid="plan-lock-reason" className="text-xs text-muted-foreground">

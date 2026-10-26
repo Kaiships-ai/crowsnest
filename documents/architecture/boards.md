@@ -81,10 +81,10 @@ A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDeta
 
 A Day card in `draft`, `plan` or `missed` with a script has Cook (B5-01). `cookReel` in `src/renderer/src/components/board/cook-reel.ts`:
 
-1. `cookPlanCardAction(id)` (`src/server/actions/cook-actions.ts`) writes the script to `workspace/scripts/<slug>.md` in studio-reel, in the format studio-reel's workspace README gives (front matter with slug, target seconds and CTA keyword, the title, `## Script`). The slug is the title in ASCII lower case with dashes. studio-reel is `LEAD_STUDIO_COOK_ROOT`, by default `~/Desktop/kaiships/studio-reel`; Cook refuses when it does not exist or the reel has no script.
-2. It finds or creates the project group "Studio Reel" and creates an Orca folder workspace named `Reel: <title>` on studio-reel's folder.
-3. `markPlanCookingAction(id, workspaceId)` stores the workspace on `planned_posts.cook_workspace_id`, so the card reads Cooking and its Open workspace button activates that workspace.
-4. It activates the workspace and calls Orca's `launchAgentInNewTab` with Claude, `initialCwd` studio-reel and the prompt `/make-reel workspace/scripts/<slug>.md` with `promptDelivery: 'submit-after-ready'`, so the prompt is typed once Claude's TUI is ready. Lead Studio shows no progress of its own; the terminal is the progress.
+1. `cookPlanCardAction(id)` (`src/server/actions/cook-actions.ts`) writes the script to `workspace/scripts/<slug>.md` in studio-reel, in the format studio-reel's workspace README gives (front matter with slug, target seconds and CTA keyword, the title, `## Script`). The slug is the title plus the last six characters of the id, in ASCII lower case with dashes, so two reels never share a file. It refuses a reel already cooking (`COOK_ALREADY`), one not in `draft`, `plan` or `missed` (`COOK_LOCKED`), one with no script, and a missing studio-reel (`COOK_NO_STUDIO`). studio-reel is `LEAD_STUDIO_COOK_ROOT`, by default `~/Desktop/kaiships/studio-reel`; under a verify lane (`ORCA_E2E_USER_DATA_DIR` set) there is no default, so a lane never writes into the real checkout.
+2. It finds or creates the project group "Studio Reel" and reuses the folder workspace named `Reel: <title>` on studio-reel's folder, or creates it.
+3. Only then `markPlanCookingAction(id, workspaceId)` stores the workspace on `planned_posts.cook_workspace_id`, and only while it is empty, so a second window or a stale board cannot cook the same reel twice. The card reads Cooking and its Open workspace button activates that workspace.
+4. It activates the workspace and calls Orca's `launchAgentInNewTab` with Claude, `initialCwd` studio-reel and the prompt `/make-reel workspace/scripts/<slug>.md` with `promptDelivery: 'submit-after-ready'`, so the prompt is typed once Claude's TUI is ready. If the launch fails, or the prompt is never delivered, `clearPlanCookingAction` rolls Cooking back and the card offers Retry cook. Lead Studio shows no progress of its own; the terminal is the progress.
 
 ## Gate 1 board
 
@@ -124,7 +124,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction`, `createPlannedPostAction`, `cookPlanCardAction` and `markPlanCookingAction`, and Gate 1 only through `approvePlanChanges` and `undoPlanApproval`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
+- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction`, `createPlannedPostAction`, `cookPlanCardAction`, `markPlanCookingAction` and `clearPlanCookingAction`, and Gate 1 only through `approvePlanChanges` and `undoPlanApproval`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
 - A board writes only through calls `ENGINE_CALLS` exposes. The Agents board creates and revokes tokens.
 
 ## Invariants

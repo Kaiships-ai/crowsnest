@@ -26,14 +26,6 @@ export LEAD_STUDIO_CLOCK_FROZEN=1
 export LEAD_STUDIO_READ_JOBS=0
 export APP_HEADLESS="${APP_HEADLESS:-1}"
 export APP_DEV="${APP_DEV:-1}"
-# Cook writes into a temp studio-reel copy (its docs and make-reel skill only), never Kai's checkout.
-# A fixed path outside any git checkout keeps the shell prompt in the cook workspace shot the same.
-export LEAD_STUDIO_COOK_ROOT="/tmp/lead-studio-cook/studio-reel"
-rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
-STUDIO="${STUDIO_REEL_SOURCE:-$HOME/Desktop/kaiships/studio-reel}"
-for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md; do
-  [ -f "$STUDIO/$f" ] && mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
-done
 if [ "${1:-}" = --compare ]; then
   export BASELINE_DIR="$PWD/data/verify/baseline-new"
   rm -rf "$BASELINE_DIR"

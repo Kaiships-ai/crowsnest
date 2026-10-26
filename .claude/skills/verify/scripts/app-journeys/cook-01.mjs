@@ -1,14 +1,14 @@
-// Cook (B5-01) on a temp studio-reel copy (LEAD_STUDIO_COOK_ROOT, set by baseline-lane.sh).
+// Cook (B5-01) on a temp studio-reel copy (LEAD_STUDIO_COOK_ROOT, set by app-up.sh).
 // Claude is a fake that prints its arguments and echoes what is typed, so nothing really runs.
 import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const ROOT = process.env.LEAD_STUDIO_COOK_ROOT;
-if (!ROOT || !ROOT.includes("lead-studio-cook")) throw new Error("run through baseline-lane.sh, which points Cook at a temp studio-reel copy");
+if (!ROOT || !ROOT.includes("lead-studio-cook")) throw new Error("run on an app-up.sh lane, which points Cook at a temp studio-reel copy");
 const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
-const SCRIPT = "workspace/scripts/plan01-full-script.md";
+const SCRIPT = "workspace/scripts/plan01-full-script-e-full.md";
 const PROMPT = `/make-reel ${SCRIPT}`;
 
 async function setTheme(page, theme) {
@@ -58,7 +58,7 @@ export default async function cook01({ page, step, snapAndCompare }) {
     const body = readFileSync(file, "utf8");
     console.log(`${SCRIPT}:\n${body}`);
     const content = sql("select content from scripts where id = 'plan-e2e-script'");
-    if (!body.startsWith("---\nslug: plan01-full-script\n") || !body.includes(`# PLAN01 full script\n\n## Script\n${content}\n`)) throw new Error("script file differs");
+    if (!body.startsWith("---\nslug: plan01-full-script-e-full\n") || !body.includes(`# PLAN01 full script\n\n## Script\n${content}\n`)) throw new Error("script file differs");
   });
 
   await step('Cook opens a "Reel: <title>" folder workspace on studio-reel and records it on the plan', async () => {
