@@ -33,6 +33,7 @@ import {
 import { getCalendarMonth, getPlannedPostById, getPlannedPosts } from "@/server/queries/planned-posts";
 import { getLastRunHealth, getRun, listRuns } from "@/server/queries/runs";
 import { getScripts } from "@/server/queries/vault";
+import { getVaultBoard } from "@/server/queries/vault-board";
 import { getVideoDetail } from "@/server/queries/video";
 import { removeChannelAction, setOwnChannelAction, unsetOwnChannelAction } from "@/server/actions/channel-actions";
 import { followCreatorAction } from "@/server/actions/discover-actions";
@@ -59,7 +60,7 @@ import {
   unschedulePlannedPostAction,
   updatePlannedPostAction,
 } from "@/server/actions/planned-post-actions";
-import { getSecretStatusAction } from "@/server/actions/secrets-actions";
+import { getSecretStatusAction, setConnectorSecret } from "@/server/actions/secrets-actions";
 import {
   addChannelAction,
   cancelSyncAction,
@@ -225,6 +226,8 @@ export const ENGINE_CALLS = {
   listConnectors: call(none, () => listConnectors()),
   testConnector: call(id, (connectorId) => testConnector(connectorId)),
   pullAgain: call(id, (connectorId) => pullAgain(connectorId)),
+  getVaultBoard: call(none, () => getVaultBoard()),
+  setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
 
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),

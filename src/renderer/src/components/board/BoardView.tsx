@@ -1,9 +1,13 @@
 import React from 'react'
 import type { BoardId } from '../../../../shared/lead-studio-boards'
+import { AgentsBoard } from './AgentsBoard'
 import { ChannelsBoard } from './ChannelsBoard'
+import { VaultBoard } from './VaultBoard'
 
 const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
-  channels: ChannelsBoard
+  channels: ChannelsBoard,
+  vault: VaultBoard,
+  agents: AgentsBoard
 }
 
 export function BoardView({ boardId }: { boardId: BoardId | undefined }): React.ReactNode {

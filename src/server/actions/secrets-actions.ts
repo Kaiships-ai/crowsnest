@@ -3,7 +3,7 @@
 import { randomBytes } from "node:crypto";
 
 import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
-import { managedSecrets } from "@/server/connectors/registry";
+import { CONNECTORS, managedSecrets } from "@/server/connectors/registry";
 import { deleteSecret, readSecretSource, writeSecret } from "@/server/connectors/secrets";
 import { invalidateTokenStatus } from "@/server/graph/token-status";
 import type { SecretSource } from "@/server/secrets/store";
@@ -25,6 +25,21 @@ export async function setSecretAction(name: string, value: string): Promise<Simp
   if (!m) return { ok: false, error: "unknown secret" };
   try {
     writeSecret(m.manifest, name, value);
+    invalidateTokenStatus();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "failed to set secret" };
+  }
+}
+
+/** Write-only: the result never carries the value, so the bridge can expose it. */
+export async function setConnectorSecret(connectorId: string, field: string, value: string): Promise<SimpleResult> {
+  const manifest = CONNECTORS.find((c) => c.manifest.id === connectorId)?.manifest;
+  if (!manifest) return { ok: false, error: `no connector ${connectorId}` };
+  if (!manifest.secrets.some((s) => s.name === field)) return { ok: false, error: `${connectorId} has no field ${field}` };
+  if (!value.trim()) return { ok: false, error: "empty value" };
+  try {
+    writeSecret(manifest, field, value.trim());
     invalidateTokenStatus();
     return { ok: true };
   } catch (e) {

@@ -92,10 +92,35 @@ export async function runDailyPull(now: Date = clockNow(), registry: Connector[]
   return outcomes;
 }
 
+export interface LastPull {
+  slot: string;
+  at: string;
+  outcome: PullOutcome["outcome"];
+  detail: string | null;
+}
+
+// ponytail: in memory, so a restart forgets manual pulls and the board falls back to the slot rows; a table if that matters.
+const manualPulls = new Map<string, LastPull>();
+
+/** The newest finished pull of each connector: its latest slot row, or a newer pull-again. */
+export function lastPulls(): Map<string, LastPull> {
+  const { dailyPulls: t } = tables;
+  const rows = db.select().from(t).where(sql`${t.finishedAt} is not null`).orderBy(t.finishedAt).all();
+  const last = new Map<string, LastPull>();
+  for (const r of rows) if (r.finishedAt && r.outcome) last.set(r.connectorId, { slot: r.slot, at: r.finishedAt, outcome: r.outcome, detail: r.detail });
+  for (const [id, manual] of manualPulls) {
+    const slot = last.get(id);
+    if (!slot || slot.at <= manual.at) last.set(id, manual);
+  }
+  return last;
+}
+
 export async function pullAgain(connectorId: string, registry: Connector[] = CONNECTORS): Promise<PullOutcome> {
   const connector = registry.find((c) => c.manifest.id === connectorId);
   if (!connector) throw new Error(`no connector ${connectorId}`);
   const outcome = await pullConnector(connector, statusesOf(registry));
+  const now = clockNow();
+  manualPulls.set(connectorId, { slot: pullSlotDate(now), at: now.toISOString(), outcome: outcome.outcome, detail: outcome.detail });
   log.info("daily_pull.pull_again", { ...outcome });
   return outcome;
 }
