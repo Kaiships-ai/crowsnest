@@ -3,6 +3,7 @@ import { ArtifactsSettingsPane } from './ArtifactsSettingsPane'
 import { AutomationsSettingsPane } from './AutomationsSettingsPane'
 import { GeneralPane } from './GeneralPane'
 import { IntegrationsPane } from './IntegrationsPane'
+import { Cp2SourcesPane } from '../cp2/Cp2SourcesPane'
 import { MobileSettingsPane } from './MobileSettingsPane'
 import { OrcaAccountSettingsPane } from './OrcaAccountSettingsPane'
 import { SettingsSetupGuidePane } from './SettingsSetupGuidePane'
@@ -73,6 +74,26 @@ export function renderGeneralSettingsSection(context: SettingsRenderContext): Re
           wslCapabilitiesLoading={terminal.localWindowsRuntimeCapabilities.isLoading}
         />
       ) : null}
+    </SettingsSection>
+  )
+}
+
+export function renderLeadSourcesSettingsSection(
+  context: SettingsRenderContext
+): React.JSX.Element {
+  const { navigation, view } = context
+  return (
+    <SettingsSection
+      id="lead-sources"
+      title={translate('sources.title', 'Sources')}
+      description={translate(
+        'sources.description',
+        "Where the numbers come from: each source's state, last pull, and key."
+      )}
+      searchEntries={navigation.getSectionSearchEntries('lead-sources')}
+      bodyClassName="rounded-none border-0 bg-transparent p-0 shadow-none"
+    >
+      {view.isSectionMounted('lead-sources') ? <Cp2SourcesPane /> : null}
     </SettingsSection>
   )
 }

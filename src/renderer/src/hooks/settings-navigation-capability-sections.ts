@@ -13,6 +13,7 @@ import { getVoicePaneSearchEntries } from '@/components/settings/voice-pane-sear
 import { translate } from '@/i18n/i18n'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
 import {
+  KeyRound,
   Blocks,
   Bot,
   CircleUserRound,
@@ -185,6 +186,18 @@ export function buildSetupSettingsSections({
       ),
       icon: SlidersHorizontal,
       searchEntries: getGeneralPaneSearchEntries({ includeProjectRuntime: isLocalWindowsHost }),
+      group: 'setup'
+    },
+    {
+      // CP2 prototype: Lead Studio Vault as a Settings pane.
+      id: 'lead-sources',
+      title: translate('sources.title', 'Sources'),
+      description: translate(
+        'sources.navDescription',
+        'Instagram, Umami, Polar, ChatbotX: state, last pull, keys.'
+      ),
+      icon: KeyRound,
+      searchEntries: [{ title: 'Sources', keywords: ['vault', 'key', 'connector', 'data'] }],
       group: 'setup'
     },
     {

@@ -17,6 +17,7 @@ import { StarNagAgentValueMomentObserver } from '../components/star-nag/StarNagA
 import { StarNagToastHost } from '../components/star-nag/StarNagToastHost'
 import { TelemetryFirstLaunchSurface } from '../components/TelemetryFirstLaunchSurface'
 import { ZoomOverlay } from '../components/ZoomOverlay'
+import { Cp2Switcher } from '../components/cp2/Cp2Switcher'
 import { shouldRenderPetOverlay } from '../components/pet/pet-overlay-visibility'
 import { useAppStore } from '../store'
 import type { UpdateStatus } from '../../../shared/update-status-types'
@@ -140,6 +141,7 @@ export function AppRootSurfaces(props: {
 
   return (
     <>
+      <Cp2Switcher />
       {floatingWorkspace.shouldMountPanel ? (
         <Suspense fallback={null}>
           <OverlayBoundary

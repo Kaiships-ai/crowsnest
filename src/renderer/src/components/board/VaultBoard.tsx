@@ -16,11 +16,11 @@ type Note = { ok: boolean; text: string }
 const loadVault = () => window.api.crowsnest.call('getVaultBoard')
 
 export const STATE_LABELS: Record<VaultRow['state'], () => string> = {
-  running: () => translate('boards.vault.state.running', 'chạy'),
-  error: () => translate('boards.vault.state.error', 'lỗi'),
-  stale: () => translate('boards.vault.state.stale', 'cũ'),
-  'not-connected': () => translate('boards.vault.state.notConnected', 'chưa nối'),
-  partial: () => translate('boards.vault.state.partial', 'thiếu')
+  running: () => translate('boards.vault.state.running', 'running'),
+  error: () => translate('boards.vault.state.error', 'error'),
+  stale: () => translate('boards.vault.state.stale', 'stale'),
+  'not-connected': () => translate('boards.vault.state.notConnected', 'not connected'),
+  partial: () => translate('boards.vault.state.partial', 'partial')
 }
 
 export function vaultProblem(row: VaultRow): { what: string; fix: string } | null {
@@ -32,39 +32,47 @@ export function vaultProblem(row: VaultRow): { what: string; fix: string } | nul
     case 'not-connected':
       return row.missingSecretLabels.length > 0
         ? {
-            what: translate('boards.vault.problem.missing', 'Thiếu {{missing}}.', { missing }),
-            fix: translate('boards.vault.fix.missing', 'Bấm Sửa và nhập {{missing}}.', { missing })
+            what: translate('boards.vault.problem.missing', 'Missing {{missing}}.', { missing }),
+            fix: translate('boards.vault.fix.missing', 'Click Edit and enter {{missing}}.', {
+              missing
+            })
           }
         : {
-            what: translate('boards.vault.problem.noAdapter', 'App chưa có bộ nối cho nguồn này.'),
+            what: translate(
+              'boards.vault.problem.noAdapter',
+              'The app has no connector for this source yet.'
+            ),
             fix: translate(
               'boards.vault.fix.noAdapter',
-              'Có thể lưu khoá trước bằng Sửa; app sẽ kéo khi có bộ nối.'
+              'You can save the key now with Edit; the app pulls once a connector exists.'
             )
           }
     case 'error':
       return {
-        what: detail || translate('boards.vault.problem.error', 'Lần kéo cuối bị lỗi.'),
+        what: detail || translate('boards.vault.problem.error', 'The last pull failed.'),
         fix: translate(
           'boards.vault.fix.error',
-          'Bấm Kiểm tra để xem kết nối, sửa khoá bằng Sửa, rồi Kéo lại.'
+          'Click Test to check the connection, fix the key with Edit, then Pull again.'
         )
       }
     case 'partial':
       return {
         what: translate(
           'boards.vault.problem.partial',
-          'Lần kéo thiếu ({{detail}}), nên số cũ được giữ.',
+          'The last pull was partial ({{detail}}), so the old numbers are kept.',
           { detail }
         ),
-        fix: translate('boards.vault.fix.partial', 'Kéo lại sau, khi nguồn hết giới hạn.')
+        fix: translate(
+          'boards.vault.fix.partial',
+          'Pull again later, once the source limit resets.'
+        )
       }
     case 'stale':
       return {
         what: row.lastPull
-          ? translate('boards.vault.problem.stale', 'Chưa có lần kéo đủ từ 05:00 hôm nay.')
-          : translate('boards.vault.problem.never', 'Chưa kéo lần nào.'),
-        fix: translate('boards.vault.fix.stale', 'Bấm Kéo lại, hoặc đợi lần kéo 05:00.')
+          ? translate('boards.vault.problem.stale', 'No complete pull since 05:00 today.')
+          : translate('boards.vault.problem.never', 'Never pulled.'),
+        fix: translate('boards.vault.fix.stale', 'Click Pull again, or wait for the 05:00 pull.')
       }
   }
 }
@@ -121,15 +129,15 @@ function SecretField({
         size="xs"
         disabled={busy || value.trim() === ''}
       >
-        {translate('boards.vault.save', 'Lưu')}
+        {translate('boards.vault.save', 'Save')}
       </Button>
       <span
         data-testid="vault-secret-status"
         className="col-start-2 font-mono text-2xs text-muted-foreground"
       >
         {secret.source === 'none'
-          ? translate('boards.vault.secretMissing', 'chưa có')
-          : translate('boards.vault.secretSaved', 'đã lưu · nguồn {{source}}', {
+          ? translate('boards.vault.secretMissing', 'not set')
+          : translate('boards.vault.secretSaved', 'saved · source {{source}}', {
               source: secret.source
             })}
       </span>
@@ -163,7 +171,7 @@ function VaultRowView({
       res.ok
         ? {
             ok: res.value.ok,
-            text: res.value.message ?? translate('boards.vault.testOk', 'Kết nối được.')
+            text: res.value.message ?? translate('boards.vault.testOk', 'Connected.')
           }
         : { ok: false, text: res.error.message }
     )
@@ -210,7 +218,7 @@ function VaultRowView({
           disabled={busy !== null}
           onClick={() => void test()}
         >
-          {translate('boards.vault.test', 'Kiểm tra')}
+          {translate('boards.vault.test', 'Test')}
         </Button>
         <Button
           data-testid="vault-pull"
@@ -219,7 +227,7 @@ function VaultRowView({
           disabled={busy !== null || !row.canPull}
           onClick={() => void pull()}
         >
-          {translate('boards.vault.pull', 'Kéo lại')}
+          {translate('boards.vault.pull', 'Pull again')}
         </Button>
         <Button
           data-testid="vault-edit"
@@ -228,7 +236,7 @@ function VaultRowView({
           aria-expanded={editing}
           onClick={onEdit}
         >
-          {translate('boards.vault.edit', 'Sửa')}
+          {translate('boards.vault.edit', 'Edit')}
         </Button>
       </span>
       {problem ? (
@@ -252,7 +260,7 @@ function VaultRowView({
         <div data-testid="vault-editor" className="col-span-full flex flex-col gap-3 py-2">
           {row.secrets.length === 0 ? (
             <p className="text-xs text-muted-foreground">
-              {translate('boards.vault.noSecrets', 'Nguồn này không cần khoá.')}
+              {translate('boards.vault.noSecrets', 'This source needs no key.')}
             </p>
           ) : (
             row.secrets.map((secret) => (
@@ -273,7 +281,7 @@ export function VaultBoard(): React.ReactNode {
     <BoardStates
       state={state}
       retry={retry}
-      emptyMessage={translate('boards.vault.empty', 'Chưa có nguồn nào.')}
+      emptyMessage={translate('boards.vault.empty', 'No sources yet.')}
     >
       {(rows) => (
         <div className="scrollbar-sleek grid h-full grid-cols-[1fr_auto_auto_auto_auto_auto] content-start gap-x-6 overflow-auto">
@@ -281,12 +289,12 @@ export function VaultBoard(): React.ReactNode {
             data-testid="board-vault-header"
             className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground"
           >
-            <span>{translate('boards.vault.source', 'Nguồn')}</span>
-            <span>{translate('boards.vault.state.column', 'Trạng thái')}</span>
-            <span>{translate('boards.vault.lastPull', 'Lần kéo cuối')}</span>
-            <span>{translate('boards.vault.nextPull', 'Lần kéo tới')}</span>
+            <span>{translate('boards.vault.source', 'Source')}</span>
+            <span>{translate('boards.vault.state.column', 'State')}</span>
+            <span>{translate('boards.vault.lastPull', 'Last pull')}</span>
+            <span>{translate('boards.vault.nextPull', 'Next pull')}</span>
             <span className="text-right">
-              {translate('boards.vault.graphLeft', 'Graph còn/giờ')}
+              {translate('boards.vault.graphLeft', 'Graph calls left/hr')}
             </span>
             <span className="flex justify-end">
               <Button

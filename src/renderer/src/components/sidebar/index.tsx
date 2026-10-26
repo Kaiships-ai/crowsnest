@@ -21,6 +21,8 @@ import { lazyWithRetry } from '@/lib/lazy-with-retry'
 import { LocalGitToolchainScanBanner } from './LocalGitToolchainScanBanner'
 import { SeveredTerminalDaemonBanner } from './SeveredTerminalDaemonBanner'
 import { StalledTerminalDaemonBanner } from './StalledTerminalDaemonBanner'
+import { useCp2 } from '../cp2/cp2-variant'
+import { LeadStudioNavBlock, LeadStudioNavRows, SidebarModeSwitch } from '../cp2/LeadStudioNav'
 
 // Why lazy: the Agents list pulls the whole activity pipeline (virtualizer, markdown
 // previews, thread derivation); users on the workspace view should not load or render any of it.
@@ -152,6 +154,8 @@ function Sidebar({
 
   useWorkspaceRevealBodyRedirect(sidebarOpen && sidebarBody === 'agents')
   // A collapsed sidebar takes no drops.
+  const cp2Sidebar = useCp2('sidebar')
+  const [cp2Mode, setCp2Mode] = React.useState<'boards' | 'workspaces'>('boards')
   const sidebarRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       containerRef.current = node
@@ -172,39 +176,50 @@ function Sidebar({
           <>
             {/* Fixed controls */}
             <SidebarNav />
-            <SidebarHeader
-              onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
-              activityOptionsTarget={setAgentOptionsTarget}
-            />
-            <SeveredTerminalDaemonBanner />
-            <StalledTerminalDaemonBanner />
-            {sidebarBody === 'agents' ? (
-              <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
-                <ActivityThreadCollapseContext.Provider value={agentsCollapseState}>
-                  <SidebarAgentsList
-                    readFilter={agentReadFilter}
-                    setReadFilter={setAgentReadFilter}
-                    groupBy={agentGroupBy}
-                    setGroupBy={setAgentGroupBy}
-                    query={agentQuery}
-                    setQuery={setAgentQuery}
-                    optionsTarget={agentOptionsTarget}
-                    scrollTopRef={agentsScrollTopRef}
-                  />
-                </ActivityThreadCollapseContext.Provider>
-              </React.Suspense>
-            ) : (
+            {cp2Sidebar === 'A' ? <LeadStudioNavBlock /> : null}
+            {cp2Sidebar === 'C' ? <SidebarModeSwitch mode={cp2Mode} onMode={setCp2Mode} /> : null}
+            {cp2Sidebar === 'C' && cp2Mode === 'boards' ? (
+              <div className="scrollbar-sleek min-h-0 flex-1 overflow-auto px-2 pt-2">
+                <LeadStudioNavRows />
+              </div>
+            ) : null}
+            {cp2Sidebar === 'C' && cp2Mode === 'boards' ? null : (
               <>
-                <LocalGitToolchainScanBanner />
-                <WorktreeList
-                  scrollOffsetRef={worktreeScrollOffsetRef}
-                  scrollAnchorRef={worktreeScrollAnchorRef}
-                  workspaceBoardOpen={workspaceBoardOpen}
-                  onWorktreeCardClick={closeWorkspaceBoard}
-                  onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
-                  onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
-                  onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
+                <SidebarHeader
+                  onWorkspaceBoardMenuOpenChange={setWorkspaceBoardMenuOpen}
+                  activityOptionsTarget={setAgentOptionsTarget}
                 />
+                <SeveredTerminalDaemonBanner />
+                <StalledTerminalDaemonBanner />
+                {sidebarBody === 'agents' ? (
+                  <React.Suspense fallback={<div className="min-h-0 flex-1" />}>
+                    <ActivityThreadCollapseContext.Provider value={agentsCollapseState}>
+                      <SidebarAgentsList
+                        readFilter={agentReadFilter}
+                        setReadFilter={setAgentReadFilter}
+                        groupBy={agentGroupBy}
+                        setGroupBy={setAgentGroupBy}
+                        query={agentQuery}
+                        setQuery={setAgentQuery}
+                        optionsTarget={agentOptionsTarget}
+                        scrollTopRef={agentsScrollTopRef}
+                      />
+                    </ActivityThreadCollapseContext.Provider>
+                  </React.Suspense>
+                ) : (
+                  <>
+                    <LocalGitToolchainScanBanner />
+                    <WorktreeList
+                      scrollOffsetRef={worktreeScrollOffsetRef}
+                      scrollAnchorRef={worktreeScrollAnchorRef}
+                      workspaceBoardOpen={workspaceBoardOpen}
+                      onWorktreeCardClick={closeWorkspaceBoard}
+                      onWorkspaceBoardDragPreviewStart={previewWorkspaceBoardFromDrag}
+                      onWorkspaceBoardDragPreviewCommit={solidifyWorkspaceBoardFromDrag}
+                      onWorkspaceBoardDragPreviewCancel={cancelWorkspaceBoardDragPreview}
+                    />
+                  </>
+                )}
               </>
             )}
 

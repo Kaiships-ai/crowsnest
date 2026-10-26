@@ -2992,25 +2992,25 @@
   "boards": {
     "funnel": {
       "step": {
-        "checkout": "Bấm checkout",
-        "comment_keyword": "Comment keyword",
-        "dm": "Nhận DM quà",
-        "gift_page_visit": "Vào trang quà",
-        "purchase": "Mua",
-        "view": "Xem reel"
+        "checkout": "Checkout clicks",
+        "comment_keyword": "Keyword comments",
+        "dm": "Gift DMs",
+        "gift_page_visit": "Gift page visits",
+        "purchase": "Purchases",
+        "view": "Reel views"
       }
     },
     "own": {
       "col": {
-        "comments": "Cmt",
-        "dm": "DM",
-        "gift_page_visit": "Web",
-        "latest": "Mới nhất",
-        "likes": "Thích",
-        "purchase": "Đơn",
-        "saved": "Lưu",
-        "shares": "Chia sẻ",
-        "views": "Xem"
+        "comments": "Cmts",
+        "dm": "DMs",
+        "gift_page_visit": "Site",
+        "latest": "Latest",
+        "likes": "Likes",
+        "purchase": "Orders",
+        "saved": "Saves",
+        "shares": "Shares",
+        "views": "Views"
       }
     }
   },

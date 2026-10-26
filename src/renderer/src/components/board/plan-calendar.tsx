@@ -3,12 +3,12 @@ import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
+import { Cp2DayChips } from '../cp2/Cp2MonthChips'
 import {
   AddButton,
   dayLabel,
   MissingFlag,
   StateBadge,
-  StateDot,
   WEEKDAYS,
   type PlanBoardData,
   type PlanCard,
@@ -47,7 +47,7 @@ export function MonthView({
             className="self-start font-mono text-2xs text-muted-foreground"
             onClick={() => onWeek(week[0].date)}
           >
-            {translate('boards.plan.weekOf', 'Tuần {{day}}', { day: dayLabel(week[0].date) })}
+            {translate('boards.plan.weekOf', 'Week {{day}}', { day: dayLabel(week[0].date) })}
           </Button>
           {week.map((day) => (
             <div
@@ -64,21 +64,7 @@ export function MonthView({
               <span className="font-mono text-2xs text-muted-foreground">
                 {Number(day.date.slice(8))}
               </span>
-              {day.cards.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  data-testid="plan-chip"
-                  data-plan-id={card.id}
-                  data-state={card.state}
-                  className="flex min-w-0 items-center gap-1 rounded px-1 text-left text-xs hover:bg-accent"
-                  onClick={() => onDay(day.date)}
-                >
-                  <StateDot state={card.state} />
-                  <span className="min-w-0 flex-1 truncate">{card.title}</span>
-                  <MissingFlag card={card} />
-                </button>
-              ))}
+              <Cp2DayChips cards={day.cards} onOpen={() => onDay(day.date)} />
               {day.cards.length === 0 && day.date >= board.today ? (
                 <AddButton date={day.date} onAdd={onAdd} compact />
               ) : null}
@@ -170,7 +156,7 @@ export function WeekView({
               </span>
               <h4 className="text-sm leading-snug font-medium">{card.title}</h4>
               <span data-testid="plan-time" className="font-mono text-xs text-muted-foreground">
-                {card.time ?? translate('boards.plan.noTime', 'chưa có giờ')}
+                {card.time ?? translate('boards.plan.noTime', 'no time')}
               </span>
             </article>
           ))}

@@ -1,6 +1,10 @@
 import type { LargeDiffRenderLimit } from './large-diff-render-limit'
 
+import type { DiffOnMount } from '@monaco-editor/react'
+
 export type DiffViewerProps = {
+  // CP2 prototype: lets the Cổng 1 host decorate modified lines.
+  onDiffMount?: DiffOnMount
   modelKey: string
   originalModelKey?: string
   modifiedModelKey?: string

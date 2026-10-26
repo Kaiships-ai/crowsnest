@@ -3441,3 +3441,8 @@ html.native-shell .app-layout {
     transition: transform var(--reference-title-duration) linear 400ms;
   }
 }
+
+/* CP2 prototype: yellow "modified" line in the Cổng 1 diff. Throwaway. */
+.cp2-yellow .cp2-mod-line {
+  background: color-mix(in srgb, var(--status-warning) 30%, var(--background)) !important;
+}

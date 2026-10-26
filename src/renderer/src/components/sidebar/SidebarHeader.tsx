@@ -1,4 +1,5 @@
 import React, { useId } from 'react'
+import { useCp2 } from '../cp2/cp2-variant'
 import { useTranslation } from 'react-i18next'
 import { useAppStore } from '@/store'
 import { translate } from '@/i18n/i18n'
@@ -46,10 +47,13 @@ const SidebarHeader = React.memo(function SidebarHeader({
   const acknowledgeIntro = React.useCallback(() => {
     void updateSettings?.({ agentsSidebarIntroShown: true })
   }, [updateSettings])
+  const cp2Sidebar = useCp2('sidebar')
   const sidebarTitle =
-    groupBy === 'repo'
-      ? translate('dashboard.sidebar.projects', 'Projects')
-      : translate('dashboard.sidebar.workspaces', 'Workspaces')
+    cp2Sidebar !== 'A'
+      ? translate('dashboard.sidebar.workspaces', 'Workspaces')
+      : groupBy === 'repo'
+        ? translate('dashboard.sidebar.projects', 'Projects')
+        : translate('dashboard.sidebar.workspaces', 'Workspaces')
   const activityLabel = translate(
     agentsViewActive ? 'dashboard.sidebar.closeActivity' : 'dashboard.sidebar.openActivity',
     agentsViewActive ? 'Turn off activity view' : 'View activity'

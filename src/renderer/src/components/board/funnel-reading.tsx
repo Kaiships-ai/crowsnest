@@ -19,8 +19,17 @@ const SOURCE_NAMES: Record<FunnelStep['source'], string> = {
 
 export const sourceName = (source: FunnelStep['source']): string => SOURCE_NAMES[source]
 
+const STEP_EN: Record<string, string> = {
+  view: 'Reel views',
+  comment_keyword: 'Keyword comments',
+  dm: 'Gift DMs',
+  gift_page_visit: 'Gift page visits',
+  checkout: 'Checkout clicks',
+  purchase: 'Purchases'
+}
+
 export const stepLabel = (step: Pick<FunnelStep, 'id' | 'label'>): string =>
-  translate(`boards.funnel.step.${step.id}`, step.label)
+  translate(`boards.funnel.step.${step.id}`, STEP_EN[step.id] ?? step.label)
 
 const countFormat = new Intl.NumberFormat()
 const rateFormat = new Intl.NumberFormat(undefined, {
@@ -45,7 +54,7 @@ export function KeywordGap({ total }: { total: FunnelStep['total'] }): React.Rea
   }
   return (
     <span data-testid="reading-keyword-gap" className="font-mono text-2xs text-muted-foreground">
-      {translate('boards.funnel.missingKeywords', 'thiếu {{count}} keyword', {
+      {translate('boards.funnel.missingKeywords', 'missing {{count}} keywords', {
         count: total.keywordsWithoutNumber
       })}
     </span>
@@ -78,7 +87,7 @@ export function ReadingValue({
         data-testid="reading-missing"
         className={cn('font-mono text-muted-foreground', gapSize)}
       >
-        {translate('boards.funnel.missing', 'chưa có số')}
+        {translate('boards.funnel.missing', 'no data yet')}
       </span>
     )
   }
@@ -91,7 +100,7 @@ export function ReadingValue({
         gapSize
       )}
     >
-      {translate('boards.funnel.notConnected', 'chưa nối')}
+      {translate('boards.funnel.notConnected', 'not connected')}
       {vaultLink ? (
         <Button
           data-testid="open-vault"
@@ -100,7 +109,7 @@ export function ReadingValue({
           className="h-auto px-0 text-xs"
           onClick={() => openBoardInActiveWorkspace('vault')}
         >
-          {translate('boards.funnel.vault', 'Vault')}
+          {translate('boards.funnel.vault', 'Sources')}
         </Button>
       ) : null}
     </span>

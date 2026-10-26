@@ -50,7 +50,10 @@ function ViewsHistory({ history }: { history: ReelBoard['history'] }): React.Rea
   if (history.length < 2) {
     return (
       <p data-testid="own-reel-history" className="text-sm text-muted-foreground">
-        {translate('boards.own.historyThin', 'Cần ít nhất 2 lần đo để vẽ đường lượt xem.')}
+        {translate(
+          'boards.own.historyThin',
+          'At least 2 measurements are needed to draw the views line.'
+        )}
       </p>
     )
   }
@@ -85,7 +88,7 @@ function AfterReel({ reel }: { reel: ReelBoard }): React.ReactNode {
       <p data-testid="own-after-none" className="text-sm text-muted-foreground">
         {translate(
           'boards.own.afterNone',
-          'Reel này không có keyword, nên chưa nối được tới DM, web và đơn. Gắn keyword cho reel trong Kế hoạch.'
+          "This reel has no keyword, so it can't be linked to DMs, site and orders. Add a keyword to the reel in Plan."
         )}
       </p>
     )
@@ -95,15 +98,17 @@ function AfterReel({ reel }: { reel: ReelBoard }): React.ReactNode {
       <p className="text-sm text-muted-foreground">
         {translate(
           'boards.own.afterIntro',
-          'Phần này Instagram không có. Lead Studio nối keyword {{keyword}} qua ChatbotX, Umami và Polar.',
+          "Instagram doesn't show this. Lead Studio links keyword {{keyword}} through ChatbotX, Umami and Polar.",
           { keyword: reel.after.keyword }
         )}
       </p>
       <div className="grid grid-cols-[1fr_auto_auto] content-start gap-x-6">
         <div className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground">
-          <span>{translate('boards.funnel.step.column', 'Bước')}</span>
-          <span className="text-right">{translate('boards.funnel.count', 'Số')}</span>
-          <span className="text-right">{translate('boards.funnel.rate', 'Từ bước trước')}</span>
+          <span>{translate('boards.funnel.step.column', 'Step')}</span>
+          <span className="text-right">{translate('boards.funnel.count', 'Count')}</span>
+          <span className="text-right">
+            {translate('boards.funnel.rate', 'From previous step')}
+          </span>
         </div>
         {reel.after.steps.map((step) => (
           <div
@@ -144,7 +149,7 @@ function BackButton({ onBack }: { onBack: () => void }): React.ReactNode {
       onClick={onBack}
     >
       <ArrowLeft />
-      {translate('boards.own.back', 'Mọi nội dung')}
+      {translate('boards.own.back', 'All content')}
     </Button>
   )
 }
@@ -168,14 +173,14 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
           onClick={() => openPostInBrowser(post.permalink)}
         >
           <ExternalLink />
-          {translate('boards.own.openPost', 'Mở bài gốc')}
+          {translate('boards.own.openPost', 'Open original post')}
         </Button>
       </header>
       {post.pullError ? (
         <p data-testid="own-reel-error" className="text-sm text-destructive">
           {translate(
             'boards.own.pullFailed',
-            'Lần đo {{at}} lỗi, số dưới đây là lần đo tốt trước đó: {{error}}',
+            'The {{at}} measurement failed; the numbers below are from the last good one: {{error}}',
             {
               at: formatBoardTime(post.pullError.at),
               error: post.pullError.error
@@ -186,13 +191,13 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
       <Tabs defaultValue="ov">
         <TabsList variant="line">
           <TabsTrigger data-testid="own-reel-tab-ov" value="ov">
-            {translate('boards.own.tab.home', 'Tổng quan')}
+            {translate('boards.own.tab.home', 'Overview')}
           </TabsTrigger>
           <TabsTrigger data-testid="own-reel-tab-eng" value="eng">
-            {translate('boards.own.tab.eng', 'Tương tác')}
+            {translate('boards.own.tab.eng', 'Engagement')}
           </TabsTrigger>
           <TabsTrigger data-testid="own-reel-tab-after" value="after">
-            {translate('boards.own.tab.after', 'Sau reel')}
+            {translate('boards.own.tab.after', 'After the reel')}
           </TabsTrigger>
         </TabsList>
         <TabsContent
@@ -201,34 +206,34 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
           className="flex flex-col gap-6 pt-3"
         >
           <div className="grid grid-cols-3 gap-6">
-            <IgStat post={post} field="views" label={translate('boards.own.views1', 'Lượt xem')} />
-            <IgStat post={post} field="reach" label={translate('boards.own.reach', 'Tiếp cận')} />
+            <IgStat post={post} field="views" label={translate('boards.own.views1', 'Views')} />
+            <IgStat post={post} field="reach" label={translate('boards.own.reach', 'Reach')} />
             <IgStat
               post={post}
               field="avgWatchTimeMs"
-              label={translate('boards.own.avgWatch', 'Xem trung bình')}
+              label={translate('boards.own.avgWatch', 'Avg watch time')}
               format={seconds}
             />
             <IgStat
               post={post}
               field="skipRate"
-              label={translate('boards.own.skipRate', 'Tỉ lệ lướt qua')}
+              label={translate('boards.own.skipRate', 'Skip rate')}
               format={percent}
             />
             <IgStat
               post={post}
               field="followsFromPost"
-              label={translate('boards.own.follows', 'Follow từ bài')}
+              label={translate('boards.own.follows', 'Follows from posts')}
             />
             <Stat
               testId="own-reel-index"
-              label={translate('boards.own.reachIndex', 'Tiếp cận so với trung vị kênh')}
+              label={translate('boards.own.reachIndex', 'Reach vs channel median')}
               source={INSTAGRAM}
               at={capturedAt(post.ig.reach)}
             >
               {post.reachIndex === null ? (
                 <span className="font-mono text-xs text-muted-foreground">
-                  {translate('boards.funnel.missing', 'chưa có số')}
+                  {translate('boards.funnel.missing', 'no data yet')}
                 </span>
               ) : (
                 <span data-num className="font-mono tabular-nums">
@@ -239,30 +244,30 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
           </div>
           <section className="flex flex-col gap-2">
             <h2 className="text-sm font-medium">
-              {translate('boards.own.history', 'Lượt xem qua các lần đo')}
+              {translate('boards.own.history', 'Views across measurements')}
             </h2>
             <ViewsHistory history={reel.history} />
           </section>
         </TabsContent>
         <TabsContent value="eng" data-testid="own-reel-panel-eng" className="pt-3">
           <div className="grid grid-cols-3 gap-6">
-            <IgStat post={post} field="likes" label={translate('boards.own.likes', 'Thích')} />
+            <IgStat post={post} field="likes" label={translate('boards.own.likes', 'Likes')} />
             <IgStat
               post={post}
               field="comments"
-              label={translate('boards.own.comments', 'Comment')}
+              label={translate('boards.own.comments', 'Comments')}
             />
-            <IgStat post={post} field="shares" label={translate('boards.own.shares', 'Chia sẻ')} />
-            <IgStat post={post} field="saved" label={translate('boards.own.saved', 'Lưu')} />
+            <IgStat post={post} field="shares" label={translate('boards.own.shares', 'Shares')} />
+            <IgStat post={post} field="saved" label={translate('boards.own.saved', 'Saves')} />
             <IgStat
               post={post}
               field="reposts"
-              label={translate('boards.own.reposts', 'Đăng lại')}
+              label={translate('boards.own.reposts', 'Reposts')}
             />
             <IgStat
               post={post}
               field="bioLinkTaps"
-              label={translate('boards.own.bioLinkTaps', 'Bấm link bio')}
+              label={translate('boards.own.bioLinkTaps', 'Bio link taps')}
             />
           </div>
         </TabsContent>

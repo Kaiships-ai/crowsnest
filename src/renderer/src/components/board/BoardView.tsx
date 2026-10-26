@@ -7,6 +7,8 @@ import { PlanBoard } from './PlanBoard'
 import { RivalsBoard } from './RivalsBoard'
 import { TodayBoard } from './TodayBoard'
 import { VaultBoard } from './VaultBoard'
+import { Cp2GateBoard } from '../cp2/Cp2GateBoard'
+import { Cp2DataBoard } from '../cp2/Cp2DataBoard'
 
 const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
   today: TodayBoard,
@@ -15,7 +17,9 @@ const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
   rivals: RivalsBoard,
   plan: PlanBoard,
   vault: VaultBoard,
-  agents: AgentsBoard
+  agents: AgentsBoard,
+  cp2gate: Cp2GateBoard,
+  cp2data: Cp2DataBoard
 }
 
 export function BoardView({ boardId }: { boardId: BoardId | undefined }): React.ReactNode {

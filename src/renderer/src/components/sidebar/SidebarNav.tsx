@@ -9,10 +9,10 @@ import { useMobileSidebarOnboardingBadge } from './mobile-sidebar-onboarding-bad
 import { ContextMenu, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { SetupGuideSidebarEntry } from './SetupGuideSidebarEntry'
-import { SidebarTaskNavButton } from './SidebarTaskNavButton'
 import { HideSidebarMenu } from './sidebar-nav-controls'
 import { translate } from '@/i18n/i18n'
+import { useCp2 } from '../cp2/cp2-variant'
+import { LeadStudioNavRows } from '../cp2/LeadStudioNav'
 import { lazyWithRetry } from '@/lib/lazy-with-retry'
 import type { GlobalSettings } from '../../../../shared/global-settings-types'
 
@@ -52,6 +52,7 @@ const SidebarNav = React.memo(function SidebarNav() {
   // Why: this memo boundary needs its own language subscription, while
   // translate() preserves Orca's pseudo-localization behavior.
   useTranslation()
+  const cp2Sidebar = useCp2('sidebar')
   const worktreePaletteShortcutCombos = useShortcutKeyComboDetails('worktree.palette')
   const openAutomationsPage = useAppStore((s) => s.openAutomationsPage)
   const openMobilePage = useAppStore((s) => s.openMobilePage)
@@ -61,8 +62,9 @@ const SidebarNav = React.memo(function SidebarNav() {
   const updateSettings = useAppStore((s) => s.updateSettings)
   const activeView = useAppStore((s) => s.activeView)
   const showAgentDashboardButton = useAppStore((s) => shouldShowAgentDashboardButton(s.settings))
-  const showAutomationsButton = useAppStore((s) => shouldShowAutomationsButton(s.settings))
-  const showMobileButton = useAppStore((s) => shouldShowMobileButton(s.settings))
+  // CP2: Tasks, Automations, Mobile hidden in every variant.
+  const showAutomationsButton = useAppStore((s) => shouldShowAutomationsButton(s.settings)) && false
+  const showMobileButton = useAppStore((s) => shouldShowMobileButton(s.settings)) && false
   const showArtifactsButton = useAppStore((s) => shouldShowArtifactsButton(s.settings))
   const showSkillsButton = useAppStore((s) => shouldShowSkillsButton(s.settings))
   const automationsActive = activeView === 'automations'
@@ -117,8 +119,7 @@ const SidebarNav = React.memo(function SidebarNav() {
           ))}
         </span>
       </button>
-      <SetupGuideSidebarEntry />
-      <SidebarTaskNavButton />
+      {cp2Sidebar === 'B' ? <LeadStudioNavRows /> : null}
       {showArtifactsButton ? (
         <ContextMenu>
           <ContextMenuTrigger asChild>

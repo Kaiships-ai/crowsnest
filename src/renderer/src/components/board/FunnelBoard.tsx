@@ -56,11 +56,11 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
     <div className="scrollbar-sleek flex h-full flex-col gap-6 overflow-auto py-4">
       <header className="flex items-start gap-3 px-4">
         <div className="flex flex-1 flex-col gap-1">
-          <h1 className="text-xl font-medium">{translate('boards.funnel.title', 'Phễu')}</h1>
+          <h1 className="text-xl font-medium">{translate('boards.funnel.title', 'Funnel')}</h1>
           <p className="text-sm text-muted-foreground">
             {translate(
               'boards.funnel.subtitle',
-              '6 bước từ người xem tới người mua. Mỗi số ghi nguồn và giờ lấy.'
+              '6 steps from viewer to buyer. Every number names its source and pull time.'
             )}
           </p>
         </div>
@@ -77,10 +77,12 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
 
       <section className="grid grid-cols-[1fr_auto_auto_auto] content-start gap-x-6">
         <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
-          <span>{translate('boards.funnel.step.column', 'Bước')}</span>
-          <span className="text-right">{translate('boards.funnel.count', 'Số')}</span>
-          <span className="text-right">{translate('boards.funnel.rate', 'Từ bước trước')}</span>
-          <span className="text-right">{translate('boards.funnel.target', 'Chuẩn')}</span>
+          <span>{translate('boards.funnel.step.column', 'Step')}</span>
+          <span className="text-right">{translate('boards.funnel.count', 'Count')}</span>
+          <span className="text-right">
+            {translate('boards.funnel.rate', 'From previous step')}
+          </span>
+          <span className="text-right">{translate('boards.funnel.target', 'Target')}</span>
         </div>
         {board.steps.map((step) => (
           <div
@@ -108,7 +110,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
             <span className="text-right font-mono text-xs text-muted-foreground">
               {step.rate
                 ? step.rate.target === null
-                  ? translate('boards.funnel.noTarget', 'chưa đặt chuẩn')
+                  ? translate('boards.funnel.noTarget', 'no target set')
                   : formatRate(step.rate.target)
                 : ''}
             </span>
@@ -118,7 +120,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
 
       <section className="flex flex-col gap-2">
         <h2 className="px-4 text-sm font-medium">
-          {translate('boards.funnel.byKeyword', 'Theo keyword')}
+          {translate('boards.funnel.byKeyword', 'By keyword')}
         </h2>
         <div className="grid grid-cols-[auto_1fr_repeat(6,auto)] content-start gap-x-6">
           <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
@@ -141,7 +143,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
             >
               <span className="font-mono text-xs">{row.keyword}</span>
               <span className="min-w-0 truncate text-muted-foreground">
-                {row.plan?.title ?? translate('boards.funnel.noReel', 'không có reel')}
+                {row.plan?.title ?? translate('boards.funnel.noReel', 'no reel')}
               </span>
               {row.steps.map((reading, i) => (
                 <span key={board.steps[i].id} className="text-right text-xs">
@@ -150,7 +152,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
                   ) : (
                     <span className="font-mono text-muted-foreground">
                       {reading.status === 'not-connected'
-                        ? translate('boards.funnel.notConnected', 'chưa nối')
+                        ? translate('boards.funnel.notConnected', 'not connected')
                         : '-'}
                     </span>
                   )}
@@ -163,17 +165,17 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
 
       <section className="flex flex-col gap-3 px-4">
         <h2 className="text-sm font-medium">
-          {translate('boards.funnel.coverage', 'Nối được tới đâu')}
+          {translate('boards.funnel.coverage', 'How far we can link')}
         </h2>
         <div className="flex gap-12">
           <CoverageLine
             testId="funnel-coverage-visits"
-            label={translate('boards.funnel.coverageVisits', 'Lượt vào trang quà biết reel')}
+            label={translate('boards.funnel.coverageVisits', 'Gift page visits with a known reel')}
             coverage={board.coverage.visits}
           />
           <CoverageLine
             testId="funnel-coverage-orders"
-            label={translate('boards.funnel.coverageOrders', 'Đơn biết reel')}
+            label={translate('boards.funnel.coverageOrders', 'Orders with a known reel')}
             coverage={board.coverage.orders}
           />
         </div>
@@ -190,7 +192,7 @@ export function FunnelBoard(): React.ReactNode {
       retry={retry}
       emptyMessage={translate(
         'boards.funnel.empty',
-        'Chưa có số phễu nào. Agent ghi số theo keyword bằng crowsnest_save_funnel.'
+        'No funnel numbers yet. Agents record numbers per keyword with crowsnest_save_funnel.'
       )}
     >
       {([board]) => <FunnelView board={board} reload={retry} />}

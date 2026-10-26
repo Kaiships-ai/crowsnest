@@ -32,11 +32,11 @@ export function AfterValue({ reading }: { reading: AfterReading }): React.ReactN
         data-testid="reading-no-keyword"
         title={translate(
           'boards.own.noKeywordHint',
-          'Reel này không có keyword, nên chưa nối được.'
+          "This reel has no keyword, so it can't be linked."
         )}
         className="font-mono text-xs text-muted-foreground"
       >
-        {translate('boards.funnel.notConnected', 'chưa nối')}
+        {translate('boards.funnel.notConnected', 'not connected')}
       </span>
     )
   }
@@ -55,7 +55,7 @@ export function TotalValue({
       <ReadingValue reading={total} format={format} hero />
       {total.status === 'value' && total.postsWithoutNumber > 0 ? (
         <span data-testid="reading-post-gap" className="font-mono text-2xs text-muted-foreground">
-          {translate('boards.own.missingPosts', 'thiếu {{count}} bài', {
+          {translate('boards.own.missingPosts', 'missing {{count}} posts', {
             count: total.postsWithoutNumber
           })}
         </span>

@@ -50,7 +50,8 @@ export default function DiffViewer({
   onContentChange,
   onSave,
   largeDiffRenderLimit,
-  largeDiffSaveContentAvailable
+  largeDiffSaveContentAvailable,
+  onDiffMount
 }: DiffViewerProps): React.JSX.Element {
   const settings = useAppStore((s) => s.settings)
   const isDark = useDocumentDarkTheme()
@@ -246,6 +247,7 @@ export default function DiffViewer({
       if (savedViewState) {
         requestAnimationFrame(() => diffEditor.restoreViewState(savedViewState))
       }
+      onDiffMount?.(diffEditor, monaco)
       // Auto-scroll to first diff lives in a separate effect below so it sequences after the decorator's view zones land.
 
       if (editable) {
@@ -275,7 +277,16 @@ export default function DiffViewer({
         diffEditor.focus()
       }
     },
-    [editable, setupCopy, modelKey, filePath, sideBySide, registerDiffEditor, unregisterDiffEditor]
+    [
+      editable,
+      setupCopy,
+      modelKey,
+      filePath,
+      sideBySide,
+      registerDiffEditor,
+      unregisterDiffEditor,
+      onDiffMount
+    ]
   )
 
   // Why: snapshot view state on deactivation (layoutEffect cleanup fires before unmount), not on scroll.

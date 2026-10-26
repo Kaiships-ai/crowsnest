@@ -25,7 +25,7 @@ function Field({
         {translate(`boards.plan.item.${item}`, ITEM_LABEL[item])}
       </span>
       {missing ? (
-        <span className="text-muted-foreground">{translate('boards.plan.notYet', 'chưa có')}</span>
+        <span className="text-muted-foreground">{translate('boards.plan.notYet', 'not yet')}</span>
       ) : (
         <span className="min-w-0">{children}</span>
       )}
@@ -46,7 +46,7 @@ export function DayView({
     <div data-testid="plan-day-view" data-date={day.date} className="flex flex-col gap-4">
       {day.cards.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {translate('boards.plan.emptyDay', 'Ngày này chưa có reel.')}
+          {translate('boards.plan.emptyDay', 'No reel on this day.')}
         </p>
       ) : null}
       {day.cards.map((card) => {
@@ -105,7 +105,7 @@ export function DayView({
             {card.missing.length > 0 ? (
               <p data-testid="plan-missing" className="flex items-center gap-2 text-xs">
                 <Flag className="size-3 text-destructive" />
-                {translate('boards.plan.missing', 'Còn thiếu: {{items}}', {
+                {translate('boards.plan.missing', 'Missing: {{items}}', {
                   items: card.missing.map((item) => ITEM_LABEL[item]).join(', ')
                 })}
               </p>
