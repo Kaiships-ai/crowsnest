@@ -29,6 +29,7 @@ function baseRow(overrides: Partial<Row> = {}): Row {
     errorClass: null,
     lastError: null,
     publishedOwnPostId: null,
+    publishedMediaId: null,
     publishedAt: null,
     updatedAt: "t0",
     ...overrides,
@@ -85,11 +86,11 @@ describe("publishPlannedPost", () => {
     const stored = store.get("plan_1")!;
     expect(stored.state).toBe("published");
     expect(stored.dryRun).toBe(1);
-    expect(stored.publishedOwnPostId).toBeNull();
+    expect(stored.publishedMediaId).toBeNull();
     expect(stored.lastError).toBeNull();
   });
 
-  test("real success (dry-run off): calls publishReel, stores mediaId as publishedOwnPostId, deletes the object", async () => {
+  test("real success (dry-run off): calls publishReel, stores mediaId as publishedMediaId, deletes the object", async () => {
     process.env.PUBLISH_DRY_RUN = "0";
     const { deps, store, del } = makeDeps(baseRow());
 
@@ -102,7 +103,8 @@ describe("publishPlannedPost", () => {
     const stored = store.get("plan_1")!;
     expect(stored.state).toBe("published");
     expect(stored.dryRun).toBe(0);
-    expect(stored.publishedOwnPostId).toBe("media_1");
+    expect(stored.publishedMediaId).toBe("media_1");
+    expect(stored.publishedOwnPostId).toBeNull();
   });
 
   test("already-terminal row (published) is a no-op: no upload, no publish", async () => {

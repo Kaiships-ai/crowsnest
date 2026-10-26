@@ -176,7 +176,7 @@ export async function publishPlannedPost(
     await deps.writeRow(postId, {
       state: "published",
       dryRun: dryRun ? 1 : 0,
-      publishedOwnPostId: mediaId,
+      publishedMediaId: mediaId,
       publishedAt: deps.now(),
       lastError: null,
       errorClass: null,

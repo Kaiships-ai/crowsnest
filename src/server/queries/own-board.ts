@@ -2,7 +2,7 @@ import { desc, sql } from "drizzle-orm";
 
 import { db, tables } from "@/server/db";
 import type { CountId } from "@/server/metrics/ledger";
-import { getFunnel, type FunnelEntry, type Reading } from "@/server/services/funnel";
+import { getFunnel, JOIN_PLAN_OWN_POST, PLAN_OWN_POST_ID, type FunnelEntry, type Reading } from "@/server/services/funnel";
 import { computeOwnMedianReach, indexAgainstOwnMedian } from "@/server/services/own-metrics";
 import { getSetting } from "@/server/settings";
 import { entryReading, funnelSteps, type FunnelStep } from "./funnel-board";
@@ -82,8 +82,8 @@ function pullErrorOf(post: JoinedOwnPost, failed: { capturedAt: string; fetchErr
 async function loadCards(posts: JoinedOwnPost[]): Promise<OwnPostCard[]> {
   const [links, entries, minUsable, failed] = await Promise.all([
     db.all<PlanLink>(sql`
-      SELECT published_own_post_id AS ownPostId, keyword FROM planned_posts
-      WHERE published_own_post_id IS NOT NULL AND keyword IS NOT NULL
+      SELECT ${PLAN_OWN_POST_ID} AS ownPostId, p.keyword FROM planned_posts p ${JOIN_PLAN_OWN_POST}
+      WHERE ${PLAN_OWN_POST_ID} IS NOT NULL AND p.keyword IS NOT NULL
     `),
     getFunnel(),
     getSetting("scoreMinUsablePosts"),

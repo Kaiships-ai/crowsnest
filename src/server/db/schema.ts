@@ -477,9 +477,10 @@ export const plannedPosts = sqliteTable("planned_posts", {
    *  never the script. */
   remixSessionId: text("remix_session_id").references(() => remixSessions.id, { onDelete: "set null" }),
   sourceVideoId: text("source_video_id").references(() => videos.id, { onDelete: "set null" }),
-  /** Set by hand when Kai says a plan went out. Nothing sets this automatically —
-   *  there is no code path from this table to any network call. */
+  /** The internal `own_posts.id` of the reel, set by hand when Kai marks a plan published. */
   publishedOwnPostId: text("published_own_post_id"),
+  /** Instagram's media id, set by publish. Readers reach the reel through `own_posts.external_id`. */
+  publishedMediaId: text("published_media_id"),
   /** Set when a carried script was deliberately detached rather than the plan simply
    *  never having had one. The calendar cell says the script is gone and when, instead
    *  of rendering identically to a plan that was always just a title. */

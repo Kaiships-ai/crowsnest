@@ -58,7 +58,7 @@ Files outside the database:
 
   | Metric | Source |
   | --- | --- |
-  | `view`, `follow`, `bio_link_tap` | `own_post_insights` (`views`, `followsFromPost`, `bioLinkTaps`), newest successful capture of the plan's `publishedOwnPostId` |
+  | `view`, `follow`, `bio_link_tap` | `own_post_insights` (`views`, `followsFromPost`, `bioLinkTaps`), newest successful capture of the plan's reel |
   | `dm` | `reel_funnel` `chatbotx` `dms` |
   | `gift_page_visit`, `email` | `reel_funnel` `umami` `visits`, `emails`, written by the Umami pull |
   | `purchase`, `revenue` | `reel_funnel` `polar` `orders`, `revenue` |
@@ -67,6 +67,7 @@ Files outside the database:
   | `checkout` | not connected (`polar`) |
 
   The rates are `follow_rate` and `bio_link_tap_rate` (over `view`), `comment_rate` (`comment_keyword` over `view`), `dm_rate` (over `comment_keyword`), `visit_rate` (`gift_page_visit` over `dm`), `checkout_rate` (`checkout` over `gift_page_visit`) and `purchase_rate` (`purchase` over `checkout`). Every target is null until Kai sets one.
+- **A plan reaches its reel one way per column.** `planned_posts.published_own_post_id` is always an internal `own_posts.id`, set by a hand mark (`markPlanPublishedAction`). `published_media_id` is Instagram's media id, set by publish. `getFunnel` and the own board read a plan's reel as `coalesce(published_own_post_id, own_posts.id where external_id = published_media_id)` (`PLAN_OWN_POST_ID` in `services/funnel.ts`), so an app-published reel links to its numbers once own-measure has stored it. Migration `0041_plan_media_id` moved every stored value that was not an `own_posts.id` into `published_media_id`.
 - **A number with no source is not-connected, never 0.** A reading has status `value` (with `value` and `capturedAt`), `missing` (the source exists but holds no number for the keyword), or `not-connected` (with the connector). A rate is not-connected when either side is, missing when either side is missing or the denominator is 0, and takes the older side's `capturedAt`.
 - **Funnel metrics come from the ledger.** `crowsnest_save_funnel` accepts, per source, only the `reel_funnel` metrics the ledger names; any other metric is refused with the allowed list, so `dm` and `dms` cannot split a series. Widen it in the ledger.
 - **Frame-pass layout cannot be fabricated.** `persistFramePass` (`services/frame-pass.ts`) refuses a layout field that carries a value while citing no frames. The model's output goes through the same validator a human entry would.

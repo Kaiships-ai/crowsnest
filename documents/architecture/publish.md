@@ -5,7 +5,7 @@ Publish is the schedule-and-auto-publish machinery behind a planned post. The cr
 The publish path is the official Instagram Graph API on the creator's own account. It is deliberately separate from the instagrapi sidecar that reads other creators' channels: different transport, different credentials, different error hierarchy, so the real account never touches the private API.
 
 ## Data it holds
-- `planned_posts` (shared with mine), in `src/server/db/schema.ts`. Publish owns the columns `video_asset_id`, `caption`, `scheduled_at`, `idempotency_key`, `attempt_count`, `last_error`, `error_class`, `published_at`, `dry_run`, and the `publishing` and `failed` values of `state`.
+- `planned_posts` (shared with mine), in `src/server/db/schema.ts`. Publish owns the columns `video_asset_id`, `published_media_id` (Instagram's media id of the published reel), `caption`, `scheduled_at`, `idempotency_key`, `attempt_count`, `last_error`, `error_class`, `published_at`, `dry_run`, and the `publishing` and `failed` values of `state`.
 - `media_assets` holds the uploaded mp4 through `video_asset_id` (nullable reference; the table belongs to the media store).
 - Unique index `planned_posts_idempotency_key` on `idempotency_key` (`postId:scheduledAt`).
 - Environment only, no settings screen: `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_KEY`, `S3_SECRET`, `S3_PUBLIC_BASE`, optional `S3_REGION`, `PUBLISH_DRY_RUN`, `PUBLISH_SCHEDULER_INTERVAL_MS`.

@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from "vitest";
 
 import { db, newId, nowIso, tables } from "@/server/db";
+import { getOwnBoard } from "@/server/queries/own-board";
 import { getFunnel, saveFunnel, type FunnelEntry } from "./funnel";
 
 const T = "2026-10-01T08:00:00+07:00";
@@ -110,4 +111,17 @@ test("a keyword filter returns only that keyword in any case", async () => {
     { keyword: "TWO", source: "umami", metric: "emails", value: 2, capturedAt: T },
   ] });
   expect((await getFunnel(" one ")).map((e) => e.keyword)).toEqual(["ONE"]);
+});
+
+test("a reel the app published links to its own post through the Graph media id publish stored (R1)", async () => {
+  const now = nowIso();
+  await db.insert(tables.ownPosts).values({ id: "op-uuid", externalId: "17900000001", permalink: "https://instagram.com/reel/r1", mediaType: "VIDEO", format: "Reel", postedAt: now, firstSeenAt: now });
+  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId: "op-uuid", capturedAt: "2026-10-02T00:00:00.000Z", views: 500 });
+  await db.insert(tables.plannedPosts).values({ id: newId(), state: "published", title: "K1 reel", keyword: "K1", publishedMediaId: "17900000001", createdAt: now, updatedAt: now });
+
+  const [k1] = await getFunnel("K1");
+  expect(metric(k1, "view")).toMatchObject({ status: "value", value: 500 });
+  const card = (await getOwnBoard(30)).posts.find((p) => p.ownPostId === "op-uuid");
+  expect(card?.keyword).toBe("K1");
+  expect(card?.after.dm).toMatchObject({ status: "missing" });
 });

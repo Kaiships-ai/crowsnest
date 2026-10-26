@@ -69,8 +69,12 @@ export interface FunnelEntry {
   metrics: MetricReading[];
 }
 
+/** A plan's reel: the own post Kai marked by hand, else the one whose Graph media id publish stored. Pair with JOIN_PLAN_OWN_POST on `planned_posts p`. */
+export const PLAN_OWN_POST_ID = sql.raw("coalesce(p.published_own_post_id, own_by_media.id)");
+export const JOIN_PLAN_OWN_POST = sql.raw("LEFT JOIN own_posts own_by_media ON own_by_media.external_id = p.published_media_id");
+
 type LatestRow = { key: string; keyword: string; source: FunnelSource; metric: string; value: number; captured_at: string };
-type PlanRow = { key: string; id: string; title: string; keyword: string; published_own_post_id: string | null };
+type PlanRow = { key: string; id: string; title: string; keyword: string; own_post_id: string | null };
 type InsightRow = typeof tables.ownPostInsights.$inferSelect;
 
 export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
@@ -85,11 +89,11 @@ export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
     SELECT key, keyword, source, metric, value, captured_at FROM latest WHERE rn = 1
   `);
   const plans = db.all<PlanRow>(sql`
-    SELECT lower(keyword) AS key, id, title, keyword, published_own_post_id
-    FROM planned_posts
-    WHERE keyword IS NOT NULL AND ${only}
+    SELECT lower(p.keyword) AS key, p.id, p.title, p.keyword, ${PLAN_OWN_POST_ID} AS own_post_id
+    FROM planned_posts p ${JOIN_PLAN_OWN_POST}
+    WHERE p.keyword IS NOT NULL AND ${only}
   `);
-  const insights = await newestCaptureByPost(plans.flatMap((p) => (p.published_own_post_id ? [p.published_own_post_id] : [])), true);
+  const insights = await newestCaptureByPost(plans.flatMap((p) => (p.own_post_id ? [p.own_post_id] : [])), true);
 
   const planByKey = new Map(plans.map((p) => [p.key, p]));
   const snapshotByKey = new Map(snapshots.map((r) => [`${r.key}|${r.source}|${r.metric}`, r]));
@@ -97,7 +101,7 @@ export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
 
   return keys.map((key) => {
     const plan = planByKey.get(key);
-    const insight = plan?.published_own_post_id ? insights.get(plan.published_own_post_id) : undefined;
+    const insight = plan?.own_post_id ? insights.get(plan.own_post_id) : undefined;
     const readSource = (s: MetricSource): Reading => {
       if (s.kind === "not-connected") return { status: "not-connected", connector: s.connector };
       if (s.kind === "own_post_insights") return readInsight(insight, s.column);

@@ -29,7 +29,7 @@ export interface OwnReelSnapshot {
 }
 export interface OwnReel {
   ownPostId: string;
-  /** Graph media id. Auto-publish stores this as a plan's publishedOwnPostId. */
+  /** Graph media id. Publish stores this as a plan's publishedMediaId. */
   externalId: string;
   permalink: string;
   caption: string | null;
