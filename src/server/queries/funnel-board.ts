@@ -1,0 +1,86 @@
+import { FUNNEL_STEPS, METRIC_LEDGER, type CountId, type MetricId, type MetricSource } from "@/server/metrics/ledger";
+import { getFunnel, ratio, type FunnelEntry, type MetricReading, type Reading } from "@/server/services/funnel";
+
+export type StepSource = "instagram" | Extract<MetricSource, { kind: "reel_funnel" }>["source"] | Extract<MetricSource, { kind: "not-connected" }>["connector"];
+
+export type TotalReading = Reading & { keywordsWithoutNumber: number };
+
+export interface FunnelStep {
+  id: CountId;
+  label: string;
+  source: StepSource;
+  total: TotalReading;
+  rate: { id: MetricId; label: string; target: number | null; reading: Reading } | null;
+}
+
+export type Coverage = { status: "value"; tied: number; total: number } | Exclude<Reading, { status: "value" }>;
+
+export interface FunnelBoard {
+  steps: FunnelStep[];
+  keywords: { keyword: string; plan: FunnelEntry["plan"]; steps: Reading[] }[];
+  coverage: { visits: Coverage; orders: Coverage };
+}
+
+function sourceOf(source: MetricSource): StepSource {
+  if (source.kind === "own_post_insights") return "instagram";
+  if (source.kind === "reel_funnel") return source.source;
+  return source.connector;
+}
+
+const reading = (entry: FunnelEntry, id: MetricId): MetricReading => {
+  const found = entry.metrics.find((m) => m.id === id);
+  if (!found) throw new Error(`funnel entry ${entry.keyword} has no ${id}`);
+  return found;
+};
+
+function sumReadings(readings: Reading[], notConnected: Reading | null): TotalReading {
+  if (notConnected?.status === "not-connected") return { ...notConnected, keywordsWithoutNumber: 0 };
+  const values = readings.flatMap((r) => (r.status === "value" ? [r] : []));
+  if (values.length === 0) return { status: "missing", keywordsWithoutNumber: 0 };
+  return {
+    status: "value",
+    value: values.reduce((sum, r) => sum + r.value, 0),
+    capturedAt: values.reduce((oldest, r) => (r.capturedAt < oldest ? r.capturedAt : oldest), values[0].capturedAt),
+    keywordsWithoutNumber: readings.length - values.length,
+  };
+}
+
+function coverage(entries: FunnelEntry[], id: CountId): Coverage {
+  const metric = METRIC_LEDGER[id];
+  if (metric.source.kind === "not-connected") return { status: "not-connected", connector: metric.source.connector };
+  const valued = entries.flatMap((e) => {
+    const r = reading(e, id);
+    return r.status === "value" ? [{ tied: e.plan !== null, value: r.value }] : [];
+  });
+  if (valued.length === 0) return { status: "missing" };
+  return {
+    status: "value",
+    tied: valued.reduce((sum, v) => sum + (v.tied ? v.value : 0), 0),
+    total: valued.reduce((sum, v) => sum + v.value, 0),
+  };
+}
+
+function notConnectedReading(id: CountId): Reading | null {
+  const source = METRIC_LEDGER[id].source;
+  return source.kind === "not-connected" ? { status: "not-connected", connector: source.connector } : null;
+}
+
+export async function getFunnelBoard(): Promise<FunnelBoard> {
+  const entries = await getFunnel();
+  const totals = FUNNEL_STEPS.map(({ count }) => sumReadings(entries.map((e) => reading(e, count)), notConnectedReading(count)));
+  const steps = FUNNEL_STEPS.map(({ count, rate }, i): FunnelStep => {
+    const metric = METRIC_LEDGER[count];
+    return {
+      id: count,
+      label: metric.label,
+      source: sourceOf(metric.source),
+      total: totals[i],
+      rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: ratio(totals[i], totals[i - 1]) } : null,
+    };
+  });
+  return {
+    steps,
+    keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => reading(e, count)) })),
+    coverage: { visits: coverage(entries, "gift_page_visit"), orders: coverage(entries, "purchase") },
+  };
+}

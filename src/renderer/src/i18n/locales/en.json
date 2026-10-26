@@ -21272,6 +21272,57 @@
       "result": "Kết quả",
       "draft": "Bản nháp",
       "pending": "chưa xong"
+    },
+    "funnel": {
+      "title": "Phễu",
+      "subtitle": "6 bước từ người xem tới người mua. Mỗi số ghi nguồn và giờ lấy.",
+      "step": {
+        "column": "Bước",
+        "view": "Xem reel",
+        "comment_keyword": "Comment keyword",
+        "dm": "Nhận DM quà",
+        "gift_page_visit": "Vào trang quà",
+        "checkout": "Bấm checkout",
+        "purchase": "Mua"
+      },
+      "count": "Số",
+      "rate": "Từ bước trước",
+      "target": "Chuẩn",
+      "missing": "chưa có số",
+      "notConnected": "chưa nối",
+      "missingKeywords": "thiếu {{count}} keyword",
+      "noTarget": "chưa đặt chuẩn",
+      "byKeyword": "Theo keyword",
+      "noReel": "không có reel",
+      "coverage": "Nối được tới đâu",
+      "coverageVisits": "Lượt vào trang quà biết reel",
+      "coverageOrders": "Đơn biết reel",
+      "empty": "Chưa có số phễu nào. Agent ghi số theo keyword bằng crowsnest_save_funnel.",
+      "keyword": "Keyword",
+      "reel": "Reel",
+      "vault": "Vault"
+    },
+    "today": {
+      "title": "Hôm nay",
+      "subtitle": "Số tới offer, việc chờ anh duyệt, và những gì đã chạy đêm qua.",
+      "offer": "Người tới offer",
+      "drop": "{{label}} {{rate}}, chuẩn {{target}}.",
+      "ledger": "sổ chỉ số",
+      "noTarget": "Chưa đặt chuẩn cho bước nào, nên chưa biết bước nào rơi nhiều nhất.",
+      "noRates": "Chưa có tỉ lệ nào để so với chuẩn.",
+      "workspaces": "Workspace đang chạy",
+      "live": "trực tiếp",
+      "noWorkspaces": "Không có agent nào đang chạy.",
+      "agentCounts": "{{working}} chạy · {{waiting}} chờ",
+      "gates": "Chờ anh duyệt",
+      "gate1": "Cổng 1 · kế hoạch đề xuất",
+      "gate2": "Cổng 2 · bản nháp chờ gửi",
+      "lastNight": "Đêm qua đã chạy",
+      "pullSource": "lần kéo 05:00",
+      "empty": "Chưa có gì cho hôm nay.",
+      "pulledAt": "lần kéo cuối",
+      "neverPulled": "chưa kéo lần nào",
+      "dropTitle": "Rơi nhiều nhất so với chuẩn"
     }
   }
 }

@@ -33,6 +33,8 @@ import {
 import { getCalendarMonth, getPlannedPostById, getPlannedPosts } from "@/server/queries/planned-posts";
 import { getLastRunHealth, getRun, listRuns } from "@/server/queries/runs";
 import { getScripts } from "@/server/queries/vault";
+import { getFunnelBoard } from "@/server/queries/funnel-board";
+import { getTodayBoard } from "@/server/queries/today-board";
 import { getVaultBoard } from "@/server/queries/vault-board";
 import { getVideoDetail } from "@/server/queries/video";
 import { removeChannelAction, setOwnChannelAction, unsetOwnChannelAction } from "@/server/actions/channel-actions";
@@ -147,6 +149,8 @@ export const ENGINE_CALLS = {
   getReelViewHistory: call(none, getReelViewHistory),
   getFunnel: call(z.tuple([z.string().max(64).optional()]), getFunnel),
   getMetricLedger: call(none, () => METRIC_LEDGER),
+  getFunnelBoard: call(none, getFunnelBoard),
+  getTodayBoard: call(none, () => getTodayBoard()),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),

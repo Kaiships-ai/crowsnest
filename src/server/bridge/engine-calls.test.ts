@@ -74,6 +74,8 @@ const READ_ARGS: Record<string, unknown[]> = {
   getReelViewHistory: [],
   getFunnel: [],
   getMetricLedger: [],
+  getFunnelBoard: [],
+  getTodayBoard: [],
   getPlannedPosts: [],
   getPlannedPostById: ["p-1"],
   getCalendarMonth: [new Date().toISOString().slice(0, 7)],

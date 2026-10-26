@@ -39,3 +39,11 @@ test("a target changed in the ledger reaches the MCP funnel tool, the board's br
   const ledger = await dispatchEngineCall("getMetricLedger", []);
   expect(ledger).toMatchObject({ ok: true, value: { checkout_rate: { target: CHANGED_TARGET } } });
 });
+
+test("each funnel step's rate divides it by the step before", async () => {
+  const { FUNNEL_STEPS, METRIC_LEDGER } = await vi.importActual<typeof import("./ledger")>("./ledger");
+  FUNNEL_STEPS.forEach(({ count, rate }, i) => {
+    if (i === 0) return expect(rate).toBeNull();
+    expect(rate && METRIC_LEDGER[rate]).toMatchObject({ numerator: count, denominator: FUNNEL_STEPS[i - 1].count });
+  });
+});

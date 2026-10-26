@@ -42,6 +42,7 @@ const COUNTS = {
 
 export type CountId = keyof typeof COUNTS;
 
+
 const RATES = {
   follow_rate: { kind: "rate", label: "Follow rate", window: "reel-lifetime", target: null, numerator: "follow", denominator: "view" },
   bio_link_tap_rate: { kind: "rate", label: "Link in bio tap rate", window: "reel-lifetime", target: null, numerator: "bio_link_tap", denominator: "view" },
@@ -53,6 +54,15 @@ const RATES = {
 } as const satisfies Record<string, RateMetric>;
 
 export const METRIC_LEDGER = { ...COUNTS, ...RATES };
+
+export const FUNNEL_STEPS = [
+  { count: "view", rate: null },
+  { count: "comment_keyword", rate: "comment_rate" },
+  { count: "dm", rate: "dm_rate" },
+  { count: "gift_page_visit", rate: "visit_rate" },
+  { count: "checkout", rate: "checkout_rate" },
+  { count: "purchase", rate: "purchase_rate" },
+] as const satisfies readonly { count: CountId; rate: keyof typeof RATES | null }[];
 
 export type MetricId = keyof typeof METRIC_LEDGER;
 export type Metric = CountMetric | RateMetric;

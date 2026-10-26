@@ -1,4 +1,6 @@
 export const LEAD_STUDIO_BOARDS = [
+  { id: 'today', label: 'Hôm nay' },
+  { id: 'funnel', label: 'Phễu' },
   { id: 'channels', label: 'Channels' },
   { id: 'vault', label: 'Vault' },
   { id: 'agents', label: 'Agents' }
