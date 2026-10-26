@@ -73,6 +73,12 @@
   "compilerOptions": {
     "paths": {
       "@renderer/*": ["../src/renderer/src/*"],
+      "@/server/*": ["../src/server/*"],
+      "@/lib/format": ["../src/lib/format"],
+      "@/lib/outlier-constants": ["../src/lib/outlier-constants"],
+      "@/lib/publish-attempts": ["../src/lib/publish-attempts"],
+      "@/lib/run-enrichment": ["../src/lib/run-enrichment"],
+      "@/lib/script-title": ["../src/lib/script-title"],
       "@/*": ["../src/renderer/src/*"]
     }
   }

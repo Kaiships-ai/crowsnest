@@ -15,6 +15,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 5 | Crowsnest MCP | Serves the 38 `crowsnest_*` tools on 127.0.0.1, port in `<userData>/mcp.port` | ● | `src/main/crowsnest/mcp-http.ts` | none |
 | 6 | Media | Serves stored assets on `cn-media://asset/<id>` with byte ranges | ● | `src/main/crowsnest/start.ts` | no board uses it yet |
 | 7 | Jobs | Opens the checkout's `data/crowsnest.db` directly; runs sync and own-measure, and the publish scheduler only with `LEAD_STUDIO_PUBLISH_JOBS=1` | ● | `src/server/start.ts`, `src/main/crowsnest/start.ts` | the publish step turns publishing on |
+| 8 | Engine bridge | `window.api.crowsnest.call` runs an engine query or local action from the renderer, with typed errors | ● | `src/server/bridge/engine-calls.ts` | no board uses it yet |
 
 ## Test cases
 
@@ -53,6 +54,12 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 1. `app-up.sh --seed`, insert a `media_assets` row for a file under the checkout media dir.
 2. `CN_MEDIA_ASSET=<id> app-drive.sh media-01`.
 3. Pass: `ok: missing asset is 404`, `ok: asset 200`, `ok: asset range 206`.
+
+### bridge-01: engine bridge from the renderer
+
+1. `app-up.sh --seed`.
+2. `app-drive.sh bridge-01`.
+3. Pass: `getChannelsList` returns `@e2e_fixture_creator`, `getChannelDetail` returns its 30 videos, `getSecretStatusAction` shows `IG_GRAPH_TOKEN` configured without the seeded value, `getChannelDetail(42)` is `bad_args`, `publishNowAction` is `unknown_call`, and the journey saves `bridge-01.png`.
 
 ### No double publish
 
