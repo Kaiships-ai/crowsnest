@@ -111,7 +111,7 @@ function toRow(
     remixSessionId: row.remixSessionId,
     sourceVideoId: row.sourceVideoId,
     publishedOwnPostId: row.publishedOwnPostId,
-    reconciledOwnPostId: row.publishedOwnPostId ? null : reconciledOwnPostId,
+    reconciledOwnPostId: row.publishedOwnPostId || row.publishedMediaId ? null : reconciledOwnPostId,
     videoAssetId: row.videoAssetId,
     caption: row.caption,
     scheduledAt: row.scheduledAt,
@@ -148,7 +148,7 @@ export async function getPlannedPosts(range?: { from: string; to: string }): Pro
 
   // Only fetch own_posts when some row could actually need reconciling — an all-draft
   // planner never touches this table.
-  const needsReconciliation = rows.some((r) => r.plannedDate !== null && r.publishedOwnPostId === null);
+  const needsReconciliation = rows.some((r) => r.plannedDate !== null && r.publishedOwnPostId === null && r.publishedMediaId === null);
   const ownPostDateMap = new Map<string, string>(); // plannedDate (YYYY-MM-DD) -> first-matching ownPostId
   if (needsReconciliation) {
     const ownPosts = await getPostsWithLatestInsights();
@@ -189,7 +189,7 @@ export async function getPlannedPostById(id: string): Promise<PlannedPostRow | n
   }
 
   let reconciledOwnPostId: string | null = null;
-  if (row.plannedDate !== null && row.publishedOwnPostId === null) {
+  if (row.plannedDate !== null && row.publishedOwnPostId === null && row.publishedMediaId === null) {
     const ownPosts = await getPostsWithLatestInsights();
     const match = ownPosts.find((p) => p.postedAt.slice(0, 10) === row.plannedDate);
     reconciledOwnPostId = match?.ownPostId ?? null;

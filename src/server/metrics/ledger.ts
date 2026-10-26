@@ -34,7 +34,7 @@ const COUNTS = {
   dm: { kind: "count", label: "DMs", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "chatbotx", metric: "dms" } },
   gift_page_visit: { kind: "count", label: "Gift page visits", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "umami", metric: "visits" } },
   email: { kind: "count", label: "Emails", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "umami", metric: "emails" } },
-  checkout: { kind: "count", label: "Checkouts", window: "reel-lifetime", target: null, source: { kind: "not-connected", connector: "polar" } },
+  checkout: { kind: "count", label: "Checkouts", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "umami", metric: "checkouts" } },
   purchase: { kind: "count", label: "Purchases", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "polar", metric: "orders" } },
   revenue: { kind: "count", label: "Revenue", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "polar", metric: "revenue" } },
   skool_member: { kind: "count", label: "Skool members", window: "reel-lifetime", target: null, source: { kind: "reel_funnel", source: "skool", metric: "members" } },

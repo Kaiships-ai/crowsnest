@@ -88,7 +88,7 @@ export default async function own01({ page, step, snap }) {
     if (!split.includes("NON_FOLLOWER") || !split.includes("87%")) throw new Error(split);
   });
 
-  await step("a reel opens on Overview, and After the reel walks OWN01's funnel with checkout not connected", async () => {
+  await step("a reel opens on Overview, and After the reel walks OWN01's funnel with checkout from Umami", async () => {
     await openTab(board, "own-tab-content");
     await board.locator('[data-testid="own-post-row"][data-post-id="own-reel-1"] [data-testid="own-open-reel"]').click();
     await board.getByTestId("own-reel-panel-ov").waitFor({ timeout: 10_000 });
@@ -98,7 +98,7 @@ export default async function own01({ page, step, snap }) {
     await openTab(board, "own-reel-tab-after");
     const steps = await board.getByTestId("own-after-step").evaluateAll((rows) => rows.map((r) => `${r.dataset.stepId}:${r.dataset.status}:${r.querySelector('[data-testid="reading-value"]')?.textContent ?? "-"}`));
     console.log(`steps: ${steps.join(" ")}`);
-    const want = [`view:value:${fmt(12_400)}`, "comment_keyword:not-connected:-", "dm:value:52", "gift_page_visit:value:18", "checkout:not-connected:-", "purchase:missing:-"];
+    const want = [`view:value:${fmt(12_400)}`, "comment_keyword:not-connected:-", "dm:value:52", "gift_page_visit:value:18", "checkout:missing:-", "purchase:missing:-"];
     if (JSON.stringify(steps) !== JSON.stringify(want)) throw new Error(`want ${want.join(" ")}`);
   });
   await snapBoth(page, snap, "own-01-after");

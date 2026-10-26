@@ -1,6 +1,8 @@
 import { instagramGraph } from "@/server/connectors/instagram-graph/manifest";
 import { CONNECTORS } from "@/server/connectors/registry";
 import type { Connector } from "@/server/connectors/types";
+import { GIFT_PAGE_PREFIX } from "@/server/connectors/umami/days";
+import { db, tables } from "@/server/db";
 import { clockNow } from "@/server/lib/clock";
 import { FUNNEL_STEPS, METRIC_LEDGER, type CountId, type MetricId, type MetricSource } from "@/server/metrics/ledger";
 import { getVaultBoard, type VaultRow } from "@/server/queries/vault-board";
@@ -54,6 +56,23 @@ function sumReadings(readings: Reading[], notConnected: Reading | null): TotalRe
   };
 }
 
+/** Every clean gift-page pageview Umami stored, tagged or not: the denominator of visit coverage. */
+function allGiftPageviews(): number | null {
+  const days = db.select({ clean: tables.umamiDays.clean }).from(tables.umamiDays).all();
+  if (days.length === 0) return null;
+  return days.reduce((sum, d) => sum + Object.entries(d.clean.paths).reduce((s, [path, n]) => s + (path.startsWith(GIFT_PAGE_PREFIX) ? n : 0), 0), 0);
+}
+
+function visitCoverage(entries: FunnelEntry[]): Coverage {
+  const total = allGiftPageviews();
+  if (total === null) return { status: "missing" };
+  const tied = entries.reduce((sum, e) => {
+    const r = entryReading(e, "gift_page_visit");
+    return sum + (e.plan && r.status === "value" ? r.value : 0);
+  }, 0);
+  return { status: "value", tied, total };
+}
+
 function coverage(entries: FunnelEntry[], id: CountId): Coverage {
   const metric = METRIC_LEDGER[id];
   if (metric.source.kind === "not-connected") return { status: "not-connected", connector: metric.source.connector };
@@ -74,16 +93,23 @@ function notConnectedReading(id: CountId): Reading | null {
   return source.kind === "not-connected" ? { status: "not-connected", connector: source.connector } : null;
 }
 
+const stepTotal = (entries: FunnelEntry[], id: CountId) => sumReadings(entries.map((e) => entryReading(e, id)), notConnectedReading(id));
+
+/** A step's rate over only the keywords that have both its number and the step before's, so neither side counts a keyword the other lacks. */
+function matchedRate(entries: FunnelEntry[], step: CountId, previous: CountId): Reading {
+  const both = entries.filter((e) => entryReading(e, step).status === "value" && entryReading(e, previous).status === "value");
+  return ratio(stepTotal(both, step), stepTotal(both, previous));
+}
+
 export function funnelSteps(entries: FunnelEntry[]): FunnelStep[] {
-  const totals = FUNNEL_STEPS.map(({ count }) => sumReadings(entries.map((e) => entryReading(e, count)), notConnectedReading(count)));
   return FUNNEL_STEPS.map(({ count, rate }, i): FunnelStep => {
     const metric = METRIC_LEDGER[count];
     return {
       id: count,
       label: metric.label,
       source: sourceOf(metric.source),
-      total: totals[i],
-      rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: ratio(totals[i], totals[i - 1]) } : null,
+      total: stepTotal(entries, count),
+      rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: matchedRate(entries, count, FUNNEL_STEPS[i - 1].count) } : null,
     };
   });
 }
@@ -103,6 +129,6 @@ export async function getFunnelBoard(now: Date = clockNow(), registry: Connector
   return {
     steps: withPulls(funnelSteps(entries), getVaultBoard(now, registry)),
     keywords: entries.map((e) => ({ keyword: e.keyword, plan: e.plan, steps: FUNNEL_STEPS.map(({ count }) => entryReading(e, count)) })),
-    coverage: { visits: coverage(entries, "gift_page_visit"), orders: coverage(entries, "purchase") },
+    coverage: { visits: visitCoverage(entries), orders: coverage(entries, "purchase") },
   };
 }

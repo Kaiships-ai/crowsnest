@@ -36,7 +36,6 @@ export default async function today01({ page, step, snap }) {
     const capturedAt = new Date(Date.now() - 60_000).toISOString();
     mcp("crowsnest_save_funnel", { agent: "today-01", rows: [
       { keyword: "TODAY01", source: "chatbotx", metric: "dms", value: 40, capturedAt },
-      { keyword: "TODAY01", source: "umami", metric: "visits", value: 12, capturedAt },
       { keyword: "TODAY01", source: "polar", metric: "orders", value: 2, capturedAt },
     ] });
     mcp("crowsnest_propose_plan", { agent: "today-01", period: "week", periodKey: "2099-W01", reels: [{ key: "today-01", title: "today-01 reel" }] });
@@ -60,11 +59,14 @@ export default async function today01({ page, step, snap }) {
     if (orphans !== 0) throw new Error(`${orphans} numbers outside a sourced block`);
   });
 
-  await step("checkout reads Polar not connected, never 0, and with no targets the drop says so", async () => {
+  await step("checkout reads Umami as the bridge does, and with no targets the drop says so", async () => {
+    const want = (await call(page, "getTodayBoard")).value.offer.find((s) => s.id === "checkout").total;
     const checkout = board.locator('[data-testid="today-offer-step"][data-step-id="checkout"]');
-    if ((await checkout.getByTestId("kpi-value").getAttribute("data-state")) !== "not-connected") throw new Error(await checkout.innerText());
-    if ((await checkout.locator("[data-num]").count()) !== 0) throw new Error("checkout shows a number");
-    if (!(await checkout.getByTestId("open-sources").innerText()).includes("Polar not connected")) throw new Error(await checkout.innerText());
+    const state = await checkout.getByTestId("kpi-value").getAttribute("data-state");
+    console.log(`checkout: ${state}, bridge ${JSON.stringify(want)}`);
+    if (want.status === "not-connected" || state === "not-connected") throw new Error("checkout is not connected");
+    if (want.status === "value" && (await checkout.locator("[data-num]").innerText()) !== new Intl.NumberFormat().format(want.value)) throw new Error(await checkout.innerText());
+    if (want.status !== "value" && (await checkout.locator("[data-num]").count()) !== 0) throw new Error("checkout shows a number");
     const drop = board.getByTestId("today-drop");
     if ((await drop.getAttribute("data-status")) !== "no-target") throw new Error(await drop.innerText());
     console.log(`drop: ${await drop.innerText()}`);

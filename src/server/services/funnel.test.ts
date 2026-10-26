@@ -1,6 +1,7 @@
 import { beforeAll, expect, test } from "vitest";
 
 import { db, newId, nowIso, tables } from "@/server/db";
+import { getOwnBoard } from "@/server/queries/own-board";
 import { getFunnel, saveFunnel, type FunnelEntry } from "./funnel";
 
 const T = "2026-10-01T08:00:00+07:00";
@@ -44,23 +45,23 @@ test("views, follows and link taps come from the plan's published reel, and rate
 });
 
 test("a metric whose source is not connected reads not-connected, never 0", async () => {
-  saveFunnel({ agent: "claude", rows: [{ keyword: "NC", source: "umami", metric: "visits", value: 12, capturedAt: T }] });
+  saveFunnel({ agent: "claude", rows: [{ keyword: "NC", source: "chatbotx", metric: "dms", value: 12, capturedAt: T }] });
   const [nc] = await getFunnel("NC");
-  expect(metric(nc, "checkout")).toEqual({ id: "checkout", label: "Checkouts", window: "reel-lifetime", target: null, status: "not-connected", connector: "polar" });
-  expect(metric(nc, "comment_keyword")).toMatchObject({ status: "not-connected", connector: "chatbotx" });
-  expect(metric(nc, "checkout_rate")).toMatchObject({ status: "not-connected", connector: "polar" });
+  expect(metric(nc, "comment_keyword")).toEqual({ id: "comment_keyword", label: "Keyword comments", window: "reel-lifetime", target: null, status: "not-connected", connector: "chatbotx" });
+  expect(metric(nc, "dm_rate")).toMatchObject({ status: "not-connected", connector: "chatbotx" });
+  expect(metric(nc, "checkout")).toMatchObject({ status: "missing" });
   expect(nc.metrics.filter((m) => m.status === "not-connected").some((m) => "value" in m)).toBe(false);
 });
 
 test("one bad row refuses the whole batch and writes nothing", async () => {
   const before = (await db.select().from(tables.reelFunnel)).length;
   const r = saveFunnel({ agent: "claude", rows: [
-    { keyword: "ATOMIC", source: "umami", metric: "visits", value: 1, capturedAt: T },
+    { keyword: "ATOMIC", source: "chatbotx", metric: "dms", value: 1, capturedAt: T },
     { keyword: "ATOMIC", source: "tiktok", metric: "visits", value: 2, capturedAt: T },
   ] });
   expect(r.ok).toBe(false);
   for (const bad of [{ value: -1 }, { value: 1, capturedAt: "2099-01-01T00:00:00Z" }]) {
-    expect(saveFunnel({ agent: "claude", rows: [{ keyword: "ATOMIC", source: "umami", metric: "visits", capturedAt: T, ...bad }] }).ok).toBe(false);
+    expect(saveFunnel({ agent: "claude", rows: [{ keyword: "ATOMIC", source: "chatbotx", metric: "dms", capturedAt: T, ...bad }] }).ok).toBe(false);
   }
   expect((await db.select().from(tables.reelFunnel)).length).toBe(before);
 });
@@ -73,7 +74,7 @@ test("a keyword no plan holds is stored and shown with no plan", async () => {
 });
 
 test("saving the same batch twice keeps the latest values", async () => {
-  const batch = { agent: "codex", rows: [{ keyword: "TWICE", source: "umami", metric: "visits", value: 7, capturedAt: "2026-10-03T08:00:00Z" }] };
+  const batch = { agent: "codex", rows: [{ keyword: "TWICE", source: "chatbotx", metric: "dms", value: 7, capturedAt: "2026-10-03T08:00:00Z" }] };
   saveFunnel(batch);
   const first = await getFunnel("TWICE");
   saveFunnel(batch);
@@ -106,8 +107,32 @@ test("the same capturedAt goes to the later insert", async () => {
 
 test("a keyword filter returns only that keyword in any case", async () => {
   saveFunnel({ agent: "claude", rows: [
-    { keyword: "ONE", source: "umami", metric: "emails", value: 1, capturedAt: T },
-    { keyword: "TWO", source: "umami", metric: "emails", value: 2, capturedAt: T },
+    { keyword: "ONE", source: "polar", metric: "revenue", value: 1, capturedAt: T },
+    { keyword: "TWO", source: "polar", metric: "revenue", value: 2, capturedAt: T },
   ] });
   expect((await getFunnel(" one ")).map((e) => e.keyword)).toEqual(["ONE"]);
+});
+
+test("a reel the app published links to its own post through the Graph media id publish stored (R1)", async () => {
+  const now = nowIso();
+  await db.insert(tables.ownPosts).values({ id: "op-uuid", externalId: "17900000001", permalink: "https://instagram.com/reel/r1", mediaType: "VIDEO", format: "Reel", postedAt: now, firstSeenAt: now });
+  await db.insert(tables.ownPostInsights).values({ id: newId(), ownPostId: "op-uuid", capturedAt: "2026-10-02T00:00:00.000Z", views: 500 });
+  await db.insert(tables.plannedPosts).values({ id: newId(), state: "published", title: "K1 reel", keyword: "K1", publishedMediaId: "17900000001", createdAt: now, updatedAt: now });
+
+  const [k1] = await getFunnel("K1");
+  expect(metric(k1, "view")).toMatchObject({ status: "value", value: 500 });
+  const card = (await getOwnBoard(30)).posts.find((p) => p.ownPostId === "op-uuid");
+  expect(card?.keyword).toBe("K1");
+  expect(card?.after.dm).toMatchObject({ status: "missing" });
+});
+
+test("a source a connector pulls is refused, so an agent row never overrides the pull (one writer per series)", async () => {
+  const before = (await db.select().from(tables.reelFunnel)).length;
+  const r = saveFunnel({ agent: "claude", rows: [
+    { keyword: "K", source: "chatbotx", metric: "dms", value: 3, capturedAt: T },
+    { keyword: "K", source: "umami", metric: "visits", value: 9999, capturedAt: T },
+  ] });
+  expect(r).toEqual({ ok: false, error: expect.stringContaining("umami is pulled by the Umami connector; an agent cannot save it") });
+  expect(r.ok === false && r.error).toContain("rows[1].source");
+  expect((await db.select().from(tables.reelFunnel)).length).toBe(before);
 });

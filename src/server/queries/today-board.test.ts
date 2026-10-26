@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 
 import type { Connector } from "@/server/connectors/types";
-import { db, nowIso, tables } from "@/server/db";
+import { db, newId, nowIso, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
 import { runDailyPull } from "@/server/services/daily-pull";
 import { saveFunnel } from "@/server/services/funnel";
@@ -56,11 +56,13 @@ test("a partial or failed pull shows as such, never as running", async () => {
   ]);
 });
 
-test("the offer is checkout then purchase, checkout reads not-connected, and with no targets the drop says so", async () => {
+test("the offer is checkout from Umami then purchase, and with no targets the drop says so", async () => {
   saveFunnel({ agent: "claude", rows: [{ keyword: "ALPHA", source: "polar", metric: "orders", value: 4, capturedAt: "2026-10-02T08:00:00Z" }] });
+  const capturedAt = "2026-10-02T08:00:00.000Z";
+  await db.insert(tables.reelFunnel).values({ id: newId(), keyword: "ALPHA", source: "umami", metric: "checkouts", value: 6, capturedAt, agent: "umami", createdAt: capturedAt });
   const board = await getTodayBoard(at(27, 9), []);
   expect(board.offer.map((s) => [s.id, s.total.status, "value" in s.total ? s.total.value : null])).toEqual([
-    ["checkout", "not-connected", null],
+    ["checkout", "value", 6],
     ["purchase", "value", 4],
   ]);
   expect(board.drop).toEqual({ status: "no-target" });

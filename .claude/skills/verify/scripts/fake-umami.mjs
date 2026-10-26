@@ -11,9 +11,10 @@ const TOKEN = "lane-umami-token";
 const PAGE_SIZE = 3;
 let failPage = 0;
 
-// Spread across the asked window, so every event lands on the day being pulled.
+// Spread across the asked window less its first day, which the connector reads only to seed session campaigns, so every event lands on a day being counted.
 function events(startAt, endAt) {
-  const at = (k) => new Date(startAt + ((endAt - startAt) * k) / 10).toISOString();
+  const from = startAt + 86_400_000;
+  const at = (k) => new Date(from + ((endAt - from) * k) / 10).toISOString();
   const pv = (sessionId, k, url) => {
     const [urlPath, urlQuery = null] = url.split("?");
     return { id: `${sessionId}-${k}`, websiteId: WEBSITE_ID, sessionId, createdAt: at(k), urlPath, urlQuery, eventType: 1, eventName: null };

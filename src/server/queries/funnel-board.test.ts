@@ -10,7 +10,7 @@ const T2 = "2026-10-02T08:00:00.000Z";
 
 beforeEach(async () => {
   migrate();
-  for (const t of [tables.reelFunnel, tables.plannedPosts, tables.ownPostInsights, tables.ownPosts]) await db.delete(t);
+  for (const t of [tables.reelFunnel, tables.plannedPosts, tables.ownPostInsights, tables.ownPosts, tables.umamiDays]) await db.delete(t);
 });
 
 async function seed(): Promise<void> {
@@ -23,14 +23,22 @@ async function seed(): Promise<void> {
   ]);
   saveFunnel({ agent: "claude", rows: [
     { keyword: "ALPHA", source: "chatbotx", metric: "dms", value: 50, capturedAt: T2 },
-    { keyword: "ALPHA", source: "umami", metric: "visits", value: 20, capturedAt: T2 },
     { keyword: "ALPHA", source: "polar", metric: "orders", value: 2, capturedAt: T2 },
     { keyword: "BETA", source: "chatbotx", metric: "dms", value: 30, capturedAt: T },
-    { keyword: "BETA", source: "umami", metric: "visits", value: 10, capturedAt: T },
-    { keyword: "GAMMA", source: "umami", metric: "visits", value: 5, capturedAt: T2 },
     { keyword: "GAMMA", source: "polar", metric: "orders", value: 1, capturedAt: T2 },
   ] });
+  await db.insert(tables.reelFunnel).values([
+    umamiRow("ALPHA", "visits", 20, T2),
+    umamiRow("ALPHA", "checkouts", 4, T2),
+    umamiRow("BETA", "visits", 10, T),
+    umamiRow("BETA", "checkouts", 3, T),
+    umamiRow("GAMMA", "visits", 5, T2),
+  ]);
+  const counts = { visitors: 30, pageviews: 43, events: {}, paths: { "/get/alpha": 22, "/get/beta": 10, "/get/untagged": 8, "/free/alpha.html": 3 }, utmQuery: {}, byCampaign: {} };
+  await db.insert(tables.umamiDays).values({ day: "2026-10-01", raw: counts, clean: counts, testSessionsDropped: 0, final: 1, fetchedAt: T2 });
 }
+
+const umamiRow = (keyword: string, metric: string, value: number, capturedAt: string) => ({ id: newId(), keyword, source: "umami" as const, metric, value, capturedAt, agent: "umami", createdAt: capturedAt });
 
 test("each step sums its keywords, takes the oldest time, and counts the keywords with no number", async () => {
   await seed();
@@ -40,7 +48,7 @@ test("each step sums its keywords, takes the oldest time, and counts the keyword
     ["comment_keyword", "chatbotx", { status: "not-connected", connector: "chatbotx", keywordsWithoutNumber: 0 }],
     ["dm", "chatbotx", { status: "value", value: 80, capturedAt: T, keywordsWithoutNumber: 1 }],
     ["gift_page_visit", "umami", { status: "value", value: 35, capturedAt: T, keywordsWithoutNumber: 0 }],
-    ["checkout", "polar", { status: "not-connected", connector: "polar", keywordsWithoutNumber: 0 }],
+    ["checkout", "umami", { status: "value", value: 7, capturedAt: T, keywordsWithoutNumber: 1 }],
     ["purchase", "polar", { status: "value", value: 3, capturedAt: T2, keywordsWithoutNumber: 1 }],
   ]);
 });
@@ -52,27 +60,27 @@ test("the rate to each step comes from the ledger, and a step next to a not-conn
     null,
     ["comment_rate", "not-connected", "chatbotx"],
     ["dm_rate", "not-connected", "chatbotx"],
-    ["visit_rate", "value", 0.4375],
-    ["checkout_rate", "not-connected", "polar"],
-    ["purchase_rate", "not-connected", "polar"],
+    ["visit_rate", "value", 0.375],
+    ["checkout_rate", "value", 7 / 30],
+    ["purchase_rate", "value", 0.5],
   ]);
   expect(steps.flatMap((s) => (s.rate ? [s.rate.target] : []))).toEqual([null, null, null, null, null]);
 });
 
-test("coverage counts the visits and orders under a keyword a planned reel holds", async () => {
+test("coverage counts the visits under a planned keyword over every gift-page pageview, and the orders under a planned keyword", async () => {
   await seed();
   const board = await getFunnelBoard();
-  expect(board.coverage).toEqual({ visits: { status: "value", tied: 30, total: 35 }, orders: { status: "value", tied: 2, total: 3 } });
+  expect(board.coverage).toEqual({ visits: { status: "value", tied: 30, total: 40 }, orders: { status: "value", tied: 2, total: 3 } });
   expect(board.keywords.map((k) => [k.keyword, k.plan?.id ?? null, k.steps.map((r) => (r.status === "value" ? r.value : r.status))])).toEqual([
-    ["ALPHA", "plan-alpha", [1000, "not-connected", 50, 20, "not-connected", 2]],
-    ["BETA", "plan-beta", ["missing", "not-connected", 30, 10, "not-connected", "missing"]],
-    ["GAMMA", null, ["missing", "not-connected", "missing", 5, "not-connected", 1]],
+    ["ALPHA", "plan-alpha", [1000, "not-connected", 50, 20, 4, 2]],
+    ["BETA", "plan-beta", ["missing", "not-connected", 30, 10, 3, "missing"]],
+    ["GAMMA", null, ["missing", "not-connected", "missing", 5, "missing", 1]],
   ]);
 });
 
 test("with no funnel rows a connected step is missing and a not-connected one says so, never 0", async () => {
   const board = await getFunnelBoard();
-  expect(board.steps.map((s) => s.total.status)).toEqual(["missing", "not-connected", "missing", "missing", "not-connected", "missing"]);
+  expect(board.steps.map((s) => s.total.status)).toEqual(["missing", "not-connected", "missing", "missing", "missing", "missing"]);
   expect(board.steps.some((s) => "value" in s.total)).toBe(false);
   expect(board.coverage).toEqual({ visits: { status: "missing" }, orders: { status: "missing" } });
 });
@@ -90,7 +98,24 @@ test("a step whose source's newest pull failed or was partial says so beside its
     ["comment_keyword", null],
     ["dm", null],
     ["gift_page_visit", "partial"],
-    ["checkout", null],
+    ["checkout", "partial"],
     ["purchase", null],
   ]);
+});
+
+test("a step's rate divides over the keywords that have both numbers; the totals keep every keyword (R2)", async () => {
+  const now = nowIso();
+  await db.insert(tables.plannedPosts).values([
+    { id: "plan-ka", state: "published", title: "KA reel", keyword: "KA", createdAt: now, updatedAt: now },
+    { id: "plan-kb", state: "published", title: "KB reel", keyword: "KB", createdAt: now, updatedAt: now },
+  ]);
+  const row = (keyword: string, source: "chatbotx" | "umami", metric: string, value: number) => ({ id: newId(), keyword, source, metric, value, capturedAt: T, agent: source, createdAt: now });
+  await db.insert(tables.reelFunnel).values([row("KA", "chatbotx", "dms", 10), row("KA", "umami", "visits", 5), row("KB", "umami", "visits", 50)]);
+
+  const visit = (await getFunnelBoard()).steps.find((s) => s.id === "gift_page_visit");
+  expect(visit?.total).toEqual({ status: "value", value: 55, capturedAt: T, keywordsWithoutNumber: 0 });
+  expect(visit?.rate?.reading).toEqual({ status: "value", value: 0.5, capturedAt: T });
+
+  await db.insert(tables.reelFunnel).values(row("KB", "chatbotx", "dms", 40));
+  expect((await getFunnelBoard()).steps.find((s) => s.id === "gift_page_visit")?.rate?.reading).toEqual({ status: "value", value: 1.1, capturedAt: T });
 });

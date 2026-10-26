@@ -338,7 +338,7 @@ export function buildMcpServer(agent?: string): McpServer {
     "crowsnest_save_funnel",
     {
       title: "Save funnel snapshots",
-      description: `Appends a batch of funnel numbers per reel keyword. Each row is { keyword, source, metric, value, capturedAt }. Allowed metrics per source, exact strings: ${FUNNEL_METRICS_TEXT}. value is zero or more. capturedAt is required: pass the source's own timestamp with an offset (e.g. 2026-10-16T07:00:00+07:00), not the time you call this. Writes all rows or none: an invalid row returns code INVALID_ROWS naming the row and field. Saving the same batch again leaves the latest values unchanged.`,
+      description: `Appends a batch of funnel numbers per reel keyword. Each row is { keyword, source, metric, value, capturedAt }. Allowed metrics per source, exact strings: ${FUNNEL_METRICS_TEXT}. A source a connector pulls is refused: the pull is its only writer. value is zero or more. capturedAt is required: pass the source's own timestamp with an offset (e.g. 2026-10-16T07:00:00+07:00), not the time you call this. Writes all rows or none: an invalid row returns code INVALID_ROWS naming the row and field. Saving the same batch again leaves the latest values unchanged.`,
       inputSchema: {
         agent: z.string().describe("Who captured these numbers, for provenance: 'claude', 'codex', or your label."),
         rows: z.array(z.record(z.string(), z.unknown())).describe("1 to 1000 rows: { keyword, source, metric, value, capturedAt }."),

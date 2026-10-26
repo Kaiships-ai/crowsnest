@@ -3,7 +3,9 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
+import { getFunnelBoard } from "@/server/queries/funnel-board";
 import { setSecret } from "@/server/secrets/store";
+import { getFunnel } from "@/server/services/funnel";
 import type { UmamiEvent } from "./days";
 import { connector } from "./index";
 import { pullUmami, type UmamiAccess } from "./pull";
@@ -29,7 +31,7 @@ const EVENTS: UmamiEvent[] = [
 ];
 
 const NOW = new Date("2026-10-18T10:00:00.000Z");
-const fake = { failPage: 0, failLogin: false, eventCalls: [] as URLSearchParams[] };
+const fake = { failPage: 0, failLogin: false, eventCalls: [] as URLSearchParams[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false };
 let server: Server;
 let access: UmamiAccess;
 
@@ -58,8 +60,9 @@ beforeAll(async () => {
       if (page === fake.failPage) return send(503, { error: "busy" });
       const from = Number(url.searchParams.get("startAt"));
       const to = Number(url.searchParams.get("endAt"));
-      const inRange = EVENTS.filter((e) => Date.parse(e.createdAt) >= from && Date.parse(e.createdAt) <= to);
-      return send(200, { data: inRange.slice((page - 1) * 4, page * 4), count: inRange.length, page, pageSize: 4 });
+      const inRange = fake.events.filter((e) => Date.parse(e.createdAt) >= from && Date.parse(e.createdAt) <= to);
+      const data = fake.ignorePage ? inRange.slice(0, fake.pageSize) : inRange.slice((page - 1) * fake.pageSize, page * fake.pageSize);
+      return send(200, fake.sendCount ? { data, count: inRange.length, page, pageSize: fake.pageSize } : { data, page, pageSize: fake.pageSize });
     }
     send(404, { error: "not found" });
   });
@@ -72,7 +75,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 beforeEach(async () => {
   migrate();
   for (const t of [tables.umamiDays, tables.reelFunnel, tables.plannedPosts, tables.sealedSecrets, tables.secrets]) await db.delete(t);
-  Object.assign(fake, { failPage: 0, failLogin: false, eventCalls: [] });
+  Object.assign(fake, { failPage: 0, failLogin: false, eventCalls: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false });
   const at = "2026-10-17T00:30:00.000Z";
   await db.insert(tables.plannedPosts).values([
     { id: "plan-shark", state: "published", title: "Shark reel", keyword: "SHARK", createdAt: at, updatedAt: at },
@@ -90,8 +93,8 @@ const funnelRows = () =>
 describe("Umami pull", () => {
   test("stores each VN day, raw and without test sessions, and each keyword's lifetime gift-page visits and signups", async () => {
     expect(await pullUmami(access, NOW)).toEqual({ kind: "complete", rows: { days: ["2026-10-17", "2026-10-18"], events: 11, keywords: 2 } });
-    expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3"]);
-    expect(fake.eventCalls[0].get("startAt")).toBe(String(Date.parse("2026-10-16T17:00:00.000Z")));
+    expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3", "4"]);
+    expect(fake.eventCalls[0].get("startAt")).toBe(String(Date.parse("2026-10-15T17:00:00.000Z")));
 
     const days = db.select().from(tables.umamiDays).orderBy(tables.umamiDays.day).all();
     expect(days.map((d) => [d.day, d.final, d.testSessionsDropped, d.raw.visitors, d.clean.visitors])).toEqual([
@@ -110,22 +113,26 @@ describe("Umami pull", () => {
 
     const at = NOW.toISOString();
     expect(funnelRows()).toEqual([
+      { keyword: "CODING", source: "umami", metric: "checkouts", value: 0, capturedAt: at },
       { keyword: "CODING", source: "umami", metric: "emails", value: 1, capturedAt: at },
       { keyword: "CODING", source: "umami", metric: "visits", value: 2, capturedAt: at },
+      { keyword: "SHARK", source: "umami", metric: "checkouts", value: 0, capturedAt: at },
       { keyword: "SHARK", source: "umami", metric: "emails", value: 1, capturedAt: at },
       { keyword: "SHARK", source: "umami", metric: "visits", value: 3, capturedAt: at },
     ]);
   });
 
-  test("the next pull fetches only from the open day and still counts the stored final days", async () => {
+  test("the next pull fetches from the day before the open day, counts only the open day, and still counts the stored final days", async () => {
     await pullUmami(access, NOW);
     fake.eventCalls = [];
     const later = new Date("2026-10-18T16:00:00.000Z");
-    expect(await pullUmami(access, later)).toEqual({ kind: "complete", rows: { days: ["2026-10-18"], events: 5, keywords: 2 } });
-    expect(fake.eventCalls[0].get("startAt")).toBe(String(Date.parse("2026-10-17T17:00:00.000Z")));
+    expect(await pullUmami(access, later)).toEqual({ kind: "complete", rows: { days: ["2026-10-18"], events: 11, keywords: 2 } });
+    expect(fake.eventCalls[0].get("startAt")).toBe(String(Date.parse("2026-10-16T17:00:00.000Z")));
     expect(funnelRows().filter((r) => r.capturedAt === later.toISOString()).map((r) => [r.keyword, r.metric, r.value])).toEqual([
+      ["CODING", "checkouts", 0],
       ["CODING", "emails", 1],
       ["CODING", "visits", 2],
+      ["SHARK", "checkouts", 0],
       ["SHARK", "emails", 1],
       ["SHARK", "visits", 3],
     ]);
@@ -141,6 +148,45 @@ describe("Umami pull", () => {
     });
     expect(db.select().from(tables.umamiDays).all()).toEqual([]);
     expect(funnelRows()).toEqual([]);
+  });
+
+  test("an answer with no count keeps paging until an empty page (R3)", async () => {
+    Object.assign(fake, { events: EVENTS.slice(0, 6), pageSize: 3, sendCount: false });
+    expect(await pullUmami(access, NOW)).toEqual({ kind: "complete", rows: { days: ["2026-10-17", "2026-10-18"], events: 6, keywords: 2 } });
+    expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3"]);
+  });
+
+  test("a server that never sends an empty page stops at the page cap as a partial pull and stores nothing", async () => {
+    fake.ignorePage = true;
+    expect(await pullUmami(access, NOW)).toEqual({
+      kind: "partial",
+      rows: { days: ["2026-10-17", "2026-10-18"], events: 1600, keywords: 0 },
+      missing: "events after the first 1600",
+      reason: "Umami still had events after 400 pages",
+    });
+    expect(fake.eventCalls).toHaveLength(400);
+    expect(db.select().from(tables.umamiDays).all()).toEqual([]);
+  });
+
+  test("a session that crosses VN midnight keeps its campaign on the next day, also when that day is pulled alone (R4)", async () => {
+    fake.events = [pv("s", "2026-10-17T16:55:00.000Z", "/x?utm_campaign=shark"), pv("s", "2026-10-17T17:05:00.000Z", "/get/shark")];
+    await pullUmami(access, NOW);
+    const day2 = () => db.select().from(tables.umamiDays).all().find((d) => d.day === "2026-10-18")?.clean.byCampaign.shark?.giftVisits;
+    expect(day2()).toBe(1);
+
+    const later = new Date("2026-10-18T16:00:00.000Z");
+    expect(await pullUmami(access, later)).toMatchObject({ kind: "complete", rows: { days: ["2026-10-18"] } });
+    expect(day2()).toBe(1);
+    expect(funnelRows().filter((r) => r.capturedAt === later.toISOString() && r.keyword === "SHARK" && r.metric === "visits").map((r) => r.value)).toEqual([1]);
+  });
+
+  test("checkouts are each campaign's checkout_click, and visit coverage is over every clean /get/ pageview", async () => {
+    fake.events = [...EVENTS, ev("s1", "2026-10-17T01:03:00.000Z", "/free/shark.html", "checkout_click")];
+    await pullUmami(access, NOW);
+    const [shark] = await getFunnel("SHARK");
+    expect(shark.metrics.find((m) => m.id === "checkout")).toMatchObject({ status: "value", value: 1 });
+    expect(shark.metrics.find((m) => m.id === "checkout_rate")).toMatchObject({ status: "value", value: 1 / 3 });
+    expect((await getFunnelBoard()).coverage.visits).toEqual({ status: "value", tied: 5, total: 6 });
   });
 
   test("a failed login is a failed pull and stores nothing", async () => {

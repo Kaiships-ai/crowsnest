@@ -15,7 +15,7 @@ beforeAll(async () => {
   const { migrate } = await import("@/server/db/test-migrate");
   migrate();
   const { saveFunnel } = await import("@/server/services/funnel");
-  saveFunnel({ agent: "claude", rows: [{ keyword: "TARGETKW", source: "umami", metric: "visits", value: 3, capturedAt: "2026-10-01T00:00:00Z" }] });
+  saveFunnel({ agent: "claude", rows: [{ keyword: "TARGETKW", source: "chatbotx", metric: "dms", value: 3, capturedAt: "2026-10-01T00:00:00Z" }] });
 });
 
 type Entry = { keyword: string; metrics: { id: string; target: number | null; status: string }[] };
@@ -30,7 +30,7 @@ test("a target changed in the ledger reaches the MCP funnel tool, the board's br
   const client = new Client({ name: "test", version: "0" });
   await Promise.all([buildMcpServer().connect(serverT), client.connect(clientT)]);
   const mcp = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "targetkw" } });
-  expect(checkoutRate((mcp.structuredContent as { data: Entry[] }).data)).toMatchObject({ target: CHANGED_TARGET, status: "not-connected" });
+  expect(checkoutRate((mcp.structuredContent as { data: Entry[] }).data)).toMatchObject({ target: CHANGED_TARGET, status: "missing" });
 
   const { dispatchEngineCall } = await import("@/server/bridge/engine-calls");
   const board = await dispatchEngineCall("getFunnel", ["targetkw"]);

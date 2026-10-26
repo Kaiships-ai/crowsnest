@@ -105,16 +105,17 @@ export function KpiValue({
           <Badge
             data-testid="kpi-state"
             variant="outline"
-            className={cn('max-w-full font-normal', BADGE_TONE[state.kind])}
+            className={cn('max-w-full justify-start font-normal', BADGE_TONE[state.kind])}
+            title={stateText(data)}
             asChild={state.kind === 'not-connected'}
           >
             {state.kind === 'not-connected' ? (
               <button type="button" data-testid="open-sources" onClick={openLeadSourcesSettings}>
-                {stateText(data)}
+                <span className="min-w-0 truncate">{stateText(data)}</span>
                 <ArrowUpRight />
               </button>
             ) : (
-              stateText(data)
+              <span className="min-w-0 truncate">{stateText(data)}</span>
             )}
           </Badge>
         )}

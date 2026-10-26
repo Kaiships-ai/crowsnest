@@ -13,7 +13,7 @@ const umami = {
     { name: "UMAMI_USERNAME", label: "Username" },
     { name: "UMAMI_PASSWORD", label: "Password" },
   ],
-  feeds: ["gift_page_visit", "email"],
+  feeds: ["gift_page_visit", "email", "checkout"],
 } as const satisfies ConnectorManifest;
 
 const MISSING = "Umami address, website id, username or password is missing";

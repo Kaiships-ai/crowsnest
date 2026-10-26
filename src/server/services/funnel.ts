@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { CONNECTORS } from "@/server/connectors/registry";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { FUNNEL_SOURCES } from "@/server/db/schema";
 import { METRIC_IDS, METRIC_LEDGER, type Metric, type MetricId, type MetricSource, type MetricWindow } from "@/server/metrics/ledger";
@@ -12,7 +13,12 @@ function allowedMetrics(source: FunnelSource): string[] {
   return Object.values(METRIC_LEDGER).flatMap((m) => (m.kind === "count" && m.source.kind === "reel_funnel" && m.source.source === source ? [m.source.metric] : []));
 }
 
-export const FUNNEL_METRICS_TEXT = FUNNEL_SOURCES.map((source) => `${source}: ${allowedMetrics(source).join(", ")}`).join("; ");
+/** The label of the connector whose pull writes this source, the series' only writer. */
+const pullerOf = (source: FunnelSource): string | undefined => CONNECTORS.find((c) => c.manifest.id === source && c.adapter?.pull)?.manifest.label;
+
+export const FUNNEL_METRICS_TEXT = FUNNEL_SOURCES.filter((source) => !pullerOf(source))
+  .map((source) => `${source}: ${allowedMetrics(source).join(", ")}`)
+  .join("; ");
 
 export const FunnelRowSchema = z
   .object({
@@ -25,6 +31,11 @@ export const FunnelRowSchema = z
       .refine((t) => !(Date.parse(t) > Date.now() + 5 * 60_000), "capturedAt is in the future"),
   })
   .superRefine((row, ctx) => {
+    const puller = pullerOf(row.source);
+    if (puller) {
+      ctx.addIssue({ code: "custom", path: ["source"], message: `${row.source} is pulled by the ${puller} connector; an agent cannot save it` });
+      return;
+    }
     const allowed = allowedMetrics(row.source);
     if (!allowed.includes(row.metric)) {
       ctx.addIssue({ code: "custom", path: ["metric"], message: `unknown metric "${row.metric}" for ${row.source}; allowed: ${allowed.join(", ")}` });
@@ -69,8 +80,12 @@ export interface FunnelEntry {
   metrics: MetricReading[];
 }
 
+/** A plan's reel: the own post Kai marked by hand, else the one whose Graph media id publish stored. Pair with JOIN_PLAN_OWN_POST on `planned_posts p`. */
+export const PLAN_OWN_POST_ID = sql.raw("coalesce(p.published_own_post_id, own_by_media.id)");
+export const JOIN_PLAN_OWN_POST = sql.raw("LEFT JOIN own_posts own_by_media ON own_by_media.external_id = p.published_media_id");
+
 type LatestRow = { key: string; keyword: string; source: FunnelSource; metric: string; value: number; captured_at: string };
-type PlanRow = { key: string; id: string; title: string; keyword: string; published_own_post_id: string | null };
+type PlanRow = { key: string; id: string; title: string; keyword: string; own_post_id: string | null };
 type InsightRow = typeof tables.ownPostInsights.$inferSelect;
 
 export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
@@ -85,11 +100,11 @@ export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
     SELECT key, keyword, source, metric, value, captured_at FROM latest WHERE rn = 1
   `);
   const plans = db.all<PlanRow>(sql`
-    SELECT lower(keyword) AS key, id, title, keyword, published_own_post_id
-    FROM planned_posts
-    WHERE keyword IS NOT NULL AND ${only}
+    SELECT lower(p.keyword) AS key, p.id, p.title, p.keyword, ${PLAN_OWN_POST_ID} AS own_post_id
+    FROM planned_posts p ${JOIN_PLAN_OWN_POST}
+    WHERE p.keyword IS NOT NULL AND ${only}
   `);
-  const insights = await newestCaptureByPost(plans.flatMap((p) => (p.published_own_post_id ? [p.published_own_post_id] : [])), true);
+  const insights = await newestCaptureByPost(plans.flatMap((p) => (p.own_post_id ? [p.own_post_id] : [])), true);
 
   const planByKey = new Map(plans.map((p) => [p.key, p]));
   const snapshotByKey = new Map(snapshots.map((r) => [`${r.key}|${r.source}|${r.metric}`, r]));
@@ -97,7 +112,7 @@ export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
 
   return keys.map((key) => {
     const plan = planByKey.get(key);
-    const insight = plan?.published_own_post_id ? insights.get(plan.published_own_post_id) : undefined;
+    const insight = plan?.own_post_id ? insights.get(plan.own_post_id) : undefined;
     const readSource = (s: MetricSource): Reading => {
       if (s.kind === "not-connected") return { status: "not-connected", connector: s.connector };
       if (s.kind === "own_post_insights") return readInsight(insight, s.column);
