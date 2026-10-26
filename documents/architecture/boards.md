@@ -16,7 +16,7 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 
 `src/renderer/src/components/board/kit/` holds the pieces every board shares, built on Orca's tokens and `ui/` primitives:
 
-- `Kpi.tsx`: `KpiValue` and `KpiTile` draw a number in one of five states (`KpiState`): `value`, `partial` (missing N keywords), `not-connected` (a badge that opens Settings > Sources), `pull-failed` or `pull-partial` (the newest pull of the step's source did not complete; an older number stays, muted), and `no-data`. The number slot keeps its size and the state is a small badge under it. `kpiFromStep` maps a funnel step to its state.
+- `Kpi.tsx`: `KpiValue` and `KpiTile` draw a number in one of five states (`KpiState`): `value`, `partial` (missing N keywords), `not-connected` (a badge that opens Settings > Sources), `pull-failed` or `pull-partial` (the newest pull of the step's source did not complete; an older number stays, muted), and `no-data`. The number slot keeps its size and the state is a small badge under it; on a narrow tile a long state ends in an ellipsis, with the full text as the badge title. `kpiFromStep` maps a funnel step to its state.
 - `SourceTag.tsx`: `SourceTag` names a block's sources and its oldest pull time once; `BlockHeader` is a block title with that tag.
 - `StatePill.tsx`: a connector state in Orca's Integrations tones and words (`SOURCE_STATE`): Connected, Partial, Error, Not configured.
 - `Bars.tsx`: one bar on a log scale, so the last funnel steps stay visible next to views.
