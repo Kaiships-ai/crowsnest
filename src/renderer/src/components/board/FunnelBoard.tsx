@@ -104,7 +104,11 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
               ) : null}
             </span>
             <span data-testid="funnel-rate" className="text-right">
-              {step.rate ? <ReadingValue reading={step.rate.reading} format={formatRate} /> : '-'}
+              {step.rate ? (
+                <ReadingValue reading={step.rate.reading} format={formatRate} vaultLink={false} />
+              ) : (
+                '-'
+              )}
             </span>
             <span className="text-right font-mono text-xs text-muted-foreground">
               {step.rate

@@ -42,10 +42,12 @@ export function SourceLabel({ source, at }: { source: string; at?: string }): Re
 /** A number, "chưa có số" when the source has none, or "chưa nối" with a way to the Vault. Never 0 for a gap. */
 export function ReadingValue({
   reading,
-  format
+  format,
+  vaultLink = true
 }: {
   reading: Reading
   format: (value: number) => string
+  vaultLink?: boolean
 }): React.ReactNode {
   if (reading.status === 'value') {
     return (
@@ -65,23 +67,24 @@ export function ReadingValue({
     <span
       data-testid="reading-not-connected"
       data-connector={reading.connector}
-      className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground"
+      className="inline-flex items-center gap-1 font-mono text-xs whitespace-nowrap text-muted-foreground"
     >
       {translate('boards.funnel.notConnected', 'chưa nối')}
-      <Button
-        data-testid="open-vault"
-        variant="link"
-        size="xs"
-        className="h-auto px-0 text-xs"
-        onClick={() => openBoardInActiveWorkspace('vault')}
-      >
-        {translate('boards.funnel.vault', 'Vault')}
-      </Button>
+      {vaultLink ? (
+        <Button
+          data-testid="open-vault"
+          variant="link"
+          size="xs"
+          className="h-auto px-0 text-xs"
+          onClick={() => openBoardInActiveWorkspace('vault')}
+        >
+          {translate('boards.funnel.vault', 'Vault')}
+        </Button>
+      ) : null}
     </span>
   )
 }
 
-/** The source label for a reading: the step's source, with the time when there is a number. */
 export function ReadingSource({
   step,
   reading

@@ -186,7 +186,7 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
         <span className="font-mono text-2xs text-muted-foreground">
           {translate('boards.today.offer', 'Người tới offer')}
         </span>
-        <div className="flex items-end gap-10">
+        <div className="flex items-start gap-10">
           {[checkout, purchase].map((step) => (
             <div
               key={step.id}
@@ -194,29 +194,31 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
               data-step-id={step.id}
               className="flex flex-col gap-1"
             >
-              <span className="text-3xl">
+              <span className="text-3xl leading-9">
                 <ReadingValue reading={step.total} format={formatCount} />
               </span>
               <span className="text-sm">{stepLabel(step)}</span>
               <ReadingSource step={step} reading={step.total} />
             </div>
           ))}
-          <div className="ml-auto grid grid-cols-6 gap-x-6 gap-y-1">
-            {board.steps.map((step) => (
-              <div
-                key={step.id}
-                data-testid="today-step"
-                data-step-id={step.id}
-                className="flex flex-col gap-0.5"
-              >
-                <span className="font-mono text-2xs text-muted-foreground">{stepLabel(step)}</span>
-                <span className="text-sm">
-                  <ReadingValue reading={step.total} format={formatCount} />
-                </span>
-                <ReadingSource step={step} reading={step.total} />
-              </div>
-            ))}
-          </div>
+        </div>
+        <div className="grid grid-cols-6 gap-x-4">
+          {board.steps.map((step) => (
+            <div
+              key={step.id}
+              data-testid="today-step"
+              data-step-id={step.id}
+              className="flex min-w-0 flex-col gap-0.5"
+            >
+              <span className="truncate font-mono text-2xs text-muted-foreground">
+                {stepLabel(step)}
+              </span>
+              <span className="text-sm">
+                <ReadingValue reading={step.total} format={formatCount} vaultLink={false} />
+              </span>
+              <ReadingSource step={step} reading={step.total} />
+            </div>
+          ))}
         </div>
         <DropLine drop={board.drop} at={board.at} />
       </section>
@@ -270,10 +272,17 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
                     {STATE_LABELS[pull.state]()}
                   </Badge>
                 </span>
-                <SourceLabel source={pull.label} at={pull.lastPull?.at} />
-                {pull.lastPull?.detail ? (
+                <SourceLabel
+                  source={
+                    pull.lastPull
+                      ? translate('boards.today.pulledAt', 'lần kéo cuối')
+                      : translate('boards.today.neverPulled', 'chưa kéo lần nào')
+                  }
+                  at={pull.lastPull?.at}
+                />
+                {pull.state === 'error' || pull.state === 'partial' ? (
                   <span className="truncate text-xs text-muted-foreground">
-                    {pull.lastPull.detail}
+                    {pull.lastPull?.detail}
                   </span>
                 ) : null}
               </li>
