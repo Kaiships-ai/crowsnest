@@ -5,6 +5,7 @@ export const LEAD_STUDIO_BOARDS = [
   { id: 'rivals', label: 'Rivals' },
   { id: 'plan', label: 'Plan' },
   { id: 'gate', label: 'Gate 1' },
+  { id: 'gate2', label: 'Gate 2' },
   { id: 'agents', label: 'Agents' }
 ] as const
 

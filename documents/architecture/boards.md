@@ -1,6 +1,6 @@
 # Boards
 
-A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are seven: `today` (Today, the morning screen), `funnel` (Funnel, the six-step funnel), `own` (My channel, the own Instagram channel), `rivals` (Rivals, the tracked rival channels), `plan` (Plan, the planned reels by month, week and day), `gate` (Gate 1, approve a proposed plan) and `agents` (the MCP journal and the agent tokens). Each connector's state and key live in Settings > Sources (see [connectors](connectors.md)), not on a board. All board copy is English through `translate()` keys; the `en` catalogs hold the English text.
+A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are eight: `today` (Today, the morning screen), `funnel` (Funnel, the six-step funnel), `own` (My channel, the own Instagram channel), `rivals` (Rivals, the tracked rival channels), `plan` (Plan, the planned reels by month, week and day), `gate` (Gate 1, approve a proposed plan), `gate2` (Gate 2, approve an action that reaches people outside) and `agents` (the MCP journal and the agent tokens). Each connector's state and key live in Settings > Sources (see [connectors](connectors.md)), not on a board. All board copy is English through `translate()` keys; the `en` catalogs hold the English text.
 
 ## What it holds
 
@@ -38,7 +38,7 @@ Each block names its sources and oldest pull time once (`StepsSourceTag`). A gap
 
 - People reaching the offer: the checkout and purchase totals as `KpiTile`s, then Funnel, the six steps from `getFunnelBoard` as tiles. Each tile shows its state as on Funnel, including a failed newest pull.
 - The biggest drop (`biggestDrop`), boxed beside the offer: the step whose rate sits furthest below its target, as rate / target. With no target set it says so; with targets but no rate it says so.
-- Waiting for your approval, counts only: Gate 1 is proposed `plan_versions` newer than their period's live version (an older proposed version that a newer live one passed is not waiting), and its label opens the Gate 1 board; Gate 2 is pending `gate_drafts`.
+- Waiting for your approval, counts only: Gate 1 is proposed `plan_versions` newer than their period's live version (an older proposed version that a newer live one passed is not waiting), and its label opens the Gate 1 board; Gate 2 is pending `gate_drafts`, and its label opens the Gate 2 board. Gate 2 has no sidebar row: Today is its entry.
 - Ran overnight: each connector's last pull time and its state as a `StatePill`, from `getVaultBoard`. A partial pull reads Partial, never Connected.
 - Running workspaces: workspaces with an agent working, blocked or waiting, read in the renderer from the agent status store (`runningWorkspaces`), since the engine does not know panes.
 
@@ -97,6 +97,14 @@ The board shows the change list, each with a switch, above Orca's `DiffViewer` s
 
 Approve calls `approvePlanChanges(versionId, keys)`. With every change on, the proposal itself goes live. With some off, a new version made of the live plan plus the kept changes is proposed under the approver's name and goes live, and the proposal stays behind it. Undo calls `undoPlanApproval(ref, liveId)`, which restores the version live before and refuses if another version went live since. Both bridge calls record `approved_by` on the version and journal the call as caller `kai` at gate `gate1` (`asOperator` in `src/server/bridge/engine-calls.ts`). The board is empty when nothing waits and nothing was approved.
 
+## Gate 2 board
+
+`Gate2Board` in `src/renderer/src/components/board/Gate2Board.tsx` calls `getGate2Board` (`src/server/services/gate2-drafts.ts`): every `pending` draft, newest first, then the last 10 decided ones. A `publish_reel` draft shows what it does (publish right after approval, or at a local time), to whom (Instagram and the own channel's handle), the cover from the media store (`cn-media://asset/<id>`), and the five checks recomputed from the draft's input. Approve calls `approveGateDraft(id)` and Reject `rejectGateDraft(id)`; both journal caller `kai` at gate `gate2` with the draft id. Approve is disabled while a check is missing or the reel changed since the draft (stale). A failed run puts the draft back in the list with the error. The decided list shows who proposed, who approved or rejected, and when (wireframe B6-06). A draft of another tool shows its raw input and cannot be approved.
+
+## Publish sheet
+
+On the Plan day view, a reel with a video in draft, plan, missed, cooking or failed shows Publish (`PublishButton` in `src/renderer/src/components/board/PublishSheet.tsx`). The sheet asks for a time (a local `datetime-local`, or right after approval), shows the five checks from `getPublishChecks(id, at)` (wireframe B6-01), and Send to Gate 2 calls `draftPublish(id, at)`. Nothing is published from the sheet.
+
 ## Agents board
 
 `AgentsBoard` in `src/renderer/src/components/board/AgentsBoard.tsx` has two sections, each with its own load state.
@@ -113,7 +121,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Load state
 
-`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Today, Funnel, My channel, Rivals, Plan and Gate 1 read one object, so their load wraps it in a one-row list: Funnel returns no row when no keyword has a number, My channel none before the channel was ever measured, Gate 1 none when no plan was proposed or approved, and Today, Rivals and Plan always have one (Rivals keeps its add form when nothing is tracked). Its state is a union:
+`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Today, Funnel, My channel, Rivals, Plan, Gate 1 and Gate 2 read one object, so their load wraps it in a one-row list: Funnel returns no row when no keyword has a number, My channel none before the channel was ever measured, Gate 1 none when no plan was proposed or approved, Gate 2 none when no draft exists, and Today, Rivals and Plan always have one (Rivals keeps its add form when nothing is tracked). Its state is a union:
 
 - `{ status: 'loading' }`: a spinner.
 - `{ status: 'ready', rows }`: the rows. Zero rows is the empty state, a quiet centered message.
@@ -124,7 +132,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction`, `createPlannedPostAction`, `cookPlanCardAction`, `markPlanCookingAction` and `clearPlanCookingAction`, and Gate 1 only through `approvePlanChanges` and `undoPlanApproval`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
+- Today, Funnel and My channel are read-only, Rivals writes only through `addChannelAction`, Plan only through `movePlanCardAction`, `createPlannedPostAction`, `cookPlanCardAction`, `markPlanCookingAction`, `clearPlanCookingAction` and `draftPublish`, Gate 1 only through `approvePlanChanges` and `undoPlanApproval`, and Gate 2 only through `approveGateDraft` and `rejectGateDraft`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
 - A board writes only through calls `ENGINE_CALLS` exposes. The Agents board creates and revokes tokens.
 
 ## Invariants
@@ -133,7 +141,8 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 - Board tabs are virtual: `isVirtualEditorFile` is true for `mode: 'board'`. They have no path header, no file watcher, no git status and no path context-menu items, and `isMobilePublishableOpenFile` never sends them to a paired phone.
 - A funnel gap is never 0: a step with no source reads "<source> not connected", one with no number reads "no data yet", and a total over only some keywords reads "missing N keywords".
 - A number whose source's newest pull failed or was partial is marked where it shows.
-- Plan never schedules, unschedules or publishes: a reel armed with Instagram keeps its day, and a new reel has no `scheduledAt`.
+- Plan never schedules, unschedules or publishes: a reel armed with Instagram keeps its day, a new reel has no `scheduledAt`, and Publish only stores a Gate 2 draft.
+- Gate 2 is the only path to publish from the app, and it records who proposed and who approved.
 - Gate 1 diffs against the live version and records who approved.
 - A new MCP token lives only in the Agents board's component state until Done; `listMcpTokens` never returns a token or its hash.
 - A board tab is not restored after a restart. Only `mode: 'edit'` files persist in the workspace session (`src/renderer/src/lib/workspace-session.ts`), as with markdown preview tabs.
