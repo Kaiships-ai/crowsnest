@@ -19,7 +19,10 @@ case "${1:-}" in
   --real) export APP_DB="${APP_REAL_DB:-data/crowsnest.db}" ;;
 esac
 
-if [ "${APP_SKIP_BUILD:-0}" != 1 ]; then
+# APP_DEV=1 skips the full build: app-host.mjs runs electron-vite dev (renderer HMR, main rebuilt on change).
+if [ "${APP_DEV:-0}" = 1 ]; then
+  pnpm run build:packages >"$DIR/build.log" 2>&1 || { echo "app: build:packages failed, see $DIR/build.log" >&2; exit 1; }
+elif [ "${APP_SKIP_BUILD:-0}" != 1 ]; then
   { pnpm run build:packages && VITE_EXPOSE_STORE=true scripts/heavy.sh pnpm exec electron-vite build --mode e2e; } >"$DIR/build.log" 2>&1 \
     || { echo "app: build failed, see $DIR/build.log" >&2; tail -30 "$DIR/build.log" >&2; exit 1; }
 fi
@@ -36,7 +39,7 @@ node_modules/.bin/tsx .claude/skills/verify/scripts/app-host.mjs >"$DIR/host.log
 echo $! >"$DIR/host.pid"
 set +m
 
-for _ in $(seq 1 180); do
+for _ in $(seq 1 300); do
   if grep -q "^app: ready" "$DIR/host.log"; then
     grep "^app: ready" "$DIR/host.log"
     exit 0
@@ -44,5 +47,5 @@ for _ in $(seq 1 180); do
   kill -0 "$(cat "$DIR/host.pid")" 2>/dev/null || { echo "app: host exited, see $DIR/host.log" >&2; tail -30 "$DIR/host.log" >&2; exit 1; }
   sleep 1
 done
-echo "app: not ready after 180s, see $DIR/host.log" >&2
+echo "app: not ready after 300s, see $DIR/host.log" >&2
 exit 1

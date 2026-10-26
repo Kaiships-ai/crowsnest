@@ -1,5 +1,5 @@
-import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, watchFile, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
@@ -10,7 +10,8 @@ import { getE2ECompletedOnboardingProfile } from "../../../../tests/e2e/helpers/
 const ROOT = path.resolve(import.meta.dirname, "../../../..");
 const APP = ROOT;
 const STATE_DIR = path.join(ROOT, "data/verify/app");
-const { _electron: electron } = createRequire(path.join(APP, "package.json"))("@playwright/test");
+const appRequire = createRequire(path.join(APP, "package.json"));
+const { _electron: electron, chromium } = appRequire("@playwright/test");
 
 const freePort = () =>
   new Promise((resolve) => {
@@ -46,31 +47,75 @@ if (process.env.APP_DB) copyDbOnce(path.resolve(ROOT, process.env.APP_DB), dbPat
 const cdpPort = await freePort();
 const { ELECTRON_RUN_AS_NODE: _drop, ...inherited } = process.env;
 const headless = process.env.APP_HEADLESS === "1";
-const app = await electron.launch({
-  cwd: APP,
-  args: [
-    `--remote-debugging-port=${cdpPort}`,
-    "--password-store=basic",
-    "--use-mock-keychain",
-    APP,
-    "-ApplePersistenceIgnoreState",
-    "YES",
-  ],
-  env: {
-    ...inherited,
-    HOME: home,
-    ORCA_E2E_HOME_DIR: home,
-    ORCA_E2E_USER_DATA_DIR: userDataDir,
-    CROWSNEST_DB_PATH: dbPath,
-    NODE_ENV: "development",
-    ...(headless ? { ORCA_E2E_HEADLESS: "1" } : { ORCA_E2E_HEADFUL: "1" }),
-  },
-  ...(process.env.APP_RECORD_VIDEO ? { recordVideo: { dir: process.env.APP_RECORD_VIDEO } } : {}),
-});
-app.process().stdout?.on("data", (d) => process.stdout.write(`[main] ${d}`));
-app.process().stderr?.on("data", (d) => process.stdout.write(`[main] ${d}`));
+const dev = process.env.APP_DEV === "1";
+const electronArgs = [`--remote-debugging-port=${cdpPort}`, "--password-store=basic", "--use-mock-keychain"];
+const env = {
+  ...inherited,
+  HOME: home,
+  ORCA_E2E_HOME_DIR: home,
+  ORCA_E2E_USER_DATA_DIR: userDataDir,
+  CROWSNEST_DB_PATH: dbPath,
+  NODE_ENV: "development",
+  ...(headless ? { ORCA_E2E_HEADLESS: "1" } : { ORCA_E2E_HEADFUL: "1" }),
+};
 
-const page = await app.firstWindow({ timeout: 120_000 });
+// Build mode: Playwright launches the built out/. Dev mode: electron-vite dev serves the renderer
+// with HMR and rebuilds main on change (restarting Electron), and the host attaches over CDP.
+async function launchBuilt() {
+  const app = await electron.launch({
+    cwd: APP,
+    args: [...electronArgs, APP, "-ApplePersistenceIgnoreState", "YES"],
+    env,
+    ...(process.env.APP_RECORD_VIDEO ? { recordVideo: { dir: process.env.APP_RECORD_VIDEO } } : {}),
+  });
+  app.process().stdout?.on("data", (d) => process.stdout.write(`[main] ${d}`));
+  app.process().stderr?.on("data", (d) => process.stdout.write(`[main] ${d}`));
+  return {
+    page: await app.firstWindow({ timeout: 120_000 }),
+    onExit: (fn) => app.on("close", fn),
+    close: () => app.close().catch(() => app.process().kill("SIGKILL")),
+  };
+}
+
+async function launchDev() {
+  const cli = path.join(path.dirname(appRequire.resolve("electron-vite/package.json")), "bin", "electron-vite.js");
+  const child = spawn(
+    process.execPath,
+    [cli, "dev", "--mode", "e2e", "--watch", "--", ...electronArgs, "-ApplePersistenceIgnoreState", "YES"],
+    { cwd: APP, env: { ...env, VITE_EXPOSE_STORE: "true" }, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  child.stdout.on("data", (d) => process.stdout.write(`[dev] ${d}`));
+  child.stderr.on("data", (d) => process.stdout.write(`[dev] ${d}`));
+  let exited = false;
+  child.on("exit", () => (exited = true));
+  let browser;
+  for (let i = 0; !browser; i++) {
+    if (exited) throw new Error("electron-vite dev exited before the app came up");
+    if (i === 300) throw new Error("no CDP endpoint after 300s of electron-vite dev");
+    browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`).catch(() => null);
+    if (!browser) await new Promise((r) => setTimeout(r, 1000));
+  }
+  let page;
+  for (let i = 0; !page; i++) {
+    if (i === 600) throw new Error("no Lead Studio main window over CDP");
+    page = browser.contexts().flatMap((c) => c.pages()).find((p) => /^http:\/\/localhost:\d+\/$/.test(p.url()));
+    if (!page) await new Promise((r) => setTimeout(r, 200));
+  }
+  return {
+    page,
+    onExit: (fn) => child.on("exit", fn),
+    close: () =>
+      new Promise((resolve) => {
+        if (exited) return resolve();
+        child.on("exit", resolve);
+        child.kill("SIGTERM");
+        setTimeout(() => child.kill("SIGKILL"), 10_000).unref();
+      }),
+  };
+}
+
+const app = dev ? await launchDev() : await launchBuilt();
+const { page } = app;
 page.on("console", (m) => console.log(`[renderer:${m.type()}] ${m.text()}`));
 await page.waitForFunction(() => Boolean(window.__store), null, { timeout: 60_000 });
 const repoId = await page.evaluate(async (p) => {
@@ -104,14 +149,20 @@ for (let i = 0; !existsSync(mcpPortFile); i++) {
   await new Promise((r) => setTimeout(r, 500));
 }
 mkdirSync(STATE_DIR, { recursive: true });
-writeFileSync(path.join(STATE_DIR, "mcp.port"), readFileSync(mcpPortFile, "utf8"));
-rmSync(path.join(STATE_DIR, "mcp.token"), { force: true });
-writeFileSync(path.join(STATE_DIR, "mcp.token"), readFileSync(path.join(userDataDir, "mcp.token"), "utf8"), { mode: 0o600 });
+function copyMcpAccess() {
+  if (!existsSync(mcpPortFile)) return;
+  writeFileSync(path.join(STATE_DIR, "mcp.port"), readFileSync(mcpPortFile, "utf8"));
+  rmSync(path.join(STATE_DIR, "mcp.token"), { force: true });
+  writeFileSync(path.join(STATE_DIR, "mcp.token"), readFileSync(path.join(userDataDir, "mcp.token"), "utf8"), { mode: 0o600 });
+}
+copyMcpAccess();
+// A main rebuild restarts Electron, and the restarted MCP listens on a new port.
+if (dev) watchFile(mcpPortFile, { interval: 1000 }, copyMcpAccess);
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
   JSON.stringify({ cdpPort, userDataDir }, null, 2),
 );
-console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir})`);
+console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir}${dev ? ", dev mode" : ""})`);
 
 const stopDetachedTerminalDaemon = (profile) => spawnSync("pkill", ["-f", "--", `--socket ${profile}/daemon`]);
 
@@ -119,7 +170,7 @@ let closing = false;
 async function shutdown() {
   if (closing) return;
   closing = true;
-  await app.close().catch(() => app.process().kill("SIGKILL"));
+  await app.close();
   stopDetachedTerminalDaemon(userDataDir);
   rmSync(tmp, { recursive: true, force: true });
   rmSync(path.join(STATE_DIR, "state.json"), { force: true });
@@ -130,7 +181,7 @@ async function shutdown() {
 }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
-app.on("close", () => {
+app.onExit(() => {
   if (!closing) {
     console.log("app: exited on its own");
     rmSync(path.join(STATE_DIR, "state.json"), { force: true });
