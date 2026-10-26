@@ -21206,6 +21206,72 @@
       "medianViews": "Median views",
       "outliers30d": "Outliers 30d",
       "empty": "No tracked channels yet."
+    },
+    "vault": {
+      "state": {
+        "running": "chạy",
+        "error": "lỗi",
+        "stale": "cũ",
+        "notConnected": "chưa nối",
+        "partial": "thiếu",
+        "column": "Trạng thái"
+      },
+      "problem": {
+        "missing": "Thiếu {{missing}}.",
+        "noAdapter": "App chưa có bộ nối cho nguồn này.",
+        "error": "Lần kéo cuối bị lỗi.",
+        "partial": "Lần kéo thiếu ({{detail}}), nên số cũ được giữ.",
+        "stale": "Chưa có lần kéo đủ từ 05:00 hôm nay.",
+        "never": "Chưa kéo lần nào."
+      },
+      "fix": {
+        "missing": "Bấm Sửa và nhập {{missing}}.",
+        "noAdapter": "Có thể lưu khoá trước bằng Sửa; app sẽ kéo khi có bộ nối.",
+        "error": "Bấm Kiểm tra để xem kết nối, sửa khoá bằng Sửa, rồi Kéo lại.",
+        "partial": "Kéo lại sau, khi nguồn hết giới hạn.",
+        "stale": "Bấm Kéo lại, hoặc đợi lần kéo 05:00."
+      },
+      "save": "Lưu",
+      "secretMissing": "chưa có",
+      "secretSaved": "đã lưu · nguồn {{source}}",
+      "testOk": "Kết nối được.",
+      "test": "Kiểm tra",
+      "pull": "Kéo lại",
+      "edit": "Sửa",
+      "noSecrets": "Nguồn này không cần khoá.",
+      "empty": "Chưa có nguồn nào.",
+      "source": "Nguồn",
+      "lastPull": "Lần kéo cuối",
+      "nextPull": "Lần kéo tới",
+      "graphLeft": "Graph còn/giờ"
+    },
+    "agents": {
+      "newTokenOnce": "Token cho {{name}}. Chép ngay: app chỉ hiện token này một lần.",
+      "copied": "Đã chép",
+      "copy": "Chép",
+      "done": "Xong",
+      "revokedAt": "đã thu hồi {{at}}",
+      "revokeConfirm": "Thu hồi {{name}}",
+      "cancel": "Huỷ",
+      "revoke": "Thu hồi",
+      "tokens": "Token MCP",
+      "tokenName": "tên agent",
+      "create": "Tạo",
+      "noTokens": "Chưa có token nào.",
+      "tokenColumn": "Tên",
+      "createdAt": "Tạo lúc",
+      "lastUsed": "Dùng lần cuối",
+      "journal": "Nhật ký",
+      "filterByCaller": "Lọc theo agent",
+      "allCallers": "tất cả",
+      "noActions": "Agent chưa gọi lần nào.",
+      "time": "Lúc",
+      "caller": "Agent",
+      "tool": "Công cụ",
+      "gate": "Cổng",
+      "result": "Kết quả",
+      "draft": "Bản nháp",
+      "pending": "chưa xong"
     }
   }
 }

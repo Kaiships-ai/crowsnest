@@ -12,7 +12,7 @@ Every MCP tool has a level in `TOOL_LEVELS` (`src/server/mcp/gates.ts`): read, f
 
 ## How to get to it (user POV)
 
-No board shows the journal yet; the Cổng 2 board will read `listAgentActions`. Today an agent calls the app's MCP and the journal is read through the bridge.
+The Agents board shows the journal (see [boards.md](boards.md), journey `agents-01`); the Cổng 2 board will also read `listAgentActions`. Today an agent calls the app's MCP and the journal is read through the bridge.
 
 ## Driving it
 

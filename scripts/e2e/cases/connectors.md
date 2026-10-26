@@ -8,7 +8,7 @@
 | 2 | Manifest-only connectors | Umami, Polar and ChatbotX are listed `not-connected` with the ledger counts they will feed | ● | `src/server/connectors/umami/index.ts`, `polar/index.ts`, `chatbotx/index.ts` | adapters land in W2 |
 | 3 | Keychain secrets | Every secret is sealed by the Keychain through `SecretStore`; only ciphertext is stored | ● | `src/server/secrets/store.ts` | none |
 | 4 | Boot migration | Legacy plaintext rows move to the keychain; a failed move keeps the row | ● | `src/server/start.ts`, `src/server/secrets/store.ts` | none |
-| 5 | Bridge calls | `listConnectors`, `testConnector` and `pullAgain` | ● | `src/server/bridge/engine-calls.ts` | no board yet (W4 Vault) |
+| 5 | Bridge calls | `listConnectors`, `testConnector` and `pullAgain` | ● | `src/server/bridge/engine-calls.ts` | shown on the Vault board (cases in `boards.md`) |
 | 6 | Daily pull | Every connector pulls at 05:00 local, a missed slot runs once on the next start or wake, results recorded per connector in `daily_pulls` | ● | `src/server/services/daily-pull.ts` | none |
 
 ## connectors: test cases

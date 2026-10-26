@@ -90,6 +90,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getLastRunHealth: [],
   getSecretStatusAction: [],
   listConnectors: [],
+  getVaultBoard: [],
   listNotificationsAction: [],
   listAgentActions: [10],
   listMcpTokens: [],
@@ -135,7 +136,7 @@ describe("dispatchEngineCall", () => {
     expect(res).toEqual({ ok: true, value: { ok: false, error: "bad session [redacted] for kai", code: "X" } });
   });
 
-  test("exposes no call that writes outside the Mac, changes a secret, or skips the plan approver", () => {
+  test("exposes no call that writes outside the Mac, reads back or clears a secret, or skips the plan approver", () => {
     const gated = [
       "publishNowAction",
       "schedulePublishAction",
@@ -167,6 +168,37 @@ describe("dispatchEngineCall", () => {
     const text = JSON.stringify(res);
     expect(text).not.toContain(GRAPH_TOKEN);
     expect(text).not.toContain(SESSION_ID);
+  });
+
+  describe("setConnectorSecret", () => {
+    const VALUE = "sentinel-new-umami-key-77c1";
+
+    test.each([
+      ["an unknown connector", ["nope", "UMAMI_API_KEY", VALUE], "no connector nope"],
+      ["a field the manifest does not declare", ["umami", "IG_GRAPH_TOKEN", VALUE], "umami has no field IG_GRAPH_TOKEN"],
+      ["a blank value", ["umami", "UMAMI_API_KEY", "   "], "empty value"],
+    ])("refuses %s and stores nothing", async (_label, args, error) => {
+      const res = await dispatchEngineCall("setConnectorSecret", args);
+      expect(res).toEqual({ ok: true, value: { ok: false, error } });
+      expect(JSON.stringify(res)).not.toContain(VALUE);
+      const umami = await dispatchEngineCall("getVaultBoard", []);
+      expect(umami.ok && (umami.value as { id: string; secrets: { source: string }[] }[]).find((r) => r.id === "umami")?.secrets[0].source).toBe("none");
+    });
+
+    test("an empty value never reaches the engine", async () => {
+      expect(await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_API_KEY", ""])).toMatchObject({ ok: false, error: { code: "bad_args" } });
+    });
+
+    test("saves, flips the status to keychain, and no bridge result carries the value", async () => {
+      const res = await dispatchEngineCall("setConnectorSecret", ["umami", "UMAMI_API_KEY", VALUE]);
+      expect(res).toEqual({ ok: true, value: { ok: true } });
+      const board = await dispatchEngineCall("getVaultBoard", []);
+      const umami = board.ok ? (board.value as { id: string; secrets: { name: string; source: string }[] }[]).find((r) => r.id === "umami") : undefined;
+      expect(umami?.secrets).toEqual([expect.objectContaining({ name: "UMAMI_API_KEY", source: "keychain" })]);
+      for (const [name, args] of Object.entries(READ_ARGS)) {
+        expect(JSON.stringify(await dispatchEngineCall(name, args)), name).not.toContain(VALUE);
+      }
+    });
   });
 
   test("secret status says configured without the value", async () => {

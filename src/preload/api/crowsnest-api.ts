@@ -5,7 +5,7 @@ import type {
   EngineResult
 } from '../../server/bridge/engine-calls'
 
-export type { EngineCallName, EngineResult }
+export type { EngineCallName, EngineCallValue, EngineResult }
 
 export type CrowsnestApi = {
   call: <N extends EngineCallName>(

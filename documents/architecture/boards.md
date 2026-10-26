@@ -1,6 +1,6 @@
 # Boards
 
-A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. The first board is `channels`, a list of the tracked channels.
+A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are three: `channels` (the tracked channels), `vault` (each connector's state, with secret entry) and `agents` (the MCP journal and the agent tokens).
 
 ## What it holds
 
@@ -11,6 +11,23 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 ## Board registry
 
 `LEAD_STUDIO_BOARDS` in `src/shared/lead-studio-boards.ts` lists every board as `{ id, label }` and defines `BoardId`. Main (the Boards app menu) and the renderer (the new-tab menu) both read this one list. `BOARD_VIEWS` in `src/renderer/src/components/board/BoardView.tsx` is a `Record<BoardId, Component>`, so the compiler rejects a listed board with no view. Adding a board is one entry in the list plus one component in the record.
+
+## Vault board
+
+`VaultBoard` in `src/renderer/src/components/board/VaultBoard.tsx` calls `getVaultBoard` (`src/server/queries/vault-board.ts`). Each row is one connector from `listConnectors` with:
+
+- `state`, one of `running` (chạy), `error` (lỗi), `stale` (cũ), `not-connected` (chưa nối) or `partial` (thiếu). Status not `configured` is `not-connected`. A configured connector with no `pull` is `running`. Otherwise the last pull from `lastPulls()` decides: `failed` is `error`, `partial` is `partial`, `complete` in the current 05:00 slot is `running`, and anything else (no pull yet, skipped, an earlier slot) is `stale`.
+- the last pull time, the next 05:00 pull (`nextPullAt`, shown only for a connector that can pull), and for `instagram-graph` the Graph calls left in the rolling hour (200 minus `graphCallsInLastHour`).
+- the problem and its fix in plain words (`vaultProblem`): the missing secret labels, the failed pull's detail, what a partial pull missed, or that no complete pull has run since 05:00.
+
+Kiểm tra calls `testConnector` and shows its message under the row. Kéo lại calls `pullAgain` and reloads; it is disabled for a connector with no `pull`. Sửa opens one password field per secret the manifest declares, with "đã lưu · nguồn <source>" or "chưa có" under it. Lưu calls `setConnectorSecret`, clears the field and reloads. No value is ever read back: the status is the secret's source from the row.
+
+## Agents board
+
+`AgentsBoard` in `src/renderer/src/components/board/AgentsBoard.tsx` has two sections, each with its own load state.
+
+- Token MCP: `listMcpTokens`, live tokens first. Tạo calls `createMcpToken(name)` and shows the raw token once, with a copy button (`window.api.ui.writeClipboardText`). Xong drops it from component state, and nothing can show it again. Thu hồi asks to confirm inline, then calls `revokeMcpToken(id)`.
+- Nhật ký: `listAgentActions(500)`, the bridge's cap, newest first: time, caller (the token name), tool, gate, result and draft id. `latestPerCall` keeps one row per `callId`, the newest, so a finished call shows its outcome (`ok`, `error`, `drafted`) and its write-ahead `pending` row is hidden. A call with only its pending row shows "chưa xong": it is running, or the app stopped before it finished. Each call writes two rows, so the cap holds about 250 calls. A segmented filter keeps one caller's rows.
 
 ## Opening a board
 
@@ -32,15 +49,17 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- A board writes nothing. Write actions come later, through calls `ENGINE_CALLS` exposes.
+- A board writes only through calls `ENGINE_CALLS` exposes. The Vault board writes secrets (`setConnectorSecret`) and runs pulls; the Agents board creates and revokes tokens.
 
 ## Invariants
 
 - A bridge result `{ ok: false, error }` becomes the error state with the bridge's message. A thrown invoke also becomes the error state. A board never shows stale rows as if they were current after a failed load.
 - Board tabs are virtual: `isVirtualEditorFile` is true for `mode: 'board'`. They have no path header, no file watcher, no git status and no path context-menu items, and `isMobilePublishableOpenFile` never sends them to a paired phone.
+- The Vault board never holds a stored secret. Its field is `type="password"`, cleared after each save, and every status comes from the secret's source.
+- A new MCP token lives only in the Agents board's component state until Xong; `listMcpTokens` never returns a token or its hash.
 - A board tab is not restored after a restart. Only `mode: 'edit'` files persist in the workspace session (`src/renderer/src/lib/workspace-session.ts`), as with markdown preview tabs.
 - The app menu path does nothing when no worktree is active. This is a known gap: with no project open there is no tab bar to hold the board.
 
 ## Verify
 
-`.claude/skills/verify/features/boards.md` runs journey `board-01`. Cases are in `scripts/e2e/cases/boards.md`.
+`.claude/skills/verify/features/boards.md` runs journeys `board-01`, `vault-01` and `agents-01`. Cases are in `scripts/e2e/cases/boards.md`.

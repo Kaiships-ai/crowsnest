@@ -10,7 +10,7 @@ Every `/api/mcp` request needs `Authorization: Bearer <token>`. Each agent has i
 
 ## How to get to it (user POV)
 
-No board shows tokens yet; the Agents board will. Kai's Claude sessions use `local` through `.mcp.json` with no setup.
+The Agents board shows them: "+" in the tab bar, Agents. See [boards.md](boards.md) and journey `agents-01`. Kai's Claude sessions use `local` through `.mcp.json` with no setup.
 
 ## Driving it
 
