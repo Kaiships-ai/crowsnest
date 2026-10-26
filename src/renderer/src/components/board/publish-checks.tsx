@@ -9,12 +9,12 @@ export type PublishCheck = Extract<
   { ok: true }
 >['checks'][number]
 
-const CHECK_LABEL: Record<PublishCheck['id'], string> = {
-  video: 'Video',
-  caption: 'Caption',
-  keyword: 'Keyword',
-  time: 'Time',
-  cover: 'Cover'
+const CHECK_LABEL: Record<PublishCheck['id'], () => string> = {
+  video: () => translate('gate2.check.video', 'Video'),
+  caption: () => translate('gate2.check.caption', 'Caption'),
+  keyword: () => translate('gate2.check.keyword', 'Keyword'),
+  time: () => translate('gate2.check.time', 'Time'),
+  cover: () => translate('gate2.check.cover', 'Cover')
 }
 
 const ICON = { ok: Check, warn: AlertTriangle, missing: X }
@@ -40,7 +40,7 @@ export function PublishChecks({ checks }: { checks: PublishCheck[] }): React.Rea
           >
             <Icon className={cn('size-4', TONE[check.status])} />
             <span className="font-mono text-2xs text-muted-foreground">
-              {translate(`gate2.check.${check.id}`, CHECK_LABEL[check.id])}
+              {CHECK_LABEL[check.id]()}
             </span>
             <span className={cn('min-w-0 truncate', check.status === 'warn' && TONE.warn)}>
               {check.detail}
