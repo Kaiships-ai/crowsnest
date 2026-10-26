@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # mcp.sh [--app] <tool | tools/list> [json-args] -- one JSON-RPC call against the MCP of the
-# Lead Studio app that app-up.sh launched (local-host requests only, no token). --app is
+# Lead Studio app that app-up.sh launched (sends the app's `local` token from data/verify/app/mcp.token). --app is
 # accepted and changes nothing. Prints the server's SSE reply.
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 [ "${1:-}" = --app ] && shift
 PORT="$(cat data/verify/app/mcp.port 2>/dev/null)" || { echo "mcp: no app running (data/verify/app/mcp.port)" >&2; exit 1; }
+TOKEN="$(cat data/verify/app/mcp.token 2>/dev/null)" || { echo "mcp: no token (data/verify/app/mcp.token)" >&2; exit 1; }
 T="${1:?usage: mcp.sh [--app] <tool, e.g. crowsnest_plans | tools/list> [json-args]}"
 if [ "$T" = tools/list ]; then
   BODY='{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
@@ -15,5 +16,5 @@ else
   BODY="{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$T\",\"arguments\":$ARGS}}"
 fi
 curl -s -X POST "http://localhost:$PORT/api/mcp" -H 'content-type: application/json' \
-  -H 'accept: application/json, text/event-stream' -d "$BODY"
+  -H 'accept: application/json, text/event-stream' -H "authorization: Bearer $TOKEN" -d "$BODY"
 echo

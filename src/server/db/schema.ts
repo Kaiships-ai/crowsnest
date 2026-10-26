@@ -975,3 +975,17 @@ export const gateDrafts = sqliteTable("gate_drafts", {
   status: text("status", { enum: GATE_DRAFT_STATUSES }).notNull().default("pending"),
   createdAt: text("created_at").notNull(),
 });
+
+/** One row per agent token. Only the SHA-256 of a token is stored; the raw token is shown once. */
+export const mcpTokens = sqliteTable(
+  "mcp_tokens",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: text("created_at").notNull(),
+    lastUsedAt: text("last_used_at"),
+    revokedAt: text("revoked_at"),
+  },
+  (t) => [uniqueIndex("mcp_tokens_hash").on(t.tokenHash), uniqueIndex("mcp_tokens_live_name").on(t.name).where(sql`revoked_at IS NULL`)],
+);

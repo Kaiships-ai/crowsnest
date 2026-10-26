@@ -105,6 +105,8 @@ for (let i = 0; !existsSync(mcpPortFile); i++) {
 }
 mkdirSync(STATE_DIR, { recursive: true });
 writeFileSync(path.join(STATE_DIR, "mcp.port"), readFileSync(mcpPortFile, "utf8"));
+rmSync(path.join(STATE_DIR, "mcp.token"), { force: true });
+writeFileSync(path.join(STATE_DIR, "mcp.token"), readFileSync(path.join(userDataDir, "mcp.token"), "utf8"), { mode: 0o600 });
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
   JSON.stringify({ cdpPort, userDataDir }, null, 2),
@@ -122,6 +124,7 @@ async function shutdown() {
   rmSync(tmp, { recursive: true, force: true });
   rmSync(path.join(STATE_DIR, "state.json"), { force: true });
   rmSync(path.join(STATE_DIR, "mcp.port"), { force: true });
+  rmSync(path.join(STATE_DIR, "mcp.token"), { force: true });
   console.log("app: closed");
   process.exit(0);
 }
@@ -131,6 +134,7 @@ app.on("close", () => {
   if (!closing) {
     console.log("app: exited on its own");
     rmSync(path.join(STATE_DIR, "state.json"), { force: true });
+    rmSync(path.join(STATE_DIR, "mcp.token"), { force: true });
     process.exit(1);
   }
 });

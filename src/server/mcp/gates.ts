@@ -60,7 +60,8 @@ function levelOf(levels: Record<string, GateLevel>, name: string): GateLevel {
   return level;
 }
 
-function callerOf(server: McpServer, extra: Extra): string {
+function callerOf(server: McpServer, extra: Extra, agent: string | undefined): string {
+  if (agent) return agent;
   const userAgent = extra.requestInfo?.headers["user-agent"];
   return server.server.getClientVersion()?.name ?? (typeof userAgent === "string" ? userAgent : "unknown");
 }
@@ -74,12 +75,12 @@ function drafted(tool: string, draftId: string): CallToolResult {
   return { content: [{ type: "text", text: JSON.stringify(value, null, 2) }], structuredContent: value };
 }
 
-export function gatedRegistrar<L extends Record<string, GateLevel>>(server: McpServer, levels: L) {
+export function gatedRegistrar<L extends Record<string, GateLevel>>(server: McpServer, levels: L, agent?: string) {
   return <S extends ZodRawShapeCompat>(name: Extract<keyof L, string>, config: { title: string; description: string; inputSchema: S }, handler: Handler<S>): void => {
     const level = levelOf(levels, name);
     const gated: Handler<S> = async (args, extra) => {
       if (level === "read") return handler(args, extra);
-      const caller = callerOf(server, extra);
+      const caller = callerOf(server, extra, agent);
       if (level === "gate2") return drafted(name, draftGatedCall(caller, name, args));
       let call: JournaledCall;
       try {

@@ -264,24 +264,9 @@ test("crowsnest_attach_video attaches a real mp4, dedupes the asset, and refuses
 });
 
 test("/api/mcp refuses a non-local Host or Origin and serves a local client", async () => {
-  const server = http.createServer((req, res) => void handleMcpRequest(req, res));
-  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  const { port } = server.address() as AddressInfo;
-  const send = (headers: Record<string, string>, method = "POST") =>
-    new Promise<{ status: number; body: string }>((resolve, reject) => {
-      const req = http.request(
-        { port, path: "/api/mcp", method, headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers } },
-        (res) => {
-          let body = "";
-          res.setEncoding("utf8");
-          res.on("data", (c: string) => (body += c));
-          res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
-        },
-      );
-      req.on("error", reject);
-      req.end(method === "POST" ? JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) : undefined);
-    });
-  const call = async (headers: Record<string, string>, method?: string) => (await send(headers, method)).status;
+  const { port, send, close } = await mcpHttp();
+  const authorization = `Bearer ${(await import("@/server/services/mcp-tokens")).createMcpToken(`guard-${Date.now()}`).token}`;
+  const call = async (headers: Record<string, string>, method?: string) => (await send({ authorization, ...headers }, method)).status;
   try {
     expect(await call({ host: `localhost:${port}` })).toBe(200);
     expect(await call({ host: `[::1]:${port}`, origin: `http://127.0.0.1:${port}` })).toBe(200);
@@ -300,9 +285,86 @@ test("/api/mcp refuses a non-local Host or Origin and serves a local client", as
       id: null,
     });
   } finally {
-    server.close();
+    close();
   }
 });
+
+test("/api/mcp needs a live token, refuses before any tool runs, and journals the token's name", async () => {
+  const { db, tables } = await import("@/server/db");
+  const tokens = await import("@/server/services/mcp-tokens");
+  const { port, send, close } = await mcpHttp();
+  const host = `localhost:${port}`;
+  const funnelCall = (authorization?: string) =>
+    send({ host, ...(authorization ? { authorization } : {}) }, "POST", {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name: "crowsnest_save_funnel", arguments: { agent: "auth-test", rows: [{ keyword: "AUTHKW", source: "chatbotx", metric: "dms", value: 1, capturedAt: new Date(Date.now() - 60_000).toISOString() }] } },
+    });
+  const journalRows = () => db.select().from(tables.agentActions).all().filter((r) => r.tool === "crowsnest_save_funnel");
+  const funnelRows = () => db.select().from(tables.reelFunnel).all().filter((r) => r.keyword === "AUTHKW");
+  const created = tokens.createMcpToken("auth-agent");
+  try {
+    for (const authorization of [undefined, "Bearer cn_wrong", `Basic ${created.token}`, created.token]) {
+      const res = await funnelCall(authorization);
+      expect(res.status).toBe(401);
+      expect(JSON.parse(res.body).error.code).toBe(-32001);
+    }
+    expect(journalRows()).toEqual([]);
+    expect(funnelRows()).toEqual([]);
+
+    const ok = await funnelCall(`Bearer ${created.token}`);
+    expect(ok.status).toBe(200);
+    expect(journalRows().map((r) => r.caller)).toEqual(["auth-agent", "auth-agent"]);
+    expect((await send({ host, authorization: `Bearer ${created.token}` })).body).toContain("crowsnest_feed");
+
+    const row = db.select().from(tables.mcpTokens).all().find((t) => t.id === created.id);
+    expect(row?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(row?.lastUsedAt).not.toBeNull();
+    expect(JSON.stringify(db.select().from(tables.mcpTokens).all())).not.toContain(created.token);
+    expect(tokens.listMcpTokens().find((t) => t.id === created.id)).not.toHaveProperty("tokenHash");
+
+    expect(tokens.revokeMcpToken(created.id)).toEqual({ revoked: true });
+    expect((await funnelCall(`Bearer ${created.token}`)).status).toBe(401);
+    expect(journalRows()).toHaveLength(2);
+    expect(tokens.revokeMcpToken(created.id)).toEqual({ revoked: false });
+    expect(() => tokens.createMcpToken("auth-agent")).not.toThrow();
+    expect(() => tokens.createMcpToken("auth-agent")).toThrow(/UNIQUE/);
+  } finally {
+    close();
+  }
+});
+
+test("rotating the local token revokes the previous one", async () => {
+  const tokens = await import("@/server/services/mcp-tokens");
+  const first = tokens.rotateLocalMcpToken();
+  expect(tokens.authenticateMcpToken(`Bearer ${first}`)).toBe("local");
+  const second = tokens.rotateLocalMcpToken();
+  expect(tokens.authenticateMcpToken(`Bearer ${first}`)).toBeNull();
+  expect(tokens.authenticateMcpToken(`Bearer ${second}`)).toBe("local");
+  expect(tokens.listMcpTokens().filter((t) => t.name === "local" && t.revokedAt === null)).toHaveLength(1);
+});
+
+async function mcpHttp() {
+  const server = http.createServer((req, res) => void handleMcpRequest(req, res));
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  const send = (headers: Record<string, string>, method = "POST", payload: unknown = { jsonrpc: "2.0", id: 1, method: "tools/list" }) =>
+    new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const req = http.request(
+        { port, path: "/api/mcp", method, headers: { "content-type": "application/json", accept: "application/json, text/event-stream", ...headers } },
+        (res) => {
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", (c: string) => (body += c));
+          res.on("end", () => resolve({ status: res.statusCode ?? 0, body }));
+        },
+      );
+      req.on("error", reject);
+      req.end(method === "POST" ? JSON.stringify(payload) : undefined);
+    });
+  return { port, send, close: () => server.close() };
+}
 
 test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest ledger values with the plan", async () => {
   const { db, tables, newId, nowIso } = await import("@/server/db");

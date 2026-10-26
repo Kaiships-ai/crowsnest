@@ -7,6 +7,7 @@ import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions
 import { pullAgain } from "@/server/services/daily-pull";
 import { getFunnel } from "@/server/services/funnel";
 import { listAgentActions } from "@/server/services/agent-journal";
+import { createMcpToken, listMcpTokens, revokeMcpToken } from "@/server/services/mcp-tokens";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
   getChannelDetail,
@@ -230,6 +231,9 @@ export const ENGINE_CALLS = {
   markAllReadAction: call(none, markAllReadAction),
 
   listAgentActions: call(z.tuple([z.number().int().min(1).max(500).optional()]), listAgentActions),
+  listMcpTokens: call(none, listMcpTokens),
+  createMcpToken: call(z.tuple([z.string()]), createMcpToken),
+  revokeMcpToken: call(id, revokeMcpToken),
 };
 
 export type EngineCalls = typeof ENGINE_CALLS;

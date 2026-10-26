@@ -109,12 +109,12 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
   return { path, byteSize: asset.byteSize, durationSec: asset.durationSec ?? null };
 }
 
-export function buildMcpServer(): McpServer {
+export function buildMcpServer(agent?: string): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
     { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a draft plan. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads every ledger metric (counts and the rates between them, each with its target) per keyword, with the plan that holds the keyword. (5) PLAN a month or week: crowsnest_propose_plan stores a reel list as the next proposed version; crowsnest_plan_versions lists versions with a short diff; crowsnest_approve_plan (only when Kai says approve) makes one live and syncs its draft planned posts; crowsnest_undo_plan restores the previous live version. Every write is journaled with its gate level. A tool that touches people outside (gate 2) never acts: it returns status pending_approval with a draftId and waits for Kai's approval in Lead Studio." }
   );
-  const tool = gatedRegistrar(server, TOOL_LEVELS);
+  const tool = gatedRegistrar(server, TOOL_LEVELS, agent);
 
   tool(
     "crowsnest_feed",
