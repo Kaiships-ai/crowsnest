@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { app, protocol } from 'electron'
 import { registerEngineIpc } from './engine-ipc'
@@ -27,6 +28,8 @@ export async function startCrowsnest(): Promise<void> {
   }))
   registerEngineIpc(starting.then(({ server }) => server.dispatchEngineCall))
   const { server, stopJobs } = await starting
+  const tokenFile = join(userData, 'mcp.token')
+  server.writeLocalMcpTokenFile(tokenFile)
   const stopMcp = await startMcpHttp(server.handleMcpRequest, join(userData, 'mcp.port'))
   protocol.handle(CROWSNEST_MEDIA_SCHEME.scheme, async (request) => {
     const params = Promise.resolve({ assetId: new URL(request.url).pathname.slice(1) })
@@ -38,9 +41,10 @@ export async function startCrowsnest(): Promise<void> {
   })
   app.once('will-quit', () => {
     stopMcp()
+    rmSync(tokenFile, { force: true })
     stopJobs()
   })
   console.log(
-    `[crowsnest] db ${process.env.CROWSNEST_DB_PATH}, mcp.port written, publish jobs ${process.env.LEAD_STUDIO_PUBLISH_JOBS === '1' ? 'on' : 'off'}`
+    `[crowsnest] db ${process.env.CROWSNEST_DB_PATH}, mcp.port and mcp.token written, publish jobs ${process.env.LEAD_STUDIO_PUBLISH_JOBS === '1' ? 'on' : 'off'}`
   )
 }

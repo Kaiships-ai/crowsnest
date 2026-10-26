@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
+import path from "node:path";
 import { handleMcpRequest } from "./src/server/mcp/http";
-import { startJobs } from "./src/server/start";
+import { startJobs, writeLocalMcpTokenFile } from "./src/server/start";
 
 const port = Number(process.env.PORT);
 if (!port) throw new Error("server.ts: set PORT");
@@ -14,6 +15,8 @@ const server = createServer((req, res) => {
 });
 
 startJobs();
+
+writeLocalMcpTokenFile(path.join(path.dirname(process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"), "mcp.token"));
 
 // The packaged LaunchAgent sets HOST=127.0.0.1 so a buyer's Mac never shows the "accept
 // incoming connections" firewall prompt on first run.

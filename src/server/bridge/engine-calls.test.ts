@@ -92,6 +92,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   listConnectors: [],
   listNotificationsAction: [],
   listAgentActions: [10],
+  listMcpTokens: [],
 };
 
 describe("dispatchEngineCall", () => {

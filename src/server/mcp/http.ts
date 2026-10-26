@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
+import { authenticateMcpToken } from "@/server/services/mcp-tokens";
+
 import { buildMcpServer } from "./mcp-server";
 
 /**
@@ -47,9 +49,15 @@ export async function handleMcpRequest(req: IncomingMessage, res: ServerResponse
     res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32000, message: "crowsnest MCP only answers local clients." }, id: null }));
     return;
   }
+  const agent = authenticateMcpToken(req.headers.authorization);
+  if (!agent) {
+    res.writeHead(401, { "content-type": "application/json", "www-authenticate": "Bearer" });
+    res.end(JSON.stringify({ jsonrpc: "2.0", error: { code: -32001, message: "crowsnest MCP needs Authorization: Bearer <token>; the token is missing, unknown, or revoked." }, id: null }));
+    return;
+  }
   try {
     const body = req.method === "POST" ? await readBody(req) : undefined;
-    const server = buildMcpServer();
+    const server = buildMcpServer(agent);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     res.on("close", () => {
       void transport.close();

@@ -29,7 +29,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 .claude/skills/verify/scripts/app-drive.sh shell-01 [run-id]  # run app-journeys/shell-01.mjs
 .claude/skills/verify/scripts/app-drive.sh --console          # host log
 .claude/skills/verify/scripts/app-drive.sh --timing 3         # cold start vs Orca.app
-.claude/skills/verify/scripts/mcp.sh tools/list               # the app's MCP, port from data/verify/app/mcp.port
+.claude/skills/verify/scripts/mcp.sh tools/list               # the app's MCP, port and token from data/verify/app/
 .claude/skills/verify/scripts/mcp.sh crowsnest_plans '{}'
 ```
 

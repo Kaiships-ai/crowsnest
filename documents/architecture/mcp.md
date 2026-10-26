@@ -4,16 +4,17 @@ The MCP server runs inside crowsnest's own process at `/api/mcp` and exposes the
 
 ## Data it holds
 
-The MCP owns two tables, both from migration `0036_agent_gates`. Every other write goes through the part that owns the data, so a business rule lives in that part.
+The MCP owns three tables: `agent_actions` and `gate_drafts` from migration `0036_agent_gates`, and `mcp_tokens` from `0037_mcp_tokens`. Every other write goes through the part that owns the data, so a business rule lives in that part.
 
 - `agent_actions`: the journal. Two rows per free or gate 1 call, sharing a `call_id`: a `pending` row written before the tool runs and an `ok` or `error` row after. One `drafted` row per gate 2 call. Each row has `at`, `caller`, `tool`, `input` (JSON with every stored connector secret replaced by `[redacted]`), `result`, `gate` (`free`, `gate1`, or `gate2`), and `draft_id` for a gate 2 call. Triggers abort any `UPDATE` or `DELETE`, so the table is append-only.
 - `gate_drafts`: one row per gate 2 call held for Kai: `id`, `tool`, the raw `input` (kept so an approval can run the tool later), `caller`, `status` (`pending`), `created_at`.
+- `mcp_tokens`: one row per agent token: `id`, `name`, `token_hash` (SHA-256 hex of the token; the raw token is never stored or logged), `created_at`, `last_used_at`, `revoked_at`. A unique index on `token_hash`, and a partial unique index keeps one live (unrevoked) token per `name`.
 
 Tools write through their owners: `video_analyses` (`crowsnest_save_analysis`, stamped `source = "mcp"`), `content_artifacts` (`crowsnest_save_artifact`), `transcripts` (`crowsnest_transcribe`), `remix_sessions` and the draft planned post (the remix chain), `planned_posts` and `plan_versions` (the plan tools), `reel_funnel` (`crowsnest_save_funnel`). Schemas are in `src/server/db/schema.ts`.
 
 ## Tools
 
-The endpoint is `/api/mcp`, streamable HTTP. The Lead Studio app serves it on a free `127.0.0.1` port and writes that port to `mcp.port` in its user data directory (`src/main/crowsnest/mcp-http.ts`); the headless `server.ts` serves it on `PORT`. Names, inputs, and descriptions are the registered ones in `src/server/mcp/mcp-server.ts` (`buildMcpServer`, one `registerTool` call each). Read the registration for input schemas. The level column is `TOOL_LEVELS` in `src/server/mcp/gates.ts`: 19 read, 13 free, 6 gate 1, 0 gate 2. No tool today posts to people outside the Mac. The one indirect path, an agent swapping the video of a post the publish scheduler can send on its own, is closed: `crowsnest_attach_video` takes only a draft and refuses a scheduled or failed plan with `PLAN_NOT_DRAFT` (the scheduler re-arms a failed post with a retryable error). Publish reads only a plan's video and caption, and no MCP tool sets a caption. Two free tools send data out without touching people: `crowsnest_sync_selected` reads Instagram through the sidecar, and `crowsnest_transcribe` uploads a video's audio to Groq when whisper.cpp is missing.
+The endpoint is `/api/mcp`, streamable HTTP. The Lead Studio app serves it on a free `127.0.0.1` port and writes that port to `mcp.port` in its user data directory (`src/main/crowsnest/mcp-http.ts`); the headless `server.ts` serves it on `PORT`. Every request needs `Authorization: Bearer <token>` (see Agent tokens). Names, inputs, and descriptions are the registered ones in `src/server/mcp/mcp-server.ts` (`buildMcpServer`, one `registerTool` call each). Read the registration for input schemas. The level column is `TOOL_LEVELS` in `src/server/mcp/gates.ts`: 19 read, 13 free, 6 gate 1, 0 gate 2. No tool today posts to people outside the Mac. The one indirect path, an agent swapping the video of a post the publish scheduler can send on its own, is closed: `crowsnest_attach_video` takes only a draft and refuses a scheduled or failed plan with `PLAN_NOT_DRAFT` (the scheduler re-arms a failed post with a retryable error). Publish reads only a plan's video and caption, and no MCP tool sets a caption. Two free tools send data out without touching people: `crowsnest_sync_selected` reads Instagram through the sidecar, and `crowsnest_transcribe` uploads a video's audio to Groq when whisper.cpp is missing.
 
 | Tool | Behavior today | Level |
 | --- | --- | --- |
@@ -77,16 +78,27 @@ The journal fails closed. When the `pending` row cannot be written, the tool doe
 
 There is no MCP path to approve a gate 2 draft. Approval is a UI action that the Cổng 2 board adds. `crowsnest_approve_plan` and `crowsnest_undo_plan` stay on MCP as gate 1 until the Cổng 1 board exists.
 
+## Agent tokens
+
+Each agent calls with its own token. Logic lives in `src/server/services/mcp-tokens.ts`.
+
+- A token is `cn_` plus 32 random bytes in base64url. `createMcpToken(name)` returns it once; only its hash is stored. A name is 1 to 64 letters, digits, `.`, `_` or `-`, and a second live token with the same name is refused (`already named`), backed by the unique index.
+- `authenticateMcpToken` takes the `Authorization` header, hashes the presented token, and compares it with every live hash using `timingSafeEqual`. A match stamps `last_used_at` and returns the token's name.
+- `revokeMcpToken(id)` sets `revoked_at`; the next request with that token gets 401. Revoked rows stay for the record.
+- The `local` token: only the hash is stored, so on every start the app revokes the live `local` token, mints a new one, and writes it to `<userData>/mcp.token` with mode 0600 (`writeLocalMcpTokenFile`) before it writes `mcp.port` (`src/main/crowsnest/start.ts`). The quit hook removes both files. `server.ts` does the same with `mcp.token` next to the DB. `scripts/lead-studio-mcp.mjs` (the stdio bridge `.mcp.json` runs) reads `mcp.port` and `mcp.token` on every message, so a running Claude session follows a restart. Two app instances on one DB revoke each other's `local` token.
+- The renderer manages tokens through the engine bridge: `listMcpTokens` (no hash, no token), `createMcpToken(name)`, `revokeMcpToken(id)`. No board shows them yet.
+- The journal `caller` is the token's name. `gatedRegistrar` falls back to the MCP client name, then `User-Agent`, only when no agent name is given (the in-memory transport in tests).
+
 ## Boundaries
 
 - Owns: the tool surface, the result contract, and the media handoff shape (`src/server/mcp/mcp-server.ts`), the gate levels and dispatcher (`src/server/mcp/gates.ts`), the journal and gate drafts (`src/server/services/agent-journal.ts`), plus the HTTP bridge (`src/server/mcp/http.ts`).
-- Called by: any MCP client over `/api/mcp`, routed by `src/main/crowsnest/mcp-http.ts` in the app or by `server.ts` at the repo root. The renderer reads the journal through `listAgentActions` in `src/server/bridge/engine-calls.ts`.
+- Called by: any MCP client holding a live token over `/api/mcp`, routed by `src/main/crowsnest/mcp-http.ts` in the app or by `server.ts` at the repo root. The renderer reads the journal through `listAgentActions` and manages tokens through `listMcpTokens`, `createMcpToken`, and `revokeMcpToken` in `src/server/bridge/engine-calls.ts`.
 - Calls: the feed, video, post-brief, vault, ideas, own-channel, planned-posts, research, channels, and runs queries; `services/remix.ts`, `services/analyze.ts` (`saveAgentAnalysis`), `services/artifacts.ts`; `actions/sync-actions.ts`, `actions/ig-actions.ts` (`getIgStatusAction`), `actions/media-actions.ts` (`downloadVideoAction`); `transcribe` (`getOrCreateTranscript`); `media/store` (`getAsset`, `resolveAssetPath`).
 
 ## Invariants
 
 - The server is mounted in-process so every tool call uses the app's one SQLite connection and the MCP is never a second writer. `server.ts` sends any URL starting with `/api/mcp` to `handleMcpRequest`.
-- `/api/mcp` has a DNS-rebinding and cross-origin guard, not authentication. `handleMcpRequest` in `src/server/mcp/http.ts` returns 403 when the `Host` header is not `localhost`, `127.0.0.1`, or `[::1]` (any port), or when an `Origin` header is present and its host is not one of those. This blocks DNS rebinding: `server.ts` listens on all interfaces unless `HOST` is set, and without the check a web page could call `crowsnest_attach_video` with any local path and write that file into the media store. Claude Code's MCP client sends `Host: localhost:<port>` and no `Origin`, so it passes. Any local or LAN process that sends `Host: localhost` and no `Origin` passes too, and no credential is checked. The SDK's own `allowedHosts` option matches exact `host:port` strings, so it cannot express any port.
+- `/api/mcp` checks the caller in two steps, both before the MCP SDK sees the request. First a DNS-rebinding and cross-origin guard: `handleMcpRequest` in `src/server/mcp/http.ts` returns 403 when the `Host` header is not `localhost`, `127.0.0.1`, or `[::1]` (any port), or when an `Origin` header is present and its host is not one of those. This blocks DNS rebinding: `server.ts` listens on all interfaces unless `HOST` is set, and without the check a web page could call `crowsnest_attach_video` with any local path and write that file into the media store. Claude Code's MCP client sends `Host: localhost:<port>` and no `Origin`, so it passes. Then the token: a missing, unknown, or revoked bearer token returns 401 with `{"jsonrpc":"2.0","error":{"code":-32001,...},"id":null}` and a `WWW-Authenticate: Bearer` header, and no tool runs. The SDK's own `allowedHosts` option matches exact `host:port` strings, so it cannot express any port.
 - The transport is stateless. `handleMcpRequest` builds a fresh `McpServer` and `StreamableHTTPServerTransport` (`sessionIdGenerator: undefined`) per request and closes both when the response closes. A throw becomes a JSON-RPC 500 envelope (`src/server/mcp/http.ts`).
 - Every handler returns through `result()` or `errorResult()`. `result` serializes one value to both JSON text and `structuredContent`. `errorResult` sets `isError: true`. Handled failures (unknown id, no own channel) are error results, never thrown (`src/server/mcp/mcp-server.test.ts`).
 - `mediaInfoFor` reads `path`, `byteSize`, and `durationSec` off the `media_assets` row and never touches the file. A null id or missing row returns null and an unresolvable stored path gives a null `path`.
@@ -103,14 +115,15 @@ There is no MCP path to approve a gate 2 draft. Approval is a UI action that the
 - `crowsnest_save_analysis` confirms the video exists, validates against `VideoAnalysisSchema` (plus an optional `summary`), and writes nothing on failure. A second save updates the same row.
 - `crowsnest_transcribe` is cache-first and needs a live sidecar for a first download and a transcript provider (whisper.cpp, or Groq with `GROQ_API_KEY`). Missing either is an error result.
 - Own posts score on `reachIndex`, competitors on `outlierScore`; `research_set` and `outlier_pack` return both blocks and never merge them.
-- The endpoint has no credential check. Reach is governed by the interface `server.ts` binds (`HOST`; the packaged LaunchAgent sets `127.0.0.1`).
-- `src/server/mcp/mcp-roundtrip.test.ts` drives `tools/call` over an in-memory transport, and drives `handleMcpRequest` over real HTTP only for the local-client guard.
+- Every request needs a live token. Reach is also governed by the interface: the app listens on `127.0.0.1` only, `server.ts` on `HOST` (the packaged LaunchAgent sets `127.0.0.1`). `src/kai-cli/mcp-register.ts` registers and probes the plain URL with no token, so a Kit client gets 401 until it sends one.
+- `src/server/mcp/mcp-roundtrip.test.ts` drives `tools/call` over an in-memory transport, and drives `handleMcpRequest` over real HTTP for the local-client guard and the token check (no token, wrong token, revoked token, the journal name).
 
 ## Where to look
 
 - `src/server/mcp/mcp-server.ts` (tool registration, `result`, `errorResult`, `mediaInfoFor`)
 - `src/server/mcp/gates.ts` (`TOOL_LEVELS`, `gatedRegistrar`) and `src/server/services/agent-journal.ts` (journal and gate drafts)
-- `src/server/mcp/http.ts` (transport bridge)
+- `src/server/mcp/http.ts` (transport bridge, local guard, token check)
+- `src/server/services/mcp-tokens.ts` (agent tokens)
 - `server.ts` (the `/api/mcp` mount)
 - `src/server/queries/research.ts` (`getResearchSet`, `getOutlierPack`)
 - `src/server/services/analyze.ts` (`saveAgentAnalysis`)
