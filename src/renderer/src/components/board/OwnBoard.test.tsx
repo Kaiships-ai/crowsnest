@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { OwnBoard } from './OwnBoard'
+import { viewsByPostDay } from './OwnPanels'
 
 const T = '2026-10-02T08:00:00.000Z'
 const value = (v: number) => ({ status: 'value', value: v, capturedAt: T })
@@ -114,6 +115,30 @@ function stubCall(...results: unknown[]): ReturnType<typeof vi.fn> {
 const openTab = (id: string) => fireEvent.mouseDown(screen.getByTestId(id), { button: 0 })
 
 afterEach(cleanup)
+
+describe('viewsByPostDay', () => {
+  it('sums the views of posts that went up the same day, reads 0 on a day with no post, and skips a post with no number', () => {
+    const now = new Date(2026, 9, 27, 10, 30)
+    const at = (day: number, hour: number) => new Date(2026, 9, day, hour).toISOString()
+    const post = (postedAt: string, views: unknown) => ({
+      ...alpha,
+      postedAt,
+      ig: { ...alpha.ig, views }
+    })
+    const points = viewsByPostDay(
+      // SAFETY: test fixtures carry only the fields viewsByPostDay reads.
+      [
+        post(at(27, 8), value(100)),
+        post(at(27, 9), value(50)),
+        post(at(25, 8), value(7)),
+        post(at(26, 8), missing)
+      ] as never,
+      3,
+      now
+    )
+    expect(points.map((p) => p.value)).toEqual([7, 0, 150])
+  })
+})
 
 describe('OwnBoard', () => {
   it('has no reach total: per-post reach does not add up across posts', async () => {

@@ -118,7 +118,7 @@ function AfterReel({ reel }: { reel: ReelBoard }): React.ReactNode {
           { keyword: reel.after.keyword }
         )}
       </p>
-      <div className="grid grid-cols-[10rem_1fr_8rem_8rem] items-center gap-x-6">
+      <div className="grid grid-cols-[10rem_1fr_11rem_8rem] items-center gap-x-6">
         <div className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground">
           <span>{translate('boards.funnel.step.column', 'Step')}</span>
           <span />
