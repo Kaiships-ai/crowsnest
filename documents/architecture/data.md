@@ -14,7 +14,7 @@ The schema is `src/server/db/schema.ts`. Tables by purpose:
 | Remix | `remix_sessions` (one per source video), `remix_runs` (append-only attempt log), `scripts` |
 | Plan and publish | `planned_posts` |
 | Own channel (Graph) | `own_account_snapshots`, `own_posts`, `own_post_insights`, `own_comments`, `own_account_breakdowns` |
-| Agent output | `content_artifacts`, `reel_funnel` (append-only funnel snapshots per reel keyword) |
+| Agent output | `content_artifacts`, `reel_funnel` (append-only funnel snapshots per reel keyword), `agent_actions` (append-only journal of MCP writes) and `gate_drafts` (gate 2 calls waiting for approval), both described in [mcp](mcp.md) |
 | Accounts | `ig_accounts` |
 | Jobs and observability | `sync_jobs`, `log_events`, `notifications` |
 | Configuration | `app_settings`, `sealed_secrets`, `secrets` (legacy, drained on boot) |

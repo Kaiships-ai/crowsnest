@@ -36,10 +36,12 @@ import { getResearchSet, getOutlierPack } from "@/server/queries/research";
 import { saveArtifact, listArtifacts, getArtifact, ARTIFACT_KINDS } from "@/server/services/artifacts";
 import { FUNNEL_METRICS_TEXT, getFunnel, saveFunnel } from "@/server/services/funnel";
 import { approvePlanVersion, listPlanVersions, proposePlan, undoPlanVersion } from "@/server/services/plan-versions";
+import { gatedRegistrar, TOOL_LEVELS } from "./gates";
 
 /**
- * The Crowsnest MCP server. Read tools only for now (the generate/remix tools are added
- * separately). Every tool is a thin wrapper over an existing query function, so the MCP
+ * The Crowsnest MCP server. Every tool is registered through `tool`, which takes its gate
+ * level from TOOL_LEVELS (gates.ts) and journals every non-read call, and is a thin wrapper
+ * over an existing query, action, or service function, so the MCP
  * surface and the dashboard read the same data through the same code. Mounted inside the
  * app's own server process (see server.ts), so it shares the one SQLite connection and
  * never becomes a second writer.
@@ -112,10 +114,11 @@ export async function mediaInfoFor(assetId: string | null | undefined): Promise<
 export function buildMcpServer(): McpServer {
   const server = new McpServer(
     { name: "crowsnest", version: "0.1.0" },
-    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads every ledger metric (counts and the rates between them, each with its target) per keyword, with the plan that holds the keyword. (5) PLAN a month or week: crowsnest_propose_plan stores a reel list as the next proposed version; crowsnest_plan_versions lists versions with a short diff; crowsnest_approve_plan (only when Kai says approve) makes one live and syncs its draft planned posts; crowsnest_undo_plan restores the previous live version." }
+    { instructions: "Crowsnest is the data and action brain; YOU are the reasoning brain. Keyless: no internal model key or proxy is used anywhere in this chain. Full content-machine flow: (1) SYNC — check crowsnest_ig_status, then crowsnest_sync_selected the channels you want, poll crowsnest_sync_status. (2) INSPECT — crowsnest_feed for over-performers, crowsnest_video for one video's analysis, transcript, metrics, and media paths; crowsnest_research_set / crowsnest_outlier_pack for working-set bundles; crowsnest_channels / crowsnest_channel_stats / crowsnest_metrics for the landscape. (3) ANALYZE and PERSIST — write your own analysis of why a video worked and save it with crowsnest_save_analysis; save your larger reasoning outputs (angles, an outlier library, an idea bank of 100+ ideas, a Week 01 to 04 monthly plan, briefs) with crowsnest_save_artifact, stamped with provenance (agent, model, sourceVideoIds, assumptions). Read them back with crowsnest_artifacts. (4) REMIX one video into a script with the crowsnest_remix_* chain: session, set_prompt, research, hooks (returns a prompt, you write the hooks), choose_hook, style, outline (returns a prompt, you write the outline), variants (returns a prompt, you write the script), save_script, finish (creates a draft planned post). crowsnest_brief returns a planned post's brief with source media paths for the Reel Factory handoff. crowsnest_scripts, crowsnest_ideas, and crowsnest_plans are read-only; crowsnest_set_plan_fields sets a plan's comment keyword and guide link; crowsnest_attach_video attaches a rendered local mp4 to a plan that is not scheduled. crowsnest_save_funnel appends funnel snapshots (DMs, emails, orders) per reel keyword; crowsnest_funnel reads every ledger metric (counts and the rates between them, each with its target) per keyword, with the plan that holds the keyword. (5) PLAN a month or week: crowsnest_propose_plan stores a reel list as the next proposed version; crowsnest_plan_versions lists versions with a short diff; crowsnest_approve_plan (only when Kai says approve) makes one live and syncs its draft planned posts; crowsnest_undo_plan restores the previous live version. Every write is journaled with its gate level. A tool that touches people outside (gate 2) never acts: it returns status pending_approval with a draftId and waits for Kai's approval in Lead Studio." }
   );
+  const tool = gatedRegistrar(server, TOOL_LEVELS);
 
-  server.registerTool(
+  tool(
     "crowsnest_feed",
     {
       title: "Outlier feed",
@@ -149,7 +152,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_video",
     {
       title: "Video detail",
@@ -173,7 +176,7 @@ export function buildMcpServer(): McpServer {
   // than any prior transcript. Reuses downloadVideoAction (idempotent: no-ops when the
   // video is already stored) then getOrCreateTranscript (cache-first, so a repeat call is
   // instant and free).
-  server.registerTool(
+  tool(
     "crowsnest_transcribe",
     {
       title: "Transcribe video",
@@ -193,7 +196,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_brief",
     {
       title: "Post brief",
@@ -214,7 +217,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_scripts",
     {
       title: "Saved scripts",
@@ -236,7 +239,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_ideas",
     {
       title: "Ideas",
@@ -258,7 +261,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_metrics",
     {
       title: "Own channel metrics",
@@ -282,7 +285,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_plans",
     {
       title: "Planned posts",
@@ -298,24 +301,24 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_attach_video",
     {
       title: "Attach a rendered video to a plan",
-      description: "Attaches a local mp4 (absolute path on the crowsnest host; a relative path or a leading ~ is refused, not expanded) to one planned post as its publish video. Refuses a missing file, a non-mp4, a file over 200 MB, an unknown plan, and a plan already publishing or published. The same file attached twice reuses one stored asset.",
+      description: "Attaches a local mp4 (absolute path on the crowsnest host; a relative path or a leading ~ is refused, not expanded) to one planned post as its publish video. Refuses a missing file, a non-mp4, a file over 200 MB, an unknown plan, a plan already publishing or published (PLAN_LOCKED), and a scheduled plan (PLAN_SCHEDULED: Kai unschedules it first). The same file attached twice reuses one stored asset.",
       inputSchema: {
         postId: z.string().describe("The planned post id, from crowsnest_plans."),
         path: z.string().refine((p) => path.isAbsolute(p), "path must be absolute").describe("Absolute path to the rendered .mp4 on this machine. A leading ~ is not expanded."),
       },
     },
     async (args) => {
-      const res = await attachPlanVideo(args.postId, args.path);
+      const res = await attachPlanVideo(args.postId, args.path, { lockScheduled: true });
       if (!res.ok) return errorResult({ error: res.error, code: res.code, postId: args.postId });
       return result(await getPlannedPostById(args.postId));
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_set_plan_fields",
     {
       title: "Set a plan's keyword and guide link",
@@ -333,7 +336,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_save_funnel",
     {
       title: "Save funnel snapshots",
@@ -349,7 +352,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_funnel",
     {
       title: "Funnel numbers per keyword",
@@ -364,7 +367,7 @@ export function buildMcpServer(): McpServer {
     periodKey: z.string().optional().describe("Month 'YYYY-MM' or ISO week 'YYYY-Www', e.g. '2026-W44'."),
   };
 
-  server.registerTool(
+  tool(
     "crowsnest_propose_plan",
     {
       title: "Propose a month or week plan",
@@ -393,7 +396,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_plan_versions",
     {
       title: "Plan versions with a short diff",
@@ -410,7 +413,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_approve_plan",
     {
       title: "Approve a plan version",
@@ -423,7 +426,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_undo_plan",
     {
       title: "Undo the last plan approval",
@@ -436,7 +439,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_save_analysis",
     {
       title: "Save an agent-authored analysis",
@@ -466,7 +469,7 @@ export function buildMcpServer(): McpServer {
   // ever calls a model. save_analysis above is the per-video sibling; these carry the
   // larger, cross-video reasoning outputs.
 
-  server.registerTool(
+  tool(
     "crowsnest_save_artifact",
     {
       title: "Save a content artifact",
@@ -489,7 +492,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_artifacts",
     {
       title: "Read content artifacts",
@@ -515,7 +518,7 @@ export function buildMcpServer(): McpServer {
   // object; the MCP boundary never throws. sync_selected refuses an empty channelIds
   // array — there is no whole-library default here (matches runSync's own scoping).
 
-  server.registerTool(
+  tool(
     "crowsnest_sync_selected",
     {
       title: "Sync selected channels",
@@ -538,7 +541,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_ig_status",
     {
       title: "Instagram sidecar readiness",
@@ -570,7 +573,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_sync_status",
     {
       title: "Sync status",
@@ -583,7 +586,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_sync_cancel",
     {
       title: "Cancel a sync",
@@ -601,7 +604,7 @@ export function buildMcpServer(): McpServer {
   // outliers (outlierScore) and the user's own posts (reachIndex) side by side — different
   // units, both returned, never merged.
 
-  server.registerTool(
+  tool(
     "crowsnest_channels",
     {
       title: "Tracked channels",
@@ -611,7 +614,7 @@ export function buildMcpServer(): McpServer {
     async () => result({ channels: await getChannelsList() })
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_channel_stats",
     {
       title: "Channel stats",
@@ -627,7 +630,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_research_set",
     {
       title: "Research set",
@@ -643,7 +646,7 @@ export function buildMcpServer(): McpServer {
       result(await getResearchSet({ minScore: args.minScore, sinceDays: args.sinceDays, query: args.query, limit: args.limit ?? 24 }))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_outlier_pack",
     {
       title: "Outlier pack",
@@ -677,7 +680,7 @@ export function buildMcpServer(): McpServer {
   // these tools do not manage the stepper, since that only affects how the dashboard
   // renders the session.
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_session",
     {
       title: "Get or create a remix session",
@@ -687,7 +690,7 @@ export function buildMcpServer(): McpServer {
     async (args) => result(await getOrCreateSession(args.videoId))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_state",
     {
       title: "Remix session state",
@@ -697,7 +700,7 @@ export function buildMcpServer(): McpServer {
     async (args) => result(await getRemixSession(args.sessionId))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_set_prompt",
     {
       title: "Set the remix prompt",
@@ -719,7 +722,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_research",
     {
       title: "Build research",
@@ -729,7 +732,7 @@ export function buildMcpServer(): McpServer {
     async (args) => result(await buildResearch(args.sessionId))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_hooks",
     {
       title: "Hook prompt",
@@ -744,7 +747,7 @@ export function buildMcpServer(): McpServer {
     async (args) => result(await buildHookPrompt(args.sessionId, { vaultItemId: args.vaultItemId, steer: args.steer }))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_choose_hook",
     {
       title: "Choose a hook",
@@ -761,7 +764,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_style",
     {
       title: "Choose a style",
@@ -777,7 +780,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_outline",
     {
       title: "Outline prompt",
@@ -800,7 +803,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_variants",
     {
       title: "Script prompt",
@@ -814,7 +817,7 @@ export function buildMcpServer(): McpServer {
     async (args) => result(await buildScriptPrompt(args.sessionId, { steer: args.steer }))
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_save_script",
     {
       title: "Save a script",
@@ -831,7 +834,7 @@ export function buildMcpServer(): McpServer {
     }
   );
 
-  server.registerTool(
+  tool(
     "crowsnest_remix_finish",
     {
       title: "Finish the remix",

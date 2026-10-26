@@ -1,6 +1,8 @@
 import { clearSecret, getSecret, secretSource, setSecret, type SecretSource } from "@/server/secrets/store";
 import type { ConnectorManifest, SecretName } from "./types";
 
+export { SecretLockedError } from "@/server/secrets/store";
+
 function key<M extends ConnectorManifest>(manifest: M, name: SecretName<M>, accountId?: string): string {
   const spec = manifest.secrets.find((s) => s.name === name);
   if (!spec) throw new Error(`${manifest.id} declares no secret ${name}`);

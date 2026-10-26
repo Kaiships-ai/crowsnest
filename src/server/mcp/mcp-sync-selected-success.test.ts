@@ -4,7 +4,7 @@
  * empty-channelIds rejection against the real action; this one confirms that a non-empty
  * call passes the guard, reaches startSyncAction, and surfaces the job id it returns.
  */
-import { beforeEach, expect, test, vi } from "vitest";
+import { beforeAll, beforeEach, expect, test, vi } from "vitest";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 const mocks = vi.hoisted(() => ({
@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/server/actions/sync-actions", () => mocks);
 
+import { migrate } from "@/server/db/test-migrate";
 import { buildMcpServer } from "./mcp-server";
 
 function callTool(server: McpServer, name: string, args: Record<string, unknown>) {
@@ -24,6 +25,8 @@ function callTool(server: McpServer, name: string, args: Record<string, unknown>
   })._registeredTools;
   return registry[name].handler(args, {});
 }
+
+beforeAll(() => migrate());
 
 beforeEach(() => {
   vi.clearAllMocks();

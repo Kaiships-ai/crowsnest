@@ -91,6 +91,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getSecretStatusAction: [],
   listConnectors: [],
   listNotificationsAction: [],
+  listAgentActions: [10],
 };
 
 describe("dispatchEngineCall", () => {

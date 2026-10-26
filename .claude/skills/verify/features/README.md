@@ -8,6 +8,7 @@ One file per user-facing feature of the Lead Studio Electron app, driven with `a
 | Boards: board tab, channels board, load states, new-tab and app menu entries | Electron app, tab bar "+" menu | `app-drive.sh board-01` | [boards.md](boards.md) |
 | Funnel and metric ledger: `crowsnest_funnel`, bridge `getFunnel` and `getMetricLedger` | App MCP and engine bridge | `app-drive.sh funnel-01` | [funnel.md](funnel.md) |
 | Connectors and keychain secrets: bridge `listConnectors`, `testConnector`, boot migration | Engine bridge | `app-drive.sh connectors-01` | [connectors.md](connectors.md) |
+| Gate levels and agent journal: `TOOL_LEVELS`, `agent_actions`, bridge `listAgentActions` | App MCP and engine bridge | `app-drive.sh gates-01` | [gates.md](gates.md) |
 | Daily pull and Graph hour budget: the 05:00 pull, catch-up, bridge `pullAgain` | Main process jobs, engine bridge | `schedule-lane.sh` (runs `schedule-01`) | [schedule.md](schedule.md) |
 
 The Next.js screens (Tuần này, Feed, Kênh, Khám phá, Cài đặt) are deleted. Boards live in [boards.md](boards.md).
