@@ -1,6 +1,6 @@
 # Boards
 
-A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are six: `today` (Hôm nay, the morning screen), `funnel` (Phễu, the six-step funnel), `own` (Kênh tôi, the own Instagram channel), `rivals` (Đối thủ, the tracked rival channels), `vault` (each connector's state, with secret entry) and `agents` (the MCP journal and the agent tokens).
+A board is a crowsnest screen that opens as a tab in the Lead Studio workspace. There are seven: `today` (Hôm nay, the morning screen), `funnel` (Phễu, the six-step funnel), `own` (Kênh tôi, the own Instagram channel), `rivals` (Đối thủ, the tracked rival channels), `plan` (Kế hoạch, the planned reels by month, week and day), `vault` (each connector's state, with secret entry) and `agents` (the MCP journal and the agent tokens).
 
 ## What it holds
 
@@ -54,6 +54,18 @@ A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDeta
 - Bằng chứng: the 12 newest `video_analyses` rows on rival posts, each a card with the channel, score, views, hook type, why it worked, tags, the analysis time, and a button that opens the original post. No stored field says whether an analysis is to take (Lấy về), learn from (Học) or avoid (Tránh), so the cards sit under one heading and the board says so.
 - Thêm đối thủ calls `addChannelAction(handle, { requireProfile: true })`: the sidecar must resolve the profile before a row is written, so a typo is refused with its reason and nothing is stored. On success the board reloads and the new channel shows with no numbers until a sync reads it.
 
+## Kế hoạch board
+
+`PlanBoard` in `src/renderer/src/components/board/PlanBoard.tsx` calls `getPlanBoard(month)` (`src/server/queries/plan-board.ts`) once per month and draws three views from that one result, so a change shows in all of them after the reload that follows it.
+
+- `getPlanBoard` returns the whole Monday-to-Sunday weeks covering the month (`gridDays`, each with `inMonth`), the server's local `today`, and every dated `planned_posts` row in that range as a card. Undated drafts are not on the board.
+- Card state: `publishing`, `published` and `failed` as stored; `scheduled` when `scheduledAt` is set (armed with Instagram); `draft` for a stored draft; otherwise `plan`, or `missed` once its date has passed.
+- A card carries its title, post time (`plannedTime`), script (title and text), caption, reference reel (`sourceVideoId` joined to the video's URL and channel handle) and `missing`: script, caption, reference and time when absent, plus key, quà and offer on every card, because no column stores them yet.
+- `lockReason` says why a card cannot change day; it is set for `scheduled`, `publishing`, `published` and `failed`.
+- Tháng: one cell per day with a chip per reel (state dot, title, flag when `missing` is not empty). A week label opens that week; a chip opens its day. Tuần: seven columns of cards with state, post time and flag. Ngày: each reel in full, one row per item with "chưa có" for a missing one, and Còn thiếu listing them. The reference reel opens in a browser tab (`openPostInBrowser`).
+- Drag in Tuần calls `movePlanCardAction(id, date)` (`src/server/actions/plan-board-actions.ts`). It refuses a card with a `lockReason` and otherwise calls `movePlannedPostAction`, so the board never moves a reel armed with Instagram. A locked card refuses the drag at its start and shows the reason. A day before today is refused by `movePlannedPostAction`.
+- An empty day from today on has Thêm reel: a title and an optional time, written by `createPlannedPostAction` as a dated plan.
+
 ## Vault board
 
 `VaultBoard` in `src/renderer/src/components/board/VaultBoard.tsx` calls `getVaultBoard` (`src/server/queries/vault-board.ts`). Each row is one connector from `listConnectors` with:
@@ -80,7 +92,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Load state
 
-`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Hôm nay, Phễu, Kênh tôi and Đối thủ read one object, so their load wraps it in a one-row list: Phễu returns no row when no keyword has a number, Kênh tôi none before the channel was ever measured, and Hôm nay and Đối thủ always have one (Đối thủ keeps its add form when nothing is tracked). Its state is a union:
+`useBoardLoad` in `src/renderer/src/components/board/use-board-load.ts` owns the call and a `retry`. Hôm nay, Phễu, Kênh tôi, Đối thủ and Kế hoạch read one object, so their load wraps it in a one-row list: Phễu returns no row when no keyword has a number, Kênh tôi none before the channel was ever measured, and Hôm nay, Đối thủ and Kế hoạch always have one (Đối thủ keeps its add form when nothing is tracked). Its state is a union:
 
 - `{ status: 'loading' }`: a spinner.
 - `{ status: 'ready', rows }`: the rows. Zero rows is the empty state, a quiet centered message.
@@ -91,7 +103,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 ## Boundaries
 
 - A board reads only through the engine bridge. It never imports `src/server` code; only the bridge's types cross.
-- Hôm nay, Phễu and Kênh tôi are read-only, and Đối thủ writes only through `addChannelAction`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
+- Hôm nay, Phễu and Kênh tôi are read-only, Đối thủ writes only through `addChannelAction`, and Kế hoạch only through `movePlanCardAction` and `createPlannedPostAction`. Every sum, rate and count they show is computed in `src/server/queries/`; the renderer formats and sorts.
 - A board writes only through calls `ENGINE_CALLS` exposes. The Vault board writes secrets (`setConnectorSecret`) and runs pulls; the Agents board creates and revokes tokens.
 
 ## Invariants
@@ -99,6 +111,7 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 - A bridge result `{ ok: false, error }` becomes the error state with the bridge's message. A thrown invoke also becomes the error state. A board never shows stale rows as if they were current after a failed load.
 - Board tabs are virtual: `isVirtualEditorFile` is true for `mode: 'board'`. They have no path header, no file watcher, no git status and no path context-menu items, and `isMobilePublishableOpenFile` never sends them to a paired phone.
 - A funnel gap is never 0: a step with no source, or a post with no keyword, reads "chưa nối", and one with no number reads "chưa có số".
+- Kế hoạch never schedules, unschedules or publishes: a reel armed with Instagram keeps its day, and a new reel has no `scheduledAt`.
 - The Vault board never holds a stored secret. Its field is `type="password"`, cleared after each save, and every status comes from the secret's source.
 - A new MCP token lives only in the Agents board's component state until Xong; `listMcpTokens` never returns a token or its hash.
 - A board tab is not restored after a restart. Only `mode: 'edit'` files persist in the workspace session (`src/renderer/src/lib/workspace-session.ts`), as with markdown preview tabs.
@@ -106,4 +119,4 @@ Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, whic
 
 ## Verify
 
-`.claude/skills/verify/features/boards.md` runs journeys `today-01`, `own-01`, `rivals-01`, `vault-01` and `agents-01`; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Phễu board. Cases are in `scripts/e2e/cases/boards.md`.
+`.claude/skills/verify/features/boards.md` runs journeys `today-01`, `own-01`, `rivals-01`, `plan-01`, `vault-01` and `agents-01`; `.claude/skills/verify/features/funnel.md` runs `funnel-01`, which ends on the Phễu board. Cases are in `scripts/e2e/cases/boards.md`.
