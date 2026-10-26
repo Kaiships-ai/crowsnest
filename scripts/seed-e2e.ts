@@ -42,6 +42,9 @@ if (dbPath !== ":memory:") {
   }
 }
 
+// Seeded posts link here so opening one from a board never calls Instagram.
+const FIXTURE_ORIGIN = "https://example.com";
+
 async function main(): Promise<void> {
   // Imported after CROWSNEST_DB_PATH is set and the stale file is gone -- `./index`
   // opens (and creates) the database file as a side effect of module load, same
@@ -150,11 +153,80 @@ async function main(): Promise<void> {
     }
   }
 
+  await seedOwnChannel(db, tables, daysAgo);
+  const rivalId = await seedRival(db, tables, newId, daysAgo);
+
   console.log(`seed-e2e: wrote ${dbPath}`);
+  console.log(`seed-e2e: rival=${rivalId} (@e2e_fixture_rival, best 4.1x, one analyzed post)`);
   console.log(`seed-e2e: channel=${channelId} (@e2e_fixture_creator, isOwn)`);
   console.log(`seed-e2e: outlierVideoId=${outlierVideoId} (score 6.4x)`);
   console.log(`seed-e2e: analyzedVideoId=${analyzedVideoId}`);
   console.log(`seed-e2e: carouselVideoId=${carouselVideoId}`);
+}
+
+type Db = typeof import("../src/server/db/index");
+
+async function seedOwnChannel(db: Db["db"], tables: Db["tables"], daysAgo: (n: number) => string): Promise<void> {
+  const capture = daysAgo(0.05);
+  await db.insert(tables.ownAccountSnapshots).values([
+    { id: "own-snap-1", capturedAt: daysAgo(40), externalId: "e2e-own", username: "e2e_own", followerCount: 3100, followsCount: 80, mediaCount: 40 },
+    { id: "own-snap-2", capturedAt: daysAgo(10), externalId: "e2e-own", username: "e2e_own", followerCount: 3180, followsCount: 80, mediaCount: 42 },
+    { id: "own-snap-3", capturedAt: capture, externalId: "e2e-own", username: "e2e_own", followerCount: 3245, followsCount: 81, mediaCount: 44 },
+  ]);
+  const posts = [
+    { id: "own-reel-1", format: "Reel", productType: "REELS", age: 3, caption: "OWN01 reel: the agent stack", views: 12_400, reach: 9800, likes: 410 },
+    { id: "own-reel-2", format: "Reel", productType: "REELS", age: 9, caption: "Second reel, no keyword", views: 5200, reach: 4100, likes: 150 },
+    { id: "own-reel-3", format: "Reel", productType: "REELS", age: 20, caption: "Third reel", views: 3100, reach: 2500, likes: 90 },
+    { id: "own-carousel-1", format: "Carousel", productType: "FEED", age: 5, caption: "A carousel", views: 900, reach: 800, likes: 40 },
+  ];
+  for (const p of posts) {
+    await db.insert(tables.ownPosts).values({
+      id: p.id, externalId: `e2e-${p.id}`, permalink: `${FIXTURE_ORIGIN}/e2e-own/${p.id}/`, mediaType: "VIDEO", productType: p.productType,
+      format: p.format, caption: p.caption, postedAt: daysAgo(p.age), durationSec: 30, firstSeenAt: daysAgo(p.age), lastMeasuredAt: capture,
+    });
+    await db.insert(tables.ownPostInsights).values({
+      id: `${p.id}-now`, ownPostId: p.id, capturedAt: capture, views: p.views, reach: p.reach, likes: p.likes, comments: 12, shares: 30, saved: 25,
+      reposts: 2, followsFromPost: 18, profileVisits: 60, bioLinkTaps: 9, avgWatchTimeMs: 11_200, skipRate: 41.5,
+    });
+  }
+  await db.insert(tables.ownPostInsights).values({ id: "own-reel-1-early", ownPostId: "own-reel-1", capturedAt: daysAgo(2.5), views: 4300, reach: 3600 });
+  const now = new Date().toISOString();
+  await db.insert(tables.plannedPosts).values({ id: "own-plan-1", state: "published", title: "OWN01 reel", keyword: "OWN01", publishedOwnPostId: "own-reel-1", createdAt: now, updatedAt: now });
+  await db.insert(tables.reelFunnel).values([
+    { id: "own-funnel-dm", keyword: "OWN01", source: "chatbotx", metric: "dms", value: 52, capturedAt: capture, agent: "seed-e2e", createdAt: now },
+    { id: "own-funnel-visits", keyword: "OWN01", source: "umami", metric: "visits", value: 18, capturedAt: capture, agent: "seed-e2e", createdAt: now },
+    { id: "own-funnel-orders", keyword: "OWN01", source: "polar", metric: "orders", value: 3, capturedAt: capture, agent: "seed-e2e", createdAt: now },
+  ]);
+  const breakdown = (metric: string, dimension: string, key: string, value: number) => ({ id: `own-bd-${dimension}-${key}`, capturedAt: capture, metric, dimension, key, value, timeframe: null });
+  await db.insert(tables.ownAccountBreakdowns).values([
+    breakdown("views", "follower_type", "NON_FOLLOWER", 870), breakdown("views", "follower_type", "FOLLOWER", 130),
+    breakdown("engaged_audience_demographics", "gender", "M", 82), breakdown("engaged_audience_demographics", "gender", "F", 18),
+    breakdown("engaged_audience_demographics", "age", "25-34", 55), breakdown("engaged_audience_demographics", "age", "18-24", 30),
+    breakdown("engaged_audience_demographics", "country", "VN", 70), breakdown("engaged_audience_demographics", "country", "US", 12),
+  ]);
+}
+
+async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"], daysAgo: (n: number) => string): Promise<string> {
+  const id = newId();
+  const now = new Date().toISOString();
+  await db.insert(tables.channels).values({
+    id, platform: "instagram", handle: "@e2e_fixture_rival", externalId: "e2e-rival-1", displayName: "E2E Fixture Rival", followerCount: 18_000,
+    trackedSince: daysAgo(60), lastSyncedAt: now, isOwn: false,
+  });
+  const scores = [4.1, 2.6, 1.0, 0.8, 0.6];
+  for (const [i, score] of scores.entries()) {
+    const videoId = `e2e-rival-video-${i}`;
+    await db.insert(tables.videos).values({
+      id: videoId, channelId: id, platform: "instagram", externalId: `e2e-rival-media-${i}`, mediaType: "video", productType: "clips",
+      url: `${FIXTURE_ORIGIN}/e2e-rival/${i}/`, caption: `Rival post ${i}`, postedAt: daysAgo(2 + i), durationSec: 25, viewCount: Math.round(8000 * score),
+      likeCount: 300, commentCount: 40, shareCount: 10, outlierScore: score, firstSeenAt: daysAgo(2 + i), lastRefreshedAt: now,
+    });
+  }
+  await db.insert(tables.videoAnalyses).values({
+    videoId: "e2e-rival-video-0", hookType: "result-first", formatTags: ["talking-head"], styleTags: ["screen-record"],
+    whyItWorked: "Opens on the finished result, then shows the three steps.", summary: "Rival fixture analysis.", model: "fixture", source: "mcp", createdAt: now,
+  });
+  return id;
 }
 
 main().catch((err: unknown) => {
