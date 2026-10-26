@@ -16,7 +16,7 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 
 `FunnelBoard` in `src/renderer/src/components/board/FunnelBoard.tsx` calls `getFunnelBoard` (`src/server/queries/funnel-board.ts`), which reads `getFunnel` and computes everything the board shows, so the renderer only formats:
 
-- One row per step of `FUNNEL_STEPS`. The total sums the step's value over every keyword. Its time is the oldest `capturedAt` among the summed values, and `missingKeywords` counts the keywords with no number while others have one, shown as "thiếu N keyword" because the total is then a floor. The rate into the step is the ledger rate over the two totals (`ratio` in `src/server/services/funnel.ts`), with the ledger target or "chưa đặt chuẩn".
+- One row per step of `FUNNEL_STEPS`. The total sums the step's value over every keyword. Its time is the oldest `capturedAt` among the summed values, and `keywordsWithoutNumber` counts the keywords with no number while others have one, shown as "thiếu N keyword" because the total is then a floor. The rate into the step is the ledger rate over the two totals (`ratio` in `src/server/services/funnel.ts`), with the ledger target or "chưa đặt chuẩn".
 - One row per keyword with each step's number, the plan's title, or "không có reel".
 - Coverage: of the gift-page visits and orders stored per keyword, how many sit under a keyword a planned post holds (`tied / total`).
 

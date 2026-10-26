@@ -16,8 +16,7 @@ async function mcp(name, args) {
   return JSON.parse(JSON.parse(data.slice(6)).result.content[0].text);
 }
 
-// Theme colors transition; without the app's disable class a snap catches text mid-fade.
-async function setTheme(page, theme) {
+async function setThemeWithoutTransition(page, theme) {
   await page.evaluate((dark) => {
     const root = document.documentElement;
     root.classList.add("theme-transition-disabled");
@@ -88,11 +87,11 @@ export default async function funnel01({ page, step, snap }) {
     const coverage = await board.getByTestId("funnel-coverage-visits").innerText();
     console.log(`coverage: ${coverage.replace(/\s+/g, " ")}`);
   });
-  await setTheme(page, "dark");
+  await setThemeWithoutTransition(page, "dark");
   await snap("funnel-01-board-dark");
-  await setTheme(page, "light");
+  await setThemeWithoutTransition(page, "light");
   await snap("funnel-01-board-light");
-  await setTheme(page, "dark");
+  await setThemeWithoutTransition(page, "dark");
   await step("the Vault link opens the Vault board", async () => {
     await board.locator('[data-testid="funnel-step"][data-step-id="checkout"]').getByTestId("open-vault").click();
     await page.locator('[data-testid="board-tab"][data-board-id="vault"]').waitFor({ timeout: 10_000 });

@@ -42,9 +42,6 @@ const COUNTS = {
 
 export type CountId = keyof typeof COUNTS;
 
-/** The six funnel steps in order. Each step after the first has the ledger rate whose
- *  numerator is that step and whose denominator is the step before it. */
-export const FUNNEL_STEPS = ["view", "comment_keyword", "dm", "gift_page_visit", "checkout", "purchase"] as const satisfies readonly CountId[];
 
 const RATES = {
   follow_rate: { kind: "rate", label: "Follow rate", window: "reel-lifetime", target: null, numerator: "follow", denominator: "view" },
@@ -57,6 +54,15 @@ const RATES = {
 } as const satisfies Record<string, RateMetric>;
 
 export const METRIC_LEDGER = { ...COUNTS, ...RATES };
+
+export const FUNNEL_STEPS = [
+  { count: "view", rate: null },
+  { count: "comment_keyword", rate: "comment_rate" },
+  { count: "dm", rate: "dm_rate" },
+  { count: "gift_page_visit", rate: "visit_rate" },
+  { count: "checkout", rate: "checkout_rate" },
+  { count: "purchase", rate: "purchase_rate" },
+] as const satisfies readonly { count: CountId; rate: keyof typeof RATES | null }[];
 
 export type MetricId = keyof typeof METRIC_LEDGER;
 export type Metric = CountMetric | RateMetric;

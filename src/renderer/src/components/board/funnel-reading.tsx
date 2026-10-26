@@ -30,7 +30,6 @@ const rateFormat = new Intl.NumberFormat(undefined, {
 export const formatCount = (value: number): string => countFormat.format(value)
 export const formatRate = (value: number): string => rateFormat.format(value)
 
-/** Source and the time of the number, so no number on a board stands without its origin. */
 export function SourceLabel({ source, at }: { source: string; at?: string }): React.ReactNode {
   return (
     <span data-testid="source-label" className="font-mono text-2xs text-muted-foreground">
@@ -39,7 +38,6 @@ export function SourceLabel({ source, at }: { source: string; at?: string }): Re
   )
 }
 
-/** A number, "chưa có số" when the source has none, or "chưa nối" with a way to the Vault. Never 0 for a gap. */
 export function ReadingValue({
   reading,
   format,

@@ -16,15 +16,12 @@ export type Drop =
 export interface TodayBoard {
   at: string;
   steps: FunnelStep[];
-  /** Checkout then purchase: the people who reached the offer and the ones who bought. */
   offer: FunnelStep[];
   drop: Drop;
-  /** Cổng 1: proposed plan versions newer than their period's live one. Cổng 2: pending gate drafts. */
-  gates: { plans: number; drafts: number };
+  gates: { proposedPlansAhead: number; pendingDrafts: number };
   pulls: Pick<VaultRow, "id" | "label" | "state" | "lastPull">[];
 }
 
-/** The step whose rate sits furthest below its target, as rate / target. */
 export function biggestDrop(steps: FunnelStep[]): Drop {
   const targeted = steps.flatMap((s) => (s.rate && s.rate.target !== null ? [{ step: s, rate: s.rate, target: s.rate.target }] : []));
   if (targeted.length === 0) return { status: "no-target" };
@@ -44,7 +41,7 @@ function waitingGates(): TodayBoard["gates"] {
         (SELECT max(l.version) FROM plan_versions l WHERE l.period = p.period AND l.period_key = p.period_key AND l.status = 'live'), 0)) AS plans,
       (SELECT count(*) FROM gate_drafts WHERE status = 'pending') AS drafts
   `);
-  return { plans: row.plans, drafts: row.drafts };
+  return { proposedPlansAhead: row.plans, pendingDrafts: row.drafts };
 }
 
 export async function getTodayBoard(now: Date = clockNow(), registry: Connector[] = CONNECTORS): Promise<TodayBoard> {

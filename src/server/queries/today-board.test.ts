@@ -38,7 +38,7 @@ test("gates count proposed plans newer than their live version and pending draft
     { id: "d2", tool: "x", rawInput: {}, caller: "claude", createdAt: now },
   ]);
   const board = await getTodayBoard(at(27, 9), []);
-  expect(board.gates).toEqual({ plans: 2, drafts: 2 });
+  expect(board.gates).toEqual({ proposedPlansAhead: 2, pendingDrafts: 2 });
 });
 
 test("a partial or failed pull shows as such, never as running", async () => {
@@ -70,7 +70,7 @@ const step = (id: FunnelStep["id"], target: number | null, value: number | null)
   id,
   label: id,
   source: "umami",
-  total: { status: "missing", missingKeywords: 0 },
+  total: { status: "missing", keywordsWithoutNumber: 0 },
   rate: { id: "visit_rate", label: `${id} rate`, target, reading: value === null ? { status: "missing" } : { status: "value", value, capturedAt: "2026-10-02T08:00:00.000Z" } },
 });
 

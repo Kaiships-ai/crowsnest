@@ -12,8 +12,7 @@ const mcp = (tool, args) => {
 };
 const BLOCKS = ["today-offer", "today-gates", "today-pulls", "today-workspaces"];
 
-// Theme colors transition; without the app's disable class a snap catches text mid-fade.
-async function setTheme(page, theme) {
+async function setThemeWithoutTransition(page, theme) {
   await page.evaluate((dark) => {
     const root = document.documentElement;
     root.classList.add("theme-transition-disabled");
@@ -23,7 +22,6 @@ async function setTheme(page, theme) {
   await page.evaluate(() => document.documentElement.classList.remove("theme-transition-disabled"));
 }
 
-// A 1440x900 screen loses the 25px macOS menu bar; the window's title bar is inside its content.
 const SCREEN = { width: 1440, height: 875 };
 
 export default async function today01({ page, step, snap }) {
@@ -106,9 +104,9 @@ export default async function today01({ page, step, snap }) {
     console.log(`board: ${Math.round(tab.width)}x${Math.round(tab.height)}, overflow: [${overflow.join(", ")}], clipped: [${clipped.join(", ")}]`);
     if (overflow.length || clipped.length) throw new Error("the board scrolls or clips");
   });
-  await setTheme(page, "dark");
+  await setThemeWithoutTransition(page, "dark");
   await snap("today-01-dark");
-  await setTheme(page, "light");
+  await setThemeWithoutTransition(page, "light");
   await snap("today-01-light");
-  await setTheme(page, "dark");
+  await setThemeWithoutTransition(page, "dark");
 }

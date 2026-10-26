@@ -3,7 +3,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
-import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { runningWorkspaces, TodayBoard } from './TodayBoard'
 
 const T = '2026-10-02T08:00:00.000Z'
@@ -11,16 +10,21 @@ const step = (id: string, total: unknown) => ({ id, label: id, source: 'polar', 
 const checkout = step('checkout', {
   status: 'not-connected',
   connector: 'polar',
-  missingKeywords: 0
+  keywordsWithoutNumber: 0
 })
-const purchase = step('purchase', { status: 'value', value: 4, capturedAt: T, missingKeywords: 0 })
+const purchase = step('purchase', {
+  status: 'value',
+  value: 4,
+  capturedAt: T,
+  keywordsWithoutNumber: 0
+})
 
 const board = {
   at: T,
   steps: [checkout, purchase],
   offer: [checkout, purchase],
   drop: { status: 'no-target' },
-  gates: { plans: 1, drafts: 2 },
+  gates: { proposedPlansAhead: 1, pendingDrafts: 2 },
   pulls: [
     {
       id: 'instagram-graph',
@@ -63,13 +67,14 @@ describe('TodayBoard', () => {
 })
 
 describe('runningWorkspaces', () => {
-  // SAFETY: fixtures carry only the fields runningWorkspaces reads.
-  const entry = (paneKey: string, state: AgentStatusEntry['state'], worktreeId?: string) =>
-    ({ paneKey, state, worktreeId }) as AgentStatusEntry
+  const entry = (paneKey: string, state: AgentStatusEntry['state'], worktreeId?: string) => ({
+    paneKey,
+    state,
+    worktreeId
+  })
 
   it('groups live agents by workspace, finds the workspace through the tab, and skips done agents', () => {
-    // SAFETY: fixtures carry only the fields runningWorkspaces reads.
-    const tabs = { 'wt-b': [{ id: 'tab-b', worktreeId: 'wt-b' } as TerminalTab] }
+    const tabs = { 'wt-b': [{ id: 'tab-b', worktreeId: 'wt-b' }] }
     const names: Record<string, string> = { 'wt-a': 'Alpha', 'wt-b': 'Beta' }
     const rows = runningWorkspaces(
       {

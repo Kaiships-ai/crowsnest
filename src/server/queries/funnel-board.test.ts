@@ -36,12 +36,12 @@ test("each step sums its keywords, takes the oldest time, and counts the keyword
   await seed();
   const { steps } = await getFunnelBoard();
   expect(steps.map((s) => [s.id, s.source, s.total])).toEqual([
-    ["view", "instagram", { status: "value", value: 1000, capturedAt: T, missingKeywords: 2 }],
-    ["comment_keyword", "chatbotx", { status: "not-connected", connector: "chatbotx", missingKeywords: 0 }],
-    ["dm", "chatbotx", { status: "value", value: 80, capturedAt: T, missingKeywords: 1 }],
-    ["gift_page_visit", "umami", { status: "value", value: 35, capturedAt: T, missingKeywords: 0 }],
-    ["checkout", "polar", { status: "not-connected", connector: "polar", missingKeywords: 0 }],
-    ["purchase", "polar", { status: "value", value: 3, capturedAt: T2, missingKeywords: 1 }],
+    ["view", "instagram", { status: "value", value: 1000, capturedAt: T, keywordsWithoutNumber: 2 }],
+    ["comment_keyword", "chatbotx", { status: "not-connected", connector: "chatbotx", keywordsWithoutNumber: 0 }],
+    ["dm", "chatbotx", { status: "value", value: 80, capturedAt: T, keywordsWithoutNumber: 1 }],
+    ["gift_page_visit", "umami", { status: "value", value: 35, capturedAt: T, keywordsWithoutNumber: 0 }],
+    ["checkout", "polar", { status: "not-connected", connector: "polar", keywordsWithoutNumber: 0 }],
+    ["purchase", "polar", { status: "value", value: 3, capturedAt: T2, keywordsWithoutNumber: 1 }],
   ]);
 });
 

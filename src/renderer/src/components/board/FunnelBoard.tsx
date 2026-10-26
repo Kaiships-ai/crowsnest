@@ -17,14 +17,14 @@ import { useBoardLoad } from './use-board-load'
 type FunnelBoardData = EngineCallValue<'getFunnelBoard'>
 type Coverage = FunnelBoardData['coverage']['visits']
 
-// A funnel with no keyword yet is the empty state.
+const rowsUnlessNoKeyword = (board: FunnelBoardData): FunnelBoardData[] =>
+  board.keywords.length > 0 ? [board] : []
+
 const loadFunnel = () =>
   window.api.crowsnest
     .call('getFunnelBoard')
     .then((result) =>
-      result.ok
-        ? { ok: true as const, value: result.value.keywords.length ? [result.value] : [] }
-        : result
+      result.ok ? { ok: true as const, value: rowsUnlessNoKeyword(result.value) } : result
     )
 
 function CoverageLine({
@@ -95,10 +95,10 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
             </span>
             <span className="flex flex-col items-end">
               <ReadingValue reading={step.total} format={formatCount} />
-              {step.total.missingKeywords > 0 ? (
+              {step.total.keywordsWithoutNumber > 0 ? (
                 <span className="font-mono text-2xs text-muted-foreground">
                   {translate('boards.funnel.missingKeywords', 'thiếu {{count}} keyword', {
-                    count: step.total.missingKeywords
+                    count: step.total.keywordsWithoutNumber
                   })}
                 </span>
               ) : null}

@@ -31,10 +31,9 @@ const loadToday = () =>
     .call('getTodayBoard')
     .then((result) => (result.ok ? { ok: true as const, value: [result.value] } : result))
 
-/** Workspaces with an agent that is working, blocked or waiting, read from the app's live agent status. */
 export function runningWorkspaces(
-  statuses: Record<string, AgentStatusEntry>,
-  tabsByWorktree: Record<string, TerminalTab[]>,
+  statuses: Record<string, Pick<AgentStatusEntry, 'paneKey' | 'state' | 'worktreeId'>>,
+  tabsByWorktree: Record<string, Pick<TerminalTab, 'id' | 'worktreeId'>[]>,
   nameOf: (worktreeId: string) => string | undefined
 ): RunningWorkspace[] {
   const worktreeOfTab = new Map(
@@ -236,7 +235,7 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
               data-num
               className="text-right font-mono tabular-nums"
             >
-              {formatCount(board.gates.plans)}
+              {formatCount(board.gates.proposedPlansAhead)}
             </dd>
             <dt>{translate('boards.today.gate2', 'Cổng 2 · bản nháp chờ gửi')}</dt>
             <dd
@@ -244,7 +243,7 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
               data-num
               className="text-right font-mono tabular-nums"
             >
-              {formatCount(board.gates.drafts)}
+              {formatCount(board.gates.pendingDrafts)}
             </dd>
           </dl>
         </Block>

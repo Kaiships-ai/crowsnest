@@ -14,14 +14,14 @@ const board = {
       id: 'view',
       label: 'Views',
       source: 'instagram',
-      total: { ...value(1000), missingKeywords: 2 },
+      total: { ...value(1000), keywordsWithoutNumber: 2 },
       rate: null
     },
     {
       id: 'checkout',
       label: 'Checkouts',
       source: 'polar',
-      total: { ...notConnected('polar'), missingKeywords: 0 },
+      total: { ...notConnected('polar'), keywordsWithoutNumber: 0 },
       rate: {
         id: 'checkout_rate',
         label: 'Checkout rate',
@@ -33,7 +33,7 @@ const board = {
       id: 'purchase',
       label: 'Purchases',
       source: 'polar',
-      total: { ...value(3), missingKeywords: 0 },
+      total: { ...value(3), keywordsWithoutNumber: 0 },
       rate: {
         id: 'purchase_rate',
         label: 'Purchase rate',
