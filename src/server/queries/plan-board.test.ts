@@ -31,8 +31,8 @@ test("the month grid is whole Monday weeks, each card on its day with its state 
     plan("undated", { state: "draft" }),
   ]);
   const board = await getPlanBoard("2026-11", NOW);
-  expect([board.today, board.days.length, board.days[0].date, board.days.at(-1)?.date]).toEqual(["2026-11-10", 42, "2026-10-26", "2026-12-06"]);
-  const cards = board.days.flatMap((d) => d.cards.map((c) => [d.date, d.inMonth, c.id, c.state, c.lockReason !== null]));
+  expect([board.today, board.gridDays.length, board.gridDays[0].date, board.gridDays.at(-1)?.date]).toEqual(["2026-11-10", 42, "2026-10-26", "2026-12-06"]);
+  const cards = board.gridDays.flatMap((d) => d.cards.map((c) => [d.date, d.inMonth, c.id, c.state, c.lockReason !== null]));
   expect(cards).toEqual([
     ["2026-10-27", false, "edge", "missed", false],
     ["2026-11-01", true, "done", "published", true],
@@ -41,7 +41,7 @@ test("the month grid is whole Monday weeks, each card on its day with its state 
     ["2026-11-12", true, "full", "plan", false],
     ["2026-11-20", true, "armed", "scheduled", true],
   ]);
-  const full = board.days.flatMap((d) => d.cards).find((c) => c.id === "full")!;
+  const full = board.gridDays.flatMap((d) => d.cards).find((c) => c.id === "full")!;
   expect(full).toMatchObject({
     time: "19:30",
     script: { title: "Hook script", content: "Line one." },
@@ -49,7 +49,7 @@ test("the month grid is whole Monday weeks, each card on its day with its state 
     reference: { videoId: "v1", url: "https://www.instagram.com/reel/v1/", handle: "@rival" },
     missing: ["key", "gift", "offer"],
   });
-  const bare = board.days.flatMap((d) => d.cards).find((c) => c.id === "bare")!;
+  const bare = board.gridDays.flatMap((d) => d.cards).find((c) => c.id === "bare")!;
   expect(bare.missing).toEqual(["script", "caption", "reference", "time", "key", "gift", "offer"]);
 });
 

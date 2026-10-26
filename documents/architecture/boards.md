@@ -58,7 +58,7 @@ A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDeta
 
 `PlanBoard` in `src/renderer/src/components/board/PlanBoard.tsx` calls `getPlanBoard(month)` (`src/server/queries/plan-board.ts`) once per month and draws three views from that one result, so a change shows in all of them after the reload that follows it.
 
-- `getPlanBoard` returns the whole Monday-to-Sunday weeks covering the month (`days`, with `inMonth`), the server's local `today`, and every dated `planned_posts` row in that range as a card. Undated drafts are not on the board.
+- `getPlanBoard` returns the whole Monday-to-Sunday weeks covering the month (`gridDays`, each with `inMonth`), the server's local `today`, and every dated `planned_posts` row in that range as a card. Undated drafts are not on the board.
 - Card state: `publishing`, `published` and `failed` as stored; `scheduled` when `scheduledAt` is set (armed with Instagram); `draft` for a stored draft; otherwise `plan`, or `missed` once its date has passed.
 - A card carries its title, post time (`plannedTime`), script (title and text), caption, reference reel (`sourceVideoId` joined to the video's URL and channel handle) and `missing`: script, caption, reference and time when absent, plus key, quà and offer on every card, because no column stores them yet.
 - `lockReason` says why a card cannot change day; it is set for `scheduled`, `publishing`, `published` and `failed`.

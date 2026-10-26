@@ -26,8 +26,8 @@ export function MonthView({
   onDay: (date: string) => void
   onAdd: (date: string) => void
 }): React.ReactNode {
-  const weeks = Array.from({ length: board.days.length / 7 }, (_, i) =>
-    board.days.slice(i * 7, i * 7 + 7)
+  const weeks = Array.from({ length: board.gridDays.length / 7 }, (_, i) =>
+    board.gridDays.slice(i * 7, i * 7 + 7)
   )
   return (
     <div data-testid="plan-month" className="grid grid-cols-[auto_repeat(7,minmax(0,1fr))] gap-1">

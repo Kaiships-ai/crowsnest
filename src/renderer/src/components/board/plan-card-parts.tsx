@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 
 export type PlanBoardData = EngineCallValue<'getPlanBoard'>
-export type PlanDay = PlanBoardData['days'][number]
+export type PlanDay = PlanBoardData['gridDays'][number]
 export type PlanCard = PlanDay['cards'][number]
 export const STATE_LABEL: Record<PlanCard['state'], string> = {
   draft: 'Nháp',

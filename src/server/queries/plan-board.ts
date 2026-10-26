@@ -5,8 +5,7 @@ import { db, tables } from "@/server/db";
 export type PlanCardState = "draft" | "plan" | "missed" | "scheduled" | "publishing" | "published" | "failed";
 export type PlanItem = "script" | "caption" | "reference" | "time" | "key" | "gift" | "offer";
 
-/** No column holds these yet (B3-02 waits on the campaign key), so every card misses them. */
-const NOT_STORED: PlanItem[] = ["key", "gift", "offer"];
+const ALWAYS_MISSING: PlanItem[] = ["key", "gift", "offer"];
 
 export interface PlanCard {
   id: string;
@@ -18,7 +17,6 @@ export interface PlanCard {
   caption: string | null;
   reference: { videoId: string; url: string; handle: string } | null;
   missing: PlanItem[];
-  /** Why the card cannot change day, null when it can. */
   lockReason: string | null;
 }
 
@@ -31,8 +29,7 @@ export interface PlanDay {
 export interface PlanBoard {
   month: string;
   today: string;
-  /** Whole Monday-to-Sunday weeks covering the month, so a week or day view never needs a second read. */
-  days: PlanDay[];
+  gridDays: PlanDay[];
 }
 
 type PlanRow = typeof tables.plannedPosts.$inferSelect;
@@ -111,7 +108,7 @@ export async function getPlanBoard(month: string, now = new Date()): Promise<Pla
       script,
       caption,
       reference,
-      missing: [...checks.filter(([, ok]) => !ok).map(([item]) => item), ...NOT_STORED],
+      missing: [...checks.filter(([, ok]) => !ok).map(([item]) => item), ...ALWAYS_MISSING],
       lockReason: planLockReason(state),
     };
   });
@@ -119,6 +116,6 @@ export async function getPlanBoard(month: string, now = new Date()): Promise<Pla
   return {
     month,
     today,
-    days: grid.map((d) => ({ ...d, cards: cards.filter((c) => c.date === d.date) })),
+    gridDays: grid.map((d) => ({ ...d, cards: cards.filter((c) => c.date === d.date) })),
   };
 }

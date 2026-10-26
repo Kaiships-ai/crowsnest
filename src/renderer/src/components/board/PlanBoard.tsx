@@ -116,9 +116,9 @@ function PlanView({
   const [adding, setAdding] = useState<string | null>(null)
   const index = Math.max(
     0,
-    board.days.findIndex((d) => d.date === focus)
+    board.gridDays.findIndex((d) => d.date === focus)
   )
-  const week = board.days.slice(index - (index % 7), index - (index % 7) + 7)
+  const week = board.gridDays.slice(index - (index % 7), index - (index % 7) + 7)
   const step = (direction: 1 | -1) =>
     setFocus(
       view === 'month'
@@ -130,7 +130,7 @@ function PlanView({
     setView(next)
   }
   const move = async (planId: string, date: string) => {
-    const card = board.days.flatMap((d) => d.cards).find((c) => c.id === planId)
+    const card = board.gridDays.flatMap((d) => d.cards).find((c) => c.id === planId)
     if (!card || card.date === date) {
       return
     }
@@ -269,7 +269,7 @@ function PlanView({
           }
         />
       ) : (
-        <DayView day={board.days[index]} today={board.today} onAdd={setAdding} />
+        <DayView day={board.gridDays[index]} today={board.today} onAdd={setAdding} />
       )}
     </div>
   )

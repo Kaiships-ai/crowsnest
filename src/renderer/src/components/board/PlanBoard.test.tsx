@@ -39,7 +39,7 @@ const armed = {
 const board = {
   month: date(0).slice(0, 7),
   today: date(0),
-  days: Array.from({ length: 7 }, (_, i) => ({
+  gridDays: Array.from({ length: 7 }, (_, i) => ({
     date: date(i),
     inMonth: true,
     cards: [draft, armed].filter((c) => c.date === date(i))

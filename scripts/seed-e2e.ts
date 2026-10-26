@@ -231,7 +231,6 @@ async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"],
   return id;
 }
 
-/** Kế hoạch reels for plan-01, all tomorrow: a bare draft, a full plan, and one armed with Instagram (scheduledAt set). The publish scheduler is off on a lane, so nothing posts. */
 async function seedPlan(db: Db["db"], tables: Db["tables"]): Promise<void> {
   const now = new Date();
   const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 19, 30);
