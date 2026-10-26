@@ -51,8 +51,11 @@ architecture page and one cases file; no extra per-part docs. Plans live under `
 
 # Build and CI
 
-Before committing: `pnpm run build`, `pnpm test`, `pnpm run lint`, `pnpm run typecheck`
-must all pass, and the working tree stays clean. `pnpm dev` opens the app.
+Locally, prove behavior with the verify skill's journeys on a running app (dev mode,
+`APP_DEV=1`), plus at most one test file you wrote (`pnpm test --project <project> <file>`).
+`pnpm test`, `test:changed`, `lint` and `typecheck` refuse to run off CI: push the branch and
+CI runs them. Nothing merges until CI is green, and the working tree stays clean. `pnpm dev`
+opens the app.
 
 - `build` is the Electron app (`electron-vite build`). Packaging (`build:mac` and friends) is
   separate.
@@ -91,10 +94,11 @@ broken again needs a check, not more words.
 | Find callers with GitNexus `impact`/`context`, not grep alone (plans missed `scripts/live-sync.ts`) | Doc rule; see the GitNexus section |
 | Never edit, switch, or build in the operator's own checkout; work in a fresh worktree | Doc rule. The operator's app opens that checkout's `data/crowsnest.db` |
 | Heavy jobs (build, test, typecheck, lint) run one at a time per machine, niced, with capped vitest workers, so parallel agents never swap the Mac to a halt | `scripts/heavy.sh` wraps `pnpm run build`, `test`, `typecheck` and `lint`; `config/vitest.config.ts` caps `maxWorkers` at 2 off CI. Call the pnpm scripts, never `electron-vite` or `vitest` directly |
+| Test, typecheck and lint run in CI, not on the shared Mac (a lane ran a build, the app and a wide `test:changed` at once and froze a 16 GB Mac; lint alone takes about 2 min and 3.3 GB) | `scripts/heavy.sh --ci-only` on `test`, `test:changed`, `typecheck` and `lint` exits 1 unless `CI=true`, except a `test` run that names exactly one `*.test.*` file |
 | Every command runs under node 24 (Orca's native modules fail under 22, the Mac's default) | `scripts/heavy.sh` exits with the PATH fix when `node` is another major |
 | No Orca style rewrite of crowsnest code (the first pre-commit hook run reformatted the verify scripts) | `.oxfmtrc.json` `ignorePatterns` |
 | A PR that changes `src/renderer/` or `src/server/` adds or updates a verify feature file, not just `features/README.md`, and its app journey (G-03) | `scripts/check-verify-coverage.mjs` in CI |
-| Test runs cover only what changed (a full Orca run took 23 min locally and about 90 min on one CI runner) | Locally `pnpm run test:changed` (`vitest run --changed origin/main`). `ci.yml` runs `--changed` in four shards and no tests for a docs-only change; nothing runs the full suite. Tiers in `.agents/playbooks/lead-studio-v1.md` |
+| Test runs cover only what changed (a full Orca run took 23 min locally and about 90 min on one CI runner) | `ci.yml` runs `vitest --changed` in four shards and no tests for a docs-only change; nothing runs the full suite. Tiers in `.agents/playbooks/lead-studio-v1.md` |
 | A verify run never changes the installed Orca.app's hooks (PR-M1 overwrote `~/.claude/settings.json`) | `app-down.sh` fails with `app: HOST CHANGED` |
 
 # Workspace code (from Orca)
