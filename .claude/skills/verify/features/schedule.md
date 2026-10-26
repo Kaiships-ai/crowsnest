@@ -11,7 +11,7 @@ Every connector pulls once a day at 05:00 local time (`src/server/services/daily
 
 ## How to get to it (user POV)
 
-No board shows it yet; the Vault board (W4 B1) will show each connector's last pull and a "Pull again" button over `pullAgain`.
+The Vault board shows each connector's last pull, the next 05:00 pull and a Kéo lại button over `pullAgain`. See [boards.md](boards.md).
 
 ## Driving it
 

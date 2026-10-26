@@ -10,7 +10,7 @@ Each outside source is a connector: a manifest (id, label, auth kind, the secret
 
 ## How to get to it (user POV)
 
-No board shows it yet; the Vault board (W4 B1) will read `listConnectors`.
+The Vault board shows it: "+" in the tab bar, Vault. See [boards.md](boards.md) and journey `vault-01`.
 
 ## Driving it
 

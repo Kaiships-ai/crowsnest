@@ -27,7 +27,7 @@ The renderer reaches the engine through one IPC channel, `crowsnest:call`, as `w
 
 Every call returns `{ ok: true, value }` or `{ ok: false, error: { code, message } }`. The codes are `unknown_call`, `bad_args`, `failed`, and `untrusted_sender`. `value` is the engine function's own result, so an action that reports its own `{ ok: false }` still arrives as a bridge `ok: true`. The handler in `src/main/crowsnest/engine-ipc.ts` exists before the engine finishes starting. A call made earlier waits until migrations have run, and a call after a failed start gets `failed`.
 
-`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver, and secret set, clear and token rotation until the Vault board adds a confirmed path. It leaves out the calls that only the deleted Next screens used.
+`ENGINE_CALLS` leaves out anything that writes outside the Mac (publish, DM, Graph POST, ChatbotX) until gate 2 exists. It also leaves out plan approve and undo until they carry an approver, and secret read-back, clear and token rotation. The one secret write it has is the write-only `setConnectorSecret` that the Vault board's Sửa uses (see [connectors](connectors.md)). It leaves out the calls that only the deleted Next screens used.
 
 ### How the main build gets `src/server`
 
