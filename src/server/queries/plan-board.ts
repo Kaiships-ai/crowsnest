@@ -3,7 +3,7 @@ import { and, eq, gte, inArray, isNotNull, lte } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 import { clockNow } from "@/server/lib/clock";
 
-export type PlanCardState = "draft" | "plan" | "missed" | "scheduled" | "publishing" | "published" | "failed";
+export type PlanCardState = "draft" | "plan" | "missed" | "cooking" | "scheduled" | "publishing" | "published" | "failed";
 export type PlanItem = "script" | "caption" | "reference" | "time" | "key" | "gift" | "offer";
 
 const ALWAYS_MISSING: PlanItem[] = ["key", "gift", "offer"];
@@ -19,6 +19,7 @@ export interface PlanCard {
   reference: { videoId: string; url: string; handle: string } | null;
   missing: PlanItem[];
   lockReason: string | null;
+  cookWorkspaceId: string | null;
 }
 
 export interface PlanDay {
@@ -38,15 +39,16 @@ type PlanRow = typeof tables.plannedPosts.$inferSelect;
 const ymd = (d: Date) => d.toLocaleDateString("sv-SE");
 
 const LOCK_REASONS: Partial<Record<PlanCardState, string>> = {
-  scheduled: "Đã hẹn đăng lên Instagram. Huỷ hẹn trước rồi mới dời ngày.",
-  publishing: "Reel đang đăng lên Instagram.",
-  published: "Reel đã đăng.",
-  failed: "Lần đăng trước lỗi. Xử lý lỗi trước rồi mới dời ngày.",
+  scheduled: "Scheduled on Instagram. Unschedule it before you move its day.",
+  publishing: "This reel is publishing to Instagram.",
+  published: "This reel is published.",
+  failed: "The last publish failed. Fix it before you move its day.",
 };
 
-export function planCardState(row: Pick<PlanRow, "state" | "scheduledAt" | "plannedDate">, today: string): PlanCardState {
+export function planCardState(row: Pick<PlanRow, "state" | "scheduledAt" | "plannedDate" | "cookWorkspaceId">, today: string): PlanCardState {
   if (row.state === "publishing" || row.state === "published" || row.state === "failed") return row.state;
   if (row.scheduledAt) return "scheduled";
+  if (row.cookWorkspaceId) return "cooking";
   if (row.state === "draft") return "draft";
   return row.plannedDate !== null && row.plannedDate < today ? "missed" : "plan";
 }
@@ -111,6 +113,7 @@ export async function getPlanBoard(month: string, now = clockNow()): Promise<Pla
       reference,
       missing: [...checks.filter(([, ok]) => !ok).map(([item]) => item), ...ALWAYS_MISSING],
       lockReason: planLockReason(state),
+      cookWorkspaceId: row.cookWorkspaceId,
     };
   });
 

@@ -244,18 +244,18 @@ type PlanRow = typeof tables.plannedPosts.$inferSelect;
 type PlanInsert = typeof tables.plannedPosts.$inferInsert;
 type DayChange = MoveSnapshot & { state: string; idempotencyKey: string | null };
 
-const LOCKED = { ok: false, error: "Reel đã đăng hoặc đang đăng, không sửa được.", code: "PLAN_LOCKED" } as const;
-const CHANGED = { ok: false, error: "Reel vừa đổi trạng thái. Tải lại trang.", code: "PLAN_LOCKED" } as const;
+const LOCKED = { ok: false, error: "This reel is published or publishing and can no longer change.", code: "PLAN_LOCKED" } as const;
+const CHANGED = { ok: false, error: "This reel just changed state. Reload the board.", code: "PLAN_LOCKED" } as const;
 
 function dayChange(plan: PlanRow, date: string | null): { ok: true; change: DayChange } | { ok: false; error: string; code: string } {
   if (date === null) return { ok: true, change: undatedAndDisarmed(plan) };
   if (!isValidDate(date)) return { ok: false, error: "That date isn't valid.", code: "PLAN_INVALID_DATE" };
-  if (date < localYmd(new Date())) return { ok: false, error: "Không chuyển reel về ngày đã qua.", code: "PLAN_MOVE_TO_PAST" };
+  if (date < localYmd(new Date())) return { ok: false, error: "A reel cannot move to a day that has passed.", code: "PLAN_MOVE_TO_PAST" };
   const change = armed(plan, { plannedDate: date, plannedTime: plan.plannedTime, scheduledAt: plan.scheduledAt && shiftToDate(plan.scheduledAt, date) });
   return armsInPast(change) ? PAST_ARM : { ok: true, change };
 }
 
-const PAST_ARM = { ok: false, error: "Giờ đăng mới đã qua. Chọn ngày khác.", code: "PLAN_SCHEDULE_IN_PAST" } as const;
+const PAST_ARM = { ok: false, error: "The new post time has passed. Pick another day.", code: "PLAN_SCHEDULE_IN_PAST" } as const;
 
 function armsInPast(next: DayChange): boolean {
   return next.state === "scheduled" && !!next.scheduledAt && Date.parse(next.scheduledAt) <= Date.now();
@@ -325,7 +325,7 @@ export async function unschedulePlannedPostAction(id: string): Promise<SimpleRes
   }
 }
 
-const IN_FLIGHT = { ok: false, error: "Reel đang đăng. Đợi đăng xong rồi thử lại.", code: "PLAN_ALREADY_IN_FLIGHT" } as const;
+const IN_FLIGHT = { ok: false, error: "This reel is publishing. Try again when it is done.", code: "PLAN_ALREADY_IN_FLIGHT" } as const;
 
 /** Deletes a plan in one guarded statement and returns the whole row, for `restorePlannedPostAction`. */
 export async function deletePlannedPostAction(id: string): Promise<ActionResult<{ snapshot: PlanRow }>> {
@@ -351,7 +351,7 @@ export async function deletePlannedPostAction(id: string): Promise<ActionResult<
 export async function restorePlannedPostAction(snapshot: PlanRow): Promise<ActionResult<{ disarmed: boolean }>> {
   try {
     if (snapshot.state === "publishing") return IN_FLIGHT;
-    if (await getPlan(snapshot.id)) return { ok: false, error: "Reel này đã có lại rồi.", code: "PLAN_EXISTS" };
+    if (await getPlan(snapshot.id)) return { ok: false, error: "This reel is already back.", code: "PLAN_EXISTS" };
     const disarmed = armsInPast(snapshot);
     const row = disarmed ? { ...snapshot, state: "draft", scheduledAt: null, idempotencyKey: null } : snapshot;
     await db.insert(tables.plannedPosts).values(row);
@@ -645,7 +645,7 @@ export async function retryFailedPublishAction(id: string): Promise<SimpleResult
     const plan = await getPlan(id);
     if (!plan) return { ok: false, error: "That planned post no longer exists.", code: "PLAN_NOT_FOUND" };
     if (plan.state !== "failed") return { ok: false, error: "Only a failed publish can be retried.", code: "PLAN_NOT_FAILED" };
-    if (plan.attemptCount >= DEFAULT_MAX_ATTEMPTS) return { ok: false, error: "Reel đã thử đăng đủ số lần cho phép, không thử lại được nữa.", code: "PLAN_RETRY_EXHAUSTED" };
+    if (plan.attemptCount >= DEFAULT_MAX_ATTEMPTS) return { ok: false, error: "This reel used every publish attempt and cannot retry.", code: "PLAN_RETRY_EXHAUSTED" };
 
     await db
       .update(tables.plannedPosts)

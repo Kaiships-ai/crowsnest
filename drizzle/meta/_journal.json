@@ -281,6 +281,13 @@
       "when": 1793030332568,
       "tag": "0039_plan_approver",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1793037715295,
+      "tag": "0040_plan_cook_workspace",
+      "breakpoints": true
     }
   ]
 }

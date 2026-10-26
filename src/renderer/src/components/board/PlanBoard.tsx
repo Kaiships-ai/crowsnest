@@ -269,7 +269,25 @@ function PlanView({
           }
         />
       ) : (
-        <DayView day={board.gridDays[index]} today={board.today} onAdd={setAdding} />
+        <DayView
+          day={board.gridDays[index]}
+          today={board.today}
+          onAdd={setAdding}
+          onCooked={(card, error) => {
+            setMessage(
+              error
+                ? { status: 'error', text: error, planId: card.id }
+                : {
+                    status: 'done',
+                    text: translate('boards.plan.cooking', 'Cooking "{{title}}".', {
+                      title: card.title
+                    }),
+                    planId: card.id
+                  }
+            )
+            reload()
+          }}
+        />
       )}
     </div>
   )

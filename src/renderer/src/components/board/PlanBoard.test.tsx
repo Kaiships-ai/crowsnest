@@ -7,6 +7,7 @@ import { PlanBoard } from './PlanBoard'
 
 const openPost = vi.hoisted(() => vi.fn())
 vi.mock('./open-post', () => ({ openPostInBrowser: openPost }))
+vi.mock('./cook-reel', () => ({ cookReel: vi.fn(), openCookWorkspace: vi.fn() }))
 
 const date = (offset: number) => {
   const d = new Date()
@@ -23,7 +24,8 @@ const draft = {
   caption: null,
   reference: null,
   missing: ALL,
-  lockReason: null
+  lockReason: null,
+  cookWorkspaceId: null
 }
 const armed = {
   id: 'b',
@@ -35,7 +37,8 @@ const armed = {
   caption: 'Cap',
   reference: { videoId: 'v1', url: 'https://www.instagram.com/reel/v1/', handle: '@rival' },
   missing: ['key', 'gift', 'offer'],
-  lockReason: 'Đã hẹn đăng lên Instagram. Huỷ hẹn trước rồi mới dời ngày.'
+  lockReason: 'Scheduled on Instagram. Unschedule it before you move its day.',
+  cookWorkspaceId: null
 }
 const board = {
   month: date(0).slice(0, 7),
@@ -115,9 +118,10 @@ describe('PlanBoard', () => {
       ['gift', 'true'],
       ['offer', 'true']
     ])
-    expect(within(detail).getByTestId('plan-missing').textContent).toBe(
-      'Missing: Key, Gift, Offer'
-    )
+    const missing = within(within(detail).getByTestId('plan-missing')).getAllByTestId('state-pill')
+    expect(missing.map((p) => p.textContent)).toEqual(['Key', 'Gift', 'Offer'])
+    // A reel scheduled with Instagram is past cooking.
+    expect(within(detail).queryByTestId('plan-cook')).toBeNull()
     fireEvent.click(within(detail).getByTestId('plan-reference-open'))
     expect(openPost).toHaveBeenCalledWith('https://www.instagram.com/reel/v1/')
   })

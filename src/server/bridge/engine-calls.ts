@@ -53,6 +53,7 @@ import {
 import { checkGraphTokenAction, measureOwnChannelAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { movePlanCardAction } from "@/server/actions/plan-board-actions";
+import { cookPlanCardAction, markPlanCookingAction } from "@/server/actions/cook-actions";
 import { listNotificationsAction, markAllReadAction, markReadAction } from "@/server/actions/notification-actions";
 import {
   attachScriptToPlanAction,
@@ -177,6 +178,8 @@ export const ENGINE_CALLS = {
   getRivalsBoard: call(none, getRivalsBoard),
   getPlanBoard: call(z.tuple([z.string().regex(/^\d{4}-\d{2}$/)]), (month) => getPlanBoard(month)),
   movePlanCardAction: call(z.tuple([z.string(), z.string()]), movePlanCardAction),
+  cookPlanCardAction: call(id, cookPlanCardAction),
+  markPlanCookingAction: call(z.tuple([z.string(), z.string().min(1)]), markPlanCookingAction),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),
