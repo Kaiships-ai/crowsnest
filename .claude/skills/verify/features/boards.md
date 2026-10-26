@@ -29,3 +29,4 @@ Open a project, click "+" in the tab bar, then Channels under Lead Studio. Or us
 - The app menu is native; CDP cannot click it. The journey covers the "+" menu path only.
 - A board tab is not restored after a restart.
 - If a run dies between the two renames, the lane DB keeps `channels_off`; `app-down.sh` and a fresh `app-up.sh --seed` reset it.
+- The channels board's follower count, median views and outliers move only from a complete channel pull: a sync cut mid-walk leaves them as they were and marks the job `partial`. No journey drives that, because a lane makes no Instagram calls; the proof is the B1-07 test in `src/server/services/sync-engine.test.ts`. A journey run checks only that the seeded numbers still show.
