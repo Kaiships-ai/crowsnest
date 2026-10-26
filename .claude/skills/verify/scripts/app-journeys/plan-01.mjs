@@ -25,6 +25,12 @@ async function snapBoth(page, snap, name) {
   await setThemeWithoutTransition(page, "dark");
 }
 
+async function openFromNewTabMenu(page) {
+  await page.getByRole("button", { name: "New tab" }).first().click();
+  await page.locator('[data-testid="new-tab-board"][data-board-id="plan"]').click();
+  await page.getByRole("menu").waitFor({ state: "detached" });
+}
+
 export default async function plan01({ page, step, snap }) {
   const board = page.getByTestId("board-tab");
   const date = sql("select planned_date from planned_posts where id = 'plan-e2e-draft'");
@@ -37,9 +43,7 @@ export default async function plan01({ page, step, snap }) {
   await page.setViewportSize(SCREEN);
 
   await step("open Kế hoạch from the new-tab menu: the month shows each seeded reel on its day with its state, flagged when it misses an item", async () => {
-    await page.getByRole("button", { name: "New tab" }).first().click();
-    await page.locator('[data-testid="new-tab-board"][data-board-id="plan"]').click();
-    await page.getByRole("menu").waitFor({ state: "detached" });
+    await openFromNewTabMenu(page);
     const cell = board.locator(`[data-testid="plan-month-day"][data-date="${date}"]`);
     await cell.getByTestId("plan-chip").first().waitFor({ timeout: 10_000 });
     const chips = await cell.getByTestId("plan-chip").evaluateAll((els) => els.map((e) => `${e.dataset.planId}:${e.dataset.state}:${e.querySelector('[data-testid="plan-flag"]') ? "flag" : "-"}`));
@@ -110,6 +114,10 @@ export default async function plan01({ page, step, snap }) {
     await page.waitForFunction((want) => JSON.stringify(window.__store.getState().browserTabsByWorktree).includes(want), url, { timeout: 10_000 });
     console.log(`browser tab: ${url}`);
   });
+  await openFromNewTabMenu(page);
+  await board.getByTestId("plan-view-week").click();
+  await board.locator('[data-testid="plan-card"][data-plan-id="plan-e2e-full"]').click();
+  await board.locator('[data-testid="plan-detail"][data-plan-id="plan-e2e-full"]').waitFor();
   await snapBoth(page, snap, "plan-01-day");
 
   await step("an empty day takes a reel added by hand, written as a dated plan", async () => {

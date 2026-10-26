@@ -75,13 +75,12 @@ export function MonthView({
                   onClick={() => onDay(day.date)}
                 >
                   <StateDot state={card.state} />
-                  {card.time ? <span className="font-mono text-2xs">{card.time}</span> : null}
                   <span className="min-w-0 flex-1 truncate">{card.title}</span>
                   <MissingFlag card={card} />
                 </button>
               ))}
               {day.cards.length === 0 && day.date >= board.today ? (
-                <AddButton date={day.date} onAdd={onAdd} />
+                <AddButton date={day.date} onAdd={onAdd} compact />
               ) : null}
             </div>
           ))}
@@ -160,7 +159,7 @@ export function WeekView({
                 card.lockReason && 'cursor-not-allowed'
               )}
             >
-              <span className="flex items-center gap-1">
+              <span className="flex flex-wrap items-center gap-1">
                 <StateBadge card={card} />
                 {card.lockReason ? (
                   <Lock className="size-3 text-muted-foreground" aria-label={card.lockReason} />

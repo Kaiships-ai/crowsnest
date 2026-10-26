@@ -22,8 +22,8 @@ export const STATE_DOT: Record<PlanCard['state'], string> = {
   draft: 'bg-muted-foreground',
   plan: 'bg-chart-3',
   missed: 'bg-destructive',
-  scheduled: 'bg-chart-1',
-  publishing: 'bg-chart-1',
+  scheduled: 'bg-foreground',
+  publishing: 'bg-foreground',
   published: 'bg-status-success',
   failed: 'bg-destructive'
 }
@@ -67,18 +67,28 @@ export function MissingFlag({ card }: { card: PlanCard }): React.ReactNode {
   ) : null
 }
 
-export function AddButton({ date, onAdd }: { date: string; onAdd: (date: string) => void }) {
+export function AddButton({
+  date,
+  onAdd,
+  compact = false
+}: {
+  date: string
+  onAdd: (date: string) => void
+  compact?: boolean
+}) {
+  const label = translate('boards.plan.add', 'Thêm reel')
   return (
     <Button
       data-testid="plan-add"
       data-date={date}
       variant="ghost"
-      size="xs"
-      className="text-muted-foreground"
+      size={compact ? 'icon-xs' : 'xs'}
+      aria-label={label}
+      className="self-start text-muted-foreground"
       onClick={() => onAdd(date)}
     >
       <Plus />
-      {translate('boards.plan.add', 'Thêm reel')}
+      {compact ? null : label}
     </Button>
   )
 }
