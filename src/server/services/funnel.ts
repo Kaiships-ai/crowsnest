@@ -3,19 +3,16 @@ import { z } from "zod";
 
 import { db, newId, nowIso, tables } from "@/server/db";
 import { FUNNEL_SOURCES } from "@/server/db/schema";
+import { METRIC_IDS, METRIC_LEDGER, type Metric, type MetricId, type MetricSource, type MetricWindow } from "@/server/metrics/ledger";
+import { newestCaptureByPost } from "@/server/queries/own-channel";
 
 type FunnelSource = (typeof FUNNEL_SOURCES)[number];
 
-export const FUNNEL_METRICS = {
-  chatbotx: ["dms"],
-  umami: ["emails", "visits"],
-  polar: ["orders", "revenue"],
-  skool: ["members"],
-} as const satisfies Record<FunnelSource, readonly string[]>;
+function allowedMetrics(source: FunnelSource): string[] {
+  return Object.values(METRIC_LEDGER).flatMap((m) => (m.kind === "count" && m.source.kind === "reel_funnel" && m.source.source === source ? [m.source.metric] : []));
+}
 
-export const FUNNEL_METRICS_TEXT = Object.entries(FUNNEL_METRICS)
-  .map(([source, metrics]) => `${source}: ${metrics.join(", ")}`)
-  .join("; ");
+export const FUNNEL_METRICS_TEXT = FUNNEL_SOURCES.map((source) => `${source}: ${allowedMetrics(source).join(", ")}`).join("; ");
 
 export const FunnelRowSchema = z
   .object({
@@ -28,7 +25,7 @@ export const FunnelRowSchema = z
       .refine((t) => !(Date.parse(t) > Date.now() + 5 * 60_000), "capturedAt is in the future"),
   })
   .superRefine((row, ctx) => {
-    const allowed: readonly string[] = FUNNEL_METRICS[row.source];
+    const allowed = allowedMetrics(row.source);
     if (!allowed.includes(row.metric)) {
       ctx.addIssue({ code: "custom", path: ["metric"], message: `unknown metric "${row.metric}" for ${row.source}; allowed: ${allowed.join(", ")}` });
     }
@@ -38,16 +35,6 @@ export const SaveFunnelSchema = z.object({
   agent: z.string().trim().min(1).max(64),
   rows: z.array(FunnelRowSchema).min(1).max(1000),
 });
-
-export interface FunnelEntry {
-  keyword: string;
-  source: FunnelSource;
-  metric: string;
-  value: number;
-  capturedAt: string;
-  agent: string;
-  plan: { id: string; title: string } | null;
-}
 
 export function saveFunnel(input: unknown): { ok: true; saved: number } | { ok: false; error: string } {
   const parsed = SaveFunnelSchema.safeParse(input);
@@ -69,39 +56,76 @@ export function saveFunnel(input: unknown): { ok: true; saved: number } | { ok: 
   return { ok: true, saved: values.length };
 }
 
-type LatestRow = {
-  keyword: string;
-  source: FunnelEntry["source"];
-  metric: string;
-  value: number;
-  captured_at: string;
-  agent: string;
-  plan_id: string | null;
-  plan_title: string | null;
-};
+type Reading =
+  | { status: "value"; value: number; capturedAt: string }
+  | { status: "missing" }
+  | { status: "not-connected"; connector: Extract<MetricSource, { kind: "not-connected" }>["connector"] };
 
-export function getFunnel(keyword?: string): FunnelEntry[] {
-  const only = keyword?.trim() ? sql`WHERE lower(keyword) = lower(${keyword.trim()})` : sql``;
-  const rows = db.all<LatestRow>(sql`
+export type MetricReading = { id: MetricId; label: string; window: MetricWindow; target: number | null } & Reading;
+
+export interface FunnelEntry {
+  keyword: string;
+  plan: { id: string; title: string } | null;
+  metrics: MetricReading[];
+}
+
+type LatestRow = { key: string; keyword: string; source: FunnelSource; metric: string; value: number; captured_at: string };
+type PlanRow = { key: string; id: string; title: string; keyword: string; published_own_post_id: string | null };
+type InsightRow = typeof tables.ownPostInsights.$inferSelect;
+
+export async function getFunnel(keyword?: string): Promise<FunnelEntry[]> {
+  const only = keyword?.trim() ? sql`lower(keyword) = lower(${keyword.trim()})` : sql`1`;
+  const snapshots = db.all<LatestRow>(sql`
     WITH latest AS (
-      SELECT keyword, source, metric, value, captured_at, agent,
+      SELECT lower(keyword) AS key, keyword, source, metric, value, captured_at,
         ROW_NUMBER() OVER (PARTITION BY lower(keyword), source, metric ORDER BY captured_at DESC, rowid DESC) AS rn
       FROM reel_funnel
-      ${only}
+      WHERE ${only}
     )
-    SELECT l.keyword, l.source, l.metric, l.value, l.captured_at, l.agent, p.id AS plan_id, p.title AS plan_title
-    FROM latest l
-    LEFT JOIN planned_posts p ON p.keyword IS NOT NULL AND lower(p.keyword) = lower(l.keyword)
-    WHERE l.rn = 1
-    ORDER BY lower(l.keyword), l.source, l.metric
+    SELECT key, keyword, source, metric, value, captured_at FROM latest WHERE rn = 1
   `);
-  return rows.map((r) => ({
-    keyword: r.keyword,
-    source: r.source,
-    metric: r.metric,
-    value: r.value,
-    capturedAt: r.captured_at,
-    agent: r.agent,
-    plan: r.plan_id ? { id: r.plan_id, title: r.plan_title ?? "" } : null,
-  }));
+  const plans = db.all<PlanRow>(sql`
+    SELECT lower(keyword) AS key, id, title, keyword, published_own_post_id
+    FROM planned_posts
+    WHERE keyword IS NOT NULL AND ${only}
+  `);
+  const insights = await newestCaptureByPost(plans.flatMap((p) => (p.published_own_post_id ? [p.published_own_post_id] : [])), true);
+
+  const planByKey = new Map(plans.map((p) => [p.key, p]));
+  const snapshotByKey = new Map(snapshots.map((r) => [`${r.key}|${r.source}|${r.metric}`, r]));
+  const keys = [...new Set([...plans.map((p) => p.key), ...snapshots.map((r) => r.key)])].sort();
+
+  return keys.map((key) => {
+    const plan = planByKey.get(key);
+    const insight = plan?.published_own_post_id ? insights.get(plan.published_own_post_id) : undefined;
+    const readSource = (s: MetricSource): Reading => {
+      if (s.kind === "not-connected") return { status: "not-connected", connector: s.connector };
+      if (s.kind === "own_post_insights") return readInsight(insight, s.column);
+      const row = snapshotByKey.get(`${key}|${s.source}|${s.metric}`);
+      return row ? { status: "value", value: row.value, capturedAt: row.captured_at } : { status: "missing" };
+    };
+    const read = (m: Metric): Reading =>
+      m.kind === "count" ? readSource(m.source) : ratio(read(METRIC_LEDGER[m.numerator]), read(METRIC_LEDGER[m.denominator]));
+    return {
+      keyword: plan?.keyword ?? snapshots.find((r) => r.key === key)?.keyword ?? key,
+      plan: plan ? { id: plan.id, title: plan.title } : null,
+      metrics: METRIC_IDS.map((id) => {
+        const m = METRIC_LEDGER[id];
+        return { id, label: m.label, window: m.window, target: m.target, ...read(m) };
+      }),
+    };
+  });
+}
+
+function readInsight(row: InsightRow | undefined, column: Extract<MetricSource, { kind: "own_post_insights" }>["column"]): Reading {
+  const value = row?.[column];
+  return row && value != null ? { status: "value", value, capturedAt: row.capturedAt } : { status: "missing" };
+}
+
+function ratio(numerator: Reading, denominator: Reading): Reading {
+  if (numerator.status === "not-connected") return numerator;
+  if (denominator.status === "not-connected") return denominator;
+  if (numerator.status === "missing" || denominator.status === "missing" || denominator.value === 0) return { status: "missing" };
+  const capturedAt = numerator.capturedAt < denominator.capturedAt ? numerator.capturedAt : denominator.capturedAt;
+  return { status: "value", value: numerator.value / denominator.value, capturedAt };
 }

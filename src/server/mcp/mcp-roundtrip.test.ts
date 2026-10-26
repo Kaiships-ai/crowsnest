@@ -304,7 +304,7 @@ test("/api/mcp refuses a non-local Host or Origin and serves a local client", as
   }
 });
 
-test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest value with its plan", async () => {
+test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest ledger values with the plan", async () => {
   const { db, tables, newId, nowIso } = await import("@/server/db");
   const id = newId();
   await db.insert(tables.plannedPosts).values({ id, state: "draft", title: "Funnel", keyword: "FUNNELKW", createdAt: nowIso(), updatedAt: nowIso() });
@@ -324,8 +324,9 @@ test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest
   expect(bad.structuredContent).toMatchObject({ code: "INVALID_ROWS", error: expect.stringContaining("rows[1].source") });
 
   const read = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "funnelkw" } });
-  const rows = (read.structuredContent as { data: { keyword: string; value: number; plan: unknown }[] }).data;
-  expect(rows).toEqual([expect.objectContaining({ value: 9, plan: { id, title: "Funnel" } })]);
+  const rows = (read.structuredContent as { data: { keyword: string; plan: unknown; metrics: { id: string }[] }[] }).data;
+  expect(rows).toEqual([expect.objectContaining({ keyword: "FUNNELKW", plan: { id, title: "Funnel" } })]);
+  expect(rows[0].metrics.find((m) => m.id === "dm")).toMatchObject({ status: "value", value: 9 });
 });
 
 test("plan versions propose, diff, approve and undo over the wire", async () => {

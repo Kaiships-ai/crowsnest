@@ -52,16 +52,22 @@ Files outside the database:
 - **The platform column is plain text.** `channels.platform` and `videos.platform` allow another source later without a migration; only Instagram is ingested.
 - **A "video" is any tracked post.** The `videos` table also holds photos and carousels; `mediaType` says which, and a carousel is one row plus rows in `video_children`.
 - **Agent-authored output keeps provenance.** `content_artifacts` stores the agent's JSON verbatim with agent, model, source video ids and assumptions; `kind` is validated in `services/artifacts.ts`, not by a constraint.
-- **Funnel snapshots are append-only.** `reel_funnel` rows are never updated or deleted. A read takes the newest `captured_at` per case-insensitive keyword, source and metric (metrics are stored lowercased), ties going to the later insert, and links a row to the plan whose `keyword` matches case-insensitively at read time. A renamed plan keyword leaves older rows under the old keyword with no plan (`services/funnel.ts`). The index `reel_funnel_latest` on `(lower(keyword), source, metric, captured_at)` serves both the full read and the one-keyword read. Growth is accepted: about 180k rows a year at most.
-- **Funnel metrics come from one registry.** `FUNNEL_METRICS` in `services/funnel.ts` lists the exact metric strings each source may write; any other metric is refused with the allowed list, so `dm` and `dms` cannot split a series. Widen it there.
+- **Funnel snapshots are append-only.** `reel_funnel` rows are never updated or deleted. A read takes the newest `captured_at` per case-insensitive keyword, source and metric (metrics are stored lowercased), ties going to the later insert. A funnel entry is one case-insensitive keyword that a plan holds or a snapshot names, linked to the plan whose `keyword` matches at read time. A renamed plan keyword leaves older rows under the old keyword with no plan (`services/funnel.ts`). The index `reel_funnel_latest` on `(lower(keyword), source, metric, captured_at)` serves both the full read and the one-keyword read. Growth is accepted: about 180k rows a year at most.
+- **Every funnel number is defined once, in the metric ledger.** `METRIC_LEDGER` in `src/server/metrics/ledger.ts` holds each metric's id, label, window, target, and either its source (a count) or its numerator and denominator (a rate). `getFunnel` in `services/funnel.ts` computes every number from it, and the MCP tool `crowsnest_funnel` and the bridge call `getFunnel` both return that, so a target or a formula changes in the ledger and nowhere else. The bridge call `getMetricLedger` returns the ledger itself, read only. The window is the reel's newest lifetime snapshot for every metric.
 
-  | Source | Metrics |
+  | Metric | Source |
   | --- | --- |
-  | `chatbotx` | `dms` |
-  | `umami` | `emails`, `visits` |
-  | `polar` | `orders`, `revenue` |
-  | `skool` | `members` |
+  | `view`, `follow`, `bio_link_tap` | `own_post_insights` (`views`, `followsFromPost`, `bioLinkTaps`), newest successful capture of the plan's `publishedOwnPostId` |
+  | `dm` | `reel_funnel` `chatbotx` `dms` |
+  | `gift_page_visit`, `email` | `reel_funnel` `umami` `visits`, `emails` |
+  | `purchase`, `revenue` | `reel_funnel` `polar` `orders`, `revenue` |
+  | `skool_member` | `reel_funnel` `skool` `members` |
+  | `comment_keyword` | not connected (`chatbotx`) |
+  | `checkout` | not connected (`polar`) |
 
+  The rates are `follow_rate` and `bio_link_tap_rate` (over `view`), `comment_rate` (`comment_keyword` over `view`), `dm_rate` (over `comment_keyword`), `visit_rate` (`gift_page_visit` over `dm`), `checkout_rate` (`checkout` over `gift_page_visit`) and `purchase_rate` (`purchase` over `checkout`). Every target is null until Kai sets one.
+- **A number with no source is not-connected, never 0.** A reading has status `value` (with `value` and `capturedAt`), `missing` (the source exists but holds no number for the keyword), or `not-connected` (with the connector). A rate is not-connected when either side is, missing when either side is missing or the denominator is 0, and takes the older side's `capturedAt`.
+- **Funnel metrics come from the ledger.** `crowsnest_save_funnel` accepts, per source, only the `reel_funnel` metrics the ledger names; any other metric is refused with the allowed list, so `dm` and `dms` cannot split a series. Widen it in the ledger.
 - **Frame-pass layout cannot be fabricated.** `persistFramePass` (`services/frame-pass.ts`) refuses a layout field that carries a value while citing no frames. The model's output goes through the same validator a human entry would.
 
 ## What survives a reload
