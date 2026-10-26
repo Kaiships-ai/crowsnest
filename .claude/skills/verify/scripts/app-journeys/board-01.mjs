@@ -23,6 +23,22 @@ export default async function board01({ page, step, snap }) {
     await fixtureRow.waitFor({ timeout: 10_000 });
     console.log(`rows: ${await board.getByTestId("board-channels-row").count()}`);
   });
+  await step("each value sits under its header", async () => {
+    const boxes = (row) => row.locator(":scope > *").evaluateAll((cells) =>
+      cells.map((cell) => {
+        const { left, right } = cell.getBoundingClientRect();
+        return { left, right, text: cell.textContent };
+      }));
+    const headers = await boxes(board.getByTestId("board-channels-header"));
+    const values = await boxes(fixtureRow);
+    if (headers.length !== values.length) throw new Error(`${headers.length} headers, ${values.length} cells`);
+    headers.forEach((header, i) => {
+      const value = values[i];
+      if (value.right <= header.left || value.left >= header.right) {
+        throw new Error(`"${value.text}" at x ${value.left}-${value.right} is not under "${header.text}" at x ${header.left}-${header.right}`);
+      }
+    });
+  });
   await snap("board-01-ready");
   await step("opening it again reuses the tab", async () => {
     await openFromNewTabMenu(page);
