@@ -91,6 +91,7 @@ export function OwnContentTable({
               key={post.ownPostId}
               data-testid="own-post-row"
               data-post-id={post.ownPostId}
+              data-pull-error={post.pullError ? 'true' : undefined}
               className="col-span-full grid grid-cols-subgrid items-center border-b border-border py-1.5 text-sm"
             >
               <span className="flex min-w-0 flex-col">
@@ -106,6 +107,17 @@ export function OwnContentTable({
                   {formatBoardTime(post.postedAt)}
                   {post.keyword ? ` · ${post.keyword}` : ''}
                 </span>
+                {post.pullError ? (
+                  <span
+                    data-testid="own-post-pull-error"
+                    title={post.pullError.error}
+                    className="font-mono text-2xs text-destructive"
+                  >
+                    {translate('boards.own.pullFailedShort', 'lần đo {{at}} lỗi, số cũ', {
+                      at: formatBoardTime(post.pullError.at)
+                    })}
+                  </span>
+                ) : null}
               </span>
               {IG_COLUMNS.map((key) => (
                 <span

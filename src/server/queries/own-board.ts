@@ -6,12 +6,12 @@ import { getFunnel, type FunnelEntry, type Reading } from "@/server/services/fun
 import { computeOwnMedianReach, indexAgainstOwnMedian } from "@/server/services/own-metrics";
 import { getSetting } from "@/server/settings";
 import { entryReading, funnelSteps, type FunnelStep } from "./funnel-board";
-import { getAccountBreakdowns, getOwnPostInsightHistory, getPostsWithLatestInsights, type AccountBreakdowns, type JoinedOwnPost } from "./own-channel";
+import { getAccountBreakdowns, getOwnPostInsightHistory, getPostsWithLatestInsights, newestCaptureByPost, type AccountBreakdowns, type JoinedOwnPost } from "./own-channel";
 
 const IG_KEYS = ["views", "reach", "likes", "comments", "shares", "saved", "reposts", "followsFromPost", "profileVisits", "bioLinkTaps", "avgWatchTimeMs", "skipRate"] as const;
 type IgKey = (typeof IG_KEYS)[number];
 
-const TOTAL_KEYS = ["views", "reach", "likes", "comments", "shares", "saved", "followsFromPost", "profileVisits", "bioLinkTaps"] as const satisfies readonly IgKey[];
+const TOTAL_KEYS = ["views", "likes", "comments", "shares", "saved", "followsFromPost", "profileVisits", "bioLinkTaps"] as const satisfies readonly IgKey[];
 type TotalKey = (typeof TOTAL_KEYS)[number];
 
 const AFTER_KEYS = ["dm", "gift_page_visit", "purchase"] as const satisfies readonly CountId[];
@@ -27,7 +27,8 @@ export interface OwnPostCard {
   format: string;
   postedAt: string;
   keyword: string | null;
-  insightsError: string | null;
+  /** The newest pull of this post failed after (or without) its last good one: the numbers shown are older. */
+  pullError: { error: string; at: string } | null;
   ig: Record<IgKey, Reading>;
   reachIndex: number | null;
   after: Record<AfterKey, AfterReading>;
@@ -73,14 +74,20 @@ const mapKeys = <K extends string, V>(keys: readonly K[], read: (key: K) => V): 
   // SAFETY: fromEntries over exactly `keys` yields a record with exactly those keys.
   Object.fromEntries(keys.map((k) => [k, read(k)])) as Record<K, V>;
 
+function pullErrorOf(post: JoinedOwnPost, failed: { capturedAt: string; fetchError: string | null } | undefined): OwnPostCard["pullError"] {
+  if (!failed?.fetchError || (post.latestOk && post.latestOk.capturedAt >= failed.capturedAt)) return null;
+  return { error: failed.fetchError, at: failed.capturedAt };
+}
+
 async function loadCards(posts: JoinedOwnPost[]): Promise<OwnPostCard[]> {
-  const [links, entries, minUsable] = await Promise.all([
+  const [links, entries, minUsable, failed] = await Promise.all([
     db.all<PlanLink>(sql`
       SELECT published_own_post_id AS ownPostId, keyword FROM planned_posts
       WHERE published_own_post_id IS NOT NULL AND keyword IS NOT NULL
     `),
     getFunnel(),
     getSetting("scoreMinUsablePosts"),
+    newestCaptureByPost(posts.map((p) => p.ownPostId), false),
   ]);
   const keywordByPost = new Map(links.map((l) => [l.ownPostId, l.keyword]));
   const entryByKey = new Map(entries.map((e) => [e.keyword.toLowerCase(), e]));
@@ -95,7 +102,7 @@ async function loadCards(posts: JoinedOwnPost[]): Promise<OwnPostCard[]> {
       format: p.format,
       postedAt: p.postedAt,
       keyword,
-      insightsError: p.insightsError,
+      pullError: pullErrorOf(p, failed.get(p.ownPostId)),
       ig: mapKeys(IG_KEYS, (k) => igReading(p, k)),
       reachIndex: indexAgainstOwnMedian(p.reach, medianReach),
       after: mapKeys(AFTER_KEYS, (k): AfterReading => (entry ? entryReading(entry, k) : keyword ? { status: "missing" } : { status: "no-keyword" })),

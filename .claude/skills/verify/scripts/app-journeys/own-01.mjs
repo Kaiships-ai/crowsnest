@@ -55,7 +55,7 @@ export default async function own01({ page, step, snap }) {
     if (!formats.includes("Reel") || !formats.includes("Carousel")) throw new Error(formats);
   });
 
-  await step("Nội dung lists the window's posts from the DB; DM is 52 by keyword, and a reel with no keyword reads chưa nối, never 0", async () => {
+  await step("Nội dung lists the window's posts from the DB with each post's own comments, shares and saves; DM is 52 by keyword, a reel with no keyword reads chưa nối, never 0, and a failed newest pull is marked on its row", async () => {
     await openTab(board, "own-tab-content");
     const rows = board.getByTestId("own-post-row");
     await rows.first().waitFor();
@@ -68,6 +68,13 @@ export default async function own01({ page, step, snap }) {
     if ((await dm("own-reel-2").getAttribute("data-status")) !== "no-keyword" || (await dm("own-reel-2").innerText()) !== "chưa nối") {
       throw new Error(`own-reel-2 DM ${await dm("own-reel-2").innerText()}`);
     }
+    const shown = await rows.evaluateAll((list) => list.map((r) => [r.dataset.postId, ...[...r.children].slice(3, 6).map((c) => c.textContent)].join(" ")).sort());
+    const want = sql(`select p.id || ' ' || i.comments || ' ' || i.shares || ' ' || i.saved from own_posts p join own_post_insights i on i.id = p.id || '-now' where p.posted_at >= '${since}' order by p.id`).split("\n");
+    console.log(`comments shares saved: ${shown.join(" | ")}`);
+    if (JSON.stringify(shown) !== JSON.stringify(want)) throw new Error(`db ${want.join(" | ")}`);
+    const failed = await rows.evaluateAll((list) => list.filter((r) => r.dataset.pullError === "true").map((r) => r.dataset.postId));
+    console.log(`newest pull failed: ${failed.join(" ")}`);
+    if (JSON.stringify(failed) !== JSON.stringify(["own-reel-3"])) throw new Error("the failed newest pull is not marked on its row only");
     await board.getByTestId("own-sort-dm").click();
     const first = await rows.first().getAttribute("data-post-id");
     if (first !== "own-reel-1") throw new Error(`sorted by DM, first is ${first}`);

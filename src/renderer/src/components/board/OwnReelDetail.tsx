@@ -171,9 +171,16 @@ function ReelView({ reel, onBack }: { reel: ReelBoard; onBack: () => void }): Re
           {translate('boards.own.openPost', 'Mở bài gốc')}
         </Button>
       </header>
-      {post.insightsError ? (
+      {post.pullError ? (
         <p data-testid="own-reel-error" className="text-sm text-destructive">
-          {post.insightsError}
+          {translate(
+            'boards.own.pullFailed',
+            'Lần đo {{at}} lỗi, số dưới đây là lần đo tốt trước đó: {{error}}',
+            {
+              at: formatBoardTime(post.pullError.at),
+              error: post.pullError.error
+            }
+          )}
         </p>
       ) : null}
       <Tabs defaultValue="ov">

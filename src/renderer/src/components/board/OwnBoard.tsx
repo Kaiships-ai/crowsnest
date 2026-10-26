@@ -140,9 +140,8 @@ function OwnView({
         </TabsList>
 
         <TabsContent value="home" data-testid="own-panel-home" className="flex flex-col gap-6 pt-3">
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-3 gap-6">
             {ig('views', translate('boards.own.views', 'Lượt xem của bài trong kỳ'))}
-            {ig('reach', translate('boards.own.reach', 'Tiếp cận'))}
             <Stat
               testId="own-stat-followers"
               label={translate('boards.own.followers', 'Người theo dõi')}
@@ -191,7 +190,6 @@ function OwnView({
         <TabsContent value="perf" data-testid="own-panel-perf" className="flex flex-col gap-6 pt-3">
           <div className="grid grid-cols-3 gap-6">
             {ig('views', translate('boards.own.views', 'Lượt xem của bài trong kỳ'))}
-            {ig('reach', translate('boards.own.reach', 'Tiếp cận'))}
             {ig('likes', translate('boards.own.likes', 'Thích'))}
             {ig('comments', translate('boards.own.comments', 'Comment'))}
             {ig('shares', translate('boards.own.shares', 'Chia sẻ'))}

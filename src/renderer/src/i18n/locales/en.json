@@ -21375,7 +21375,9 @@
         "dm": "DM",
         "gift_page_visit": "Web",
         "purchase": "Đơn"
-      }
+      },
+      "pullFailedShort": "lần đo {{at}} lỗi, số cũ",
+      "pullFailed": "Lần đo {{at}} lỗi, số dưới đây là lần đo tốt trước đó: {{error}}"
     },
     "rivals": {
       "added": "Đã thêm {{handle}}. Bài và outlier của kênh có sau khi Radar đọc kênh.",

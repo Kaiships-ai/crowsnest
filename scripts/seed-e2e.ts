@@ -174,10 +174,10 @@ async function seedOwnChannel(db: Db["db"], tables: Db["tables"], daysAgo: (n: n
     { id: "own-snap-3", capturedAt: capture, externalId: "e2e-own", username: "e2e_own", followerCount: 3245, followsCount: 81, mediaCount: 44 },
   ]);
   const posts = [
-    { id: "own-reel-1", format: "Reel", productType: "REELS", age: 3, caption: "OWN01 reel: the agent stack", views: 12_400, reach: 9800, likes: 410 },
-    { id: "own-reel-2", format: "Reel", productType: "REELS", age: 9, caption: "Second reel, no keyword", views: 5200, reach: 4100, likes: 150 },
-    { id: "own-reel-3", format: "Reel", productType: "REELS", age: 20, caption: "Third reel", views: 3100, reach: 2500, likes: 90 },
-    { id: "own-carousel-1", format: "Carousel", productType: "FEED", age: 5, caption: "A carousel", views: 900, reach: 800, likes: 40 },
+    { id: "own-reel-1", format: "Reel", productType: "REELS", age: 3, caption: "OWN01 reel: the agent stack", views: 12_400, reach: 9800, likes: 410, comments: 64, shares: 120, saved: 95 },
+    { id: "own-reel-2", format: "Reel", productType: "REELS", age: 9, caption: "Second reel, no keyword", views: 5200, reach: 4100, likes: 150, comments: 21, shares: 33, saved: 40 },
+    { id: "own-reel-3", format: "Reel", productType: "REELS", age: 20, caption: "Third reel", views: 3100, reach: 2500, likes: 90, comments: 7, shares: 11, saved: 9 },
+    { id: "own-carousel-1", format: "Carousel", productType: "FEED", age: 5, caption: "A carousel", views: 900, reach: 800, likes: 40, comments: 3, shares: 2, saved: 14 },
   ];
   for (const p of posts) {
     await db.insert(tables.ownPosts).values({
@@ -185,10 +185,11 @@ async function seedOwnChannel(db: Db["db"], tables: Db["tables"], daysAgo: (n: n
       format: p.format, caption: p.caption, postedAt: daysAgo(p.age), durationSec: 30, firstSeenAt: daysAgo(p.age), lastMeasuredAt: capture,
     });
     await db.insert(tables.ownPostInsights).values({
-      id: `${p.id}-now`, ownPostId: p.id, capturedAt: capture, views: p.views, reach: p.reach, likes: p.likes, comments: 12, shares: 30, saved: 25,
+      id: `${p.id}-now`, ownPostId: p.id, capturedAt: capture, views: p.views, reach: p.reach, likes: p.likes, comments: p.comments, shares: p.shares, saved: p.saved,
       reposts: 2, followsFromPost: 18, profileVisits: 60, bioLinkTaps: 9, avgWatchTimeMs: 11_200, skipRate: 41.5,
     });
   }
+  await db.insert(tables.ownPostInsights).values({ id: "own-reel-3-failed", ownPostId: "own-reel-3", capturedAt: daysAgo(0.01), fetchError: "HTTP 400: media gone" });
   await db.insert(tables.ownPostInsights).values({ id: "own-reel-1-early", ownPostId: "own-reel-1", capturedAt: daysAgo(2.5), views: 4300, reach: 3600 });
   const now = new Date().toISOString();
   await db.insert(tables.plannedPosts).values({ id: "own-plan-1", state: "published", title: "OWN01 reel", keyword: "OWN01", publishedOwnPostId: "own-reel-1", createdAt: now, updatedAt: now });

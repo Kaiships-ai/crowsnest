@@ -31,7 +31,7 @@ const alpha = {
   format: 'Reel',
   postedAt: T,
   keyword: 'ALPHA',
-  insightsError: null,
+  pullError: null,
   ig: ig(1000),
   reachIndex: 1.4,
   after: { dm: value(40), gift_page_visit: value(12), purchase: value(2) }
@@ -42,13 +42,13 @@ const beta = {
   caption: 'Beta reel',
   keyword: null,
   ig: ig(500),
+  pullError: { error: 'HTTP 400: media gone', at: T },
   after: { dm: noKeyword, gift_page_visit: noKeyword, purchase: noKeyword }
 }
 
 const totals = Object.fromEntries(
   [
     'views',
-    'reach',
     'likes',
     'comments',
     'shares',
@@ -116,6 +116,13 @@ const openTab = (id: string) => fireEvent.mouseDown(screen.getByTestId(id), { bu
 afterEach(cleanup)
 
 describe('OwnBoard', () => {
+  it('has no reach total: per-post reach does not add up across posts', async () => {
+    stubCall({ ok: true, value: board })
+    render(<OwnBoard />)
+    await screen.findByTestId('own-stat-views')
+    expect(screen.queryByTestId('own-stat-reach')).toBeNull()
+  })
+
   it('opens on Tổng quan with each number next to its source, and a partial total says how many posts it misses', async () => {
     stubCall({ ok: true, value: board })
     render(<OwnBoard />)
@@ -140,6 +147,10 @@ describe('OwnBoard', () => {
     const betaDm = within(rows[1]).getByTestId('own-after-dm')
     expect(betaDm.dataset.status).toBe('no-keyword')
     expect(betaDm.textContent).toBe('chưa nối')
+    expect(within(rows[0]).queryByTestId('own-post-pull-error')).toBeNull()
+    expect(within(rows[1]).getByTestId('own-post-pull-error').getAttribute('title')).toBe(
+      'HTTP 400: media gone'
+    )
     fireEvent.click(screen.getByTestId('own-sort-views'))
     fireEvent.click(screen.getByTestId('own-sort-dm'))
     expect(screen.getAllByTestId('own-post-row').map((r) => r.dataset.postId)).toEqual([

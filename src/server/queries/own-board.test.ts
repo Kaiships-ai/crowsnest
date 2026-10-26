@@ -44,6 +44,7 @@ test("30 days sums the window's posts, names the posts without a number, and net
   expect(board.followers).toEqual({ status: "value", value: 1000, capturedAt: T_NEW });
   expect(board.netFollowers).toEqual({ status: "value", value: 100, capturedAt: T_NEW });
   expect(board.totals.views).toEqual({ status: "value", value: 1500, capturedAt: T_OLD, postsWithoutNumber: 1 });
+  expect(board.totals).not.toHaveProperty("reach");
   expect(board.totals.likes).toEqual({ status: "value", value: 50, capturedAt: T_NEW, postsWithoutNumber: 2 });
   expect(board.viewsByFormat).toEqual([
     { format: "Carousel", views: { status: "missing", postsWithoutNumber: 1 } },
@@ -102,4 +103,18 @@ test("a reel with no keyword has no Sau reel funnel, and an unknown post is an e
   await seed();
   expect((await getOwnReelBoard("beta")).after).toBeNull();
   await expect(getOwnReelBoard("nope")).rejects.toThrow("no own post nope");
+});
+
+test("a post whose newest pull failed after its last good one carries that failure; an older failure does not", async () => {
+  await seed();
+  await db.insert(tables.ownPostInsights).values([
+    { id: "f1", ownPostId: "alpha", capturedAt: T_OLD, fetchError: "HTTP 500" },
+    { id: "f2", ownPostId: "beta", capturedAt: T_NEW, fetchError: "HTTP 400: media gone" },
+    { id: "f3", ownPostId: "gamma", capturedAt: T_NEW, fetchError: "HTTP 429" },
+  ]);
+  const byId = new Map((await getOwnBoard(30)).posts.map((p) => [p.ownPostId, p]));
+  expect(byId.get("alpha")?.pullError).toBeNull();
+  expect(byId.get("beta")?.pullError).toEqual({ error: "HTTP 400: media gone", at: T_NEW });
+  expect(byId.get("beta")?.ig.views).toEqual({ status: "value", value: 500, capturedAt: T_OLD });
+  expect(byId.get("gamma")?.pullError).toEqual({ error: "HTTP 429", at: T_NEW });
 });
