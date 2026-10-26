@@ -553,7 +553,8 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
 
     // datetime-local is a local wall-clock value; Date() reads it as local and toISOString
     // gives the real instant the scheduler (which compares against now.toISOString()) reads.
-    const iso = new Date(scheduledAtIso).toISOString();
+    const localAt = new Date(scheduledAtIso);
+    const iso = localAt.toISOString();
     // A past instant would be due the moment it lands, so the scheduler would publish it on
     // the next tick. That is a surprise when someone picks an old date, so refuse it and
     // point them at Publish now for an immediate post.
@@ -566,10 +567,10 @@ export async function schedulePublishAction(id: string, scheduledAtIso: string):
         state: "scheduled",
         scheduledAt: iso,
         idempotencyKey: `${id}:${iso}`,
-        // Keep the calendar's own date/time fields in sync so a scheduled publish still
-        // renders in the month grid, which keys off plannedDate.
-        plannedDate: iso.slice(0, 10),
-        plannedTime: scheduledAtIso.slice(11, 16),
+        // The calendar's own date/time fields are the local wall clock, so a 06:00 post under
+        // UTC+7 stays on its own day in the month grid, which keys off plannedDate.
+        plannedDate: localAt.toLocaleDateString("sv-SE"),
+        plannedTime: localAt.toTimeString().slice(0, 5),
         lastError: null,
         errorClass: null,
         updatedAt: nowIso(),

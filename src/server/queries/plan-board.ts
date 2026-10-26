@@ -20,6 +20,7 @@ export interface PlanCard {
   missing: PlanItem[];
   lockReason: string | null;
   cookWorkspaceId: string | null;
+  hasVideo: boolean;
 }
 
 export interface PlanDay {
@@ -114,6 +115,7 @@ export async function getPlanBoard(month: string, now = clockNow()): Promise<Pla
       missing: [...checks.filter(([, ok]) => !ok).map(([item]) => item), ...ALWAYS_MISSING],
       lockReason: planLockReason(state),
       cookWorkspaceId: row.cookWorkspaceId,
+      hasVideo: row.videoAssetId !== null,
     };
   });
 

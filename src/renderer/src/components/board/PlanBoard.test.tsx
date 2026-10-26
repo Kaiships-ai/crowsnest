@@ -25,7 +25,8 @@ const draft = {
   reference: null,
   missing: ALL,
   lockReason: null,
-  cookWorkspaceId: null
+  cookWorkspaceId: null,
+  hasVideo: false
 }
 const armed = {
   id: 'b',
@@ -38,7 +39,8 @@ const armed = {
   reference: { videoId: 'v1', url: 'https://www.instagram.com/reel/v1/', handle: '@rival' },
   missing: ['key', 'gift', 'offer'],
   lockReason: 'Scheduled on Instagram. Unschedule it before you move its day.',
-  cookWorkspaceId: null
+  cookWorkspaceId: null,
+  hasVideo: false
 }
 const board = {
   month: date(0).slice(0, 7),

@@ -5,6 +5,7 @@ import { scrubSecrets } from "@/server/connectors/scrub-secrets";
 import { errorMessage } from "@/server/lib/action-result";
 import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
 import { pullAgain } from "@/server/services/daily-pull";
+import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
 import { getFunnel } from "@/server/services/funnel";
 import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
 import { createMcpToken, listMcpTokens, revokeMcpToken } from "@/server/services/mcp-tokens";
@@ -123,8 +124,8 @@ const feedFilters = z.object({
   analyzed: z.enum(["yes", "no"]).optional(),
 });
 
-/** Gate 1 from the app is the operator's own act: it is journaled under their name, and a plan
- *  they approve records them as its approver. */
+/** Gate 1 and Gate 2 from the app are the operator's own acts: they are journaled under their name,
+ *  and a plan or draft they approve records them as its approver. */
 const OPERATOR = "kai";
 
 function asOperator<R extends { ok: boolean }>(tool: string, input: unknown, run: () => R): R {
@@ -197,6 +198,11 @@ export const ENGINE_CALLS = {
   undoPlanApproval: call(z.tuple([PlanRefSchema, z.string()]), (ref, expectLiveId) =>
     asOperator("undoPlanApproval", { ...ref, expectLiveId }, () => undoPlanVersion(ref, expectLiveId, OPERATOR)),
   ),
+  getGate2Board: call(none, getGate2Board),
+  getPublishChecks: call(z.tuple([z.string(), z.string()]), getPublishChecks),
+  draftPublish: call(z.tuple([z.string(), z.string()]), (postId, at) => draftPublish(postId, at, OPERATOR)),
+  approveGateDraft: call(id, (draftId) => approveGateDraft(draftId, OPERATOR)),
+  rejectGateDraft: call(id, (draftId) => rejectGateDraft(draftId, OPERATOR)),
   createPlannedPostAction: call(
     z.tuple([
       z.object({

@@ -681,9 +681,9 @@ function realSleep(ms: number): Promise<void> {
 
 /** Step 1: POST /{ig-user-id}/media with media_type=REELS. Returns the container id the
  *  next two steps operate on. */
-export async function createReelContainer({ videoUrl, caption }: { videoUrl: string; caption?: string }): Promise<{ containerId: string }> {
+export async function createReelContainer({ videoUrl, caption, coverUrl }: { videoUrl: string; caption?: string; coverUrl?: string }): Promise<{ containerId: string }> {
   const { token, userId } = requireConfigured();
-  const result = await graphPost<unknown>(`${userId}/media`, { media_type: "REELS", video_url: videoUrl, caption }, token);
+  const result = await graphPost<unknown>(`${userId}/media`, { media_type: "REELS", video_url: videoUrl, caption, cover_url: coverUrl }, token);
   if (!result.ok) throw new GraphApiError(errorCodeFor(result.kind), result.message);
   const containerId = str(rec(result.data).id);
   if (!containerId) {
