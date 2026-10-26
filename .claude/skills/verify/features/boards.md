@@ -1,11 +1,12 @@
 # Boards
 
-Crowsnest boards open as tabs in the Lead Studio workspace: channels (tracked channels), Vault (each connector's state, with Sửa secret entry) and Agents (the MCP journal and agent tokens), all read through the engine bridge. Architecture: `documents/architecture/boards.md`.
+Crowsnest boards open as tabs in the Lead Studio workspace: Hôm nay (the morning screen), Phễu (the funnel, driven in [funnel.md](funnel.md)), channels (tracked channels), Vault (each connector's state, with Sửa secret entry) and Agents (the MCP journal and agent tokens), all read through the engine bridge. Architecture: `documents/architecture/boards.md`.
 
 ## Sub-features
 
 - Board tab (`board-tab`), opened from the tab bar "+" menu, Lead Studio group (`new-tab-board`, `data-board-id`).
 - App menu: top-level Boards menu, one item per board. On macOS the app menu itself is named Lead Studio, so boards get their own menu.
+- Hôm nay: `today-offer`, `today-offer-step`, `today-step` (`data-step-id`), `today-drop` (`data-status`), `today-gates`, `today-gate-plans`, `today-gate-drafts`, `today-pulls`, `today-pull-row` (`data-connector-id`, `data-state`), `today-workspaces`, `today-workspace-row`; every number has a `source-label`, and a gap is `reading-missing` or `reading-not-connected` with `open-vault`.
 - Channels rows (`board-channels-row`).
 - Vault rows (`vault-row`, `data-connector-id`, `data-state`), `vault-problem`, `vault-test`, `vault-pull`, `vault-edit`, `vault-message`; Sửa fields `vault-secret-field` (`data-secret-name`), `vault-secret-input`, `vault-secret-save`, `vault-secret-status`.
 - Agents: `agents-token-name`, `agents-token-create`, `agents-new-token` (`agents-new-token-value`, `agents-new-token-copy`, `agents-new-token-done`), `agents-token-row` (`data-token-name`, `data-revoked`), `agents-revoke`, `agents-revoke-confirm`; `agents-journal-row` (`data-caller`, `data-tool`, `data-result`, `data-call-id`), `agents-caller-filter`.
@@ -13,19 +14,22 @@ Crowsnest boards open as tabs in the Lead Studio workspace: channels (tracked ch
 
 ## How to get to it (user POV)
 
-Open a project, click "+" in the tab bar, then Channels, Vault or Agents under Lead Studio. Or use the Boards app menu.
+Open a project, click "+" in the tab bar, then Hôm nay, Phễu, Channels, Vault or Agents under Lead Studio. Or use the Boards app menu.
 
 ## Driving it
 
 ```bash
 .claude/skills/verify/scripts/app-up.sh --seed
 .claude/skills/verify/scripts/app-drive.sh board-01 [run-id]
+.claude/skills/verify/scripts/app-drive.sh today-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh vault-01 [run-id]
 .claude/skills/verify/scripts/app-drive.sh agents-01 [run-id]
 .claude/skills/verify/scripts/app-down.sh
 ```
 
 `board-01` prints `ok: open the channels board from the new-tab menu`, `ok: each value sits under its header` (each header cell and the fixture row's cell in the same position overlap on x), `ok: opening it again reuses the tab`, `ok: a failed query shows the error state`, `ok: Retry brings the rows back`, and saves `board-01-ready.png` and `board-01-error.png`. It forces the error the way a real query fails: it drops the `channels_single_own` partial index (SQLite will not rename a table under a partial index that names it) and renames the `channels` table in the lane DB (`<userDataDir>/crowsnest.db`, with `userDataDir` read from the lane state file that `app-host.mjs` writes) with `sqlite3`, clicks Refresh, then renames it back and recreates the index in a `finally` and clicks Retry.
+
+`today-01` sets the viewport to 1440x875 (a 1440x900 screen less the macOS menu bar), saves funnel rows (keyword `TODAY01`) and proposes a week plan (`2099-W01`) with `mcp.sh --app`, then prints `ok: open Hôm nay from the new-tab menu and see every block with a source label`, `ok: every number on the board sits in a block that names its source`, `ok: checkout reads chưa nối, never 0, and with no targets the drop says chưa đặt chuẩn`, `ok: gate counts match the lane DB` (`sqlite3` on the lane DB), `ok: last night's pulls show each connector's state from the Vault data` (against `getVaultBoard`), `ok: the board fits 1440x900 with no scroll`, and saves `today-01-dark.png` and `today-01-light.png`.
 
 `vault-01` prints `ok: open the Vault board from the new-tab menu and see every connector` (row ids match `listConnectors`), `ok: Sửa saves a fake secret, clears the input and shows only where it is stored`, `ok: no bridge read carries the saved value` (it also calls `setConnectorSecret` with a field Umami does not declare and gets `umami has no field IG_GRAPH_TOKEN`), `ok: the lane DB holds the key sealed, never in plaintext` (`sqlite3` on `<userDataDir>/crowsnest.db`, `.dump` included), `ok: Kiểm tra shows the connection check`, and saves `vault-01-dark.png`, `vault-01-light.png`, `vault-01-saved.png`, `vault-01.png`.
 
@@ -41,3 +45,5 @@ Open a project, click "+" in the tab bar, then Channels, Vault or Agents under L
 - The light screenshots drop the `dark` class on `<html>` for the snap and put it back, with the app's `theme-transition-disabled` class on during the swap so the snap does not catch text mid-fade; the theme setting does not change. Each journey also waits for the "+" menu to close before its first snap.
 - `vault-01` never presses Kéo lại: on a seeded lane Graph and the sidecar are real network calls. The state mapping is proven in `src/server/queries/vault-board.test.ts`.
 - Token and fake-secret names carry a timestamp, so both journeys rerun on the same lane.
+- `today-01` sizes the page with `setViewportSize`: Electron's CDP has no `Browser.setWindowBounds`. Each rerun proposes one more week plan version, and the gate check reads the DB, so it still holds.
+- No journey shows a failed or partial pull on Hôm nay: a lane makes no Instagram calls. The proof is `src/server/queries/today-board.test.ts`.
