@@ -74,16 +74,23 @@ function notConnectedReading(id: CountId): Reading | null {
   return source.kind === "not-connected" ? { status: "not-connected", connector: source.connector } : null;
 }
 
+const stepTotal = (entries: FunnelEntry[], id: CountId) => sumReadings(entries.map((e) => entryReading(e, id)), notConnectedReading(id));
+
+/** A step's rate over only the keywords that have both its number and the step before's, so neither side counts a keyword the other lacks. */
+function matchedRate(entries: FunnelEntry[], step: CountId, previous: CountId): Reading {
+  const both = entries.filter((e) => entryReading(e, step).status === "value" && entryReading(e, previous).status === "value");
+  return ratio(stepTotal(both, step), stepTotal(both, previous));
+}
+
 export function funnelSteps(entries: FunnelEntry[]): FunnelStep[] {
-  const totals = FUNNEL_STEPS.map(({ count }) => sumReadings(entries.map((e) => entryReading(e, count)), notConnectedReading(count)));
   return FUNNEL_STEPS.map(({ count, rate }, i): FunnelStep => {
     const metric = METRIC_LEDGER[count];
     return {
       id: count,
       label: metric.label,
       source: sourceOf(metric.source),
-      total: totals[i],
-      rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: ratio(totals[i], totals[i - 1]) } : null,
+      total: stepTotal(entries, count),
+      rate: rate ? { id: rate, label: METRIC_LEDGER[rate].label, target: METRIC_LEDGER[rate].target, reading: matchedRate(entries, count, FUNNEL_STEPS[i - 1].count) } : null,
     };
   });
 }

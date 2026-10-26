@@ -52,7 +52,7 @@ test("the rate to each step comes from the ledger, and a step next to a not-conn
     null,
     ["comment_rate", "not-connected", "chatbotx"],
     ["dm_rate", "not-connected", "chatbotx"],
-    ["visit_rate", "value", 0.4375],
+    ["visit_rate", "value", 0.375],
     ["checkout_rate", "not-connected", "polar"],
     ["purchase_rate", "not-connected", "polar"],
   ]);
@@ -93,4 +93,21 @@ test("a step whose source's newest pull failed or was partial says so beside its
     ["checkout", null],
     ["purchase", null],
   ]);
+});
+
+test("a step's rate divides over the keywords that have both numbers; the totals keep every keyword (R2)", async () => {
+  const now = nowIso();
+  await db.insert(tables.plannedPosts).values([
+    { id: "plan-ka", state: "published", title: "KA reel", keyword: "KA", createdAt: now, updatedAt: now },
+    { id: "plan-kb", state: "published", title: "KB reel", keyword: "KB", createdAt: now, updatedAt: now },
+  ]);
+  const row = (keyword: string, source: "chatbotx" | "umami", metric: string, value: number) => ({ id: newId(), keyword, source, metric, value, capturedAt: T, agent: source, createdAt: now });
+  await db.insert(tables.reelFunnel).values([row("KA", "chatbotx", "dms", 10), row("KA", "umami", "visits", 5), row("KB", "umami", "visits", 50)]);
+
+  const visit = (await getFunnelBoard()).steps.find((s) => s.id === "gift_page_visit");
+  expect(visit?.total).toEqual({ status: "value", value: 55, capturedAt: T, keywordsWithoutNumber: 0 });
+  expect(visit?.rate?.reading).toEqual({ status: "value", value: 0.5, capturedAt: T });
+
+  await db.insert(tables.reelFunnel).values(row("KB", "chatbotx", "dms", 40));
+  expect((await getFunnelBoard()).steps.find((s) => s.id === "gift_page_visit")?.rate?.reading).toEqual({ status: "value", value: 1.1, capturedAt: T });
 });
