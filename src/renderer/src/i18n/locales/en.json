@@ -21306,7 +21306,7 @@
       "title": "Hôm nay",
       "subtitle": "Số tới offer, việc chờ anh duyệt, và những gì đã chạy đêm qua.",
       "offer": "Người tới offer",
-      "drop": "Rơi nhiều nhất so với chuẩn: {{label}} {{rate}} (chuẩn {{target}}).",
+      "drop": "{{label}} {{rate}}, chuẩn {{target}}.",
       "ledger": "sổ chỉ số",
       "noTarget": "Chưa đặt chuẩn cho bước nào, nên chưa biết bước nào rơi nhiều nhất.",
       "noRates": "Chưa có tỉ lệ nào để so với chuẩn.",
@@ -21321,7 +21321,8 @@
       "pullSource": "lần kéo 05:00",
       "empty": "Chưa có gì cho hôm nay.",
       "pulledAt": "lần kéo cuối",
-      "neverPulled": "chưa kéo lần nào"
+      "neverPulled": "chưa kéo lần nào",
+      "dropTitle": "Rơi nhiều nhất so với chuẩn"
     }
   }
 }

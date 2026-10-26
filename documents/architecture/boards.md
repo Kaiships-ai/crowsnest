@@ -26,8 +26,8 @@ Each step names its source (Instagram for the reel's insights, else the `reel_fu
 
 `TodayBoard` in `src/renderer/src/components/board/TodayBoard.tsx` calls `getTodayBoard` (`src/server/queries/today-board.ts`), one aggregate read, and fits one screen with no scroll. Every block names its source and time.
 
-- Người tới offer: the checkout and purchase totals, then the six steps from `getFunnelBoard`.
-- The biggest drop (`biggestDrop`): the step whose rate sits furthest below its target, as rate / target. With no target set it reads "chưa đặt chuẩn"; with targets but no rate it says so.
+- Người tới offer: the checkout and purchase totals at headline size, then the six steps from `getFunnelBoard`. A gap reads "chưa có số" or "chưa nối" in the same slot size as a number. A total summed over only some keywords shows "thiếu N keyword" (`KeywordGap` in `src/renderer/src/components/board/funnel-reading.tsx`), as on Phễu.
+- The biggest drop (`biggestDrop`), boxed beside the offer as its headline: the step whose rate sits furthest below its target, as rate / target. With no target set it reads "chưa đặt chuẩn"; with targets but no rate it says so.
 - Chờ anh duyệt, counts only: Cổng 1 is proposed `plan_versions` newer than their period's live version (an older proposed version that a newer live one passed is not waiting); Cổng 2 is pending `gate_drafts`.
 - Đêm qua đã chạy: each connector's Vault state and last pull time, from `getVaultBoard`, with the detail of a failed or partial pull. A partial pull reads "thiếu", never "chạy".
 - Workspace đang chạy: workspaces with an agent working, blocked or waiting, read in the renderer from the agent status store (`runningWorkspaces`), since the engine does not know panes.

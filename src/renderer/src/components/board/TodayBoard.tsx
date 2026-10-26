@@ -13,6 +13,7 @@ import { BoardStates } from './BoardStates'
 import {
   formatCount,
   formatRate,
+  KeywordGap,
   ReadingSource,
   ReadingValue,
   SourceLabel,
@@ -84,28 +85,34 @@ function Block({
 }
 
 function DropLine({ drop, at }: { drop: TodayBoardData['drop']; at: string }): React.ReactNode {
-  if (drop.status === 'value') {
-    return (
-      <p data-testid="today-drop" data-status="value" className="text-sm">
-        {translate(
-          'boards.today.drop',
-          'Rơi nhiều nhất so với chuẩn: {{label}} {{rate}} (chuẩn {{target}}).',
-          { label: drop.label, rate: formatRate(drop.rate), target: formatRate(drop.target) }
-        )}{' '}
-        <SourceLabel source={translate('boards.today.ledger', 'sổ chỉ số')} at={drop.capturedAt} />
-      </p>
-    )
-  }
-  return (
-    <p data-testid="today-drop" data-status={drop.status} className="text-sm text-muted-foreground">
-      {drop.status === 'no-target'
+  const message =
+    drop.status === 'value'
+      ? translate('boards.today.drop', '{{label}} {{rate}}, chuẩn {{target}}.', {
+          label: drop.label,
+          rate: formatRate(drop.rate),
+          target: formatRate(drop.target)
+        })
+      : drop.status === 'no-target'
         ? translate(
             'boards.today.noTarget',
             'Chưa đặt chuẩn cho bước nào, nên chưa biết bước nào rơi nhiều nhất.'
           )
-        : translate('boards.today.noRates', 'Chưa có tỉ lệ nào để so với chuẩn.')}{' '}
-      <SourceLabel source={translate('boards.today.ledger', 'sổ chỉ số')} at={at} />
-    </p>
+        : translate('boards.today.noRates', 'Chưa có tỉ lệ nào để so với chuẩn.')
+  return (
+    <div
+      data-testid="today-drop"
+      data-status={drop.status}
+      className="flex min-w-0 flex-1 flex-col gap-2 rounded-xl border border-border px-4 py-3"
+    >
+      <span className="font-mono text-2xs text-muted-foreground">
+        {translate('boards.today.dropTitle', 'Rơi nhiều nhất so với chuẩn')}
+      </span>
+      <p className="text-base font-medium">{message}</p>
+      <SourceLabel
+        source={translate('boards.today.ledger', 'sổ chỉ số')}
+        at={drop.status === 'value' ? drop.capturedAt : at}
+      />
+    </div>
   )
 }
 
@@ -194,12 +201,14 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
               className="flex flex-col gap-1"
             >
               <span className="text-3xl leading-9">
-                <ReadingValue reading={step.total} format={formatCount} />
+                <ReadingValue reading={step.total} format={formatCount} hero />
               </span>
               <span className="text-sm">{stepLabel(step)}</span>
+              <KeywordGap total={step.total} />
               <ReadingSource step={step} reading={step.total} />
             </div>
           ))}
+          <DropLine drop={board.drop} at={board.at} />
         </div>
         <div className="grid grid-cols-6 gap-x-4">
           {board.steps.map((step) => (
@@ -215,11 +224,11 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
               <span className="text-sm">
                 <ReadingValue reading={step.total} format={formatCount} vaultLink={false} />
               </span>
+              <KeywordGap total={step.total} />
               <ReadingSource step={step} reading={step.total} />
             </div>
           ))}
         </div>
-        <DropLine drop={board.drop} at={board.at} />
       </section>
 
       <div className="grid min-h-0 flex-1 grid-cols-3 gap-8">

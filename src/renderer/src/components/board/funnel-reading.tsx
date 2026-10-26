@@ -2,6 +2,7 @@ import React from 'react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { openBoardInActiveWorkspace } from '@/lib/open-board-tab'
+import { cn } from '@/lib/utils'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 import { formatBoardTime } from './board-time'
 
@@ -38,15 +39,32 @@ export function SourceLabel({ source, at }: { source: string; at?: string }): Re
   )
 }
 
+export function KeywordGap({ total }: { total: FunnelStep['total'] }): React.ReactNode {
+  if (total.keywordsWithoutNumber === 0) {
+    return null
+  }
+  return (
+    <span data-testid="reading-keyword-gap" className="font-mono text-2xs text-muted-foreground">
+      {translate('boards.funnel.missingKeywords', 'thiếu {{count}} keyword', {
+        count: total.keywordsWithoutNumber
+      })}
+    </span>
+  )
+}
+
 export function ReadingValue({
   reading,
   format,
-  vaultLink = true
+  vaultLink = true,
+  hero = false
 }: {
   reading: Reading
   format: (value: number) => string
   vaultLink?: boolean
+  hero?: boolean
 }): React.ReactNode {
+  const gapSize = hero ? '' : 'text-xs'
+
   if (reading.status === 'value') {
     return (
       <span data-testid="reading-value" data-num className="font-mono tabular-nums">
@@ -56,7 +74,10 @@ export function ReadingValue({
   }
   if (reading.status === 'missing') {
     return (
-      <span data-testid="reading-missing" className="font-mono text-xs text-muted-foreground">
+      <span
+        data-testid="reading-missing"
+        className={cn('font-mono text-muted-foreground', gapSize)}
+      >
         {translate('boards.funnel.missing', 'chưa có số')}
       </span>
     )
@@ -65,7 +86,10 @@ export function ReadingValue({
     <span
       data-testid="reading-not-connected"
       data-connector={reading.connector}
-      className="inline-flex items-center gap-1 font-mono text-xs whitespace-nowrap text-muted-foreground"
+      className={cn(
+        'inline-flex items-baseline gap-2 font-mono whitespace-nowrap text-muted-foreground',
+        gapSize
+      )}
     >
       {translate('boards.funnel.notConnected', 'chưa nối')}
       {vaultLink ? (

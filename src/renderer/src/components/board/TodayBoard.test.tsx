@@ -66,6 +66,34 @@ describe('TodayBoard', () => {
   })
 })
 
+describe('TodayBoard partial sums', () => {
+  it('marks a total summed over only some keywords as thiếu N keyword in the offer and the step strip', async () => {
+    const partial = step('purchase', {
+      status: 'value',
+      value: 2,
+      capturedAt: T,
+      keywordsWithoutNumber: 1
+    })
+    const value = { ...board, steps: [checkout, partial], offer: [checkout, partial] }
+    Object.assign(window, {
+      api: { crowsnest: { call: vi.fn().mockResolvedValue({ ok: true, value }) } }
+    })
+    render(<TodayBoard />)
+    for (const id of ['today-offer-step', 'today-step']) {
+      const purchaseCell = (await screen.findAllByTestId(id)).find(
+        (el) => el.dataset.stepId === 'purchase'
+      )
+      expect(purchaseCell?.querySelector('[data-testid="reading-keyword-gap"]')?.textContent).toBe(
+        'thiếu 1 keyword'
+      )
+    }
+    const checkoutCell = screen
+      .getAllByTestId('today-offer-step')
+      .find((el) => el.dataset.stepId === 'checkout')
+    expect(checkoutCell?.querySelector('[data-testid="reading-keyword-gap"]')).toBeNull()
+  })
+})
+
 describe('runningWorkspaces', () => {
   const entry = (paneKey: string, state: AgentStatusEntry['state'], worktreeId?: string) => ({
     paneKey,

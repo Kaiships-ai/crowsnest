@@ -7,6 +7,7 @@ import { BoardStates } from './BoardStates'
 import {
   formatCount,
   formatRate,
+  KeywordGap,
   ReadingSource,
   ReadingValue,
   sourceName,
@@ -95,13 +96,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
             </span>
             <span className="flex flex-col items-end">
               <ReadingValue reading={step.total} format={formatCount} />
-              {step.total.keywordsWithoutNumber > 0 ? (
-                <span className="font-mono text-2xs text-muted-foreground">
-                  {translate('boards.funnel.missingKeywords', 'thiếu {{count}} keyword', {
-                    count: step.total.keywordsWithoutNumber
-                  })}
-                </span>
-              ) : null}
+              <KeywordGap total={step.total} />
             </span>
             <span data-testid="funnel-rate" className="text-right">
               {step.rate ? (
