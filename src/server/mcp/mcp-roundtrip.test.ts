@@ -393,6 +393,11 @@ test("crowsnest_save_funnel writes a batch and crowsnest_funnel reads the latest
   expect(bad.isError).toBe(true);
   expect(bad.structuredContent).toMatchObject({ code: "INVALID_ROWS", error: expect.stringContaining("rows[1].source") });
 
+  const pulled = await client.callTool({ name: "crowsnest_save_funnel", arguments: { agent: "claude", rows: [
+    { keyword: "FUNNELKW", source: "umami", metric: "visits", value: 9999, capturedAt: "2026-10-01T00:00:00Z" },
+  ] } });
+  expect(pulled).toMatchObject({ isError: true, structuredContent: { code: "INVALID_ROWS", error: expect.stringContaining("pulled by the Umami connector") } });
+
   const read = await client.callTool({ name: "crowsnest_funnel", arguments: { keyword: "funnelkw" } });
   const rows = (read.structuredContent as { data: { keyword: string; plan: unknown; metrics: { id: string }[] }[] }).data;
   expect(rows).toEqual([expect.objectContaining({ keyword: "FUNNELKW", plan: { id, title: "Funnel" } })]);

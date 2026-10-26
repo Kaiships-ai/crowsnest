@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 
+import { CONNECTORS } from "@/server/connectors/registry";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { FUNNEL_SOURCES } from "@/server/db/schema";
 import { METRIC_IDS, METRIC_LEDGER, type Metric, type MetricId, type MetricSource, type MetricWindow } from "@/server/metrics/ledger";
@@ -12,7 +13,12 @@ function allowedMetrics(source: FunnelSource): string[] {
   return Object.values(METRIC_LEDGER).flatMap((m) => (m.kind === "count" && m.source.kind === "reel_funnel" && m.source.source === source ? [m.source.metric] : []));
 }
 
-export const FUNNEL_METRICS_TEXT = FUNNEL_SOURCES.map((source) => `${source}: ${allowedMetrics(source).join(", ")}`).join("; ");
+/** The label of the connector whose pull writes this source, the series' only writer. */
+const pullerOf = (source: FunnelSource): string | undefined => CONNECTORS.find((c) => c.manifest.id === source && c.adapter?.pull)?.manifest.label;
+
+export const FUNNEL_METRICS_TEXT = FUNNEL_SOURCES.filter((source) => !pullerOf(source))
+  .map((source) => `${source}: ${allowedMetrics(source).join(", ")}`)
+  .join("; ");
 
 export const FunnelRowSchema = z
   .object({
@@ -25,6 +31,11 @@ export const FunnelRowSchema = z
       .refine((t) => !(Date.parse(t) > Date.now() + 5 * 60_000), "capturedAt is in the future"),
   })
   .superRefine((row, ctx) => {
+    const puller = pullerOf(row.source);
+    if (puller) {
+      ctx.addIssue({ code: "custom", path: ["source"], message: `${row.source} is pulled by the ${puller} connector; an agent cannot save it` });
+      return;
+    }
     const allowed = allowedMetrics(row.source);
     if (!allowed.includes(row.metric)) {
       ctx.addIssue({ code: "custom", path: ["metric"], message: `unknown metric "${row.metric}" for ${row.source}; allowed: ${allowed.join(", ")}` });

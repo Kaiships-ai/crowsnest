@@ -36,7 +36,6 @@ export default async function today01({ page, step, snap }) {
     const capturedAt = new Date(Date.now() - 60_000).toISOString();
     mcp("crowsnest_save_funnel", { agent: "today-01", rows: [
       { keyword: "TODAY01", source: "chatbotx", metric: "dms", value: 40, capturedAt },
-      { keyword: "TODAY01", source: "umami", metric: "visits", value: 12, capturedAt },
       { keyword: "TODAY01", source: "polar", metric: "orders", value: 2, capturedAt },
     ] });
     mcp("crowsnest_propose_plan", { agent: "today-01", period: "week", periodKey: "2099-W01", reels: [{ key: "today-01", title: "today-01 reel" }] });

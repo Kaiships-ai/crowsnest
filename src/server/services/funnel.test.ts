@@ -45,7 +45,7 @@ test("views, follows and link taps come from the plan's published reel, and rate
 });
 
 test("a metric whose source is not connected reads not-connected, never 0", async () => {
-  saveFunnel({ agent: "claude", rows: [{ keyword: "NC", source: "umami", metric: "visits", value: 12, capturedAt: T }] });
+  saveFunnel({ agent: "claude", rows: [{ keyword: "NC", source: "chatbotx", metric: "dms", value: 12, capturedAt: T }] });
   const [nc] = await getFunnel("NC");
   expect(metric(nc, "comment_keyword")).toEqual({ id: "comment_keyword", label: "Keyword comments", window: "reel-lifetime", target: null, status: "not-connected", connector: "chatbotx" });
   expect(metric(nc, "dm_rate")).toMatchObject({ status: "not-connected", connector: "chatbotx" });
@@ -56,12 +56,12 @@ test("a metric whose source is not connected reads not-connected, never 0", asyn
 test("one bad row refuses the whole batch and writes nothing", async () => {
   const before = (await db.select().from(tables.reelFunnel)).length;
   const r = saveFunnel({ agent: "claude", rows: [
-    { keyword: "ATOMIC", source: "umami", metric: "visits", value: 1, capturedAt: T },
+    { keyword: "ATOMIC", source: "chatbotx", metric: "dms", value: 1, capturedAt: T },
     { keyword: "ATOMIC", source: "tiktok", metric: "visits", value: 2, capturedAt: T },
   ] });
   expect(r.ok).toBe(false);
   for (const bad of [{ value: -1 }, { value: 1, capturedAt: "2099-01-01T00:00:00Z" }]) {
-    expect(saveFunnel({ agent: "claude", rows: [{ keyword: "ATOMIC", source: "umami", metric: "visits", capturedAt: T, ...bad }] }).ok).toBe(false);
+    expect(saveFunnel({ agent: "claude", rows: [{ keyword: "ATOMIC", source: "chatbotx", metric: "dms", capturedAt: T, ...bad }] }).ok).toBe(false);
   }
   expect((await db.select().from(tables.reelFunnel)).length).toBe(before);
 });
@@ -74,7 +74,7 @@ test("a keyword no plan holds is stored and shown with no plan", async () => {
 });
 
 test("saving the same batch twice keeps the latest values", async () => {
-  const batch = { agent: "codex", rows: [{ keyword: "TWICE", source: "umami", metric: "visits", value: 7, capturedAt: "2026-10-03T08:00:00Z" }] };
+  const batch = { agent: "codex", rows: [{ keyword: "TWICE", source: "chatbotx", metric: "dms", value: 7, capturedAt: "2026-10-03T08:00:00Z" }] };
   saveFunnel(batch);
   const first = await getFunnel("TWICE");
   saveFunnel(batch);
@@ -107,8 +107,8 @@ test("the same capturedAt goes to the later insert", async () => {
 
 test("a keyword filter returns only that keyword in any case", async () => {
   saveFunnel({ agent: "claude", rows: [
-    { keyword: "ONE", source: "umami", metric: "emails", value: 1, capturedAt: T },
-    { keyword: "TWO", source: "umami", metric: "emails", value: 2, capturedAt: T },
+    { keyword: "ONE", source: "polar", metric: "revenue", value: 1, capturedAt: T },
+    { keyword: "TWO", source: "polar", metric: "revenue", value: 2, capturedAt: T },
   ] });
   expect((await getFunnel(" one ")).map((e) => e.keyword)).toEqual(["ONE"]);
 });
@@ -124,4 +124,15 @@ test("a reel the app published links to its own post through the Graph media id 
   const card = (await getOwnBoard(30)).posts.find((p) => p.ownPostId === "op-uuid");
   expect(card?.keyword).toBe("K1");
   expect(card?.after.dm).toMatchObject({ status: "missing" });
+});
+
+test("a source a connector pulls is refused, so an agent row never overrides the pull (one writer per series)", async () => {
+  const before = (await db.select().from(tables.reelFunnel)).length;
+  const r = saveFunnel({ agent: "claude", rows: [
+    { keyword: "K", source: "chatbotx", metric: "dms", value: 3, capturedAt: T },
+    { keyword: "K", source: "umami", metric: "visits", value: 9999, capturedAt: T },
+  ] });
+  expect(r).toEqual({ ok: false, error: expect.stringContaining("umami is pulled by the Umami connector; an agent cannot save it") });
+  expect(r.ok === false && r.error).toContain("rows[1].source");
+  expect((await db.select().from(tables.reelFunnel)).length).toBe(before);
 });

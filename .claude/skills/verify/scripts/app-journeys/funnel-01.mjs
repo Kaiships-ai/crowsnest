@@ -40,6 +40,11 @@ export default async function funnel01({ page, step, snap }) {
     const saved = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "chatbotx", metric: "dms", value: 12, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
     if (saved.saved !== 1) throw new Error(JSON.stringify(saved));
   });
+  await step("a save to a source a connector pulls is refused and names the connector", async () => {
+    const refused = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "umami", metric: "visits", value: 9999, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
+    if (refused.code !== "INVALID_ROWS" || !refused.error.includes("pulled by the Umami connector")) throw new Error(JSON.stringify(refused));
+    console.log(`refused: ${refused.error.replace(/\s+/g, " ")}`);
+  });
   await step("MCP and the bridge read the same ledger numbers", async () => {
     const fromMcp = await mcp("crowsnest_funnel", { keyword: "ledger01" });
     const fromBridge = await call(page, "getFunnel", "ledger01");

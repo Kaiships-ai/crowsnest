@@ -63,7 +63,7 @@ export default async function baseline({ page, step }) {
     await today.getByTestId("today-step").first().waitFor({ timeout: 15_000 });
     const states = await today.getByTestId("today-step").evaluateAll((els) => els.map((e) => `${e.dataset.stepId}:${e.querySelector('[data-testid="kpi-value"]').dataset.state}`));
     console.log(`today steps: ${states.join(", ")}`);
-    const want = "view:pull-failed,comment_keyword:not-connected,dm:value,gift_page_visit:partial,checkout:not-connected,purchase:no-data";
+    const want = "view:pull-failed,comment_keyword:not-connected,dm:value,gift_page_visit:partial,checkout:no-data,purchase:no-data";
     if (states.join(",") !== want) throw new Error(`want ${want}`);
     const dms = sql("select cast(sum(value) as integer) from reel_funnel where source = 'chatbotx' and metric = 'dms'");
     const shown = (await today.locator('[data-testid="today-step"][data-step-id="dm"] [data-num]').innerText()).replace(/\D/g, "");
