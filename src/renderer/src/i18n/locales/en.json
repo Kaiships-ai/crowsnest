@@ -21213,7 +21213,7 @@
         "error": "lỗi",
         "stale": "cũ",
         "notConnected": "chưa nối",
-        "partial": "partial",
+        "partial": "thiếu",
         "column": "Trạng thái"
       },
       "problem": {
@@ -21270,7 +21270,8 @@
       "tool": "Công cụ",
       "gate": "Cổng",
       "result": "Kết quả",
-      "draft": "Bản nháp"
+      "draft": "Bản nháp",
+      "pending": "chưa xong"
     }
   }
 }

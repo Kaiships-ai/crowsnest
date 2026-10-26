@@ -7,6 +7,17 @@ const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
 const FAKE = `vault-01-fake-${Date.now()}`;
 
+// Theme colors transition; without the app's disable class a snap catches text mid-fade.
+async function setTheme(page, theme) {
+  await page.evaluate((dark) => {
+    const root = document.documentElement;
+    root.classList.add("theme-transition-disabled");
+    root.classList.toggle("dark", dark);
+  }, theme === "dark");
+  await page.waitForTimeout(300);
+  await page.evaluate(() => document.documentElement.classList.remove("theme-transition-disabled"));
+}
+
 export default async function vault01({ page, step, snap }) {
   const board = page.getByTestId("board-tab");
   const umami = board.locator('[data-testid="vault-row"][data-connector-id="umami"]');
@@ -14,6 +25,7 @@ export default async function vault01({ page, step, snap }) {
   await step("open the Vault board from the new-tab menu and see every connector", async () => {
     await page.getByRole("button", { name: "New tab" }).first().click();
     await page.locator('[data-testid="new-tab-board"][data-board-id="vault"]').click();
+    await page.getByRole("menu").waitFor({ state: "detached" });
     await umami.waitFor({ timeout: 10_000 });
     const listed = await call(page, "listConnectors");
     const shown = await board.getByTestId("vault-row").evaluateAll((rows) => rows.map((r) => `${r.dataset.connectorId}:${r.dataset.state}`));
@@ -22,9 +34,9 @@ export default async function vault01({ page, step, snap }) {
     if (JSON.stringify(ids) !== JSON.stringify(listed.value.map((c) => c.id))) throw new Error(`listConnectors ${JSON.stringify(listed.value.map((c) => c.id))}`);
   });
   await snap("vault-01-dark");
-  await page.evaluate(() => document.documentElement.classList.remove("dark"));
+  await setTheme(page, "light");
   await snap("vault-01-light");
-  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await setTheme(page, "dark");
 
   await step("Sửa saves a fake secret, clears the input and shows only where it is stored", async () => {
     const status = umami.getByTestId("vault-secret-status");

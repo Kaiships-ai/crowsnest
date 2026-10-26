@@ -16,7 +16,7 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 
 `VaultBoard` in `src/renderer/src/components/board/VaultBoard.tsx` calls `getVaultBoard` (`src/server/queries/vault-board.ts`). Each row is one connector from `listConnectors` with:
 
-- `state`, one of `running` (chạy), `error` (lỗi), `stale` (cũ), `not-connected` (chưa nối) or `partial`. Status not `configured` is `not-connected`. A configured connector with no `pull` is `running`. Otherwise the last pull from `lastPulls()` decides: `failed` is `error`, `partial` is `partial`, `complete` in the current 05:00 slot is `running`, and anything else (no pull yet, skipped, an earlier slot) is `stale`.
+- `state`, one of `running` (chạy), `error` (lỗi), `stale` (cũ), `not-connected` (chưa nối) or `partial` (thiếu). Status not `configured` is `not-connected`. A configured connector with no `pull` is `running`. Otherwise the last pull from `lastPulls()` decides: `failed` is `error`, `partial` is `partial`, `complete` in the current 05:00 slot is `running`, and anything else (no pull yet, skipped, an earlier slot) is `stale`.
 - the last pull time, the next 05:00 pull (`nextPullAt`, shown only for a connector that can pull), and for `instagram-graph` the Graph calls left in the rolling hour (200 minus `graphCallsInLastHour`).
 - the problem and its fix in plain words (`vaultProblem`): the missing secret labels, the failed pull's detail, what a partial pull missed, or that no complete pull has run since 05:00.
 
@@ -27,7 +27,7 @@ Kiểm tra calls `testConnector` and shows its message under the row. Kéo lại
 `AgentsBoard` in `src/renderer/src/components/board/AgentsBoard.tsx` has two sections, each with its own load state.
 
 - Token MCP: `listMcpTokens`, live tokens first. Tạo calls `createMcpToken(name)` and shows the raw token once, with a copy button (`window.api.ui.writeClipboardText`). Xong drops it from component state, and nothing can show it again. Thu hồi asks to confirm inline, then calls `revokeMcpToken(id)`.
-- Nhật ký: `listAgentActions(200)`, newest first: time, caller (the token name), tool, gate, result and draft id. A pending row and its outcome row both show. A segmented filter keeps one caller's rows.
+- Nhật ký: `listAgentActions(500)`, the bridge's cap, newest first: time, caller (the token name), tool, gate, result and draft id. `latestPerCall` keeps one row per `callId`, the newest, so a finished call shows its outcome (`ok`, `error`, `drafted`) and its write-ahead `pending` row is hidden. A call with only its pending row shows "chưa xong": it is running, or the app stopped before it finished. Each call writes two rows, so the cap holds about 250 calls. A segmented filter keeps one caller's rows.
 
 ## Opening a board
 

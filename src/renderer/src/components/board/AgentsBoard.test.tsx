@@ -6,14 +6,14 @@ import { AgentsBoard } from './AgentsBoard'
 
 const RAW = 'cn_sentinel_raw_token'
 
-const action = (id: number, caller: string, tool: string) => ({
+const action = (id: number, caller: string, tool: string, callId = `c${id}`, result = 'ok') => ({
   id,
-  callId: `c${id}`,
+  callId,
   at: '2026-10-26T10:00:00.000Z',
   caller,
   tool,
   input: '{}',
-  result: 'ok',
+  result,
   gate: 'free',
   draftId: null
 })
@@ -45,6 +45,25 @@ describe('AgentsBoard', () => {
     expect(
       screen.getAllByTestId('agents-journal-row').map((r) => r.getAttribute('data-tool'))
     ).toEqual(['crowsnest_save_funnel'])
+  })
+
+  it('shows one row per call: the outcome over pending, and an unfinished call as chưa xong', async () => {
+    stubBridge({
+      listMcpTokens: () => ({ ok: true, value: [] }),
+      listAgentActions: () => ({
+        ok: true,
+        value: [
+          action(4, 'local', 'crowsnest_save_funnel', 'done', 'ok'),
+          action(3, 'local', 'crowsnest_plan_draft', 'stuck', 'pending'),
+          action(2, 'local', 'crowsnest_save_funnel', 'done', 'pending')
+        ]
+      })
+    })
+    render(<AgentsBoard />)
+    await screen.findAllByTestId('agents-journal-row')
+    const rows = screen.getAllByTestId('agents-journal-row')
+    expect(rows.map((r) => r.getAttribute('data-result'))).toEqual(['ok', 'pending'])
+    expect(rows[1].textContent).toContain('chưa xong')
   })
 
   it('shows a new token once, copies it, and never again after Xong', async () => {

@@ -11,12 +11,26 @@ import { useBoardLoad } from './use-board-load'
 
 type Token = EngineCallValue<'listMcpTokens'>[number]
 type NewToken = EngineCallValue<'createMcpToken'>
+type JournalRow = EngineCallValue<'listAgentActions'>[number]
 
-const JOURNAL_LIMIT = 200
+// Each call writes a pending row and an outcome row, so the bridge's 500-row cap holds about 250 calls.
+const JOURNAL_ROW_LIMIT = 500
 const ALL_CALLERS = '*'
 
 const loadTokens = () => window.api.crowsnest.call('listMcpTokens')
-const loadJournal = () => window.api.crowsnest.call('listAgentActions', JOURNAL_LIMIT)
+const loadJournal = () => window.api.crowsnest.call('listAgentActions', JOURNAL_ROW_LIMIT)
+
+/** Rows arrive newest first, so the first row seen per call is its outcome, or its pending row while unfinished. */
+export function latestPerCall(rows: JournalRow[]): JournalRow[] {
+  const seen = new Set<string>()
+  return rows.filter((row) => {
+    if (seen.has(row.callId)) {
+      return false
+    }
+    seen.add(row.callId)
+    return true
+  })
+}
 
 export function sortTokens(tokens: Token[]): Token[] {
   return [...tokens].sort(
@@ -280,7 +294,7 @@ function JournalSection() {
                 <span>{translate('boards.agents.result', 'Kết quả')}</span>
                 <span>{translate('boards.agents.draft', 'Bản nháp')}</span>
               </div>
-              {rows
+              {latestPerCall(rows)
                 .filter((row) => caller === ALL_CALLERS || row.caller === caller)
                 .map((row) => (
                   <div
@@ -288,6 +302,8 @@ function JournalSection() {
                     data-testid="agents-journal-row"
                     data-caller={row.caller}
                     data-tool={row.tool}
+                    data-result={row.result}
+                    data-call-id={row.callId}
                     className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-1.5 text-sm"
                   >
                     <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -300,10 +316,14 @@ function JournalSection() {
                       className={
                         row.result === 'error'
                           ? 'font-mono text-xs text-destructive'
-                          : 'font-mono text-xs'
+                          : row.result === 'pending'
+                            ? 'font-mono text-xs text-muted-foreground'
+                            : 'font-mono text-xs'
                       }
                     >
-                      {row.result}
+                      {row.result === 'pending'
+                        ? translate('boards.agents.pending', 'chưa xong')
+                        : row.result}
                     </span>
                     <span className="font-mono text-xs text-muted-foreground">
                       {row.draftId ?? '-'}

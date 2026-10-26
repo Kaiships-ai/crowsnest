@@ -20,7 +20,7 @@ const STATE_LABELS: Record<VaultRow['state'], () => string> = {
   error: () => translate('boards.vault.state.error', 'lỗi'),
   stale: () => translate('boards.vault.state.stale', 'cũ'),
   'not-connected': () => translate('boards.vault.state.notConnected', 'chưa nối'),
-  partial: () => translate('boards.vault.state.partial', 'partial')
+  partial: () => translate('boards.vault.state.partial', 'thiếu')
 }
 
 export function vaultProblem(row: VaultRow): { what: string; fix: string } | null {
