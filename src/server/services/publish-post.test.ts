@@ -57,6 +57,7 @@ function makeDeps(row: Row | null, overrides: Partial<PublishPostDeps> = {}) {
     createReelContainer: vi.fn(async () => ({ containerId: "container_1" })),
     pollReelContainer: vi.fn(async () => ({ status: "FINISHED" as const })),
     publishReel: vi.fn(async () => ({ mediaId: "media_1" })),
+    isApproved: vi.fn(async () => true),
     now: vi.fn(() => "t1"),
     ...overrides,
   };

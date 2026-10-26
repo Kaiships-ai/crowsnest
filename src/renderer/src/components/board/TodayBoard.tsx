@@ -238,7 +238,17 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
             >
               {formatCount(board.gates.proposedPlansAhead)}
             </dd>
-            <dt>{translate('boards.today.gate2', 'Gate 2 · drafts to send')}</dt>
+            <dt>
+              <Button
+                data-testid="today-open-gate2"
+                variant="link"
+                size="xs"
+                className="h-auto px-0 text-sm font-normal text-foreground"
+                onClick={() => openBoardInActiveWorkspace('gate2')}
+              >
+                {translate('boards.today.gate2', 'Gate 2 · drafts to send')}
+              </Button>
+            </dt>
             <dd
               data-testid="today-gate-drafts"
               data-num

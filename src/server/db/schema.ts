@@ -487,6 +487,7 @@ export const plannedPosts = sqliteTable("planned_posts", {
   scriptDetachedNote: text("script_detached_note"),
   /** The uploaded mp4 this plan publishes, null until one is attached. */
   videoAssetId: text("video_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+  coverAssetId: text("cover_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
   caption: text("caption"),
   /** The combined date+time instant the scheduler reads, null until a plan is
    *  scheduled. Distinct from plannedDate/plannedTime, which stay the calendar's own
@@ -957,7 +958,7 @@ export const dailyPulls = sqliteTable(
 );
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
-export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted"] as const;
+export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted", "rejected"] as const;
 
 export const agentActions = sqliteTable("agent_actions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -971,7 +972,7 @@ export const agentActions = sqliteTable("agent_actions", {
   draftId: text("draft_id"),
 });
 
-export const GATE_DRAFT_STATUSES = ["pending"] as const;
+export const GATE_DRAFT_STATUSES = ["pending", "approved", "rejected"] as const;
 
 export const gateDrafts = sqliteTable("gate_drafts", {
   id: text("id").primaryKey(),
@@ -980,6 +981,9 @@ export const gateDrafts = sqliteTable("gate_drafts", {
   caller: text("caller").notNull(),
   status: text("status", { enum: GATE_DRAFT_STATUSES }).notNull().default("pending"),
   createdAt: text("created_at").notNull(),
+  decidedBy: text("decided_by"),
+  decidedAt: text("decided_at"),
+  lastError: text("last_error"),
 });
 
 export const mcpTokens = sqliteTable(

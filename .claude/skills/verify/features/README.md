@@ -11,6 +11,7 @@ One file per user-facing feature of the Lead Studio Electron app, driven with `a
 | v2 visual baseline: shell, Today, Funnel, Plan month, Gate 1, Sources, light and dark | Electron app on a stopped clock | `baseline-lane.sh` (runs `baseline-v2` and the board journeys; `--compare` diffs the shots) | [baseline.md](baseline.md) |
 | Gate levels and agent journal: `TOOL_LEVELS`, `agent_actions`, bridge `listAgentActions` | App MCP and engine bridge | `app-drive.sh gates-01` | [gates.md](gates.md) |
 | MCP agent tokens: bearer check, `local` token file, bridge `listMcpTokens`, `createMcpToken`, `revokeMcpToken` | App MCP and engine bridge | `app-drive.sh tokens-01` | [tokens.md](tokens.md) |
+| Gate 2 and publish: the publish sheet on a Plan card, the Gate 2 board, approve publishes with the cover through the fake Graph and bucket | Electron app, Plan day view, Today | `gate2-lane.sh` (runs `gate2-01`) | [gate2.md](gate2.md) |
 | Daily pull and Graph hour budget: the 05:00 pull, catch-up, bridge `pullAgain` | Main process jobs, engine bridge | `schedule-lane.sh` (runs `schedule-01`) | [schedule.md](schedule.md) |
 
 The Next.js screens (Tuần này, Feed, Kênh, Khám phá, Cài đặt) are deleted. Boards live in [boards.md](boards.md).

@@ -86,6 +86,8 @@ const READ_ARGS: Record<string, unknown[]> = {
   getScripts: [],
   listPlanVersions: [{ period: "month", periodKey: "2026-11" }],
   getGateBoard: [],
+  getGate2Board: [],
+  getPublishChecks: ["p-1", "now"],
   getSyncProgressAction: ["job-1"],
   getChannelSyncProgressAction: ["ch-1"],
   getLatestSyncJob: [],

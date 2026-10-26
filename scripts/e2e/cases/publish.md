@@ -11,6 +11,7 @@ Legend: ● Built, ◐ Partial, ○ Roadmap.
 | 4 | Publish now | Publishes a plan immediately instead of waiting on a schedule | ● | `publishNowAction` | none |
 | 5 | Track and recover a publish | Retry a failed plan under the attempt cap, or cancel a scheduled one | ● | `retryFailedPublishAction`, `cancelScheduledPublishAction` | none |
 | 6 | See what publishing needs, honestly | Refuses with a code naming which of the storage bucket or the Graph token is missing, and never fabricates a publish | ● | `getStorageProvider`, `isGraphConfigured` | none |
+| 7 | Gate 2 before every publish | Publish from a Plan card stores a draft with five checks (video, caption, keyword as a warning, time, cover); Kai approves it on the Gate 2 board, which arms or publishes the reel with its cover, and journals who proposed and who approved. A reel with no approved draft of exactly its video, caption and cover never publishes | ● | `src/server/services/gate2-drafts.ts`, `publishPlannedPost` (`isApproved`), `attachPlanVideo` (sibling `<name>-cover.png`) | no MCP tool drafts a publish |
 
 The web app's publish dialog and Tuần này reel drawer are retired with the web app; a Lead Studio board replaces them. Every rule below is enforced in the server actions in `src/server/actions/planned-post-actions.ts` and the services they call.
 
@@ -108,9 +109,18 @@ Not checkable by hand:
 - Live behavior of the hand-rolled SigV4 signer against a real R2 or S3 bucket beyond what a mocked `fetch` in these tests exercises.
 - Live Graph API container-processing timing and rate-limit behavior beyond what the mocked client's fixtures assert.
 
+| ID | P | Layer | Claim | Setup | Call | Expected | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| GATE2-P01 | P1 | service (`publishPlannedPost`) | A reel with no approved draft never uploads or publishes. | A claimed reel with video and cover, no draft. | `publishPlannedPost(id, { claimed: true })`. | `failed` with `errorClass: "not_approved"`; no upload, no container. | 🟢 covered by vitest (`gate2-drafts.test.ts`) |
+| GATE2-P02 | P1 | service (`approveGateDraft`) | Approve publishes with the cover and journals proposer and approver. | A drafted reel. | `approveGateDraft(id, "kai")`. | Container with `coverUrl`, `publishReel` called, two objects deleted, journal `drafted`, `pending`, `ok` at gate2. | 🟢 covered by vitest |
+| GATE2-P03 | P1 | service (`draftPublish`) | A missing keyword warns; a missing cover refuses. | Reels without keyword, without cover. | `draftPublish(id, "now", ...)`. | `ok` with `keyword:warn`; `PUBLISH_CHECKS_FAILED`. | 🟢 covered by vitest |
+| GATE2-P04 | P1 | service (`approveGateDraft`) | A caption changed after the draft refuses and keeps the draft pending with the reason. | A drafted reel, caption edited. | `approveGateDraft`. | `DRAFT_STALE`, draft `pending` with `last_error`, reel still draft. | 🟢 covered by vitest |
+| GATE2-P05 | P1 | action (`schedulePublishAction`) | A 06:00 post under UTC+7 keeps its local day. | `TZ=Asia/Ho_Chi_Minh`. | `schedulePublishAction(id, "<day>T06:00")`. | `plannedDate` `<day>`, `plannedTime` `06:00`. | 🟢 covered by vitest |
+| GATE2-P06 | P1 | app journey `gate2-01` | Publish sheet, Gate 2 board and approve against the fake Graph and bucket. | `gate2-lane.sh`. | Attach over MCP, Publish, Send, Today, Approve. | Fake Graph log: video and cover PUT, `media` with `cover_url`, poll, `media_publish`, both DELETEs; reel `published`. | 🟢 app journey |
+
 ## 3. browse-e2e
 
-Retired with the web app: every browser journey and its per-row shell script. No browser journey exists until a Lead Studio board is built.
+Retired with the web app: every browser journey and its per-row shell script. The app journey `gate2-01` (`gate2-lane.sh`) drives the publish sheet and the Gate 2 board.
 
 ## 4. security-lite
 

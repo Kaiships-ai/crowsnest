@@ -5,6 +5,7 @@ import { translate } from '@/i18n/i18n'
 import { cookReel, openCookWorkspace } from './cook-reel'
 import { StatePill } from './kit/StatePill'
 import { openPostInBrowser } from './open-post'
+import { PublishButton } from './PublishSheet'
 import { AddButton, ITEM_LABEL, StateBadge, type PlanCard, type PlanDay } from './plan-card-parts'
 
 function Field({
@@ -124,6 +125,7 @@ export function DayView({
               <span className="ml-auto font-mono text-xs text-muted-foreground">
                 {card.time ?? ''}
               </span>
+              <PublishButton card={card} />
               <CookButton
                 card={card}
                 retry={failedCookId === card.id}

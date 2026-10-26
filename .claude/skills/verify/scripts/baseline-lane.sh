@@ -37,6 +37,10 @@ rc=0
 for journey in baseline-v2 today-01 funnel-01 own-01 plan-01 cook-01 rivals-01 agents-01 sources-01 umami-01; do
   "$S/app-drive.sh" "$journey" "$RUN" || rc=1
 done
+# Gate 2 publishes against the fake Graph, which this lane's refused Graph host cannot be, so it
+# runs on its own app with the same clock and shot folder.
+"$S/app-down.sh" >/dev/null
+"$S/gate2-lane.sh" "$RUN" || rc=1
 if [ "${1:-}" = --compare ]; then
   node "$S/baseline-diff.mjs" "$APPROVED" "$BASELINE_DIR" || rc=1
 fi

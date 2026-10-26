@@ -3,6 +3,7 @@ import type { BoardId } from '../../../../shared/lead-studio-boards'
 import { AgentsBoard } from './AgentsBoard'
 import { FunnelBoard } from './FunnelBoard'
 import { GateBoard } from './GateBoard'
+import { Gate2Board } from './Gate2Board'
 import { OwnBoard } from './OwnBoard'
 import { PlanBoard } from './PlanBoard'
 import { RivalsBoard } from './RivalsBoard'
@@ -15,6 +16,7 @@ const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
   rivals: RivalsBoard,
   plan: PlanBoard,
   gate: GateBoard,
+  gate2: Gate2Board,
   agents: AgentsBoard
 }
 

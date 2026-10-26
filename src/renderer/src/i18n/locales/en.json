@@ -21542,5 +21542,43 @@
     "localBaseRef": {
       "behind": "Your new worktree is current, but local {{value0}} is {{value1}} {{value2}} behind, so AI diffs may compare to stale history. Let Lead Studio keep it up to date automatically."
     }
+  },
+  "gate2": {
+    "approve": "Approve",
+    "approved": "approved",
+    "check": {
+      "caption": "Caption",
+      "cover": "Cover",
+      "keyword": "Keyword",
+      "time": "Time",
+      "video": "Video"
+    },
+    "coverAlt": "Cover",
+    "empty": "Nothing waits to send. Publish a reel from its card in Plan to send it here.",
+    "history": "Decided",
+    "journal": "Agent journal",
+    "proposed": "proposed by {{who}} · {{time}}",
+    "publishAt": "Publish at {{time}}",
+    "publishNow": "Publish right after approval",
+    "publishTitle": "Publish \"{{title}}\"",
+    "reject": "Reject",
+    "rejected": "rejected",
+    "sending": "Sending…",
+    "sheet": {
+      "at": "At a time",
+      "description": "Lead Studio checks the reel, then it waits in Gate 2 for your approval.",
+      "now": "Right after approval",
+      "open": "Open Gate 2",
+      "publish": "Publish",
+      "send": "Send to Gate 2",
+      "sent": "Sent to Gate 2. Nothing is published yet.",
+      "title": "Publish \"{{title}}\""
+    },
+    "stale": "The reel's video, caption or cover changed after this draft. Reject it and send the reel again.",
+    "subtitle": "Actions that reach people outside. Nothing is sent until you approve it.",
+    "title": "Gate 2 · {{count}} waiting to send",
+    "to": "To",
+    "trail": "proposed by {{proposer}} · {{verdict}} by {{who}} {{time}}",
+    "what": "Does"
   }
 }
