@@ -1,15 +1,17 @@
 import { spawn, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { pngDiff } from "./png-diff.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../../../..");
 const APP = ROOT;
 const STATE = path.join(ROOT, "data/verify/app/state.json");
 const LOG = path.join(ROOT, "data/verify/app/host.log");
+const APPROVED = process.env.BASELINE_APPROVED ?? path.join(os.homedir(), ".claude/orchestrate/lead-studio-v2/baseline");
 const { chromium } = createRequire(path.join(APP, "package.json"))("@playwright/test");
 
 const MAIN_WINDOW = (url) => /\/renderer\/index\.html$|^http:\/\/localhost:\d+\/$/.test(url);
@@ -52,6 +54,28 @@ async function runJourney(name, runId) {
       const out = path.join(dir, `${file}.png`);
       await page.screenshot({ path: out });
       log(`snap: ${path.relative(ROOT, out)}`);
+    },
+    // Shoots <name>.png (the page, or one locator) and diffs it against the approved baseline;
+    // UPDATE_BASELINE=1 approves it.
+    async snapAndCompare(file, locator = page) {
+      const out = path.join(dir, `${file}.png`);
+      await locator.screenshot({ path: out });
+      if (process.env.BASELINE_DIR) {
+        mkdirSync(process.env.BASELINE_DIR, { recursive: true });
+        copyFileSync(out, path.join(process.env.BASELINE_DIR, `${file}.png`));
+      }
+      const approved = path.join(APPROVED, `${file}.png`);
+      if (process.env.UPDATE_BASELINE === "1") {
+        mkdirSync(APPROVED, { recursive: true });
+        copyFileSync(out, approved);
+        log(`baseline: approved ${path.relative(os.homedir(), approved)}`);
+        return;
+      }
+      if (!existsSync(approved)) throw new Error(`no baseline ${file}.png; shoot it once with UPDATE_BASELINE=1`);
+      const { share, error } = pngDiff(approved, out);
+      const max = Number(process.env.BASELINE_DIFF_MAX ?? 0.005);
+      log(`baseline: ${file} ${error ?? `${(share * 100).toFixed(2)}% of pixels differ`}`);
+      if (error || share > max) throw new Error(`${file} differs from its baseline`);
     },
   };
   log(`journey: ${name} run: ${runId}`);

@@ -34,7 +34,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 .claude/skills/verify/scripts/mcp.sh crowsnest_plans '{}'
 ```
 
-`app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
+`app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap, snapAndCompare })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. `snapAndCompare(name, locator?)` shoots the page (or one element) and fails when more than 0.5% of its pixels (`BASELINE_DIFF_MAX`) differ from `<name>.png` in the approved baseline (`~/.claude/orchestrate/lead-studio-v2/baseline`, or `BASELINE_APPROVED`); run it once with `UPDATE_BASELINE=1` to approve a new shot. Shoot on `baseline-lane.sh`, whose stopped clock keeps dates fixed. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
 
 ## Evidence
 

@@ -26,6 +26,14 @@ export LEAD_STUDIO_CLOCK_FROZEN=1
 export LEAD_STUDIO_READ_JOBS=0
 export APP_HEADLESS="${APP_HEADLESS:-1}"
 export APP_DEV="${APP_DEV:-1}"
+# Cook writes into a temp studio-reel copy (its docs and make-reel skill only), never Kai's checkout.
+# A fixed path outside any git checkout keeps the shell prompt in the cook workspace shot the same.
+export LEAD_STUDIO_COOK_ROOT="/tmp/lead-studio-cook/studio-reel"
+rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
+STUDIO="${STUDIO_REEL_SOURCE:-$HOME/Desktop/kaiships/studio-reel}"
+for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md; do
+  [ -f "$STUDIO/$f" ] && mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
+done
 if [ "${1:-}" = --compare ]; then
   export BASELINE_DIR="$PWD/data/verify/baseline-new"
   rm -rf "$BASELINE_DIR"
@@ -34,7 +42,7 @@ echo "baseline: clock stopped at $LEAD_STUDIO_CLOCK_START, read jobs off, shots 
 "$S/app-up.sh" --seed
 RUN="baseline-$(date +%Y%m%d-%H%M%S)"
 rc=0
-for journey in baseline-v2 today-01 funnel-01 own-01 plan-01 rivals-01 agents-01 sources-01 umami-01; do
+for journey in baseline-v2 today-01 funnel-01 own-01 plan-01 cook-01 rivals-01 agents-01 sources-01 umami-01; do
   "$S/app-drive.sh" "$journey" "$RUN" || rc=1
 done
 if [ "${1:-}" = --compare ]; then
