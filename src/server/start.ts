@@ -1,5 +1,7 @@
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { db } from "./db";
+import { log } from "./lib/logger";
+import { migrateSecretsToKeychain } from "./secrets/store";
 import { startOwnMeasureScheduler } from "./services/own-measure-scheduler";
 import { startPublishScheduler } from "./services/publish-scheduler";
 import { startSyncScheduler } from "./services/sync-scheduler";
@@ -25,5 +27,8 @@ export function startJobs(jobs = ALL_JOBS): () => void {
 
 export function startInApp({ migrationsFolder, env = process.env }: { migrationsFolder: string; env?: Record<string, string | undefined> }): () => void {
   migrate(db, { migrationsFolder });
+  const secrets = migrateSecretsToKeychain();
+  if (secrets.moved.length) log.info("secrets.moved_to_keychain", { names: secrets.moved });
+  for (const { name, reason } of secrets.failed) log.warn("secrets.keychain_move_failed", { name, reason });
   return startJobs(env.LEAD_STUDIO_PUBLISH_JOBS === "1" ? ALL_JOBS : READ_JOBS);
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
-import { getSecret, MANAGED_SECRETS } from "@/server/secrets/store";
+import { CONNECTORS, listConnectors, testConnector } from "@/server/connectors/registry";
+import { readSecret } from "@/server/connectors/secrets";
 import { errorMessage } from "@/server/lib/action-result";
 import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
 import { getFunnel } from "@/server/services/funnel";
@@ -90,8 +91,9 @@ function call<S extends z.ZodType<unknown[]>, R>(args: S, run: (...args: NoInfer
 const MIN_SCRUBBED_SECRET = 8;
 
 function scrubSecrets(message: string): string {
-  return MANAGED_SECRETS.reduce((text, name) => {
-    const value = getSecret(name);
+  const names = CONNECTORS.flatMap(({ manifest }) => manifest.secrets.map((s) => [manifest, s.name] as const));
+  return names.reduce((text, [manifest, name]) => {
+    const value = readSecret(manifest, name);
     return value && value.length >= MIN_SCRUBBED_SECRET ? text.replaceAll(value, "[redacted]") : text;
   }, message);
 }
@@ -227,6 +229,8 @@ export const ENGINE_CALLS = {
   getLastRunHealth: call(none, getLastRunHealth),
 
   getSecretStatusAction: call(none, getSecretStatusAction),
+  listConnectors: call(none, () => listConnectors()),
+  testConnector: call(id, (connectorId) => testConnector(connectorId)),
 
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),

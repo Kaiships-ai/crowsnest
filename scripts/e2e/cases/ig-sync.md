@@ -156,7 +156,7 @@ Models each Instagram account as a first-class row with its own session, cooldow
 #### Business rules
 
 - The first account added is the default; exactly one account is the default, enforced by a partial unique index. A channel with no assignment syncs under the default.
-- A password is stored in the secrets table keyed `IG_PASSWORD::<accountId>`, never on the account row.
+- A password is sealed by the Keychain keyed `IG_PASSWORD::<accountId>`, never on the account row.
 - A cooldown or failure sets only that account's `cooldownUntil`; the scheduler (`planAccountSync`) skips it and runs the rest. Removing a non-default account unassigns its channels back to the default.
 
 #### Limitations

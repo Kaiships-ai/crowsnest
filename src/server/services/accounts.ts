@@ -1,7 +1,8 @@
 import { asc, eq } from "drizzle-orm";
 
 import { db, newId, nowIso, tables } from "@/server/db";
-import { clearSecret, getSecret, setSecret } from "@/server/secrets/store";
+import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
+import { deleteSecret, readSecret, writeSecret } from "@/server/connectors/secrets";
 
 /**
  * Multi-account sync (v0.3), the honest minimal slice. This module owns the account model,
@@ -12,9 +13,6 @@ import { clearSecret, getSecret, setSecret } from "@/server/secrets/store";
  * documents/architecture/data.md, Multi-account sync). Everything here is additive and back
  * compatible: with a single (default) account, planAccountSync returns one group with every
  * channel, so the existing single-account sync path is byte-for-byte unchanged.
- *
- * A per-account password is never stored on the account row; it lives in the secrets table
- * under `IG_PASSWORD::<accountId>`, the same handling as every other secret.
  */
 
 export interface IgAccount {
@@ -32,8 +30,6 @@ export interface IgAccount {
   createdAt: string;
   updatedAt: string;
 }
-
-export const accountPasswordKey = (accountId: string) => `IG_PASSWORD::${accountId}`;
 
 function rowToAccount(row: typeof tables.igAccounts.$inferSelect): IgAccount {
   return {
@@ -116,7 +112,7 @@ export async function addAccount(
     createdAt: now,
     updatedAt: now,
   });
-  if (input.password?.trim()) setSecret(accountPasswordKey(id), input.password.trim());
+  if (input.password?.trim()) writeSecret(igSidecar, "IG_PASSWORD", input.password, id);
 
   const account = await getAccount(id);
   return { ok: true, account: account! };
@@ -136,13 +132,13 @@ export async function updateAccount(
   if (patch.port !== undefined) set.port = patch.port;
   if (patch.cooldownUntil !== undefined) set.cooldownUntil = patch.cooldownUntil;
   await db.update(tables.igAccounts).set(set).where(eq(tables.igAccounts.id, id));
-  if (patch.password?.trim()) setSecret(accountPasswordKey(id), patch.password.trim());
+  if (patch.password?.trim()) writeSecret(igSidecar, "IG_PASSWORD", patch.password, id);
   const updated = await getAccount(id);
   return { ok: true, account: updated! };
 }
 
 export async function removeAccount(id: string): Promise<void> {
-  clearSecret(accountPasswordKey(id));
+  deleteSecret(igSidecar, "IG_PASSWORD", id);
   // Unassign this account's channels explicitly before deleting it. The schema declares
   // channels.accountId ON DELETE SET NULL, but SQLite's ALTER TABLE ADD COLUMN could not
   // carry that action into the migration, so relying on the FK would raise a FOREIGN KEY
@@ -264,7 +260,6 @@ export function accountChildEnv(account: IgAccount, password: string | undefined
   return env;
 }
 
-/** Read an account's password from the secrets store (for launching its sidecar). */
 export function accountPassword(accountId: string): string | undefined {
-  return getSecret(accountPasswordKey(accountId));
+  return readSecret(igSidecar, "IG_PASSWORD", accountId);
 }

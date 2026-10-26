@@ -22,6 +22,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   migrate();
   await db.delete(tables.secrets);
+  await db.delete(tables.sealedSecrets);
 });
 
 describe("services", () => {

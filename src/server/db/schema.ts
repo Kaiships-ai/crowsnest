@@ -750,6 +750,12 @@ export const secrets = sqliteTable("secrets", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const sealedSecrets = sqliteTable("sealed_secrets", {
+  name: text("name").primaryKey(),
+  sealed: text("sealed").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
 /**
  * The system logs table (system logs feature, task 1): one row per stored
  * `info` / `warn` / `error` event across backend, frontend and sidecar. `debug`
@@ -844,9 +850,7 @@ export const contentArtifacts = sqliteTable(
  *
  * Isolation is the point: a 429 or ban on one account sets only that account's
  * `cooldownUntil` and never touches another's, and the sync planner (services/accounts.ts)
- * skips a cooled-down account while letting its siblings run. The password is NOT stored
- * here; it lives in the secrets table keyed `IG_PASSWORD::<accountId>`, the same plaintext
- * -local, never-returned-to-the-browser handling as every other secret.
+ * skips a cooled-down account while letting its siblings run.
  *
  * `port` and `sessionPath` are the hooks for running an isolated sidecar per account. They
  * are optional and unset on a single-account install; wiring N live sidecars to them, and

@@ -1,11 +1,5 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 
-// `./groq` now imports `@/server/secrets/store`, which imports `@/server/db`
-// unconditionally at module load — same reason as
-// graph/client.test.ts: CROWSNEST_DB_PATH must be ":memory:" and migrations must run
-// before "./groq" (or "@/server/secrets/store" directly) is ever imported, so
-// `getSecret`'s query against the `secrets` table has a table to query and never
-// touches the real on-disk db.
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
 let migrate: typeof import("@/server/db/test-migrate")["migrate"];
@@ -24,6 +18,7 @@ beforeAll(async () => {
 beforeEach(async () => {
   migrate();
   await db.delete(tables.secrets);
+  await db.delete(tables.sealedSecrets);
 });
 
 const ORIGINAL_KEY = process.env.GROQ_API_KEY;

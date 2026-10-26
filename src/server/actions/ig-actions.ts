@@ -3,7 +3,8 @@
 import { igClient, type IgHealth, type IgLoginStatus } from "../ig/client";
 import { IgError } from "../ig/errors";
 import { log } from "../lib/logger";
-import { setSecret } from "../secrets/store";
+import { igSidecar } from "../connectors/ig-sidecar/manifest";
+import { writeSecret } from "../connectors/secrets";
 
 /**
  * Server actions backing the Settings page's Instagram section.
@@ -165,7 +166,7 @@ export async function igLoginAction(): Promise<LoginResult> {
  */
 export async function igLoginBySessionAction(sessionid: string): Promise<LoginResult> {
   try {
-    setSecret("IG_SESSIONID", sessionid);
+    writeSecret(igSidecar, "IG_SESSIONID", sessionid);
     log.info("ig.login_by_session.requested", {});
     const { status } = await igClient.loginBySession(sessionid);
     log.info("ig.login_by_session.result", { status });
@@ -202,8 +203,8 @@ export async function igLoginWithCredentialsAction(username: string, password: s
     const { status } = await igClient.login({ username: user, password });
     log.info("ig.login_with_credentials.result", { status });
     if (status === "ok") {
-      setSecret("IG_USERNAME", user);
-      setSecret("IG_PASSWORD", password);
+      writeSecret(igSidecar, "IG_USERNAME", user);
+      writeSecret(igSidecar, "IG_PASSWORD", password);
     }
     return { ok: true, status };
   } catch (err) {

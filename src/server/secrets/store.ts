@@ -1,76 +1,107 @@
-import { randomBytes } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { db } from "@/server/db";
-import { secrets } from "@/server/db/schema";
+import { sealedSecrets, secrets } from "@/server/db/schema";
+import { getSecretStore, hasSecretStore } from "../../shared/secret-store";
 
-/**
- * The seven secrets the Settings UI (a later task) manages. A db row always wins over
- * the matching env var, so a value set through the UI takes effect without a restart —
- * env only remains as the bootstrap/dev-machine fallback.
- *
- * Values are plaintext in the local sqlite (no encryption) and are never returned to the
- * browser or logged: `secretStatus()` below reports configured/source only, never value.
- */
-export const MANAGED_SECRETS = [
-  "IG_SERVICE_TOKEN",
-  "IG_USERNAME",
-  "IG_PASSWORD",
-  "IG_SESSIONID",
-  "IG_GRAPH_TOKEN",
-  "IG_GRAPH_USER_ID",
-  "GROQ_API_KEY",
-] as const;
-export type ManagedSecret = (typeof MANAGED_SECRETS)[number];
+export type SecretSource = "keychain" | "db" | "env" | "none";
 
-export interface SecretStatus {
-  name: ManagedSecret;
-  configured: boolean;
-  source: "db" | "env" | "none";
+function keychain() {
+  if (!hasSecretStore()) return null;
+  const store = getSecretStore();
+  return store.isEncryptionAvailable() ? store : null;
 }
 
-function dbValue(name: string): string | undefined {
-  const row = db.select().from(secrets).where(eq(secrets.name, name)).get();
-  return row && row.value ? row.value : undefined;
+export class SecretLockedError extends Error {
+  constructor(name: string) {
+    super(`${name} is sealed in the macOS Keychain, which only Lead Studio opens. Run this from Lead Studio, or set ${name} in the environment.`);
+    this.name = "SecretLockedError";
+  }
+}
+
+function sealedRow(name: string) {
+  return db.select().from(sealedSecrets).where(eq(sealedSecrets.name, name)).get();
+}
+
+function unseal(name: string): string | undefined {
+  const row = sealedRow(name);
+  const store = row && keychain();
+  if (!row) return undefined;
+  if (!store) {
+    if (envValue(name)) return undefined;
+    throw new SecretLockedError(name);
+  }
+  try {
+    return store.decryptString(Buffer.from(row.sealed, "base64")) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function legacyValue(name: string): string | undefined {
+  return db.select().from(secrets).where(eq(secrets.name, name)).get()?.value || undefined;
+}
+
+function envValue(name: string): string | undefined {
+  return process.env[name] || undefined;
 }
 
 export function getSecret(name: string): string | undefined {
-  const fromDb = dbValue(name);
-  if (fromDb) return fromDb;
-  const env = process.env[name];
-  return env && env.length > 0 ? env : undefined;
+  return unseal(name) ?? legacyValue(name) ?? envValue(name);
+}
+
+export function secretSource(name: string): SecretSource {
+  if (keychain() ? unseal(name) : sealedRow(name)) return "keychain";
+  if (legacyValue(name)) return "db";
+  return envValue(name) ? "env" : "none";
 }
 
 export function setSecret(name: string, value: string): void {
   const v = value.trim();
   if (!v) throw new Error("secret value is empty");
+  const store = keychain();
+  if (!store) throw new Error("the macOS Keychain is unavailable, so the secret was not saved");
+  const gap = store.describeProtectionGap();
+  if (gap) throw new Error(`the Keychain does not protect secrets on this host (${gap}), so the secret was not saved`);
+  const sealed = store.encryptString(v).toString("base64");
   const now = new Date().toISOString();
-  db.insert(secrets)
-    .values({ name, value: v, updatedAt: now })
-    .onConflictDoUpdate({ target: secrets.name, set: { value: v, updatedAt: now } })
-    .run();
-}
-
-export function clearSecret(name: string): void {
-  db.delete(secrets).where(eq(secrets.name, name)).run();
-}
-
-export function secretStatus(): SecretStatus[] {
-  return MANAGED_SECRETS.map((name) => {
-    if (dbValue(name)) return { name, configured: true, source: "db" as const };
-    const env = process.env[name];
-    if (env && env.length > 0) return { name, configured: true, source: "env" as const };
-    return { name, configured: false, source: "none" as const };
+  db.transaction((tx) => {
+    tx.insert(sealedSecrets)
+      .values({ name, sealed, updatedAt: now })
+      .onConflictDoUpdate({ target: sealedSecrets.name, set: { sealed, updatedAt: now } })
+      .run();
+    const back = tx.select().from(sealedSecrets).where(eq(sealedSecrets.name, name)).get();
+    if (!back || store.decryptString(Buffer.from(back.sealed, "base64")) !== v) {
+      throw new Error("the Keychain read-back did not match, so the secret was not saved");
+    }
+    tx.delete(secrets).where(eq(secrets.name, name)).run();
   });
 }
 
-/** Guarantees the instagrapi sidecar's shared secret exists without requiring
- *  IG_SERVICE_TOKEN to be set in the environment at boot (config.ts leaves it optional
- *  for exactly this reason). First call generates and persists a random token; every
- *  call after that returns the same value. */
-export function getOrCreateServiceToken(): string {
-  const existing = getSecret("IG_SERVICE_TOKEN");
-  if (existing) return existing;
-  const token = randomBytes(32).toString("hex");
-  setSecret("IG_SERVICE_TOKEN", token);
-  return token;
+export function clearSecret(name: string): void {
+  db.transaction((tx) => {
+    tx.delete(sealedSecrets).where(eq(sealedSecrets.name, name)).run();
+    tx.delete(secrets).where(eq(secrets.name, name)).run();
+  });
+}
+
+export interface SecretMigrationReport {
+  moved: string[];
+  failed: { name: string; reason: string }[];
+}
+
+export function migrateSecretsToKeychain(): SecretMigrationReport {
+  const report: SecretMigrationReport = { moved: [], failed: [] };
+  for (const row of db.select().from(secrets).all()) {
+    if (!row.value.trim()) {
+      db.delete(secrets).where(eq(secrets.name, row.name)).run();
+      continue;
+    }
+    try {
+      setSecret(row.name, row.value);
+      report.moved.push(row.name);
+    } catch (e) {
+      report.failed.push({ name: row.name, reason: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  return report;
 }

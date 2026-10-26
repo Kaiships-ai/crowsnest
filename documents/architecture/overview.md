@@ -81,7 +81,7 @@ flowchart LR
 - **One writer per kind of data.** Only the sync engine writes `videos` and `channels` stats. Only a Graph measurement writes the `own_*` tables. Own posts never enter the outlier feed (`src/server/db/schema.ts`).
 - **Rows are soft-deleted when anything hangs off them.** Videos and channels carry `deletedAt`; nothing is hard-deleted by a sync.
 - **Actions never throw across the boundary.** Server actions return `ActionResult` (`src/server/lib/action-result.ts`), so the caller lands on a success or an error.
-- **Secrets stay server-side.** They live in the `secrets` table or the environment, are never returned to the renderer, and are redacted from logs (`src/server/secrets/store.ts`, `src/server/lib/logger.ts`).
+- **Secrets stay server-side.** They are sealed by the macOS Keychain or come from the environment, are read only through a connector manifest, are never returned to the renderer, and are redacted from logs ([connectors](connectors.md), `src/server/lib/logger.ts`).
 - **Only forward migrations.** There is no down migration, and `db:migrate` backs up first. See [data](data.md).
 - **Settings have one reader.** User-editable settings are read through `src/server/settings/index.ts` (database over environment over default). Fixed startup config lives in `src/server/config.ts`, and some modules read their own env overrides directly.
 
