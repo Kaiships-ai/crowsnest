@@ -3514,23 +3514,6 @@
       "open": "Open workspace linked to {{key}}"
     }
   },
-  "leadStudio": {
-    "nav": {
-      "agents": "Agents",
-      "funnel": "Funnel",
-      "group": {
-        "create": "Create",
-        "insight": "Insight",
-        "system": "System"
-      },
-      "own": "My channel",
-      "plan": "Plan",
-      "rivals": "Rivals",
-      "sources": "Sources",
-      "studio": "Studio",
-      "today": "Today"
-    }
-  },
   "menu": {
     "quitApp": "Quit {{appName}}"
   },

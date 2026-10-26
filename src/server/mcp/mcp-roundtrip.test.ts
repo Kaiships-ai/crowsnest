@@ -62,13 +62,14 @@ test("a client can list the new read and write tools over a real transport", asy
       "crowsnest_funnel",
       "crowsnest_propose_plan",
       "crowsnest_plan_versions",
-      "crowsnest_approve_plan",
-      "crowsnest_undo_plan",
     ]),
   );
   // regenerate_variant made no sense once there are no crowsnest-generated variants to
   // regenerate — the calling agent just re-fulfills crowsnest_remix_variants' prompt.
   expect(names).not.toContain("crowsnest_remix_regenerate_variant");
+  // Approve and undo are Kai's on the Gate 1 board; an agent can only propose.
+  expect(names).not.toContain("crowsnest_approve_plan");
+  expect(names).not.toContain("crowsnest_undo_plan");
 });
 
 test("crowsnest_remix_save_script's schema takes the agent's own script text, not a variant index", async () => {
@@ -413,15 +414,10 @@ test("plan versions propose, diff, approve and undo over the wire", async () => 
   const noAgent = await call("crowsnest_propose_plan", { ...ref });
   expect(noAgent).toMatchObject({ isError: true, structuredContent: { code: "INVALID_PLAN" } });
   const v1 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B")] })).structuredContent as { id: string; version: number };
-  const v2 = (await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B2")] })).structuredContent as { id: string };
+  await call("crowsnest_propose_plan", { ...ref, agent: "claude", reels: [reel("a", "Hook A"), reel("b", "Hook B2")] });
   expect(v1.version).toBe(1);
 
   const versions = (await call("crowsnest_plan_versions", ref)).structuredContent as { data: { version: number; status: string; diff: string }[] };
   expect(versions.data.map((v) => [v.version, v.status, v.diff])).toEqual([[2, "proposed", "vs v1: changed Hook B2 (title)"], [1, "proposed", "first version"]]);
 
-  expect((await call("crowsnest_approve_plan", { versionId: v1.id })).structuredContent).toMatchObject({ ok: true, created: 2 });
-  expect((await call("crowsnest_approve_plan", { versionId: v2.id })).structuredContent).toMatchObject({ ok: true, updated: 2, created: 0 });
-  expect((await call("crowsnest_undo_plan", ref)).structuredContent).toMatchObject({ ok: true, live: { id: v1.id, version: 1 } });
-  const undoNone = await call("crowsnest_undo_plan", { period: "week", periodKey: "2026-W31" });
-  expect(undoNone.structuredContent).toMatchObject({ code: "NOTHING_TO_UNDO" });
 });

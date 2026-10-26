@@ -191,7 +191,7 @@ export const ENGINE_CALLS = {
     asOperator("approvePlanChanges", { versionId, keys }, () => approvePlanChanges(versionId, keys, OPERATOR)),
   ),
   undoPlanApproval: call(z.tuple([PlanRefSchema, z.string()]), (ref, expectLiveId) =>
-    asOperator("undoPlanApproval", { ...ref, expectLiveId }, () => undoPlanVersion(ref, expectLiveId)),
+    asOperator("undoPlanApproval", { ...ref, expectLiveId }, () => undoPlanVersion(ref, expectLiveId, OPERATOR)),
   ),
   createPlannedPostAction: call(
     z.tuple([

@@ -14,7 +14,7 @@ The app opens the database of the checkout it runs from, `data/crowsnest.db`, di
 
 1. sets `CROWSNEST_DB_PATH` and `MEDIA_ROOT` when unset, which `src/server` reads at import time;
 2. registers the engine bridge (below), then imports `src/server/start.ts` and calls `startInApp`, which applies the `drizzle/` migrations and starts the jobs;
-3. serves the MCP at `http://127.0.0.1:<mcp.port>/api/mcp` (`src/main/crowsnest/mcp-http.ts`) with the 38 `crowsnest_*` tools;
+3. serves the MCP at `http://127.0.0.1:<mcp.port>/api/mcp` (`src/main/crowsnest/mcp-http.ts`) with the 36 `crowsnest_*` tools;
 4. serves stored assets on `cn-media://asset/<assetId>` through `src/server/media/serve.ts`, with byte ranges.
 
 The `.mcp.json` entry `lead-studio` runs `scripts/lead-studio-mcp.mjs`, a stdio server that forwards each message to the port in `mcp.port` (`LEAD_STUDIO_USER_DATA` names another user data dir). With no app listening it answers each request with a -32000 "Lead Studio is not running" error, and it deletes a `mcp.port` left by an app that died without its quit hook.

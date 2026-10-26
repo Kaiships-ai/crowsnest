@@ -21531,6 +21531,9 @@
         "create": "Create",
         "system": "System"
       }
+    },
+    "localBaseRef": {
+      "behind": "Your new worktree is current, but local {{value0}} is {{value1}} {{value2}} behind, so AI diffs may compare to stale history. Let Lead Studio keep it up to date automatically."
     }
   }
 }

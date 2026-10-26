@@ -1,4 +1,5 @@
 import { toast } from 'sonner'
+import { leadStudioPaneVisible } from '@/lib/lead-studio-settings-allowlist'
 import type { AppState } from '@/store/types'
 import type { LocalBaseRefUpdateSuggestion } from '../../../../shared/worktree/base-ref-drift-types'
 import { Button } from '../ui/button'
@@ -88,28 +89,42 @@ function SuggestionToastBody({
 
   return (
     <div className="flex w-full flex-col gap-3">
-      <p className="text-sm leading-5 text-popover-foreground/80">
-        {translate(
-          'auto.components.sidebar.local.base.ref.suggestion.toast.f15fd80989',
-          'Your new worktree is current, but local {{value0}} is {{value1}} {{value2}} behind, so AI diffs may compare to stale history. Let Orca keep it up to date automatically. Change this anytime in',
-          {
-            value0: suggestion.localBranch,
-            value1: suggestion.behind,
-            value2: commitNoun
-          }
-        )}{' '}
-        <button
-          type="button"
-          onClick={openSetting}
-          className="cursor-pointer font-medium text-popover-foreground underline underline-offset-2 hover:text-primary"
-        >
+      {leadStudioPaneVisible('git') ? (
+        <p className="text-sm leading-5 text-popover-foreground/80">
           {translate(
-            'auto.components.sidebar.local.base.ref.suggestion.toast.3d260e1a5d',
-            'Settings › {{value0}}',
-            { value0: keepLocalMainUpToDateTitle }
+            'auto.components.sidebar.local.base.ref.suggestion.toast.f15fd80989',
+            'Your new worktree is current, but local {{value0}} is {{value1}} {{value2}} behind, so AI diffs may compare to stale history. Let Orca keep it up to date automatically. Change this anytime in',
+            {
+              value0: suggestion.localBranch,
+              value1: suggestion.behind,
+              value2: commitNoun
+            }
+          )}{' '}
+          <button
+            type="button"
+            onClick={openSetting}
+            className="cursor-pointer font-medium text-popover-foreground underline underline-offset-2 hover:text-primary"
+          >
+            {translate(
+              'auto.components.sidebar.local.base.ref.suggestion.toast.3d260e1a5d',
+              'Settings › {{value0}}',
+              { value0: keepLocalMainUpToDateTitle }
+            )}
+          </button>
+        </p>
+      ) : (
+        <p className="text-sm leading-5 text-popover-foreground/80">
+          {translate(
+            'leadStudio.localBaseRef.behind',
+            'Your new worktree is current, but local {{value0}} is {{value1}} {{value2}} behind, so AI diffs may compare to stale history. Let Lead Studio keep it up to date automatically.',
+            {
+              value0: suggestion.localBranch,
+              value1: suggestion.behind,
+              value2: commitNoun
+            }
           )}
-        </button>
-      </p>
+        </p>
+      )}
       <div className="flex justify-end">
         {/* No explicit Dismiss: the toast is persistent and sonner's close (X)
             already backs the user out and persists the decline. */}

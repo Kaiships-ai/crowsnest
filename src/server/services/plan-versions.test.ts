@@ -318,3 +318,22 @@ test("approving with every change kept makes the proposal itself live; with none
   expect(approvePlanChanges(proposal.id, [], "kai")).toMatchObject({ ok: false, code: "NOTHING_KEPT" });
   expect(approvePlanChanges(proposal.id, ["s", "t"], "kai")).toMatchObject({ ok: true, live: { id: proposal.id, version: 2 } });
 });
+
+test("undoing a partial approval retires the composed version, so the agent's proposal waits again", () => {
+  const live = propose("2026-06", [{ key: "u", title: "U", date: "2026-10-05", keyword: "UNDOU" }], "month");
+  approvePlanVersion(live.id, "kai");
+  const proposal = propose("2026-06", [
+    { key: "u", title: "U again", date: "2026-10-05", keyword: "UNDOU" },
+    { key: "w", title: "W", date: "2026-10-06", keyword: "UNDOW" },
+  ], "month");
+  const r = approvePlanChanges(proposal.id, ["w"], "kai");
+  if (!r.ok) throw new Error(r.error);
+  expect(undoPlanVersion({ period: "month", periodKey: "2026-06" }, r.live.id, "kai")).toMatchObject({ ok: true, live: { id: live.id } });
+  const list = listPlanVersions({ period: "month", periodKey: "2026-06" });
+  expect(list.ok && list.versions.map((v) => [v.version, v.agent, v.status])).toEqual([
+    [3, "kai", "superseded"],
+    [2, "claude", "proposed"],
+    [1, "claude", "live"],
+  ]);
+});
+

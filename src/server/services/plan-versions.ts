@@ -252,8 +252,10 @@ export function approvePlanChanges(versionId: string, keys: string[], approver: 
 export type UndoResult = ({ ok: true; live: { id: string; version: number } } & SyncResult) | Fail;
 
 /** `expectLiveId` pins the undo to the version the caller just approved: if another
- *  version went live since, nothing changes. */
-export function undoPlanVersion(ref: unknown, expectLiveId?: string): UndoResult {
+ *  version went live since, nothing changes. The undone version goes back to proposed,
+ *  except one the approver composed from a partial approval (`composedBy` is its agent):
+ *  that one is retired, so the agent's own proposal is the one waiting again. */
+export function undoPlanVersion(ref: unknown, expectLiveId?: string, composedBy?: string): UndoResult {
   const parsed = PlanRefSchema.safeParse(ref);
   if (!parsed.success) return fail("INVALID_PLAN", z.prettifyError(parsed.error));
   const { period, periodKey } = parsed.data;
@@ -267,7 +269,8 @@ export function undoPlanVersion(ref: unknown, expectLiveId?: string): UndoResult
       const prev = tx.select().from(V).where(and(inPeriod, eq(V.status, "superseded"), isNotNull(V.approvedAt))).orderBy(desc(V.approvedAt), desc(V.version)).get();
       if (!prev) return fail("NOTHING_TO_UNDO", `v${live.version} is the only version ever live for ${period} ${periodKey}; nothing earlier to restore`);
       const now = nowIso();
-      tx.update(V).set({ status: "proposed", approvedAt: null, approvedBy: null, updatedAt: now }).where(eq(V.id, live.id)).run();
+      const undone = composedBy !== undefined && live.agent === composedBy ? "superseded" : "proposed";
+      tx.update(V).set({ status: undone, approvedAt: null, approvedBy: null, updatedAt: now }).where(eq(V.id, live.id)).run();
       tx.update(V).set({ status: "live", updatedAt: now }).where(eq(V.id, prev.id)).run();
       return { ok: true, live: { id: prev.id, version: prev.version }, ...syncDrafts(tx, prev) };
     }),
