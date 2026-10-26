@@ -7,11 +7,13 @@ Each outside source is a connector: a manifest (id, label, auth kind, the secret
 - Bridge `listConnectors`: every connector, its status (`configured`, `needs-setup`, `not-connected`) and where each secret comes from (`keychain`, `db`, `env`, `none`), never a value.
 - Bridge `testConnector(id)`: the adapter's connection check; a manifest-only connector answers not connected.
 - Boot migration: legacy rows move to the keychain, a failed move keeps the row and logs `secrets.keychain_move_failed`.
-- Umami: four Vault secrets (`UMAMI_URL`, `UMAMI_WEBSITE_ID`, `UMAMI_USERNAME`, `UMAMI_PASSWORD`), Kiểm tra logs in and finds the website, Kéo lại stores each VN day in `umami_days` and each plan keyword's `visits` and `emails` in `reel_funnel`, which Phễu's gift-page step and Kênh tôi's Web column read. A partial pull stores nothing.
+- Umami: four secrets (`UMAMI_URL`, `UMAMI_WEBSITE_ID`, `UMAMI_USERNAME`, `UMAMI_PASSWORD`) entered in Settings > Sources, Re-check logs in and finds the website, Pull again stores each VN day in `umami_days` and each plan keyword's `visits` and `emails` in `reel_funnel`, which Funnel's gift-page step and My channel's Site column read. A partial pull stores nothing.
 
 ## How to get to it (user POV)
 
-The Vault board shows it: "+" in the tab bar, Vault. See [boards.md](boards.md) and journey `vault-01`.
+Settings > Sources shows it: the sidebar's Sources row, or Settings, Sources. Cards are `source-card` (`data-connector-id`, `data-state`) in `source-group`s, with `source-primary` (Connect or Edit key), `source-explanation`, `source-pulls`, `source-recheck`, `source-check`, `source-pull`; the key dialog is `source-key-dialog` with `source-key-input` (`data-secret-name`) and `source-key-save`.
+
+`sources-01` (on `boards-lane.sh`) prints `ok: the sidebar's Sources opens Settings > Sources with every connector, grouped like Integrations` (card ids match `listConnectors`), `ok: Connect saves a fake key, closes, and the key reads only as saved`, `ok: no bridge read carries the saved value` (it also calls `setConnectorSecret` with a field Polar does not declare and is refused), `ok: the lane DB holds the key sealed, never in plaintext`, `ok: Re-check shows the connection check`, and saves `sources-01-dark`, `sources-01-light`, `sources-01-saved` and `sources-01`.
 
 ## Driving it
 
@@ -22,7 +24,7 @@ The Vault board shows it: "+" in the tab bar, Vault. See [boards.md](boards.md) 
 .claude/skills/verify/scripts/keychain-lane.sh   # real login Keychain, lane-only item, deleted after
 ```
 
-`umami-01` runs on `boards-lane.sh`, which also starts `fake-umami.mjs` (login `lane-umami` / `lane-umami-pass`, website `lane-site`, events in pages of 3 spread over the asked window: four `own01` sessions, one of them `utm_source=verify`, and one with no utm; `POST /__fail?page=N` makes page N answer 503). Run it after `own-01`, which expects the seed's 18 visits. It prints `ok: Vault: Sửa saves the four Umami fields and the row leaves chưa nối`, `ok: Kiểm tra logs in to Umami and finds the website`, `ok: Kéo lại pulls every page, the row reads running, and the lane DB holds the day and OWN01's 4 visits and 2 emails` (`umami_days` shows 1 test session dropped, clean 4 and raw 5), `ok: Phễu: the gift-page step and OWN01's row show the pulled visits`, `ok: Kênh tôi: the Web column of the OWN01 reel shows 4`, `ok: a 503 on events page 2 makes Kéo lại read partial, and nothing new is stored`, and saves `umami-01-vault`, `umami-01-funnel`, `umami-01-own` and `umami-01-partial`.
+`umami-01` runs on `boards-lane.sh`, which also starts `fake-umami.mjs` (login `lane-umami` / `lane-umami-pass`, website `lane-site`, events in pages of 3 spread over the asked window: four `own01` sessions, one of them `utm_source=verify`, and one with no utm; `POST /__fail?page=N` makes page N answer 503). Run it after `own-01`, which expects the seed's 18 visits. It prints `ok: Sources: Connect saves the four Umami fields and the card leaves Not configured`, `ok: Re-check logs in to Umami and finds the website`, `ok: Pull again pulls every page, the card reads Connected, and the lane DB holds the day and OWN01's 4 visits and 2 emails` (`umami_days` shows 1 test session dropped, clean 4 and raw 5), `ok: Funnel: the gift-page step and OWN01's row show the pulled visits`, `ok: My channel: the Site column of the OWN01 reel shows 4`, `ok: a 503 on events page 2 makes Pull again read Partial, and nothing new is stored`, and saves `umami-01-sources`, `umami-01-funnel`, `umami-01-own` and `umami-01-partial`.
 
 ```bash
 .claude/skills/verify/scripts/boards-lane.sh
@@ -37,4 +39,3 @@ The Vault board shows it: "+" in the tab bar, Vault. See [boards.md](boards.md) 
 - The lane runs Electron with `--use-mock-keychain`, so the seal there never touches the login Keychain. The real-Keychain proof is `keychain-lane.sh`: it bundles `src/server/secrets/store.ts` into an Electron main named `lead-studio-lane-<pid>`, migrates a legacy row on a throwaway DB in the gitignored verify data folder, checks the `.dump` holds no plaintext, and deletes the `lead-studio-lane-<pid> Safe Storage` item on exit. It refuses to run if that item already exists.
 - The seed writes the Graph token as a legacy `secrets` row on purpose: the journey proves the boot migration moves it.
 - Running `umami-01` before `own-01` on the same lane makes `own-01` fail: the pull replaces the seed's 18 OWN01 visits with 4.
-- A board tab is reused, so a rerun of `umami-01` finds the Vault editor open; the journey clicks Sửa only when it is closed.

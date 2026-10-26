@@ -1,26 +1,20 @@
 import React, { useMemo } from 'react'
 import { RefreshCw } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
-import { cn } from '@/lib/utils'
+import { openBoardInActiveWorkspace } from '@/lib/open-board-tab'
 import { useAppStore } from '@/store'
 import { useWorktreeMap } from '@/store/selectors'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 import { BoardStates } from './BoardStates'
-import {
-  formatCount,
-  formatRate,
-  KeywordGap,
-  ReadingSource,
-  ReadingValue,
-  SourceLabel,
-  stepLabel
-} from './funnel-reading'
+import { formatBoardTime } from './board-time'
+import { formatCount, formatRate, sourceName, StepsSourceTag, stepLabel } from './funnel-reading'
+import { kpiFromStep, KpiTile } from './kit/Kpi'
+import { BlockHeader, SourceTag } from './kit/SourceTag'
+import { StatePill } from './kit/StatePill'
 import { useBoardLoad } from './use-board-load'
-import { STATE_LABELS } from './VaultBoard'
 
 type TodayBoardData = EngineCallValue<'getTodayBoard'>
 export type RunningWorkspace = { id: string; name: string; working: number; waiting: number }
@@ -74,20 +68,17 @@ function Block({
   children: React.ReactNode
 }): React.ReactNode {
   return (
-    <section data-testid={testId} className="flex min-h-0 min-w-0 flex-col gap-2">
-      <div className="flex items-baseline gap-2">
-        <h2 className="text-sm font-medium">{title}</h2>
-        {source}
-      </div>
+    <section data-testid={testId} className="flex min-h-0 min-w-0 flex-col gap-3">
+      <BlockHeader title={title}>{source}</BlockHeader>
       {children}
     </section>
   )
 }
 
-function DropLine({ drop, at }: { drop: TodayBoardData['drop']; at: string }): React.ReactNode {
+function DropLine({ drop }: { drop: TodayBoardData['drop'] }): React.ReactNode {
   const message =
     drop.status === 'value'
-      ? translate('boards.today.drop', '{{label}} {{rate}}, chuẩn {{target}}.', {
+      ? translate('boards.today.drop', '{{label}} {{rate}}, target {{target}}.', {
           label: drop.label,
           rate: formatRate(drop.rate),
           target: formatRate(drop.target)
@@ -95,23 +86,19 @@ function DropLine({ drop, at }: { drop: TodayBoardData['drop']; at: string }): R
       : drop.status === 'no-target'
         ? translate(
             'boards.today.noTarget',
-            'Chưa đặt chuẩn cho bước nào, nên chưa biết bước nào rơi nhiều nhất.'
+            'No step has a target yet, so the biggest drop is unknown.'
           )
-        : translate('boards.today.noRates', 'Chưa có tỉ lệ nào để so với chuẩn.')
+        : translate('boards.today.noRates', 'No rates to compare with a target yet.')
   return (
     <div
       data-testid="today-drop"
       data-status={drop.status}
-      className="flex min-w-0 flex-1 flex-col gap-2 rounded-xl border border-border px-4 py-3"
+      className="flex min-w-0 flex-col gap-2 rounded-lg border border-border bg-card px-4 py-3"
     >
-      <span className="font-mono text-2xs text-muted-foreground">
-        {translate('boards.today.dropTitle', 'Rơi nhiều nhất so với chuẩn')}
+      <span className="text-xs text-muted-foreground">
+        {translate('boards.today.dropTitle', 'Biggest drop against target')}
       </span>
-      <p className="text-base font-medium">{message}</p>
-      <SourceLabel
-        source={translate('boards.today.ledger', 'sổ chỉ số')}
-        at={drop.status === 'value' ? drop.capturedAt : at}
-      />
+      <p className="text-sm font-medium">{message}</p>
     </div>
   )
 }
@@ -127,14 +114,12 @@ function WorkspacesBlock(): React.ReactNode {
   return (
     <Block
       testId="today-workspaces"
-      title={translate('boards.today.workspaces', 'Workspace đang chạy')}
-      source={
-        <SourceLabel source={`${APP_SOURCE} · ${translate('boards.today.live', 'trực tiếp')}`} />
-      }
+      title={translate('boards.today.workspaces', 'Running workspaces')}
+      source={<SourceTag sources={[APP_SOURCE]} live />}
     >
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {translate('boards.today.noWorkspaces', 'Không có agent nào đang chạy.')}
+          {translate('boards.today.noWorkspaces', 'No agents running.')}
         </p>
       ) : (
         <ul className="scrollbar-sleek flex min-h-0 flex-col overflow-auto">
@@ -146,10 +131,11 @@ function WorkspacesBlock(): React.ReactNode {
             >
               <span className="min-w-0 flex-1 truncate">{row.name}</span>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {translate('boards.today.agentCounts', '{{working}} chạy · {{waiting}} chờ', {
-                  working: row.working,
-                  waiting: row.waiting
-                })}
+                {translate(
+                  'boards.today.agentCounts',
+                  '{{working}} working · {{waiting}} waiting',
+                  { working: row.working, waiting: row.waiting }
+                )}
               </span>
             </li>
           ))}
@@ -159,21 +145,44 @@ function WorkspacesBlock(): React.ReactNode {
   )
 }
 
-function TodayView({ board, reload }: { board: TodayBoardData; reload: () => void }) {
-  const [checkout, purchase] = board.offer
+function StepTiles({
+  steps,
+  testId,
+  className
+}: {
+  steps: TodayBoardData['steps']
+  testId: string
+  className: string
+}): React.ReactNode {
   return (
-    <div className="flex h-full flex-col gap-6 overflow-hidden p-4">
+    <div className={className}>
+      {steps.map((step) => (
+        <KpiTile
+          key={step.id}
+          testId={testId}
+          stepId={step.id}
+          label={stepLabel(step)}
+          data={kpiFromStep(step, sourceName(step.source))}
+          format={formatCount}
+        />
+      ))}
+    </div>
+  )
+}
+
+function TodayView({ board, reload }: { board: TodayBoardData; reload: () => void }) {
+  return (
+    <div className="scrollbar-sleek flex h-full flex-col gap-8 overflow-auto px-6 py-5">
       <header className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-1">
-          <h1 className="text-xl font-medium">{translate('boards.today.title', 'Hôm nay')}</h1>
+          <h1 className="text-xl font-medium">{translate('boards.today.title', 'Today')}</h1>
           <p className="text-sm text-muted-foreground">
             {translate(
               'boards.today.subtitle',
-              'Số tới offer, việc chờ anh duyệt, và những gì đã chạy đêm qua.'
+              'Numbers to the offer, what waits for your approval, and what ran overnight.'
             )}
           </p>
         </div>
-        <SourceLabel source={APP_SOURCE} at={board.at} />
         <Button
           data-testid="board-refresh"
           variant="ghost"
@@ -185,60 +194,43 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
         </Button>
       </header>
 
-      <section
-        data-testid="today-offer"
-        className="flex flex-col gap-4 border-b border-border pb-6"
+      <Block
+        testId="today-offer"
+        title={translate('boards.today.offer', 'People reaching the offer')}
+        source={<StepsSourceTag steps={board.offer} />}
       >
-        <span className="font-mono text-2xs text-muted-foreground">
-          {translate('boards.today.offer', 'Người tới offer')}
-        </span>
-        <div className="flex items-start gap-10">
-          {[checkout, purchase].map((step) => (
-            <div
-              key={step.id}
-              data-testid="today-offer-step"
-              data-step-id={step.id}
-              className="flex flex-col gap-1"
-            >
-              <span className="text-3xl leading-9">
-                <ReadingValue reading={step.total} format={formatCount} hero />
-              </span>
-              <span className="text-sm">{stepLabel(step)}</span>
-              <KeywordGap total={step.total} />
-              <ReadingSource step={step} reading={step.total} />
-            </div>
-          ))}
-          <DropLine drop={board.drop} at={board.at} />
+        <div className="grid grid-cols-[1fr_1fr_2fr] gap-3">
+          <StepTiles steps={board.offer} testId="today-offer-step" className="contents" />
+          <DropLine drop={board.drop} />
         </div>
-        <div className="grid grid-cols-6 gap-x-4">
-          {board.steps.map((step) => (
-            <div
-              key={step.id}
-              data-testid="today-step"
-              data-step-id={step.id}
-              className="flex min-w-0 flex-col gap-0.5"
-            >
-              <span className="truncate font-mono text-2xs text-muted-foreground">
-                {stepLabel(step)}
-              </span>
-              <span className="text-sm">
-                <ReadingValue reading={step.total} format={formatCount} vaultLink={false} />
-              </span>
-              <KeywordGap total={step.total} />
-              <ReadingSource step={step} reading={step.total} />
-            </div>
-          ))}
-        </div>
-      </section>
+      </Block>
 
-      <div className="grid min-h-0 flex-1 grid-cols-3 gap-8">
+      <Block
+        testId="today-funnel"
+        title={translate('boards.today.funnel', 'Funnel')}
+        source={<StepsSourceTag steps={board.steps} />}
+      >
+        <StepTiles steps={board.steps} testId="today-step" className="grid grid-cols-6 gap-3" />
+      </Block>
+
+      <div className="grid min-h-0 grid-cols-3 gap-8">
         <Block
           testId="today-gates"
-          title={translate('boards.today.gates', 'Chờ anh duyệt')}
-          source={<SourceLabel source={APP_SOURCE} at={board.at} />}
+          title={translate('boards.today.gates', 'Waiting for your approval')}
+          source={<SourceTag sources={[APP_SOURCE]} live />}
         >
           <dl className="grid grid-cols-[1fr_auto] gap-y-2 text-sm">
-            <dt>{translate('boards.today.gate1', 'Cổng 1 · kế hoạch đề xuất')}</dt>
+            <dt>
+              <Button
+                data-testid="today-open-gate"
+                variant="link"
+                size="xs"
+                className="h-auto px-0 text-sm font-normal text-foreground"
+                onClick={() => openBoardInActiveWorkspace('gate')}
+              >
+                {translate('boards.today.gate1', 'Gate 1 · proposed plan')}
+              </Button>
+            </dt>
             <dd
               data-testid="today-gate-plans"
               data-num
@@ -246,7 +238,17 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
             >
               {formatCount(board.gates.proposedPlansAhead)}
             </dd>
-            <dt>{translate('boards.today.gate2', 'Cổng 2 · bản nháp chờ gửi')}</dt>
+            <dt>
+              <Button
+                data-testid="today-open-gate2"
+                variant="link"
+                size="xs"
+                className="h-auto px-0 text-sm font-normal text-foreground"
+                onClick={() => openBoardInActiveWorkspace('gate2')}
+              >
+                {translate('boards.today.gate2', 'Gate 2 · drafts to send')}
+              </Button>
+            </dt>
             <dd
               data-testid="today-gate-drafts"
               data-num
@@ -259,40 +261,27 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
 
         <Block
           testId="today-pulls"
-          title={translate('boards.today.lastNight', 'Đêm qua đã chạy')}
-          source={<SourceLabel source={translate('boards.today.pullSource', 'lần kéo 05:00')} />}
+          title={translate('boards.today.lastNight', 'Ran overnight')}
+          source={<SourceTag sources={[translate('boards.today.pullSource', '05:00 pull')]} />}
         >
-          <ul className="scrollbar-sleek flex min-h-0 flex-col overflow-auto">
+          <ul className="flex flex-col">
             {board.pulls.map((pull) => (
               <li
                 key={pull.id}
                 data-testid="today-pull-row"
                 data-connector-id={pull.id}
                 data-state={pull.state}
-                className="flex flex-col gap-0.5 border-b border-border py-1.5"
+                className="flex items-center gap-2 border-b border-border py-1.5"
               >
-                <span className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{pull.label}</span>
-                  <Badge
-                    variant={pull.state === 'error' ? 'destructive' : 'outline'}
-                    className={cn('font-mono', pull.state === 'running' && 'text-status-success')}
-                  >
-                    {STATE_LABELS[pull.state]()}
-                  </Badge>
-                </span>
-                <SourceLabel
-                  source={
-                    pull.lastPull
-                      ? translate('boards.today.pulledAt', 'lần kéo cuối')
-                      : translate('boards.today.neverPulled', 'chưa kéo lần nào')
-                  }
-                  at={pull.lastPull?.at}
-                />
-                {pull.state === 'error' || pull.state === 'partial' ? (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {pull.lastPull?.detail}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-sm">{pull.label}</span>
+                  <span className="font-mono text-2xs text-muted-foreground">
+                    {pull.lastPull
+                      ? `${translate('boards.today.pulledAt', 'last pull')} ${formatBoardTime(pull.lastPull.at)}`
+                      : translate('boards.today.neverPulled', 'never pulled')}
                   </span>
-                ) : null}
+                </span>
+                <StatePill state={pull.state} />
               </li>
             ))}
           </ul>
@@ -310,7 +299,7 @@ export function TodayBoard(): React.ReactNode {
     <BoardStates
       state={state}
       retry={retry}
-      emptyMessage={translate('boards.today.empty', 'Chưa có gì cho hôm nay.')}
+      emptyMessage={translate('boards.today.empty', 'Nothing for today yet.')}
     >
       {([board]) => <TodayView board={board} reload={retry} />}
     </BoardStates>

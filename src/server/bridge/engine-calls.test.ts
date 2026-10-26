@@ -85,6 +85,9 @@ const READ_ARGS: Record<string, unknown[]> = {
   getCalendarMonth: [new Date().toISOString().slice(0, 7)],
   getScripts: [],
   listPlanVersions: [{ period: "month", periodKey: "2026-11" }],
+  getGateBoard: [],
+  getGate2Board: [],
+  getPublishChecks: ["p-1", "now"],
   getSyncProgressAction: ["job-1"],
   getChannelSyncProgressAction: ["ch-1"],
   getLatestSyncJob: [],
@@ -161,6 +164,21 @@ describe("dispatchEngineCall", () => {
       "stopSidecarAction",
     ];
     expect(gated.filter((n) => Object.hasOwn(ENGINE_CALLS, n))).toEqual([]);
+  });
+
+  test("Gate 1 approve from the app records kai as approver and journals kai at gate1", async () => {
+    const { proposePlan } = await import("@/server/services/plan-versions");
+    const v = proposePlan({ period: "week", periodKey: "2026-W50", agent: "claude", reels: [{ key: "g", title: "Gate reel", date: "2026-12-07" }] });
+    if (!v.ok) throw new Error(v.error);
+    const res = await dispatchEngineCall("approvePlanChanges", [v.id, ["g"]]);
+    expect(res).toMatchObject({ ok: true, value: { ok: true, live: { id: v.id } } });
+    const row = db.select().from(tables.planVersions).all().find((r) => r.id === v.id);
+    expect(row?.approvedBy).toBe("kai");
+    const journal = db.select().from(tables.agentActions).all().filter((r) => r.tool === "approvePlanChanges");
+    expect(journal.map((r) => [r.caller, r.gate, r.result])).toEqual([
+      ["kai", "gate1", "pending"],
+      ["kai", "gate1", "ok"],
+    ]);
   });
 
   test("every read has a fixture", () => {

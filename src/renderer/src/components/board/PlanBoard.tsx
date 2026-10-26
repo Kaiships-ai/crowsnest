@@ -55,7 +55,7 @@ function AddForm({
     }
     onAdded({
       status: 'done',
-      text: translate('boards.plan.added', 'Đã thêm "{{title}}" vào {{day}}.', {
+      text: translate('boards.plan.added', 'Added "{{title}}" to {{day}}.', {
         title: title.trim(),
         day: dayLabel(date)
       }),
@@ -75,7 +75,7 @@ function AddForm({
         autoFocus
         value={title}
         onChange={(event) => setTitle(event.target.value)}
-        placeholder={translate('boards.plan.titlePlaceholder', 'Tên reel')}
+        placeholder={translate('boards.plan.titlePlaceholder', 'Reel title')}
         className="w-72"
       />
       <Input
@@ -86,10 +86,10 @@ function AddForm({
         className="w-28"
       />
       <Button data-testid="plan-add-submit" type="submit" size="sm" disabled={busy}>
-        {translate('boards.plan.addSubmit', 'Thêm')}
+        {translate('boards.plan.addSubmit', 'Add')}
       </Button>
       <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-        {translate('boards.plan.cancel', 'Thôi')}
+        {translate('boards.plan.cancel', 'Cancel')}
       </Button>
     </form>
   )
@@ -114,6 +114,7 @@ function PlanView({
   reload: () => void
 }): React.ReactNode {
   const [adding, setAdding] = useState<string | null>(null)
+  const [failedCookId, setFailedCookId] = useState<string | null>(null)
   const index = Math.max(
     0,
     board.gridDays.findIndex((d) => d.date === focus)
@@ -140,7 +141,7 @@ function PlanView({
       outcome.ok
         ? {
             status: 'done',
-            text: translate('boards.plan.moved', 'Đã dời "{{title}}" sang {{day}}.', {
+            text: translate('boards.plan.moved', 'Moved "{{title}}" to {{day}}.', {
               title: card.title,
               day: dayLabel(date)
             }),
@@ -153,9 +154,9 @@ function PlanView({
   const [y, m] = focus.split('-')
   const heading =
     view === 'month'
-      ? translate('boards.plan.month', 'Tháng {{month}} · {{year}}', { month: Number(m), year: y })
+      ? translate('boards.plan.month', '{{month}}/{{year}}', { month: Number(m), year: y })
       : view === 'week'
-        ? translate('boards.plan.week', 'Tuần {{from}} – {{to}}', {
+        ? translate('boards.plan.week', 'Week {{from}} – {{to}}', {
             from: dayLabel(week[0].date),
             to: dayLabel(week[6].date)
           })
@@ -165,7 +166,7 @@ function PlanView({
       <header className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-1">
           <span className="font-mono text-2xs text-muted-foreground">
-            {translate('boards.plan.title', 'Kế hoạch')}
+            {translate('boards.plan.title', 'Plan')}
           </span>
           <h1 data-testid="plan-heading" className="text-xl font-medium">
             {heading}
@@ -181,13 +182,13 @@ function PlanView({
           onValueChange={(next) => isView(next) && setView(next)}
         >
           <ToggleGroupItem value="month" data-testid="plan-view-month">
-            {translate('boards.plan.viewMonth', 'Tháng')}
+            {translate('boards.plan.viewMonth', 'Month')}
           </ToggleGroupItem>
           <ToggleGroupItem value="week" data-testid="plan-view-week">
-            {translate('boards.plan.viewWeek', 'Tuần')}
+            {translate('boards.plan.viewWeek', 'Week')}
           </ToggleGroupItem>
           <ToggleGroupItem value="day" data-testid="plan-view-day">
-            {translate('boards.plan.viewDay', 'Ngày')}
+            {translate('boards.plan.viewDay', 'Day')}
           </ToggleGroupItem>
         </ToggleGroup>
         <div className="flex items-center">
@@ -195,7 +196,7 @@ function PlanView({
             data-testid="plan-prev"
             variant="ghost"
             size="icon-xs"
-            aria-label={translate('boards.plan.prev', 'Trước')}
+            aria-label={translate('boards.plan.prev', 'Previous')}
             onClick={() => step(-1)}
           >
             <ChevronLeft />
@@ -206,13 +207,13 @@ function PlanView({
             size="xs"
             onClick={() => setFocus(board.today)}
           >
-            {translate('boards.plan.today', 'Hôm nay')}
+            {translate('boards.plan.today', 'Today')}
           </Button>
           <Button
             data-testid="plan-next"
             variant="ghost"
             size="icon-xs"
-            aria-label={translate('boards.plan.next', 'Sau')}
+            aria-label={translate('boards.plan.next', 'Next')}
             onClick={() => step(1)}
           >
             <ChevronRight />
@@ -269,7 +270,27 @@ function PlanView({
           }
         />
       ) : (
-        <DayView day={board.gridDays[index]} today={board.today} onAdd={setAdding} />
+        <DayView
+          day={board.gridDays[index]}
+          today={board.today}
+          onAdd={setAdding}
+          failedCookId={failedCookId}
+          onCooked={(card, error) => {
+            setFailedCookId(error ? card.id : null)
+            setMessage(
+              error
+                ? { status: 'error', text: error, planId: card.id }
+                : {
+                    status: 'done',
+                    text: translate('boards.plan.cooking', 'Cooking "{{title}}".', {
+                      title: card.title
+                    }),
+                    planId: card.id
+                  }
+            )
+            reload()
+          }}
+        />
       )}
     </div>
   )

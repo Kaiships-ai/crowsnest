@@ -1,0 +1,1 @@
+ALTER TABLE `planned_posts` ADD `cook_workspace_id` text;

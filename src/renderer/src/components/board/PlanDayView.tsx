@@ -1,8 +1,11 @@
-import React from 'react'
-import { ExternalLink, Flag } from 'lucide-react'
+import React, { useState } from 'react'
+import { ChefHat, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
+import { cookReel, openCookWorkspace } from './cook-reel'
+import { StatePill } from './kit/StatePill'
 import { openPostInBrowser } from './open-post'
+import { PublishButton } from './PublishSheet'
 import { AddButton, ITEM_LABEL, StateBadge, type PlanCard, type PlanDay } from './plan-card-parts'
 
 function Field({
@@ -25,7 +28,7 @@ function Field({
         {translate(`boards.plan.item.${item}`, ITEM_LABEL[item])}
       </span>
       {missing ? (
-        <span className="text-muted-foreground">{translate('boards.plan.notYet', 'chưa có')}</span>
+        <span className="text-muted-foreground">{translate('boards.plan.notYet', 'not yet')}</span>
       ) : (
         <span className="min-w-0">{children}</span>
       )}
@@ -33,20 +36,77 @@ function Field({
   )
 }
 
+const COOKABLE = new Set<PlanCard['state']>(['draft', 'plan', 'missed'])
+
+function CookButton({
+  card,
+  retry,
+  onCooked
+}: {
+  card: PlanCard
+  /** The last Cook of this card failed, so the button offers to try again. */
+  retry: boolean
+  onCooked: (error: string | null) => void
+}): React.ReactNode {
+  const [busy, setBusy] = useState(false)
+  if (card.cookWorkspaceId) {
+    const workspaceId = card.cookWorkspaceId
+    return (
+      <Button
+        data-testid="plan-cook-open"
+        variant="outline"
+        size="xs"
+        onClick={() => openCookWorkspace(workspaceId)}
+      >
+        {translate('boards.plan.cookOpen', 'Open workspace')}
+      </Button>
+    )
+  }
+  if (!card.script || !COOKABLE.has(card.state)) {
+    return null
+  }
+  return (
+    <Button
+      data-testid="plan-cook"
+      size="xs"
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true)
+        const outcome = await cookReel(card, () =>
+          onCooked(
+            translate('boards.plan.cookNoAgent', 'Could not start Claude in the reel workspace.')
+          )
+        )
+        setBusy(false)
+        onCooked(outcome.ok ? null : outcome.error)
+      }}
+    >
+      <ChefHat />
+      {retry
+        ? translate('boards.plan.cookRetry', 'Retry cook')
+        : translate('boards.plan.cook', 'Cook')}
+    </Button>
+  )
+}
+
 export function DayView({
   day,
   today,
-  onAdd
+  onAdd,
+  failedCookId,
+  onCooked
 }: {
   day: PlanDay
   today: string
   onAdd: (date: string) => void
+  failedCookId: string | null
+  onCooked: (card: PlanCard, error: string | null) => void
 }): React.ReactNode {
   return (
     <div data-testid="plan-day-view" data-date={day.date} className="flex flex-col gap-4">
       {day.cards.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {translate('boards.plan.emptyDay', 'Ngày này chưa có reel.')}
+          {translate('boards.plan.emptyDay', 'No reel on this day.')}
         </p>
       ) : null}
       {day.cards.map((card) => {
@@ -65,6 +125,12 @@ export function DayView({
               <span className="ml-auto font-mono text-xs text-muted-foreground">
                 {card.time ?? ''}
               </span>
+              <PublishButton card={card} />
+              <CookButton
+                card={card}
+                retry={failedCookId === card.id}
+                onCooked={(error) => onCooked(card, error)}
+              />
             </header>
             {card.lockReason ? (
               <p data-testid="plan-lock-reason" className="text-xs text-muted-foreground">
@@ -103,12 +169,19 @@ export function DayView({
               <Field item="offer" missing={missing.has('offer')} />
             </div>
             {card.missing.length > 0 ? (
-              <p data-testid="plan-missing" className="flex items-center gap-2 text-xs">
-                <Flag className="size-3 text-destructive" />
-                {translate('boards.plan.missing', 'Còn thiếu: {{items}}', {
-                  items: card.missing.map((item) => ITEM_LABEL[item]).join(', ')
-                })}
-              </p>
+              <div data-testid="plan-missing" className="flex flex-wrap items-center gap-1.5">
+                <span className="font-mono text-2xs text-muted-foreground">
+                  {translate('boards.plan.missingLabel', 'Missing')}
+                </span>
+                {card.missing.map((item) => (
+                  <StatePill
+                    key={item}
+                    state={`missing-${item}`}
+                    tone="attention"
+                    label={translate(`boards.plan.item.${item}`, ITEM_LABEL[item])}
+                  />
+                ))}
+              </div>
             ) : null}
           </article>
         )

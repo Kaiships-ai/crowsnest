@@ -526,13 +526,11 @@ describe('registerAppMenu', () => {
     expect(options.onOpenFeatureTour).toHaveBeenCalledWith(targetWindow)
   })
 
-  it('opens the Đối thủ board from the Boards menu', () => {
+  it('opens the Rivals board from the Boards menu', () => {
     const options = buildMenuOptions()
     registerAppMenu(options)
 
-    const rivalsItem = getSubmenu(getTemplate(), 'Boards').find(
-      (entry) => entry.label === 'Đối thủ'
-    )
+    const rivalsItem = getSubmenu(getTemplate(), 'Boards').find((entry) => entry.label === 'Rivals')
     rivalsItem?.click?.({} as never, undefined, {} as Electron.KeyboardEvent)
 
     expect(options.onOpenBoard).toHaveBeenCalledWith('rivals')

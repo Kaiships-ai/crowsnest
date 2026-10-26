@@ -7,7 +7,7 @@ import type { AGENT_ACTION_RESULTS, GATE_LEVELS } from "@/server/db/schema";
 
 export type GateLevel = (typeof GATE_LEVELS)[number];
 export type AgentActionResult = (typeof AGENT_ACTION_RESULTS)[number];
-type RunGate = Exclude<GateLevel, "read" | "gate2">;
+type RunGate = Exclude<GateLevel, "read">;
 
 export const UNSCRUBBED_LOCKED = "[unscrubbed: secret store locked]";
 
@@ -26,16 +26,17 @@ export interface JournaledCall {
   tool: string;
   input: string;
   gate: RunGate;
+  draftId?: string;
 }
 
 /** Write-ahead row, before the tool runs. A throw here means the tool must not run. */
-export function journalPending(caller: string, tool: string, args: unknown, gate: RunGate): JournaledCall {
-  const call = { callId: newId(), caller, tool, input: scrubbedJson(args), gate };
+export function journalPending(caller: string, tool: string, args: unknown, gate: RunGate, draftId?: string): JournaledCall {
+  const call = { callId: newId(), caller, tool, input: scrubbedJson(args), gate, draftId };
   db.insert(tables.agentActions).values({ ...call, at: nowIso(), result: "pending" }).run();
   return call;
 }
 
-export function journalOutcome(call: JournaledCall, result: "ok" | "error"): void {
+export function journalOutcome(call: JournaledCall, result: "ok" | "error" | "rejected"): void {
   db.insert(tables.agentActions).values({ ...call, at: nowIso(), result }).run();
 }
 

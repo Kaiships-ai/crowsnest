@@ -46,10 +46,8 @@ const SidebarHeader = React.memo(function SidebarHeader({
   const acknowledgeIntro = React.useCallback(() => {
     void updateSettings?.({ agentsSidebarIntroShown: true })
   }, [updateSettings])
-  const sidebarTitle =
-    groupBy === 'repo'
-      ? translate('dashboard.sidebar.projects', 'Projects')
-      : translate('dashboard.sidebar.workspaces', 'Workspaces')
+  // Lead Studio names the list Workspaces whatever it is grouped by.
+  const sidebarTitle = translate('dashboard.sidebar.workspaces', 'Workspaces')
   const activityLabel = translate(
     agentsViewActive ? 'dashboard.sidebar.closeActivity' : 'dashboard.sidebar.openActivity',
     agentsViewActive ? 'Turn off activity view' : 'View activity'

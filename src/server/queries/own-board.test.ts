@@ -32,9 +32,12 @@ async function seed(): Promise<void> {
   await db.insert(tables.plannedPosts).values({ id: "plan-alpha", state: "published", title: "Alpha reel", keyword: "ALPHA", publishedOwnPostId: "alpha", createdAt: now, updatedAt: now });
   saveFunnel({ agent: "claude", rows: [
     { keyword: "ALPHA", source: "chatbotx", metric: "dms", value: 40, capturedAt: T_NEW },
-    { keyword: "ALPHA", source: "umami", metric: "visits", value: 12, capturedAt: T_NEW },
     { keyword: "ALPHA", source: "polar", metric: "orders", value: 2, capturedAt: T_NEW },
   ] });
+  await db.insert(tables.reelFunnel).values([
+    { id: "f-visits", keyword: "ALPHA", source: "umami", metric: "visits", value: 12, capturedAt: T_NEW, agent: "umami", createdAt: T_NEW },
+    { id: "f-checkouts", keyword: "ALPHA", source: "umami", metric: "checkouts", value: 3, capturedAt: T_NEW, agent: "umami", createdAt: T_NEW },
+  ]);
 }
 
 test("30 days sums the window's posts, names the posts without a number, and nets followers from the snapshot before the window", async () => {
@@ -94,7 +97,7 @@ test("Sau reel walks the funnel for the reel's keyword: not-connected steps read
     ["comment_keyword", "not-connected"],
     ["dm", 40],
     ["gift_page_visit", 12],
-    ["checkout", "not-connected"],
+    ["checkout", 3],
     ["purchase", 2],
   ]);
 });

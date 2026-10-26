@@ -34,7 +34,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 .claude/skills/verify/scripts/mcp.sh crowsnest_plans '{}'
 ```
 
-`app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
+`app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap, snapAndCompare })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. `snapAndCompare(name, locator?)` shoots the page (or one element) and fails when more than 0.5% of its pixels (`BASELINE_DIFF_MAX`) differ from `<name>.png` in the approved baseline (`~/.claude/orchestrate/lead-studio-v2/baseline`, or `BASELINE_APPROVED`); run it once with `UPDATE_BASELINE=1` to approve a new shot. Shoot on `baseline-lane.sh`, whose stopped clock keeps dates fixed. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
 
 ## Run every journey
 
@@ -44,7 +44,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 
 One dev-mode session on the boards lane (fake sidecar and Umami) runs every journey in `app-journeys/` except Orca's own `shell-01` and `close-terminal`, then `schedule-01` runs in its clock lane. `run-all-report.mjs` writes `data/verify/evidence/<run-id>/report.html`: each DoD id from the proposal's `data.js` with its pass criterion, the journeys that assert it and their state, then each journey's steps, DB checks, shots and diffs. A journey names its DoD ids in `export const dod = ["B2-02"];`.
 
-`snapAndCompare(name, { target, threshold })` shoots the page, or one locator as `target`, and compares it with `baselines/<name>.png`: over `threshold` (default 0.5%) of pixels changed fails the step and saves `<name>.diff.png` with changed pixels in red. Shoot the board, not the page, so tabs and the window chrome never count. Baselines hold the state `run-all.sh` leaves after the journeys before it, so compare through `run-all.sh`, not a lone `app-drive.sh` run. `UPDATE_BASELINE=1` writes this run's shots as baselines; look at each one before you commit it. A shot with no baseline fails the step.
+`snapAndCompare` (above) fails the step on a diff over the threshold and on a shot with no approved baseline. Shoot the board, not the page, so tabs and the window chrome never count. Baselines hold the state `run-all.sh` leaves after the journeys before it, so compare through `run-all.sh`, not a lone `app-drive.sh` run. `UPDATE_BASELINE=1` approves this run's shots; look at each one first.
 
 ## Add a journey for a new screen
 
@@ -53,7 +53,7 @@ One dev-mode session on the boards lane (fake sidecar and Umami) runs every jour
 3. Set `export const dod = [...]` to the DoD ids whose pass criterion it asserts.
 4. Set up data the way an agent does (`mcp(...)`), then open the screen from "+" in the tab bar.
 5. One `step` per criterion: read the number in the UI and the same number from the lane DB with `sql`, and throw when they differ.
-6. End with `snapAndCompare("<screen>-01", { target: board })`, run `run-all.sh` with `UPDATE_BASELINE=1` once, check the shot, commit it.
+6. End with `snapAndCompare("<screen>-01", board)`, run `run-all.sh` with `UPDATE_BASELINE=1` once, check the shot, commit it.
 7. Add the journey to its `features/<part>.md`.
 
 ## Evidence

@@ -10,18 +10,20 @@ export type PlanBoardData = EngineCallValue<'getPlanBoard'>
 export type PlanDay = PlanBoardData['gridDays'][number]
 export type PlanCard = PlanDay['cards'][number]
 export const STATE_LABEL: Record<PlanCard['state'], string> = {
-  draft: 'Nháp',
+  draft: 'Draft',
   plan: 'Plan',
-  missed: 'Lỡ ngày',
-  scheduled: 'Đã hẹn IG',
-  publishing: 'Đang đăng',
-  published: 'Đã đăng',
-  failed: 'Đăng lỗi'
+  missed: 'Missed',
+  cooking: 'Cooking',
+  scheduled: 'Scheduled on IG',
+  publishing: 'Publishing',
+  published: 'Published',
+  failed: 'Failed'
 }
 export const STATE_DOT: Record<PlanCard['state'], string> = {
   draft: 'bg-muted-foreground',
   plan: 'bg-chart-3',
   missed: 'bg-destructive',
+  cooking: 'bg-chart-2',
   scheduled: 'bg-foreground',
   publishing: 'bg-foreground',
   published: 'bg-status-success',
@@ -30,13 +32,13 @@ export const STATE_DOT: Record<PlanCard['state'], string> = {
 export const ITEM_LABEL: Record<PlanCard['missing'][number], string> = {
   script: 'Script',
   caption: 'Caption',
-  reference: 'Reel tham khảo',
-  time: 'Giờ đăng',
+  reference: 'Reference reel',
+  time: 'Post time',
   key: 'Key',
-  gift: 'Quà',
+  gift: 'Gift',
   offer: 'Offer'
 }
-export const WEEKDAYS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export const dayLabel = (date: string): string => {
   const [, m, d] = date.split('-')
@@ -60,7 +62,7 @@ export function MissingFlag({ card }: { card: PlanCard }): React.ReactNode {
     <Flag
       data-testid="plan-flag"
       className="size-3 shrink-0 text-destructive"
-      aria-label={translate('boards.plan.missingCount', 'Thiếu {{count}} mục', {
+      aria-label={translate('boards.plan.missingCount', 'Missing {{count}} items', {
         count: card.missing.length
       })}
     />
@@ -76,7 +78,7 @@ export function AddButton({
   onAdd: (date: string) => void
   compact?: boolean
 }) {
-  const label = translate('boards.plan.add', 'Thêm reel')
+  const label = translate('boards.plan.add', 'Add reel')
   return (
     <Button
       data-testid="plan-add"

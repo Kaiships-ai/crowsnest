@@ -7,7 +7,7 @@ Lead Studio is the Electron app at the repo root, Orca's workspace under its own
 - Window titled Lead Studio (`src/renderer/index.html`, `src/main/window/createMainWindow.ts`).
 - Terminal tab in the active worktree, typed into through xterm's helper textarea.
 - Split of the active terminal pane, through the same split request the pane menu sends (`src/renderer/src/constants/terminal.ts`).
-- Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 38 `crowsnest_*` tools.
+- Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 36 `crowsnest_*` tools.
 - Engine bridge: `window.api.crowsnest.call(name, ...args)` runs an entry of `ENGINE_CALLS` (`src/server/bridge/engine-calls.ts`) over the `crowsnest:call` channel and returns `{ ok, value }` or `{ ok: false, error: { code, message } }`.
 - `cn-media://asset/<assetId>` serves stored assets with byte ranges (`src/main/crowsnest/start.ts`).
 - Jobs: sync and own-measure always run and reach Instagram; the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).

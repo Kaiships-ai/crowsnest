@@ -46,8 +46,6 @@ export const TOOL_LEVELS = {
   crowsnest_set_plan_fields: "gate1",
   crowsnest_attach_video: "gate1",
   crowsnest_propose_plan: "gate1",
-  crowsnest_approve_plan: "gate1",
-  crowsnest_undo_plan: "gate1",
   crowsnest_remix_finish: "gate1",
 } as const satisfies Record<string, GateLevel>;
 

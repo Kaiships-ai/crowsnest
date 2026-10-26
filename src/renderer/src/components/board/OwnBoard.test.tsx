@@ -123,12 +123,12 @@ describe('OwnBoard', () => {
     expect(screen.queryByTestId('own-stat-reach')).toBeNull()
   })
 
-  it('opens on Tổng quan with each number next to its source, and a partial total says how many posts it misses', async () => {
+  it('opens on Overview with each number next to its source, and a partial total says how many posts it misses', async () => {
     stubCall({ ok: true, value: board })
     render(<OwnBoard />)
     const views = await screen.findByTestId('own-stat-views')
     expect(views.textContent).toContain('1,500')
-    expect(within(views).getByTestId('reading-post-gap').textContent).toBe('thiếu 1 bài')
+    expect(within(views).getByTestId('reading-post-gap').textContent).toBe('missing 1 posts')
     expect(within(views).getByTestId('source-label').textContent).toMatch(/^Instagram · /)
     expect(screen.getByTestId('own-stat-net').textContent).toContain('+100')
     expect(
@@ -136,7 +136,7 @@ describe('OwnBoard', () => {
     ).toMatch(/^ChatbotX · /)
   })
 
-  it('lists posts with DM, Web and Đơn, and a post with no keyword reads chưa nối, never 0', async () => {
+  it('lists posts with DMs, Site and Orders, and a post with no keyword reads not connected, never 0', async () => {
     stubCall({ ok: true, value: board })
     render(<OwnBoard />)
     await screen.findByTestId('own-tab-content')
@@ -146,7 +146,7 @@ describe('OwnBoard', () => {
     expect(within(rows[0]).getByTestId('own-after-dm').textContent).toBe('40')
     const betaDm = within(rows[1]).getByTestId('own-after-dm')
     expect(betaDm.dataset.status).toBe('no-keyword')
-    expect(betaDm.textContent).toBe('chưa nối')
+    expect(betaDm.textContent).toBe('not connected')
     expect(within(rows[0]).queryByTestId('own-post-pull-error')).toBeNull()
     expect(within(rows[1]).getByTestId('own-post-pull-error').getAttribute('title')).toBe(
       'HTTP 400: media gone'
@@ -170,7 +170,7 @@ describe('OwnBoard', () => {
     expect(call.mock.calls.map((c) => c[1])).toEqual([30, 7])
   })
 
-  it('opens a reel and its Sau reel tab walks the funnel by keyword, with checkout chưa nối', async () => {
+  it('opens a reel and its After the reel tab walks the funnel by keyword, with checkout not connected', async () => {
     const call = stubCall({ ok: true, value: board }, { ok: true, value: reel })
     render(<OwnBoard />)
     await screen.findByTestId('own-tab-content')
@@ -187,7 +187,7 @@ describe('OwnBoard', () => {
       ['checkout', 'not-connected'],
       ['purchase', 'value']
     ])
-    expect(within(steps[1]).getByTestId('reading-not-connected').textContent).toContain('chưa nối')
+    expect(within(steps[1]).getByTestId('reading-not-connected').textContent).toContain('not connected')
     fireEvent.click(screen.getByTestId('own-reel-back'))
     expect(await screen.findAllByTestId('own-post-row')).toHaveLength(2)
   })

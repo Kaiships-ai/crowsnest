@@ -1,196 +1,109 @@
 ---
-name: Crowsnest
-description: A calm, neutral instrument for creators, built on the stock shadcn base-maia theme with monospaced numbers.
+name: Lead Studio
+description: Lead Studio is Orca's design system. Tokens in src/renderer/src/assets/main.css, primitives in src/renderer/src/components/ui/, rules in docs/STYLEGUIDE.md; this page adds only what boards need.
 colors:
-  background: "oklch(0.145 0 0)"
-  card: "oklch(0.205 0 0)"
-  foreground: "oklch(0.985 0 0)"
-  muted-foreground: "oklch(0.708 0 0)"
-  secondary: "oklch(0.269 0 0)"
-  border: "oklch(1 0 0 / 10%)"
-  input: "oklch(1 0 0 / 15%)"
-  ring: "oklch(0.556 0 0)"
-  primary: "oklch(0.922 0 0)"
-  primary-foreground: "oklch(0.205 0 0)"
-  success: "oklch(0.696 0.17 162)"
-  destructive: "oklch(0.704 0.191 22.216)"
-  chart-1: "oklch(0.837 0.128 66.29)"
-  chart-2: "oklch(0.705 0.213 47.604)"
-  chart-3: "oklch(0.646 0.222 41.116)"
-  chart-4: "oklch(0.553 0.195 38.402)"
-  chart-5: "oklch(0.47 0.157 37.304)"
+  background: "#fff"
+  foreground: "#0a0a0a"
+  card: "#fff"
+  muted: "#f5f5f5"
+  muted-foreground: "#737373"
+  border: "#e5e5e5"
+  primary: "#171717"
+  primary-foreground: "#fafafa"
+  destructive: "#e40014"
+  status-success: "#15803d"
+  status-warning: "#ca8a04"
+  git-decoration-modified: "#895503"
 typography:
-  body:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "0.875rem"
-    fontWeight: 400
-  title:
-    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1rem"
-    fontWeight: 500
-  label:
-    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, monospace"
-    fontSize: "0.6875rem"
-    fontWeight: 500
-    letterSpacing: "0.06em"
-  meta:
-    fontFamily: "IBM Plex Mono, ui-monospace, SFMono-Regular, monospace"
-    fontSize: "0.75rem"
-    fontWeight: 400
-    fontFeature: "tabular-nums slashed-zero"
+  sans: "Geist (var(--font-sans))"
+  mono: "var(--font-mono)"
 rounded:
   base: "0.625rem"
-  card: "1rem"
-  pill: "2rem"
-spacing:
-  xs: "8px"
-  sm: "12px"
-  md: "16px"
-  lg: "24px"
-components:
-  button-primary:
-    backgroundColor: "{colors.primary}"
-    textColor: "{colors.primary-foreground}"
-    rounded: "{rounded.pill}"
-  surface-card:
-    backgroundColor: "{colors.card}"
-    textColor: "{colors.foreground}"
-    rounded: "{rounded.card}"
-    padding: "24px"
 ---
 
-# Design system: Crowsnest
+# Design system: Lead Studio
 
-crowsnest uses a stock shadcn/ui theme: the `base-maia` style, the neutral base color, the
-standard radius, and shadcn's own chart palette. The frontmatter above is the dark theme,
-which is the default, and the light values mirror it (themes: dark, light; no system mode).
-The Next.js web app that carried these tokens and its components is deleted. Its screens move
-into Lead Studio boards in the Electron app (`src/renderer/`), whose shadcn primitives live in
-`src/renderer/src/components/ui/`; this page is the visual system those boards follow.
+Lead Studio is Orca with Lead Studio's boards on top, so its visual system is Orca's. The
+source of truth is code, not this page:
 
-This page is the playbook for changing UI without reaching for a generic design skill. Routine
-fixes follow these rules. Design skills are for a net-new surface with no precedent here, not
-for keeping the house style. Anything in the shadcn docs applies directly.
+- Tokens: `src/renderer/src/assets/main.css` (`:root` for light, `.dark` for dark). The
+  frontmatter above copies a few light values for reference only.
+- Primitives: `src/renderer/src/components/ui/` (Button, Badge, Card, Dialog, Input, Label,
+  Switch, Tooltip, ToggleGroup, Tabs, DropdownMenu, Sheet, and the rest in that folder).
+- Rules: `docs/STYLEGUIDE.md` (color roles, type, radius, elevation, which primitive for what,
+  UX rules). Read it before any UI change.
 
-## Character
+The proto and the proposal wireframes give
+structure and flow only, never colors, fonts or spacing. Copy is English through `translate()`
+keys; the `en` catalogs hold the English text.
 
-Neutral and quiet. There is no brand hue: `primary` is a near-white (dark) or near-black
-(light) neutral, surfaces separate by tonal steps, and the numbers carry the identity. Inter
-carries words. IBM Plex Mono carries every number, id, timestamp, and system state, with
-tabular, slashed-zero figures so columns line up. One status color, `success`, is kept on top
-of stock shadcn. The rest of the chromatic range is the orange chart ramp and `destructive`.
+## Tokens Lead Studio uses
 
-## Color tokens
-
-Use the semantic token, never a raw Tailwind color. They are the frontmatter values above,
-used as `bg-*`, `text-*`, `border-*`.
+Use the semantic token for the role, never a raw Tailwind color or a hex value.
 
 | Token | Use for |
 | --- | --- |
-| `background`, `foreground` | Page ground and default text |
-| `card`, `card-foreground` | Panel surfaces |
-| `popover`, `popover-foreground` | Floating surfaces |
-| `muted`, `muted-foreground` | Secondary surfaces and secondary text (also the quiet-label role) |
-| `border`, `input` | Hairlines and control edges |
-| `primary`, `primary-foreground` | The one primary action per screen, and value emphasis |
-| `secondary`, `accent` | Raised and hover surfaces |
-| `destructive` | Errors and failed states. Use `color-mix(in srgb, var(--destructive) 12%, transparent)` for a wash |
-| `success`, `success-foreground` | The one "good" state (a metric up, a run succeeded). The only status color shadcn does not ship, kept for this |
-| `chart-1..5` | Chart series, shadcn's amber-to-orange ramp. Use `chart-1..n` for both categorical series and magnitude ramps |
-| `ring` | Focus rings (handled by the primitives) |
-| `sidebar*` | Sidebar surfaces, handled by the sidebar components |
+| `background`, `foreground` | Board ground and default text |
+| `card`, `border` | A tile or panel: `rounded-lg border border-border bg-card` |
+| `muted`, `muted-foreground` | Secondary text, labels, empty bars, a number that is not whole |
+| `primary`, `primary-foreground` | The one primary action on a screen (Approve, Connect) |
+| `destructive` | A failed pull or a failed action |
+| `status-success` (`-background`, `-border`) | A connected source, a verified check, an add in Gate 1 |
+| `status-warning` (`-background`, `-border`) | A partial number (missing N keywords), a partial pull, an edit in Gate 1 |
+| `worktree-sidebar*` | The left sidebar rows, as Orca draws them |
+| `diff-added-ground`, `diff-removed-ground` | Monaco diff lines, set by Orca |
 
-Status rule: one primary action and one success color per screen. Failure is `destructive`.
-There is no separate warn color: a degraded state reads as muted text or a `destructive` wash.
+Lead Studio adds one token, because Orca had no "edited line" color: `--diff-modified-ground`
+(`--git-decoration-modified` at 22% in light, 26% in dark), applied by the
+`.lead-diff-modified-line` class to the lines Gate 1 marks as edited. Add a token only when no
+Orca token fits the role, and name it in this section.
 
-## Type scale
+Source states use Orca's Integrations tones (`IntegrationStatusPill`, `IntegrationCardShell`):
+Connected is the connected tone; Not configured, Error and Partial are the attention tone.
 
-Tailwind's stock scale, because that is what the shadcn primitives are authored against:
-`CardTitle` is `text-base`, `CardDescription`, `FieldDescription` and `Item` are `text-sm`.
-Overriding the scale inflates every composition, so do not. One extra step is defined as
-`--text-2xs`, a notch below `text-xs`, for labels the stock scale has no size
-for.
+## Type
 
-| Class | Size | Role |
-| --- | --- | --- |
-| `text-2xs` | 11px | Mono labels, column heads, units (the workhorse) |
-| `text-xs` | 12px | Mono values, meta |
-| `text-sm` | 14px | Body, captions |
-| `text-base` | 16px | Lead copy, card titles |
-| `text-lg` | 18px | Section titles |
-| `text-xl` | 20px | Page titles |
+Geist for words (`font-sans`), `var(--font-mono)` for numbers, ids, times and source tags.
+Tailwind's scale plus Orca's `text-2xs` (11px) and `text-3xs` (10px). Every number carries
+`data-num` and `tabular-nums`. Board titles are `text-xl font-medium`, block titles
+`text-sm font-medium`, tile labels `text-xs text-muted-foreground`.
 
-Labels, units, values, and timestamps are mono (`font-mono`). Numbers carry the `.tabular`
-class or `data-num` so columns line up. Column heads and sidebar group labels use `data-lab`
-for uppercase tracking. Prose is the sans body font. Never uppercase a heading, a button, or
-body copy.
+## Board kit
 
-## Shape, depth, and motion
+Boards compose `src/renderer/src/components/board/kit/` before writing markup:
 
-The base radius is `0.625rem`. `Card` and `Item` are `rounded-2xl`, `Button` is `rounded-4xl`
-(a pill), `InputGroup` and `ButtonGroup` are `rounded-4xl`. Cards separate from the ground by
-tone plus a faint ring (`ring-foreground/10`), not a drop shadow. Focus is a 3px `ring`
-shown instantly. Pressed buttons nudge down 1px. Sheets slide in and out on the drawer curve
-(`--ease-drawer`, `cubic-bezier(0.32, 0.72, 0, 1)`, 200ms), transitioning only translate
-and opacity; under reduced motion they fade without sliding. The one custom keyframe animation is the sidebar
-new-outlier badge, which settles in once (`rail-signal-settle`) and appears plainly under
-reduced motion.
+| Need | Use |
+| --- | --- |
+| A number with its data state | `KpiValue`, or `KpiTile` for a bordered tile with a label |
+| Where a block's numbers come from | `BlockHeader` with one `SourceTag` (sources and the oldest pull time, once per block) |
+| A connector's state | `StatePill` (`SOURCE_STATE`) |
+| A funnel step's size | `Bar` (log scale) |
+| Rows and columns of data | `DataTable` |
+| Loading, empty and error | `BoardStates` with `useBoardLoad` |
 
-## Which primitive for what
+A number is in one of five states and the slot keeps its size in all of them: a value; a
+partial total (muted, badge "missing N keywords"); not connected (an em dash, badge
+"<source> not connected" that opens Settings > Sources); a failed or partial newest pull (the
+older number muted, badge "<source> pull failed"); no data yet (an em dash). A gap never reads
+0.
 
-Check `src/renderer/src/components/ui/` before writing custom markup. Reach for an existing
-feature component before duplicating one. The shadcn skill (`.claude/skills/shadcn/`) holds
-the full composition rules; these are the crowsnest specifics.
-
-| Need | Use | Not |
-| --- | --- | --- |
-| A whole panel or view with no data | `Empty` | A hand-built centered div |
-| One "no items yet" line inside a list or log | A single `text-sm text-muted-foreground` line | `Empty` (too heavy for an inline state) |
-| A panel with a title, body and optional header action | `Card` + `CardHeader` / `CardTitle` / `CardAction` / `CardContent` / `CardFooter` | A `div` with `border border-border bg-card` |
-| A labelled control with a hint or an error | `Field` + `FieldLabel` / `FieldDescription` / `FieldError`, grouped by `FieldGroup`, sectioned by `FieldSet` | A hand-stacked `Label` + control + `p` |
-| A list row with media, title, description and an action | `ItemGroup` + `Item` / `ItemMedia` / `ItemContent` / `ItemTitle` / `ItemActions` | A `flex items-center justify-between` row |
-| Rows and columns of data | `Table` (it brings its own scroll container) | A `grid grid-cols-[...]` pretending to be a table |
-| An input with a leading icon, or an input plus a button | `InputGroup` + `InputGroupInput` / `InputGroupAddon` / `InputGroupButton` | A `relative` wrapper with an absolute icon and `pl-8` |
-| Adjacent buttons forming a toolbar | `ButtonGroup` | Bare siblings with `gap-2` |
-| Exclusive selection among options | `ToggleGroup` (this build takes `value` as an array) | Raw buttons with `aria-pressed` |
-| Inline loading indicator | `Spinner` | A raw `Loader2` with `animate-spin` |
-| Content-shaped loading placeholder | `Skeleton` | A custom `animate-pulse` div |
-| Status pill | `Badge` with a variant | A styled `span` |
-| Vertical or horizontal spacing | `flex` + `gap-*` | `space-y-*` / `space-x-*` |
-| Equal width and height | `size-*` | `w-* h-*` |
-
-Take the primitives at their defaults. Do not add a `className` to undo a default for tone or
-radius; override only when a layout would otherwise break.
-
-Primitive behaviors that callers rely on:
-
-| Case | What to write | Why |
-| --- | --- | --- |
-| A one-line `ItemTitle` that must ellipsize | `className="block truncate"` | `ItemTitle` is `display: flex`, which clips text but never draws the ellipsis. `ItemContent` is `min-w-0`, so the title can shrink. |
-| A stack of `Card`s in a height-bounded scroller | `*:shrink-0` on the scroller | `Card` is `overflow-hidden`, which drops its flex minimum height to 0, so the cards shrink and clip instead of the list scrolling. |
-| A `ToggleGroup` whose labels can outgrow a phone | `className="flex-wrap"` | `ToggleGroup` is single-line by default and clips past the edge. |
-
-## Fixing UI without a design skill
+## Fixing UI
 
 1. Find the component under `src/renderer/src/components/`.
-2. Change layout with `className` (`flex`, `grid`, `gap-*`), never override a primitive's
-   colors or typography.
-3. Use the token or type-scale class for the role, from the tables above.
-4. Run impact analysis before editing a shared primitive (see the GitNexus rules in
-   `AGENTS.md`), then `pnpm run build && pnpm test && pnpm run lint && pnpm run typecheck`.
-
-Invoke a design skill only for a net-new surface with no precedent here, or a deliberate
-redesign the team has agreed to.
+2. Change layout with `className` (`flex`, `grid`, `gap-*`); take primitives at their defaults.
+3. Pick the token and type class for the role from the tables above and `docs/STYLEGUIDE.md`.
+4. Run impact analysis before editing a shared primitive (GitNexus rules in `AGENTS.md`).
+5. Prove it in the app with the verify skill. A UI PR diffs its screens against the v2
+   baseline (`.claude/skills/verify/features/baseline.md`).
 
 ## Do's and don'ts
 
-- **Do** use semantic tokens, `text-2xs` mono labels, and `data-num` on numbers.
-- **Do** keep one primary action and one success color per screen.
-- **Do** compose from `src/renderer/src/components/ui/` primitives at their defaults.
-- **Don't** reach for a raw Tailwind color or a shadow on a card.
-- **Don't** set numbers in a proportional font or drop tabular figures.
-- **Don't** invent metrics, counts, or states the app cannot produce. A capability the app
-  lacks does not appear in the UI.
+- **Do** reuse an Orca component before building one (Integrations cards for Sources, `DiffViewer` for Gate 1).
+- **Do** name each block's source and pull time once, and mark every number that is not whole.
+- **Do** keep one primary action per screen.
+- **Don't** invent a color, font size or shadow tier; add a token only as above.
+- **Don't** put Vietnamese or any copy outside `translate()`.
+- **Don't** show a capability the app lacks.
 
 ## Interaction model
 
@@ -225,7 +138,7 @@ channel) is in `PRODUCT.md`.
 
 ## Navigation and shell
 
-The Next.js shell (sidebar, Nguồn and Cài đặt tabs, the Tuần này screen, redirects, the
-first-run gate, the command menu) is deleted with the web app. The shell is now the Lead
-Studio Electron app; see `documents/architecture/app.md`. The screens move into Lead Studio
-boards. The server data and the MCP tools that fed the old screens are unchanged.
+The shell is Orca's: left sidebar, tab bar, split panes, right sidebar, status bar. Lead
+Studio's rows sit under Search (Today; Insight: Funnel, My channel, Rivals; Create: Plan,
+Studio; System: Sources, Agents), with Orca's workspace list below titled Workspaces.
+Settings lists only the creator panes. What is hidden and where: `documents/architecture/app.md`.

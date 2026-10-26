@@ -14,7 +14,7 @@ type RivalsBoardData = EngineCallValue<'getRivalsBoard'>
 type Post = RivalsBoardData['evidence'][number]['post']
 
 const RADAR = 'Radar'
-const ANALYSIS = 'Phân tích'
+const ANALYSIS = 'Analysis'
 
 const loadRivals = () =>
   window.api.crowsnest
@@ -60,7 +60,7 @@ function AddChannel({
       status: 'done',
       message: translate(
         'boards.rivals.added',
-        'Đã thêm {{handle}}. Bài và outlier của kênh có sau khi Radar đọc kênh.',
+        'Added {{handle}}. Its posts and outliers appear after Radar reads the channel.',
         {
           handle: typed
         }
@@ -75,7 +75,7 @@ function AddChannel({
           data-testid="rivals-add-input"
           value={handle}
           onChange={(event) => setHandle(event.target.value)}
-          placeholder={translate('boards.rivals.handle', '@handle hoặc link kênh')}
+          placeholder={translate('boards.rivals.handle', '@handle or channel link')}
           className="w-56"
         />
         <Button
@@ -85,7 +85,7 @@ function AddChannel({
           disabled={add.status === 'adding'}
         >
           <Plus />
-          {translate('boards.rivals.add', 'Thêm đối thủ')}
+          {translate('boards.rivals.add', 'Add rival')}
         </Button>
       </div>
     </form>
@@ -102,7 +102,7 @@ function OpenPost({ post, testId }: { post: Post; testId: string }): React.React
       onClick={() => openPostInBrowser(post.url)}
     >
       <ExternalLink />
-      {translate('boards.own.openPost', 'Mở bài gốc')}
+      {translate('boards.own.openPost', 'Open original post')}
     </Button>
   )
 }
@@ -122,11 +122,11 @@ function RivalsView({
     <div className="scrollbar-sleek flex h-full flex-col gap-6 overflow-auto p-4">
       <header className="flex items-start gap-3">
         <div className="flex flex-1 flex-col gap-1">
-          <h1 className="text-xl font-medium">{translate('boards.rivals.title', 'Đối thủ')}</h1>
+          <h1 className="text-xl font-medium">{translate('boards.rivals.title', 'Rivals')}</h1>
           <p className="text-sm text-muted-foreground">
             {translate(
               'boards.rivals.subtitle',
-              'Kênh đang theo dõi, bài vượt trội của từng kênh, và bằng chứng từ các bài agent đã phân tích.'
+              "Channels you follow, each channel's outlier posts, and evidence from posts agents analyzed."
             )}
           </p>
         </div>
@@ -156,12 +156,12 @@ function RivalsView({
       <section data-testid="rivals-evidence" className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <h2 className="text-sm font-medium">
-            {translate('boards.rivals.evidence', 'Bằng chứng từ bài đã phân tích')}
+            {translate('boards.rivals.evidence', 'Evidence from analyzed posts')}
           </h2>
           <p className="text-xs text-muted-foreground">
             {translate(
               'boards.rivals.evidenceNote',
-              'Chưa chia Lấy về · Học · Tránh: phân tích chưa ghi bài thuộc thẻ nào.'
+              "Not split into Take · Learn · Avoid yet: analyses don't record which card a post belongs to."
             )}
           </p>
         </div>
@@ -169,7 +169,7 @@ function RivalsView({
           <p className="text-sm text-muted-foreground">
             {translate(
               'boards.rivals.noEvidence',
-              'Chưa có bài nào được phân tích. Agent phân tích bài bằng crowsnest_save_analysis.'
+              'No posts analyzed yet. Agents analyze posts with crowsnest_save_analysis.'
             )}
           </p>
         ) : (
@@ -209,25 +209,24 @@ function RivalsView({
 
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-medium">
-          {translate('boards.rivals.channels', 'Kênh đang theo dõi')}
+          {translate('boards.rivals.channels', 'Channels you follow')}
         </h2>
         {board.channels.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {translate(
-              'boards.rivals.noChannels',
-              'Chưa theo dõi đối thủ nào. Thêm một kênh ở trên.'
-            )}
+            {translate('boards.rivals.noChannels', 'No rivals followed yet. Add a channel above.')}
           </p>
         ) : (
           <div className="grid grid-cols-[1fr_repeat(3,auto)] content-start gap-x-6">
             <div className="col-span-full grid grid-cols-subgrid border-b border-border py-1 font-mono text-2xs text-muted-foreground">
-              <span>{translate('boards.rivals.channel', 'Kênh')}</span>
-              <span className="text-right">{translate('boards.rivals.followers', 'Follower')}</span>
+              <span>{translate('boards.rivals.channel', 'Channel')}</span>
               <span className="text-right">
-                {translate('boards.rivals.median', 'Trung vị view')}
+                {translate('boards.rivals.followers', 'Followers')}
               </span>
               <span className="text-right">
-                {translate('boards.rivals.outliers', 'Vượt 2× trong 30 ngày')}
+                {translate('boards.rivals.median', 'Median views')}
+              </span>
+              <span className="text-right">
+                {translate('boards.rivals.outliers', 'Over 2× in 30 days')}
               </span>
             </div>
             {board.channels.map((channel) => (

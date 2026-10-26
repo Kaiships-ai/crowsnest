@@ -3,10 +3,11 @@ import { z } from "zod";
 import { listConnectors, testConnector } from "@/server/connectors/registry";
 import { scrubSecrets } from "@/server/connectors/scrub-secrets";
 import { errorMessage } from "@/server/lib/action-result";
-import { listPlanVersions, PlanRefSchema } from "@/server/services/plan-versions";
+import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
 import { pullAgain } from "@/server/services/daily-pull";
+import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
 import { getFunnel } from "@/server/services/funnel";
-import { listAgentActions } from "@/server/services/agent-journal";
+import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
 import { createMcpToken, listMcpTokens, revokeMcpToken } from "@/server/services/mcp-tokens";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
 import {
@@ -35,6 +36,7 @@ import { getLastRunHealth, getRun, listRuns } from "@/server/queries/runs";
 import { getScripts } from "@/server/queries/vault";
 import { getFunnelBoard } from "@/server/queries/funnel-board";
 import { getOwnBoard, getOwnReelBoard } from "@/server/queries/own-board";
+import { getGateBoard } from "@/server/queries/gate-board";
 import { getPlanBoard } from "@/server/queries/plan-board";
 import { getRivalsBoard } from "@/server/queries/rivals-board";
 import { getTodayBoard } from "@/server/queries/today-board";
@@ -52,6 +54,7 @@ import {
 import { checkGraphTokenAction, measureOwnChannelAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { movePlanCardAction } from "@/server/actions/plan-board-actions";
+import { clearPlanCookingAction, cookPlanCardAction, markPlanCookingAction } from "@/server/actions/cook-actions";
 import { listNotificationsAction, markAllReadAction, markReadAction } from "@/server/actions/notification-actions";
 import {
   attachScriptToPlanAction,
@@ -121,6 +124,22 @@ const feedFilters = z.object({
   analyzed: z.enum(["yes", "no"]).optional(),
 });
 
+/** Gate 1 and Gate 2 from the app are the operator's own acts: they are journaled under their name,
+ *  and a plan or draft they approve records them as its approver. */
+const OPERATOR = "kai";
+
+function asOperator<R extends { ok: boolean }>(tool: string, input: unknown, run: () => R): R {
+  const entry = journalPending(OPERATOR, tool, input, "gate1");
+  try {
+    const result = run();
+    journalOutcome(entry, result.ok ? "ok" : "error");
+    return result;
+  } catch (err) {
+    journalOutcome(entry, "error");
+    throw err;
+  }
+}
+
 export const ENGINE_CALLS = {
   getDashboardStats: call(none, getDashboardStats),
   getStackHealth: call(none, getStackHealth),
@@ -160,6 +179,9 @@ export const ENGINE_CALLS = {
   getRivalsBoard: call(none, getRivalsBoard),
   getPlanBoard: call(z.tuple([z.string().regex(/^\d{4}-\d{2}$/)]), (month) => getPlanBoard(month)),
   movePlanCardAction: call(z.tuple([z.string(), z.string()]), movePlanCardAction),
+  cookPlanCardAction: call(id, cookPlanCardAction),
+  markPlanCookingAction: call(z.tuple([z.string(), z.string().min(1)]), markPlanCookingAction),
+  clearPlanCookingAction: call(z.tuple([z.string(), z.string().min(1)]), clearPlanCookingAction),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),
@@ -169,6 +191,18 @@ export const ENGINE_CALLS = {
     z.tuple([PlanRefSchema.and(z.object({ version: z.number().int().positive().optional(), limit: z.number().int().min(1).max(50).optional() }))]),
     listPlanVersions,
   ),
+  getGateBoard: call(none, getGateBoard),
+  approvePlanChanges: call(z.tuple([z.string(), z.array(z.string()).max(62)]), (versionId, keys) =>
+    asOperator("approvePlanChanges", { versionId, keys }, () => approvePlanChanges(versionId, keys, OPERATOR)),
+  ),
+  undoPlanApproval: call(z.tuple([PlanRefSchema, z.string()]), (ref, expectLiveId) =>
+    asOperator("undoPlanApproval", { ...ref, expectLiveId }, () => undoPlanVersion(ref, expectLiveId, OPERATOR)),
+  ),
+  getGate2Board: call(none, getGate2Board),
+  getPublishChecks: call(z.tuple([z.string(), z.string()]), getPublishChecks),
+  draftPublish: call(z.tuple([z.string(), z.string()]), (postId, at) => draftPublish(postId, at, OPERATOR)),
+  approveGateDraft: call(id, (draftId) => approveGateDraft(draftId, OPERATOR)),
+  rejectGateDraft: call(id, (draftId) => rejectGateDraft(draftId, OPERATOR)),
   createPlannedPostAction: call(
     z.tuple([
       z.object({

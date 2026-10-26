@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, nowIso, tables } from "@/server/db";
 import { log } from "@/server/lib/logger";
 import { getAsset, resolveAssetPath } from "@/server/media/store";
@@ -38,7 +38,7 @@ type PlannedPostSelect = typeof tables.plannedPosts.$inferSelect;
 /** `no_video` / `no_bucket` / `storage` are precondition/upload failures this module
  *  invents; the rest pass straight through from `GraphApiError.errorClass`
  *  (graph/errors.ts). */
-export type PublishErrorClass = "no_video" | "no_bucket" | "storage" | GraphErrorClass;
+export type PublishErrorClass = "no_video" | "no_bucket" | "storage" | "not_approved" | GraphErrorClass;
 
 export interface PublishPostResult {
   ok: boolean;
@@ -63,6 +63,8 @@ export interface PublishPostDeps {
   createReelContainer: typeof createReelContainer;
   pollReelContainer: typeof pollReelContainer;
   publishReel: typeof publishReel;
+  /** Whether Kai approved, on the Gate 2 board, a publish draft of exactly this video, caption and cover. */
+  isApproved: (row: PlannedPostSelect) => Promise<boolean>;
   now: () => string;
 }
 
@@ -87,6 +89,27 @@ async function defaultResolveVideoPath(assetId: string): Promise<string | null> 
   }
 }
 
+export const PUBLISH_TOOL = "publish_reel";
+
+async function defaultIsApproved(row: PlannedPostSelect): Promise<boolean> {
+  const input = tables.gateDrafts.rawInput;
+  const [match] = await db
+    .select({ id: tables.gateDrafts.id })
+    .from(tables.gateDrafts)
+    .where(
+      and(
+        eq(tables.gateDrafts.tool, PUBLISH_TOOL),
+        eq(tables.gateDrafts.status, "approved"),
+        sql`json_extract(${input}, '$.postId') = ${row.id}`,
+        sql`json_extract(${input}, '$.videoAssetId') IS ${row.videoAssetId}`,
+        sql`json_extract(${input}, '$.caption') IS ${row.caption}`,
+        sql`json_extract(${input}, '$.coverAssetId') IS ${row.coverAssetId}`,
+      ),
+    )
+    .limit(1);
+  return Boolean(match);
+}
+
 const DEFAULT_DEPS: PublishPostDeps = {
   loadRow: defaultLoadRow,
   writeRow: defaultWriteRow,
@@ -96,6 +119,7 @@ const DEFAULT_DEPS: PublishPostDeps = {
   createReelContainer,
   pollReelContainer,
   publishReel,
+  isApproved: defaultIsApproved,
   now: nowIso,
 };
 
@@ -176,7 +200,7 @@ export async function publishPlannedPost(
     await deps.writeRow(postId, {
       state: "published",
       dryRun: dryRun ? 1 : 0,
-      publishedOwnPostId: mediaId,
+      publishedMediaId: mediaId,
       publishedAt: deps.now(),
       lastError: null,
       errorClass: null,
@@ -185,6 +209,7 @@ export async function publishPlannedPost(
     return { ok: true, state: "published", mediaId, dryRun };
   };
 
+  if (!(await deps.isApproved(row))) return fail("not_approved", "No approved Gate 2 draft matches this video, caption and cover. Send it to Gate 2 and approve it.");
   if (!row.videoAssetId) return fail("no_video", "No video attached to this plan.");
   const localPath = await deps.resolveVideoPath(row.videoAssetId);
   if (!localPath) return fail("no_video", "The attached video could not be found on disk.");
@@ -194,7 +219,11 @@ export async function publishPlannedPost(
 
   if (!deps.isGraphConfigured()) return fail("auth", "No Instagram Graph API token configured. Set IG_GRAPH_TOKEN and IG_GRAPH_USER_ID.");
 
+  const coverPath = row.coverAssetId ? await deps.resolveVideoPath(row.coverAssetId) : null;
+  if (row.coverAssetId && !coverPath) return fail("no_video", "The attached cover could not be found on disk.");
+
   let upload: { publicUrl: string; objectKey: string };
+  let cover: { publicUrl: string; objectKey: string } | null = null;
   try {
     upload = await provider.upload(localPath, "video/mp4");
   } catch (err) {
@@ -205,7 +234,12 @@ export async function publishPlannedPost(
   try {
     let containerId: string;
     try {
-      ({ containerId } = await deps.createReelContainer({ videoUrl: upload.publicUrl, caption: row.caption ?? "" }));
+      cover = coverPath ? await provider.upload(coverPath, "image/png") : null;
+    } catch (err) {
+      return await fail("storage", errorMessage(err));
+    }
+    try {
+      ({ containerId } = await deps.createReelContainer({ videoUrl: upload.publicUrl, caption: row.caption ?? "", ...(cover ? { coverUrl: cover.publicUrl } : {}) }));
       await touch(); // heartbeat: container created; the poll loop below is the dominant long step
       await deps.pollReelContainer(containerId, { sleep: heartbeatSleep });
     } catch (err) {
@@ -228,10 +262,13 @@ export async function publishPlannedPost(
     // success, dry-run, or a container/publish failure. A delete failure is logged and
     // swallowed: it must never flip an otherwise-successful publish to failed, and the
     // logger itself never throws (see lib/logger.ts).
-    try {
-      await provider.delete(upload.objectKey);
-    } catch (err) {
-      log.warn("publish.cleanup.delete_failed", { postId, message: errorMessage(err) });
+    for (const object of [upload, cover]) {
+      if (!object) continue;
+      try {
+        await provider.delete(object.objectKey);
+      } catch (err) {
+        log.warn("publish.cleanup.delete_failed", { postId, message: errorMessage(err) });
+      }
     }
   }
 }

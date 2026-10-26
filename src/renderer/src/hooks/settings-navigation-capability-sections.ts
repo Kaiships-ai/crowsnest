@@ -10,12 +10,14 @@ import { getOrcaAccountSettingsSearchEntries } from '@/components/settings/orca-
 import { OrcaLogoSettingsIcon } from '@/components/settings/orca-logo-settings-icon'
 import { getOrchestrationPaneSearchEntries } from '@/components/settings/orchestration-search'
 import { getVoicePaneSearchEntries } from '@/components/settings/voice-pane-search'
+import { translateSearchKeyword } from '@/components/settings/settings-search-keywords'
 import { translate } from '@/i18n/i18n'
 import type { SettingsNavSection } from '@/lib/settings-navigation-types'
 import {
   Blocks,
   Bot,
   CircleUserRound,
+  KeyRound,
   Mic,
   MousePointerClick,
   Network,
@@ -185,6 +187,29 @@ export function buildSetupSettingsSections({
       ),
       icon: SlidersHorizontal,
       searchEntries: getGeneralPaneSearchEntries({ includeProjectRuntime: isLocalWindowsHost }),
+      group: 'setup'
+    },
+    {
+      id: 'lead-sources',
+      title: translate('leadStudio.sources.title', 'Sources'),
+      description: translate(
+        'leadStudio.sources.description',
+        'Connect the services Lead Studio pulls your numbers from.'
+      ),
+      icon: KeyRound,
+      searchEntries: [
+        {
+          title: translate('leadStudio.sources.title', 'Sources'),
+          description: translate(
+            'leadStudio.sources.searchDescription',
+            'API keys, pull status and connections for Instagram, ChatbotX, Umami, Polar and Groq.'
+          ),
+          keywords: [
+            ...translateSearchKeyword('leadStudio.sources.keyword.vault', 'vault'),
+            ...translateSearchKeyword('leadStudio.sources.keyword.apiKey', 'api key')
+          ]
+        }
+      ],
       group: 'setup'
     },
     {

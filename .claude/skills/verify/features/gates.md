@@ -6,13 +6,13 @@ Every MCP tool has a level in `TOOL_LEVELS` (`src/server/mcp/gates.ts`): read, f
 
 - Level per tool, checked at registration: a tool with no level does not compile and throws at startup.
 - Journal row per free, gate 1 and gate 2 call: time, caller (the token name over HTTP, see [tokens.md](tokens.md)), tool, scrubbed input, result, gate, draft id.
-- Gate 2 draft: `{ status: "pending_approval", draftId }`, nothing sent. No tool is gate 2 yet, so the app lane proves read, free and gate 1; `src/server/mcp/gates.test.ts` proves gate 2 with a fixture tool.
+- Gate 2 draft: `{ status: "pending_approval", draftId }`, nothing sent. No MCP tool is gate 2 yet, so this lane proves read, free and gate 1; `src/server/mcp/gates.test.ts` proves gate 2 with a fixture tool. The publish draft from the app and its approval are in [gate2.md](gate2.md).
 - `crowsnest_attach_video` takes only a draft; a scheduled or failed plan returns `PLAN_NOT_DRAFT`.
 - A free or gate 1 call writes a `pending` row before it runs and an outcome row after, with one `call_id`. No `pending` row, no run (`JOURNAL_UNAVAILABLE`).
 
 ## How to get to it (user POV)
 
-The Agents board shows the journal (see [boards.md](boards.md), journey `agents-01`); the Cổng 2 board will also read `listAgentActions`. Today an agent calls the app's MCP and the journal is read through the bridge.
+The Agents board shows the journal (see [boards.md](boards.md), journey `agents-01`); the Gate 2 board lists `gate_drafts` (see [gate2.md](gate2.md)). Today an agent calls the app's MCP and the journal is read through the bridge.
 
 ## Driving it
 

@@ -5,33 +5,14 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { pngDiff } from "./png-diff.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "../../../..");
 const APP = ROOT;
 const STATE = path.join(ROOT, "data/verify/app/state.json");
 const LOG = path.join(ROOT, "data/verify/app/host.log");
-const appRequire = createRequire(path.join(APP, "package.json"));
-const { chromium } = appRequire("@playwright/test");
-const { PNG } = appRequire("pngjs");
-const BASELINES = path.join(import.meta.dirname, "../baselines");
-
-// Share of pixels whose largest channel differs by more than 32 of 255; changed pixels go red in the diff image.
-function diffImages(actualPath, baselinePath, diffPath) {
-  const a = PNG.sync.read(readFileSync(actualPath));
-  const b = PNG.sync.read(readFileSync(baselinePath));
-  if (a.width !== b.width || a.height !== b.height) return { ratio: 1, note: `size ${a.width}x${a.height} vs baseline ${b.width}x${b.height}` };
-  const diff = new PNG({ width: a.width, height: a.height });
-  let changed = 0;
-  for (let i = 0; i < a.data.length; i += 4) {
-    const delta = Math.max(Math.abs(a.data[i] - b.data[i]), Math.abs(a.data[i + 1] - b.data[i + 1]), Math.abs(a.data[i + 2] - b.data[i + 2]));
-    const hit = delta > 32;
-    if (hit) changed++;
-    const grey = (a.data[i] + a.data[i + 1] + a.data[i + 2]) / 12 + 170;
-    diff.data.set(hit ? [255, 0, 0, 255] : [grey, grey, grey, 255], i);
-  }
-  writeFileSync(diffPath, PNG.sync.write(diff));
-  return { ratio: changed / (a.width * a.height), note: "" };
-}
+const APPROVED = process.env.BASELINE_APPROVED ?? path.join(os.homedir(), ".claude/orchestrate/lead-studio-v2/baseline");
+const { chromium } = createRequire(path.join(APP, "package.json"))("@playwright/test");
 
 const MAIN_WINDOW = (url) => /\/renderer\/index\.html$|^http:\/\/localhost:\d+\/$/.test(url);
 
@@ -55,6 +36,8 @@ async function runJourney(name, runId) {
     console.log(line);
     appendFileSync(transcript, `${line}\n`);
   };
+  // Imported before connecting, so a journey that refuses its lane exits instead of holding CDP open.
+  const journey = await import(pathToFileURL(path.join(import.meta.dirname, "app-journeys", `${name}.mjs`)).href);
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`);
   const page = await mainPage(browser);
   const ctx = {
@@ -74,33 +57,30 @@ async function runJourney(name, runId) {
       await page.screenshot({ path: out });
       log(`snap: ${path.relative(ROOT, out)}`);
     },
-    // Compares the shot with the approved baselines/<file>.png; UPDATE_BASELINE=1 writes this run's shot as the baseline.
-    // Pass `target` (a locator) to shoot one element, so tabs and clocks outside it never count as a change.
-    async snapAndCompare(file, { target = page, threshold = 0.005 } = {}) {
+    // Shoots <name>.png (the page, or one locator) and diffs it against the approved baseline;
+    // UPDATE_BASELINE=1 approves it.
+    async snapAndCompare(file, locator = page) {
       const out = path.join(dir, `${file}.png`);
-      await target.screenshot({ path: out });
-      log(`snap: ${path.relative(ROOT, out)}`);
-      const baseline = path.join(BASELINES, `${file}.png`);
+      await locator.screenshot({ path: out });
+      if (process.env.BASELINE_DIR) {
+        mkdirSync(process.env.BASELINE_DIR, { recursive: true });
+        copyFileSync(out, path.join(process.env.BASELINE_DIR, `${file}.png`));
+      }
+      const approved = path.join(APPROVED, `${file}.png`);
       if (process.env.UPDATE_BASELINE === "1") {
-        mkdirSync(BASELINES, { recursive: true });
-        copyFileSync(out, baseline);
-        return log(`diff: ${file} baseline approved`);
+        mkdirSync(APPROVED, { recursive: true });
+        copyFileSync(out, approved);
+        log(`baseline: approved ${path.relative(os.homedir(), approved)}`);
+        return;
       }
-      if (!existsSync(baseline)) {
-        log(`FAIL: diff: ${file} has no baseline; check the shot, then rerun with UPDATE_BASELINE=1 to write it`);
-        throw new Error(`no baseline for ${file}`);
-      }
-      const { ratio, note } = diffImages(out, baseline, path.join(dir, `${file}.diff.png`));
-      const line = `${file} ${(ratio * 100).toFixed(2)}% changed (threshold ${(threshold * 100).toFixed(2)}%)${note ? `, ${note}` : ""}`;
-      if (ratio > threshold) {
-        log(`FAIL: diff: ${line}`);
-        throw new Error(`screenshot ${line}`);
-      }
-      log(`ok: diff: ${line}`);
+      if (!existsSync(approved)) throw new Error(`no baseline ${file}.png; shoot it once with UPDATE_BASELINE=1`);
+      const { share, error } = pngDiff(approved, out);
+      const max = Number(process.env.BASELINE_DIFF_MAX ?? 0.005);
+      log(`baseline: ${file} ${error ?? `${(share * 100).toFixed(2)}% of pixels differ`}`);
+      if (error || share > max) throw new Error(`${file} differs from its baseline`);
     },
   };
   log(`journey: ${name} run: ${runId}`);
-  const journey = await import(pathToFileURL(path.join(import.meta.dirname, "app-journeys", `${name}.mjs`)).href);
   try {
     await journey.default(ctx);
     log(`journey: ${name} passed`);

@@ -69,7 +69,7 @@ Each action returns an `ActionResult` for its caller. Standing state comes from 
 
 - `src/server/services/sync-engine.ts`, `sync-types.ts`, `sync-scheduler.ts`
 - `src/server/services/publish-scheduler.ts`, `own-measure-scheduler.ts`, `daily-pull.ts`
-- `src/server/lib/clock.ts` (`clockNow`; `LEAD_STUDIO_CLOCK_START` starts the app clock at a set instant)
+- `src/server/lib/clock.ts` (`clockNow`; `LEAD_STUDIO_CLOCK_START` starts the app clock at a set instant, and `LEAD_STUDIO_CLOCK_FROZEN=1` keeps it there; `nowIso` in `src/server/db/index.ts` reads this clock, so a stopped clock stamps every write the same)
 - `src/server/queries/failure-surface.ts`
 - `src/server/queries/runs.ts`
 - `src/server/notifications/store.ts`, `src/server/logs/store.ts`

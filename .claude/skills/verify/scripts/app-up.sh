@@ -33,6 +33,18 @@ host_fingerprint() {
 }
 host_fingerprint >"$DIR/host.fingerprint"
 
+# Cook writes into a temp studio-reel copy (its docs and make-reel skill only), never Kai's checkout;
+# the app refuses Cook in a lane that names none. A fixed path outside any git checkout keeps the
+# shell prompt in the cook workspace shot the same.
+STUDIO="$HOME/Desktop/kaiships/studio-reel"
+export LEAD_STUDIO_COOK_ROOT="/tmp/lead-studio-cook/studio-reel"
+rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
+for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md; do
+  if [ -f "$STUDIO/$f" ]; then
+    mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
+  fi
+done
+
 rm -f "$DIR/state.json"
 set -m
 node_modules/.bin/tsx .claude/skills/verify/scripts/app-host.mjs >"$DIR/host.log" 2>&1 &

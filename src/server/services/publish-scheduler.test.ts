@@ -416,6 +416,7 @@ describe("the atomic claim (real db)", () => {
       createReelContainer: vi.fn(async () => ({ containerId: "container_1" })),
       pollReelContainer,
       publishReel: vi.fn(async () => ({ mediaId: "media_1" })),
+      isApproved: vi.fn(async () => true),
     });
 
     expect(result).toMatchObject({ ok: true, state: "published" });

@@ -47,7 +47,7 @@ describe('AgentsBoard', () => {
     ).toEqual(['crowsnest_save_funnel'])
   })
 
-  it('shows one row per call: the outcome over pending, and an unfinished call as chưa xong', async () => {
+  it('shows one row per call: the outcome over pending, and an unfinished call as pending', async () => {
     stubBridge({
       listMcpTokens: () => ({ ok: true, value: [] }),
       listAgentActions: () => ({
@@ -63,7 +63,7 @@ describe('AgentsBoard', () => {
     await screen.findAllByTestId('agents-journal-row')
     const rows = screen.getAllByTestId('agents-journal-row')
     expect(rows.map((r) => r.getAttribute('data-result'))).toEqual(['ok', 'pending'])
-    expect(rows[1].textContent).toContain('chưa xong')
+    expect(rows[1].textContent).toContain('pending')
   })
 
   it('shows a new token once, copies it, and never again after Xong', async () => {

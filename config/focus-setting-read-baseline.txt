@@ -119,7 +119,6 @@
 1 src/renderer/src/components/sidebar/SetupGuideSidebarEntry.tsx
 1 src/renderer/src/components/sidebar/SetupScriptPromptCard.tsx
 1 src/renderer/src/components/sidebar/SidebarAgentsList.tsx
-1 src/renderer/src/components/sidebar/SidebarSettingsHelpMenu.tsx
 1 src/renderer/src/components/sidebar/SidebarTaskNavButton.tsx
 1 src/renderer/src/components/sidebar/WorkspaceAttachmentSearch.tsx
 1 src/renderer/src/components/sidebar/WorkspaceKanbanDrawer.tsx
@@ -172,10 +171,14 @@
 1 src/renderer/src/components/tab-bar/windows-shell-menu-visibility.ts
 3 src/renderer/src/components/tab-group/useTabGroupCreationCommands.ts
 1 src/renderer/src/components/task-page-jira-status-order.ts
-2 src/renderer/src/components/task-page/linear/task-page-linear-issue-model.tsx
 9 src/renderer/src/components/task-page/TaskPage.tsx
 2 src/renderer/src/components/task-page/jira/IssueAssigneeField.tsx
 1 src/renderer/src/components/task-page/linear/Filters.tsx
+2 src/renderer/src/components/task-page/linear/task-page-linear-issue-model.tsx
+4 src/renderer/src/components/task-page/linear/use-task-page-linear-board.ts
+6 src/renderer/src/components/task-page/linear/use-task-page-linear-creation-state.ts
+4 src/renderer/src/components/task-page/linear/use-task-page-linear-issue-creation.ts
+2 src/renderer/src/components/task-page/linear/use-task-page-linear-project-creation.ts
 1 src/renderer/src/components/terminal-pane/pending-split-close-test-fixture.ts
 1 src/renderer/src/components/terminal-pane/pty-connection/agent-idle-working-handlers.ts
 1 src/renderer/src/components/terminal-pane/retire-unbound-runtime-terminal-pane.ts
@@ -194,10 +197,6 @@
 4 src/renderer/src/components/use-task-page-jira-creation-metadata.ts
 4 src/renderer/src/components/use-task-page-jira-issue-creation.ts
 1 src/renderer/src/components/use-task-page-jira-list-effects.ts
-4 src/renderer/src/components/task-page/linear/use-task-page-linear-board.ts
-6 src/renderer/src/components/task-page/linear/use-task-page-linear-creation-state.ts
-4 src/renderer/src/components/task-page/linear/use-task-page-linear-issue-creation.ts
-2 src/renderer/src/components/task-page/linear/use-task-page-linear-project-creation.ts
 2 src/renderer/src/components/use-task-page-provider-metadata.ts
 2 src/renderer/src/components/use-task-page-source-availability.ts
 2 src/renderer/src/components/use-task-page-store-bindings.ts

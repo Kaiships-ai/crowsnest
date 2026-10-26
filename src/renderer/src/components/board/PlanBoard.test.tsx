@@ -2,10 +2,12 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import { PlanBoard } from './PlanBoard'
 
 const openPost = vi.hoisted(() => vi.fn())
 vi.mock('./open-post', () => ({ openPostInBrowser: openPost }))
+vi.mock('./cook-reel', () => ({ cookReel: vi.fn(), openCookWorkspace: vi.fn() }))
 
 const date = (offset: number) => {
   const d = new Date()
@@ -22,7 +24,9 @@ const draft = {
   caption: null,
   reference: null,
   missing: ALL,
-  lockReason: null
+  lockReason: null,
+  cookWorkspaceId: null,
+  hasVideo: false
 }
 const armed = {
   id: 'b',
@@ -34,7 +38,9 @@ const armed = {
   caption: 'Cap',
   reference: { videoId: 'v1', url: 'https://www.instagram.com/reel/v1/', handle: '@rival' },
   missing: ['key', 'gift', 'offer'],
-  lockReason: 'Đã hẹn đăng lên Instagram. Huỷ hẹn trước rồi mới dời ngày.'
+  lockReason: 'Scheduled on Instagram. Unschedule it before you move its day.',
+  cookWorkspaceId: null,
+  hasVideo: false
 }
 const board = {
   month: date(0).slice(0, 7),
@@ -66,7 +72,7 @@ afterEach(() => {
 describe('PlanBoard', () => {
   it('shows each reel on its day in the month, flagged when it misses an item', async () => {
     const call = stubCall({ ok: true, value: board })
-    render(<PlanBoard />)
+    render(<PlanBoard />, { wrapper: TooltipProvider })
     const chips = await screen.findAllByTestId('plan-chip')
     expect(chips.map((c) => [c.dataset.planId, c.dataset.state])).toEqual([
       ['a', 'draft'],
@@ -81,7 +87,7 @@ describe('PlanBoard', () => {
       { ok: true, value: board },
       { ok: true, value: { ok: true, prior: { plannedDate: date(0) } } }
     )
-    render(<PlanBoard />)
+    render(<PlanBoard />, { wrapper: TooltipProvider })
     fireEvent.click(await screen.findByTestId('plan-view-week'))
     const columns = screen.getAllByTestId('plan-week-day')
     const [draftCard, armedCard] = screen.getAllByTestId('plan-card')
@@ -92,14 +98,14 @@ describe('PlanBoard', () => {
 
     fireEvent.dragStart(draftCard, { dataTransfer: dataTransfer() })
     fireEvent.drop(columns[3], { dataTransfer: dataTransfer('a') })
-    expect(await screen.findByText(/Đã dời "Draft reel"/)).toBeTruthy()
+    expect(await screen.findByText(/Moved "Draft reel"/)).toBeTruthy()
     expect(call.mock.calls[1]).toEqual(['movePlanCardAction', 'a', date(3)])
     expect(call.mock.calls.filter(([name]) => name === 'movePlanCardAction')).toHaveLength(1)
   })
 
-  it('opens a day with each reel in full, chưa có for a missing item, and the reference reel', async () => {
+  it('opens a day with each reel in full, not yet for a missing item, and the reference reel', async () => {
     stubCall({ ok: true, value: board })
-    render(<PlanBoard />)
+    render(<PlanBoard />, { wrapper: TooltipProvider })
     fireEvent.click((await screen.findAllByTestId('plan-chip'))[1])
     const detail = screen.getByTestId('plan-detail')
     const fields = within(detail)
@@ -114,23 +120,24 @@ describe('PlanBoard', () => {
       ['gift', 'true'],
       ['offer', 'true']
     ])
-    expect(within(detail).getByTestId('plan-missing').textContent).toBe(
-      'Còn thiếu: Key, Quà, Offer'
-    )
+    const missing = within(within(detail).getByTestId('plan-missing')).getAllByTestId('state-pill')
+    expect(missing.map((p) => p.textContent)).toEqual(['Key', 'Gift', 'Offer'])
+    // A reel scheduled with Instagram is past cooking.
+    expect(within(detail).queryByTestId('plan-cook')).toBeNull()
     fireEvent.click(within(detail).getByTestId('plan-reference-open'))
     expect(openPost).toHaveBeenCalledWith('https://www.instagram.com/reel/v1/')
   })
 
   it('adds a reel by hand in an empty day', async () => {
     const call = stubCall({ ok: true, value: board }, { ok: true, value: { ok: true, id: 'new' } })
-    render(<PlanBoard />)
+    render(<PlanBoard />, { wrapper: TooltipProvider })
     const empty = (await screen.findAllByTestId('plan-add'))[0]
     expect(empty.dataset.date).toBe(date(2))
     fireEvent.click(empty)
     fireEvent.change(screen.getByTestId('plan-add-title'), { target: { value: 'New reel' } })
     fireEvent.change(screen.getByTestId('plan-add-time'), { target: { value: '08:00' } })
     fireEvent.click(screen.getByTestId('plan-add-submit'))
-    expect(await screen.findByText(/Đã thêm "New reel"/)).toBeTruthy()
+    expect(await screen.findByText(/Added "New reel"/)).toBeTruthy()
     expect(call.mock.calls[1]).toEqual([
       'createPlannedPostAction',
       { title: 'New reel', plannedDate: date(2), plannedTime: '08:00' }

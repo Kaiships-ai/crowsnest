@@ -274,6 +274,34 @@
       "when": 1793021919356,
       "tag": "0038_umami_days",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1793030332568,
+      "tag": "0039_plan_approver",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1793037715295,
+      "tag": "0040_plan_cook_workspace",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1793037775295,
+      "tag": "0041_plan_media_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1793037835295,
+      "tag": "0042_gate2_publish",
+      "breakpoints": true
     }
   ]
 }

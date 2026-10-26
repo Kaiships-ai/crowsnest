@@ -477,15 +477,17 @@ export const plannedPosts = sqliteTable("planned_posts", {
    *  never the script. */
   remixSessionId: text("remix_session_id").references(() => remixSessions.id, { onDelete: "set null" }),
   sourceVideoId: text("source_video_id").references(() => videos.id, { onDelete: "set null" }),
-  /** Set by hand when Kai says a plan went out. Nothing sets this automatically —
-   *  there is no code path from this table to any network call. */
+  /** The internal `own_posts.id` of the reel, set by hand when Kai marks a plan published. */
   publishedOwnPostId: text("published_own_post_id"),
+  /** Instagram's media id, set by publish. Readers reach the reel through `own_posts.external_id`. */
+  publishedMediaId: text("published_media_id"),
   /** Set when a carried script was deliberately detached rather than the plan simply
    *  never having had one. The calendar cell says the script is gone and when, instead
    *  of rendering identically to a plan that was always just a title. */
   scriptDetachedNote: text("script_detached_note"),
   /** The uploaded mp4 this plan publishes, null until one is attached. */
   videoAssetId: text("video_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
+  coverAssetId: text("cover_asset_id").references(() => mediaAssets.id, { onDelete: "set null" }),
   caption: text("caption"),
   /** The combined date+time instant the scheduler reads, null until a plan is
    *  scheduled. Distinct from plannedDate/plannedTime, which stay the calendar's own
@@ -507,6 +509,8 @@ export const plannedPosts = sqliteTable("planned_posts", {
   planReelKey: text("plan_reel_key"),
   /** The reel fields the last plan sync wrote. A draft whose fields still equal this, with nothing attached, is pristine and approve/undo may change or delete it. */
   planSynced: text("plan_synced", { mode: "json" }),
+  /** The Lead Studio folder workspace Cook opened for this reel, null until Cook. */
+  cookWorkspaceId: text("cook_workspace_id"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull(),
 }, (t) => [
@@ -916,6 +920,8 @@ export const planVersions = sqliteTable(
     reels: text("reels", { mode: "json" }).notNull(),
     agent: text("agent").notNull(),
     approvedAt: text("approved_at"),
+    /** Who made this version live: "kai" from Gate 1 in the app (no MCP tool approves). */
+    approvedBy: text("approved_by"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
   },
@@ -952,7 +958,7 @@ export const dailyPulls = sqliteTable(
 );
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
-export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted"] as const;
+export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted", "rejected"] as const;
 
 export const agentActions = sqliteTable("agent_actions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -966,7 +972,7 @@ export const agentActions = sqliteTable("agent_actions", {
   draftId: text("draft_id"),
 });
 
-export const GATE_DRAFT_STATUSES = ["pending"] as const;
+export const GATE_DRAFT_STATUSES = ["pending", "approved", "rejected"] as const;
 
 export const gateDrafts = sqliteTable("gate_drafts", {
   id: text("id").primaryKey(),
@@ -975,6 +981,9 @@ export const gateDrafts = sqliteTable("gate_drafts", {
   caller: text("caller").notNull(),
   status: text("status", { enum: GATE_DRAFT_STATUSES }).notNull().default("pending"),
   createdAt: text("created_at").notNull(),
+  decidedBy: text("decided_by"),
+  decidedAt: text("decided_at"),
+  lastError: text("last_error"),
 });
 
 export const mcpTokens = sqliteTable(

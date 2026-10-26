@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { open, stat } from "node:fs/promises";
+import path from "node:path";
 import { and, eq, notInArray } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
 import { errorMessage, type SimpleResult } from "../lib/action-result";
@@ -51,6 +53,12 @@ export async function checkPlanTakesVideo(planId: string, { draftOnly = false }:
   return { ok: true };
 }
 
+/** studio-reel renders `<name>-cover.png` next to `<name>.mp4`; a video without one has no cover. */
+async function putSiblingCover(videoPath: string): Promise<string | null> {
+  const coverPath = path.join(path.dirname(videoPath), `${path.basename(videoPath, path.extname(videoPath))}-cover.png`);
+  return existsSync(coverPath) ? getAssetStore().put({ path: coverPath }, "thumbnail", "image/png") : null;
+}
+
 // Kept out of the "use server" actions module: every export there becomes a browser-callable server action.
 export async function attachPlanVideo(planId: string, filePath: string, lock: VideoLock = {}): Promise<SimpleResult> {
   try {
@@ -59,9 +67,10 @@ export async function attachPlanVideo(planId: string, filePath: string, lock: Vi
     const check = await checkVideoFile(filePath);
     if (!check.ok) return check;
     const assetId = await getAssetStore().put({ path: filePath }, "video", "video/mp4");
+    const coverAssetId = await putSiblingCover(filePath);
     const updated = await db
       .update(tables.plannedPosts)
-      .set({ videoAssetId: assetId, updatedAt: nowIso() })
+      .set({ videoAssetId: assetId, coverAssetId, updatedAt: nowIso() })
       .where(and(eq(tables.plannedPosts.id, planId), lock.draftOnly ? eq(tables.plannedPosts.state, "draft") : notInArray(tables.plannedPosts.state, LOCKED_STATES)))
       .returning({ id: tables.plannedPosts.id });
     if (updated.length === 0) return lock.draftOnly ? NOT_DRAFT : LOCKED;
