@@ -15,7 +15,7 @@ type Note = { ok: boolean; text: string }
 
 const loadVault = () => window.api.crowsnest.call('getVaultBoard')
 
-const STATE_LABELS: Record<VaultRow['state'], () => string> = {
+export const STATE_LABELS: Record<VaultRow['state'], () => string> = {
   running: () => translate('boards.vault.state.running', 'chạy'),
   error: () => translate('boards.vault.state.error', 'lỗi'),
   stale: () => translate('boards.vault.state.stale', 'cũ'),

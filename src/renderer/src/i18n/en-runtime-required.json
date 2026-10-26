@@ -2989,6 +2989,18 @@
       }
     }
   },
+  "boards": {
+    "funnel": {
+      "step": {
+        "checkout": "Bấm checkout",
+        "comment_keyword": "Comment keyword",
+        "dm": "Nhận DM quà",
+        "gift_page_visit": "Vào trang quà",
+        "purchase": "Mua",
+        "view": "Xem reel"
+      }
+    }
+  },
   "browser": {
     "clientHosted": {
       "popupBlocked": "Popup blocked: {{origin}}"

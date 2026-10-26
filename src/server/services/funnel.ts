@@ -56,7 +56,7 @@ export function saveFunnel(input: unknown): { ok: true; saved: number } | { ok: 
   return { ok: true, saved: values.length };
 }
 
-type Reading =
+export type Reading =
   | { status: "value"; value: number; capturedAt: string }
   | { status: "missing" }
   | { status: "not-connected"; connector: Extract<MetricSource, { kind: "not-connected" }>["connector"] };
@@ -122,7 +122,7 @@ function readInsight(row: InsightRow | undefined, column: Extract<MetricSource, 
   return row && value != null ? { status: "value", value, capturedAt: row.capturedAt } : { status: "missing" };
 }
 
-function ratio(numerator: Reading, denominator: Reading): Reading {
+export function ratio(numerator: Reading, denominator: Reading): Reading {
   if (numerator.status === "not-connected") return numerator;
   if (denominator.status === "not-connected") return denominator;
   if (numerator.status === "missing" || denominator.status === "missing" || denominator.value === 0) return { status: "missing" };

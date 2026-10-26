@@ -42,6 +42,10 @@ const COUNTS = {
 
 export type CountId = keyof typeof COUNTS;
 
+/** The six funnel steps in order. Each step after the first has the ledger rate whose
+ *  numerator is that step and whose denominator is the step before it. */
+export const FUNNEL_STEPS = ["view", "comment_keyword", "dm", "gift_page_visit", "checkout", "purchase"] as const satisfies readonly CountId[];
+
 const RATES = {
   follow_rate: { kind: "rate", label: "Follow rate", window: "reel-lifetime", target: null, numerator: "follow", denominator: "view" },
   bio_link_tap_rate: { kind: "rate", label: "Link in bio tap rate", window: "reel-lifetime", target: null, numerator: "bio_link_tap", denominator: "view" },
