@@ -14,12 +14,13 @@ Rule G-03: every PR that adds or changes a feature adds or updates its file in `
 ## Launch
 
 ```bash
+APP_DEV=1 .claude/skills/verify/scripts/app-up.sh --seed      # dev mode, the default for agents: no build
 .claude/skills/verify/scripts/app-up.sh                       # build in e2e mode, launch on an empty DB, wait for "app: ready"
 .claude/skills/verify/scripts/app-up.sh --seed                # DB = fresh scripts/seed-e2e.ts seed
 APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy of <db> (default data/crowsnest.db)
 ```
 
-`app-up.sh` runs `app-host.mjs`, which launches the app the way `tests/e2e/helpers/orca-app.ts` does: a disposable user data dir and HOME, mock keychain, a seeded git repo with one terminal tab. It never uses the installed Orca.app profile. The lane's DB is always `<userData>/crowsnest.db` (`CROWSNEST_DB_PATH`), copied with `scripts/copy-db.ts`, so a lane never opens the checkout's `data/crowsnest.db`. The app runs sync and own-measure on that DB; the publish scheduler stays off unless `LEAD_STUDIO_PUBLISH_JOBS=1`. `APP_SKIP_BUILD=1` reuses `out/`; `APP_HEADLESS=1` hides the window; `APP_RECORD_VIDEO=<dir>` records a webm. Logs: `data/verify/app/{seed,build,host}.log`. The build goes through `scripts/heavy.sh`, so it waits with "heavy: another heavy job holds ..." while another worktree builds or tests.
+`app-up.sh` runs `app-host.mjs`, which launches the app the way `tests/e2e/helpers/orca-app.ts` does: a disposable user data dir and HOME, mock keychain, a seeded git repo with one terminal tab. It never uses the installed Orca.app profile. The lane's DB is always `<userData>/crowsnest.db` (`CROWSNEST_DB_PATH`), copied with `scripts/copy-db.ts`, so a lane never opens the checkout's `data/crowsnest.db`. The app runs sync and own-measure on that DB; the publish scheduler stays off unless `LEAD_STUDIO_PUBLISH_JOBS=1`. `APP_DEV=1` skips the build and runs `electron-vite dev --mode e2e --watch` with the same user data, HOME, DB, mock keychain and CDP port, so every journey connects unchanged: a renderer edit shows in the running app through HMR in about a second, and a main or preload edit rebuilds and restarts Electron (the MCP port file is recopied). Agents run dev mode only; the build path is for packaging checks. `APP_SKIP_BUILD=1` reuses `out/`; `APP_HEADLESS=1` hides the window; `APP_RECORD_VIDEO=<dir>` records a webm. Logs: `data/verify/app/{seed,build,host}.log`. The build goes through `scripts/heavy.sh`, so it waits with "heavy: another heavy job holds ..." while another worktree builds or tests.
 
 `app-up.sh` fingerprints the Claude hooks in `~/.claude/settings.json` and `~/.orca/agent-hooks`; `app-down.sh` exits 1 with `app: HOST CHANGED` when they changed during the run. Report that with the revert path.
 
