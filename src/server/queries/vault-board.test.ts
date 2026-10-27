@@ -38,28 +38,9 @@ describe("getVaultBoard", () => {
     ];
     for (const c of registry) await pullConnector(c.manifest.id, registry);
     expect(card(registry, "ok")).toEqual({ state: "ready", message: null, detail: null });
-    expect(card(registry, "cut")).toEqual({ state: "partial", message: "The last pull did not finish, so the older numbers stay. Pull again later.", detail: "missing page 2: rate limited" });
-    expect(card(registry, "down")).toEqual({ state: "error", message: "The last pull failed, so the older numbers stay. Check the key, then pull again.", detail: "sidecar down" });
+    expect(card(registry, "cut")).toEqual({ state: "partial", message: "The last pull did not finish, so some numbers are older.", detail: "missing page 2: rate limited" });
+    expect(card(registry, "down")).toEqual({ state: "error", message: "The last pull failed, so the older numbers stay. Re-check the key.", detail: "sidecar down" });
     expect(card(registry, "throws")).toMatchObject({ state: "error", detail: "ECONNREFUSED" });
-  });
-
-  test("a successful check after a failed pull shows only ready, and a failed check after it shows its message", async () => {
-    let ok = true;
-    const registry = [fake("flaky", { pull: async () => ({ kind: "failed", reason: "down" }), check: async () => (ok ? { ok: true, message: null } : { ok: false, message: "Umami refused the key (401). Paste a new key." }) })];
-    await pullConnector("flaky", registry);
-    expect(card(registry, "flaky")?.state).toBe("error");
-    await checkConnector("flaky", registry);
-    expect(card(registry, "flaky")).toEqual({ state: "ready", message: null, detail: null });
-    ok = false;
-    await checkConnector("flaky", registry);
-    expect(card(registry, "flaky")).toEqual({ state: "error", message: "Umami refused the key (401). Paste a new key.", detail: null });
-  });
-
-  test("a successful check keeps a partial pull's state, message and detail", async () => {
-    const registry = [fake("cut", { pull: async () => ({ kind: "partial", rows: null, missing: "page 2", reason: "rate limited" }) })];
-    await pullConnector("cut", registry);
-    await checkConnector("cut", registry);
-    expect(card(registry, "cut")).toEqual({ state: "partial", message: "The last pull did not finish, so the older numbers stay. Pull again later.", detail: "missing page 2: rate limited" });
   });
 
   test("a connector missing setup is not connected, and its last check says why", async () => {

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 // Runs on card-state-lane.sh (fake sidecar), before the restart; card-state-02 runs after it.
-// Each Sources card shows one state: the newest check or pull, read from connector_status.
+// Each Sources card shows one state from connector_status: a failed check, else the last pull's outcome.
 export const dod = [];
 
 const APP = path.resolve(import.meta.dirname, "../../../../../data/verify/app");
@@ -11,6 +11,7 @@ const { userDataDir } = JSON.parse(readFileSync(path.join(APP, "state.json"), "u
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
 const port = readFileSync(path.join(APP, "fake-sidecar.port"), "utf8").trim();
 const setSession = (state) => fetch(`http://127.0.0.1:${port}/__session?state=${state}`, { method: "POST" });
+const setMedias = (state) => fetch(`http://127.0.0.1:${port}/__medias?state=${state}`, { method: "POST" });
 const SELECTOR = '[data-testid="source-card"][data-connector-id="ig-sidecar"]';
 
 /** Waits until the sidecar card is idle in `state`. */
@@ -51,41 +52,50 @@ export default async function cardState01({ page, step, snap }) {
       const text = await page.getByTestId("lead-sources").innerText();
       console.log(`pull lines: ${(await page.getByTestId("source-pulls").allInnerTexts()).join(" | ")}`);
       if (/\bnext\b|05:00/i.test(text)) throw new Error(`a card names a scheduled pull: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
-      if (await page.getByTestId("lead-sources").getByRole("button", { name: "Pull", exact: true }).count()) throw new Error("a card has a Pull button");
+      if (await page.getByTestId("lead-sources").getByRole("button", { name: /^Pull/ }).count()) throw new Error("a card has a Pull button");
     });
 
     await step("the sidecar's session expires and a pull fails: the card shows Error with its reason", async () => {
       if (!(await setSession("expired")).ok) throw new Error("fake sidecar refused /__session");
       await pull(page, card, "error");
       console.log(`card: ${(await card.innerText()).replace(/\s+/g, " ")}`);
-      console.log(`db: ${sql("select state || ' | ' || coalesce(detail, '') from connector_status where connector_id = 'ig-sidecar'")}`);
+      console.log(`db: ${sql("select pull_state || ' | ' || coalesce(pull_detail, '') from connector_status where connector_id = 'ig-sidecar'")}`);
       const shown = await pills(card);
       if (JSON.stringify(shown) !== '["Error"]') throw new Error(`pills ${JSON.stringify(shown)}`);
     });
     await snap("card-state-01-error");
 
-    await step("the session is back and Re-check passes: the card shows only Ready, no Error and no Verified", async () => {
+    await step("the session is back and Re-check passes: the failed pull still shows Error, a check proves the key and not the data", async () => {
       await setSession("ok");
-      await press(page, card, "source-recheck", "ready");
+      await press(page, card, "source-recheck", "error");
+      const shown = await pills(card);
+      if (JSON.stringify(shown) !== '["Error"]') throw new Error(`pills ${JSON.stringify(shown)}`);
+      const row = sql("select pull_state || ' ' || coalesce(check_message, 'passed') || ' ' || (checked_at > pulled_at) from connector_status where connector_id = 'ig-sidecar'");
+      console.log(`db pull, check, checked after pull: ${row}`);
+      if (row !== "error passed 1") throw new Error(`db ${row}`);
+    });
+
+    await step("a pull succeeds: the card shows only Ready, no Error and no Verified", async () => {
+      if (!(await setMedias("empty")).ok) throw new Error("fake sidecar refused /__medias");
+      await pull(page, card, "ready");
+      await setMedias("refuse");
       const text = (await card.innerText()).replace(/\s+/g, " ");
       console.log(`card: ${text}`);
       const shown = await pills(card);
       if (JSON.stringify(shown) !== '["Ready"]') throw new Error(`pills ${JSON.stringify(shown)}`);
       if (/Error|Verified|failed/.test(text)) throw new Error("the card still shows the old error");
-      const row = sql("select state || ' ' || (checked_at > pulled_at) from connector_status where connector_id = 'ig-sidecar'");
-      console.log(`db state, checked after pull: ${row}`);
-      if (row !== "ready 1") throw new Error(`db ${row}`);
     });
     await snap("card-state-01-ready");
 
     await step("a pull fails again, leaving Error as the newest event for the restart", async () => {
       await setSession("expired");
       await pull(page, card, "error");
-      const row = sql("select state || ' | ' || detail || ' | ' || pulled_at from connector_status where connector_id = 'ig-sidecar'");
+      const row = sql("select pull_state || ' | ' || pull_detail || ' | ' || pulled_at from connector_status where connector_id = 'ig-sidecar'");
       console.log(`db before restart: ${row}`);
       if (!row.startsWith("error | ")) throw new Error(`db ${row}`);
     });
   } finally {
     await setSession("ok");
+    await setMedias("refuse");
   }
 }

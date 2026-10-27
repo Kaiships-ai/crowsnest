@@ -31,7 +31,7 @@ export default async function schedule01({ page, step, snap }) {
     await card.waitFor({ timeout: 10_000 });
     const after = Number(sql("select count(*) from own_account_snapshots"));
     console.log(`snapshots ${before} -> ${after}; card: ${(await card.getByTestId("source-pulls").innerText())}`);
-    console.log(`connector_status: ${sql("select connector_id || ' ' || state || ' ' || pulled_at from connector_status")}`);
+    console.log(`connector_status: ${sql("select connector_id || ' ' || pull_state || ' ' || pulled_at from connector_status")}`);
     if ((await card.getAttribute("data-state")) !== "ready" || !(await card.getByTestId("source-pulls").innerText()).startsWith("Last pull")) throw new Error(await card.innerText());
     if (after !== before + 1) throw new Error("the pull wrote no snapshot");
   });
@@ -49,7 +49,7 @@ export default async function schedule01({ page, step, snap }) {
       ? readFileSync(log, "utf8").split("\n").filter((l) => l.includes("fake-graph: refused:") && !/profile_activity metric for this media product type/.test(l))
       : [];
     if (refused.length) throw new Error(`${refused.length} refused calls, first: ${refused[0]}`);
-    const graph = sql("select state from connector_status where connector_id = 'instagram-graph'");
+    const graph = sql("select pull_state from connector_status where connector_id = 'instagram-graph'");
     if (graph !== "ready") throw new Error(`the Graph pull was ${graph}`);
     const reel = sql("select avg_watch_time_ms || ' ' || skip_rate from own_post_insights i join own_posts p on p.id = i.own_post_id where p.external_id = '17900000000000100' order by i.captured_at desc limit 1");
     console.log(`fake reel insights (avg watch ms, skip rate): ${reel}`);

@@ -143,7 +143,7 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
       return {
         text: translate(
           'leadStudio.sources.explain.partial',
-          'The last pull did not finish, so the older numbers stay. Pull again later.'
+          'The last pull did not finish, so some numbers are older.'
         ),
         problem: true
       }

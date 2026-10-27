@@ -59,9 +59,9 @@ export default async function umami01({ page, step, snap }) {
   await step("Re-check logs in to Umami and finds the website", async () => {
     await card.getByTestId("source-recheck").click();
     await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "ready" && !document.querySelector(`${sel} [data-testid="source-recheck"]`)?.disabled, CARD, { timeout: 10_000 });
-    const row = sql("select state || ' ' || (checked_at is not null) from connector_status where connector_id = 'umami'");
+    const row = sql("select coalesce(check_message, 'passed') || ' ' || (checked_at is not null) from connector_status where connector_id = 'umami'");
     console.log(`check: card ready, db ${row}`);
-    if (row !== "ready 1") throw new Error(`db ${row}`);
+    if (row !== "passed 1") throw new Error(`db ${row}`);
   });
 
   await step("a pull reads every page, the card reads Ready, and the lane DB holds the day and OWN01's 4 visits and 2 emails", async () => {

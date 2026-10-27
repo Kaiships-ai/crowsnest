@@ -4095,29 +4095,22 @@
           "notNull": true,
           "autoincrement": false
         },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "message": {
-          "name": "message",
+        "pull_state": {
+          "name": "pull_state",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "detail": {
-          "name": "detail",
+        "pull_message": {
+          "name": "pull_message",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "checked_at": {
-          "name": "checked_at",
+        "pull_detail": {
+          "name": "pull_detail",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4125,6 +4118,20 @@
         },
         "pulled_at": {
           "name": "pulled_at",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "check_message": {
+          "name": "check_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "checked_at": {
+          "name": "checked_at",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -4143,9 +4150,9 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {
-        "connector_status_state": {
-          "name": "connector_status_state",
-          "value": "\"connector_status\".\"state\" in ('ready', 'partial', 'error')"
+        "connector_status_pull_state": {
+          "name": "connector_status_pull_state",
+          "value": "\"connector_status\".\"pull_state\" in ('ready', 'partial', 'error')"
         }
       }
     }
