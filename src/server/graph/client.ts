@@ -493,11 +493,15 @@ const CORE_METRICS = "reach,saved,shares,total_interactions,comments,likes";
 const REEL_CORE_METRICS = `${CORE_METRICS},views`;
 /** FEED media (image, carousel) also report follows and profile_visits. */
 const FEED_EXTENDED_METRICS = `${CORE_METRICS},follows,profile_visits`;
-/** No follows or profile_visits: Meta lists them for FEED and STORY only ("Other Available
- *  Metrics (Non-Reels)"), and one refused name fails the whole call, which would drop
- *  watch time, skip rate and reposts with it. profile_activity is asked separately. */
+/** No follows, profile_visits or reposts: Graph refuses them for reels (follows and
+ *  profile_visits are FEED and STORY only; v23 answers "does not support the metrics:
+ *  reposts"), and one refused name fails the whole call, which would drop watch time and
+ *  skip rate with it. profile_activity is asked separately. */
 const REEL_EXTENDED_METRICS =
-  "views,reach,likes,comments,shares,saved,total_interactions,reposts,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
+  "views,reach,likes,comments,shares,saved,total_interactions,ig_reels_avg_watch_time,ig_reels_video_view_total_time,reels_skip_rate";
+
+/** Graph's answer when a metric does not exist for the media type at all; nothing is missing. */
+const notForThisProductType = (message: string): boolean => /not support .* for this media product type/i.test(message);
 
 /** Auth and rate-limit failures end a measurement run; everything else is per-post
  *  (fetchPostInsights also ends it on a permission refusal of the core metric set). */
@@ -574,6 +578,7 @@ export const graphClient: GraphClient = {
     const insights = mapInsights(r.data, isReel);
     if (!isReel) return { kind: "complete", rows: insights };
     const activity = await graphGet<unknown>(path, { metric: "profile_activity", breakdown: "action_type", metric_type: "total_value" }, token);
+    if (!activity.ok && notForThisProductType(activity.message)) return { kind: "complete", rows: insights };
     if (!activity.ok) {
       const stop = fatalOf(activity);
       return { kind: "partial", rows: insights, missing: "bio link taps", reason: { error: stop ?? errorOf(activity), endsRun: stop !== null } };
@@ -584,10 +589,10 @@ export const graphClient: GraphClient = {
 
   async fetchAccountBreakdowns(): Promise<GraphAccountBreakdowns> {
     const { token, userId } = requireConfigured();
-    // Meta's documented shape for views: period=day, metric_type=total_value, breakdown
-    // follower_type. since/until are optional; without them the API looks back 24 hours,
+    // Meta's shape for views: period=day, metric_type=total_value, breakdown follow_type
+    // (Graph refuses "follower_type"; rows keep the dimension name follower_type). since/until are optional; without them the API looks back 24 hours,
     // recorded as timeframe "day".
-    const r = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follower_type" }, token);
+    const r = await graphGet<unknown>(`${userId}/insights`, { metric: "views", period: "day", metric_type: "total_value", breakdown: "follow_type" }, token);
     const stop = fatalOf(r);
     if (stop) return { split: { kind: "failed", reason: stop }, audience: { kind: "failed", reason: stop } };
     if (!r.ok) log.warn("graph.breakdowns.split_failed", { error: r.message });
