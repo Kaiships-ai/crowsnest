@@ -263,9 +263,7 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
           testId="today-pulls"
           title={translate('boards.today.lastPulls', 'Last pulls')}
           source={
-            <SourceTag
-              sources={[translate('boards.today.pullSource', 'Pull in Settings > Sources')]}
-            />
+            <SourceTag sources={[translate('boards.today.pullSource', 'Settings > Sources')]} />
           }
         >
           <ul className="flex flex-col">
