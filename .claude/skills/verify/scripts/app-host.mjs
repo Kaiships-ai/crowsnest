@@ -40,7 +40,9 @@ const home = path.join(tmp, "h");
 mkdirSync(userDataDir, { recursive: true });
 mkdirSync(home, { recursive: true, mode: 0o700 });
 writeFileSync(path.join(userDataDir, "orca-data.json"), JSON.stringify(getE2ECompletedOnboardingProfile(), null, 2));
-const repoPath = seedRepo(path.join(tmp, "repo"));
+// APP_NO_REPO=1 leaves the profile with no project, the state a first launch is in.
+const noRepo = process.env.APP_NO_REPO === "1";
+const repoPath = noRepo ? null : seedRepo(path.join(tmp, "repo"));
 const dbPath = path.join(userDataDir, "crowsnest.db");
 if (process.env.APP_DB) copyDbOnce(path.resolve(ROOT, process.env.APP_DB), dbPath);
 
@@ -121,11 +123,13 @@ const app = dev ? await launchDev() : await launchBuilt();
 const { page } = app;
 page.on("console", (m) => console.log(`[renderer:${m.type()}] ${m.text()}`));
 await page.waitForFunction(() => Boolean(window.__store), null, { timeout: 60_000 });
-const repoId = await page.evaluate(async (p) => {
-  const result = await window.api.repos.add({ path: p });
-  if ("error" in result) throw new Error(result.error);
-  return result.repo.id;
-}, repoPath);
+const repoId = noRepo
+  ? null
+  : await page.evaluate(async (p) => {
+      const result = await window.api.repos.add({ path: p });
+      if ("error" in result) throw new Error(result.error);
+      return result.repo.id;
+    }, repoPath);
 await page.waitForFunction(() => window.__store.getState().workspaceSessionReady === true, null, {
   timeout: 60_000,
 });
@@ -141,7 +145,7 @@ const openRepoTerminal = (id) =>
     if ((fresh.tabsByWorktree[main.id] ?? []).length === 0) fresh.createTab(main.id);
     return true;
   }, id);
-for (let i = 0; !(await openRepoTerminal(repoId)); i++) {
+for (let i = 0; !noRepo && !(await openRepoTerminal(repoId)); i++) {
   if (i === 60) throw new Error("seeded repo never showed its main worktree");
   await new Promise((r) => setTimeout(r, 1000));
 }
@@ -163,7 +167,7 @@ copyMcpAccess();
 if (dev) watchFile(mcpPortFile, { interval: 1000 }, copyMcpAccess);
 writeFileSync(
   path.join(STATE_DIR, "state.json"),
-  JSON.stringify({ cdpPort, userDataDir }, null, 2),
+  JSON.stringify({ cdpPort, userDataDir, cookRoot: process.env.LEAD_STUDIO_COOK_ROOT ?? null }, null, 2),
 );
 console.log(`app: ready (cdp ${cdpPort}, user data ${userDataDir}${dev ? ", dev mode" : ""})`);
 

@@ -3,17 +3,42 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 const portFile = path.resolve(import.meta.dirname, "../../../../data/verify/app/fake-sidecar.port");
+// POST /__session?state=expired makes every Instagram call answer the way the real sidecar did
+// for an expired session in the first real-data run (IG_NETWORK, upstream login_required);
+// state=ok restores it. POST /login-by-session adopts a browser session id, as the real one does.
+let session = "ok";
+const EXPIRED = {
+  error: {
+    code: "IG_NETWORK",
+    message: "Network failure talking to Instagram.",
+    retryable: true,
+    detail: { exception: "ClientError", upstream_message: "login_required" },
+  },
+};
+const send = (res, status, body) => {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+};
 const server = createServer((req, res) => {
   const url = new URL(req.url, "http://fake");
-  console.log(`fake-sidecar: ${req.method} ${url.pathname}${url.search}`);
-  if (url.pathname !== "/profile") {
-    res.writeHead(503, { "content-type": "application/json" });
-    res.end(JSON.stringify({ error: "fake sidecar answers /profile only" }));
-    return;
-  }
-  const username = (url.searchParams.get("handle") ?? "").replace(/^@/, "");
-  res.writeHead(200, { "content-type": "application/json" });
-  res.end(JSON.stringify({ username, pk: `fake-${username}`, full_name: `Fake ${username}`, follower_count: 2500, following_count: 10, media_count: 30 }));
+  const chunks = [];
+  req.on("data", (c) => chunks.push(c));
+  req.on("end", () => {
+    const body = Buffer.concat(chunks).toString();
+    console.log(`fake-sidecar: ${req.method} ${url.pathname}${url.search}${body ? ` ${body}` : ""}`);
+    if (url.pathname === "/__session") {
+      session = url.searchParams.get("state") ?? "ok";
+      return send(res, 200, { session });
+    }
+    if (url.pathname === "/login-by-session") {
+      session = "ok";
+      return send(res, 200, { status: "ok" });
+    }
+    if (session === "expired") return send(res, 503, EXPIRED);
+    if (url.pathname !== "/profile") return send(res, 503, { error: "fake sidecar answers /profile only" });
+    const username = (url.searchParams.get("handle") ?? "").replace(/^@/, "");
+    send(res, 200, { username, pk: `fake-${username}`, full_name: `Fake ${username}`, follower_count: 2500, following_count: 10, media_count: 30 });
+  });
 });
 server.listen(0, "127.0.0.1", () => {
   writeFileSync(portFile, String(server.address().port));

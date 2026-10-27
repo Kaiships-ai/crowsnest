@@ -7,10 +7,10 @@ Lead Studio is the Electron app at the repo root, Orca's workspace under its own
 - Window titled Lead Studio (`src/renderer/index.html`, `src/main/window/createMainWindow.ts`).
 - Terminal tab in the active worktree, typed into through xterm's helper textarea.
 - Split of the active terminal pane, through the same split request the pane menu sends (`src/renderer/src/constants/terminal.ts`).
-- Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 36 `crowsnest_*` tools.
+- Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 36 `crowsnest_*` tools. Every request needs `Authorization: Bearer <token>`, else 401; the app writes a fresh `local` token to `<userData>/mcp.token` on start ([tokens.md](tokens.md)).
 - Engine bridge: `window.api.crowsnest.call(name, ...args)` runs an entry of `ENGINE_CALLS` (`src/server/bridge/engine-calls.ts`) over the `crowsnest:call` channel and returns `{ ok, value }` or `{ ok: false, error: { code, message } }`.
 - `cn-media://asset/<assetId>` serves stored assets with byte ranges (`src/main/crowsnest/start.ts`).
-- Jobs: sync and own-measure always run and reach Instagram; the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
+- Jobs: sync and own-measure run unless `LEAD_STUDIO_READ_JOBS=0` (`baseline-lane.sh` and `gate2-lane.sh` set it); the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
 - Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Dev Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`, home dir `~/.lead-studio`, CLI `lead-dev` in its terminals.
 
 ## How to get to it (user POV)
@@ -59,7 +59,7 @@ CN_MEDIA_ASSET=v1 .claude/skills/verify/scripts/app-drive.sh media-01
 - The CLI socket lives in the user data dir and macOS caps a socket path at 104 bytes, so `app-host.mjs` uses a short temp dir. A long one fails with `EINVAL` on `listen`.
 - Add project opens a native folder picker that CDP cannot drive. A scripted lane adds the repo with `window.api.repos.add({ path })`, the call the picker makes.
 - Menus, window titles, the tray, the tray notice and the titlebar app name say Lead Studio. Other in-app copy still says Orca (sidebar header, empty state, Orca Mobile pairing screens, settings).
-- `mcp.sh --app` is the only target. The app's MCP refuses non-local Host and Origin headers.
+- `mcp.sh --app` is the only target. The app's MCP refuses non-local Host and Origin headers, and `mcp.sh` fails with "no token" when `data/verify/app/mcp.token` is missing.
 - A lane never opens the checkout's `data/crowsnest.db`: `app-host.mjs` sets `CROWSNEST_DB_PATH` to `<userData>/crowsnest.db` in a fresh temp user data dir, copied from the seed (`--seed`) or `APP_REAL_DB` (`--real`) with `scripts/copy-db.ts`, or empty. `pnpm dev` does open the checkout's DB.
 - Launching from inside an Orca terminal inherits `ELECTRON_RUN_AS_NODE`; `app-host.mjs` strips it, as Orca's e2e does.
 - Lead Studio writes `~/.lead-studio`, never `~/.orca`. It also leaves agent config files such as `~/.claude/settings.json` alone: agent status hooks default to off, because with them on each app's hook install replaces the other's entry. A profile created before that default still holds `agentStatusHooksEnabled: true`; turn it off in Settings or start from a fresh `lead-studio` user data dir.

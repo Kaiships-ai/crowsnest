@@ -1,6 +1,6 @@
 # Funnel and metric ledger
 
-Every funnel number (views, follows, link in bio taps, keyword comments, DMs, gift page visits, checkouts, purchases, and the rates between them) is defined once in `METRIC_LEDGER` (`src/server/metrics/ledger.ts`). The MCP tool `crowsnest_funnel` and the bridge call `getFunnel` both compute from it, `getMetricLedger` returns the ledger to a board, and `getFunnelBoard` feeds the Funnel board. Architecture: `documents/architecture/boards.md` for the board. Architecture: `documents/architecture/data.md`.
+Every funnel number (views, follows, link in bio taps, keyword comments, DMs, gift page visits, emails, checkouts, purchases, revenue, Skool members, and the rates between them) is defined once in `METRIC_LEDGER` (`src/server/metrics/ledger.ts`). The MCP tool `crowsnest_funnel` and the bridge call `getFunnel` both compute from it, `getMetricLedger` returns the ledger to a board, and `getFunnelBoard` feeds the Funnel board. Architecture: `documents/architecture/boards.md` for the board. Architecture: `documents/architecture/data.md`.
 
 ## Sub-features
 
@@ -22,7 +22,7 @@ Click Funnel in the sidebar, or "+" in the tab bar and Funnel under Lead Studio.
 .claude/skills/verify/scripts/app-down.sh
 ```
 
-`funnel-01` prints `ok: the bridge returns the metric ledger`, `ok: an agent saves funnel rows over MCP`, `ok: a save to a source a connector pulls is refused and names the connector` (umami visits, `INVALID_ROWS`), `ok: MCP and the bridge read the same ledger numbers`, `ok: a metric with no source reads not-connected, never 0, and checkout reads Umami`, and saves `funnel-01.png`. It then opens Funnel from "+" and prints `ok: open Funnel from the new-tab menu and see the six steps under one source tag` (DMs match `getFunnelBoard`, the `LEDGER01` row shows), `ok: a step with no source shows ChatbotX not connected with a Sources link, never 0` (keyword comments), `ok: checkout is the Umami step and matches the bridge, and coverage matches the bridge`, `ok: the not connected badge opens Settings > Sources`, and saves `funnel-01-board-dark.png` and `funnel-01-board-light.png`. It reads the MCP port from `data/verify/app/mcp.port`.
+`funnel-01` prints `ok: the bridge returns the metric ledger`, `ok: an agent saves funnel rows over MCP`, `ok: a save to a source a connector pulls is refused and names the connector` (umami visits, `INVALID_ROWS`), `ok: MCP and the bridge read the same ledger numbers`, `ok: a metric with no source reads not-connected, never 0, and checkout reads Umami`, and saves `funnel-01.png`. It then opens Funnel from "+" and prints `ok: open Funnel from the new-tab menu and see the six steps under one source tag` (DMs match `getFunnelBoard`, the `LEDGER01` row shows), `ok: a step with no source shows ChatbotX not connected with a Sources link, never 0` (keyword comments), `ok: checkout is the Umami step and matches the bridge, and coverage matches the bridge` (`funnel-coverage-visits` and `funnel-coverage-orders`: status, and tied / total when there is a value), `ok: the not connected badge opens Settings > Sources`, and saves `funnel-01-board-dark.png` and `funnel-01-board-light.png`. It reads the MCP port from `data/verify/app/mcp.port`.
 
 ## Gotchas
 

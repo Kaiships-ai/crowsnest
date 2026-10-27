@@ -10,6 +10,11 @@ if [ -f "$DIR/host.pid" ] && kill -0 "$(cat "$DIR/host.pid")" 2>/dev/null; then
 fi
 [ -d node_modules/electron ] || { echo "app: run 'pnpm install' first (node 24)" >&2; exit 1; }
 
+# A lane never reaches the real Graph or the operator's sidecar: anything a lane script did not
+# point at a fake goes to port 9 (discard), which refuses at once.
+export IG_GRAPH_HOST="${IG_GRAPH_HOST:-http://127.0.0.1:9}"
+export IG_SERVICE_URL="${IG_SERVICE_URL:-http://127.0.0.1:9}"
+
 unset APP_DB
 case "${1:-}" in
   --seed)
