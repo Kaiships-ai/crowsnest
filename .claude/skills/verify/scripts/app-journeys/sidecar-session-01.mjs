@@ -144,7 +144,7 @@ export default async function sidecarSession01({ page, step, snap }) {
       await page.waitForFunction((el) => el?.getAttribute("data-view") === "limited-test", await card.elementHandle(), { timeout: 10_000 });
       const line = await card.getByTestId("sidecar-line").innerText();
       console.log(`after a limited save: ${line}`);
-      if (!/^Instagram is limiting requests\. Try again after \d\d:\d\d\.$/.test(line)) throw new Error(line);
+      if (!/^Instagram is limiting requests\. Try again after \d\d:\d\d( [AP]M)?\.$/.test(line)) throw new Error(line);
       if (!logged("/login-by-session", LIMITED)) throw new Error("the sidecar never adopted the saved id");
       if (savedSession() === beforeSave) throw new Error("the limited save did not store IG_SESSIONID");
       await fakeMode();
