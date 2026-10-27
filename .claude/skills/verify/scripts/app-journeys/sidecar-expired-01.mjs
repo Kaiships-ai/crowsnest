@@ -19,9 +19,18 @@ export default async function sidecarExpired01({ page, step, snap }) {
     await step("Settings > Sources: Pull again on the Instagram sidecar card fails", async () => {
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
-      await card.getByTestId("source-pull").click();
+      // An earlier journey may have left the card in error, so wait for this pull to end (the
+      // button is disabled while it runs), not just for the error state.
+      const pull = card.getByTestId("source-pull");
+      await pull.click();
+      await page
+        .waitForFunction(() => document.querySelector('[data-testid="source-card"][data-connector-id="ig-sidecar"] [data-testid="source-pull"]')?.hasAttribute("disabled"), null, { timeout: 2_000 })
+        .catch(() => {}); // a pull that ends within one frame is never seen busy
       await page.waitForFunction(
-        () => document.querySelector('[data-testid="source-card"][data-connector-id="ig-sidecar"]')?.getAttribute("data-state") === "error",
+        () => {
+          const c = document.querySelector('[data-testid="source-card"][data-connector-id="ig-sidecar"]');
+          return c?.getAttribute("data-state") === "error" && !c.querySelector('[data-testid="source-pull"]')?.hasAttribute("disabled");
+        },
         null,
         { timeout: 60_000 },
       );
