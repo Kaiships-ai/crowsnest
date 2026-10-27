@@ -43,9 +43,11 @@ export function recordCheck(connectorId: string, check: ConnectionCheck): void {
   upsert(connectorId, { checkMessage, checkedAt: clockNow().toISOString() });
 }
 
+type PullOutcome = Omit<CardStatus, "state"> & { state: "ready" | "partial" | "error" };
+
 /** A pull's outcome stays until the next pull. A complete pull also proves the key, so it clears a check's error. */
 export function recordPull(connectorId: string, result: PullResult<unknown, unknown>): CardStatus {
-  const outcome: CardStatus =
+  const outcome: PullOutcome =
     result.kind === "complete" ? { state: "ready", message: null, detail: null }
     : result.kind === "partial" ? { state: "partial", message: PULL_PARTIAL, detail: `missing ${result.missing}: ${textOf(result.reason)}` }
     : { state: "error", message: PULL_FAILED, detail: textOf(result.reason) };

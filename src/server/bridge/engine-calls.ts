@@ -262,7 +262,7 @@ export const ENGINE_CALLS = {
 
   startSyncAction: call(
     z.tuple([z.array(z.string()).optional(), z.object({ skipFreshWithinMinutes: z.number().int().positive().optional() }).optional()]),
-    (channelIds, opts) => startSyncAction(channelIds, opts),
+    startSyncAction,
   ),
   cancelSyncAction: call(id, cancelSyncAction),
   getSyncProgressAction: call(z.tuple([z.string().nullable().optional()]), getSyncProgressAction),
