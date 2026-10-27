@@ -84,7 +84,7 @@ const GROUPS: { id: SourceInfo['group']; title: () => string; description: () =>
     description: () =>
       translate(
         'leadStudio.sources.group.instagramDescription',
-        'Your own channel and the rivals you track, pulled when you press Pull.'
+        'Your own channel and the rivals you track, pulled on request, never on a timer.'
       )
   },
   {
@@ -120,7 +120,7 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
           row.canPull || row.missingSecretLabels.length > 0
             ? translate(
                 'leadStudio.sources.explain.missing',
-                'Add your {{missing}} to connect. Lead Studio pulls from it only when you press Pull.',
+                'Add your {{missing}} to connect. Lead Studio pulls from it only on request, never on a timer.',
                 { missing: row.missingSecretLabels.join(', ') }
               )
             : translate(
@@ -134,7 +134,7 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
         text: row.canPull
           ? translate(
               'leadStudio.sources.explain.ready',
-              'Ready. Numbers are pulled only when you press Pull.'
+              'Ready. Numbers are pulled only on request, never on a timer.'
             )
           : translate('leadStudio.sources.explain.readyNoPull', 'Ready.'),
         problem: false
