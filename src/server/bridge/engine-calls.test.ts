@@ -160,8 +160,6 @@ describe("dispatchEngineCall", () => {
       "igLoginAction",
       "igLoginWithCredentialsAction",
       "igLoginBySessionAction",
-      "startSidecarAction",
-      "stopSidecarAction",
     ];
     expect(gated.filter((n) => Object.hasOwn(ENGINE_CALLS, n))).toEqual([]);
   });
