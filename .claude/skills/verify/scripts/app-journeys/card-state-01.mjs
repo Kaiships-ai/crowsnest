@@ -48,13 +48,13 @@ const pills = (card) => card.evaluate((c) => [...c.querySelectorAll("span")].fil
 export default async function cardState01({ page, step, snap }) {
   const card = page.locator(SELECTOR);
   try {
-    await step("Settings > Sources: no card names a next pull time; only the sidecar card has a Pull button", async () => {
+    await step("Settings > Sources: no card names a next pull time; only the sidecar and Graph cards have a Pull button", async () => {
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
       const text = await page.getByTestId("lead-sources").innerText();
       console.log(`pull lines: ${(await page.getByTestId("source-pulls").allInnerTexts()).join(" | ")}`);
       if (/\bnext\b|05:00/i.test(text)) throw new Error(`a card names a scheduled pull: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
-      if (await page.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"])').getByRole("button", { name: /^Pull/ }).count()) throw new Error("a card other than the sidecar has a Pull button");
+      if (await page.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"]):not([data-connector-id="instagram-graph"])').getByRole("button", { name: /^Pull/ }).count()) throw new Error("a card other than the sidecar and Graph has a Pull button");
     });
 
     await step("the sidecar's session expires and a pull fails: the card shows Error with its reason", async () => {

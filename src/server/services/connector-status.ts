@@ -84,6 +84,8 @@ export interface PullSummary {
   stop: PullStop | null;
   /** Each item in pull order, so the card can say which one hit the limit. */
   items: PullItem[];
+  /** The Graph pull's follower count, and the change since the snapshot before it when there is one. */
+  followers?: { count: number; delta: number | null };
 }
 
 /** The JSON in `connector_status.summary`. */

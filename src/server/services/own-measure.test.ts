@@ -624,3 +624,36 @@ describe("account breakdowns", () => {
     expect((await db.select().from(tables.appSettings)).some((s) => s.key === "own_audience_fetch_error")).toBe(false);
   });
 });
+
+describe("the Graph card's pull", () => {
+  const fifty = () => Array.from({ length: 50 }, (_, i) => media(`r${i}`, { caption: `post ${i}` }));
+
+  test("the hour's budget ends the pull at post 31: Partial, retry one hour after the hour's oldest call", async () => {
+    // 126 calls already spent this hour, the oldest at 11:20: 200 - 126 - 10 headroom leaves 64, so account + media + 31 reels.
+    trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T11:20:00.000Z"));
+    for (let i = 1; i < 126; i++) trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T11:50:00.000Z"));
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty()));
+    const progress: { done: number; total: number; label: string | null }[] = [];
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW, onProgress: (p) => progress.push(p) });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 31, stoppedEarly: "budget", retryAfter: "2026-09-29T12:20:00.000Z" });
+    expect(progress[0]).toEqual({ done: 0, total: 50, label: "post 0" });
+    expect(progress.at(-1)).toEqual({ done: 31, total: 50, label: null });
+    const { measurePull } = await import("@/server/connectors/instagram-graph");
+    expect(measurePull(r).kind).toBe("partial");
+  });
+
+  test("Stop between posts ends the pull at the done count, with no retry time", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty()));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW, shouldStop: () => graphClient.fetchPostInsights.mock.calls.length >= 12 });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 12, stoppedEarly: "stopped", retryAfter: null });
+  });
+
+  test("Pull the rest skips posts measured since the last pull started", async () => {
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 3)));
+    await svc.measureOwnChannel({ scope: "all", now: NOW, shouldStop: () => graphClient.fetchPostInsights.mock.calls.length >= 1 });
+    graphClient.fetchPostInsights.mockClear();
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW, skipMeasuredSince: NOW.toISOString() });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 2 });
+    expect(graphClient.fetchPostInsights.mock.calls.map(([m]) => m.externalId)).toEqual(["r1", "r2"]);
+  });
+});

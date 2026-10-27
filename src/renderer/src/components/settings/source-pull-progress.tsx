@@ -35,6 +35,8 @@ export function SourcePullProgress(props: {
   nowText?: { pulling: string; stopping: string }
   /** Drops the tally line ("✓ x updated", "n to go"), for a card whose prototype has none. */
   noTally?: boolean
+  /** Replaces the tally line's "✓ x updated" and "n to go". */
+  tally?: [React.ReactNode, React.ReactNode]
 }): React.ReactNode {
   const elapsed = useElapsedSec(props.startedAt)
   const total = props.total ?? 0
@@ -72,12 +74,14 @@ export function SourcePullProgress(props: {
         {props.noTally ? null : (
           <div className="flex gap-4 font-mono text-2xs text-muted-foreground">
             <span data-testid="source-pull-tally-done">
-              {translate('leadStudio.sources.pull.updated', '✓ {{count}} updated', {
-                count: props.done
-              })}
+              {props.tally?.[0] ??
+                translate('leadStudio.sources.pull.updated', '✓ {{count}} updated', {
+                  count: props.done
+                })}
             </span>
             <span data-testid="source-pull-tally-rest">
-              {translate('leadStudio.sources.pull.toGo', '{{count}} to go', { count: left })}
+              {props.tally?.[1] ??
+                translate('leadStudio.sources.pull.toGo', '{{count}} to go', { count: left })}
             </span>
           </div>
         )}

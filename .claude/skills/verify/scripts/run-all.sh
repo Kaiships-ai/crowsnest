@@ -6,6 +6,7 @@
 #   3. fresh-lane.sh: fresh-01 with no project open
 #   4. schedule-lane.sh: schedule-01 on the fake Graph and a clock at 04:59:30
 #   5. card-state-lane.sh: card-state-01, an app restart on the same DB, then card-state-02
+#   6. graph-lane.sh: graph-pull-01 on the fake Graph
 set -uo pipefail
 cd "$(dirname "$0")/../../../.."
 S=.claude/skills/verify/scripts
@@ -23,7 +24,7 @@ RUN="$RUN" "$S/baseline-lane.sh" --compare >"$OUT/lane-baseline.out" 2>&1; echo 
 "$S/app-down.sh" >/dev/null
 
 # Orca's own workspace journeys (shell-01, close-terminal) stay out: run-all checks Lead Studio code.
-journeys=$(ls "$S/app-journeys" | sed -n 's/\.mjs$//p' | grep -vxE 'shell-01|close-terminal|schedule-01|fresh-01|card-state-01|card-state-02')
+journeys=$(ls "$S/app-journeys" | sed -n 's/\.mjs$//p' | grep -vxE 'shell-01|close-terminal|schedule-01|fresh-01|card-state-01|card-state-02|graph-pull-01')
 rest=$(for j in $journeys; do [ -f "$OUT/$j.rc" ] || echo "$j"; done)
 if "$S/boards-lane.sh" >"$OUT/lane-boards.out" 2>&1; then
   for j in $rest; do drive "$j"; done
@@ -36,6 +37,7 @@ fi
 lane fresh-01 fresh-lane.sh
 lane schedule-01 schedule-lane.sh
 lane card-state-02 card-state-lane.sh
+lane graph-pull-01 graph-lane.sh
 
 for f in "$OUT"/*.rc; do j=$(basename "$f" .rc); echo "run-all: $j $( [ "$(cat "$f")" = 0 ] && echo ok || echo FAIL)"; done
 node "$S/run-all-report.mjs" "$OUT"

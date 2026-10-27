@@ -11,6 +11,7 @@ import {
   type IntegrationCardStatusTone
 } from './integration-card-shell'
 import { SourceKeyDialog } from './LeadSourceKeyDialog'
+import { GraphSourceCard } from './graph-source-card'
 import { SidecarSourceCard } from './sidecar-source-card'
 import { PolarSourceCard } from './polar-source-card'
 import { UmamiSourceCard } from './umami-source-card'
@@ -329,6 +330,8 @@ export function LeadSourcesPane(): React.JSX.Element {
                   <PolarSourceCard key={row.id} row={row} reload={reload} />
                 ) : row.id === 'umami' ? (
                   <UmamiSourceCard key={row.id} row={row} reload={reload} />
+                ) : row.id === 'instagram-graph' ? (
+                  <GraphSourceCard key={row.id} row={row} reload={reload} />
                 ) : (
                   <SourceCard
                     key={row.id}

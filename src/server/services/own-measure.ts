@@ -2,6 +2,8 @@ import { and, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { clockNow } from "@/server/lib/clock";
 import { log } from "@/server/lib/logger";
+import { hourFreesAt } from "@/server/lib/call-budget";
+import { instagramGraph } from "@/server/connectors/instagram-graph/manifest";
 import { CLASSIFIER_VERSION, GRAPH_CALLS_PER_HOUR, graphCallLedger, graphCallsInLastHour, graphClient, isPermanentFailure, type GraphAccount, type GraphBreakdownRow, type GraphComment, type GraphMedia, type GraphPostInsights, type InsightsFailure } from "@/server/graph/client";
 import type { CompletePull, PullResult } from "@/server/lib/pull-result";
 import { GraphApiError, type GraphErrorCode } from "@/server/graph/errors";
@@ -36,7 +38,10 @@ export interface MeasureSummary {
   commentsSeen: number;
   partial: boolean;
   callsUsed: number;
-  stoppedEarly: "budget" | "rate_limited" | null;
+  /** `stopped` is the user's Stop between posts. */
+  stoppedEarly: "budget" | "rate_limited" | "stopped" | null;
+  /** After a budget or rate-limit stop: when the hour frees its first call again (the oldest call in the last hour, plus an hour). */
+  retryAfter: string | null;
   /** This run's budget was cut by Graph calls earlier runs spent in the last hour. */
   limitedByRecentCalls: boolean;
 }
@@ -234,7 +239,25 @@ async function measureComments(
   return { commentsSeen: comments.length, partial: false, stop: null };
 }
 
-async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: number }): Promise<MeasureResult> {
+/** A card pull's hooks: progress after each post, a Stop checked between posts, and Pull the rest. */
+export interface MeasureHooks {
+  onProgress?: (p: { done: number; total: number; label: string | null }) => void;
+  shouldStop?: () => boolean;
+  /** Skip posts measured at or after this time. */
+  skipMeasuredSince?: string;
+}
+
+const CAPTION_LABEL_CHARS = 28;
+export function captionLabel(caption: string | null): string | null {
+  const line = caption?.split("\n")[0].trim();
+  if (!line) return null;
+  return line.length > CAPTION_LABEL_CHARS ? `${line.slice(0, CAPTION_LABEL_CHARS).trimEnd()}…` : line;
+}
+
+const retryAfterOf = (stoppedEarly: MeasureSummary["stoppedEarly"], now: Date): string | null =>
+  stoppedEarly === "budget" || stoppedEarly === "rate_limited" ? (hourFreesAt(instagramGraph.id, now)?.toISOString() ?? null) : null;
+
+async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: number } & MeasureHooks): Promise<MeasureResult> {
   const now = opts.now;
   // The transport counts every Graph call, so this run's spend is the ledger's growth
   // since it started, and the hour's spend includes token checks and publishes too.
@@ -250,7 +273,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   // write a snapshot and spend calls the hour no longer has.
   if (budget < 3) {
     log.info("graph.measure.skipped_budget", { scope: opts.scope, budget });
-    return { ok: true, measuredAt: now.toISOString(), postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 0, stoppedEarly: "budget", limitedByRecentCalls };
+    return { ok: true, measuredAt: now.toISOString(), postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 0, stoppedEarly: "budget", retryAfter: retryAfterOf("budget", now), limitedByRecentCalls };
   }
 
   let account: GraphAccount;
@@ -279,13 +302,19 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   for (const m of media) ownPostIdByExternalId.set(m.externalId, await upsertOwnPost(m, measuredAt));
 
   const captures = opts.scope === "due" ? await captureState([...ownPostIdByExternalId.values()]) : null;
-  const inScope =
-    captures === null
-      ? media
-      : media.filter((m) => {
-          const id = ownPostIdByExternalId.get(m.externalId) as string;
-          return isDue(m.postedAt, captures.lastOk.get(id) ?? null, now, captures.failures.get(id) ?? null);
-        });
+  const measuredSince = opts.skipMeasuredSince;
+  const fresh = measuredSince
+    ? new Set(
+        (await db.select({ id: tables.ownPosts.id, at: tables.ownPosts.lastMeasuredAt }).from(tables.ownPosts).where(inArray(tables.ownPosts.id, [...ownPostIdByExternalId.values()])))
+          .filter((p) => p.at !== null && p.at >= measuredSince)
+          .map((p) => p.id),
+      )
+    : null;
+  const inScope = media.filter((m) => {
+    const id = ownPostIdByExternalId.get(m.externalId) as string;
+    if (fresh?.has(id)) return false;
+    return captures === null || isDue(m.postedAt, captures.lastOk.get(id) ?? null, now, captures.failures.get(id) ?? null);
+  });
 
   // Comments cost 1 call per post with comments (they reuse this run's media list). Their
   // share is reserved before the post loop so a full account still gets them, but only when
@@ -296,7 +325,12 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   let postsMeasured = 0;
   let postsFailed = 0;
   let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
+  const progress = (label: string | null) => opts.onProgress?.({ done: postsMeasured + postsFailed, total: inScope.length, label });
   for (const m of inScope) {
+    if (opts.shouldStop?.()) {
+      stoppedEarly = "stopped";
+      break;
+    }
     // Reserve the calls a post needs: one insights call, plus profile_activity for a reel.
     // A rare core-set fallback can add one more; the rate-limit stop guards that edge.
     if (used() + (m.productType === "REELS" ? 2 : 1) + commentReserve > budget) {
@@ -304,6 +338,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
       break;
     }
     const ownPostId = ownPostIdByExternalId.get(m.externalId) as string;
+    progress(captionLabel(m.caption));
     let pull: PullResult<GraphPostInsights, InsightsFailure>;
     try {
       pull = await graphClient.fetchPostInsights(m);
@@ -339,10 +374,11 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
       break;
     }
   }
+  progress(null);
 
   let commentsSeen = 0;
   let partial = false;
-  if (commentCalls > 0) {
+  if (commentCalls > 0 && stoppedEarly !== "stopped") {
     if (stoppedEarly === "rate_limited" || used() + commentCalls > budget) {
       partial = true;
       // An auth or permission stop already ended the run above, so only these two remain.
@@ -383,7 +419,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   if (postsMeasured > 0) rememberTokenStatus({ configured: true, username: account.username, state: "ok", message: null, checkedAt: measuredAt });
   const callsUsed = used();
   log.info("graph.measure.done", { scope: opts.scope, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed });
-  return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly, limitedByRecentCalls };
+  return { ok: true, measuredAt, postsSeen: media.length, postsMeasured, postsFailed, commentsSeen, partial, callsUsed, stoppedEarly, retryAfter: retryAfterOf(stoppedEarly, now), limitedByRecentCalls };
 }
 
 /** Process-wide state on globalThis: tsx server.ts (the scheduler) and Next's bundle
@@ -398,7 +434,7 @@ function shared(): OwnMeasureState {
   return (g.__crowsnestOwnMeasure ??= {});
 }
 
-export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number; wait?: true }): Promise<MeasureResult> {
+export async function measureOwnChannel(opts: { scope: MeasureScope; now?: Date; budget?: number; wait?: true } & MeasureHooks): Promise<MeasureResult> {
   const state = shared();
   if (state.inFlight && opts.scope === "due" && !opts.wait) return { ok: false, error: "A measurement is already running.", code: "MEASURE_BUSY" };
   while (state.inFlight) await state.inFlight.catch(() => undefined);
