@@ -179,6 +179,14 @@ describe("graphClient.fetchPostInsights", () => {
     expect(calls()).toBe(2);
   });
 
+  test("profile_activity refused for a missing permission is still a partial pull, not a complete one", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 10, message: "(#10) Application does not have permission for this action" } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "partial", rows: { views: 10, reach: 8, bioLinkTaps: null }, missing: "bio link taps", reason: { error: { code: "GRAPH_PERMISSION_DENIED" }, endsRun: false } });
+  });
+
   test("profile_activity refused for the media product type is a complete pull with no bio link taps", async () => {
     vi.stubGlobal("fetch", vi.fn()
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
