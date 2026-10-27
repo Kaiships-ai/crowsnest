@@ -109,7 +109,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Run a Graph pull of your own channel on the database copy at trunk and head. Trunk logs a refused `reposts` metric; head does not. Save `pr1-graph-pull.png`. Pass when head stores every reel and the log has no `reposts` error.
-- [ ] Lane 2. Real sidecar. Save the real session id from the database copy, then pull one rival from the Rivals board. Save `pr1-rival-pull.png`. Pass when the sidecar log shows the saved session id was used and the rival row updates.
+- [ ] Lane 2. Real sidecar. Save the real session id from the database copy, then pull one rival through the bridge `pullConnector`. Save `pr1-rival-pull.png`. Pass when the sidecar log shows the saved session id was used and the rival row updates.
 - [ ] Lane 3. Fake sidecar in expired mode. Pull rivals. Save `pr1-expired.png`. Pass when the card text tells you to sign in to Instagram again.
 - [ ] Lane 4. Run journey `sidecar-expired-01`. Save `pr1-sidecar-expired-01.png`. Pass when the journey exits 0.
 - [ ] Lane 5. Run journey `schedule-01`. Save `pr1-schedule-01.png`. Pass when the journey exits 0 and the only refusal logged is `profile_activity` for reels.
@@ -154,7 +154,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 
 - [ ] In `funnel-board.test.ts` line 94, replace state `"running"` with a `CardState` value (`"ready"`).
 - [ ] In `graph-actions.test.ts`, mock `../services/connector-status` so the in-memory database needs no `connector_status` table.
-- [ ] In `LeadSourcesPane.tsx`, remove the card Pull button and its blocking `pullConnector` call. Boards keep their Pull. PR-3, PR-4 and PR-5 add the new card pull.
+- [ ] In `LeadSourcesPane.tsx`, remove the card Pull button and its blocking `pullConnector` call. No board pulls (a board's refresh only re-reads), so until PR-3, PR-4 and PR-5 add the card pull, pulls run only through the bridge or MCP. Kai lands PR-2 together with PR-3 so the app never lacks a rival pull.
 - [ ] Re-approve the `today-01` screenshot baseline, because the Today heading changed.
 
 **You see.**
@@ -174,11 +174,11 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 - [ ] Lane 3. Run journey `card-state-01`. Save `pr2-card-state-01.png`. Pass when the journey exits 0.
 - [ ] Lane 4. Run journey `card-state-02` (real quit and relaunch). Save `pr2-card-state-02.png`. Pass when the journey exits 0.
 - [ ] Lane 5. Fake sidecar in partial mode. Pull rivals from the Rivals board, then re-check the sidecar key. Save `pr2-partial-kept.png`. Pass when the card stays Partial after the passing check.
-- [ ] Lane 6. Fake sidecar in error mode. Pull rivals from the board. Save `pr2-error.png`. Pass when the card shows Error with one sentence that says what to do.
+- [ ] Lane 6. Fake sidecar in error mode. Pull rivals through the bridge. Save `pr2-error.png`. Pass when the card shows Error with one sentence that says what to do.
 - [ ] Lane 7. Run journey `today-01`. Save `pr2-today-01.png`. Pass when the journey exits 0 against the re-approved baseline.
 - [ ] Lane 8. Run journey `schedule-01`. Save `pr2-schedule-01.png`. Pass when a scheduled post still publishes, since the publish scheduler stays.
 - [ ] Lane 9. Inspect the copy after migration. Save `pr2-migration.png` of the `sqlite3 .tables` output. Pass when `connector_status` exists and `daily_pulls` is gone.
-- [ ] Lane 10. Open Sources and check every card for a Pull button. Save `pr2-no-card-pull.png`. Pass when no card has one and every board still does.
+- [ ] Lane 10. Open Sources and check every card for a Pull button. Save `pr2-no-card-pull.png`. Pass when no card has one.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -248,7 +248,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Real sidecar. Pull rivals on the copy at trunk (from the board) and at head (from the card). Trunk has no card progress, so record that and gate the head behavior. Save `pr3-pull.png` mid-pull and `pr3-summary.png`. Pass when head shows the current rival, x of N rising, elapsed time and Stop, and ends with a summary whose updated count matches the rows changed in the copy.
+- [ ] Lane 1. Regression lane against trunk. Real sidecar. Pull rivals on the copy at trunk (through the bridge) and at head (from the card). Trunk has no card progress, so record that and gate the head behavior. Save `pr3-pull.png` mid-pull and `pr3-summary.png`. Pass when head shows the current rival, x of N rising, elapsed time and Stop, and ends with a summary whose updated count matches the rows changed in the copy.
 - [ ] Lane 2. Real sidecar. Switch the sidecar off, then on. Save `pr3-off.png` and `pr3-on.png`. Pass when off shows C2 text and on reaches Not connected or Ready, and the sidecar process list matches the switch.
 - [ ] Lane 3. Real sidecar. Save the real session id. Save `pr3-sample.png`. Pass when the card shows your own handle with a follower count equal to the sidecar `/profile` answer.
 - [ ] Lane 4. Real sidecar. Start a pull, press Stop at about 5 of N. Save `pr3-stopped.png`. Pass when the card shows Partial with done equal to the rows updated in the copy and the other rivals unchanged.
@@ -262,7 +262,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] Metric. Wall time per rival for a 15-rival pull against the fake sidecar at a fixed 1 second per answer, so polling cost shows and Instagram speed does not.
-- [ ] Probe. Pull at trunk from the board, then at head from the card, interleaved 3 times each.
+- [ ] Probe. Pull at trunk through the bridge, then at head from the card, interleaved 3 times each.
 - [ ] Baseline. Record the trunk seconds per rival first.
 - [ ] Rule. Fail when head is more than 10 percent slower per rival than trunk, or when the progress poll costs more than 1 call a second.
 
@@ -311,7 +311,7 @@ Each live lane runs in its own worktree at the PR head. Drive through the skill 
 
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on the configured `swarm workers` model at the PR head, per the boot recipe.
 
-- [ ] Lane 1. Regression lane against trunk. Real Graph token from the copy. Pull your own channel at trunk (board) and head (card). Trunk has no card progress, so record that and gate the head behavior. Save `pr4-pull.png` and `pr4-summary.png`. Pass when head shows x of N rising and the summary post count equals the rows written in the copy.
+- [ ] Lane 1. Regression lane against trunk. Real Graph token from the copy. Pull your own channel at trunk (bridge) and head (card). Trunk has no card progress, so record that and gate the head behavior. Save `pr4-pull.png` and `pr4-summary.png`. Pass when head shows x of N rising and the summary post count equals the rows written in the copy.
 - [ ] Lane 2. Real Graph token. Paste it in the dialog and press Test connection. Save `pr4-token-check.png`. Pass when the dialog shows your handle and id from `/me` before Save.
 - [ ] Lane 3. Fake Graph with a budget of 62 calls. Pull 50 posts. Save `pr4-partial.png`. Pass when the card shows Partial at the post where the budget ran out and the retry time from `source_calls`.
 - [ ] Lane 4. Fake Graph. Press Stop at about 12 posts. Save `pr4-stopped.png`. Pass when the card shows Partial with the done count.
@@ -601,7 +601,7 @@ Unproven. Whether the sidecar switch works in the packaged Kit, where a launchd 
 ## Appendix B. Alternatives rejected
 
 - Close #235 and rebuild the state table inside PR-3 (option B). It redoes work that is right and needs only two test fixes, so Kai chose A.
-- Keep #235's card Pull button until PR-3. Kai did not approve that Pull, so it leaves in PR-2 and the boards keep their Pull meanwhile.
+- Keep #235's card Pull button until PR-3. Kai did not approve that Pull, so it leaves in PR-2. No board pulls, so PR-2 lands together with PR-3.
 - A push channel from main to renderer for progress. Nothing like it exists, and a one-second poll of `getSyncProgressAction` already reads the same data.
 - Wait and retry inside a pull on an Instagram limit. It holds the card in Pulling for up to 30 minutes and keeps calling a limited account.
 - One big PR for all cards. Kai wants one card per PR, each usable end to end.
