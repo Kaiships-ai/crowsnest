@@ -42,7 +42,10 @@ export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }
         type="password"
         autoComplete="off"
         className="font-mono"
-        placeholder="1234567890%3AAbCdEf…"
+        placeholder={translate(
+          'leadStudio.sources.sidecar.sessionPlaceholder',
+          '1234567890%3AAbCdEf…'
+        )}
         value={draft}
         disabled={busy}
         onChange={(event) => {
