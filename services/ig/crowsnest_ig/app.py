@@ -217,6 +217,11 @@ def create_app(config: Config | None = None) -> FastAPI:
         """
         return manager.login_by_sessionid(body.sessionid)
 
+    @router.post("/sample-session", response_model=ProfileDTO)
+    def sample_session(body: SessionImportRequest) -> ProfileDTO:
+        """Test a sessionid without adopting it: its own profile, or the refusal."""
+        return profile_to_dto(manager.sample_sessionid(body.sessionid))
+
     @router.post("/logout")
     def logout() -> dict[str, Any]:
         return manager.logout()

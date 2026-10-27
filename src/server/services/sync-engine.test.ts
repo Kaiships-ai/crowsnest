@@ -1706,6 +1706,104 @@ describe("runSync — co-operative cancel", () => {
   });
 });
 
+describe("runSync — the Sources card pull (cardPull)", () => {
+  /** Three rivals; every /profile of the second one walked throws `code`. */
+  async function threeRivals(prefix: string, code: "IG_RATE_LIMITED" | "IG_AUTH_REQUIRED") {
+    const { IgError } = await import("../ig/errors");
+    const ids = [];
+    for (const n of ["a", "b", "c"]) ids.push((await setupChannel(`@${prefix}-${n}`)).channelId);
+    const seen: string[] = [];
+    const calls: Record<string, number> = {};
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        if (!seen.includes(handle)) seen.push(handle);
+        calls[handle] = (calls[handle] ?? 0) + 1;
+        if (handle === seen[1]) throw new IgError(code, "stop here", { retryable: code === "IG_RATE_LIMITED", detail: { retry_after_sec: 1 } });
+        return makeProfile(handle);
+      },
+      async medias() {
+        return { items: [], nextCursor: null, stopReason: "exhausted" as const };
+      },
+    } as unknown as IgClient;
+    return { ids, seen, calls, client };
+  }
+
+  test.each(["IG_RATE_LIMITED", "IG_AUTH_REQUIRED"] as const)("%s on the second rival ends the whole pull after one call", async (code) => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { ids, seen, calls, client } = await threeRivals(`halt-${code}`, code);
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(calls[seen[1]]).toBe(1);
+    expect(seen).toHaveLength(2);
+    expect(result.handles).toHaveLength(3);
+    expect(result.dispatched).toBe(2);
+    expect(result.channelsSynced).toBe(1);
+    expect(result.gaps.map((g) => g.code)).toEqual([code]);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+  });
+
+  test("without cardPull the same limit is retried and every rival is still walked", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { config } = await import("../config");
+    migrate();
+    const { ids, seen, calls, client } = await threeRivals("trunk", "IG_RATE_LIMITED");
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1 });
+
+    expect(calls[seen[1]]).toBe(config.SYNC_MAX_RETRIES + 1);
+    expect(seen).toHaveLength(3);
+    expect(result.dispatched).toBe(3);
+    expect(result.channelsSynced).toBe(2);
+    expect(result.gaps.map((g) => g.code)).toEqual(["IG_RATE_LIMITED"]);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+  });
+
+  test("Stop finishes the rival in hand, walks no other, and ends partial", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const ids = [];
+    for (const n of ["a", "b", "c"]) ids.push((await setupChannel(`@stop-card-${n}`)).channelId);
+    const pages: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async medias(input: { handle: string; cursor?: string }) {
+        pages.push(`${input.handle} ${input.cursor ?? "page-1"}`);
+        if (!input.cursor) {
+          await requestCancel((await runningJob(null))!.id);
+          return { items: [makeMedia(`stop-${input.handle}-1`, 1)], nextCursor: "page-2", stopReason: null };
+        }
+        return { items: [makeMedia(`stop-${input.handle}-2`, 2)], nextCursor: null, stopReason: "lookback" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(pages).toHaveLength(2);
+    expect(pages[1]).toBe(`${pages[0].split(" ")[0]} page-2`);
+    expect(result.dispatched).toBe(1);
+    expect(result.channelsSynced).toBe(1);
+    expect(result.itemsSeen).toBe(2);
+    expect(result.stopReason).toBe("cancelled");
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+    expect(job.channelsDone).toBe(1);
+  });
+});
+
 describe("runSync — stale-lock safety (audit F3)", () => {
   test("a long page still heartbeats, so the reaper can't declare a live run dead", async () => {
     const { migrate } = await import("../db/test-migrate");

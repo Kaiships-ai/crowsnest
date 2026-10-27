@@ -15,7 +15,8 @@ type FormTest =
 export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }): React.ReactNode {
   const [draft, setDraft] = useState('')
   const [formTest, setFormTest] = useState<FormTest>({ state: 'idle' })
-  const busy = formTest.state === 'testing'
+  const [saving, setSaving] = useState(false)
+  const busy = formTest.state === 'testing' || saving
 
   const test = async (): Promise<void> => {
     setFormTest({ state: 'testing' })
@@ -29,6 +30,19 @@ export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }
         ? { state: 'ok', line: res.value.line }
         : { state: 'err', message: res.value.message }
     )
+  }
+
+  // Only Save stores the id and hands it to the sidecar; Cancel leaves the old session.
+  const save = async (): Promise<void> => {
+    setSaving(true)
+    const res = await window.api.crowsnest.call('saveSidecarSessionAction', draft)
+    setSaving(false)
+    const failure = !res.ok ? res.error.message : !res.value.ok ? res.value.message : null
+    if (failure) {
+      setFormTest({ state: 'err', message: failure })
+      return
+    }
+    await onClose()
   }
 
   return (
@@ -82,7 +96,13 @@ export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }
         </p>
       ) : null}
       <div className="flex flex-wrap justify-end gap-2">
-        <Button variant="ghost" size="sm" disabled={busy} onClick={() => void onClose()}>
+        <Button
+          data-testid="sidecar-form-cancel"
+          variant="ghost"
+          size="sm"
+          disabled={busy}
+          onClick={() => void onClose()}
+        >
           {translate('leadStudio.sources.cancel', 'Cancel')}
         </Button>
         <Button
@@ -97,9 +117,10 @@ export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }
         <Button
           data-testid="sidecar-form-save"
           size="sm"
-          disabled={formTest.state !== 'ok'}
-          onClick={() => void onClose()}
+          disabled={formTest.state !== 'ok' || saving}
+          onClick={() => void save()}
         >
+          {saving ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
           {translate('leadStudio.sources.save', 'Save')}
         </Button>
       </div>

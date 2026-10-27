@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -425,6 +426,19 @@ def test_rejected_sessionid_does_not_claim_success(config: Config) -> None:
 
     assert "sessionid" in str(excinfo.value).lower()
     assert not client.dumped, "a rejected sessionid must not be persisted"
+
+
+def test_sample_sessionid_leaves_the_held_session_alone(config: Config) -> None:
+    held = FakeClient()
+    manager = make_manager(config, held)
+    trial = FakeClient()
+    trial.user_info_by_username = lambda name, use_cache: SimpleNamespace(model_dump=lambda mode: {"pk": "42", "username": name})
+    manager._fresh_client = lambda: trial  # noqa: SLF001 - test seam
+
+    assert manager.sample_sessionid(" sess-new ") == {"pk": "42", "username": "burner"}
+    assert trial.sessionids == ["sess-new"]
+    assert manager._client is held  # noqa: SLF001
+    assert held.sessionids == [] and not held.dumped and not trial.dumped
 
 
 def test_sessionid_import_emits_start_and_outcome_events(config: Config, events) -> None:

@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db, tables } from "@/server/db";
-import { igClient } from "@/server/ig/client";
+import { igClient, type IgProfile } from "@/server/ig/client";
 import { IgError } from "@/server/ig/errors";
 import { clockNow } from "@/server/lib/clock";
 import type { PullResult } from "@/server/lib/pull-result";
@@ -13,6 +13,8 @@ import { igSidecar } from "./manifest";
 export function syncPull(r: SyncResult): PullResult<SyncResult, unknown> {
   const job = db.select({ status: tables.syncJobs.status, errorCode: tables.syncJobs.errorCode, errorMessage: tables.syncJobs.errorMessage }).from(tables.syncJobs).where(eq(tables.syncJobs.id, r.jobId)).get();
   if (job?.status === "success") return { kind: "complete", rows: r };
+  // An expired session fails every rival after it, so the card says to sign in again (C7) even when some rivals finished first.
+  if (r.gaps.some((g) => g.code === "IG_AUTH_REQUIRED")) return { kind: "failed", reason: SESSION_EXPIRED };
   if (job?.status === "partial") return { kind: "partial", rows: r, missing: r.gaps.map((g) => g.handle).join(", ") || "work left after a cancel", reason: r.gaps[0]?.error ?? "cancelled" };
   if (job?.errorCode === "IG_AUTH_REQUIRED") return { kind: "failed", reason: SESSION_EXPIRED };
   return { kind: "failed", reason: job?.errorMessage ?? `sync ${job?.status ?? "row missing"}` };
@@ -40,6 +42,13 @@ export function syncSummary(r: SyncResult | null, startedAt: Date, now: Date): {
 }
 
 export const SESSION_EXPIRED = "The session id expired. Sign in to instagram.com and copy a new session id.";
+/** The session id form's wording of the same refusal (prototype C7 dialog). */
+export const SESSION_EXPIRED_FORM = "The session id expired. Sign in to instagram.com and copy a new one.";
+
+export function sampleLine(profile: IgProfile): string {
+  const count = (n: number | null) => (n === null ? "?" : n.toLocaleString("en-US"));
+  return `${profile.handle} · ${count(profile.followerCount)} followers · ${count(profile.mediaCount)} posts`;
+}
 
 /** Instagram's wait as a time, from the sidecar's `retry_after_sec`. */
 function retryAfterOf(err: unknown, now: Date): string | null {
@@ -65,9 +74,7 @@ export const connector: Connector = {
       try {
         const health = await igClient.health();
         if (!health.loggedIn || !health.username) return { ok: false, message: "The sidecar has no Instagram session yet. Enter a session id.", retryAfter: null };
-        const profile = await igClient.profile(health.username);
-        const count = (n: number | null) => (n === null ? "?" : n.toLocaleString("en-US"));
-        return { ok: true, line: `${profile.handle} · ${count(profile.followerCount)} followers · ${count(profile.mediaCount)} posts` };
+        return { ok: true, line: sampleLine(await igClient.profile(health.username)) };
       } catch (err) {
         return sampleFailure(err, clockNow());
       }

@@ -12,6 +12,7 @@ import { syncPull, syncSummary } from "../connectors/ig-sidecar";
 import { igSidecar } from "../connectors/ig-sidecar/manifest";
 import { clockNow } from "../lib/clock";
 import { recordPullEnd, recordPullProgress, recordPullStart } from "../services/connector-status";
+import type { PullResult } from "../lib/pull-result";
 import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
   SYNC_PHASES,
@@ -129,8 +130,15 @@ export async function startSyncAction(channelIds?: string[], opts: { skipFreshWi
       (r) => {
         // A sync scoped to some channels is not the connector's pull, so only a card pull sets the card.
         if (!cardPull) return;
-        const { summary, retryAfter } = syncSummary(r, startedAt, clockNow());
-        recordPullEnd(igSidecar.id, syncPull(r), summary, retryAfter);
+        // Whatever reading the run throws, the card leaves Pulling; the throw still reaches the log below.
+        let pull: PullResult<unknown, unknown> = { kind: "failed", reason: "the pull's result could not be read" };
+        let ended = syncSummary(null, startedAt, clockNow());
+        try {
+          ended = syncSummary(r, startedAt, clockNow());
+          pull = syncPull(r);
+        } finally {
+          recordPullEnd(igSidecar.id, pull, ended.summary, ended.retryAfter);
+        }
       },
       async (err: unknown) => {
         failure = err;
@@ -140,8 +148,11 @@ export async function startSyncAction(channelIds?: string[], opts: { skipFreshWi
         const jobId = await jobIdKnown;
         log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessage(err) });
         if (jobId) {
-          await markJobFailed(jobId, err);
-          if (cardPull) recordPullEnd(igSidecar.id, { kind: "failed", reason: err }, syncSummary(null, startedAt, clockNow()).summary);
+          try {
+            await markJobFailed(jobId, err);
+          } finally {
+            if (cardPull) recordPullEnd(igSidecar.id, { kind: "failed", reason: err }, syncSummary(null, startedAt, clockNow()).summary);
+          }
         }
       }
     ).catch((err: unknown) => log.error("sync.status.record_failed", { message: errorMessage(err) }));

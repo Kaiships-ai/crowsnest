@@ -5,7 +5,8 @@ import path from "node:path";
 const portFile = path.resolve(import.meta.dirname, "../../../../data/verify/app/fake-sidecar.port");
 // POST /__session?state=expired makes every Instagram call answer the way the real sidecar does
 // for an expired session (Instagram's ClientError "login_required" maps to IG_AUTH_REQUIRED, 401);
-// state=ok restores it. POST /login-by-session adopts a browser session id, as the real one does.
+// state=ok restores it. POST /login-by-session adopts a browser session id, as the real one does;
+// POST /sample-session answers the sample profile for an id without adopting it.
 // POST /__mode sets how a rival pull goes, counting /profile calls from that moment:
 //   delayMs=N    every /profile answers after N ms (slow mode)
 //   limitAt=N    the Nth /profile answers 429 IG_RATE_LIMITED with retry_after_sec (default 1800)
@@ -65,6 +66,11 @@ const server = createServer((req, res) => {
       if (body.includes("expired")) return send(res, 401, EXPIRED);
       session = "ok";
       return send(res, 200, { status: "ok" });
+    }
+    if (url.pathname === "/sample-session") {
+      if (body.includes("expired")) return send(res, 401, EXPIRED);
+      const answer = () => send(res, 200, { username: "fake_sidecar", pk: "fake-fake_sidecar", full_name: "Fake fake_sidecar", follower_count: 2500, following_count: 10, media_count: 30 });
+      return mode.delayMs ? setTimeout(answer, mode.delayMs) : answer();
     }
     // The real /health never calls Instagram, so it answers the same with an expired session.
     if (url.pathname === "/health") {

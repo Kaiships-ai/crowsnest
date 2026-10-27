@@ -9,7 +9,7 @@ vi.mock("@/server/sidecar/control", () => ({
   sidecarPidAlive: vi.fn(() => false),
 }));
 vi.mock("@/server/actions/ig-actions", () => ({ getIgStatusAction: vi.fn() }));
-vi.mock("@/server/services/connector-status", () => ({ recordSwitch: vi.fn(), recordSample: vi.fn(), sampleConnector: vi.fn() }));
+vi.mock("@/server/services/connector-status", () => ({ recordSwitch: vi.fn(), sampleConnector: vi.fn() }));
 
 afterEach(() => vi.clearAllMocks());
 

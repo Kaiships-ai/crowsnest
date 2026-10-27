@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // Runs on boards-lane.sh (fake sidecar). The session id form tests only when Test connection is
-// pressed, Save stays off until a test passes, and a passing test hands the id to the sidecar.
+// pressed, Save stays off until a test passes, and only Save stores the id and hands it to the sidecar.
 export const dod = [];
 
 const LOG = path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.log");
@@ -11,6 +11,7 @@ const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
 const SESSION = `sidecar-session-01-${Date.now()}`;
 const EXPIRED = `${SESSION}-expired`;
+const CANCELLED = `${SESSION}-cancelled`;
 const SAMPLE = "@fake_sidecar · 2,500 followers · 30 posts";
 const STATES = path.resolve(import.meta.dirname, "../../../../../data/verify/evidence/sidecar-states");
 const port = readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.port"), "utf8").trim();
@@ -26,7 +27,10 @@ async function setTheme(page, dark) {
   await page.evaluate(() => document.documentElement.classList.remove("theme-transition-disabled"));
 }
 
-const logged = (id) => readFileSync(LOG, "utf8").split("\n").some((l) => l.includes("POST /login-by-session") && l.includes(id));
+const logged = (route, id) => readFileSync(LOG, "utf8").split("\n").some((l) => l.includes(`POST ${route}`) && l.includes(id));
+/** The stored IG_SESSIONID row, sealed or plain, with its write time. */
+const savedSession = () =>
+  sql("select coalesce((select sealed || updated_at from sealed_secrets where name = 'IG_SESSIONID'), '') || coalesce((select value || updated_at from secrets where name = 'IG_SESSIONID'), '')");
 
 export default async function sidecarSession01({ page, step, snap }) {
   const card = page.locator('[data-testid="source-card"][data-connector-id="ig-sidecar"]');
@@ -65,18 +69,31 @@ export default async function sidecarSession01({ page, step, snap }) {
     await step("pasting an expired id tests nothing and Save stays off; Test connection shows the expired sentence (C7)", async () => {
       await input.fill(EXPIRED);
       await page.waitForTimeout(1_000);
-      if (logged(EXPIRED)) throw new Error("pasting tested the session");
+      if (logged("/sample-session", EXPIRED) || logged("/login-by-session", EXPIRED)) throw new Error("pasting tested the session");
       if (!(await save.isDisabled())) throw new Error("Save is on before a test");
       await shoot("dialog_pasted");
       await card.getByTestId("sidecar-form-test").click();
       await page.locator('[data-testid="sidecar-form-check"][data-check="err"]').waitFor({ timeout: 15_000 });
       const text = await check.innerText();
       console.log(`form check: ${text}`);
-      if (!text.includes("The session id expired.")) throw new Error(text);
+      if (text !== "The session id expired. Sign in to instagram.com and copy a new one.") throw new Error(text);
       if (!(await save.isDisabled())) throw new Error("Save is on after a failed test");
       await shoot("dialog_expired");
     });
     await snap("sidecar-session-01-expired");
+
+    await step("Cancel after a passing test discards the id: no POST /login-by-session, the saved IG_SESSIONID unchanged", async () => {
+      const before = savedSession();
+      await input.fill(CANCELLED);
+      await card.getByTestId("sidecar-form-test").click();
+      await page.locator('[data-testid="sidecar-form-check"][data-check="ok"]').waitFor({ timeout: 15_000 });
+      await card.getByTestId("sidecar-form-cancel").click();
+      await form.waitFor({ state: "detached", timeout: 10_000 });
+      if (!logged("/sample-session", CANCELLED)) throw new Error("Test connection never reached POST /sample-session");
+      if (logged("/login-by-session", CANCELLED)) throw new Error("the sidecar adopted a cancelled id");
+      if (savedSession() !== before) throw new Error("Cancel changed the saved IG_SESSIONID");
+      await openForm();
+    });
 
     await step("a good id: Test connection shows Testing, then the sample, and Save turns on (C5, C6)", async () => {
       await input.fill(SESSION);
@@ -86,21 +103,25 @@ export default async function sidecarSession01({ page, step, snap }) {
       await page.locator('[data-testid="sidecar-form-check"][data-check="testing"]').waitFor({ timeout: 5_000 });
       await shoot("dialog_testing");
       await page.locator('[data-testid="sidecar-form-check"][data-check="ok"]').waitFor({ timeout: 15_000 });
+      await fakeMode();
       const text = await check.innerText();
       console.log(`form check: ${text}`);
       if (!text.includes(SAMPLE)) throw new Error(text);
       if (await save.isDisabled()) throw new Error("Save is off after a passing test");
+      if (logged("/login-by-session", SESSION)) throw new Error("Test connection adopted the id before Save");
       await shoot("dialog_ok");
     });
     await snap("sidecar-session-01-ok");
 
-    await step("the sidecar adopted the tested session (POST /login-by-session with it)", async () => {
-      if (!logged(SESSION)) throw new Error("the fake sidecar never got POST /login-by-session with the tested id");
+    await step("Save stores the id and the sidecar adopts it (POST /login-by-session with it)", async () => {
+      const beforeSave = savedSession();
+      await save.click();
+      await form.waitFor({ state: "detached", timeout: 15_000 });
+      if (!logged("/login-by-session", SESSION)) throw new Error("the fake sidecar never got POST /login-by-session with the saved id");
+      if (savedSession() === beforeSave) throw new Error("Save did not store IG_SESSIONID");
     });
 
     await step("Save closes the form; the check passed and the card keeps the sample (Ready shows it; an older pull error still shows first)", async () => {
-      await save.click();
-      await form.waitFor({ state: "detached", timeout: 10_000 });
       const checkMessage = sql("select coalesce(check_message, '') from connector_status where connector_id = 'ig-sidecar'");
       const summary = sql("select summary from connector_status where connector_id = 'ig-sidecar'");
       const view = await card.getAttribute("data-view");

@@ -4,9 +4,11 @@ import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
 import type { Sample } from "@/server/connectors/types";
 import { igClient } from "@/server/ig/client";
-import { sampleFailure } from "@/server/connectors/ig-sidecar";
+import { IgError } from "@/server/ig/errors";
+import { sampleFailure, sampleLine, SESSION_EXPIRED_FORM } from "@/server/connectors/ig-sidecar";
+import { setConnectorSecret } from "@/server/actions/secrets-actions";
 import { clockNow } from "@/server/lib/clock";
-import { recordSample, recordSwitch, sampleConnector } from "@/server/services/connector-status";
+import { recordSwitch, sampleConnector } from "@/server/services/connector-status";
 import { sidecarPidAlive, startSidecar, stopSidecar } from "@/server/sidecar/control";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
@@ -78,15 +80,21 @@ export async function sidecarProcessAliveAction(): Promise<boolean> {
 }
 
 /**
- * Test connection in the session id form: the sidecar adopts the pasted id, then pulls the
- * sample. The sidecar has no dry run, so a passing test is already the saved session.
+ * Test connection in the session id form: the sidecar tries the pasted id on a throwaway
+ * client and pulls the sample. Nothing is saved or adopted, so Cancel leaves the old session.
  */
 export async function testSidecarSessionAction(sessionid: string): Promise<Sample> {
   try {
-    const { status } = await igClient.loginBySession(sessionid.trim());
-    if (status !== "ok") return { ok: false, message: `Instagram asks for ${status.replace(/_/g, " ")}. Finish it on instagram.com, then copy a new session id.`, retryAfter: null };
+    return { ok: true, line: sampleLine(await igClient.sampleSession(sessionid.trim())) };
   } catch (err) {
-    return recordSample(igSidecar.id, sampleFailure(err, clockNow()));
+    if (err instanceof IgError && err.code === "IG_AUTH_REQUIRED") return { ok: false, message: SESSION_EXPIRED_FORM, retryAfter: null };
+    return sampleFailure(err, clockNow());
   }
+}
+
+/** Save in the session id form: stores the id, the sidecar adopts it, and the card's sample is recorded. */
+export async function saveSidecarSessionAction(sessionid: string): Promise<Sample> {
+  const saved = await setConnectorSecret(igSidecar.id, "IG_SESSIONID", sessionid);
+  if (!saved.ok) return { ok: false, message: saved.error, retryAfter: null };
   return sampleConnector(igSidecar.id);
 }

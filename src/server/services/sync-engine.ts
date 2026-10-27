@@ -107,14 +107,14 @@ export interface RunSyncOpts {
   onProgress?: (progress: { done: number; total?: number; label?: string | null }) => void;
   /**
    * The Settings > Sources pull. Stop finishes the rival in hand before ending, and the
-   * first Instagram limit or a dead sidecar ends the whole pull at once, with no retry:
-   * waiting out a limit inside the pull holds the card in Pulling for up to 30 minutes.
+   * first Instagram limit, expired session or dead sidecar ends the whole pull at once, with
+   * no retry: waiting out a limit inside the pull holds the card in Pulling for up to 30 minutes.
    */
   cardPull?: boolean;
 }
 
 /** Codes that end a card pull: every later rival would hit the same wall. */
-const HALT_CODES: ReadonlySet<string> = new Set(["IG_RATE_LIMITED", "IG_SERVICE_DOWN"]);
+const HALT_CODES: ReadonlySet<string> = new Set(["IG_RATE_LIMITED", "IG_SERVICE_DOWN", "IG_AUTH_REQUIRED"]);
 
 type ChannelRow = typeof tables.channels.$inferSelect;
 

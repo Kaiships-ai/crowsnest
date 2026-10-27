@@ -87,6 +87,8 @@ export default async function sidecarPull01({ page, step, snap }) {
       await page.getByRole("button", { name: "Back to app" }).click();
       await openSources();
       await waitView("not-connected", 10_000);
+      const help = await page.locator(SELECTOR).getByTestId("sidecar-session-help").innerText();
+      if (!help.includes("How to get a session id ↗")) throw new Error(`no session id help link: ${help}`);
       await shoot("not_connected");
       await fake("__mode");
     });
