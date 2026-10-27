@@ -1,3 +1,4 @@
+import { eq } from "drizzle-orm";
 import { CONNECTORS, listConnectors, testConnector } from "@/server/connectors/registry";
 import type { ConnectionCheck, Connector } from "@/server/connectors/types";
 import { db, tables } from "@/server/db";
@@ -25,8 +26,16 @@ function record(connectorId: string, { kind, ...event }: Event): StatusRow {
     .get();
 }
 
+/** A failed check is an error. A passing check proves the key, not the data: it keeps a partial pull's state and clears an error. */
+export function afterCheck(prior: Pick<StatusRow, "state" | "message" | "detail"> | undefined, check: ConnectionCheck): Omit<Event, "kind"> {
+  if (!check.ok) return { state: "error", message: check.message ?? "The check failed. Check the key, then check again.", detail: null };
+  if (prior?.state === "partial") return { state: prior.state, message: prior.message, detail: prior.detail };
+  return { state: "ready", message: null, detail: null };
+}
+
 export function recordCheck(connectorId: string, check: ConnectionCheck): StatusRow {
-  return record(connectorId, check.ok ? { kind: "check", state: "ready", message: null, detail: null } : { kind: "check", state: "error", message: check.message ?? "The check failed. Check the key, then check again.", detail: null });
+  const prior = db.select().from(tables.connectorStatus).where(eq(tables.connectorStatus.connectorId, connectorId)).get();
+  return record(connectorId, { kind: "check", ...afterCheck(prior, check) });
 }
 
 export function recordPull(connectorId: string, result: PullResult<unknown, unknown>): StatusRow {

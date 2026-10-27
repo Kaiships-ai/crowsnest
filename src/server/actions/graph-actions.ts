@@ -4,6 +4,8 @@ import type { GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
 import { cachedTokenStatus } from "../graph/token-status";
 import { log } from "../lib/logger";
+import { measurePull } from "../connectors/instagram-graph";
+import { recordPull } from "../services/connector-status";
 import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../services/own-measure";
 
 /**
@@ -12,17 +14,19 @@ import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../
  * Nothing here throws across the action boundary, and every failure carries a `code`
  * so the UI can tell "no token configured" apart from "token rejected" apart from
  * "rate limited". The measurement itself lives in `services/own-measure.ts`, shared
- * with the hourly scheduler.
+ * with the Sources card pull.
  */
 
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: GraphErrorCode | "GRAPH_UNKNOWN" };
 
 /** "Measure now": every listed post, plus comments, through the one measurement service.
- *  Waits its turn when a scheduled run holds the lock. A non-Graph throw (a DB error) is logged and
+ *  Waits its turn when another run holds the lock. Records the outcome on the Instagram Graph card. A non-Graph throw (a DB error) is logged and
  *  returned as MEASURE_FAILED so the panel can toast it. */
 export async function measureOwnChannelAction(): Promise<MeasureResult> {
   try {
-    return await measureOwnChannel({ scope: "all" });
+    const r = await measureOwnChannel({ scope: "all" });
+    recordPull("instagram-graph", measurePull(r));
+    return r;
   } catch (err) {
     log.error("graph.measure.unexpected", { error: messageOf(err) });
     return { ok: false, error: messageOf(err), code: "MEASURE_FAILED" };
