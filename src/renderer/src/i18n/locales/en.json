@@ -21314,7 +21314,7 @@
       "gates": "Waiting for your approval",
       "gate1": "Gate 1 · proposed plan",
       "gate2": "Gate 2 · drafts to send",
-      "pullSource": "Pull in Settings > Sources",
+      "pullSource": "Settings > Sources",
       "empty": "Nothing for today yet.",
       "pulledAt": "last pull",
       "neverPulled": "never pulled",
