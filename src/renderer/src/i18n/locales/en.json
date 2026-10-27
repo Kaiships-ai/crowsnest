@@ -21356,7 +21356,7 @@
       "gender": "Gender",
       "age": "Age",
       "country": "Country",
-      "empty": "Instagram has never been measured. Connect Instagram in Sources, then press Pull.",
+      "empty": "Instagram has never been measured. Connect Instagram in Sources; numbers show after its first pull.",
       "historyThin": "At least 2 measurements are needed to draw the views line.",
       "afterNone": "This reel has no keyword, so it can't be linked to DMs, site and orders. Add a keyword to the reel in Plan.",
       "afterIntro": "Instagram doesn't show this. Lead Studio links keyword {{keyword}} through ChatbotX, Umami and Polar.",
@@ -21518,18 +21518,18 @@
       },
       "group": {
         "instagram": "Instagram",
-        "instagramDescription": "Your own channel and the rivals you track, pulled when you press Pull.",
+        "instagramDescription": "Your own channel and the rivals you track, pulled on request, never on a timer.",
         "funnel": "Funnel",
         "funnelDescription": "What happens after a view: comments, DMs, gift page visits and orders.",
         "tools": "Tools",
         "toolsDescription": "Services the agents use while they work."
       },
       "explain": {
-        "missing": "Add your {{missing}} to connect. Lead Studio pulls from it only when you press Pull.",
+        "missing": "Add your {{missing}} to connect. Lead Studio pulls from it only on request, never on a timer.",
         "noAdapter": "Lead Studio cannot pull from this source yet. Agents record its numbers for now, and you can save the key ahead.",
         "error": "The last check or pull failed. Check the key, then check again.",
         "partial": "The last pull did not finish, so the older numbers stay. Pull again later.",
-        "ready": "Ready. Numbers are pulled only when you press Pull.",
+        "ready": "Ready. Numbers are pulled only on request, never on a timer.",
         "readyNoPull": "Ready."
       },
       "lastPull": "Last pull {{time}}",
