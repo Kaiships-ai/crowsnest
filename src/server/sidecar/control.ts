@@ -19,6 +19,7 @@ function childEnv(): NodeJS.ProcessEnv {
     IG_SERVICE_TOKEN: getOrCreateServiceToken(),
     IG_USERNAME: readSecret(igSidecar, "IG_USERNAME"),
     IG_PASSWORD: readSecret(igSidecar, "IG_PASSWORD"),
+    IG_SESSIONID: readSecret(igSidecar, "IG_SESSIONID"),
     IG_PROXY: process.env.IG_PROXY,
     IG_DEVICE_SEED: process.env.IG_DEVICE_SEED,
     CROWSNEST_INGEST_URL: ingestUrl(),

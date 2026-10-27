@@ -2,6 +2,7 @@
 
 import { randomBytes } from "node:crypto";
 
+import { igLoginBySessionAction } from "@/server/actions/ig-actions";
 import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
 import { CONNECTORS, managedSecrets } from "@/server/connectors/registry";
 import { deleteSecret, readSecretSource, writeSecret } from "@/server/connectors/secrets";
@@ -37,6 +38,14 @@ export async function setConnectorSecret(connectorId: string, field: string, val
   if (!manifest) return { ok: false, error: `no connector ${connectorId}` };
   if (!manifest.secrets.some((s) => s.name === field)) return { ok: false, error: `${connectorId} has no field ${field}` };
   if (!value.trim()) return { ok: false, error: "empty value" };
+  // A saved browser session id is useless until the sidecar adopts it; a sidecar that
+  // refuses it (expired cookie, sidecar down) must say so here, not on the next pull.
+  if (connectorId === igSidecar.id && field === "IG_SESSIONID") {
+    const login = await igLoginBySessionAction(value.trim());
+    if (!login.ok) return { ok: false, error: `Saved, but Instagram did not accept it: ${login.error}` };
+    if (login.status !== "ok") return { ok: false, error: `Saved, but Instagram asks for ${login.status.replace(/_/g, " ")}.` };
+    return { ok: true };
+  }
   try {
     writeSecret(manifest, field, value.trim());
     invalidateTokenStatus();

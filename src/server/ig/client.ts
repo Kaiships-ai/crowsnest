@@ -389,14 +389,15 @@ async function request<T>(path: string, opts: RequestOpts = {}): Promise<T> {
       // A non-JSON error body is itself informative; fall through with null and let
       // fromEnvelope produce IG_UNKNOWN rather than pretending the call succeeded.
     }
-    // A 401 comes from the sidecar's own auth guard, which answers with FastAPI's
-    // `{detail: ...}` rather than our error envelope. Without this branch it degraded to
-    // IG_UNKNOWN and read like an Instagram problem, when it is actually a mismatched
-    // shared secret between two of our own processes.
+    // A 401 is either Instagram's (an expired session: IG_AUTH_REQUIRED and friends, which
+    // the user fixes by logging in again) or the sidecar's own auth guard, whose code this
+    // client does not know. Only the second is a mismatched shared secret between two of
+    // our own processes; folding the first into it hid "log in again" from the user.
+    const enveloped = fromEnvelope(body, `Instagram service returned HTTP ${res.status}`);
     const error =
-      res.status === 401
+      res.status === 401 && enveloped.code === "IG_UNKNOWN"
         ? new IgError("IG_SERVICE_UNAUTHORIZED", "Instagram service rejected the shared secret", { detail: { path } })
-        : fromEnvelope(body, `Instagram service returned HTTP ${res.status}`);
+        : enveloped;
     log.warn("ig.request.error", { path, status: res.status, code: error.code, ms: Date.now() - startedAt });
     throw error;
   }

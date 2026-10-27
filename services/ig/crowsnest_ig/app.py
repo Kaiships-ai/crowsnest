@@ -8,7 +8,9 @@ list.
 from __future__ import annotations
 
 import importlib.metadata as importlib_metadata
+import os
 import re
+import threading
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
@@ -122,6 +124,17 @@ def create_app(config: Config | None = None) -> FastAPI:
                 error=f"{type(exc).__name__}: {exc}",
             )
         log_event("service.ready", logged_in=manager.logged_in())
+        sessionid = os.environ.get("IG_SESSIONID", "").strip()
+        if sessionid and not manager.logged_in():
+            # Adopt the browser session id the app saved, off the startup path so /health
+            # answers while Instagram is asked. A refused id only logs; the app re-sends it.
+            def adopt() -> None:
+                try:
+                    manager.login_by_sessionid(sessionid)
+                except Exception as exc:  # noqa: BLE001 - a background adopt must not crash the service
+                    log_event("session.boot_adopt_failed", error=f"{type(exc).__name__}: {exc}")
+
+            threading.Thread(target=adopt, name="boot-adopt-session", daemon=True).start()
         yield
         log_event("service.stopping")
 

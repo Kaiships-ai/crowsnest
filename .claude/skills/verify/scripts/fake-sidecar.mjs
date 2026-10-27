@@ -3,14 +3,14 @@ import { writeFileSync } from "node:fs";
 import path from "node:path";
 
 const portFile = path.resolve(import.meta.dirname, "../../../../data/verify/app/fake-sidecar.port");
-// POST /__session?state=expired makes every Instagram call answer the way the real sidecar did
-// for an expired session in the first real-data run (IG_NETWORK, upstream login_required);
+// POST /__session?state=expired makes every Instagram call answer the way the real sidecar does
+// for an expired session (Instagram's ClientError "login_required" maps to IG_AUTH_REQUIRED, 401);
 // state=ok restores it. POST /login-by-session adopts a browser session id, as the real one does.
 let session = "ok";
 const EXPIRED = {
   error: {
-    code: "IG_NETWORK",
-    message: "Network failure talking to Instagram.",
+    code: "IG_AUTH_REQUIRED",
+    message: "Instagram session expired — re-authenticate.",
     retryable: true,
     detail: { exception: "ClientError", upstream_message: "login_required" },
   },
@@ -34,7 +34,7 @@ const server = createServer((req, res) => {
       session = "ok";
       return send(res, 200, { status: "ok" });
     }
-    if (session === "expired") return send(res, 503, EXPIRED);
+    if (session === "expired") return send(res, 401, EXPIRED);
     if (url.pathname !== "/profile") return send(res, 503, { error: "fake sidecar answers /profile only" });
     const username = (url.searchParams.get("handle") ?? "").replace(/^@/, "");
     send(res, 200, { username, pk: `fake-${username}`, full_name: `Fake ${username}`, follower_count: 2500, following_count: 10, media_count: 30 });

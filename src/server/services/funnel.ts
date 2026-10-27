@@ -5,6 +5,7 @@ import { CONNECTORS } from "@/server/connectors/registry";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { FUNNEL_SOURCES } from "@/server/db/schema";
 import { METRIC_IDS, METRIC_LEDGER, type Metric, type MetricId, type MetricSource, type MetricWindow } from "@/server/metrics/ledger";
+import { clockNow } from "@/server/lib/clock";
 import { newestCaptureByPost } from "@/server/queries/own-channel";
 
 type FunnelSource = (typeof FUNNEL_SOURCES)[number];
@@ -28,7 +29,7 @@ export const FunnelRowSchema = z
     value: z.number().nonnegative(),
     capturedAt: z.iso
       .datetime({ offset: true })
-      .refine((t) => !(Date.parse(t) > Date.now() + 5 * 60_000), "capturedAt is in the future"),
+      .refine((t) => !(Date.parse(t) > clockNow().getTime() + 5 * 60_000), "capturedAt is in the future"),
   })
   .superRefine((row, ctx) => {
     const puller = pullerOf(row.source);
