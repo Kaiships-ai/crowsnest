@@ -3,53 +3,47 @@ import { CONNECTORS, listConnectors, type ConnectorView } from "@/server/connect
 import type { Connector } from "@/server/connectors/types";
 import { GRAPH_CALLS_PER_HOUR, graphCallsInLastHour } from "@/server/graph/client";
 import { clockNow } from "@/server/lib/clock";
-import { DAILY_PULL_HOUR, lastPulls, pullSlotDate, type LastPull } from "@/server/services/daily-pull";
+import { readStatuses, type StatusRow } from "@/server/services/connector-status";
 
-export type VaultState = "running" | "error" | "stale" | "not-connected" | "partial";
+/** The one state a Sources card shows. In-flight checking and pulling live only in the renderer. */
+export type CardState = "not-connected" | StatusRow["state"];
 
 export interface VaultRow {
   id: string;
   label: string;
-  state: VaultState;
+  state: CardState;
+  /** One sentence: what is wrong and what to do. Null when nothing is wrong. */
+  message: string | null;
+  detail: string | null;
+  checkedAt: string | null;
+  pulledAt: string | null;
   missingSecretLabels: string[];
   secrets: ConnectorView["secrets"];
   canPull: boolean;
-  lastPull: LastPull | null;
-  nextPullAt: string;
   graphCallsLeft: number | null;
 }
 
-export function nextPullAt(now: Date): Date {
-  const next = new Date(now);
-  next.setHours(DAILY_PULL_HOUR, 0, 0, 0);
-  if (next <= now) next.setDate(next.getDate() + 1);
-  return next;
-}
-
-function stateOf(view: ConnectorView, canPull: boolean, last: LastPull | null, now: Date): VaultState {
+function stateOf(view: ConnectorView, row: StatusRow | undefined): CardState {
   if (view.status !== "configured") return "not-connected";
-  if (!canPull) return "running";
-  if (last?.outcome === "failed") return "error";
-  if (last?.outcome === "partial") return "partial";
-  if (last?.outcome === "complete" && last.slot === pullSlotDate(now)) return "running";
-  return "stale";
+  // Set up but never checked or pulled: ready until a check or pull says otherwise.
+  return row?.state ?? "ready";
 }
 
 export function getVaultBoard(now: Date = clockNow(), registry: Connector[] = CONNECTORS): VaultRow[] {
-  const last = lastPulls();
-  const next = nextPullAt(now).toISOString();
+  const statuses = readStatuses();
   return listConnectors(registry).map((view) => {
-    const canPull = Boolean(registry.find((c) => c.manifest.id === view.id)?.adapter?.pull);
-    const lastPull = last.get(view.id) ?? null;
+    const row = statuses.get(view.id);
     return {
       id: view.id,
       label: view.label,
-      state: stateOf(view, canPull, lastPull, now),
+      state: stateOf(view, row),
+      message: row?.message ?? null,
+      detail: row?.detail ?? null,
+      checkedAt: row?.checkedAt ?? null,
+      pulledAt: row?.pulledAt ?? null,
       missingSecretLabels: view.secrets.filter((s) => !s.optional && s.source === "none").map((s) => s.label),
       secrets: view.secrets,
-      canPull,
-      lastPull,
-      nextPullAt: next,
+      canPull: Boolean(registry.find((c) => c.manifest.id === view.id)?.adapter?.pull),
       graphCallsLeft: view.id === instagramGraph.id ? Math.max(0, GRAPH_CALLS_PER_HOUR - graphCallsInLastHour(now)) : null,
     };
   });

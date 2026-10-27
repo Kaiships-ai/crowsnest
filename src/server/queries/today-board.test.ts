@@ -3,7 +3,7 @@ import { beforeEach, expect, test } from "vitest";
 import type { Connector } from "@/server/connectors/types";
 import { db, newId, nowIso, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
-import { runDailyPull } from "@/server/services/daily-pull";
+import { pullConnector } from "@/server/services/connector-status";
 import { saveFunnel } from "@/server/services/funnel";
 import type { FunnelStep } from "./funnel-board";
 import { biggestDrop, getTodayBoard } from "./today-board";
@@ -16,7 +16,7 @@ function fake(id: string, pull: NonNullable<Connector["adapter"]>["pull"]): Conn
 
 beforeEach(async () => {
   migrate();
-  for (const t of [tables.reelFunnel, tables.planVersions, tables.gateDrafts, tables.dailyPulls]) await db.delete(t);
+  for (const t of [tables.reelFunnel, tables.planVersions, tables.gateDrafts, tables.connectorStatus]) await db.delete(t);
 });
 
 function version(period: "week" | "month", periodKey: string, v: number, status: "proposed" | "live" | "superseded") {
@@ -41,18 +41,18 @@ test("gates count proposed plans newer than their live version and pending draft
   expect(board.gates).toEqual({ proposedPlansAhead: 2, pendingDrafts: 2 });
 });
 
-test("a partial or failed pull shows as such, never as running", async () => {
+test("a partial or failed pull shows as such, never as ready", async () => {
   const registry = [
     fake("ok", async () => ({ kind: "complete", rows: null })),
     fake("cut", async () => ({ kind: "partial", rows: null, missing: "page 2", reason: "rate limited" })),
     fake("down", async () => ({ kind: "failed", reason: "sidecar down" })),
   ];
-  await runDailyPull(at(27, 5), registry);
+  for (const c of registry) await pullConnector(c.manifest.id, registry);
   const { pulls } = await getTodayBoard(at(27, 9), registry);
-  expect(pulls.map((p) => [p.id, p.state, p.lastPull?.outcome])).toEqual([
-    ["ok", "running", "complete"],
-    ["cut", "partial", "partial"],
-    ["down", "error", "failed"],
+  expect(pulls.map((p) => [p.id, p.state, typeof p.pulledAt])).toEqual([
+    ["ok", "ready", "string"],
+    ["cut", "partial", "string"],
+    ["down", "error", "string"],
   ]);
 });
 

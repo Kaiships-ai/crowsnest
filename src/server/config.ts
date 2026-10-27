@@ -43,7 +43,6 @@ const schema = z.object({
   // --- sync window ---
   LOOKBACK_DAYS: intWithDefault(30, 1, 3650),
   MAX_ITEMS_PER_SYNC: intWithDefault(200, 1, 10_000),
-  SYNC_INTERVAL_MINUTES: intWithDefault(0, 0, 10_080),
   /** How many channels a sync run pipelines at once. The env layer under the
    *  `syncConcurrency` setting, not the last word: a stored `app_settings` row beats it.
    *  Read the setting, never this, from application code. Default 1: the sidecar's one

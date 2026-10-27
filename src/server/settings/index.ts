@@ -19,8 +19,8 @@ import type { WindowSpec } from "../services/outlier-calc";
  *   3. A built-in default, hardcoded in this file.
  *
  * Database beats environment beats built-in default. Once a setting has a database row,
- * its env var (if it has one) is dead — exactly like `MEDIA_RETENTION_DAYS` and
- * `SYNC_INTERVAL_MINUTES` are validated at boot and then ignored today, except now there
+ * its env var (if it has one) is dead — exactly like `MEDIA_RETENTION_DAYS` is
+ * validated at boot and then ignored today, except now there
  * is a way to actually change the value without a restart.
  *
  * This module never caches. Every call re-reads `app_settings`. That matches how the
@@ -78,11 +78,6 @@ export interface AppSettings {
    *  Consumed by `runSync` (falls back to this exactly where it used to read
    *  `config.VIEW_COUNT_ENRICH_PER_CHANNEL` directly) and by the view-count backfill. */
   viewCountEnrichPerChannel: number;
-  /** Minutes between automatic syncs. Consumed by the sync-scheduler.ts interval, which
-   *  checks this cadence against the newest sync_jobs row each tick and starts a library
-   *  sweep once it has elapsed. 0 disables automatic sync entirely (every sync then only
-   *  starts from a click). */
-  syncCadenceMinutes: number;
   /** Days of media to retain. NOT CONSUMED — there is no reaper yet; `MEDIA_RETENTION_DAYS`
    *  is validated at boot today and nothing reads it afterwards. */
   mediaRetentionDays: number;
@@ -120,7 +115,6 @@ const DB_KEY: { [K in keyof AppSettings]: string } = {
   syncConcurrency: "sync_concurrency",
   syncMetricsFreshnessHours: "sync_metrics_freshness_hours",
   viewCountEnrichPerChannel: "view_count_enrich_per_channel",
-  syncCadenceMinutes: "sync_cadence_minutes",
   mediaRetentionDays: "media_retention_days",
   syncSlaMinutes: "sync_sla_minutes",
   remixSlaMinutes: "remix_sla_minutes",
@@ -161,7 +155,6 @@ const SCHEMA: { [K in keyof AppSettings]: z.ZodType<AppSettings[K]> } = {
   // 0 is a real value here (it turns the pass off), and 200 is the same ban-risk ceiling
   // config.ts's VIEW_COUNT_ENRICH_PER_CHANNEL schema enforces.
   viewCountEnrichPerChannel: posInt(0, 200),
-  syncCadenceMinutes: posInt(0, 10_080),
   mediaRetentionDays: posInt(1, 3650),
   syncSlaMinutes: posInt(1, 240),
   remixSlaMinutes: posInt(1, 240),
@@ -189,7 +182,6 @@ const DEFAULT: AppSettings = {
   syncConcurrency: 1, // matches config.ts's SYNC_CONCURRENCY default exactly
   syncMetricsFreshnessHours: 12, // matches config.ts's SYNC_METRICS_FRESHNESS_HOURS default
   viewCountEnrichPerChannel: 0, // opt-in: off until set, so no sync scrapes without being asked. UI recommends 12 once on.
-  syncCadenceMinutes: 0,
   mediaRetentionDays: 90,
   syncSlaMinutes: 10, // spec default: a library sync over 10 min flags as over budget
   remixSlaMinutes: 3,
@@ -206,7 +198,6 @@ const ENV_FALLBACK: Partial<{ [K in keyof AppSettings]: () => AppSettings[K] }> 
   syncConcurrency: () => config.SYNC_CONCURRENCY,
   syncMetricsFreshnessHours: () => config.SYNC_METRICS_FRESHNESS_HOURS,
   viewCountEnrichPerChannel: () => config.VIEW_COUNT_ENRICH_PER_CHANNEL,
-  syncCadenceMinutes: () => config.SYNC_INTERVAL_MINUTES,
   mediaRetentionDays: () => config.MEDIA_RETENTION_DAYS,
 };
 
@@ -225,7 +216,6 @@ const WIRED: { [K in keyof AppSettings]: boolean } = {
   syncConcurrency: false, // stored and DB-overridable now; runSync reads it in Goal 3 T3
   syncMetricsFreshnessHours: false, // stored and DB-overridable; syncOneChannel reads it (Round 1)
   viewCountEnrichPerChannel: true, // runSync reads it per channel, and the backfill reads it too
-  syncCadenceMinutes: true, // sync-scheduler.ts reads it each tick and starts a library sweep on cadence
   mediaRetentionDays: false,
   syncSlaMinutes: true, // sync-engine raises an sla_breach on an over-budget finish, and the run screens flag it live
   remixSlaMinutes: false, // stored now, wired once remix runs raise their own notifications
