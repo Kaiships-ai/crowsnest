@@ -239,7 +239,7 @@ export default async function sidecarPull01({ page, step, snap }) {
       await waitView("limited-test", 15_000);
       const line = await card.getByTestId("sidecar-line").innerText();
       console.log(`limited test: ${line}`);
-      if (!/^Instagram is limiting requests\. Try again after \d\d:\d\d\.$/.test(line)) throw new Error(line);
+      if (!/^Instagram is limiting requests\. Try again after \d\d:\d\d( [AP]M)?\.$/.test(line)) throw new Error(line);
       if (!(await card.getByTestId("sidecar-test").isDisabled())) throw new Error("Test connection is on before the retry time");
       await shoot("limited_check");
       await fake("__mode");
