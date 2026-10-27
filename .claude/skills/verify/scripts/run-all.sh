@@ -18,7 +18,7 @@ lane() { # lane <journey> <script>: a lane script that runs one journey itself
   "$S/$2" "$RUN" >"$OUT/$1.out" 2>&1; echo $? >"$OUT/$1.rc"; "$S/app-down.sh" >/dev/null
 }
 
-RUN="$RUN" "$S/baseline-lane.sh" --compare >"$OUT/lane-baseline.out" 2>&1
+RUN="$RUN" "$S/baseline-lane.sh" --compare >"$OUT/lane-baseline.out" 2>&1; echo $? >"$OUT/baseline-compare.rc"; cp "$OUT/lane-baseline.out" "$OUT/baseline-compare.out"
 "$S/app-down.sh" >/dev/null
 
 # Orca's own workspace journeys (shell-01, close-terminal) stay out: run-all checks Lead Studio code.

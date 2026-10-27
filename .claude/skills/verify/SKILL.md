@@ -39,7 +39,7 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 ## Run every journey
 
 ```bash
-.claude/skills/verify/scripts/run-all.sh [run-id]   # dev mode; exits 1 when any journey failed
+.claude/skills/verify/scripts/run-all.sh [run-id]   # dev mode; exits 1 when any journey or the baseline compare failed
 ```
 
 Each journey runs on the lane it needs, in dev mode: `baseline-lane.sh --compare` (stopped clock) runs its board journeys in order and then `gate2-01` on the fake Graph; the boards lane (fake sidecar and Umami) runs every other journey except Orca's own `shell-01` and `close-terminal`; then `fresh-01` on `fresh-lane.sh` (no project open) and `schedule-01` on `schedule-lane.sh` (fake Graph, clock at 04:59:30). Journeys share one app per lane and run in order, so a journey must leave the app the way it found it (close its sheet, go back to the app). `run-all-report.mjs` writes `data/verify/evidence/<run-id>/report.html`: each DoD id from the proposal's `data.js` with its pass criterion, the journeys that assert it and their state, then each journey's steps, DB checks, shots and diffs. A journey names its DoD ids in `export const dod = ["B2-02"];`.
