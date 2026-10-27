@@ -37,7 +37,8 @@ export default async function sources01({ page, step, snap }) {
   await step("no card has a Pull button: a card only checks, the pull lives elsewhere", async () => {
     const buttons = await pane.getByTestId("source-card").evaluateAll((cards) => cards.map((c) => `${c.dataset.connectorId}: ${[...c.querySelectorAll("button")].map((b) => b.innerText.trim()).join(", ")}`));
     console.log(`card buttons:\n${buttons.join("\n")}`);
-    if (buttons.some((b) => /(:|, )Pull(,|$)/.test(b))) throw new Error("a card has a Pull button");
+    const labels = await pane.getByTestId("source-card").locator("button").allInnerTexts();
+    if (labels.some((t) => /^Pull/.test(t.trim()))) throw new Error("a card has a Pull button");
   });
   await snap("sources-01-dark");
   await setTheme(page, "light");

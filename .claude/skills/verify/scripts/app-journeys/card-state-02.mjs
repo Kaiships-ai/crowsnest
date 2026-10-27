@@ -15,7 +15,7 @@ export default async function cardState02({ page, step, snap }) {
   await step("after the restart the sidecar card still shows the last pull's Error and its reason", async () => {
     await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
     await card.waitFor({ timeout: 10_000 });
-    const [state, detail] = sql("select state || char(9) || detail from connector_status where connector_id = 'ig-sidecar'").split("\t");
+    const [state, detail] = sql("select pull_state || char(9) || pull_detail from connector_status where connector_id = 'ig-sidecar'").split("\t");
     const text = (await card.innerText()).replace(/\s+/g, " ");
     console.log(`db: ${state} | ${detail}`);
     console.log(`card: ${text}`);
@@ -23,7 +23,7 @@ export default async function cardState02({ page, step, snap }) {
     if (!text.includes(detail)) throw new Error("the card lost the pull's reason");
   });
   await step("no check or pull ran on start: connector_status holds the same one row per event", async () => {
-    const rows = sql("select connector_id || ' ' || state from connector_status order by connector_id");
+    const rows = sql("select connector_id || ' ' || pull_state from connector_status order by connector_id");
     console.log(`connector_status:\n${rows}`);
     if (rows !== "ig-sidecar error") throw new Error("a connector was checked or pulled on start");
   });

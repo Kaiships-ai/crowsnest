@@ -114,7 +114,8 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
       onJobStarted: resolveJobId,
     }).then(
       (r) => {
-        recordPull("ig-sidecar", syncPull(r));
+        // A sync scoped to some channels is not the connector's pull, so only a full sync sets the card.
+        if (!channelIds) recordPull("ig-sidecar", syncPull(r));
       },
       async (err: unknown) => {
         failure = err;
@@ -125,7 +126,7 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
         log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessage(err) });
         if (jobId) {
           await markJobFailed(jobId, err);
-          recordPull("ig-sidecar", { kind: "failed", reason: err });
+          if (!channelIds) recordPull("ig-sidecar", { kind: "failed", reason: err });
         }
       }
     ).catch((err: unknown) => log.error("sync.status.record_failed", { message: errorMessage(err) }));

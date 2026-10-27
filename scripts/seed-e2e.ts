@@ -305,8 +305,8 @@ async function seedPlanVersions(db: Db["db"], tables: Db["tables"]): Promise<voi
 async function seedPulls(db: Db["db"], tables: Db["tables"]): Promise<void> {
   const at = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate(), NOW.getHours() - 1).toISOString();
   await db.insert(tables.connectorStatus).values([
-    { connectorId: "instagram-graph", state: "error", message: "The last pull failed, so the older numbers stay. Check the key, then pull again.", detail: "HTTP 400: Invalid OAuth access token", pulledAt: at, updatedAt: at },
-    { connectorId: "ig-sidecar", state: "ready", pulledAt: at, updatedAt: at },
+    { connectorId: "instagram-graph", pullState: "error", pullMessage: "The last pull failed, so the older numbers stay. Re-check the key.", pullDetail: "HTTP 400: Invalid OAuth access token", pulledAt: at, updatedAt: at },
+    { connectorId: "ig-sidecar", pullState: "ready", pulledAt: at, updatedAt: at },
   ]);
 }
 
