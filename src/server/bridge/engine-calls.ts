@@ -8,6 +8,7 @@ import { errorMessage } from "@/server/lib/action-result";
 import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
 import { checkConnector, pullConnector, sampleConnector } from "@/server/services/connector-status";
 import { saveSidecarSessionAction, startSidecarAction, stopSidecarAction, testSidecarSessionAction } from "@/server/actions/sidecar-actions";
+import { readPolarOrganization, savePolarTokenAction, testPolarTokenAction } from "@/server/connectors/polar";
 import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
 import { getFunnel } from "@/server/services/funnel";
 import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
@@ -286,6 +287,9 @@ export const ENGINE_CALLS = {
   saveSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), saveSidecarSessionAction),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
+  testPolarTokenAction: call(z.tuple([z.string().min(1).max(4096)]), testPolarTokenAction),
+  savePolarTokenAction: call(z.tuple([z.string().min(1).max(4096)]), savePolarTokenAction),
+  getPolarOrganization: call(none, readPolarOrganization),
   // The folder workspace a board opens in when no project is open: next to the app's database.
   ensureLeadStudioWorkspaceDir: call(none, () => {
     const dir = path.resolve(path.dirname(process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"), "Lead Studio");

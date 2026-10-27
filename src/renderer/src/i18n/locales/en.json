@@ -21539,6 +21539,22 @@
         "apiKey": "api key"
       },
       "checking": "Checking",
+      "polar": {
+        "notConnected": "Not connected",
+        "tokenLabel": "Polar organization access token",
+        "helpForm": "How to create a token: Polar › Settings › Developers",
+        "tokenWorks": "✓ Token works · organization {{name}}",
+        "change": "Change token",
+        "needsToken": "Orders and revenue. Needs an organization access token.",
+        "enter": "Enter access token",
+        "help": "How to create a token",
+        "testingLine": "Testing the token with Polar…",
+        "organization": "Organization {{name}}",
+        "untested": "Token saved, not tested yet",
+        "tested": " · tested {{time}}",
+        "pullLater": "Pulling orders comes in a later release. The key is saved and tested.",
+        "gives": "Orders and revenue."
+      },
       "pull": {
         "long": "Taking longer than usual ({{elapsed}}). {{reason}} You can leave Settings; the pull keeps going.",
         "pullingLabel": "Pulling {{label}}…",
