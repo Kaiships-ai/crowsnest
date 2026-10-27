@@ -124,11 +124,23 @@ export function LimitWindow({ pull }: { pull: PullSummary }): React.ReactNode {
   if (at === -1) {
     return null
   }
-  const words: Record<PullSummary['items'][number]['result'], [string, string]> = {
-    updated: ['✓', translate('leadStudio.sources.sidecar.itemUpdated', 'updated')],
-    limited: ['!', translate('leadStudio.sources.sidecar.itemLimited', 'limited by Instagram')],
-    failed: ['!', translate('leadStudio.sources.sidecar.itemFailed', 'failed')],
-    'not-pulled': ['·', translate('leadStudio.sources.sidecar.itemNotPulled', 'not pulled')]
+  const words: Record<PullSummary['items'][number]['result'], [string, string, string]> = {
+    updated: [
+      '✓',
+      'text-status-success',
+      translate('leadStudio.sources.sidecar.itemUpdated', 'updated')
+    ],
+    limited: [
+      '!',
+      'text-destructive',
+      translate('leadStudio.sources.sidecar.itemLimited', 'limited by Instagram')
+    ],
+    failed: ['!', 'text-destructive', translate('leadStudio.sources.sidecar.itemFailed', 'failed')],
+    'not-pulled': [
+      '·',
+      'text-muted-foreground',
+      translate('leadStudio.sources.sidecar.itemNotPulled', 'not pulled')
+    ]
   }
   return (
     <div
@@ -137,9 +149,14 @@ export function LimitWindow({ pull }: { pull: PullSummary }): React.ReactNode {
     >
       {pull.items.slice(Math.max(0, at - 1), at + 2).map((item) => (
         <div key={item.label} className="flex items-center gap-3 px-3 py-1.5 text-xs">
-          <span className="w-3 font-mono text-muted-foreground">{words[item.result][0]}</span>
+          <span
+            data-testid="sidecar-limit-mark"
+            className={`w-3 font-mono ${words[item.result][1]}`}
+          >
+            {words[item.result][0]}
+          </span>
           <span className="flex-1">{item.label}</span>
-          <span className="font-mono text-2xs text-muted-foreground">{words[item.result][1]}</span>
+          <span className="font-mono text-2xs text-muted-foreground">{words[item.result][2]}</span>
         </div>
       ))}
     </div>
@@ -170,6 +187,19 @@ export const Strong = ({
   children: React.ReactNode
 }): React.ReactNode => (
   <p data-testid={testId} className="text-xs text-foreground">
+    {children}
+  </p>
+)
+
+/** The headline of a Partial card: a stop, a limit, a failed rival or a lost sidecar. */
+export const Warn = ({
+  testId,
+  children
+}: {
+  testId: string
+  children: React.ReactNode
+}): React.ReactNode => (
+  <p data-testid={testId} className="text-xs text-status-warning">
     {children}
   </p>
 )

@@ -10,6 +10,7 @@ vi.mock("@/server/sidecar/control", () => ({
 }));
 vi.mock("@/server/actions/ig-actions", () => ({ getIgStatusAction: vi.fn() }));
 vi.mock("@/server/services/connector-status", () => ({ recordSwitch: vi.fn(), sampleConnector: vi.fn() }));
+vi.mock("@/server/actions/secrets-actions", () => ({ setConnectorSecret: vi.fn() }));
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => {
@@ -108,5 +109,33 @@ describe("startSidecarAction", () => {
     const result = await startSidecarAction();
 
     expect(result).toEqual({ ok: false, error: "spawn uv ENOENT" });
+  });
+});
+
+describe("saveSidecarSessionAction", () => {
+  test("a stored and adopted id is a saved session even when the sample after it hits an Instagram limit", async () => {
+    const { setConnectorSecret } = await import("@/server/actions/secrets-actions");
+    const { sampleConnector } = await import("@/server/services/connector-status");
+    vi.mocked(setConnectorSecret).mockResolvedValue({ ok: true });
+    vi.mocked(sampleConnector).mockResolvedValue({
+      ok: false,
+      message: "Instagram is limiting requests.",
+      retryAfter: "2026-10-28T21:40:00.000Z",
+    });
+    const { saveSidecarSessionAction } = await import("./sidecar-actions");
+
+    expect(await saveSidecarSessionAction("123%3Aabc")).toEqual({ ok: true });
+    expect(vi.mocked(setConnectorSecret).mock.calls).toEqual([["ig-sidecar", "IG_SESSIONID", "123%3Aabc"]]);
+    expect(vi.mocked(sampleConnector).mock.calls).toEqual([["ig-sidecar"]]);
+  });
+
+  test("an id the sidecar refuses is a failed save, and no sample runs", async () => {
+    const { setConnectorSecret } = await import("@/server/actions/secrets-actions");
+    const { sampleConnector } = await import("@/server/services/connector-status");
+    vi.mocked(setConnectorSecret).mockResolvedValue({ ok: false, error: "Saved, but Instagram asks for challenge required." });
+    const { saveSidecarSessionAction } = await import("./sidecar-actions");
+
+    expect(await saveSidecarSessionAction("123%3Aabc")).toEqual({ ok: false, error: "Saved, but Instagram asks for challenge required." });
+    expect(sampleConnector).not.toHaveBeenCalled();
   });
 });

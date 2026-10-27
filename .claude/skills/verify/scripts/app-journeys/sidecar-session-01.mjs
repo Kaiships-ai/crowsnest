@@ -12,6 +12,7 @@ const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnes
 const SESSION = `sidecar-session-01-${Date.now()}`;
 const EXPIRED = `${SESSION}-expired`;
 const CANCELLED = `${SESSION}-cancelled`;
+const LIMITED = `${SESSION}-limited`;
 const SAMPLE = "@fake_sidecar · 2,500 followers · 30 posts";
 const STATES = path.resolve(import.meta.dirname, "../../../../../data/verify/evidence/sidecar-states");
 const port = readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.port"), "utf8").trim();
@@ -130,6 +131,27 @@ export default async function sidecarSession01({ page, step, snap }) {
       if (view === "ready" && !(await card.getByTestId("sidecar-sample").innerText()).includes(SAMPLE)) throw new Error("Ready without the sample");
     });
     await snap("sidecar-session-01");
+
+    await step("a saved id whose sample hits an Instagram limit is still saved: the form closes, the card reads the limited test with the retry time (C8)", async () => {
+      await openForm();
+      await input.fill(LIMITED);
+      await card.getByTestId("sidecar-form-test").click();
+      await page.locator('[data-testid="sidecar-form-check"][data-check="ok"]').waitFor({ timeout: 15_000 });
+      const beforeSave = savedSession();
+      await fakeMode("?limitAt=1&retryAfterSec=8");
+      await save.click();
+      await form.waitFor({ state: "detached", timeout: 15_000 });
+      await page.waitForFunction((el) => el?.getAttribute("data-view") === "limited-test", await card.elementHandle(), { timeout: 10_000 });
+      const line = await card.getByTestId("sidecar-line").innerText();
+      console.log(`after a limited save: ${line}`);
+      if (!/^Instagram is limiting requests\. Try again after \d\d:\d\d\.$/.test(line)) throw new Error(line);
+      if (!logged("/login-by-session", LIMITED)) throw new Error("the sidecar never adopted the saved id");
+      if (savedSession() === beforeSave) throw new Error("the limited save did not store IG_SESSIONID");
+      await fakeMode();
+      await page.waitForFunction((el) => el?.getAttribute("data-view") === "error", await card.elementHandle(), { timeout: 20_000 });
+      await card.getByTestId("sidecar-test").click();
+      await page.waitForFunction((el) => el?.getAttribute("data-view") === "ready", await card.elementHandle(), { timeout: 15_000 });
+    });
   } finally {
     await fakeMode().catch(() => {});
     await page.getByRole("button", { name: "Back to app" }).click({ timeout: 5_000 }).catch(() => {});

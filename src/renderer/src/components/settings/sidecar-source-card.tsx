@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Camera, ExternalLink } from 'lucide-react'
+import { Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { translate } from '@/i18n/i18n'
@@ -31,8 +31,6 @@ type Progress = {
   stopping: boolean
 }
 type CallFailure = { error: string } | null
-// No sessionid guide exists in the docs yet; the hint under the form input names the cookie.
-const SESSION_HELP_URL = 'https://www.instagram.com/'
 
 /** Settings > Sources card for the Instagram sidecar: the switch, the session id test, and the rival pull with progress. */
 export function SidecarSourceCard({
@@ -225,9 +223,8 @@ export function SidecarSourceCard({
                 data-testid="sidecar-session-help"
                 variant="outline"
                 size="sm"
-                onClick={() => window.api.shell.openUrl(SESSION_HELP_URL)}
+                onClick={() => setForm(true)}
               >
-                <ExternalLink className="size-3.5 mr-1.5" />
                 {translate('leadStudio.sources.sidecar.sessionHelp', 'How to get a session id')}
               </Button>
             </Actions>

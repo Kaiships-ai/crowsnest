@@ -33,11 +33,12 @@ export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }
   }
 
   // Only Save stores the id and hands it to the sidecar; Cancel leaves the old session.
+  // A saved id closes the form even when the sample after it fails: the card shows that error.
   const save = async (): Promise<void> => {
     setSaving(true)
     const res = await window.api.crowsnest.call('saveSidecarSessionAction', draft)
     setSaving(false)
-    const failure = !res.ok ? res.error.message : !res.value.ok ? res.value.message : null
+    const failure = !res.ok ? res.error.message : !res.value.ok ? res.value.error : null
     if (failure) {
       setFormTest({ state: 'err', message: failure })
       return

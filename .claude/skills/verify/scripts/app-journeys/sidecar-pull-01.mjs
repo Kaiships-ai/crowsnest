@@ -82,14 +82,20 @@ export default async function sidecarPull01({ page, step, snap }) {
       await page.waitForFunction((sel) => !["off", "starting"].includes(document.querySelector(sel)?.getAttribute("data-view")), SELECTOR, { timeout: 15_000 });
     });
 
-    await step("a sidecar with no Instagram session reads Not connected (C3)", async () => {
+    await step("a sidecar with no Instagram session reads Not connected (C3); How to get a session id opens the form with the cookie steps", async () => {
       await fake("__mode", "?loggedOut=1");
       await page.getByRole("button", { name: "Back to app" }).click();
       await openSources();
       await waitView("not-connected", 10_000);
-      const help = await page.locator(SELECTOR).getByTestId("sidecar-session-help").innerText();
-      if (!help.includes("How to get a session id")) throw new Error(`no session id help link: ${help}`);
+      const help = card.getByTestId("sidecar-session-help");
+      if (!(await help.innerText()).includes("How to get a session id")) throw new Error(`no session id help link: ${await help.innerText()}`);
       await shoot("not_connected");
+      await help.click();
+      await waitView("form", 5_000);
+      const hint = await card.getByTestId("sidecar-session-hint").innerText();
+      if (hint !== "Open instagram.com › DevTools › Application › Cookies › sessionid.") throw new Error(`the help link did not open the form's steps: ${hint}`);
+      await card.getByTestId("sidecar-form-cancel").click();
+      await waitView("not-connected", 5_000);
       await fake("__mode");
     });
 
@@ -191,7 +197,7 @@ export default async function sidecarPull01({ page, step, snap }) {
       await waitView("stopped", 75_000);
     });
 
-    await step("an Instagram limit ends the whole pull: Partial, the limited rival named, Pull the rest off until the retry time", async () => {
+    await step("an Instagram limit ends the whole pull: Partial in status-warning, the limited rival named (✓ success, ! destructive), Pull the rest off until the retry time", async () => {
       await fake("__mode", "?limitAt=4&retryAfterSec=25&delayMs=200");
       await card.getByTestId("sidecar-pull").click();
       await waitView("limited", 30_000);
@@ -206,6 +212,26 @@ export default async function sidecarPull01({ page, step, snap }) {
       if (line !== `Instagram is limiting requests. The pull stopped at ${pull.updated}/${total}.`) throw new Error(line);
       if (pull.updated < 3 || pull.done > pull.updated + 2) throw new Error(`the pull went on after the limit: done ${pull.done}, updated ${pull.updated}`);
       if (!win.includes("limited by Instagram")) throw new Error(win);
+      const colors = await page.evaluate((sel) => {
+        const card = document.querySelector(sel);
+        const token = (name) => {
+          const probe = document.createElement("span");
+          probe.style.color = `var(${name})`;
+          card.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        };
+        const color = (el) => getComputedStyle(el).color;
+        const marks = [...card.querySelectorAll('[data-testid="sidecar-limit-mark"]')].map((el) => [el.textContent, color(el)]);
+        return {
+          line: color(card.querySelector('[data-testid="sidecar-line"]')) === token("--status-warning"),
+          ok: marks.filter(([m]) => m === "✓").every(([, c]) => c === token("--status-success")),
+          bad: marks.filter(([m]) => m === "!").length > 0 && marks.filter(([m]) => m === "!").every(([, c]) => c === token("--destructive")),
+        };
+      }, SELECTOR);
+      console.log(`limited colors: ${JSON.stringify(colors)}`);
+      if (!colors.line || !colors.ok || !colors.bad) throw new Error(`limited card colors off DESIGN.md: ${JSON.stringify(colors)}`);
       if (!(await rest.isDisabled()) || !/· after \d\d:\d\d/.test(await rest.innerText())) throw new Error("Pull the rest is on before the retry time");
       if (waitSec < 15 || waitSec > 26) throw new Error(`retry_after is ${waitSec}s away, the sidecar said 25`);
       await snap("sidecar-pull-01-limited");

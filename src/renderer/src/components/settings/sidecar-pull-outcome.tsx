@@ -10,7 +10,7 @@ import {
   Num,
   restOf,
   sinceStartMinutes,
-  Strong,
+  Warn,
   type Health,
   type SourceRow
 } from './sidecar-card-view'
@@ -102,9 +102,9 @@ export function SidecarPullOutcome(props: {
     case 'stopped':
       return (
         <>
-          <Strong testId="sidecar-line">
+          <Warn testId="sidecar-line">
             {translate('leadStudio.sources.sidecar.youStopped', 'You stopped the pull at')} {at}.
-          </Strong>
+          </Warn>
           <Dim testId="sidecar-rest-line">
             {pull?.olderFrom
               ? translate(
@@ -140,10 +140,10 @@ export function SidecarPullOutcome(props: {
         pull?.items.filter((item) => item.result === 'failed').map((item) => item.label) ?? []
       return (
         <>
-          <Strong testId="sidecar-line">
+          <Warn testId="sidecar-line">
             {translate('leadStudio.sources.sidecar.partialAt', 'The pull finished with')} {at}{' '}
             {translate('leadStudio.sources.sidecar.partialUpdated', 'rivals updated.')}
-          </Strong>
+          </Warn>
           <Dim testId="sidecar-rest-line">
             {failed.length
               ? translate(
@@ -162,13 +162,13 @@ export function SidecarPullOutcome(props: {
       const after = row.retryAfter ? formatClock(row.retryAfter) : null
       return (
         <>
-          <Strong testId="sidecar-line">
+          <Warn testId="sidecar-line">
             {translate(
               'leadStudio.sources.sidecar.limited',
               'Instagram is limiting requests. The pull stopped at'
             )}{' '}
             {at}.
-          </Strong>
+          </Warn>
           <Dim testId="sidecar-rest-line">
             {translate(
               'leadStudio.sources.sidecar.limitedRest',
@@ -202,7 +202,7 @@ export function SidecarPullOutcome(props: {
     case 'off-mid':
       return (
         <>
-          <Strong testId="sidecar-line">
+          <Warn testId="sidecar-line">
             {pull?.stop === 'source-down'
               ? translate(
                   'leadStudio.sources.sidecar.diedAt',
@@ -213,7 +213,7 @@ export function SidecarPullOutcome(props: {
                   'The pull stopped before it finished, at'
                 )}{' '}
             {at}.
-          </Strong>
+          </Warn>
           <Dim testId="sidecar-rest-line">
             {health?.running
               ? translate(

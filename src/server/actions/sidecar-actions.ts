@@ -93,9 +93,12 @@ export async function testSidecarSessionAction(sessionid: string): Promise<Sampl
   }
 }
 
-/** Save in the session id form: stores the id, the sidecar adopts it, and the card's sample is recorded. */
-export async function saveSidecarSessionAction(sessionid: string): Promise<Sample> {
+/** Save in the session id form: stores the id and has the sidecar adopt it. That is the save's
+ *  outcome. The card's sample is recorded after it, and a failed sample (an Instagram limit, say)
+ *  shows on the card as its own Error, not as a failed save. */
+export async function saveSidecarSessionAction(sessionid: string): Promise<SimpleResult> {
   const saved = await setConnectorSecret(igSidecar.id, "IG_SESSIONID", sessionid);
-  if (!saved.ok) return { ok: false, message: saved.error, retryAfter: null };
-  return sampleConnector(igSidecar.id);
+  if (!saved.ok) return saved;
+  await sampleConnector(igSidecar.id);
+  return { ok: true };
 }
