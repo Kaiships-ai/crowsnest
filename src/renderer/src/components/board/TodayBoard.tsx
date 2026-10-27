@@ -261,8 +261,12 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
 
         <Block
           testId="today-pulls"
-          title={translate('boards.today.lastNight', 'Ran overnight')}
-          source={<SourceTag sources={[translate('boards.today.pullSource', '05:00 pull')]} />}
+          title={translate('boards.today.lastPulls', 'Last pulls')}
+          source={
+            <SourceTag
+              sources={[translate('boards.today.pullSource', 'Pull in Settings > Sources')]}
+            />
+          }
         >
           <ul className="flex flex-col">
             {board.pulls.map((pull) => (
@@ -276,8 +280,8 @@ function TodayView({ board, reload }: { board: TodayBoardData; reload: () => voi
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm">{pull.label}</span>
                   <span className="font-mono text-2xs text-muted-foreground">
-                    {pull.lastPull
-                      ? `${translate('boards.today.pulledAt', 'last pull')} ${formatBoardTime(pull.lastPull.at)}`
+                    {pull.pulledAt
+                      ? `${translate('boards.today.pulledAt', 'last pull')} ${formatBoardTime(pull.pulledAt)}`
                       : translate('boards.today.neverPulled', 'never pulled')}
                   </span>
                 </span>

@@ -3014,6 +3014,11 @@
         "view": "Reel views"
       }
     },
+    "kit": {
+      "state": {
+        "connected": "Connected"
+      }
+    },
     "own": {
       "col": {
         "comments": "Cmts",

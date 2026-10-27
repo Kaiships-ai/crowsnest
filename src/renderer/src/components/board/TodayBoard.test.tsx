@@ -37,14 +37,9 @@ const board = {
       id: 'instagram-graph',
       label: 'Instagram Graph',
       state: 'partial',
-      lastPull: {
-        slot: '2026-10-02',
-        at: T,
-        outcome: 'partial',
-        detail: 'missing page 2: rate limited'
-      }
+      pulledAt: T
     },
-    { id: 'groq', label: 'Groq', state: 'not-connected', lastPull: null }
+    { id: 'groq', label: 'Groq', state: 'not-connected', pulledAt: null }
   ]
 }
 
@@ -56,7 +51,13 @@ describe('TodayBoard', () => {
       api: { crowsnest: { call: vi.fn().mockResolvedValue({ ok: true, value: board }) } }
     })
     render(<TodayBoard />)
-    for (const id of ['today-offer', 'today-funnel', 'today-gates', 'today-pulls', 'today-workspaces']) {
+    for (const id of [
+      'today-offer',
+      'today-funnel',
+      'today-gates',
+      'today-pulls',
+      'today-workspaces'
+    ]) {
       const block = await screen.findByTestId(id)
       expect(block.querySelector('[data-testid="source-tag"]'), id).toBeTruthy()
     }

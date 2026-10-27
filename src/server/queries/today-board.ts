@@ -19,7 +19,7 @@ export interface TodayBoard {
   offer: BoardStep[];
   drop: Drop;
   gates: { proposedPlansAhead: number; pendingDrafts: number };
-  pulls: Pick<VaultRow, "id" | "label" | "state" | "lastPull">[];
+  pulls: Pick<VaultRow, "id" | "label" | "state" | "pulledAt">[];
 }
 
 export function biggestDrop(steps: FunnelStep[]): Drop {
@@ -52,6 +52,6 @@ export async function getTodayBoard(now: Date = clockNow(), registry: Connector[
     offer: steps.filter((s) => s.id === "checkout" || s.id === "purchase"),
     drop: biggestDrop(steps),
     gates: waitingGates(),
-    pulls: getVaultBoard(now, registry).map(({ id, label, state, lastPull }) => ({ id, label, state, lastPull })),
+    pulls: getVaultBoard(now, registry).map(({ id, label, state, pulledAt }) => ({ id, label, state, pulledAt })),
   };
 }

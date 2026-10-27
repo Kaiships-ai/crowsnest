@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import {
-  AlertCircle,
   AudioLines,
   BarChart3,
   Bot,
   Camera,
-  CheckCircle2,
   CreditCard,
   ExternalLink,
   LoaderCircle,
@@ -16,11 +14,14 @@ import { translate } from '@/i18n/i18n'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 import { formatBoardTime } from '../board/board-time'
 import { SOURCE_STATE } from '../board/kit/StatePill'
-import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
+import {
+  IntegrationCardDetails,
+  IntegrationCardShell,
+  type IntegrationCardStatusTone
+} from './integration-card-shell'
 import { SourceKeyDialog } from './LeadSourceKeyDialog'
 
 type SourceRow = EngineCallValue<'getVaultBoard'>[number]
-type Check = { ok: boolean; message: string | null }
 
 type SourceInfo = {
   group: 'instagram' | 'funnel' | 'tools'
@@ -83,7 +84,7 @@ const GROUPS: { id: SourceInfo['group']; title: () => string; description: () =>
     description: () =>
       translate(
         'leadStudio.sources.group.instagramDescription',
-        'Your own channel and the rivals you track, pulled at 05:00 every day.'
+        'Your own channel and the rivals you track, pulled when you press Pull.'
       )
   },
   {
@@ -108,33 +109,37 @@ const GROUPS: { id: SourceInfo['group']; title: () => string; description: () =>
 
 const infoOf = (id: string): SourceInfo => SOURCE_INFO[id] ?? FALLBACK_INFO
 
+type Busy = 'checking' | 'pulling' | null
+
 function explanation(row: SourceRow): { text: string; problem: boolean } {
-  const missing = row.missingSecretLabels.join(', ')
+  if (row.message) {
+    return { text: row.message, problem: true }
+  }
   switch (row.state) {
     case 'not-connected':
-      return row.canPull || row.missingSecretLabels.length > 0
-        ? {
-            text: translate(
-              'leadStudio.sources.explain.missing',
-              'Add your {{missing}} to connect. Lead Studio pulls from it at 05:00 every day.',
-              { missing }
-            ),
-            problem: false
-          }
-        : {
-            text: translate(
-              'leadStudio.sources.explain.noAdapter',
-              'Lead Studio cannot pull from this source yet. Agents record its numbers for now, and you can save the key ahead.'
-            ),
-            problem: false
-          }
-    case 'error':
       return {
-        text: translate(
-          'leadStudio.sources.explain.error',
-          'The last pull failed, so the older numbers stay. Check the key, then pull again.'
-        ),
-        problem: true
+        text:
+          row.canPull || row.missingSecretLabels.length > 0
+            ? translate(
+                'leadStudio.sources.explain.missing',
+                'Add your {{missing}} to connect. Lead Studio pulls from it only when you press Pull.',
+                { missing: row.missingSecretLabels.join(', ') }
+              )
+            : translate(
+                'leadStudio.sources.explain.noAdapter',
+                'Lead Studio cannot pull from this source yet. Agents record its numbers for now, and you can save the key ahead.'
+              ),
+        problem: false
+      }
+    case 'ready':
+      return {
+        text: row.canPull
+          ? translate(
+              'leadStudio.sources.explain.ready',
+              'Ready. Numbers are pulled only when you press Pull.'
+            )
+          : translate('leadStudio.sources.explain.readyNoPull', 'Ready.'),
+        problem: false
       }
     case 'partial':
       return {
@@ -144,42 +149,25 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
         ),
         problem: true
       }
-    case 'stale':
+    case 'error':
       return {
-        text: row.lastPull
-          ? translate(
-              'leadStudio.sources.explain.stale',
-              'No complete pull since 05:00 today. Pull again, or wait for the next one.'
-            )
-          : translate(
-              'leadStudio.sources.explain.never',
-              'Not pulled yet. Pull now, or wait for 05:00.'
-            ),
-        problem: false
-      }
-    case 'running':
-      return {
-        text: translate('leadStudio.sources.explain.running', 'Pulled today. Numbers are current.'),
-        problem: false
+        text: translate(
+          'leadStudio.sources.explain.error',
+          'The last check or pull failed. Check the key, then check again.'
+        ),
+        problem: true
       }
   }
 }
 
 function pullLine(row: SourceRow): string {
   const parts = [
-    row.lastPull
+    row.pulledAt
       ? translate('leadStudio.sources.lastPull', 'Last pull {{time}}', {
-          time: formatBoardTime(row.lastPull.at)
+          time: formatBoardTime(row.pulledAt)
         })
       : translate('leadStudio.sources.neverPulled', 'Never pulled')
   ]
-  if (row.canPull) {
-    parts.push(
-      translate('leadStudio.sources.nextPull', 'next {{time}}', {
-        time: formatBoardTime(row.nextPullAt)
-      })
-    )
-  }
   if (row.graphCallsLeft !== null) {
     parts.push(
       translate('leadStudio.sources.callsLeft', '{{count}} calls left this hour', {
@@ -190,6 +178,16 @@ function pullLine(row: SourceRow): string {
   return parts.join(' · ')
 }
 
+function pillOf(row: SourceRow, busy: Busy): { label: string; tone: IntegrationCardStatusTone } {
+  if (busy === 'checking') {
+    return { label: translate('leadStudio.sources.checking', 'Checking'), tone: 'neutral' }
+  }
+  if (busy === 'pulling') {
+    return { label: translate('leadStudio.sources.pulling', 'Pulling'), tone: 'neutral' }
+  }
+  return { label: SOURCE_STATE[row.state].label(), tone: SOURCE_STATE[row.state].tone }
+}
+
 function SourceCard({
   row,
   onEdit,
@@ -197,40 +195,39 @@ function SourceCard({
 }: {
   row: SourceRow
   onEdit: () => void
-  reload: () => void
+  reload: () => Promise<void>
 }): React.ReactNode {
   const info = infoOf(row.id)
   const learnMore = info.learnMore
-  const [busy, setBusy] = useState<'check' | 'pull' | null>(null)
-  const [check, setCheck] = useState<Check | null>(null)
+  const [busy, setBusy] = useState<Busy>(null)
+  // A bridge call that never reached the connector records nothing, so it is shown here.
+  const [callError, setCallError] = useState<string | null>(null)
   const connected = row.state !== 'not-connected'
   const { text, problem } = explanation(row)
+  const pill = pillOf(row, busy)
 
-  const recheck = async (): Promise<void> => {
-    setBusy('check')
-    setCheck(null)
-    const res = await window.api.crowsnest.call('testConnector', row.id)
-    setBusy(null)
-    setCheck(res.ok ? res.value : { ok: false, message: res.error.message })
-  }
-  const pull = async (): Promise<void> => {
-    setBusy('pull')
-    const res = await window.api.crowsnest.call('pullAgain', row.id)
-    setBusy(null)
+  const run = async (kind: Exclude<Busy, null>): Promise<void> => {
+    setBusy(kind)
+    setCallError(null)
+    const res = await window.api.crowsnest.call(
+      kind === 'checking' ? 'testConnector' : 'pullConnector',
+      row.id
+    )
     if (!res.ok) {
-      setCheck({ ok: false, message: res.error.message })
+      setCallError(res.error.message)
     }
-    reload()
+    await reload()
+    setBusy(null)
   }
 
   return (
-    <div data-testid="source-card" data-connector-id={row.id} data-state={row.state}>
+    <div data-testid="source-card" data-connector-id={row.id} data-state={busy ?? row.state}>
       <IntegrationCardShell
         icon={info.icon}
         name={row.label}
         description={info.gives()}
-        statusLabel={SOURCE_STATE[row.state].label()}
-        statusTone={SOURCE_STATE[row.state].tone}
+        statusLabel={pill.label}
+        statusTone={pill.tone}
         actions={
           <Button
             data-testid="source-primary"
@@ -256,10 +253,13 @@ function SourceCard({
               {pullLine(row)}
             </p>
           ) : null}
-          {problem && row.lastPull?.detail ? (
-            <p className="truncate font-mono text-2xs text-muted-foreground/70">
+          {row.detail || callError ? (
+            <p
+              data-testid="source-detail"
+              className="truncate font-mono text-2xs text-muted-foreground/70"
+            >
               {translate('leadStudio.sources.detail', 'Details: {{detail}}', {
-                detail: row.lastPull.detail
+                detail: callError ?? row.detail
               })}
             </p>
           ) : null}
@@ -279,9 +279,9 @@ function SourceCard({
               variant="ghost"
               size="sm"
               disabled={busy !== null}
-              onClick={() => void recheck()}
+              onClick={() => void run('checking')}
             >
-              {busy === 'check' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+              {busy === 'checking' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
               {translate('leadStudio.sources.recheck', 'Re-check')}
             </Button>
             {connected && row.canPull ? (
@@ -290,31 +290,11 @@ function SourceCard({
                 variant="ghost"
                 size="sm"
                 disabled={busy !== null}
-                onClick={() => void pull()}
+                onClick={() => void run('pulling')}
               >
-                {busy === 'pull' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                {translate('leadStudio.sources.pullAgain', 'Pull again')}
+                {busy === 'pulling' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+                {translate('leadStudio.sources.pull', 'Pull')}
               </Button>
-            ) : null}
-            {check?.ok ? (
-              <span
-                data-testid="source-check"
-                className="flex items-center gap-1 text-xs text-status-success"
-              >
-                <CheckCircle2 className="size-3.5" />
-                {translate('leadStudio.sources.verified', 'Verified')}
-              </span>
-            ) : null}
-            {check && !check.ok ? (
-              <span
-                data-testid="source-check"
-                className="flex min-w-0 items-center gap-1 text-xs text-destructive"
-              >
-                <AlertCircle className="size-3.5 shrink-0" />
-                <span className="truncate">
-                  {check.message ?? translate('leadStudio.sources.checkFailed', 'Check failed')}
-                </span>
-              </span>
             ) : null}
           </div>
         </IntegrationCardDetails>
@@ -328,17 +308,18 @@ export function LeadSourcesPane(): React.JSX.Element {
   const [rows, setRows] = useState<SourceRow[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [editing, setEditing] = useState<SourceRow | null>(null)
-  const reload = useCallback(() => {
-    void window.api.crowsnest.call('getVaultBoard').then((res) => {
-      if (res.ok) {
-        setRows(res.value)
-        setLoadError(null)
-      } else {
-        setLoadError(res.error.message)
-      }
-    })
+  const reload = useCallback(async () => {
+    const res = await window.api.crowsnest.call('getVaultBoard')
+    if (res.ok) {
+      setRows(res.value)
+      setLoadError(null)
+    } else {
+      setLoadError(res.error.message)
+    }
   }, [])
-  useEffect(reload, [reload])
+  useEffect(() => {
+    void reload()
+  }, [reload])
 
   if (loadError) {
     return <p className="text-sm text-destructive">{loadError}</p>
@@ -370,7 +351,7 @@ export function LeadSourcesPane(): React.JSX.Element {
       <SourceKeyDialog
         row={editing}
         onOpenChange={(open) => !open && setEditing(null)}
-        onSaved={reload}
+        onSaved={() => void reload()}
       />
     </div>
   )

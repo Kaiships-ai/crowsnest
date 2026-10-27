@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
 import type { RivalTag, StoredStructureSegment, StoredVideoLayout } from "../schemas";
 import type { UmamiDayCounts } from "../connectors/umami/days";
@@ -943,21 +943,18 @@ export const sourceCalls = sqliteTable(
   (t) => [index("source_calls_source_at").on(t.source, t.calledAt)],
 );
 
-export const DAILY_PULL_OUTCOMES = ["complete", "partial", "failed", "skipped"] as const;
+export const CONNECTOR_STATES = ["ready", "partial", "error"] as const;
 
-export const dailyPulls = sqliteTable(
-  "daily_pulls",
-  {
-    slot: text("slot").notNull(),
-    connectorId: text("connector_id").notNull(),
-    startedAt: text("started_at").notNull(),
-    finishedAt: text("finished_at"),
-    outcome: text("outcome", { enum: DAILY_PULL_OUTCOMES }),
-    detail: text("detail"),
-    attempts: integer("attempts").notNull().default(1),
-  },
-  (t) => [primaryKey({ columns: [t.slot, t.connectorId] })],
-);
+/** One row per connector: the latest check or pull, whichever ran last. */
+export const connectorStatus = sqliteTable("connector_status", {
+  connectorId: text("connector_id").primaryKey(),
+  state: text("state", { enum: CONNECTOR_STATES }).notNull(),
+  message: text("message"),
+  detail: text("detail"),
+  checkedAt: text("checked_at"),
+  pulledAt: text("pulled_at"),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [check("connector_status_state", sql`${t.state} in ('ready', 'partial', 'error')`)]);
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
 export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted", "rejected"] as const;
