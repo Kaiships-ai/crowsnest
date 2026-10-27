@@ -28,4 +28,4 @@ stat -f %Lp data/verify/app/mcp.token
 ## Gotchas
 
 - `data/verify/app/mcp.token` is a copy `app-host.mjs` makes from the lane's user data; both are gone after `app-down.sh`.
-- A lane DB keeps revoked rows, so `tokens-01` names each token with a timestamp to stay rerunnable.
+- Token names are unique among live tokens only, so a revoked name can be reused; `tokens-01` names each token with a timestamp so a token a crashed earlier run left live does not block a rerun. A name matches `^[\w.-]+$`, at most 64 characters. A non-local Host or Origin gets 403 before the token check.

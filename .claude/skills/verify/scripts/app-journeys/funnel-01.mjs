@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// On a stopped clock (baseline-lane.sh) rows are stamped a day before it: a fixed time keeps the
+// shots stable, and a day back stays in the past for the save's wall-clock "in the future" check.
+const laneNow = () => (process.env.LEAD_STUDIO_CLOCK_START ? new Date(process.env.LEAD_STUDIO_CLOCK_START).getTime() - 86_400_000 : Date.now());
+
 // DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
 export const dod = ["B2-03"];
 
@@ -40,11 +44,11 @@ export default async function funnel01({ page, step, snap }) {
     console.log(`getMetricLedger: ${Object.keys(ledger).join(", ")}`);
   });
   await step("an agent saves funnel rows over MCP", async () => {
-    const saved = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "chatbotx", metric: "dms", value: 12, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
+    const saved = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "chatbotx", metric: "dms", value: 12, capturedAt: new Date(laneNow() - 60_000).toISOString() }] });
     if (saved.saved !== 1) throw new Error(JSON.stringify(saved));
   });
   await step("a save to a source a connector pulls is refused and names the connector", async () => {
-    const refused = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "umami", metric: "visits", value: 9999, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
+    const refused = await mcp("crowsnest_save_funnel", { agent: "verify", rows: [{ keyword: "LEDGER01", source: "umami", metric: "visits", value: 9999, capturedAt: new Date(laneNow() - 60_000).toISOString() }] });
     if (refused.code !== "INVALID_ROWS" || !refused.error.includes("pulled by the Umami connector")) throw new Error(JSON.stringify(refused));
     console.log(`refused: ${refused.error.replace(/\s+/g, " ")}`);
   });
@@ -104,8 +108,14 @@ export default async function funnel01({ page, step, snap }) {
     if ((await checkout.getAttribute("data-status")) !== want.total.status) throw new Error(`checkout ${await checkout.getAttribute("data-status")}, bridge ${want.total.status}`);
     if (want.total.status === "value" && (await checkout.locator("[data-num]").innerText()) !== new Intl.NumberFormat().format(want.total.value)) throw new Error("checkout number");
     console.log(`checkout: ${(await checkout.innerText()).replace(/\s+/g, " ")}; bridge ${JSON.stringify(want.total)}`);
-    const coverage = await board.getByTestId("funnel-coverage-visits").innerText();
-    console.log(`coverage: ${coverage.replace(/\s+/g, " ")}; bridge ${JSON.stringify(value.coverage.visits)}`);
+    for (const [id, want] of [["visits", value.coverage.visits], ["orders", value.coverage.orders]]) {
+      const tile = board.getByTestId(`funnel-coverage-${id}`);
+      const text = (await tile.innerText()).replace(/\s+/g, " ");
+      console.log(`coverage ${id}: ${text}; bridge ${JSON.stringify(want)}`);
+      if ((await tile.getAttribute("data-status")) !== want.status) throw new Error(`coverage ${id} ${await tile.getAttribute("data-status")}, bridge ${want.status}`);
+      const fmt = new Intl.NumberFormat().format;
+      if (want.status === "value" && !text.includes(`${fmt(want.tied)} / ${fmt(want.total)}`)) throw new Error(`coverage ${id} numbers`);
+    }
   });
   await setThemeWithoutTransition(page, "dark");
   await snap("funnel-01-board-dark");

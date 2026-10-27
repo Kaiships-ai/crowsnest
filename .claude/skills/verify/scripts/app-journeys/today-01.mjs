@@ -2,6 +2,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// On a stopped clock (baseline-lane.sh) rows are stamped a day before it: a fixed time keeps the
+// shots stable, and a day back stays in the past for the save's wall-clock "in the future" check.
+const laneNow = () => (process.env.LEAD_STUDIO_CLOCK_START ? new Date(process.env.LEAD_STUDIO_CLOCK_START).getTime() - 86_400_000 : Date.now());
+
 // DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
 export const dod = ["B2-02"];
 
@@ -36,7 +40,7 @@ export default async function today01({ page, step, snapAndCompare }) {
   });
 
   await step("an agent saves funnel rows and proposes a week plan over MCP", async () => {
-    const capturedAt = new Date(Date.now() - 60_000).toISOString();
+    const capturedAt = new Date(laneNow() - 60_000).toISOString();
     mcp("crowsnest_save_funnel", { agent: "today-01", rows: [
       { keyword: "TODAY01", source: "chatbotx", metric: "dms", value: 40, capturedAt },
       { keyword: "TODAY01", source: "polar", metric: "orders", value: 2, capturedAt },

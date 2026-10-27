@@ -1,6 +1,6 @@
 # Boards
 
-Crowsnest boards open as tabs in the Lead Studio workspace: Today (the morning screen), Funnel (driven in [funnel.md](funnel.md)), My channel (the own Instagram channel), Rivals (the tracked rivals), Plan (planned reels by month, week and day), Gate 1 (approve a proposed plan, driven in [baseline.md](baseline.md)) and Agents (the MCP journal and agent tokens), all read through the engine bridge. Each connector's state and key live in Settings > Sources, driven in [connectors.md](connectors.md). Architecture: `documents/architecture/boards.md`.
+Crowsnest boards open as tabs in the Lead Studio workspace: Today (the morning screen), Funnel (driven in [funnel.md](funnel.md)), My channel (the own Instagram channel), Rivals (the tracked rivals), Plan (planned reels by month, week and day), Gate 1 (approve a proposed plan, driven in [baseline.md](baseline.md)), Gate 2 (approve a publish, driven in [gate2.md](gate2.md)) and Agents (the MCP journal and agent tokens), all read through the engine bridge. Each connector's state and key live in Settings > Sources, driven in [connectors.md](connectors.md). Architecture: `documents/architecture/boards.md`.
 
 ## Sub-features
 
@@ -16,7 +16,7 @@ Crowsnest boards open as tabs in the Lead Studio workspace: Today (the morning s
 
 ## How to get to it (user POV)
 
-Click a row in the sidebar (Today, Funnel, My channel, Rivals, Plan, Agents), or "+" in the tab bar and a board under Lead Studio, or the Boards app menu. Gate 1 opens from Today's Gate 1 line.
+Click a row in the sidebar (Today, Funnel, My channel, Rivals, Plan, Agents), or "+" in the tab bar and a board under Lead Studio, or the Boards app menu. Gate 1 and Gate 2 open from Today's gate lines. The sidebar's Sources row opens Settings > Sources, and Studio is a disabled row marked Soon.
 
 ## Driving it
 
@@ -51,7 +51,7 @@ APP_DEV=1 .claude/skills/verify/scripts/boards-lane.sh      # fake sidecar and U
 - `plan-01` moves the seeded draft and adds a reel, so a rerun needs a fresh lane. The drag uses Playwright `dragTo`, which drives the HTML5 drag events in Electron's Chromium.
 - Opening the reference reel switches to the browser tab; `plan-01` reopens Plan from "+" to come back to the same board tab.
 
-- The journey needs a tab bar, so the lane must have a project open, as for `shell-01`.
+- The "+" path needs a tab bar and the sidebar rows need an active worktree, so these journeys need a project open, as for `shell-01`. A first launch has none: `fresh-lane.sh` starts the app with no project (`APP_NO_REPO=1`) and runs `fresh-01`, which clicks each board row (`today`, `funnel`, `own`, `rivals`, `plan`, `agents`) and expects a board tab, then Sources. Known product gap: with no workspace a board row does nothing (`openBoardInActiveWorkspace` returns when `activeWorktreeId` is empty, `src/renderer/src/lib/open-board-tab.ts`), so `fresh-01` fails at its first board row until that is fixed.
 - The app menu is native; CDP cannot click it. The journey covers the "+" menu path only.
 - A board tab is not restored after a restart.
 - If `rivals-01` dies between the two renames, the lane DB keeps `video_analyses_off`; `app-down.sh` and a fresh lane reset it.

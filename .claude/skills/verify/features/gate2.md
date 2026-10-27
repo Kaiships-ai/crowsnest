@@ -1,6 +1,6 @@
 # Gate 2 and publish
 
-A reel goes to Instagram only after Kai approves it on the Gate 2 board. Publish on a Plan card opens a sheet with the five checks (video, caption, keyword, time, cover; a missing keyword is a yellow warning) and stores a `publish_reel` draft; Approve on the Gate 2 board publishes it through the existing publish path with the cook's cover as `cover_url`. Architecture: `documents/architecture/publish.md`, `documents/architecture/boards.md`.
+A reel goes to Instagram only after Kai approves it on the Gate 2 board. Publish on a Plan card opens a sheet with the five checks (video, caption, keyword, time, cover; a missing keyword is a yellow warning) and stores a `publish_reel` draft; Approve on the Gate 2 board publishes it through the existing publish path with the cook's cover as `cover_url`, or schedules it when the draft has a set time. A failed publish puts the draft back to pending with its error; a draft whose video, caption or cover changed after it was made fails Approve with `DRAFT_STALE`. Architecture: `documents/architecture/publish.md`, `documents/architecture/boards.md`.
 
 ## Sub-features
 

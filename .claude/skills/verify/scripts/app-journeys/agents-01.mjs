@@ -2,10 +2,14 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+// On a stopped clock (baseline-lane.sh) rows are stamped a day before it: a fixed time keeps the
+// shots stable, and a day back stays in the past for the save's wall-clock "in the future" check.
+const laneNow = () => (process.env.LEAD_STUDIO_CLOCK_START ? new Date(process.env.LEAD_STUDIO_CLOCK_START).getTime() - 86_400_000 : Date.now());
+
 const port = readFileSync(path.join(import.meta.dirname, "../../../../../data/verify/app/mcp.port"), "utf8").trim();
 const MCP_SH = path.join(import.meta.dirname, "../mcp.sh");
 const JOURNALED_TOOL = "crowsnest_save_funnel";
-const toolArgs = () => ({ agent: "agents-01", rows: [{ keyword: "AGENTS01", source: "chatbotx", metric: "dms", value: 1, capturedAt: new Date(Date.now() - 60_000).toISOString() }] });
+const toolArgs = () => ({ agent: "agents-01", rows: [{ keyword: "AGENTS01", source: "chatbotx", metric: "dms", value: 1, capturedAt: new Date(laneNow() - 60_000).toISOString() }] });
 
 async function mcpStatus(token) {
   const res = await fetch(`http://localhost:${port}/api/mcp`, {

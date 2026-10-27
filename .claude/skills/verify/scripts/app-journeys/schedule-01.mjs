@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // DoD ids whose pass criterion this journey asserts (run-all-report.mjs reads this line).
@@ -70,6 +70,17 @@ export default async function schedule01({ page, step, snap }) {
     const counted = sql("select count(*) from source_calls where source = 'instagram-graph'");
     console.log(`source_calls instagram-graph: ${counted}`);
     if (Number(counted) === 0) throw new Error("no Graph call was counted");
+  });
+  await step("Graph v23 refused nothing the app asked, and the reel's insights hold watch time and skip rate", async () => {
+    const log = path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-graph.log");
+    const refused = existsSync(log) ? readFileSync(log, "utf8").split("\n").filter((l) => l.includes("fake-graph: refused:")) : [];
+    if (refused.length) throw new Error(`${refused.length} refused calls, first: ${refused[0]}`);
+    const graph = sql("select slot || ' ' || outcome || coalesce(' (' || detail || ')', '') from daily_pulls where connector_id = 'instagram-graph' order by slot");
+    console.log(`instagram-graph pulls:\n${graph}`);
+    if (graph.split("\n").some((l) => !l.includes(" complete"))) throw new Error("a Graph pull was not complete");
+    const reel = sql("select avg_watch_time_ms || ' ' || skip_rate from own_post_insights i join own_posts p on p.id = i.own_post_id where p.external_id = '17900000000000100' order by i.captured_at desc limit 1");
+    console.log(`fake reel insights (avg watch ms, skip rate): ${reel}`);
+    if (!/^\d/.test(reel) || reel.split(" ").some((v) => v === "")) throw new Error(`reel insights missing watch time or skip rate: '${reel}'`);
   });
   await snap("schedule-01");
 }
