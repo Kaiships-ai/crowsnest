@@ -21553,7 +21553,8 @@
         "untested": "Token saved, not tested yet",
         "tested": " · tested {{time}}",
         "pullLater": "Pulling orders comes in a later release. The key is saved and tested.",
-        "gives": "Orders and revenue."
+        "gives": "Orders and revenue.",
+        "tokenPlaceholder": "polar_oat_…"
       },
       "pull": {
         "long": "Taking longer than usual ({{elapsed}}). {{reason}} You can leave Settings; the pull keeps going.",

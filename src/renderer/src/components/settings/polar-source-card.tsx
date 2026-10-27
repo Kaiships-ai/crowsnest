@@ -109,7 +109,7 @@ function PolarTokenForm({
         type="password"
         autoComplete="off"
         className="font-mono"
-        placeholder="polar_oat_…"
+        placeholder={translate('leadStudio.sources.polar.tokenPlaceholder', 'polar_oat_…')}
         value={draft}
         disabled={busy}
         onChange={(event) => {
