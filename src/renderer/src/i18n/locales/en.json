@@ -21592,7 +21592,7 @@
         "rivals": "rivals",
         "rivalsUpdated": "Rivals updated",
         "sample": "Sample:",
-        "sessionHelp": "How to get a session id ↗",
+        "sessionHelp": "How to get a session id",
         "sessionHint": "Open instagram.com › DevTools › Application › Cookies › sessionid.",
         "sessionLabel": "Instagram session id",
         "sessionWorks": "✓ Session works · sample {{line}}",

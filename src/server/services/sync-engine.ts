@@ -1750,7 +1750,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
         ? null
         : new Date(now().getTime() - opts.skipFreshWithinMinutes * 60_000).toISOString();
 
-    const channelRows = opts.channelIds
+    const walked = opts.channelIds
       ? await db
           .select()
           .from(tables.channels)
@@ -1771,6 +1771,9 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
             )
           );
 
+    // A card pull also refreshes the own channel, after the rivals, but counts and lists only rivals.
+    const ownRow = opts.cardPull ? walked.find((c) => c.isOwn) : undefined;
+    const channelRows = ownRow ? walked.filter((c) => c !== ownRow) : walked;
     handles = channelRows.map((c) => c.handle);
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
@@ -1856,6 +1859,14 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // Extra workers beyond `channelRows.length` just see `nextIndex >= length` on their
     // first turn and return immediately — no special-casing needed for a short list.
     await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+    if (ownRow && !halt && !(await tracker.isCancelRequested())) {
+      await tracker.flush({ phase: "profile", currentChannelHandle: ownRow.handle });
+      const own = await syncOneChannel(ownRow, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel, metricsFreshnessHours, cardPull: true }).catch(
+        (err: unknown) => ({ gap: { code: errorCode(err), error: errorMessage(err) } })
+      );
+      if (own.gap) log.warn("sync.own_channel.failed", { jobId, handle: ownRow.handle, code: own.gap.code, message: own.gap.error }, jobId);
+    }
 
     // A cancel can also land after the last page: it changed nothing, but the user still
     // asked for it, so the run says so rather than silently reporting a clean finish.

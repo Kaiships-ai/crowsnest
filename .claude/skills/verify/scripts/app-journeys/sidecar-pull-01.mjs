@@ -64,7 +64,7 @@ export default async function sidecarPull01({ page, step, snap }) {
         if (!res.ok || !res.value.ok) throw new Error(`add ${handle}: ${JSON.stringify(res)}`);
         added.push(res.value.channelId);
       }
-      total = Number(sql("select count(*) from channels where platform = 'instagram' and deleted_at is null"));
+      total = Number(sql("select count(*) from channels where platform = 'instagram' and deleted_at is null and is_own = 0"));
       console.log(`rivals to pull: ${total}`);
     });
 
@@ -88,7 +88,7 @@ export default async function sidecarPull01({ page, step, snap }) {
       await openSources();
       await waitView("not-connected", 10_000);
       const help = await page.locator(SELECTOR).getByTestId("sidecar-session-help").innerText();
-      if (!help.includes("How to get a session id ↗")) throw new Error(`no session id help link: ${help}`);
+      if (!help.includes("How to get a session id")) throw new Error(`no session id help link: ${help}`);
       await shoot("not_connected");
       await fake("__mode");
     });
@@ -146,7 +146,7 @@ export default async function sidecarPull01({ page, step, snap }) {
       const row = sql("select pull_state || ' ' || progress_done || '/' || progress_total from connector_status where connector_id = 'ig-sidecar'");
       console.log(`summary: ${cells.replace(/\s+/g, " ")} | db ${row}`);
       if (!cells.includes(`Pulled ${total}/${total} rivals`)) throw new Error(cells);
-      if (!/Rivals updated\s+\d+/.test(cells) || !/Failed\s+0/.test(cells)) throw new Error(cells);
+      if (!new RegExp(`Rivals updated\\s+${total}\\b`).test(cells) || !/Failed\s+0/.test(cells)) throw new Error(cells);
       if (row !== `ready ${total}/${total}`) throw new Error(row);
       await snap("sidecar-pull-01-done");
       await shoot("done");
@@ -165,7 +165,7 @@ export default async function sidecarPull01({ page, step, snap }) {
       const line = await card.getByTestId("sidecar-line").innerText();
       const rest = await card.getByTestId("sidecar-rest-line").innerText();
       const updated = Number(line.match(/at (\d+)\//)[1]);
-      const rows = Number(sql(`select count(*) from channels where deleted_at is null and last_successful_sync_at >= '${startedAt}'`));
+      const rows = Number(sql(`select count(*) from channels where deleted_at is null and is_own = 0 and last_successful_sync_at >= '${startedAt}'`));
       console.log(`stopped: ${line} | ${rest} | rows updated in the DB: ${rows}`);
       if (line !== `You stopped the pull at ${updated}/${total}.`) throw new Error(line);
       if (!rest.startsWith(`${updated} rivals have new numbers. The other ${total - updated} keep their numbers`)) throw new Error(rest);

@@ -228,7 +228,7 @@ export function SidecarSourceCard({
                 onClick={() => window.api.shell.openUrl(SESSION_HELP_URL)}
               >
                 <ExternalLink className="size-3.5 mr-1.5" />
-                {translate('leadStudio.sources.sidecar.sessionHelp', 'How to get a session id ↗')}
+                {translate('leadStudio.sources.sidecar.sessionHelp', 'How to get a session id')}
               </Button>
             </Actions>
           </>

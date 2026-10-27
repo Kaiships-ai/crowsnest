@@ -1802,6 +1802,46 @@ describe("runSync — the Sources card pull (cardPull)", () => {
     expect(job.status).toBe("partial");
     expect(job.channelsDone).toBe(1);
   });
+
+  test("the own channel is pulled after the rivals but counted and listed nowhere", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { syncSummary } = await import("../connectors/ig-sidecar");
+    migrate();
+    const ids = [];
+    for (const h of ["@own-r1", "@own-r2", "@own-me"]) ids.push((await setupChannel(h)).channelId);
+    await db.update(tables.channels).set({ isOwn: true }).where(eq(tables.channels.id, ids[2]));
+    const profiles: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        profiles.push(handle);
+        return makeProfile(handle);
+      },
+      async medias(input: { handle: string }) {
+        const items = input.handle === "@own-me" ? [makeMedia("own-new-1", 1)] : [];
+        return { items, nextCursor: null, stopReason: "exhausted" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(profiles).toHaveLength(3);
+    expect(profiles[2]).toBe("@own-me");
+    expect([...result.handles].sort()).toEqual(["@own-r1", "@own-r2"]);
+    expect(result.dispatched).toBe(2);
+    expect(result.channelsSynced).toBe(2);
+    expect(result.itemsCreated).toBe(0);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect([job.status, job.channelsTotal, job.channelsDone]).toEqual(["success", 2, 2]);
+    const { summary } = syncSummary(result, new Date(0), new Date(0));
+    expect([summary.total, summary.done, summary.updated, summary.newItems, summary.failed]).toEqual([2, 2, 2, 0, 0]);
+    expect(summary.items.map((i) => i.label).sort()).toEqual(["@own-r1", "@own-r2"]);
+    const own = (await db.select().from(tables.channels).where(eq(tables.channels.id, ids[2])))[0];
+    expect(own.lastSuccessfulSyncAt).not.toBeNull();
+  });
 });
 
 describe("runSync — stale-lock safety (audit F3)", () => {
