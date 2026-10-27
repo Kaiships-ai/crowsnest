@@ -96,7 +96,7 @@ export function SidecarSourceCard({
       if (stopped) {
         return
       }
-      if (p && p.status === 'running') {
+      if (p?.status === 'running') {
         setProgress({
           jobId: p.jobId,
           label: p.currentChannelHandle,
@@ -301,7 +301,11 @@ export function SidecarSourceCard({
             </Actions>
           </>
         )
-      default:
+      case 'done':
+      case 'stopped':
+      case 'partial':
+      case 'limited':
+      case 'off-mid':
         return (
           <SidecarPullOutcome
             view={view}

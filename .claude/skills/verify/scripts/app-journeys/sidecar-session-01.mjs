@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -6,6 +7,8 @@ import path from "node:path";
 export const dod = [];
 
 const LOG = path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.log");
+const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
+const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
 const SESSION = `sidecar-session-01-${Date.now()}`;
 const EXPIRED = `${SESSION}-expired`;
 const SAMPLE = "@fake_sidecar · 2,500 followers · 30 posts";
@@ -64,13 +67,15 @@ export default async function sidecarSession01({ page, step, snap }) {
       if (!logged(SESSION)) throw new Error("the fake sidecar never got POST /login-by-session with the tested id");
     });
 
-    await step("Save closes the form and the card reads Ready with the sample", async () => {
+    await step("Save closes the form; the check passed and the card keeps the sample (Ready shows it; an older pull error still shows first)", async () => {
       await save.click();
       await form.waitFor({ state: "detached", timeout: 10_000 });
-      await page.locator('[data-testid="source-card"][data-connector-id="ig-sidecar"][data-view="ready"]').waitFor({ timeout: 10_000 });
-      const text = await card.getByTestId("sidecar-sample").innerText();
-      console.log(`card sample: ${text}`);
-      if (!text.includes(SAMPLE)) throw new Error(text);
+      const checkMessage = sql("select coalesce(check_message, '') from connector_status where connector_id = 'ig-sidecar'");
+      const summary = sql("select summary from connector_status where connector_id = 'ig-sidecar'");
+      const view = await card.getAttribute("data-view");
+      console.log(`after save: view ${view} | check_message '${checkMessage}' | sample ${JSON.parse(summary).sample}`);
+      if (checkMessage || JSON.parse(summary).sample !== SAMPLE) throw new Error("the passing test was not recorded");
+      if (view === "ready" && !(await card.getByTestId("sidecar-sample").innerText()).includes(SAMPLE)) throw new Error("Ready without the sample");
     });
     await snap("sidecar-session-01");
   } finally {
