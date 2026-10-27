@@ -15,15 +15,15 @@ It reads `channels` (the `isOwn` flag, at most one row, by the partial unique in
 
 ## Boundaries
 
-- Owns: the own-channel and planned-post queries (`src/server/queries/own-channel.ts`, `planned-posts.ts`), `planned-post-actions.ts` and `graph-actions.ts`, the Graph client (`src/server/graph/client.ts`) and token cache (`token-status.ts`), the measurement service and scheduler (`own-measure.ts`, `own-measure-scheduler.ts`), and the pure reel math (`reel-insights.ts`, `own-metrics.ts`).
+- Owns: the own-channel and planned-post queries (`src/server/queries/own-channel.ts`, `planned-posts.ts`), `planned-post-actions.ts` and `graph-actions.ts`, the Graph client (`src/server/graph/client.ts`) and token cache (`token-status.ts`), the measurement service (`own-measure.ts`, run only on demand), and the pure reel math (`reel-insights.ts`, `own-metrics.ts`).
 - Called by: the publish part (advances `planned_posts`), the MCP tool `crowsnest_metrics` (reads `getOwnChannelOverview` and `getOwnPosts`), and the plan MCP tools. No screen calls the planned-post actions while the Lead Studio boards are not built.
-- Calls: `graph.instagram.com` (account, media, per-media insights, comments, account insights), the channels queries and `setOwnChannelAction`, the vault `getScripts` and `getVaultItems`, the `scoreMinUsablePosts` setting. `startJobs` in `src/server/start.ts` starts `startOwnMeasureScheduler()` beside the sync and publish schedulers.
+- Calls: `graph.instagram.com` (account, media, per-media insights, comments, account insights), the channels queries and `setOwnChannelAction`, the vault `getScripts` and `getVaultItems`, the `scoreMinUsablePosts` setting. No scheduler measures the channel: a measurement runs only when the operator asks for one. `startJobs` in `src/server/start.ts` starts only the publish scheduler, and only when `LEAD_STUDIO_PUBLISH_JOBS=1`.
 
 ## Invariants
 
-- Own posts are read-only. `measureOwnChannel` (`src/server/services/own-measure.ts`) is the only writer of the own-channel tables, whether from `measureOwnChannelAction` (scope `all`) or the scheduler (scope `due`). The sidecar never touches them.
-- One measurement at a time. A single-flight lock plus a call ledger live on `globalThis.__crowsnestOwnMeasure`, so every module copy that loads the service shares one lock. A `due` run that finds the lock held returns `MEASURE_BUSY` unless it passes `wait`, as the daily pull does; an `all` run waits.
-- Graph budget: 200 calls per hour per user. A scheduled run uses at most 150, a manual run at most 190, each cut to 200 minus the calls made in the last hour minus 10 (`OWN_MEASURE_CALL_BUDGET`, `OWN_MEASURE_MANUAL_CALL_BUDGET`). The client transport records every call in `source_calls` (`src/server/lib/call-budget.ts`), so publishes and token checks count too and a restart keeps the hour. The transport refuses a call once the last hour holds 200 (`GRAPH_CALLS_PER_HOUR`) and returns it as a rate limit. A rate limit stops the run; rows already written stay. `IG_GRAPH_HOST` points the transport at a fake Graph in a verify lane.
+- Own posts are read-only. `measureOwnChannel` (`src/server/services/own-measure.ts`) is the only writer of the own-channel tables, whether from `measureOwnChannelAction` (scope `all`) or Pull on the Instagram Graph card (scope `due`, through the connector's `pull`). The sidecar never touches them.
+- One measurement at a time. A single-flight lock plus a call ledger live on `globalThis.__crowsnestOwnMeasure`, so every module copy that loads the service shares one lock. A `due` run that finds the lock held returns `MEASURE_BUSY` unless it passes `wait`, as the Sources card pull does; an `all` run waits.
+- Graph budget: 200 calls per hour per user. A `due` run uses at most 150, an `all` run at most 190, each cut to 200 minus the calls made in the last hour minus 10 (`OWN_MEASURE_CALL_BUDGET`, `OWN_MEASURE_MANUAL_CALL_BUDGET`). The client transport records every call in `source_calls` (`src/server/lib/call-budget.ts`), so publishes and token checks count too and a restart keeps the hour. The transport refuses a call once the last hour holds 200 (`GRAPH_CALLS_PER_HOUR`) and returns it as a rate limit. A rate limit stops the run; rows already written stay. `IG_GRAPH_HOST` points the transport at a fake Graph in a verify lane.
 - Due-ness is derived from `own_post_insights`, never stored. A reel under 72 hours old is due when its newest successful capture is an hour old, older posts at 24 hours, each with five minutes of slack. Failures back off from the newest failure: a day for a non-transient `invalid_request`, an hour for a young post, and for an older post one retry an hour later then daily.
 - The read picks each post's newest successful insight row, falling back to the newest failed row only when none succeeded (`getPostsWithLatestInsights`), so a later failed capture never hides the last good numbers.
 - A metric the API does not return is null, never zero. Per-viewer rates are null when `reach` is missing or zero. Bio link taps read 0 on a successful call without the action.
@@ -32,7 +32,7 @@ It reads `channels` (the `isOwn` flag, at most one row, by the partial unique in
 - Every own-channel metric carries `sampleSize` and `failedSampleSize`, and a metric is reported only after a real Graph call returned it (`src/server/queries/own-channel.ts`).
 - `total_watch_time_ms` is stored although nothing reads it yet, because a past snapshot cannot be re-fetched.
 - Account breakdowns run only when no run was cut short, 4 calls of budget remain, and the newest stored batch is 24 hours old (`breakdownsStale`).
-- The scheduler ticks hourly (override `OWN_MEASURE_SCHEDULER_INTERVAL_MS`) and 30 seconds after boot. It skips a tick with no own channel, no configured token, or the lock held (`own-measure-scheduler.ts`).
+- Nothing measures on a timer. A `due` run happens only when the operator presses Pull on the Instagram Graph card.
 - Failures are classified by HTTP status and code, never by error `type`, because Meta sends `OAuthException` on nearly every error (`src/server/graph/client.ts`, tested in `client.test.ts`).
 - The cached token status is the last status a connection check or a measurement left in the server cache, never a live Graph call. A measurement that hits an auth failure records `auth_failed`. A connection check replaces an `auth_failed` with its live answer. `/me` cannot see the insights permission, so a `permission_denied` stays until a measurement succeeds or the token secret is saved again.
 - Token status is cached on `globalThis.__crowsnestTokenStatus`: five minutes for definitive states, 30 seconds for transient ones. It is dropped when a token secret is saved or cleared and when a run ends in an auth failure. A remembered `permission_denied` stands over an `ok` live check until a measurement lands insights or the token changes.
@@ -46,7 +46,6 @@ It reads `channels` (the `isOwn` flag, at most one row, by the partial unique in
 ## Where to look
 
 - `src/server/services/own-measure.ts` (measurement, budget, lock, due rule)
-- `src/server/services/own-measure-scheduler.ts` (hourly tick, 30 second boot tick)
 - `src/server/graph/client.ts` and `token-status.ts` (Graph calls, error classes, ledger, token cache)
 - `src/server/queries/own-channel.ts` (reads, latest-insight pick) and `src/server/services/reel-insights.ts` (rates, curve)
 - `src/server/actions/planned-post-actions.ts`, `graph-actions.ts`, `channel-actions.ts`
