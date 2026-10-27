@@ -18,7 +18,6 @@ export S3_ENDPOINT="$FAKE" S3_BUCKET=bucket S3_KEY=fake-key S3_SECRET=fake-secre
 export PUBLISH_DRY_RUN=0
 export LEAD_STUDIO_CLOCK_START="2026-10-27T10:30:00"
 export LEAD_STUDIO_CLOCK_FROZEN=1
-export LEAD_STUDIO_READ_JOBS=0
 export APP_HEADLESS="${APP_HEADLESS:-1}"
 export APP_DEV="${APP_DEV:-1}"
 echo "gate2: Graph and bucket at $FAKE, clock stopped at $LEAD_STUDIO_CLOCK_START"

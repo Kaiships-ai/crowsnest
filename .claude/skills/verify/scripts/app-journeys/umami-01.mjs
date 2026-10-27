@@ -51,15 +51,15 @@ export default async function umami01({ page, step, snap }) {
 
   await step("Re-check logs in to Umami and finds the website", async () => {
     await card.getByTestId("source-recheck").click();
-    const message = card.getByTestId("source-check");
-    await message.waitFor({ timeout: 10_000 });
-    console.log(`check: ${await message.innerText()}`);
-    if ((await message.innerText()) !== "Verified") throw new Error(await message.innerText());
+    await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "ready" && !document.querySelector(`${sel} [data-testid="source-recheck"]`)?.disabled, CARD, { timeout: 10_000 });
+    const row = sql("select state || ' ' || (checked_at is not null) from connector_status where connector_id = 'umami'");
+    console.log(`check: card ready, db ${row}`);
+    if (row !== "ready 1") throw new Error(`db ${row}`);
   });
 
-  await step("Pull again pulls every page, the card reads Connected, and the lane DB holds the day and OWN01's 4 visits and 2 emails", async () => {
+  await step("Pull pulls every page, the card reads Ready, and the lane DB holds the day and OWN01's 4 visits and 2 emails", async () => {
     await card.getByTestId("source-pull").click();
-    await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "running", CARD, { timeout: 15_000 });
+    await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "ready" && !document.querySelector(`${sel} [data-testid="source-pull"]`)?.disabled, CARD, { timeout: 15_000 });
     const day = sql("select test_sessions_dropped || ' ' || json_extract(clean, '$.byCampaign.own01.giftVisits') || ' ' || json_extract(raw, '$.byCampaign.own01.giftVisits') from umami_days order by day desc limit 1");
     console.log(`umami_days newest: dropped, clean visits, raw visits = ${day}; OWN01 visits ${latest("visits")}, emails ${latest("emails")}`);
     if (day !== "1 4 5") throw new Error(`umami_days ${day}`);
@@ -95,7 +95,7 @@ export default async function umami01({ page, step, snap }) {
   });
   await snap("umami-01-own");
 
-  await step("a 503 on events page 2 makes Pull again read Partial, and nothing new is stored", async () => {
+  await step("a 503 on events page 2 makes Pull read Partial, and nothing new is stored", async () => {
     const before = sql("select count(*) || ' ' || max(captured_at) from reel_funnel where source = 'umami'");
     const days = sql("select group_concat(day || fetched_at) from umami_days");
     await fetch(`${umamiUrl}/__fail?page=2`, { method: "POST" });
@@ -105,9 +105,9 @@ export default async function umami01({ page, step, snap }) {
       await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "partial", CARD, { timeout: 15_000 });
       const problem = await card.getByTestId("source-explanation").innerText();
       const { value } = await call(page, "getVaultBoard");
-      const last = value.find((r) => r.id === "umami").lastPull;
-      console.log(`state partial; lastPull ${JSON.stringify(last)}; problem: ${problem}`);
-      if (last.outcome !== "partial" || !last.detail.includes("HTTP 503")) throw new Error(JSON.stringify(last));
+      const last = value.find((r) => r.id === "umami");
+      console.log(`state partial; detail ${last.detail}; problem: ${problem}`);
+      if (last.state !== "partial" || !last.detail.includes("HTTP 503")) throw new Error(JSON.stringify(last));
       if (sql("select count(*) || ' ' || max(captured_at) from reel_funnel where source = 'umami'") !== before) throw new Error("a partial pull wrote funnel rows");
       if (sql("select group_concat(day || fetched_at) from umami_days") !== days) throw new Error("a partial pull wrote a day");
     } finally {
