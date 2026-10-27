@@ -27,7 +27,7 @@ describe("connector registry", () => {
       ["groq", "adapter"],
       ["ig-sidecar", "adapter"],
       ["instagram-graph", "adapter"],
-      ["polar", "manifest-only"],
+      ["polar", "adapter"],
       ["umami", "adapter"],
     ]);
   });
@@ -77,7 +77,7 @@ describe("connector registry", () => {
   });
 
   test("a manifest-only connector is never called", async () => {
-    expect(await testConnector("polar")).toEqual({ ok: false, message: "polar is not connected" });
+    expect(await testConnector("chatbotx")).toEqual({ ok: false, message: "chatbotx is not connected" });
   });
 });
 

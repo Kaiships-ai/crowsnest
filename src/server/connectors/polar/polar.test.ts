@@ -5,7 +5,8 @@ import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
 import { getSecret } from "@/server/secrets/store";
 import { checkConnector } from "@/server/services/connector-status";
-import { connector, readPolarOrganization, savePolarTokenAction, testPolarTokenAction } from "./index";
+import { savePolarTokenAction, testPolarTokenAction } from "./actions";
+import { connector, readPolarOrganization } from "./index";
 
 const GOOD = "polar_oat_good";
 let server: Server;
