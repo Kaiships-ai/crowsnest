@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // Runs on boards-lane.sh (fake sidecar). The session id form tests only when Test connection is
@@ -12,6 +12,20 @@ const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnes
 const SESSION = `sidecar-session-01-${Date.now()}`;
 const EXPIRED = `${SESSION}-expired`;
 const SAMPLE = "@fake_sidecar · 2,500 followers · 30 posts";
+const STATES = path.resolve(import.meta.dirname, "../../../../../data/verify/evidence/sidecar-states");
+const port = readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.port"), "utf8").trim();
+const fakeMode = (query = "") => fetch(`http://127.0.0.1:${port}/__mode${query}`, { method: "POST" });
+
+async function setTheme(page, dark) {
+  await page.evaluate((dark) => {
+    const root = document.documentElement;
+    root.classList.add("theme-transition-disabled");
+    root.classList.toggle("dark", dark);
+  }, dark);
+  await page.waitForTimeout(250);
+  await page.evaluate(() => document.documentElement.classList.remove("theme-transition-disabled"));
+}
+
 const logged = (id) => readFileSync(LOG, "utf8").split("\n").some((l) => l.includes("POST /login-by-session") && l.includes(id));
 
 export default async function sidecarSession01({ page, step, snap }) {
@@ -20,6 +34,17 @@ export default async function sidecarSession01({ page, step, snap }) {
   const input = card.getByTestId("sidecar-session-input");
   const save = card.getByTestId("sidecar-form-save");
   const check = card.getByTestId("sidecar-form-check");
+
+  const wasDark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+  /** The card alone in both themes, named after the prototype frame it matches. */
+  const shoot = async (state) => {
+    mkdirSync(STATES, { recursive: true });
+    for (const dark of [true, false]) {
+      await setTheme(page, dark);
+      await card.screenshot({ path: path.join(STATES, `${state}-${dark ? "dark" : "light"}.png`) });
+    }
+    await setTheme(page, wasDark);
+  };
 
   const openForm = async () => {
     if (!(await card.getByTestId("sidecar-enter").count())) {
@@ -42,24 +67,30 @@ export default async function sidecarSession01({ page, step, snap }) {
       await page.waitForTimeout(1_000);
       if (logged(EXPIRED)) throw new Error("pasting tested the session");
       if (!(await save.isDisabled())) throw new Error("Save is on before a test");
+      await shoot("dialog_pasted");
       await card.getByTestId("sidecar-form-test").click();
       await page.locator('[data-testid="sidecar-form-check"][data-check="err"]').waitFor({ timeout: 15_000 });
       const text = await check.innerText();
       console.log(`form check: ${text}`);
       if (!text.includes("The session id expired.")) throw new Error(text);
       if (!(await save.isDisabled())) throw new Error("Save is on after a failed test");
+      await shoot("dialog_expired");
     });
     await snap("sidecar-session-01-expired");
 
     await step("a good id: Test connection shows Testing, then the sample, and Save turns on (C5, C6)", async () => {
       await input.fill(SESSION);
       if (!(await save.isDisabled())) throw new Error("Save is on before a test");
+      await fakeMode("?delayMs=2500");
       await card.getByTestId("sidecar-form-test").click();
+      await page.locator('[data-testid="sidecar-form-check"][data-check="testing"]').waitFor({ timeout: 5_000 });
+      await shoot("dialog_testing");
       await page.locator('[data-testid="sidecar-form-check"][data-check="ok"]').waitFor({ timeout: 15_000 });
       const text = await check.innerText();
       console.log(`form check: ${text}`);
       if (!text.includes(SAMPLE)) throw new Error(text);
       if (await save.isDisabled()) throw new Error("Save is off after a passing test");
+      await shoot("dialog_ok");
     });
     await snap("sidecar-session-01-ok");
 
@@ -79,6 +110,7 @@ export default async function sidecarSession01({ page, step, snap }) {
     });
     await snap("sidecar-session-01");
   } finally {
+    await fakeMode().catch(() => {});
     await page.getByRole("button", { name: "Back to app" }).click({ timeout: 5_000 }).catch(() => {});
   }
 }
