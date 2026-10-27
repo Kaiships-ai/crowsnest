@@ -21214,21 +21214,16 @@
         "noAdapter": "The app has no connector for this source yet.",
         "error": "The last pull failed.",
         "partial": "The last pull was partial ({{detail}}), so the old numbers are kept.",
-        "stale": "No complete pull since 05:00 today.",
         "never": "Never pulled."
       },
       "save": "Save",
       "secretMissing": "not set",
       "secretSaved": "saved · source {{source}}",
-      "testOk": "Connected.",
-      "test": "Test",
-      "pull": "Pull again",
       "edit": "Edit",
       "noSecrets": "This source needs no key.",
       "empty": "No sources yet.",
       "source": "Source",
       "lastPull": "Last pull",
-      "nextPull": "Next pull",
       "graphLeft": "Graph calls left/hr"
     },
     "agents": {

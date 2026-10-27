@@ -23,8 +23,12 @@ export interface ConnectionCheck {
   message: string | null;
 }
 
+/** One real read that proves the key works, with a line to show for it. */
+export type Sample = { ok: true; line: string } | { ok: false; message: string; retryAfter: string | null };
+
 export interface ConnectorAdapter {
   testConnection(): Promise<ConnectionCheck>;
+  sample?(): Promise<Sample>;
   pull?(): Promise<PullResult<unknown, unknown>>;
 }
 

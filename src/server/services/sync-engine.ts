@@ -55,6 +55,10 @@ export interface SyncResult extends SyncCounters {
   channelsSynced: number;
   gaps: SyncGap[];
   stopReason: StopReason | null;
+  /** Every channel the run meant to walk, in walk order. */
+  handles: string[];
+  /** How many of `handles` were started; the rest were never pulled. */
+  dispatched: number;
 }
 // `videosUpserted` and `reaped` were removed from this shape. The first had no reader
 // anywhere and was just `itemsCreated + itemsUpdated` restated; the second was read only
@@ -99,7 +103,18 @@ export interface RunSyncOpts {
    * knows. A losing run never fires it, so a fired callback always means an owned row.
    */
   onJobStarted?: (jobId: string) => void;
+  /** Fired after every progress write, so a caller can mirror it (and its heartbeat). */
+  onProgress?: (progress: { done: number; total?: number; label?: string | null }) => void;
+  /**
+   * The Settings > Sources pull. Stop finishes the rival in hand before ending, and the
+   * first Instagram limit or a dead sidecar ends the whole pull at once, with no retry:
+   * waiting out a limit inside the pull holds the card in Pulling for up to 30 minutes.
+   */
+  cardPull?: boolean;
 }
+
+/** Codes that end a card pull: every later rival would hit the same wall. */
+const HALT_CODES: ReadonlySet<string> = new Set(["IG_RATE_LIMITED", "IG_SERVICE_DOWN"]);
 
 type ChannelRow = typeof tables.channels.$inferSelect;
 
@@ -392,7 +407,7 @@ interface RunTracker {
   isCancelRequested(): Promise<boolean>;
 }
 
-function createTracker(jobId: string, now: () => Date): RunTracker {
+function createTracker(jobId: string, now: () => Date, onProgress?: RunSyncOpts["onProgress"]): RunTracker {
   let lastFlushMs = now().getTime();
 
   const tracker: RunTracker = {
@@ -409,6 +424,11 @@ function createTracker(jobId: string, now: () => Date): RunTracker {
         retries: tracker.retries,
         ...rest,
       });
+      try {
+        onProgress?.({ done: tracker.channelsDone, total: rest.channelsTotal, label: rest.currentChannelHandle });
+      } catch (err) {
+        log.error("sync.on_progress.failed", { jobId, message: errorMessage(err) });
+      }
     },
     async flushIfDue(patch: FlushPatch = {}) {
       // A page is not a unit of time. One item can burn IG_DOWNLOAD_TIMEOUT_MS on the
@@ -489,7 +509,8 @@ async function finalizeJob(jobId: string, facts: JobFacts, verdict: JobVerdict):
  * One quick retry covers the "sidecar is mid-restart" case; an ever-doubling ladder just
  * makes every channel in the run wait several seconds to deliver the same instruction.
  */
-function retriesFor(code: IgErrorCode, maxRetries: number): number {
+function retriesFor(code: IgErrorCode, maxRetries: number, cardPull = false): number {
+  if (cardPull && code === "IG_RATE_LIMITED") return 0;
   return code === "IG_SERVICE_DOWN" ? Math.min(1, maxRetries) : maxRetries;
 }
 
@@ -642,6 +663,7 @@ async function withRetry<T>(
     baseMs: number;
     sleep: (ms: number) => Promise<void>;
     cancelled: () => Promise<boolean>;
+    cardPull?: boolean;
     onRetry: (info: { attempt: number; delayMs: number; error: IgError }) => Promise<void>;
     onAbandon: (info: { error: IgError; during: "wait" | "decision" }) => void;
   }
@@ -653,7 +675,7 @@ async function withRetry<T>(
     try {
       return await fn();
     } catch (err) {
-      if (!(err instanceof IgError) || !err.retryable || attempt >= retriesFor(err.code, o.maxRetries)) throw err;
+      if (!(err instanceof IgError) || !err.retryable || attempt >= retriesFor(err.code, o.maxRetries, o.cardPull)) throw err;
 
       // Checked BEFORE the retry is even scheduled: the remaining budget belongs to a run
       // the user has not stopped.
@@ -1338,6 +1360,7 @@ async function syncOneChannel(
     enrichPerChannel: number;
     /** Hours since the last full walk within which this run may stop early at known posts. */
     metricsFreshnessHours: number;
+    cardPull: boolean;
   }
 ): Promise<{ gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null }> {
   const counters = zeroCounters();
@@ -1346,6 +1369,8 @@ async function syncOneChannel(
    *  page could only show the handful of emitters that happen to put a jobId in their
    *  fields — the run-level ones — and a channel that failed left no line in its own run. */
   const runId = tracker.jobId;
+  // A card pull's Stop lets the rival in hand finish; the worker stops before the next one.
+  const cancelledMidChannel = (): Promise<boolean> => (opts.cardPull ? Promise.resolve(false) : tracker.isCancelRequested());
 
   const lookbackMs = opts.lookbackDays * 86_400_000;
   const freshBoundary = new Date(opts.now().getTime() - lookbackMs).toISOString();
@@ -1386,7 +1411,8 @@ async function syncOneChannel(
       maxRetries: config.SYNC_MAX_RETRIES,
       baseMs: config.SYNC_RETRY_BASE_MS,
       sleep: opts.sleep,
-      cancelled: () => tracker.isCancelRequested(),
+      cancelled: cancelledMidChannel,
+      cardPull: opts.cardPull,
       onAbandon: ({ error, during }) => {
         log.info("sync.retry.abandoned", {
           channelId: channel.id,
@@ -1421,7 +1447,7 @@ async function syncOneChannel(
     attempt(label, () =>
       withLiveness(fn, async () => {
         await tracker.flushIfDue({ phase, counters });
-        return tracker.isCancelRequested();
+        return cancelledMidChannel();
       })
     );
 
@@ -1497,7 +1523,7 @@ async function syncOneChannel(
         // Checked only after the natural stop conditions, so a run that in fact finished
         // its window is still reported as having finished it. Reaching here means pages
         // remained, so the pull is cut short like any other mid-walk stop.
-        if (await tracker.isCancelRequested()) throw new SyncCancelledError();
+        if (await cancelledMidChannel()) throw new SyncCancelledError();
         cursor = page.nextCursor;
         await opts.sleep(jitterMs());
       }
@@ -1699,7 +1725,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       log.error("sync.on_job_started.failed", { jobId, message: errorMessage(err) });
     }
   }
-  const tracker = createTracker(jobId, now);
+  const tracker = createTracker(jobId, now, opts.onProgress);
   await tracker.flush({ phase: "starting" });
 
   const totals = tracker.totals;
@@ -1710,6 +1736,10 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
   /** True only when cancelling actually left something undone — that is what separates a
    *  'partial' cancelled run from one that had already finished everything. */
   let cancelLeftWorkUndone = false;
+  /** The gap that ended a card pull early. */
+  let halt: SyncGap | null = null;
+  let handles: string[] = [];
+  let nextIndex = 0;
 
   try {
     // A removed channel is never synced again, whether it was named explicitly or
@@ -1741,6 +1771,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
             )
           );
 
+    handles = channelRows.map((c) => c.handle);
     log.info("sync.started", { jobId, channels: channelRows.length, lookbackDays, maxItems });
     await tracker.flush({ channelsTotal: channelRows.length, phase: "starting" });
 
@@ -1755,7 +1786,6 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // `cancelObserved`, and `cancelLeftWorkUndone` with no locks: JS runs one worker's
     // synchronous code at a time, and every read-then-write of that shared state below
     // happens with no `await` in between, so it can never interleave across workers.
-    let nextIndex = 0;
     let cancelLogged = false;
 
     async function worker(): Promise<void> {
@@ -1763,7 +1793,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
         // Same order as the old for-of loop: nothing left to dispatch ends the worker
         // before it ever asks about cancellation, same as an empty/exhausted array never
         // entering the loop body.
-        if (nextIndex >= channelRows.length) return;
+        if (nextIndex >= channelRows.length || halt) return;
         if (await tracker.isCancelRequested()) {
           // Do not start any channel not already dispatched; channels already in flight
           // on other workers are left to finish below.
@@ -1778,7 +1808,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
         // Re-check: another worker may have claimed the last remaining channel while this
         // one was awaiting the cancel check above. From here to `nextIndex += 1` there is
         // no `await`, so the claim itself is atomic.
-        if (nextIndex >= channelRows.length) return;
+        if (nextIndex >= channelRows.length || halt) return;
         const channel = channelRows[nextIndex];
         nextIndex += 1;
 
@@ -1796,7 +1826,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
         // is synchronous better-sqlite3, so workers never truly write concurrently.)
         let result: { gap?: SyncGap; counters: SyncCounters; stopReason: StopReason | null };
         try {
-          result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel, metricsFreshnessHours });
+          result = await syncOneChannel(channel, { client, sleep, assetDeps, now, tracker, lookbackDays, maxItems, enrichPerChannel, metricsFreshnessHours, cardPull: opts.cardPull ?? false });
         } catch (err) {
           const code = errorCode(err);
           log.error("sync.channel.failed", { channelId: channel.id, handle: channel.handle, code, message: errorMessage(err) }, jobId);
@@ -1809,6 +1839,10 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
         for (const k of Object.keys(totals) as (keyof SyncCounters)[]) totals[k] += result.counters[k];
         if (result.gap) gaps.push(result.gap);
         else channelsSynced += 1;
+        if (opts.cardPull && !halt && result.gap?.code && HALT_CODES.has(result.gap.code)) {
+          halt = result.gap;
+          log.warn("sync.halted", { jobId, handle: channel.handle, code: result.gap.code, channelsDone: tracker.channelsDone + 1 });
+        }
         lastStopReason = result.stopReason ?? lastStopReason;
         if (result.stopReason === "cancelled") {
           cancelObserved = true;
@@ -1882,6 +1916,8 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
       gaps,
       stopReason,
       ...totals,
+      handles,
+      dispatched: nextIndex,
     };
   } catch (err) {
     await finalizeJob(

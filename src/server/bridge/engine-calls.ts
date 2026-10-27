@@ -6,7 +6,8 @@ import { listConnectors } from "@/server/connectors/registry";
 import { scrubSecrets } from "@/server/connectors/scrub-secrets";
 import { errorMessage } from "@/server/lib/action-result";
 import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
-import { checkConnector, pullConnector } from "@/server/services/connector-status";
+import { checkConnector, pullConnector, sampleConnector } from "@/server/services/connector-status";
+import { startSidecarAction, stopSidecarAction, testSidecarSessionAction } from "@/server/actions/sidecar-actions";
 import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
 import { getFunnel } from "@/server/services/funnel";
 import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
@@ -259,7 +260,10 @@ export const ENGINE_CALLS = {
   reorderFleetsAction: call(z.tuple([z.array(z.string())]), reorderFleetsAction),
   moveChannelsAction: call(z.tuple([z.array(z.object({ channelId: z.string(), fleetId: z.string().nullable() }))]), moveChannelsAction),
 
-  startSyncAction: call(z.tuple([z.array(z.string()).optional()]), startSyncAction),
+  startSyncAction: call(
+    z.tuple([z.array(z.string()).optional(), z.object({ skipFreshWithinMinutes: z.number().int().positive().optional() }).optional()]),
+    (channelIds, opts) => startSyncAction(channelIds, opts),
+  ),
   cancelSyncAction: call(id, cancelSyncAction),
   getSyncProgressAction: call(z.tuple([z.string().nullable().optional()]), getSyncProgressAction),
   getChannelSyncProgressAction: call(id, getChannelSyncProgressAction),
@@ -275,6 +279,10 @@ export const ENGINE_CALLS = {
   listConnectors: call(none, () => listConnectors()),
   testConnector: call(id, (connectorId) => checkConnector(connectorId)),
   pullConnector: call(id, (connectorId) => pullConnector(connectorId)),
+  sampleConnector: call(id, (connectorId) => sampleConnector(connectorId)),
+  startSidecarAction: call(none, () => startSidecarAction()),
+  stopSidecarAction: call(none, stopSidecarAction),
+  testSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), testSidecarSessionAction),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
   // The folder workspace a board opens in when no project is open: next to the app's database.

@@ -20,6 +20,7 @@ import {
   type IntegrationCardStatusTone
 } from './integration-card-shell'
 import { SourceKeyDialog } from './LeadSourceKeyDialog'
+import { SidecarSourceCard } from './sidecar-source-card'
 
 type SourceRow = EngineCallValue<'getVaultBoard'>[number]
 
@@ -155,6 +156,10 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
         ),
         problem: true
       }
+    case 'off':
+      return { text: translate('leadStudio.sources.explain.off', 'Off.'), problem: false }
+    case 'pulling':
+      return { text: translate('leadStudio.sources.explain.pulling', 'Pulling now.'), problem: false }
   }
 }
 
@@ -328,9 +333,13 @@ export function LeadSourcesPane(): React.JSX.Element {
               <p className="text-xs text-muted-foreground">{group.description()}</p>
             </div>
             <div className="space-y-3">
-              {groupRows.map((row) => (
-                <SourceCard key={row.id} row={row} onEdit={() => setEditing(row)} reload={reload} />
-              ))}
+              {groupRows.map((row) =>
+                row.id === 'ig-sidecar' ? (
+                  <SidecarSourceCard key={row.id} row={row} reload={reload} />
+                ) : (
+                  <SourceCard key={row.id} row={row} onEdit={() => setEditing(row)} reload={reload} />
+                )
+              )}
             </div>
           </section>
         )

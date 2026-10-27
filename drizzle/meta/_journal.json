@@ -316,6 +316,13 @@
       "when": 1793039324282,
       "tag": "0044_connector_status",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1793039384282,
+      "tag": "0045_connector_pull_progress",
+      "breakpoints": true
     }
   ]
 }
