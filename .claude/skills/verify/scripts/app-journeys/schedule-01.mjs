@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 // Runs on schedule-lane.sh (fake Graph, app clock from 04:59:30). Nothing pulls on its own: the
-// old 05:00 slot passes with no pull, and the Graph card's Pull button is the only way in.
+// old 05:00 slot passes with no pull, and a pull runs only when asked (bridge `pullConnector`).
 export const dod = ["B1-06"];
 
 const { userDataDir } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
@@ -23,19 +23,16 @@ export default async function schedule01({ page, step, snap }) {
     console.log(`snapshots after 05:00, Graph calls, connector_status rows: ${counts}`);
     if (counts !== "0 0 0") throw new Error("something pulled without a click");
   });
-  await step("Settings > Sources: Pull on the Graph card pulls now and the card reads Ready", async () => {
+  await step("a Graph pull through the bridge pulls now, and the Sources card reads Ready", async () => {
+    const before = Number(sql("select count(*) from own_account_snapshots"));
+    const res = await page.evaluate(() => window.api.crowsnest.call("pullConnector", "instagram-graph"));
+    if (!res.ok) throw new Error(JSON.stringify(res));
     await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
     await card.waitFor({ timeout: 10_000 });
-    const before = Number(sql("select count(*) from own_account_snapshots"));
-    await card.getByTestId("source-pull").click();
-    await page.waitForFunction(
-      (sel) => document.querySelector(sel)?.dataset.state === "ready" && !document.querySelector(`${sel} [data-testid="source-pull"]`)?.disabled && document.querySelector(`${sel} [data-testid="source-pulls"]`)?.textContent?.startsWith("Last pull"),
-      CARD,
-      { timeout: 120_000 },
-    );
     const after = Number(sql("select count(*) from own_account_snapshots"));
     console.log(`snapshots ${before} -> ${after}; card: ${(await card.getByTestId("source-pulls").innerText())}`);
     console.log(`connector_status: ${sql("select connector_id || ' ' || state || ' ' || pulled_at from connector_status")}`);
+    if ((await card.getAttribute("data-state")) !== "ready" || !(await card.getByTestId("source-pulls").innerText()).startsWith("Last pull")) throw new Error(await card.innerText());
     if (after !== before + 1) throw new Error("the pull wrote no snapshot");
   });
   await step("every Graph call is counted in SQLite", async () => {

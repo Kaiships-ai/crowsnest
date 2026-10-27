@@ -1,6 +1,6 @@
 # On-demand pulls and Graph hour budget
 
-Nothing pulls on a timer or on start: the app runs on the operator's Mac, so a pull runs only when the operator presses Pull on a Settings > Sources card (bridge `pullConnector(id)`, `src/server/services/connector-status.ts`). Only the publish scheduler runs on a timer, and only with `LEAD_STUDIO_PUBLISH_JOBS=1`. Every Graph call is recorded in `source_calls`, and the transport refuses a call once the last hour holds 200, across restarts. Architecture: `documents/architecture/connectors.md`, `documents/architecture/jobs-and-failures.md` and `documents/architecture/mine.md`.
+Nothing pulls on a timer or on start: the app runs on the operator's Mac, so a pull runs only when asked (bridge `pullConnector(id)`, `src/server/services/connector-status.ts`). Only the publish scheduler runs on a timer, and only with `LEAD_STUDIO_PUBLISH_JOBS=1`. Every Graph call is recorded in `source_calls`, and the transport refuses a call once the last hour holds 200, across restarts. Architecture: `documents/architecture/connectors.md`, `documents/architecture/jobs-and-failures.md` and `documents/architecture/mine.md`.
 
 ## Sub-features
 
@@ -10,7 +10,7 @@ Nothing pulls on a timer or on start: the app runs on the operator's Mac, so a p
 
 ## How to get to it (user POV)
 
-Settings > Sources: each card that can pull has a Pull button and shows its last pull time; none names a next pull. See [connectors.md](connectors.md).
+Settings > Sources: each card that can pull shows its last pull time; no card has a Pull button and none names a next pull. See [connectors.md](connectors.md).
 
 ## Driving it
 
@@ -19,7 +19,7 @@ Settings > Sources: each card that can pull has a Pull button and shows its last
 .claude/skills/verify/scripts/app-down.sh                 # also stops the fake Graph
 ```
 
-`schedule-lane.sh` starts `fake-graph.mjs` (one account and one reel; `FAKE_GRAPH_NO_MEDIA=1` serves none) on a free port, sets `IG_GRAPH_HOST` to it and `LEAD_STUDIO_CLOCK_START` to 04:59:30 today, and runs `app-up.sh --seed`. `schedule-01` prints `ok: past 05:00 on the app clock nothing pulls on its own: no snapshot, no Graph call, no card event`, `ok: Settings > Sources: Pull on the Graph card pulls now and the card reads Ready`, `ok: every Graph call is counted in SQLite`, `ok: Graph v23 refused nothing the app asked but profile_activity on a reel, and the reel's insights hold watch time and skip rate` (no `fake-graph: refused:` line other than `profile_activity` on the reel, the Graph row `ready`, the fake reel's `avg_watch_time_ms` and `skip_rate` stored), and saves `schedule-01.png`. It reads the lane DB with `sqlite3`.
+`schedule-lane.sh` starts `fake-graph.mjs` (one account and one reel; `FAKE_GRAPH_NO_MEDIA=1` serves none) on a free port, sets `IG_GRAPH_HOST` to it and `LEAD_STUDIO_CLOCK_START` to 04:59:30 today, and runs `app-up.sh --seed`. `schedule-01` prints `ok: past 05:00 on the app clock nothing pulls on its own: no snapshot, no Graph call, no card event`, `ok: a Graph pull through the bridge pulls now, and the Sources card reads Ready`, `ok: every Graph call is counted in SQLite`, `ok: Graph v23 refused nothing the app asked but profile_activity on a reel, and the reel's insights hold watch time and skip rate` (no `fake-graph: refused:` line other than `profile_activity` on the reel, the Graph row `ready`, the fake reel's `avg_watch_time_ms` and `skip_rate` stored), and saves `schedule-01.png`. It reads the lane DB with `sqlite3`.
 
 ## Gotchas
 

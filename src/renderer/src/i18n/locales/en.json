@@ -21546,9 +21546,7 @@
         "vault": "vault",
         "apiKey": "api key"
       },
-      "checking": "Checking",
-      "pulling": "Pulling",
-      "pull": "Pull"
+      "checking": "Checking"
     },
     "nav": {
       "soon": "Soon",
