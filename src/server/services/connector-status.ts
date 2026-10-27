@@ -56,7 +56,7 @@ export async function checkConnector(connectorId: string, registry: Connector[] 
   return check;
 }
 
-/** Pulls one connector now, on the operator's click, and records the outcome. Nothing pulls on a schedule. */
+/** Pulls one connector now, when asked through the bridge, and records the outcome. Nothing pulls on a schedule. */
 export async function pullConnector(connectorId: string, registry: Connector[] = CONNECTORS): Promise<StatusRow> {
   const connector = registry.find((c) => c.manifest.id === connectorId);
   if (!connector) throw new Error(`no connector ${connectorId}`);

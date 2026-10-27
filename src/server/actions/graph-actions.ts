@@ -14,7 +14,7 @@ import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../
  * Nothing here throws across the action boundary, and every failure carries a `code`
  * so the UI can tell "no token configured" apart from "token rejected" apart from
  * "rate limited". The measurement itself lives in `services/own-measure.ts`, shared
- * with the Sources card pull.
+ * with the Instagram Graph connector's pull.
  */
 
 type ActionResult<T extends object> = ({ ok: true } & T) | { ok: false; error: string; code?: GraphErrorCode | "GRAPH_UNKNOWN" };

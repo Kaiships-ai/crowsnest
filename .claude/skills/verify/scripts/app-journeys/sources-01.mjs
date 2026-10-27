@@ -34,6 +34,11 @@ export default async function sources01({ page, step, snap }) {
     if (JSON.stringify(ids) !== JSON.stringify(listed.value.map((c) => c.id).sort())) throw new Error(`listConnectors ${JSON.stringify(listed.value.map((c) => c.id))}`);
     if ((await polar.getAttribute("data-state")) !== "not-connected" || (await polar.getByTestId("source-primary").innerText()) !== "Connect") throw new Error(await polar.innerText());
   });
+  await step("no card has a Pull button: a card only checks, the pull lives elsewhere", async () => {
+    const buttons = await pane.getByTestId("source-card").evaluateAll((cards) => cards.map((c) => `${c.dataset.connectorId}: ${[...c.querySelectorAll("button")].map((b) => b.innerText.trim()).join(", ")}`));
+    console.log(`card buttons:\n${buttons.join("\n")}`);
+    if (buttons.some((b) => /(:|, )Pull(,|$)/.test(b))) throw new Error("a card has a Pull button");
+  });
   await snap("sources-01-dark");
   await setTheme(page, "light");
   await snap("sources-01-light");

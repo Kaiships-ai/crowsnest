@@ -109,8 +109,6 @@ const GROUPS: { id: SourceInfo['group']; title: () => string; description: () =>
 
 const infoOf = (id: string): SourceInfo => SOURCE_INFO[id] ?? FALLBACK_INFO
 
-type Busy = 'checking' | 'pulling' | null
-
 function explanation(row: SourceRow): { text: string; problem: boolean } {
   if (row.message) {
     return { text: row.message, problem: true }
@@ -178,12 +176,12 @@ function pullLine(row: SourceRow): string {
   return parts.join(' · ')
 }
 
-function pillOf(row: SourceRow, busy: Busy): { label: string; tone: IntegrationCardStatusTone } {
-  if (busy === 'checking') {
+function pillOf(
+  row: SourceRow,
+  checking: boolean
+): { label: string; tone: IntegrationCardStatusTone } {
+  if (checking) {
     return { label: translate('leadStudio.sources.checking', 'Checking'), tone: 'neutral' }
-  }
-  if (busy === 'pulling') {
-    return { label: translate('leadStudio.sources.pulling', 'Pulling'), tone: 'neutral' }
   }
   return { label: SOURCE_STATE[row.state].label(), tone: SOURCE_STATE[row.state].tone }
 }
@@ -199,29 +197,30 @@ function SourceCard({
 }): React.ReactNode {
   const info = infoOf(row.id)
   const learnMore = info.learnMore
-  const [busy, setBusy] = useState<Busy>(null)
+  const [checking, setChecking] = useState(false)
   // A bridge call that never reached the connector records nothing, so it is shown here.
   const [callError, setCallError] = useState<string | null>(null)
   const connected = row.state !== 'not-connected'
   const { text, problem } = explanation(row)
-  const pill = pillOf(row, busy)
+  const pill = pillOf(row, checking)
 
-  const run = async (kind: Exclude<Busy, null>): Promise<void> => {
-    setBusy(kind)
+  const recheck = async (): Promise<void> => {
+    setChecking(true)
     setCallError(null)
-    const res = await window.api.crowsnest.call(
-      kind === 'checking' ? 'testConnector' : 'pullConnector',
-      row.id
-    )
+    const res = await window.api.crowsnest.call('testConnector', row.id)
     if (!res.ok) {
       setCallError(res.error.message)
     }
     await reload()
-    setBusy(null)
+    setChecking(false)
   }
 
   return (
-    <div data-testid="source-card" data-connector-id={row.id} data-state={busy ?? row.state}>
+    <div
+      data-testid="source-card"
+      data-connector-id={row.id}
+      data-state={checking ? 'checking' : row.state}
+    >
       <IntegrationCardShell
         icon={info.icon}
         name={row.label}
@@ -278,24 +277,12 @@ function SourceCard({
               data-testid="source-recheck"
               variant="ghost"
               size="sm"
-              disabled={busy !== null}
-              onClick={() => void run('checking')}
+              disabled={checking}
+              onClick={() => void recheck()}
             >
-              {busy === 'checking' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
+              {checking ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
               {translate('leadStudio.sources.recheck', 'Re-check')}
             </Button>
-            {connected && row.canPull ? (
-              <Button
-                data-testid="source-pull"
-                variant="ghost"
-                size="sm"
-                disabled={busy !== null}
-                onClick={() => void run('pulling')}
-              >
-                {busy === 'pulling' ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-                {translate('leadStudio.sources.pull', 'Pull')}
-              </Button>
-            ) : null}
           </div>
         </IntegrationCardDetails>
       </IntegrationCardShell>

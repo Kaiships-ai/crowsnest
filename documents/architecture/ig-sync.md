@@ -20,7 +20,7 @@ Tables are defined in `src/server/db/schema.ts`.
 ## Boundaries
 
 - Owns: `services/ig/crowsnest_ig/` (FastAPI app, `SessionManager`, mapping, media download, rate limit, typed errors), `src/server/ig/` (HTTP client, error taxonomy, asset download), `src/server/services/sync-engine.ts`, `sync-batch.ts`, `src/server/actions/sync-actions.ts`, `src/server/services/accounts.ts`.
-- Called by: the channels board, channel detail, and Settings (via `startSyncAction`), Pull on the IG sidecar card in Settings > Sources (`pullConnector`), and the `crowsnest_sync_*` MCP tools. Feed, analyze, remix, vault, and planned posts only read what a sync wrote and never call the sidecar.
+- Called by: the channels board, channel detail, and Settings (via `startSyncAction`), the bridge's `pullConnector` for `ig-sidecar`, and the `crowsnest_sync_*` MCP tools. Feed, analyze, remix, vault, and planned posts only read what a sync wrote and never call the sidecar.
 - Calls: the sidecar at `IG_SERVICE_URL` (default `http://127.0.0.1:8765`) with the `X-IG-Token` header; Instagram only through the sidecar; launchd keeps the sidecar alive (see [kit](kit.md)).
 - Does not own: single-reel import by URL (`importReelByUrl`, yt-dlp, a feed path), the user's own channel metrics (Graph API), or the outlier ranking (it writes the counts that `recomputeChannelScores` scores).
 

@@ -12,6 +12,8 @@ const graphClient = vi.hoisted(() => ({
 vi.mock("../graph/client", () => ({ graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
 const measureOwnChannel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/services/own-measure", async (orig) => ({ ...(await orig<typeof import("@/server/services/own-measure")>()), measureOwnChannel }));
+// The in-memory DB is not migrated, so it has no connector_status table to record the pull in.
+vi.mock("../services/connector-status", () => ({ recordPull: vi.fn() }));
 
 process.env.CROWSNEST_DB_PATH = ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";

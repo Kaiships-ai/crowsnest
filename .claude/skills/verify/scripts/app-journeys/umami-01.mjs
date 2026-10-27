@@ -29,6 +29,13 @@ async function openSources(page) {
 
 const backToApp = (page) => page.getByRole("button", { name: "Back to app" }).click();
 
+/** The card has no Pull: pull through the bridge, then reopen Sources so the card reads the recorded state. */
+async function pull(page) {
+  await call(page, "pullConnector", "umami");
+  await backToApp(page);
+  await openSources(page);
+}
+
 export default async function umami01({ page, step, snap }) {
   const board = page.getByTestId("board-tab");
   const card = page.locator(CARD);
@@ -57,9 +64,9 @@ export default async function umami01({ page, step, snap }) {
     if (row !== "ready 1") throw new Error(`db ${row}`);
   });
 
-  await step("Pull pulls every page, the card reads Ready, and the lane DB holds the day and OWN01's 4 visits and 2 emails", async () => {
-    await card.getByTestId("source-pull").click();
-    await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "ready" && !document.querySelector(`${sel} [data-testid="source-pull"]`)?.disabled, CARD, { timeout: 15_000 });
+  await step("a pull reads every page, the card reads Ready, and the lane DB holds the day and OWN01's 4 visits and 2 emails", async () => {
+    await pull(page);
+    if ((await card.getAttribute("data-state")) !== "ready") throw new Error(`card ${await card.getAttribute("data-state")}`);
     const day = sql("select test_sessions_dropped || ' ' || json_extract(clean, '$.byCampaign.own01.giftVisits') || ' ' || json_extract(raw, '$.byCampaign.own01.giftVisits') from umami_days order by day desc limit 1");
     console.log(`umami_days newest: dropped, clean visits, raw visits = ${day}; OWN01 visits ${latest("visits")}, emails ${latest("emails")}`);
     if (day !== "1 4 5") throw new Error(`umami_days ${day}`);
@@ -95,14 +102,14 @@ export default async function umami01({ page, step, snap }) {
   });
   await snap("umami-01-own");
 
-  await step("a 503 on events page 2 makes Pull read Partial, and nothing new is stored", async () => {
+  await step("a 503 on events page 2 makes the pull read Partial, and nothing new is stored", async () => {
     const before = sql("select count(*) || ' ' || max(captured_at) from reel_funnel where source = 'umami'");
     const days = sql("select group_concat(day || fetched_at) from umami_days");
     await fetch(`${umamiUrl}/__fail?page=2`, { method: "POST" });
     try {
       await openSources(page);
-      await card.getByTestId("source-pull").click();
-      await page.waitForFunction((sel) => document.querySelector(sel)?.dataset.state === "partial", CARD, { timeout: 15_000 });
+      await pull(page);
+      if ((await card.getAttribute("data-state")) !== "partial") throw new Error(`card ${await card.getAttribute("data-state")}`);
       const problem = await card.getByTestId("source-explanation").innerText();
       const { value } = await call(page, "getVaultBoard");
       const last = value.find((r) => r.id === "umami");
