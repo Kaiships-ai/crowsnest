@@ -8,6 +8,8 @@ import { IgError, SyncAlreadyRunningError } from "../ig/errors";
 import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
 import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } from "../services/sync-engine";
+import { syncPull } from "../connectors/ig-sidecar";
+import { recordPull } from "../services/connector-status";
 import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
   SYNC_PHASES,
@@ -111,7 +113,9 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
       ...(channelIds ? { channelIds } : {}),
       onJobStarted: resolveJobId,
     }).then(
-      () => {},
+      (r) => {
+        recordPull("ig-sidecar", syncPull(r));
+      },
       async (err: unknown) => {
         failure = err;
         // No-op when the lock was won (the first resolve wins); the point is the case
@@ -119,9 +123,12 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
         resolveJobId(null);
         const jobId = await jobIdKnown;
         log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessage(err) });
-        if (jobId) await markJobFailed(jobId, err);
+        if (jobId) {
+          await markJobFailed(jobId, err);
+          recordPull("ig-sidecar", { kind: "failed", reason: err });
+        }
       }
-    );
+    ).catch((err: unknown) => log.error("sync.status.record_failed", { message: errorMessage(err) }));
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const jobId = await Promise.race([

@@ -55,6 +55,13 @@ describe("getVaultBoard", () => {
     expect(card(registry, "flaky")).toEqual({ state: "error", message: "Umami refused the key (401). Paste a new key.", detail: null });
   });
 
+  test("a successful check keeps a partial pull's state, message and detail", async () => {
+    const registry = [fake("cut", { pull: async () => ({ kind: "partial", rows: null, missing: "page 2", reason: "rate limited" }) })];
+    await pullConnector("cut", registry);
+    await checkConnector("cut", registry);
+    expect(card(registry, "cut")).toEqual({ state: "partial", message: "The last pull did not finish, so the older numbers stay. Pull again later.", detail: "missing page 2: rate limited" });
+  });
+
   test("a connector missing setup is not connected, and its last check says why", async () => {
     const registry = [fake("needs-key", { pull: complete, secret: true }), fake("manifest-only", { adapter: false })];
     await checkConnector("manifest-only", registry);
