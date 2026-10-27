@@ -21658,7 +21658,36 @@
         "sessionPlaceholder": "1234567890%3AAbCdEf…"
       },
       "testConnection": "Test connection",
-      "testing": "Testing…"
+      "testing": "Testing…",
+      "graph": {
+        "posts": "posts",
+        "postsMeasured": "Posts measured",
+        "followers": "Followers",
+        "callsLeftCell": "Calls left this hour",
+        "openOwn": "Open My channel board",
+        "restKeep": "{{done}} posts have new numbers. The other {{rest}} keep their older numbers.",
+        "usedUp": "posts. The {{limit}} calls for this hour are used up.",
+        "limitedRest": "The other {{rest}} posts keep their older numbers.",
+        "partialMeasured": "posts measured.",
+        "pull": "Pull my channel",
+        "change": "Change token",
+        "help": "How to get a token",
+        "needsToken": "Needs an access token from Business Login for Instagram.",
+        "enter": "Enter token",
+        "tokenLabel": "Instagram Graph access token",
+        "helpLong": "How to get a token (Business Login for Instagram)",
+        "tokenWorks": "✓ Token works · {{line}}",
+        "testingLine": "Testing the token with Instagram (/me)…",
+        "noSample": "Not tested yet. Press Test connection to check the token.",
+        "lastPull": "Last pull:",
+        "callsLeft": "{{left}} calls left this hour",
+        "pullingPost": "Pulling post “{{label}}”",
+        "stoppingPost": "Stopping after this post…",
+        "measured": "✓ {{count}} measured",
+        "callsLeftShort": "{{count}} calls left this hour",
+        "slow": "Graph is answering slowly.",
+        "gives": "Your own channel: reels, reach, follows."
+      }
     },
     "nav": {
       "soon": "Soon",
