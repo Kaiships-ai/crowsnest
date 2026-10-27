@@ -16,11 +16,12 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 
 `src/renderer/src/components/board/kit/` holds the pieces every board shares, built on Orca's tokens and `ui/` primitives:
 
-- `Kpi.tsx`: `KpiValue` and `KpiTile` draw a number in one of five states (`KpiState`): `value`, `partial` (missing N keywords), `not-connected` (a badge that opens Settings > Sources), `pull-failed` or `pull-partial` (the newest pull of the step's source did not complete; an older number stays, muted), and `no-data`. The number slot keeps its size and the state is a small badge under it; on a narrow tile a long state ends in an ellipsis, with the full text as the badge title. `kpiFromStep` maps a funnel step to its state.
+- `Kpi.tsx`: `KpiValue` and `KpiTile` draw a number in one of five states (`KpiState`): `value`, `partial` (missing N keywords, or missing N posts on My channel), `not-connected` (a badge that opens Settings > Sources), `pull-failed` or `pull-partial` (the newest pull of the step's source did not complete; an older number stays, muted), and `no-data`. The number slot keeps its size and the state is a small badge under it; on a narrow tile a long state ends in an ellipsis, with the full text as the badge title. `kpiFromStep` maps a funnel step to its state.
 - `SourceTag.tsx`: `SourceTag` names a block's sources and its oldest pull time once; `BlockHeader` is a block title with that tag.
 - `StatePill.tsx`: a connector state in Orca's Integrations tones and words (`SOURCE_STATE`): Connected, Partial, Error, Not configured.
-- `Bars.tsx`: one bar on a log scale, so the last funnel steps stay visible next to views.
-- `DataTable.tsx`: a table with a mono header row and right-aligned number columns.
+- `Bars.tsx`: one bar, on a log scale by default so the last funnel steps stay visible next to views, or linear for shares of a whole (`scale="linear"`).
+- `LineChart.tsx`: a small line over time, one polyline like Orca's status-bar sparkline, with the peak above it and the first and last time under it.
+- `DataTable.tsx`: a table with a mono header row and right-aligned number columns. `rowData` puts `data-*` attributes on each row for journeys and tests.
 
 ## Funnel board
 
@@ -47,21 +48,25 @@ Each block names its sources and oldest pull time once (`StepsSourceTag`). A gap
 `OwnBoard` in `src/renderer/src/components/board/OwnBoard.tsx` calls `getOwnBoard(7 | 30)` (`src/server/queries/own-board.ts`) and has the tabs of Instagram's own dashboard. The 7 days and 30 days buttons pick the window, which is the posts posted in it.
 
 - Every Instagram number is a reading from the post's newest successful `own_post_insights` capture, with that capture's time. A window total sums the posts that have the number, takes the oldest time, and shows "missing N posts" when some posts in the window lack it.
-- Overview: views of the window's posts, followers from the newest `own_account_snapshots` row, and net followers against the newest snapshot at or before the window start (missing when there is none). Below, After Instagram: DMs, Site and Orders summed over the window's posts.
-- Performance: views, likes, comments, shares and saves; views per content type (`format`); profile visits, bio link taps and follows.
-- Content: one row per post with views, likes, comments, shares and saves, then DMs (ChatbotX), Site (Umami gift-page visits) and Orders (Polar orders). Sorting is by date or by any column.
-- Audience: the follower split and the engaged audience by gender, age and country from `getAccountBreakdowns` (the newest batch per metric), with the stored refusal or failure when Instagram gave none. These are account numbers, not per window.
+- Overview: an Instagram block (views of the window's posts, followers from the newest `own_account_snapshots` row, and net followers against the newest snapshot at or before the window start, missing when there is none) as `KpiTile`s, and views by post date as a `LineChart`, one point per day of the window, summing the views of the posts that went up that day (a day with no post reads 0; posts with no views number are counted as missing above the line). Below, After the reel: DMs, Site and Orders summed over the window's posts.
+- Performance: views, likes, comments, shares and saves as tiles; views per content type (`format`) as linear bars; profile visits, bio link taps and follows.
+- Content: a `DataTable`, one row per post with views, likes, comments, shares and saves, then DMs (ChatbotX), Site (Umami gift-page visits) and Orders (Polar orders). Sorting is by date or by any column.
+- Audience: the follower split and the engaged audience by gender, age and country from `getAccountBreakdowns` (the newest batch per metric) as linear bars, with the stored refusal or failure when Instagram gave none. These are account numbers, not per window.
+
+Each block names its sources and oldest pull time once with a `SourceTag`; a total that lacks some posts' numbers is a `partial` Kpi ("missing N posts"), and every per-post total is `pull-failed` while any post in the window has a failed newest pull, because that post still adds its last good numbers (the views line says how many posts kept old numbers); account numbers (followers, net follows) are not marked. `kpiFromReading` maps the states in `src/renderer/src/components/board/own-reading.tsx`. The panels live in `src/renderer/src/components/board/OwnPanels.tsx` and the Content table in `src/renderer/src/components/board/OwnContentTable.tsx`.
 
 DMs, Site and Orders come from the metric ledger through `getFunnel`: a post's keyword is the keyword of the plan whose reel is that post (a hand-marked `published_own_post_id`, or the `published_media_id` publish stored, matched on `own_posts.external_id`), and its readings are that keyword's `dm`, `gift_page_visit` and `purchase`. A post no plan with a keyword was published as reads `no-keyword`, shown as "not connected", never 0. Reach has no window total: Instagram counts reach as unique accounts per post, so a sum would count one person once per post; reach shows per post only. A post whose newest pull failed after its last good one (`pullError`, from the newest failed `own_post_insights` row) keeps the older numbers and is marked on its Content row and in the reel view. The views tile is the sum of the window's posts' own views, not Instagram's account views for the period, which no stored row holds.
 
-A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDetail.tsx`), which calls `getOwnReelBoard(ownPostId)`: Overview (views, reach, average watch time, skip rate, follows, reach against the channel median, and the views of each capture as a line), Engagement (likes, comments, shares, saves, reposts, bio link taps), and After the reel. After the reel is `funnelSteps` over the one funnel entry for the reel's keyword, the same six steps and ledger rates as Funnel, each with its source and time; a step with no connector reads "not connected". A reel with no keyword says so instead. Open original post opens the permalink in a workspace browser tab (`openPostInBrowser` in `src/renderer/src/components/board/open-post.ts`).
+A post row opens `OwnReelDetail` (`src/renderer/src/components/board/OwnReelDetail.tsx`), which calls `getOwnReelBoard(ownPostId)`: Overview (views, reach, reach against the channel median, average watch time, skip rate and follows as tiles, and the views of each capture as a `LineChart`), Engagement (likes, comments, shares, saves, reposts, bio link taps), and After the reel. A reel whose newest pull failed shows its tiles as `pull-failed`. After the reel is `funnelSteps` over the one funnel entry for the reel's keyword, the same six steps and ledger rates as Funnel, each a bar and a `KpiValue`, with the sources and pull time once; a step with no connector reads "<source> not connected". A reel with no keyword says so instead. Open original post opens the permalink in a workspace browser tab (`openPostInBrowser` in `src/renderer/src/components/board/open-post.ts`).
 
 ## Rivals board
 
 `RivalsBoard` in `src/renderer/src/components/board/RivalsBoard.tsx` calls `getRivalsBoard` (`src/server/queries/rivals-board.ts`):
 
-- Channels you follow: every tracked channel that is not the own one, from `getChannelsList`, with followers, median views, outliers of the last 30 days (score 2 or more), the last read as "Radar · time", and the sync error. Under each channel, its top 3 outliers from `getOutlierFeed`, each opening the original post.
-- Evidence from analyzed posts: the 12 newest `video_analyses` rows on rival posts, each a card with the channel, score, views, hook type, why it worked, tags, the analysis time, and a button that opens the original post. No stored field says whether an analysis is to take, learn from or avoid, so the cards sit under one heading and the board says so.
+- Evidence from analyzed posts: the 24 newest `video_analyses` rows on rival posts, filed in three columns by the row's `tag`: Take (`take`, moves worth copying), Learn (`learn`, lessons to adapt) and Avoid (`avoid`, mistakes to steer clear of). Rows with no tag sit in a fourth group, Not sorted, shown only when it has cards. Each card has the channel, score, views, hook type, why it worked, tags, the analysis time, and Open original post, which opens the post in a workspace browser tab (`openPostInBrowser`, Orca's `createBrowserTab`). The cards are in `src/renderer/src/components/board/RivalsEvidence.tsx`.
+- The tag comes from the agent: `crowsnest_save_analysis` takes an optional `tag` (`take`, `learn` or `avoid`, `RivalTagSchema` in `src/server/schemas.ts`) and stores it on the row. A re-save without a tag keeps the earlier one.
+- Outliers, last 30 days: a `DataTable` of every rival's top 3 outliers from `getOutlierFeed` (score 2 or more), best first, each opening the original post.
+- Channels you follow: a `DataTable` of every tracked channel that is not the own one, from `getChannelsList`, with followers, median views, outliers of the last 30 days, the last read and the sync error.
 - Add rival calls `addChannelAction(handle, { requireProfile: true })`: the sidecar must resolve the profile before a row is written, so a typo is refused with its reason and nothing is stored. On success the board reloads and the new channel shows with no numbers until a sync reads it.
 
 ## Plan board
@@ -107,10 +112,10 @@ On the Plan day view, a reel with a video in draft, plan, missed, cooking or fai
 
 ## Agents board
 
-`AgentsBoard` in `src/renderer/src/components/board/AgentsBoard.tsx` has two sections, each with its own load state.
+`AgentsBoard` in `src/renderer/src/components/board/AgentsBoard.tsx` has two sections, each a `DataTable` with its own load state.
 
+- Journal: `listAgentActions(500)`, the bridge's cap, newest first. `groupByCall` makes one row per `callId`: the newest row's result, so a finished call shows its outcome (`ok`, `error`, `drafted`) and its write-ahead `pending` row is hidden, timed from its oldest row (Time is when the call started, Took is outcome minus start). A call with only its pending row shows "pending": it is running, or the app stopped before it finished. Each call writes two rows, so the cap holds about 250 calls. A segmented filter keeps one caller's rows.
 - MCP tokens: `listMcpTokens`, live tokens first. Create calls `createMcpToken(name)` and shows the raw token once, with a copy button (`window.api.ui.writeClipboardText`). Done drops it from component state, and nothing can show it again. Revoke asks to confirm inline, then calls `revokeMcpToken(id)`.
-- Journal: `listAgentActions(500)`, the bridge's cap, newest first: time, caller (the token name), tool, gate, result and draft id. `latestPerCall` keeps one row per `callId`, the newest, so a finished call shows its outcome (`ok`, `error`, `drafted`) and its write-ahead `pending` row is hidden. A call with only its pending row shows "pending": it is running, or the app stopped before it finished. Each call writes two rows, so the cap holds about 250 calls. A segmented filter keeps one caller's rows.
 
 ## Opening a board
 

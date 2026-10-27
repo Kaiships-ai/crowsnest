@@ -4,9 +4,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { translate } from '@/i18n/i18n'
+import { cn } from '@/lib/utils'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
 import { BoardStates } from './BoardStates'
 import { formatBoardTime } from './board-time'
+import { DataTable, type DataColumn } from './kit/DataTable'
 import { useBoardLoad } from './use-board-load'
 
 type Token = EngineCallValue<'listMcpTokens'>[number]
@@ -16,6 +18,10 @@ type JournalRow = EngineCallValue<'listAgentActions'>[number]
 // Each call writes a pending row and an outcome row, so the bridge's 500-row cap holds about 250 calls.
 const JOURNAL_ROW_LIMIT = 500
 const ALL_CALLERS = '*'
+
+const mono = (text: string) => (
+  <span className="font-mono text-xs tabular-nums text-muted-foreground">{text}</span>
+)
 
 const loadTokens = () => window.api.crowsnest.call('listMcpTokens')
 const loadJournal = () => window.api.crowsnest.call('listAgentActions', JOURNAL_ROW_LIMIT)
@@ -31,6 +37,77 @@ export function latestPerCall(rows: JournalRow[]): JournalRow[] {
     return true
   })
 }
+
+export type CallRow = JournalRow & { startedAt: string }
+
+/** One row per call: its newest row's result, timed from its oldest row. */
+export function groupByCall(rows: JournalRow[]): CallRow[] {
+  const startedAt = new Map<string, string>()
+  for (const row of rows) {
+    startedAt.set(row.callId, row.at)
+  }
+  return latestPerCall(rows).map((row) => ({
+    ...row,
+    startedAt: startedAt.get(row.callId) ?? row.at
+  }))
+}
+
+const took = (row: CallRow): string => {
+  if (row.result === 'pending') {
+    return '-'
+  }
+  const ms = Date.parse(row.at) - Date.parse(row.startedAt)
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`
+}
+
+const journalColumns = (): DataColumn<CallRow>[] => [
+  {
+    id: 'time',
+    header: translate('boards.agents.time', 'Time'),
+    cell: (row) => mono(formatBoardTime(row.startedAt))
+  },
+  {
+    id: 'caller',
+    header: translate('boards.agents.caller', 'Agent'),
+    cell: (row) => <span className="font-mono text-xs">{row.caller}</span>
+  },
+  {
+    id: 'tool',
+    header: translate('boards.agents.tool', 'Tool'),
+    cell: (row) => <span className="font-mono text-xs">{row.tool}</span>
+  },
+  {
+    id: 'gate',
+    header: translate('boards.agents.gate', 'Gate'),
+    cell: (row) => mono(row.gate)
+  },
+  {
+    id: 'result',
+    header: translate('boards.agents.result', 'Result'),
+    cell: (row) => (
+      <span
+        className={cn(
+          'font-mono text-xs',
+          row.result === 'error' && 'text-destructive',
+          row.result === 'pending' && 'text-muted-foreground'
+        )}
+      >
+        {row.result === 'pending' ? translate('boards.agents.pending', 'pending') : row.result}
+      </span>
+    )
+  },
+  {
+    id: 'took',
+    align: 'end',
+    header: translate('boards.agents.took', 'Took'),
+    cell: (row) => mono(took(row))
+  },
+  {
+    id: 'draft',
+    header: translate('boards.agents.draft', 'Draft'),
+    cell: (row) => mono(row.draftId ?? '-')
+  }
+]
 
 export function sortTokens(tokens: Token[]): Token[] {
   return [...tokens].sort(
@@ -50,7 +127,7 @@ function SectionHeader({
   children?: React.ReactNode
 }): React.ReactNode {
   return (
-    <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+    <div className="flex items-center gap-3">
       <h2 className="text-sm font-medium">{title}</h2>
       <div className="flex flex-1 items-center gap-2">{children}</div>
       <Button
@@ -70,7 +147,7 @@ function NewTokenReveal({ created, onDone }: { created: NewToken; onDone: () => 
   return (
     <div
       data-testid="agents-new-token"
-      className="mx-4 mb-2 flex flex-col gap-2 rounded-md border border-border bg-muted p-3"
+      className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3"
     >
       <p className="text-xs text-muted-foreground">
         {translate(
@@ -110,7 +187,7 @@ function NewTokenReveal({ created, onDone }: { created: NewToken; onDone: () => 
   )
 }
 
-function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void }) {
+function TokenActions({ token, onRevoked }: { token: Token; onRevoked: () => void }) {
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const revoke = async (): Promise<void> => {
@@ -122,30 +199,19 @@ function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void })
       setError(res.error.message)
     }
   }
+  if (token.revokedAt) {
+    return (
+      <span className="font-mono text-2xs text-muted-foreground">
+        {translate('boards.agents.revokedAt', 'revoked {{at}}', {
+          at: formatBoardTime(token.revokedAt)
+        })}
+      </span>
+    )
+  }
   return (
-    <div
-      data-testid="agents-token-row"
-      data-token-name={token.name}
-      data-revoked={token.revokedAt !== null}
-      className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-2 text-sm"
-    >
-      <span className={token.revokedAt ? 'text-muted-foreground line-through' : ''}>
-        {token.name}
-      </span>
-      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {formatBoardTime(token.createdAt)}
-      </span>
-      <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {token.lastUsedAt ? formatBoardTime(token.lastUsedAt) : '-'}
-      </span>
+    <span className="flex flex-col items-end gap-1">
       <span className="flex justify-end gap-1">
-        {token.revokedAt ? (
-          <span className="font-mono text-2xs text-muted-foreground">
-            {translate('boards.agents.revokedAt', 'revoked {{at}}', {
-              at: formatBoardTime(token.revokedAt)
-            })}
-          </span>
-        ) : confirming ? (
+        {confirming ? (
           <>
             <Button
               data-testid="agents-revoke-confirm"
@@ -170,10 +236,38 @@ function TokenRow({ token, onRevoked }: { token: Token; onRevoked: () => void })
           </Button>
         )}
       </span>
-      {error ? <p className="col-span-full text-xs text-destructive">{error}</p> : null}
-    </div>
+      {error ? <span className="text-xs text-destructive">{error}</span> : null}
+    </span>
   )
 }
+
+const tokenColumns = (onRevoked: () => void): DataColumn<Token>[] => [
+  {
+    id: 'name',
+    header: translate('boards.agents.tokenColumn', 'Name'),
+    cell: (token) => (
+      <span className={token.revokedAt ? 'text-muted-foreground line-through' : ''}>
+        {token.name}
+      </span>
+    )
+  },
+  {
+    id: 'created',
+    header: translate('boards.agents.createdAt', 'Created'),
+    cell: (token) => mono(formatBoardTime(token.createdAt))
+  },
+  {
+    id: 'lastUsed',
+    header: translate('boards.agents.lastUsed', 'Last used'),
+    cell: (token) => mono(token.lastUsedAt ? formatBoardTime(token.lastUsedAt) : '-')
+  },
+  {
+    id: 'actions',
+    align: 'end',
+    header: '',
+    cell: (token) => <TokenActions token={token} onRevoked={onRevoked} />
+  }
+]
 
 function TokensSection() {
   const { state, retry } = useBoardLoad(loadTokens)
@@ -192,7 +286,7 @@ function TokensSection() {
     retry()
   }
   return (
-    <section data-testid="agents-tokens" className="flex min-h-32 flex-col">
+    <section data-testid="agents-tokens" className="flex min-h-32 flex-col gap-2">
       <SectionHeader title={translate('boards.agents.tokens', 'MCP tokens')} onRefresh={retry}>
         <form
           className="ml-auto flex items-center gap-2"
@@ -220,7 +314,7 @@ function TokensSection() {
           </Button>
         </form>
       </SectionHeader>
-      {error ? <p className="px-4 pb-2 text-xs text-destructive">{error}</p> : null}
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
       {created ? <NewTokenReveal created={created} onDone={() => setCreated(null)} /> : null}
       <div className="min-h-16 flex-1">
         <BoardStates
@@ -229,17 +323,17 @@ function TokensSection() {
           emptyMessage={translate('boards.agents.noTokens', 'No tokens yet.')}
         >
           {(tokens) => (
-            <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-6">
-              <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
-                <span>{translate('boards.agents.tokenColumn', 'Name')}</span>
-                <span>{translate('boards.agents.createdAt', 'Created')}</span>
-                <span>{translate('boards.agents.lastUsed', 'Last used')}</span>
-                <span />
-              </div>
-              {sortTokens(tokens).map((token) => (
-                <TokenRow key={token.id} token={token} onRevoked={retry} />
-              ))}
-            </div>
+            <DataTable
+              testId="agents-token-table"
+              rowTestId="agents-token-row"
+              columns={tokenColumns(retry)}
+              rows={sortTokens(tokens)}
+              rowKey={(token) => token.id}
+              rowData={(token) => ({
+                'data-token-name': token.name,
+                'data-revoked': String(token.revokedAt !== null)
+              })}
+            />
           )}
         </BoardStates>
       </div>
@@ -253,7 +347,7 @@ function JournalSection() {
   const callers =
     state.status === 'ready' ? [...new Set(state.rows.map((row) => row.caller))].sort() : []
   return (
-    <section data-testid="agents-journal" className="flex min-h-48 flex-1 flex-col">
+    <section data-testid="agents-journal" className="flex min-h-48 flex-col gap-2">
       <SectionHeader title={translate('boards.agents.journal', 'Journal')} onRefresh={retry}>
         {callers.length > 0 ? (
           <ToggleGroup
@@ -285,52 +379,21 @@ function JournalSection() {
           emptyMessage={translate('boards.agents.noActions', 'No agent has called yet.')}
         >
           {(rows) => (
-            <div className="grid grid-cols-[auto_auto_1fr_auto_auto_auto] gap-x-6">
-              <div className="col-span-full grid grid-cols-subgrid border-b border-border px-4 py-1 font-mono text-2xs text-muted-foreground">
-                <span>{translate('boards.agents.time', 'Time')}</span>
-                <span>{translate('boards.agents.caller', 'Agent')}</span>
-                <span>{translate('boards.agents.tool', 'Tool')}</span>
-                <span>{translate('boards.agents.gate', 'Gate')}</span>
-                <span>{translate('boards.agents.result', 'Result')}</span>
-                <span>{translate('boards.agents.draft', 'Draft')}</span>
-              </div>
-              {latestPerCall(rows)
-                .filter((row) => caller === ALL_CALLERS || row.caller === caller)
-                .map((row) => (
-                  <div
-                    key={row.id}
-                    data-testid="agents-journal-row"
-                    data-caller={row.caller}
-                    data-tool={row.tool}
-                    data-result={row.result}
-                    data-call-id={row.callId}
-                    className="col-span-full grid grid-cols-subgrid items-center border-b border-border px-4 py-1.5 text-sm"
-                  >
-                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                      {formatBoardTime(row.at)}
-                    </span>
-                    <span className="font-mono text-xs">{row.caller}</span>
-                    <span className="min-w-0 truncate font-mono text-xs">{row.tool}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{row.gate}</span>
-                    <span
-                      className={
-                        row.result === 'error'
-                          ? 'font-mono text-xs text-destructive'
-                          : row.result === 'pending'
-                            ? 'font-mono text-xs text-muted-foreground'
-                            : 'font-mono text-xs'
-                      }
-                    >
-                      {row.result === 'pending'
-                        ? translate('boards.agents.pending', 'pending')
-                        : row.result}
-                    </span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {row.draftId ?? '-'}
-                    </span>
-                  </div>
-                ))}
-            </div>
+            <DataTable
+              testId="agents-journal-table"
+              rowTestId="agents-journal-row"
+              columns={journalColumns()}
+              rows={groupByCall(rows).filter(
+                (row) => caller === ALL_CALLERS || row.caller === caller
+              )}
+              rowKey={(row) => row.callId}
+              rowData={(row) => ({
+                'data-caller': row.caller,
+                'data-tool': row.tool,
+                'data-result': row.result,
+                'data-call-id': row.callId
+              })}
+            />
           )}
         </BoardStates>
       </div>
@@ -340,9 +403,18 @@ function JournalSection() {
 
 export function AgentsBoard(): React.ReactNode {
   return (
-    <div className="scrollbar-sleek flex h-full flex-col overflow-auto">
-      <TokensSection />
+    <div className="scrollbar-sleek flex h-full flex-col gap-8 overflow-auto px-6 py-5">
+      <header className="flex flex-col gap-1">
+        <h1 className="text-xl font-medium">{translate('boards.agents.title', 'Agents')}</h1>
+        <p className="text-sm text-muted-foreground">
+          {translate(
+            'boards.agents.subtitle',
+            'Every MCP call an agent made, one row per call, and the tokens agents connect with. Lead Studio never calls a model itself.'
+          )}
+        </p>
+      </header>
       <JournalSection />
+      <TokensSection />
     </div>
   )
 }

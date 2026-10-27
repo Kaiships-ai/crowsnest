@@ -31,6 +31,10 @@ export const VideoAnalysisSchema = z.object({
 });
 export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
 
+/** The Rivals card an analysis belongs under: copy it, learn from it, or steer clear. */
+export const RivalTagSchema = z.enum(["take", "learn", "avoid"]);
+export type RivalTag = z.infer<typeof RivalTagSchema>;
+
 /**
  * A beat as it comes back OUT of the database. Identical to `StructureSegment` except
  * `transcript` may be absent: rows written before the per-beat transcript existed have

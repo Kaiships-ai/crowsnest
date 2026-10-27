@@ -165,7 +165,7 @@ async function main(): Promise<void> {
   if (process.env.LEAD_STUDIO_CLOCK_FROZEN === "1") await seedPulls(db, tables);
 
   console.log(`seed-e2e: wrote ${dbPath}`);
-  console.log(`seed-e2e: rival=${rivalId} (@e2e_fixture_rival, best 4.1x, one analyzed post)`);
+  console.log(`seed-e2e: rival=${rivalId} (@e2e_fixture_rival, best 4.1x, one post tagged take, one untagged)`);
   console.log(`seed-e2e: channel=${channelId} (@e2e_fixture_creator, isOwn)`);
   console.log(`seed-e2e: outlierVideoId=${outlierVideoId} (score 6.4x)`);
   console.log(`seed-e2e: analyzedVideoId=${analyzedVideoId}`);
@@ -236,10 +236,16 @@ async function seedRival(db: Db["db"], tables: Db["tables"], newId: Db["newId"],
       likeCount: 300, commentCount: 40, shareCount: 10, outlierScore: score, firstSeenAt: daysAgo(2 + i), lastRefreshedAt: now,
     });
   }
-  await db.insert(tables.videoAnalyses).values({
-    videoId: "e2e-rival-video-0", hookType: "result-first", formatTags: ["talking-head"], styleTags: ["screen-record"],
-    whyItWorked: "Opens on the finished result, then shows the three steps.", summary: "Rival fixture analysis.", model: "fixture", source: "mcp", createdAt: now,
-  });
+  await db.insert(tables.videoAnalyses).values([
+    {
+      videoId: "e2e-rival-video-0", hookType: "result-first", formatTags: ["talking-head"], styleTags: ["screen-record"],
+      whyItWorked: "Opens on the finished result, then shows the three steps.", summary: "Rival fixture analysis.", model: "fixture", source: "mcp", tag: "take", createdAt: now,
+    },
+    {
+      videoId: "e2e-rival-video-3", hookType: "question", formatTags: ["carousel"], styleTags: [],
+      whyItWorked: "Asks a question but never answers it.", summary: "Untagged rival fixture analysis.", model: "fixture", source: "legacy", createdAt: daysAgo(1),
+    },
+  ]);
   return id;
 }
 

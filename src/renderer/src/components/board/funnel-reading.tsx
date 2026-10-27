@@ -4,7 +4,6 @@ import { translate } from '@/i18n/i18n'
 import { openLeadSourcesSettings } from '@/lib/open-lead-sources-settings'
 import { cn } from '@/lib/utils'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
-import { formatBoardTime } from './board-time'
 import { SourceTag } from './kit/SourceTag'
 
 export type FunnelStep = Omit<EngineCallValue<'getFunnelBoard'>['steps'][number], 'pull'>
@@ -51,27 +50,6 @@ const rateFormat = new Intl.NumberFormat(undefined, {
 
 export const formatCount = (value: number): string => countFormat.format(value)
 export const formatRate = (value: number): string => rateFormat.format(value)
-
-export function SourceLabel({ source, at }: { source: string; at?: string }): React.ReactNode {
-  return (
-    <span data-testid="source-label" className="font-mono text-2xs text-muted-foreground">
-      {at ? `${source} · ${formatBoardTime(at)}` : source}
-    </span>
-  )
-}
-
-export function KeywordGap({ total }: { total: FunnelStep['total'] }): React.ReactNode {
-  if (total.keywordsWithoutNumber === 0) {
-    return null
-  }
-  return (
-    <span data-testid="reading-keyword-gap" className="font-mono text-2xs text-muted-foreground">
-      {translate('boards.funnel.missingKeywords', 'missing {{count}} keywords', {
-        count: total.keywordsWithoutNumber
-      })}
-    </span>
-  )
-}
 
 export function ReadingValue({
   reading,
@@ -125,20 +103,5 @@ export function ReadingValue({
         </Button>
       ) : null}
     </span>
-  )
-}
-
-export function ReadingSource({
-  step,
-  reading
-}: {
-  step: FunnelStep
-  reading: Reading
-}): React.ReactNode {
-  return (
-    <SourceLabel
-      source={sourceName(step.source)}
-      at={reading.status === 'value' ? reading.capturedAt : undefined}
-    />
   )
 }

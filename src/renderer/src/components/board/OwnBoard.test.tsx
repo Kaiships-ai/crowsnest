@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { OwnBoard } from './OwnBoard'
+import { viewsByPostDay } from './OwnPanels'
 
 const T = '2026-10-02T08:00:00.000Z'
 const value = (v: number) => ({ status: 'value', value: v, capturedAt: T })
@@ -115,6 +116,30 @@ const openTab = (id: string) => fireEvent.mouseDown(screen.getByTestId(id), { bu
 
 afterEach(cleanup)
 
+describe('viewsByPostDay', () => {
+  it('sums the views of posts that went up the same day, reads 0 on a day with no post, and skips a post with no number', () => {
+    const now = new Date(2026, 9, 27, 10, 30)
+    const at = (day: number, hour: number) => new Date(2026, 9, day, hour).toISOString()
+    const post = (postedAt: string, views: unknown) => ({
+      ...alpha,
+      postedAt,
+      ig: { ...alpha.ig, views }
+    })
+    const points = viewsByPostDay(
+      // SAFETY: test fixtures carry only the fields viewsByPostDay reads.
+      [
+        post(at(27, 8), value(100)),
+        post(at(27, 9), value(50)),
+        post(at(25, 8), value(7)),
+        post(at(26, 8), missing)
+      ] as never,
+      3,
+      now
+    )
+    expect(points.map((p) => p.value)).toEqual([7, 0, 150])
+  })
+})
+
 describe('OwnBoard', () => {
   it('has no reach total: per-post reach does not add up across posts', async () => {
     stubCall({ ok: true, value: board })
@@ -123,17 +148,33 @@ describe('OwnBoard', () => {
     expect(screen.queryByTestId('own-stat-reach')).toBeNull()
   })
 
-  it('opens on Overview with each number next to its source, and a partial total says how many posts it misses', async () => {
-    stubCall({ ok: true, value: board })
+  it('opens on Overview with one source per block, and a partial total says how many posts it misses', async () => {
+    stubCall({ ok: true, value: { ...board, posts: [alpha, { ...beta, pullError: null }] } })
     render(<OwnBoard />)
     const views = await screen.findByTestId('own-stat-views')
     expect(views.textContent).toContain('1,500')
-    expect(within(views).getByTestId('reading-post-gap').textContent).toBe('missing 1 posts')
-    expect(within(views).getByTestId('source-label').textContent).toMatch(/^Instagram · /)
+    expect(within(views).getByTestId('kpi-value').dataset.state).toBe('partial')
+    expect(within(views).getByTestId('kpi-state').textContent).toBe('missing 1 posts')
     expect(screen.getByTestId('own-stat-net').textContent).toContain('+100')
     expect(
-      within(screen.getByTestId('own-total-dm')).getByTestId('source-label').textContent
-    ).toMatch(/^ChatbotX · /)
+      screen.getAllByTestId('source-tag').map((t) => t.textContent?.split(' · pulled')[0])
+    ).toEqual(['Instagram', 'ChatbotX · Umami · Polar'])
+    expect(screen.getByTestId('own-views-line').dataset.points).toBe('30')
+  })
+
+  it("marks every per-post total pull-failed when a post's newest pull failed, since it still adds its old numbers", async () => {
+    stubCall({ ok: true, value: board })
+    render(<OwnBoard />)
+    const views = await screen.findByTestId('own-stat-views')
+    expect(within(views).getByTestId('kpi-value').dataset.state).toBe('pull-failed')
+    expect(views.textContent).toContain('1,500')
+    expect(screen.getByTestId('own-stat-followers').textContent).not.toContain('pull failed')
+    expect(screen.getByTestId('own-views-line').parentElement?.textContent).toContain(
+      '1 posts kept old numbers after a failed pull'
+    )
+    openTab('own-tab-perf')
+    const likes = await screen.findByTestId('own-stat-likes')
+    expect(within(likes).getByTestId('kpi-value').dataset.state).toBe('pull-failed')
   })
 
   it('lists posts with DMs, Site and Orders, and a post with no keyword reads not connected, never 0', async () => {
@@ -187,7 +228,7 @@ describe('OwnBoard', () => {
       ['checkout', 'not-connected'],
       ['purchase', 'value']
     ])
-    expect(within(steps[1]).getByTestId('reading-not-connected').textContent).toContain('not connected')
+    expect(within(steps[1]).getByTestId('open-sources').textContent).toBe('Polar not connected')
     fireEvent.click(screen.getByTestId('own-reel-back'))
     expect(await screen.findAllByTestId('own-post-row')).toHaveLength(2)
   })

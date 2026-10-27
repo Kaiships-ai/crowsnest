@@ -2,6 +2,7 @@ import { beforeEach, expect, test } from "vitest";
 
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
+import { saveAgentAnalysis } from "@/server/services/analyze";
 import { getRivalsBoard } from "./rivals-board";
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
@@ -42,4 +43,15 @@ test("evidence is each rival post's analysis, newest first, with the post's orig
     ["a-mid", "https://www.instagram.com/reel/a-mid/", "@alpha"],
   ]);
   expect(evidence[0].analysis).toMatchObject({ hookType: "curiosity-gap", formatTags: ["talking-head"], styleTags: [], whyItWorked: "Shows the result first." });
+});
+
+test("the tag an agent saves with an analysis files the card under it, and a re-save without one keeps it", async () => {
+  await seed();
+  const fields = { hookType: "curiosity-gap", structureSegments: [], formatTags: [], styleTags: [], whyItWorked: "Offer right under the gift." };
+  expect(await saveAgentAnalysis("a-low", { ...fields, tag: "take" })).toEqual({ ok: true });
+  expect(await saveAgentAnalysis("a-mid", { ...fields, tag: "avoid" })).toEqual({ ok: true });
+  expect(await saveAgentAnalysis("a-mid", fields)).toEqual({ ok: true });
+  expect((await saveAgentAnalysis("a-top", { ...fields, tag: "copy" })).ok).toBe(false);
+  const tags = Object.fromEntries((await getRivalsBoard()).evidence.map((e) => [e.post.videoId, e.analysis.tag]));
+  expect(tags).toEqual({ "a-low": "take", "a-mid": "avoid", "a-top": null });
 });

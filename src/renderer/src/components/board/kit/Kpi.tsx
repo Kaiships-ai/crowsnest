@@ -11,7 +11,7 @@ type BoardStep = EngineCallValue<'getFunnelBoard'>['steps'][number]
 /** The five states a number can be in. A number that is not whole never reads as a clean value. */
 export type KpiState =
   | { kind: 'value' }
-  | { kind: 'partial'; missing: number }
+  | { kind: 'partial'; missing: number; of: 'keywords' | 'posts' }
   | { kind: 'not-connected' }
   | { kind: 'pull-failed' }
   | { kind: 'pull-partial' }
@@ -35,16 +35,22 @@ export function kpiFromStep(step: BoardStep, source: string): KpiData {
     return { value: null, state: { kind: 'no-data' }, source }
   }
   return total.keywordsWithoutNumber > 0
-    ? { value, state: { kind: 'partial', missing: total.keywordsWithoutNumber }, source }
+    ? {
+        value,
+        state: { kind: 'partial', missing: total.keywordsWithoutNumber, of: 'keywords' },
+        source
+      }
     : { value, state: { kind: 'value' }, source }
 }
 
 function stateText({ state, source }: KpiData): string {
   switch (state.kind) {
     case 'partial':
-      return translate('boards.kit.missingKeywords', 'missing {{count}} keywords', {
-        count: state.missing
-      })
+      return state.of === 'posts'
+        ? translate('boards.kit.missingPosts', 'missing {{count}} posts', { count: state.missing })
+        : translate('boards.kit.missingKeywords', 'missing {{count}} keywords', {
+            count: state.missing
+          })
     case 'not-connected':
       return translate('boards.kit.notConnected', '{{source}} not connected', { source })
     case 'pull-failed':

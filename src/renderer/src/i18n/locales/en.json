@@ -21264,7 +21264,10 @@
       "gate": "Gate",
       "result": "Result",
       "draft": "Draft",
-      "pending": "pending"
+      "pending": "pending",
+      "took": "Took",
+      "title": "Agents",
+      "subtitle": "Every MCP call an agent made, one row per call, and the tokens agents connect with. Lead Studio never calls a model itself."
     },
     "funnel": {
       "title": "Funnel",
@@ -21337,7 +21340,7 @@
       "reach": "Reach",
       "followers": "Followers",
       "net": "Net follows",
-      "afterTitle": "After Instagram · Lead Studio",
+      "afterTitle": "After the reel · Lead Studio",
       "openFunnel": "Open Funnel",
       "likes": "Likes",
       "comments": "Comments",
@@ -21379,23 +21382,47 @@
         "purchase": "Orders"
       },
       "pullFailedShort": "{{at}} measurement failed, old numbers",
-      "pullFailed": "The {{at}} measurement failed; the numbers below are from the last good one: {{error}}"
+      "pullFailed": "The {{at}} measurement failed; the numbers below are from the last good one: {{error}}",
+      "igBlock": "Instagram · last {{count}} days",
+      "viewsByDay": "Views by post date",
+      "engagement": "Views and engagement",
+      "audienceTitle": "Audience",
+      "contentTitle": "Posts in range",
+      "afterReelTitle": "After the reel · keyword {{keyword}}",
+      "reelReach": "Reach and watch time",
+      "postsPullFailed": "{{count}} posts kept old numbers after a failed pull"
     },
     "rivals": {
       "added": "Added {{handle}}. Its posts and outliers appear after Radar reads the channel.",
       "handle": "@handle or channel link",
       "add": "Add rival",
       "title": "Rivals",
-      "subtitle": "Channels you follow, each channel's outlier posts, and evidence from posts agents analyzed.",
+      "subtitle": "What agents filed from rival posts as Take, Learn or Avoid, with the post as evidence, and the outliers they work from.",
       "evidence": "Evidence from analyzed posts",
-      "evidenceNote": "Not split into Take · Learn · Avoid yet: analyses don't record which card a post belongs to.",
-      "noEvidence": "No posts analyzed yet. Agents analyze posts with crowsnest_save_analysis.",
+      "noEvidence": "No posts analyzed yet. Agents analyze posts with crowsnest_save_analysis and tag each one take, learn or avoid.",
       "channels": "Channels you follow",
       "noChannels": "No rivals followed yet. Add a channel above.",
       "channel": "Channel",
       "followers": "Followers",
       "median": "Median views",
-      "outliers": "Over 2× in 30 days"
+      "outliers": "Over 2× in 30 days",
+      "group": {
+        "take": "Take",
+        "takeHint": "Moves worth copying",
+        "learn": "Learn",
+        "learnHint": "Lessons to adapt",
+        "avoid": "Avoid",
+        "avoidHint": "Mistakes to steer clear of",
+        "unsorted": "Not sorted",
+        "unsortedHint": "Saved without a tag; the next save can file it"
+      },
+      "groupEmpty": "Nothing filed here yet.",
+      "synced": "Read",
+      "score": "Score",
+      "post": "Post",
+      "views": "Views",
+      "outlierTitle": "Outliers, last 30 days",
+      "noOutliers": "No rival post is over 2× its channel median yet."
     },
     "plan": {
       "added": "Added \"{{title}}\" to {{day}}.",
@@ -21440,7 +21467,8 @@
         "partial": "Partial",
         "error": "Error",
         "notConfigured": "Not configured"
-      }
+      },
+      "missingPosts": "missing {{count}} posts"
     }
   },
   "gate": {

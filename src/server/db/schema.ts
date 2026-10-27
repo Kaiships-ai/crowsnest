@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
-import type { StoredStructureSegment, StoredVideoLayout } from "../schemas";
+import type { RivalTag, StoredStructureSegment, StoredVideoLayout } from "../schemas";
 import type { UmamiDayCounts } from "../connectors/umami/days";
 
 /**
@@ -252,6 +252,8 @@ export const videoAnalyses = sqliteTable("video_analyses", {
    * yet differ in who asked for the analysis.
    */
   source: text("source"),
+  /** Which Rivals card the agent filed this analysis under; null until an agent tags it. */
+  tag: text("tag").$type<RivalTag>(),
   createdAt: text("created_at").notNull(),
 
   /**
