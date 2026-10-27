@@ -16,7 +16,7 @@ export default async function sidecarExpired01({ page, step, snap }) {
       if (!(await setSession("expired")).ok) throw new Error("fake sidecar refused /__session");
     });
 
-    await step("Settings > Sources: Pull again on the Instagram sidecar card fails", async () => {
+    await step("Settings > Sources: Pull on the Instagram sidecar card fails", async () => {
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
       // An earlier journey may have left the card in error, so first see this click start a

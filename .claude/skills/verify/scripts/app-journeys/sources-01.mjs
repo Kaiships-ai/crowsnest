@@ -72,10 +72,10 @@ export default async function sources01({ page, step, snap }) {
 
   await step("Re-check shows the connection check", async () => {
     await polar.getByTestId("source-recheck").click();
-    const message = polar.getByTestId("source-check");
-    await message.waitFor({ timeout: 10_000 });
+    const message = polar.getByTestId("source-explanation");
+    await page.waitForFunction(() => document.querySelector('[data-testid="source-card"][data-connector-id="polar"] [data-testid="source-explanation"]')?.textContent?.includes("not connected"), null, { timeout: 10_000 });
     console.log(`check: ${await message.innerText()}`);
-    if (!(await message.innerText()).includes("not connected")) throw new Error(await message.innerText());
+    if ((await polar.getAttribute("data-state")) !== "not-connected") throw new Error(await polar.innerText());
   });
   await snap("sources-01");
   await page.getByRole("button", { name: "Back to app" }).click();

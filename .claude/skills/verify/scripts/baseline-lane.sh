@@ -23,14 +23,13 @@ export IG_SERVICE_URL="http://127.0.0.1:$(cat "$DIR/fake-sidecar.port")"
 export IG_GRAPH_HOST="http://127.0.0.1:9"
 export LEAD_STUDIO_CLOCK_START="2026-10-27T10:30:00"
 export LEAD_STUDIO_CLOCK_FROZEN=1
-export LEAD_STUDIO_READ_JOBS=0
 export APP_HEADLESS="${APP_HEADLESS:-1}"
 export APP_DEV="${APP_DEV:-1}"
 if [ "${1:-}" = --compare ]; then
   export BASELINE_DIR="$PWD/data/verify/baseline-new"
   rm -rf "$BASELINE_DIR"
 fi
-echo "baseline: clock stopped at $LEAD_STUDIO_CLOCK_START, read jobs off, shots to ${BASELINE_DIR:-$APPROVED}"
+echo "baseline: clock stopped at $LEAD_STUDIO_CLOCK_START, shots to ${BASELINE_DIR:-$APPROVED}"
 "$S/app-up.sh" --seed
 # RUN names the evidence folder; run-all.sh passes its own. Each journey leaves <journey>.out and
 # <journey>.rc there for run-all-report.mjs.
