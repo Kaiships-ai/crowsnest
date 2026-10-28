@@ -5,7 +5,12 @@ import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { cookCard, cookSegments, type CookTone, type CookView } from './cook-pane-state'
 import { waited, type CookClaude } from './cook-claude-cards'
-import { promptFromStatus, useCookClaudeTab, useTabStatusEntry } from './use-cook-claude'
+import {
+  promptFromStatus,
+  useClaudeForeground,
+  useCookClaudeTab,
+  useTabStatusEntry
+} from './use-cook-claude'
 
 const POLL_MS = 2000
 
@@ -96,11 +101,19 @@ function WithClaude({
   now: number
   tab: TerminalTab
 }): React.ReactNode {
-  const alive = useTabAgent(tab) != null
+  const agent = useTabAgent(tab)
   const entry = useTabStatusEntry(tab.id)
+  const ptyId = useAppStore((s) => s.ptyIdsByTabId[tab.id]?.[0] ?? null)
+  // The pane's own rule (CookPaneWithClaude): a shell in the foreground means Claude has left.
+  const foreground = useClaudeForeground(ptyId)
   const claude: CookClaude = {
-    liveness: alive ? 'alive' : 'exited',
-    prompt: alive ? promptFromStatus(entry) : null,
+    liveness:
+      agent == null || foreground === 'shell'
+        ? 'exited'
+        : foreground === 'unknown'
+          ? 'unknown'
+          : 'alive',
+    prompt: promptFromStatus(entry),
     askedAt: entry?.stateStartedAt ?? null,
     stoppedAt: null,
     restarted: false
