@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, index, uniqueIndex, check } from "drizzle-orm/sqlite-core";
 import type { SyncGap } from "../services/sync-types";
 import type { RivalTag, StoredStructureSegment, StoredVideoLayout } from "../schemas";
 import type { UmamiDayCounts } from "../connectors/umami/days";
@@ -943,21 +943,20 @@ export const sourceCalls = sqliteTable(
   (t) => [index("source_calls_source_at").on(t.source, t.calledAt)],
 );
 
-export const DAILY_PULL_OUTCOMES = ["complete", "partial", "failed", "skipped"] as const;
+export const CONNECTOR_STATES = ["ready", "partial", "error"] as const;
 
-export const dailyPulls = sqliteTable(
-  "daily_pulls",
-  {
-    slot: text("slot").notNull(),
-    connectorId: text("connector_id").notNull(),
-    startedAt: text("started_at").notNull(),
-    finishedAt: text("finished_at"),
-    outcome: text("outcome", { enum: DAILY_PULL_OUTCOMES }),
-    detail: text("detail"),
-    attempts: integer("attempts").notNull().default(1),
-  },
-  (t) => [primaryKey({ columns: [t.slot, t.connectorId] })],
-);
+/** One row per connector. The last pull's outcome stays until the next pull; a check sets or clears only its own message. */
+export const connectorStatus = sqliteTable("connector_status", {
+  connectorId: text("connector_id").primaryKey(),
+  pullState: text("pull_state", { enum: CONNECTOR_STATES }),
+  pullMessage: text("pull_message"),
+  pullDetail: text("pull_detail"),
+  pulledAt: text("pulled_at"),
+  /** The last check's failure message; null when it passed or never ran. */
+  checkMessage: text("check_message"),
+  checkedAt: text("checked_at"),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => [check("connector_status_pull_state", sql`${t.pullState} in ('ready', 'partial', 'error')`)]);
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
 export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted", "rejected"] as const;

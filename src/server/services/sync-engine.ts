@@ -87,7 +87,7 @@ export interface RunSyncOpts {
    * `lastSuccessfulSyncAt` is within this many minutes of now is left out of the run: it
    * was synced recently enough that re-walking it now would only spend Instagram requests
    * for nothing. A run scoped to explicit `channelIds` ignores this — naming a channel is
-   * an explicit "sync it now". Defaults to 0 (no skip); the scheduler passes the cadence.
+   * an explicit "sync it now". Defaults to 0 (no skip).
    */
   skipFreshWithinMinutes?: number;
   /**
@@ -120,8 +120,6 @@ const PAGE_JITTER_SPAN_MS = 500;
  *    different acts, and only the second one can corrupt a live run.
  */
 const HEARTBEAT_MAX_SILENCE_MS = (SYNC_STALL_SECONDS * 1000) / 3;
-/** Exported so sync-scheduler.ts can recognize a crash-stranded "running" row as stale
- *  without hardcoding a second copy of this threshold (see runDueSync). */
 export const LOCK_STALE_MS = SYNC_STALL_SECONDS * 1000 * 10;
 /** Ceiling on a single backoff, including one Instagram asked for. A five-minute wait is
  *  already at the edge of what a user will sit through; beyond that, failing the channel
@@ -1620,8 +1618,7 @@ async function syncOneChannel(
     // by an external agent through MCP (crowsnest_save_analysis), never in-app.
 
     // Stamp the trustworthy completion time: this channel finished a complete pull and its
-    // newest posts are current, which is what the library-sweep freshness skip and the
-    // scheduler read.
+    // newest posts are current, which is what the library-sweep freshness skip reads.
     await db
       .update(tables.channels)
       .set({ lastSuccessfulSyncAt: opts.now().toISOString() })

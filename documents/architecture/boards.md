@@ -40,7 +40,7 @@ Each block names its sources and oldest pull time once (`StepsSourceTag`). A gap
 - People reaching the offer: the checkout and purchase totals as `KpiTile`s, then Funnel, the six steps from `getFunnelBoard` as tiles. Each tile shows its state as on Funnel, including a failed newest pull.
 - The biggest drop (`biggestDrop`), boxed beside the offer: the step whose rate sits furthest below its target, as rate / target. With no target set it says so; with targets but no rate it says so.
 - Waiting for your approval, counts only: Gate 1 is proposed `plan_versions` newer than their period's live version (an older proposed version that a newer live one passed is not waiting), and its label opens the Gate 1 board; Gate 2 is pending `gate_drafts`, and its label opens the Gate 2 board. Gate 2 has no sidebar row: Today is its entry.
-- Ran overnight: each connector's last pull time and its state as a `StatePill`, from `getVaultBoard`. A partial pull reads Partial, never Connected.
+- Last pulls (tagged Settings > Sources): each connector's last pull time, or never pulled, and its state as a `StatePill`, from `getVaultBoard`. A partial pull reads Partial, never Ready.
 - Running workspaces: workspaces with an agent working, blocked or waiting, read in the renderer from the agent status store (`runningWorkspaces`), since the engine does not know panes.
 
 ## My channel board

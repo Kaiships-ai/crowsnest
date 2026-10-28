@@ -161,7 +161,7 @@ async function main(): Promise<void> {
   const rivalId = await seedRival(db, tables, newId, daysAgo);
   await seedPlan(db, tables);
   await seedPlanVersions(db, tables);
-  // Only a stopped clock gets a fixed 05:00 pull; a running one pulls for real (schedule-01).
+  // Only a stopped clock gets fixed last pulls, so the baseline shots hold still.
   if (process.env.LEAD_STUDIO_CLOCK_FROZEN === "1") await seedPulls(db, tables);
 
   console.log(`seed-e2e: wrote ${dbPath}`);
@@ -301,19 +301,12 @@ async function seedPlanVersions(db: Db["db"], tables: Db["tables"]): Promise<voi
   ]);
 }
 
-/** Today's 05:00 pull: the Graph pull failed for good, so Instagram numbers say so where they show. */
+/** The last pulls: the Graph pull failed, so Instagram numbers say so where they show. */
 async function seedPulls(db: Db["db"], tables: Db["tables"]): Promise<void> {
-  const slotDay = NOW.getHours() < 5 ? new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate() - 1) : NOW;
-  const slot = slotDay.toLocaleDateString("sv-SE");
-  const at = (minute: number) => new Date(slotDay.getFullYear(), slotDay.getMonth(), slotDay.getDate(), 5, minute).toISOString();
-  const row = (connectorId: string, minute: number, outcome: "complete" | "failed" | "skipped", detail: string | null, attempts = 1) => ({ slot, connectorId, startedAt: at(minute), finishedAt: at(minute), outcome, detail, attempts });
-  await db.insert(tables.dailyPulls).values([
-    row("instagram-graph", 0, "failed", "HTTP 400: Invalid OAuth access token", 3),
-    row("ig-sidecar", 1, "complete", null),
-    row("chatbotx", 1, "skipped", "not-connected"),
-    row("polar", 1, "skipped", "not-connected"),
-    row("umami", 1, "skipped", "not-connected"),
-    row("groq", 1, "skipped", "not-connected"),
+  const at = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate(), NOW.getHours() - 1).toISOString();
+  await db.insert(tables.connectorStatus).values([
+    { connectorId: "instagram-graph", pullState: "error", pullMessage: "The last pull failed, so the older numbers stay. Re-check the key.", pullDetail: "HTTP 400: Invalid OAuth access token", pulledAt: at, updatedAt: at },
+    { connectorId: "ig-sidecar", pullState: "ready", pulledAt: at, updatedAt: at },
   ]);
 }
 

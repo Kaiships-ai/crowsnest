@@ -16,28 +16,18 @@ export default async function sidecarExpired01({ page, step, snap }) {
       if (!(await setSession("expired")).ok) throw new Error("fake sidecar refused /__session");
     });
 
-    await step("Settings > Sources: Pull again on the Instagram sidecar card fails", async () => {
+    await step("a sidecar pull fails, and Settings > Sources shows it on the Instagram sidecar card", async () => {
+      // The card has no Pull: pull through the bridge, then open Sources, which reads the recorded state.
+      const pulled = await page.evaluate(() => window.api.crowsnest.call("pullConnector", "ig-sidecar"));
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
-      // An earlier journey may have left the card in error, so first see this click start a
-      // pull (the card leaves error, or its button disables), then wait for it to end in error.
-      const PULL = '[data-testid="source-card"][data-connector-id="ig-sidecar"]';
-      await card.getByTestId("source-pull").click();
+      // An earlier journey may have left the card in error, so check this pull's own recorded
+      // row first, then wait for the card to show it.
+      if (!pulled.ok || pulled.value.state !== "error" || !pulled.value.detail?.includes(RELOGIN)) throw new Error(`pull row: ${JSON.stringify(pulled)}`);
       await page.waitForFunction(
-        (sel) => {
-          const c = document.querySelector(sel);
-          return c?.getAttribute("data-state") !== "error" || c.querySelector('[data-testid="source-pull"]')?.hasAttribute("disabled");
-        },
-        PULL,
+        (sel) => document.querySelector(sel)?.getAttribute("data-state") === "error",
+        '[data-testid="source-card"][data-connector-id="ig-sidecar"]',
         { timeout: 10_000 },
-      );
-      await page.waitForFunction(
-        (sel) => {
-          const c = document.querySelector(sel);
-          return c?.getAttribute("data-state") === "error" && !c.querySelector('[data-testid="source-pull"]')?.hasAttribute("disabled");
-        },
-        PULL,
-        { timeout: 60_000 },
       );
       console.log(`card: ${(await card.innerText()).replace(/\s+/g, " ")}`);
     });

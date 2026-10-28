@@ -45,7 +45,6 @@ describe("config", () => {
     expect(c.EAGER_VIDEO_DOWNLOAD).toBe(false);
     expect(c.IG_SERVICE_URL).toBe("http://127.0.0.1:8765");
     expect(c.MEDIA_RETENTION_DAYS).toBe(90);
-    expect(c.SYNC_INTERVAL_MINUTES).toBe(0);
     expect(c.SYNC_CONCURRENCY).toBe(1);
     expect(c.SYNC_MAX_RETRIES).toBe(3);
     expect(c.SYNC_RETRY_BASE_MS).toBe(1_000);

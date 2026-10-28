@@ -309,6 +309,13 @@
       "when": 1793039264282,
       "tag": "0043_rival_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1793039324282,
+      "tag": "0044_connector_status",
+      "breakpoints": true
     }
   ]
 }

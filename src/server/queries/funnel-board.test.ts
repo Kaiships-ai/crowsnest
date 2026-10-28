@@ -91,7 +91,7 @@ test("a step whose source's newest pull failed or was partial says so beside its
   const marked = withPulls(steps, [
     { id: "instagram-graph", state: "error" },
     { id: "umami", state: "partial" },
-    { id: "chatbotx", state: "running" },
+    { id: "chatbotx", state: "ready" },
   ]);
   expect(marked.map((s) => [s.id, s.pull])).toEqual([
     ["view", "failed"],

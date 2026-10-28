@@ -21217,13 +21217,6 @@
         "stale": "No complete pull since 05:00 today.",
         "never": "Never pulled."
       },
-      "fix": {
-        "missing": "Click Edit and enter {{missing}}.",
-        "noAdapter": "You can save the key now with Edit; the app pulls once a connector exists.",
-        "error": "Click Test to check the connection, fix the key with Edit, then Pull again.",
-        "partial": "Pull again later, once the source limit resets.",
-        "stale": "Click Pull again, or wait for the 05:00 pull."
-      },
       "save": "Save",
       "secretMissing": "not set",
       "secretSaved": "saved · source {{source}}",
@@ -21314,13 +21307,13 @@
       "gates": "Waiting for your approval",
       "gate1": "Gate 1 · proposed plan",
       "gate2": "Gate 2 · drafts to send",
-      "lastNight": "Ran overnight",
-      "pullSource": "05:00 pull",
+      "pullSource": "Settings > Sources",
       "empty": "Nothing for today yet.",
       "pulledAt": "last pull",
       "neverPulled": "never pulled",
       "dropTitle": "Biggest drop against target",
-      "funnel": "Funnel"
+      "funnel": "Funnel",
+      "lastPulls": "Last pulls"
     },
     "own": {
       "noPosts": "No posts in this range.",
@@ -21356,7 +21349,7 @@
       "gender": "Gender",
       "age": "Age",
       "country": "Country",
-      "empty": "Instagram has never been measured. Connect Instagram in Sources; the app measures at 05:00.",
+      "empty": "Instagram has never been measured. Connect Instagram in Sources; numbers show after its first pull.",
       "historyThin": "At least 2 measurements are needed to draw the views line.",
       "afterNone": "This reel has no keyword, so it can't be linked to DMs, site and orders. Add a keyword to the reel in Plan.",
       "afterIntro": "Instagram doesn't show this. Lead Studio links keyword {{keyword}} through ChatbotX, Umami and Polar.",
@@ -21463,10 +21456,10 @@
       "live": "live",
       "pulledAt": "pulled {{time}}",
       "state": {
-        "connected": "Connected",
         "partial": "Partial",
         "error": "Error",
-        "notConfigured": "Not configured"
+        "notConfigured": "Not configured",
+        "ready": "Ready"
       },
       "missingPosts": "missing {{count}} posts"
     }
@@ -21517,39 +21510,35 @@
       },
       "group": {
         "instagram": "Instagram",
-        "instagramDescription": "Your own channel and the rivals you track, pulled at 05:00 every day.",
+        "instagramDescription": "Your own channel and the rivals you track, pulled on request, never on a timer.",
         "funnel": "Funnel",
         "funnelDescription": "What happens after a view: comments, DMs, gift page visits and orders.",
         "tools": "Tools",
         "toolsDescription": "Services the agents use while they work."
       },
       "explain": {
-        "missing": "Add your {{missing}} to connect. Lead Studio pulls from it at 05:00 every day.",
+        "missing": "Add your {{missing}} to connect. Lead Studio pulls from it only on request, never on a timer.",
         "noAdapter": "Lead Studio cannot pull from this source yet. Agents record its numbers for now, and you can save the key ahead.",
-        "error": "The last pull failed, so the older numbers stay. Check the key, then pull again.",
-        "partial": "The last pull did not finish, so the older numbers stay. Pull again later.",
-        "stale": "No complete pull since 05:00 today. Pull again, or wait for the next one.",
-        "never": "Not pulled yet. Pull now, or wait for 05:00.",
-        "running": "Pulled today. Numbers are current."
+        "error": "The last check or pull failed. Check the key, then check again.",
+        "partial": "The last pull did not finish, so some numbers are older.",
+        "ready": "Ready. Numbers are pulled only on request, never on a timer.",
+        "readyNoPull": "Ready."
       },
       "lastPull": "Last pull {{time}}",
       "neverPulled": "Never pulled",
-      "nextPull": "next {{time}}",
       "callsLeft": "{{count}} calls left this hour",
       "editKey": "Edit key",
       "detail": "Details: {{detail}}",
       "learnMore": "Learn more",
       "recheck": "Re-check",
-      "pullAgain": "Pull again",
-      "verified": "Verified",
-      "checkFailed": "Check failed",
       "title": "Sources",
       "description": "Connect the services Lead Studio pulls your numbers from.",
       "searchDescription": "API keys, pull status and connections for Instagram, ChatbotX, Umami, Polar and Groq.",
       "keyword": {
         "vault": "vault",
         "apiKey": "api key"
-      }
+      },
+      "checking": "Checking"
     },
     "nav": {
       "soon": "Soon",

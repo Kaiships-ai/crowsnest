@@ -14,13 +14,13 @@ Tables are defined in `src/server/db/schema.ts`.
 - `media_assets`: content-addressed downloads (thumbnails, avatars, video), unique on `sha256`.
 - `sync_jobs`: one row per run (status, counts, gaps, `cancelRequested`, heartbeat). It doubles as the lock and the progress channel.
 - `ig_accounts`: burner accounts with cooldown, proxy, and device seed. Operational detail is in the multi-account doc.
-- Settings (`app_settings`, DB over env over default): `syncConcurrency`, `syncMetricsFreshnessHours`, `viewCountEnrichPerChannel`, `syncCadenceMinutes`. Env defaults live in `src/server/config.ts` (`LOOKBACK_DAYS` 30, `MAX_ITEMS_PER_SYNC` 200, `SYNC_CONCURRENCY` 1, `SYNC_METRICS_FRESHNESS_HOURS` 12, `SYNC_MAX_RETRIES` 3).
+- Settings (`app_settings`, DB over env over default): `syncConcurrency`, `syncMetricsFreshnessHours`, `viewCountEnrichPerChannel`. Env defaults live in `src/server/config.ts` (`LOOKBACK_DAYS` 30, `MAX_ITEMS_PER_SYNC` 200, `SYNC_CONCURRENCY` 1, `SYNC_METRICS_FRESHNESS_HOURS` 12, `SYNC_MAX_RETRIES` 3).
 - Sidecar env (`.env.local`, read only by the sidecar): `IG_USERNAME`, `IG_PASSWORD`, `IG_SERVICE_TOKEN`. The app never sees the burner password.
 
 ## Boundaries
 
-- Owns: `services/ig/crowsnest_ig/` (FastAPI app, `SessionManager`, mapping, media download, rate limit, typed errors), `src/server/ig/` (HTTP client, error taxonomy, asset download), `src/server/services/sync-engine.ts`, `sync-batch.ts`, `sync-scheduler.ts`, `src/server/actions/sync-actions.ts`, `src/server/services/accounts.ts`.
-- Called by: the channels board, channel detail, and Settings (via `startSyncAction`), the in-process scheduler started from `server.ts`, and the `crowsnest_sync_*` MCP tools. Feed, analyze, remix, vault, and planned posts only read what a sync wrote and never call the sidecar.
+- Owns: `services/ig/crowsnest_ig/` (FastAPI app, `SessionManager`, mapping, media download, rate limit, typed errors), `src/server/ig/` (HTTP client, error taxonomy, asset download), `src/server/services/sync-engine.ts`, `sync-batch.ts`, `src/server/actions/sync-actions.ts`, `src/server/services/accounts.ts`.
+- Called by: the channels board, channel detail, and Settings (via `startSyncAction`), the bridge's `pullConnector` for `ig-sidecar`, and the `crowsnest_sync_*` MCP tools. Feed, analyze, remix, vault, and planned posts only read what a sync wrote and never call the sidecar.
 - Calls: the sidecar at `IG_SERVICE_URL` (default `http://127.0.0.1:8765`) with the `X-IG-Token` header; Instagram only through the sidecar; launchd keeps the sidecar alive (see [kit](kit.md)).
 - Does not own: single-reel import by URL (`importReelByUrl`, yt-dlp, a feed path), the user's own channel metrics (Graph API), or the outlier ranking (it writes the counts that `recomputeChannelScores` scores).
 
@@ -42,7 +42,7 @@ Tables are defined in `src/server/db/schema.ts`.
 - Failure isolation: a dead thumbnail costs one asset, a bad post one item, and only a profile or media call failure fails the channel (recorded as a gap). A channel's `video_snapshots` go in one batched insert and fall back to row-by-row if it throws (`sync-batch.ts`).
 - Cancel is cooperative: `cancelRequested` is read at the next page or channel boundary, so the lock is never orphaned. Channels already finished stay; the channel whose walk was cut stores nothing.
 - `lastSuccessfulSyncAt` is the only trusted completion time. `lastSyncedAt` is written with the profile, once the pull is complete. A scheduled sweep (`skipFreshWithinMinutes`) never skips a channel that has never synced cleanly.
-- Automatic sync is one in-process interval (`sync-scheduler.ts`), gated on the newest `sync_jobs` row and `syncCadenceMinutes` (0 disables). A manual sync also defers the next scheduled one.
+- There is no automatic sync. Every sync starts from a click.
 - Only thumbnails download during a sync. Video downloads on first play through a fresh `/resolve-media`, because CDN URLs expire in hours, unless `EAGER_VIDEO_DOWNLOAD` is set.
 - Multi-account is sequential across accounts. `planAccountSync` groups channels by account and skips a paused or cooling-down one without stopping the rest. Live parallel traffic across accounts is not built.
 
@@ -52,5 +52,5 @@ Tables are defined in `src/server/db/schema.ts`.
 - `src/server/services/sync-engine.ts` (`runSync`, `addChannel`, `recomputeChannelScores`): the sync.
 - `src/server/ig/client.ts` and `errors.ts`: wire mapping and error classes.
 - `src/server/actions/sync-actions.ts`: start, progress, cancel, backfill.
-- `src/server/services/sync-scheduler.ts` and `accounts.ts`: scheduling and accounts.
+- `src/server/services/accounts.ts`: accounts.
 - `scripts/bench-sync-concurrency.ts`: deterministic benchmark against a stub sidecar.

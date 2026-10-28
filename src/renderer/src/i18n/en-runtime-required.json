@@ -3035,13 +3035,6 @@
     "vault": {
       "edit": "Edit",
       "empty": "No sources yet.",
-      "fix": {
-        "error": "Click Test to check the connection, fix the key with Edit, then Pull again.",
-        "missing": "Click Edit and enter {{missing}}.",
-        "noAdapter": "You can save the key now with Edit; the app pulls once a connector exists.",
-        "partial": "Pull again later, once the source limit resets.",
-        "stale": "Click Pull again, or wait for the 05:00 pull."
-      },
       "graphLeft": "Graph calls left/hr",
       "lastPull": "Last pull",
       "nextPull": "Next pull",

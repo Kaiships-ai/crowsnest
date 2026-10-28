@@ -9,13 +9,12 @@ beforeAll(async () => {
   process.env.CROWSNEST_DB_PATH = ":memory:";
   // config.ts refuses to boot without this — never actually contacted by these tests.
   process.env.IG_SERVICE_TOKEN ??= "test-token";
-  // Legacy env layer under test: LOOKBACK_DAYS/MAX_ITEMS_PER_SYNC/SYNC_INTERVAL_MINUTES/
+  // Legacy env layer under test: LOOKBACK_DAYS/MAX_ITEMS_PER_SYNC/
   // MEDIA_RETENTION_DAYS are read once at config.ts's module load, so they're set here,
   // before any import.
   process.env.LOOKBACK_DAYS = "45";
   process.env.MAX_ITEMS_PER_SYNC = "350";
   process.env.SYNC_CONCURRENCY = "4";
-  process.env.SYNC_INTERVAL_MINUTES = "120";
   process.env.MEDIA_RETENTION_DAYS = "14";
 
   ({ db, tables } = await import("../db"));
@@ -50,7 +49,6 @@ describe("getSettings — precedence: env beats default", () => {
     expect(s.syncLookbackDays).toBe(45); // process.env.LOOKBACK_DAYS
     expect(s.maxItemsPerSync).toBe(350); // process.env.MAX_ITEMS_PER_SYNC
     expect(s.syncConcurrency).toBe(4); // process.env.SYNC_CONCURRENCY
-    expect(s.syncCadenceMinutes).toBe(120); // process.env.SYNC_INTERVAL_MINUTES
     expect(s.mediaRetentionDays).toBe(14); // process.env.MEDIA_RETENTION_DAYS
   });
 });
@@ -182,10 +180,8 @@ describe("getSettingsWithSource", () => {
     expect(view.scoreMinViewsFloor).toEqual({ value: 0, source: "default", wired: true });
 
     // These two are stored and readable, but nothing in the app consumes them yet — the
-    // flag exists so a future Settings UI doesn't imply otherwise. syncCadenceMinutes is
-    // now consumed by sync-scheduler.ts, so it is wired.
+    // flag exists so a future Settings UI doesn't imply otherwise.
     expect(view.feedDefaultMinScore.wired).toBe(false);
-    expect(view.syncCadenceMinutes.wired).toBe(true);
     expect(view.mediaRetentionDays.wired).toBe(false);
   });
 });

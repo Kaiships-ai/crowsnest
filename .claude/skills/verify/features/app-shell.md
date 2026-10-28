@@ -10,7 +10,7 @@ Lead Studio is the Electron app at the repo root, Orca's workspace under its own
 - Crowsnest MCP at `http://127.0.0.1:<port>/api/mcp`, the port in `<userData>/mcp.port` (`src/main/crowsnest/mcp-http.ts`). 36 `crowsnest_*` tools. Every request needs `Authorization: Bearer <token>`, else 401; the app writes a fresh `local` token to `<userData>/mcp.token` on start ([tokens.md](tokens.md)).
 - Engine bridge: `window.api.crowsnest.call(name, ...args)` runs an entry of `ENGINE_CALLS` (`src/server/bridge/engine-calls.ts`) over the `crowsnest:call` channel and returns `{ ok, value }` or `{ ok: false, error: { code, message } }`.
 - `cn-media://asset/<assetId>` serves stored assets with byte ranges (`src/main/crowsnest/start.ts`).
-- Jobs: sync and own-measure run unless `LEAD_STUDIO_READ_JOBS=0` (`baseline-lane.sh` and `gate2-lane.sh` set it); the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
+- Jobs: nothing pulls, syncs or measures on its own (every pull is a click on a Sources card); the publish scheduler runs only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
 - Identity apart from the installed Orca.app: user data dir `lead-studio`, app id `ai.kaiships.leadstudio`, keychain item `Lead Studio Dev Safe Storage`, dev bundle id `ai.kaiships.leadstudio.dev`, home dir `~/.lead-studio`, CLI `lead-dev` in its terminals.
 
 ## How to get to it (user POV)

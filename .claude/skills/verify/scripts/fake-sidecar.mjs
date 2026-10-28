@@ -7,6 +7,9 @@ const portFile = path.resolve(import.meta.dirname, "../../../../data/verify/app/
 // for an expired session (Instagram's ClientError "login_required" maps to IG_AUTH_REQUIRED, 401);
 // state=ok restores it. POST /login-by-session adopts a browser session id, as the real one does.
 let session = "ok";
+// POST /__medias?state=empty answers /medias with an empty last page, so a sync succeeds; state=refuse
+// (the default) answers 503 like every other unserved path.
+let medias = "refuse";
 const EXPIRED = {
   error: {
     code: "IG_AUTH_REQUIRED",
@@ -30,11 +33,20 @@ const server = createServer((req, res) => {
       session = url.searchParams.get("state") ?? "ok";
       return send(res, 200, { session });
     }
+    if (url.pathname === "/__medias") {
+      medias = url.searchParams.get("state") ?? "refuse";
+      return send(res, 200, { medias });
+    }
     if (url.pathname === "/login-by-session") {
       session = "ok";
       return send(res, 200, { status: "ok" });
     }
+    // The real /health never calls Instagram, so it answers the same with an expired session.
+    if (url.pathname === "/health") {
+      return send(res, 200, { status: "ok", logged_in: true, username: "fake_sidecar", instagrapi_version: "fake", session_loaded: true, session_path: "/tmp/fake-session.json", media_root: "/tmp/fake-media", can_login: false, cooldown_until: null });
+    }
     if (session === "expired") return send(res, 401, EXPIRED);
+    if (url.pathname === "/medias" && medias === "empty") return send(res, 200, { items: [], next_cursor: null, stop_reason: "exhausted" });
     if (url.pathname !== "/profile") return send(res, 503, { error: "fake sidecar answers /profile only" });
     const username = (url.searchParams.get("handle") ?? "").replace(/^@/, "");
     send(res, 200, { username, pk: `fake-${username}`, full_name: `Fake ${username}`, follower_count: 2500, following_count: 10, media_count: 30 });
