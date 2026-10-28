@@ -132,6 +132,26 @@ describe("Pull the rest on the sidecar card", () => {
     });
   });
 
+  test("a pull the app quit at 2/5, then Pull the rest: the rest skips only what it reached and counts from its 2", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.mocked(runSync).mockClear();
+    await pullAt("2026-10-26T10:00:00.000Z", undefined, result(["a", "b", "c", "d", "e"], 5, 5, 0, false));
+    vi.setSystemTime(new Date("2026-10-28T10:00:00.000Z"));
+    vi.mocked(runSync).mockImplementationOnce((o) => {
+      o?.onJobStarted?.("job-2");
+      o?.onProgress?.({ done: 2, total: 5, label: "@b" });
+      return new Promise(() => {});
+    });
+    void startSyncAction();
+    await flush();
+    vi.setSystemTime(new Date("2026-10-28T10:15:00.000Z"));
+    expect(card("ig-sidecar").message).toBe("The pull stopped at 2/5 before it finished. 2 have new numbers; the rest keep their older numbers.");
+    await pullAt("2026-10-28T10:15:00.000Z", { rest: true }, result(["c", "d", "e"], 3, 3, 0, false));
+    vi.useRealTimers();
+    expect(vi.mocked(runSync).mock.calls.map(([o]) => o?.skipSyncedSince)).toEqual([undefined, undefined, "2026-10-28T10:00:00.000Z"]);
+    expect(parseSummary(readStatuses().get("ig-sidecar")?.summary ?? null).pull).toMatchObject({ total: 5, done: 5, updated: 5, stop: null, chainFrom: "2026-10-28T10:00:00.000Z" });
+  });
+
   test("a fresh pull after a chain starts a new chain", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     await pullAt("2026-10-28T10:00:00.000Z", undefined, result(["a", "b"], 1, 1, 0, true));

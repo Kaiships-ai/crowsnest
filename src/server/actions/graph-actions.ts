@@ -95,12 +95,11 @@ export async function startGraphPullAction(opts: { rest?: true } = {}): Promise<
   cardPull = pull;
   const startedAt = clockNow();
   let last = { done: 0, total: 0 };
-  let chainFrom: string | null = null;
   void (async () => {
     let r: MeasureResult = { ok: false, error: "the pull did not finish", code: "MEASURE_FAILED" };
     try {
-      chainFrom = opts.rest ? restFrom(instagramGraph.id) : null;
-      recordPullStart(instagramGraph.id);
+      const chainFrom = opts.rest ? restFrom(instagramGraph.id) : null;
+      recordPullStart(instagramGraph.id, chainFrom);
       r = await measureOwnChannel({
         scope: "all",
         wait: true,
@@ -134,7 +133,6 @@ export async function startGraphPullAction(opts: { rest?: true } = {}): Promise<
           followers: r.ok ? await followers(r.measuredAt).catch(() => undefined) : undefined,
         },
         r.ok ? r.retryAfter : null,
-        chainFrom,
       );
     }
   })().catch((err: unknown) => log.error("graph.card_pull.record_failed", { error: messageOf(err) }));

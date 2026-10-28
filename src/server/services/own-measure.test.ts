@@ -696,6 +696,33 @@ describe("the Graph card's pull", () => {
     expect(third.pull).toMatchObject({ total: 5, done: 5, updated: 5, failed: 0, stop: null, chainFrom: "2026-09-29T10:00:00.000Z" });
   });
 
+  test("a pull the app quit at 2/5, then Pull the rest: the rest measures only the posts it never reached and counts from its 2", async () => {
+    const { startGraphPullAction } = graphActions;
+    const { cardStatus, parseSummary, readStatuses, recordPullStart, recordPullProgress } = status;
+    await db.delete(tables.connectorStatus);
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 5)));
+    const seen: string[] = [];
+    graphClient.fetchPostInsights.mockImplementation(async (m: GraphMedia) => {
+      seen.push(m.externalId);
+      return spend(2, complete(insights()))();
+    });
+
+    vi.setSystemTime(new Date("2026-09-27T10:00:00.000Z"));
+    await startGraphPullAction();
+    await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).toBe("ready"));
+    vi.setSystemTime(new Date("2026-09-29T10:00:00.000Z"));
+    recordPullStart("instagram-graph", null);
+    await svc.measureOwnChannel({ scope: "all", wait: true, shouldStop: () => seen.length >= 7, onProgress: (p) => recordPullProgress("instagram-graph", p) });
+    vi.setSystemTime(new Date("2026-09-29T10:15:00.000Z"));
+    expect(cardStatus(readStatuses().get("instagram-graph")).message).toBe("The pull stopped at 2/5 before it finished. 2 have new numbers; the rest keep their older numbers.");
+
+    seen.length = 0;
+    await startGraphPullAction({ rest: true });
+    await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).toBe("ready"));
+    expect(seen).toEqual(["r2", "r3", "r4"]);
+    expect(parseSummary(readStatuses().get("instagram-graph")?.summary ?? null).pull).toMatchObject({ total: 5, done: 5, updated: 5, stop: null, chainFrom: "2026-09-29T10:00:00.000Z" });
+  });
+
   test("Pull the rest skips posts measured since the last pull started", async () => {
     graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 3)));
     await svc.measureOwnChannel({ scope: "all", now: NOW, shouldStop: () => graphClient.fetchPostInsights.mock.calls.length >= 1 });

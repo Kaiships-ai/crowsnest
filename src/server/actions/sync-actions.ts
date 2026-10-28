@@ -125,7 +125,7 @@ export async function startSyncAction(channelIds?: string[], opts: { rest?: true
         : { cardPull: true, onProgress: (p) => recordPullProgress(igSidecar.id, p), skipSyncedSince: chainFrom ?? undefined }),
       onJobStarted: (id) => {
         resolveJobId(id);
-        if (cardPull) recordPullStart(igSidecar.id);
+        if (cardPull) recordPullStart(igSidecar.id, chainFrom);
       },
     }).then(
       (r) => {
@@ -138,7 +138,7 @@ export async function startSyncAction(channelIds?: string[], opts: { rest?: true
           ended = syncSummary(r, startedAt, clockNow());
           pull = syncPull(r);
         } finally {
-          recordPullEnd(igSidecar.id, pull, ended.summary, ended.retryAfter, chainFrom);
+          recordPullEnd(igSidecar.id, pull, ended.summary, ended.retryAfter);
         }
       },
       async (err: unknown) => {
@@ -152,7 +152,7 @@ export async function startSyncAction(channelIds?: string[], opts: { rest?: true
           try {
             await markJobFailed(jobId, err);
           } finally {
-            if (cardPull) recordPullEnd(igSidecar.id, { kind: "failed", reason: err }, syncSummary(null, startedAt, clockNow()).summary, null, chainFrom);
+            if (cardPull) recordPullEnd(igSidecar.id, { kind: "failed", reason: err }, syncSummary(null, startedAt, clockNow()).summary);
           }
         }
       }

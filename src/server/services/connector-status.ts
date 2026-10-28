@@ -79,7 +79,7 @@ export interface PullSummary {
   startedAt: string | null;
   /** What the pull covered, such as "last 30 days", when the source pulls a time window. */
   window?: string;
-  /** When the first pull of a Pull the rest chain started; the counts above cover the whole chain. Null on a pull that crashed. */
+  /** When the first pull of a Pull the rest chain started; the counts above cover the whole chain. */
   chainFrom: string | null;
   /** When the items this pull did not reach got their numbers: the pull before it. */
   olderFrom: string | null;
@@ -119,13 +119,38 @@ function withSummary(connectorId: string, patch: ConnectorSummary): string {
   return JSON.stringify({ ...parseSummary(readRow(connectorId)?.summary ?? null), ...patch });
 }
 
+type EndedPull = Omit<PullSummary, "olderFrom" | "chainFrom">;
+
+const emptyPull = (startedAt: string | null, olderFrom: string | null): PullSummary =>
+  ({ total: 0, done: 0, updated: 0, newItems: 0, failed: 0, durationSec: 0, startedAt, chainFrom: startedAt, olderFrom, stop: null, items: [] });
+
+/** The summary the running pull's start wrote: its chain so far. A row from before starts wrote one gets an empty chain. */
+function startedPull(row: StatusRow): PullSummary {
+  const pull = parseSummary(row.summary).pull;
+  return pull && pull.startedAt === row.startedAt ? pull : emptyPull(row.startedAt, row.pulledAt);
+}
+
+/** A pull's own counts added to its chain's. A Pull the rest's `total` counts only what it had left. */
+function addToChain(chain: PullSummary, ended: EndedPull): PullSummary {
+  return {
+    ...ended,
+    chainFrom: chain.chainFrom,
+    olderFrom: chain.olderFrom,
+    updated: chain.updated + ended.updated,
+    done: chain.updated + ended.done,
+    newItems: chain.newItems + ended.newItems,
+    total: Math.max(chain.total, chain.updated + ended.total),
+  };
+}
+
 /** A crashed or silent pull never leaves a card stuck in Pulling: it reads as Partial with its done count. */
 function settleStale(row: StatusRow, now: Date): StatusRow {
   if (row.pullState !== "pulling") return row;
   if (livePulls.has(row.connectorId) && now.getTime() - Date.parse(row.updatedAt) < PULL_STALE_MS) return row;
-  const done = row.progressDone ?? 0;
-  const total = row.progressTotal ?? done;
-  const pull: PullSummary = { total, done, updated: done, newItems: 0, failed: 0, durationSec: 0, startedAt: row.startedAt, chainFrom: null, olderFrom: row.pulledAt, stop: "interrupted", items: [] };
+  const reached = row.progressDone ?? 0;
+  const ended: EndedPull = { total: row.progressTotal ?? reached, done: reached, updated: reached, newItems: 0, failed: 0, durationSec: 0, startedAt: row.startedAt, stop: "interrupted", items: [] };
+  const pull = addToChain(startedPull(row), ended);
+  const { done, total } = pull;
   return {
     ...row,
     pullState: "partial",
@@ -139,9 +164,20 @@ export function readStatuses(now: Date = clockNow()): Map<string, StatusRow> {
   return new Map(db.select().from(tables.connectorStatus).all().map((r) => [r.connectorId, settleStale(r, now)]));
 }
 
-export function recordPullStart(connectorId: string): void {
+function settledRow(connectorId: string): StatusRow | undefined {
+  const row = readRow(connectorId);
+  return row && settleStale(row, clockNow());
+}
+
+/** Starts a pull and writes its summary first, so a crash mid-pull still leaves the right chain.
+ *  `chainFrom` (from `restFrom`) marks Pull the rest: the pull adds to that chain. */
+export function recordPullStart(connectorId: string, chainFrom: string | null = null): void {
+  const row = settledRow(connectorId);
+  const startedAt = clockNow().toISOString();
+  const prev = chainFrom ? parseSummary(row?.summary ?? null).pull : undefined;
+  const pull = prev ? { ...prev, startedAt, chainFrom, stop: null, items: [] } : emptyPull(startedAt, row?.pulledAt ?? null);
   livePulls.add(connectorId);
-  upsert(connectorId, { pullState: "pulling", pullMessage: null, pullDetail: null, startedAt: clockNow().toISOString(), progressDone: 0, progressTotal: null, progressLabel: null, retryAfter: null });
+  upsert(connectorId, { pullState: "pulling", pullMessage: null, pullDetail: null, startedAt, progressDone: 0, progressTotal: null, progressLabel: null, retryAfter: null, summary: withSummary(connectorId, { pull }) });
 }
 
 /** Also the pull's heartbeat. Undefined fields keep their value. */
@@ -159,33 +195,15 @@ export function recordPullProgress(connectorId: string, progress: { done: number
 
 /** Where Pull the rest starts from: the start of the last pull's chain. Whatever the chain pulled since then is skipped. */
 export function restFrom(connectorId: string): string | null {
-  const pull = parseSummary(readRow(connectorId)?.summary ?? null).pull;
-  return pull ? (pull.chainFrom ?? pull.startedAt) : null;
+  return parseSummary(settledRow(connectorId)?.summary ?? null).pull?.chainFrom ?? null;
 }
 
 /** Records the pull's outcome as `recordPull` does, plus its summary and the source's retry time.
- *  `chainFrom` (from `restFrom`) marks Pull the rest: the counts add to the chain's, against the whole source. */
-export function recordPullEnd(
-  connectorId: string,
-  result: PullResult<unknown, unknown>,
-  ended: Omit<PullSummary, "olderFrom" | "chainFrom">,
-  retryAfter: string | null = null,
-  chainFrom: string | null = null,
-): CardStatus {
+ *  The counts add to the chain its start recorded. */
+export function recordPullEnd(connectorId: string, result: PullResult<unknown, unknown>, ended: EndedPull, retryAfter: string | null = null): CardStatus {
   livePulls.delete(connectorId);
   const row = readRow(connectorId);
-  const prev = chainFrom ? parseSummary(row?.summary ?? null).pull : undefined;
-  const pull: PullSummary = prev
-    ? {
-        ...ended,
-        chainFrom,
-        olderFrom: prev.olderFrom,
-        updated: prev.updated + ended.updated,
-        done: prev.updated + ended.done,
-        newItems: prev.newItems + ended.newItems,
-        total: Math.max(prev.total, prev.updated + ended.total),
-      }
-    : { ...ended, chainFrom: ended.startedAt, olderFrom: row?.pulledAt ?? null };
+  const pull = addToChain(row?.pullState === "pulling" ? startedPull(row) : emptyPull(ended.startedAt, row?.pulledAt ?? null), ended);
   const outcome = recordPull(connectorId, result);
   upsert(connectorId, { progressDone: pull.done, progressTotal: pull.total, progressLabel: null, retryAfter, summary: withSummary(connectorId, { pull, down: result.kind !== "complete" && result.reason instanceof SourceDownError }) });
   return outcome;
