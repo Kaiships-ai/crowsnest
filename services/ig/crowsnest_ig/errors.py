@@ -187,6 +187,13 @@ def classify(exc: BaseException) -> str:
     name = type(exc).__name__
     if name in {"ConnectTimeout", "ReadTimeout", "Timeout", "ConnectionError", "ChunkedEncodingError"}:
         return IG_NETWORK
+    if isinstance(exc, ig_ex.ClientUnauthorizedError) or (
+        isinstance(exc, ig_ex.ClientError) and "login_required" in str(exc)
+    ):
+        # An expired session often reaches us as a bare ClientError("login_required")
+        # rather than LoginRequired. The user can fix it by logging in again; a network
+        # code would tell them to wait.
+        return IG_AUTH_REQUIRED
     if isinstance(exc, ig_ex.ClientError):
         # A ClientError we have no specific rule for is still an upstream fault,
         # not a success. Surface it as a network-class problem, never swallow it.

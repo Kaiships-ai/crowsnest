@@ -179,6 +179,22 @@ describe("graphClient.fetchPostInsights", () => {
     expect(calls()).toBe(2);
   });
 
+  test("profile_activity refused for a missing permission is still a partial pull, not a complete one", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 10, message: "(#10) Application does not have permission for this action" } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "partial", rows: { views: 10, reach: 8, bioLinkTaps: null }, missing: "bio link taps", reason: { error: { code: "GRAPH_PERMISSION_DENIED" }, endsRun: false } });
+  });
+
+  test("profile_activity refused for the media product type is a complete pull with no bio link taps", async () => {
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 })))
+      .mockResolvedValueOnce({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "The Media Insights API does not support the profile_activity metric for this media product type." } }) }));
+    const { graphClient } = await loadClient();
+    expect(await graphClient.fetchPostInsights(REEL)).toMatchObject({ kind: "complete", rows: { views: 10, reach: 8, bioLinkTaps: null } });
+  });
+
   test("ACTION-22: bio link taps from profile_activity by action_type, 0 when absent", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(ok(metrics({ views: 10, reach: 8 }))).mockResolvedValueOnce(ok(activity(7)))
@@ -219,6 +235,7 @@ describe("graphClient.fetchPostInsights", () => {
     expect(metric.split(",")).not.toContain("follows");
     expect(metric.split(",")).not.toContain("profile_visits");
     expect(metric).toContain("ig_reels_avg_watch_time");
+    expect(metric.split(",")).not.toContain("reposts");
     const fallback = warn.mock.calls.find(([event]) => event === "graph.insights.extended_fallback");
     expect(JSON.stringify(fallback?.[1])).toContain("reels_skip_rate not supported");
   });
@@ -353,7 +370,7 @@ describe("graphClient.fetchAccountBreakdowns", () => {
     expect(audience.kind).toBe("complete");
     expect(audience.kind === "complete" && audience.rows).toContainEqual({ metric: "engaged_audience_demographics", dimension: "country", key: "US", value: 50, timeframe: "this_month" });
     const first = new URL(fetchMock.mock.calls[0][0] as string);
-    expect(first.searchParams.get("breakdown")).toBe("follower_type");
+    expect(first.searchParams.get("breakdown")).toBe("follow_type");
     expect(new URL(fetchMock.mock.calls[1][0] as string).searchParams.get("metric")).toBe("engaged_audience_demographics");
   });
 

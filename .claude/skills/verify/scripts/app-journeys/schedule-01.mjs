@@ -71,9 +71,14 @@ export default async function schedule01({ page, step, snap }) {
     console.log(`source_calls instagram-graph: ${counted}`);
     if (Number(counted) === 0) throw new Error("no Graph call was counted");
   });
-  await step("Graph v23 refused nothing the app asked, and the reel's insights hold watch time and skip rate", async () => {
+  // profile_activity on a reel is the one refusal the app expects: v23 answers "not supported for
+  // this media product type" for every reel, and fetchPostInsights reads it as a complete pull
+  // with no bio link taps. Any other refusal is a metric the app should not ask.
+  await step("Graph v23 refused nothing the app asked but profile_activity on a reel, and the reel's insights hold watch time and skip rate", async () => {
     const log = path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-graph.log");
-    const refused = existsSync(log) ? readFileSync(log, "utf8").split("\n").filter((l) => l.includes("fake-graph: refused:")) : [];
+    const refused = existsSync(log)
+      ? readFileSync(log, "utf8").split("\n").filter((l) => l.includes("fake-graph: refused:") && !/profile_activity metric for this media product type/.test(l))
+      : [];
     if (refused.length) throw new Error(`${refused.length} refused calls, first: ${refused[0]}`);
     const graph = sql("select slot || ' ' || outcome || coalesce(' (' || detail || ')', '') from daily_pulls where connector_id = 'instagram-graph' order by slot");
     console.log(`instagram-graph pulls:\n${graph}`);

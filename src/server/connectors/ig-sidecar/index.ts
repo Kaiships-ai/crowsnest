@@ -14,9 +14,10 @@ export const connector: Connector = {
     },
     async pull() {
       const r = await runSync();
-      const job = db.select({ status: tables.syncJobs.status, errorMessage: tables.syncJobs.errorMessage }).from(tables.syncJobs).where(eq(tables.syncJobs.id, r.jobId)).get();
+      const job = db.select({ status: tables.syncJobs.status, errorCode: tables.syncJobs.errorCode, errorMessage: tables.syncJobs.errorMessage }).from(tables.syncJobs).where(eq(tables.syncJobs.id, r.jobId)).get();
       if (job?.status === "success") return { kind: "complete", rows: r };
       if (job?.status === "partial") return { kind: "partial", rows: r, missing: r.gaps.map((g) => g.handle).join(", ") || "work left after a cancel", reason: r.gaps[0]?.error ?? "cancelled" };
+      if (job?.errorCode === "IG_AUTH_REQUIRED") return { kind: "failed", reason: "Instagram session expired. Sign in again: Edit key, then save a new Browser session id." };
       return { kind: "failed", reason: job?.errorMessage ?? `sync ${job?.status ?? "row missing"}` };
     },
   },

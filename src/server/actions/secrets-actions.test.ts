@@ -1,4 +1,7 @@
-import { beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+
+const sidecar = vi.hoisted(() => ({ loginBySession: vi.fn() }));
+vi.mock("@/server/ig/client", () => ({ igClient: sidecar }));
 
 let db: typeof import("@/server/db")["db"];
 let tables: typeof import("@/server/db")["tables"];
@@ -56,5 +59,17 @@ describe("secrets actions", () => {
     const token = getSecret("IG_SERVICE_TOKEN");
     expect(token).not.toBe("original-token");
     expect(token).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  test("a Browser session id the sidecar answers with a challenge is refused with the step Instagram asks for", async () => {
+    sidecar.loginBySession.mockResolvedValueOnce({ status: "challenge_required" });
+    expect(await actions.setConnectorSecret("ig-sidecar", "IG_SESSIONID", " sess-1 ")).toEqual({ ok: false, error: "Saved, but Instagram asks for challenge required." });
+    expect(sidecar.loginBySession).toHaveBeenCalledWith("sess-1");
+    expect(getSecret("IG_SESSIONID")).toBe("sess-1");
+  });
+
+  test("a Browser session id the sidecar refuses says Instagram did not accept it", async () => {
+    sidecar.loginBySession.mockRejectedValueOnce(new Error("sessionid rejected"));
+    expect(await actions.setConnectorSecret("ig-sidecar", "IG_SESSIONID", "sess-2")).toEqual({ ok: false, error: "Saved, but Instagram did not accept it: sessionid rejected" });
   });
 });

@@ -373,6 +373,22 @@ describe("health mapping", () => {
     }
   });
 
+  test("a 401 carrying IG_AUTH_REQUIRED stays an expired Instagram session", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ error: { code: "IG_AUTH_REQUIRED", message: "Instagram session expired", retryable: true, detail: {} } }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      })) as typeof fetch;
+    try {
+      const { igClient } = await import("./client");
+      const err = await igClient.health().catch((e: unknown) => e);
+      expect((err as { code?: string }).code).toBe("IG_AUTH_REQUIRED");
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   test("an unreachable sidecar is IG_SERVICE_DOWN, never an empty result", async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async () => {

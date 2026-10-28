@@ -10,7 +10,7 @@ A board tab is an editor-family open file (`src/renderer/src/store/slices/editor
 
 ## Board registry
 
-`LEAD_STUDIO_BOARDS` in `src/shared/lead-studio-boards.ts` lists every board as `{ id, label }` and defines `BoardId`. Main (the Boards app menu) and the renderer (the new-tab menu) both read this one list. The sidebar rows (`src/renderer/src/components/sidebar/LeadStudioNavRows.tsx`) open the same boards. `BOARD_VIEWS` in `src/renderer/src/components/board/BoardView.tsx` is a `Record<BoardId, Component>`, so the compiler rejects a listed board with no view. Adding a board is one entry in the list plus one component in the record.
+`LEAD_STUDIO_BOARDS` in `src/shared/lead-studio-boards.ts` lists every board as `{ id, label }` and defines `BoardId`. Main (the Boards app menu) and the renderer (the new-tab menu) both read this one list. The sidebar rows (`src/renderer/src/components/sidebar/LeadStudioNavRows.tsx`) open the same boards. A board tab lives in a workspace, so with no workspace active (a first launch) `openBoardInActiveWorkspace` in `src/renderer/src/lib/open-board-tab.ts` opens the "Lead Studio" folder workspace first: the engine call `ensureLeadStudioWorkspaceDir` creates `Lead Studio/` next to the app's database (`CROWSNEST_DB_PATH`), the renderer adds it once as a folder project with `addRepoPath` and activates it without seeding a terminal, and the board opens there. `BOARD_VIEWS` in `src/renderer/src/components/board/BoardView.tsx` is a `Record<BoardId, Component>`, so the compiler rejects a listed board with no view. Adding a board is one entry in the list plus one component in the record.
 
 ## Board kit
 
@@ -120,7 +120,7 @@ On the Plan day view, a reel with a video in draft, plan, missed, cooking or fai
 ## Opening a board
 
 - The tab bar "+" menu (`src/renderer/src/components/tab-bar/tab-bar-static-create-menu.tsx`) has a Lead Studio group with one item per board. It opens the board in that tab bar's worktree and group.
-- The app menu has a top-level Boards menu (`src/main/menu/app-menu-lead-studio.ts`, built in `src/main/menu/register-app-menu.ts`) with one item per board. A click sends `ui:openBoard` with the board id to the main window (`src/main/startup/main-process-i18n-menu.ts`). The preload listener (`src/preload/api/ui-bridge-state-and-menu-commands.ts`) drops any id not in `LEAD_STUDIO_BOARDS`, and the renderer (`src/renderer/src/hooks/ipc-events/settings-sidebar-ipc-bridge.ts`) opens the board in the active worktree's active group.
+- The app menu has a top-level Boards menu (`src/main/menu/app-menu-lead-studio.ts`, built in `src/main/menu/register-app-menu.ts`) with one item per board. A click sends `ui:openBoard` with the board id to the main window (`src/main/startup/main-process-i18n-menu.ts`). The preload listener (`src/preload/api/ui-bridge-state-and-menu-commands.ts`) drops any id not in `LEAD_STUDIO_BOARDS`, and the renderer (`src/renderer/src/hooks/ipc-events/settings-sidebar-ipc-bridge.ts`) opens the board in the active worktree's active group, or in the "Lead Studio" folder workspace when none is active, as the sidebar rows do.
 
 Both paths call `openBoardTab` in `src/renderer/src/lib/open-board-tab.ts`, which calls the store's `openFile`. `openFile` reuses an open tab with the same path and mode, so a board has at most one tab per worktree.
 

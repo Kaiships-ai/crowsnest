@@ -1,3 +1,5 @@
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { z } from "zod";
 
 import { listConnectors, testConnector } from "@/server/connectors/registry";
@@ -275,6 +277,12 @@ export const ENGINE_CALLS = {
   pullAgain: call(id, (connectorId) => pullAgain(connectorId)),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
+  // The folder workspace a board opens in when no project is open: next to the app's database.
+  ensureLeadStudioWorkspaceDir: call(none, () => {
+    const dir = path.resolve(path.dirname(process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"), "Lead Studio");
+    mkdirSync(dir, { recursive: true });
+    return dir;
+  }),
 
   listNotificationsAction: call(none, listNotificationsAction),
   markReadAction: call(z.tuple([z.number().int()]), markReadAction),

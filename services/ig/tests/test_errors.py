@@ -93,3 +93,9 @@ def test_drift_error_carries_raw_payload() -> None:
     assert err.retryable is False
     assert err.detail["field"] == "pk"
     assert err.detail["raw"] == {"code": "abc"}
+
+
+def test_expired_session_client_error_is_auth_not_network() -> None:
+    # The first real-data run: an expired session came back as ClientError("login_required").
+    assert classify(ig_ex.ClientError("login_required")) == errors.IG_AUTH_REQUIRED
+    assert classify(ig_ex.ClientUnauthorizedError("401")) == errors.IG_AUTH_REQUIRED
