@@ -72,11 +72,11 @@ const GROUPS: { id: string; label: () => string; items: NavItem[] }[] = [
         icon: CalendarDays,
         ...board('plan')
       },
-      // Studio has no board yet; the row holds its place in the nav.
       {
         id: 'studio',
         label: () => translate('leadStudio.nav.studio', 'Studio'),
-        icon: Clapperboard
+        icon: Clapperboard,
+        ...board('studio')
       }
     ]
   },

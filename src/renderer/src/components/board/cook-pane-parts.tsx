@@ -35,10 +35,12 @@ function Signal({ tone }: { tone: CookCard['tone'] }): React.ReactNode {
   )
 }
 
-const ACTION_LABEL: Record<CookAction, () => string> = {
+const ACTION_LABEL: Record<CookAction, (card: CookCard) => string> = {
   retry: () => translate('boards.cook.retry', 'Retry cook'),
   resume: () => translate('boards.cook.resume', 'Resume cook'),
-  terminal: () => translate('boards.cook.terminal', 'Show terminal')
+  terminal: () => translate('boards.cook.terminal', 'Show terminal'),
+  compare: (card) => `Compare v${card.compare?.[0]} · v${card.compare?.[1]}`,
+  donecompare: () => translate('boards.cook.done', 'Done')
 }
 
 export function StatusCard({
@@ -92,10 +94,16 @@ export function StatusCard({
                 key={action}
                 data-testid={`cook-${action}`}
                 size="sm"
-                variant={i === 0 && action !== 'terminal' ? 'default' : 'outline'}
+                variant={
+                  action === 'donecompare'
+                    ? 'ghost'
+                    : i === 0 && action !== 'terminal'
+                      ? 'default'
+                      : 'outline'
+                }
                 onClick={() => onAction(action)}
               >
-                {ACTION_LABEL[action]()}
+                {ACTION_LABEL[action](card)}
               </Button>
             ))}
           </div>
@@ -134,7 +142,14 @@ const SEGMENT_BAR: Record<CookSegment['state'], string> = {
   pending: ''
 }
 
-export function Strip({ segments }: { segments: CookSegment[] }): React.ReactNode {
+/** `bare`: bars only, for a row on the Studio board (proto 39). */
+export function Strip({
+  segments,
+  bare
+}: {
+  segments: CookSegment[]
+  bare?: boolean
+}): React.ReactNode {
   return (
     <div data-testid="cook-strip" role="list" className="grid grid-cols-6 gap-1.5">
       {segments.map((seg) => (
@@ -165,18 +180,20 @@ export function Strip({ segments }: { segments: CookSegment[] }): React.ReactNod
               }}
             />
           </i>
-          <span
-            className={cn(
-              'truncate text-[11.5px]',
-              seg.state === 'done' || seg.state === 'pending'
-                ? 'text-muted-foreground'
-                : 'font-medium text-foreground'
-            )}
-          >
-            {seg.state === 'done' ? '✓ ' : ''}
-            {translate(`boards.cook.step.${seg.group}`, seg.group)}
-          </span>
-          {seg.time ? (
+          {bare ? null : (
+            <span
+              className={cn(
+                'truncate text-[11.5px]',
+                seg.state === 'done' || seg.state === 'pending'
+                  ? 'text-muted-foreground'
+                  : 'font-medium text-foreground'
+              )}
+            >
+              {seg.state === 'done' ? '✓ ' : ''}
+              {translate(`boards.cook.step.${seg.group}`, seg.group)}
+            </span>
+          )}
+          {seg.time && !bare ? (
             <em className="-mt-1 font-mono text-[11px] text-muted-foreground not-italic">
               {seg.time}
             </em>

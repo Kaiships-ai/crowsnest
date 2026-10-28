@@ -50,7 +50,7 @@ export default async function baseline({ page, step }) {
   await step("shell: Lead Studio rows replace Orca's nav, Workspaces below, no Tasks/Automations/Mobile/kanban/floating terminal", async () => {
     await nav("today").waitFor({ timeout: 20_000 });
     const rows = await page.getByTestId("ls-nav-row").allInnerTexts();
-    if (rows.join("|") !== "Today|Funnel|My channel|Rivals|Plan|Studio\nSoon|Sources|Agents") throw new Error(`nav rows: ${rows.join("|")}`);
+    if (rows.join("|") !== "Today|Funnel|My channel|Rivals|Plan|Studio|Sources|Agents") throw new Error(`nav rows: ${rows.join("|")}`);
     for (const hidden of ["Tasks", "Automations", "Orca Mobile"]) {
       if (await page.getByRole("button", { name: hidden, exact: true }).isVisible().catch(() => false)) throw new Error(`${hidden} is visible`);
     }

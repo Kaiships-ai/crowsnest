@@ -299,7 +299,7 @@ describe('SidebarNav', () => {
       'My channel',
       'Rivals',
       'Plan',
-      'StudioSoon',
+      'Studio',
       'Sources',
       'Agents'
     ])

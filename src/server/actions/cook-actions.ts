@@ -4,12 +4,13 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db, nowIso, tables } from "../db";
 import type { ActionResult, SimpleResult } from "../lib/action-result";
 import { clockNow } from "../lib/clock";
 import { planCardState, type PlanCardState } from "../queries/plan-board";
+import { cookVersions, finalMp4, pickCookVersion, readCookIndex, recordCookRound, renderSlotFilms, snapshotCookVersion, type CookRound, type CookVersion } from "./cook-versions";
 
 /** studio-reel's checkout. A verify lane (ORCA_E2E_USER_DATA_DIR) must name its temp copy in
  *  LEAD_STUDIO_COOK_ROOT and never falls back to the real one. */
@@ -88,7 +89,14 @@ const JobStep = z.object({
   started: z.string().optional(),
   ended: z.string().optional(),
 });
-const Job = z.object({ steps: z.array(JobStep), outputs: z.array(z.string()).default([]), qa: z.string().optional(), style: z.string().optional() });
+const Job = z.object({
+  steps: z.array(JobStep),
+  outputs: z.array(z.string()).default([]),
+  qa: z.string().optional(),
+  style: z.string().optional(),
+  // Proposed: `job.mjs … deliver done --change="…"`, what a feedback round changed.
+  change: z.string().optional(),
+});
 export type CookJobStep = z.infer<typeof JobStep>;
 
 export type CookView = {
@@ -118,6 +126,16 @@ export type CookView = {
   pidGone: boolean | null;
   /** Median of this Mac's last 5 renders; 180 s until 3 renders carry started and ended. */
   usualRenderSec: number;
+  /** The newest playable file (proposal 4): the final once render is done, else the draft once draft is done. */
+  video: { kind: "draft" | "final"; file: string; mtime: number } | null;
+  /** versions/v1..vN, saved by Lead Studio each time deliver turns done (proposal 3). */
+  versions: CookVersion[];
+  /** Feedback rounds Kai sent; round n was made from version `from`. */
+  rounds: CookRound[];
+  /** The version Gate 2 gets; null means the newest. */
+  use: number | null;
+  /** The render waits for studio-reel's render slot (RENDER_SLOTS=1) while another reel renders. */
+  renderQueue: { behind: string | null; startsInSec: number | null } | null;
 };
 
 const firstSeen = new Map<string, number | null>();
@@ -186,6 +204,17 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
     const since = Date.parse(running.started ?? "") || firstSeen.get(key);
     if (since) elapsedSec = Math.max(0, Math.round((Date.now() - since) / 1000));
   }
+  const done = (name: string) => steps?.find((s) => s.name === name)?.status === "done";
+  const outputs = job?.success ? job.data.outputs : [];
+  const final = finalMp4(outputs);
+  const draft = outputs.find((f) => f.endsWith("draft.mp4"));
+  const playable = !film ? null : done("render") && final ? { kind: "final" as const, file: path.join(film, final) } : done("draft") && draft ? { kind: "draft" as const, file: path.join(film, draft) } : null;
+  const mtime = playable ? (await stat(playable.file).catch(() => null))?.mtimeMs : undefined;
+  const video = playable && mtime != null ? { ...playable, mtime } : null;
+  const index = film && job?.success && done("deliver") ? await snapshotCookVersion(film, job.data) : film ? await readCookIndex(film) : null;
+  const pidGone = running?.pid != null ? !pidAlive(running.pid) : null;
+  const usual = root ? await usualRenderSec(root) : DEFAULT_RENDER_SEC;
+  const renderQueue = root && running?.name === "render" && !pidGone ? await queuedBehind(root, slug, usual) : null;
   const vo = film ? z.object({ lines: z.array(z.object({ text: z.string() })) }).safeParse(await readJson(path.join(film, "vo/script.json"))) : null;
   return {
     ok: true,
@@ -204,7 +233,54 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
     style: job?.success ? (job.data.style ?? null) : null,
     scriptLines: vo?.success ? vo.data.lines.map((l) => l.text) : null,
     elapsedSec,
-    pidGone: running?.pid != null ? !pidAlive(running.pid) : null,
-    usualRenderSec: root ? await usualRenderSec(root) : DEFAULT_RENDER_SEC,
+    pidGone,
+    usualRenderSec: usual,
+    video,
+    versions: film && index ? await cookVersions(film, index) : [],
+    rounds: index?.rounds ?? [],
+    use: index?.use ?? null,
+    renderQueue,
   };
+}
+
+/** In line for the render (proto 40): a render slot is held, and not by this film. */
+async function queuedBehind(root: string, slug: string, usual: number): Promise<CookView["renderQueue"]> {
+  const films = await renderSlotFilms();
+  if (!films || films.includes(slug)) return null;
+  const other = films.find(Boolean);
+  if (!other) return { behind: null, startsInSec: null };
+  const rows = await db.select({ id: tables.plannedPosts.id, title: tables.plannedPosts.title }).from(tables.plannedPosts);
+  const job = Job.safeParse(await readJson(path.join(root, "films", other, "job.json")));
+  const started = Date.parse((job.success ? job.data.steps.find((s) => s.name === "render")?.started : undefined) ?? "");
+  return {
+    behind: rows.find((r) => reelSlug(r.title, r.id) === other)?.title ?? null,
+    startsInSec: started ? Math.max(0, Math.round(usual - (Date.now() - started) / 1000)) : null,
+  };
+}
+
+const filmOf = async (id: string): Promise<string | null> => {
+  const [plan] = await db.select({ title: tables.plannedPosts.title }).from(tables.plannedPosts).where(eq(tables.plannedPosts.id, id)).limit(1);
+  const root = cookRoot();
+  return plan && root ? path.join(root, "films", reelSlug(plan.title, id)) : null;
+};
+
+/** Records a feedback round in versions/index.json and returns the message the pane types into Claude. */
+export async function recordCookRoundAction(id: string, note: string): Promise<ActionResult<{ round: number; message: string }>> {
+  const film = await filmOf(id);
+  const recorded = film && note.trim() ? await recordCookRound(film, note) : null;
+  if (!recorded) return { ok: false, error: "There is no saved version to give feedback on yet.", code: "COOK_NO_VERSION" };
+  return { ok: true, round: recorded.round.n, message: recorded.message };
+}
+
+/** Picks the version Gate 2 gets (Use v1 in Compare). */
+export async function pickCookVersionAction(id: string, n: number): Promise<SimpleResult> {
+  const film = await filmOf(id);
+  return film && (await pickCookVersion(film, n)) ? { ok: true } : { ok: false, error: "That version does not exist.", code: "COOK_NO_VERSION" };
+}
+
+/** Every reel cooking now, for the Studio board (proto 39). */
+export async function listCooksAction(): Promise<{ id: string; view: CookView }[]> {
+  const rows = await db.select({ id: tables.plannedPosts.id }).from(tables.plannedPosts).where(isNotNull(tables.plannedPosts.cookWorkspaceId));
+  const views = await Promise.all(rows.map(async (r) => ({ id: r.id, view: await getCookView(r.id) })));
+  return views.flatMap(({ id, view }) => (view.ok ? [{ id, view }] : []));
 }

@@ -48,7 +48,7 @@ The main bundle compiles `src/server` with its pure JS dependencies (drizzle-orm
 
 ## Shell
 
-The left sidebar keeps Orca's Search row, then Lead Studio's rows (`LeadStudioNavRows` in `src/renderer/src/components/sidebar/LeadStudioNavRows.tsx`): Today; Insight: Funnel, My channel, Rivals; Create: Plan, Studio; System: Sources, Agents. A board row opens its board in the active workspace and is marked while that board is the active tab. Sources opens Settings > Sources. Studio has no board yet and shows Soon. Below the rows sits Orca's workspace list, titled Workspaces.
+The left sidebar keeps Orca's Search row, then Lead Studio's rows (`LeadStudioNavRows` in `src/renderer/src/components/sidebar/LeadStudioNavRows.tsx`): Today; Insight: Funnel, My channel, Rivals; Create: Plan, Studio; System: Sources, Agents. A board row opens its board in the active workspace and is marked while that board is the active tab. Sources opens Settings > Sources. Studio opens the Studio board: one row per reel cooking now. Below the rows sits Orca's workspace list, titled Workspaces.
 
 Lead Studio drops these Orca surfaces: the Tasks, Automations and Orca Mobile rows and the onboarding checklist entry (`SidebarNav.tsx`), the workspace kanban toggle (`SidebarToolbar.tsx`), the floating terminal button (`AppWorkspaceShell.tsx`), the feature tips Orca opened on its own at launch (`use-onboarding-and-feature-tips.ts`), and the Help menu's Orca links: Send Feedback, Milestones, Docs, Changelog, GitHub, Discord and X (`SidebarSettingsHelpMenu.tsx`). Their code stays; nothing renders them.
 

@@ -47,10 +47,15 @@ host_fingerprint() {
 host_fingerprint >"$DIR/host.fingerprint"
 
 # Cook writes into a temp studio-reel copy (its docs and make-reel skill only), never Kai's checkout;
-# the app refuses Cook in a lane that names none. A fixed path outside any git checkout keeps the
-# shell prompt in the cook workspace shot the same.
+# the app refuses Cook in a lane that names none. One copy per worktree, so two lanes never write
+# into each other's films/; the path outside any git checkout still ends in studio-reel, which keeps
+# the shell prompt in the cook workspace shot the same. Render slots (studio-reel's RENDER_SLOTS lock
+# dir) live beside it, so a lane's fixtures never see Kai's real renders, nor his them.
 STUDIO="$HOME/Desktop/kaiships/studio-reel"
-export LEAD_STUDIO_COOK_ROOT="/tmp/lead-studio-cook/studio-reel"
+LANE_COOK="/tmp/lead-studio-cook/$(basename "$PWD")"
+export LEAD_STUDIO_COOK_ROOT="$LANE_COOK/studio-reel"
+export RENDER_SLOT_DIR="$LANE_COOK/render-slots"
+rm -rf "$RENDER_SLOT_DIR"
 rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
 for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md core/job.mjs; do
   if [ -f "$STUDIO/$f" ]; then

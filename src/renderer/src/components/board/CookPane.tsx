@@ -34,6 +34,9 @@ import {
   useTabStatusEntry
 } from './use-cook-claude'
 import { useCookView, type Reopen } from './use-cook-view'
+import { compareCard } from './cook-version-cards'
+import { CompareBox, VideoBox } from './cook-video'
+import { FeedbackBox } from './cook-feedback'
 
 const STALL: Partial<Record<string, 'failed' | 'paused'>> = {
   crashed: 'failed',
@@ -73,6 +76,7 @@ export function CookPane({
     <CookPaneBody
       {...props}
       liveness={leftBehind ? 'exited' : tabsReady ? 'closed' : 'unknown'}
+      claudeState={null}
       entryPrompt={null}
       askedAt={null}
       keys={null}
@@ -84,7 +88,7 @@ export function CookPane({
 function CookPaneWithClaude({
   tab,
   ...props
-}: Omit<BodyProps, 'liveness' | 'entryPrompt' | 'askedAt' | 'keys'> & {
+}: Omit<BodyProps, 'liveness' | 'claudeState' | 'entryPrompt' | 'askedAt' | 'keys'> & {
   tab: TerminalTab
 }): React.ReactNode {
   const entry = useTabStatusEntry(tab.id)
@@ -113,6 +117,7 @@ function CookPaneWithClaude({
             ? 'unknown'
             : 'alive'
       }
+      claudeState={entry?.state ?? null}
       entryPrompt={promptFromStatus(entry)}
       askedAt={entry?.stateStartedAt ?? null}
       keys={keys}
@@ -130,6 +135,8 @@ type BodyProps = {
   stoppedAt: number | null
   markStopped: (at: number | null) => void
   liveness: CookClaude['liveness']
+  /** Orca's hook state for Claude: working, waiting, blocked or done. */
+  claudeState: string | null
   entryPrompt: CookPrompt | null
   askedAt: number | null
   keys: ClaudeKeys | null
@@ -145,10 +152,13 @@ function CookPaneBody({
   stoppedAt,
   markStopped,
   liveness,
+  claudeState,
   entryPrompt,
   askedAt,
   keys
 }: BodyProps): React.ReactNode {
+  const [shown, setShown] = useState<number | null>(null)
+  const [comparing, setComparing] = useState<[number, number] | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [confirmStop, setConfirmStop] = useState(false)
@@ -165,7 +175,8 @@ function CookPaneBody({
     stoppedAt,
     restarted: reopen?.restarted ?? false
   }
-  const card = cookCard(view, claude, now)
+  const stepCard = cookCard(view, claude, now)
+  const card = comparing && stepCard.compare ? compareCard(view, comparing) : stepCard
   const asked =
     card.prompt && askedAt != null ? waited(Math.max(0, (now - askedAt) / 1000)) : undefined
   const steps = view.steps ?? []
@@ -190,6 +201,10 @@ function CookPaneBody({
   const onAction = async (action: CookAction): Promise<void> => {
     if (action === 'terminal') {
       showCookTerminal(worktreeId)
+      return
+    }
+    if (action === 'compare' || action === 'donecompare') {
+      setComparing(action === 'compare' ? (card.compare ?? null) : null)
       return
     }
     // Why: after Stop cook the plan row is back to Plan, so Resume cooks again to re-link it.
@@ -227,7 +242,7 @@ function CookPaneBody({
       data-state={card.state}
       data-claude={liveness}
       aria-busy={busy}
-      className="scrollbar-sleek h-full overflow-y-auto"
+      className="scrollbar-sleek @container h-full overflow-y-auto"
     >
       {showBanner ? (
         <div
@@ -297,7 +312,26 @@ function CookPaneBody({
           </p>
         ) : null}
         <Strip segments={cookSegments(view, { asked, stall: STALL[card.state] })} />
-        <ScriptBox view={view} />
+        {comparing && stepCard.compare ? (
+          <CompareBox
+            view={view}
+            pair={comparing}
+            onUse={(n) => void window.api.crowsnest.call('pickCookVersionAction', planId, n)}
+          />
+        ) : (
+          <div className="grid gap-3 @min-[520px]:grid-cols-[188px_minmax(0,1fr)]">
+            <VideoBox view={view} shown={shown} onShow={setShown} />
+            <ScriptBox view={view} />
+          </div>
+        )}
+        {!comparing && (view.video || view.versions.length > 0) ? (
+          <FeedbackBox
+            planId={planId}
+            view={view}
+            claudeIdle={liveness === 'alive' && claudeState === 'done'}
+            type={keys ? keys.message : null}
+          />
+        ) : null}
       </div>
       <Dialog open={confirmStop} onOpenChange={setConfirmStop}>
         <DialogContent data-testid="cook-stop-dialog" showCloseButton={false}>
