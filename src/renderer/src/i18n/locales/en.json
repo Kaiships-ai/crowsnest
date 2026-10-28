@@ -21468,8 +21468,16 @@
       "youCan": "You can",
       "ifYouWait": "If you wait",
       "script": "Script",
-      "wordForWord": "word for word",
-      "fromPlan": "from Plan · Claude reads it next"
+      "voScript": "vo/script.json · word for word",
+      "fromPlan": "from Plan · Claude reads it next",
+      "step": {
+        "Script": "Script",
+        "Voice": "Voice",
+        "Build": "Build",
+        "Draft": "Draft",
+        "Final": "Final",
+        "Review": "Review"
+      }
     }
   },
   "gate": {

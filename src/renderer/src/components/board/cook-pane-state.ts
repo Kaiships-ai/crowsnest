@@ -5,13 +5,15 @@ type CookJobStep = NonNullable<CookView['steps']>[number]
 
 /** The 6 segments the pane draws over job.json's 10 steps (proto v2). */
 export const COOK_GROUPS = [
-  { label: 'Script', steps: ['script'] },
-  { label: 'Voice', steps: ['voice'] },
-  { label: 'Build', steps: ['storyboard', 'chapters', 'audio'] },
-  { label: 'Draft', steps: ['draft'] },
-  { label: 'Final', steps: ['render', 'verify'] },
-  { label: 'Review', steps: ['review', 'deliver'] }
+  { group: 'Script', steps: ['script'] },
+  { group: 'Voice', steps: ['voice'] },
+  { group: 'Build', steps: ['storyboard', 'chapters', 'audio'] },
+  { group: 'Draft', steps: ['draft'] },
+  { group: 'Final', steps: ['render', 'verify'] },
+  { group: 'Review', steps: ['review', 'deliver'] }
 ] as const
+
+export type CookGroup = (typeof COOK_GROUPS)[number]['group']
 
 export type CookTone = 'run' | 'need' | 'err' | 'ok'
 export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'pending'
@@ -29,7 +31,7 @@ export type CookCard = {
   wait?: string
 }
 
-export type CookSegment = { label: string; state: SegmentState; time?: string; pct?: number }
+export type CookSegment = { group: CookGroup; state: SegmentState; time?: string; pct?: number }
 
 export const mmss = (sec: number): string =>
   `${Math.floor(sec / 60)}:${String(Math.round(sec) % 60).padStart(2, '0')}`
@@ -55,10 +57,10 @@ export function cookSegments(view: CookView): CookSegment[] {
   return COOK_GROUPS.map((g, i) => {
     const mine = steps.filter((s) => (g.steps as readonly string[]).includes(s.name))
     if (mine.length > 0 && mine.every((s) => s.status === 'done')) {
-      return { label: g.label, state: 'done' }
+      return { group: g.group, state: 'done' }
     }
     if (i !== at || !current) {
-      return { label: g.label, state: 'pending' }
+      return { group: g.group, state: 'pending' }
     }
     const state: SegmentState =
       current.status === 'failed' || view.pidGone
@@ -67,7 +69,7 @@ export function cookSegments(view: CookView): CookSegment[] {
           ? 'waiting'
           : 'current'
     return {
-      label: g.label,
+      group: g.group,
       state,
       ...(view.elapsedSec != null ? { time: mmss(view.elapsedSec) } : {}),
       ...(current.pct != null ? { pct: current.pct } : {})
@@ -112,7 +114,7 @@ export function cookCard(view: CookView): CookCard {
     }
   }
   // Why Review: job.json names only the 10 known steps; an unknown one sits at the end.
-  const group = COOK_GROUPS[groupOf(current.name)]?.label ?? 'Review'
+  const group = COOK_GROUPS[groupOf(current.name)]?.group ?? 'Review'
   const kept = `During ${group} (${current.name}). ${done} of ${steps.length} steps are done and kept.`
   const resume = {
     acts: ['resume', 'terminal'] satisfies CookAction[],

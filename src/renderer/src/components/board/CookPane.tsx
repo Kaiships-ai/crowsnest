@@ -171,7 +171,7 @@ function Strip({ segments }: { segments: CookSegment[] }): React.ReactNode {
     <div data-testid="cook-strip" role="list" className="grid grid-cols-6 gap-1.5">
       {segments.map((seg) => (
         <div
-          key={seg.label}
+          key={seg.group}
           role="listitem"
           data-testid="cook-segment"
           data-state={seg.state}
@@ -203,7 +203,7 @@ function Strip({ segments }: { segments: CookSegment[] }): React.ReactNode {
             )}
           >
             {seg.state === 'done' ? '✓ ' : ''}
-            {seg.label}
+            {translate(`boards.cook.step.${seg.group}`, seg.group)}
           </span>
           {seg.time ? (
             <em className="-mt-1 font-mono text-[11px] text-muted-foreground not-italic">
@@ -244,7 +244,7 @@ function ScriptBox({ view }: { view: CookView }): React.ReactNode {
         {translate('boards.cook.script', 'Script')}
         <span className="font-mono text-2xs font-normal text-muted-foreground">
           {fromVo
-            ? `vo/script.json · ${translate('boards.cook.wordForWord', 'word for word')}`
+            ? translate('boards.cook.voScript', 'vo/script.json · word for word')
             : translate('boards.cook.fromPlan', 'from Plan · Claude reads it next')}
         </span>
       </h4>
