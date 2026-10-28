@@ -1,4 +1,8 @@
+import { mkdirSync } from "node:fs";
+import path from "node:path";
 import { GRAPH, SIDECAR, openSources, post, sql, summaryOf, waitView } from "./crash-rest-common.mjs";
+
+const STATES = path.resolve(import.meta.dirname, "../../../../../data/verify/evidence/graph-states");
 
 // After the relaunch on the mid-pull DB: both cards read Partial, and Pull the rest continues pull B's count.
 export const dod = [];
@@ -19,6 +23,8 @@ export default async function crashRest02({ page, step, snap }) {
       if (!line.includes(`The pull stopped before it finished, at ${row[1]}/${row[2]}`)) throw new Error(`a lost pull reads as finished: ${line}`);
     }
     await snap("crash-rest-02-partial");
+    mkdirSync(STATES, { recursive: true });
+    await graph.screenshot({ path: path.join(STATES, "rest_after_quit.png") });
   });
 
   await step("Pull the rest on the Graph card measures only the posts B never reached and reads 10/10", async () => {
