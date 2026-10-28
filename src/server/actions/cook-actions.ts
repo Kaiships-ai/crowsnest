@@ -99,6 +99,10 @@ export type CookView = {
   plannedTime: string | null;
   /** The plan row still links a workspace; false after a Cook whose Claude never started was rolled back. */
   cooking: boolean;
+  /** The workspace the plan row links while cooking; Stop cook clears it. */
+  workspaceId: string | null;
+  /** When this Mac last booted (ms): a cook last seen before it did not survive a restart. */
+  bootedAt: number;
   /** studio-reel's root, where Resume starts Claude again. */
   root: string | null;
   /** The plan's own script, shown until vo/script.json exists. */
@@ -191,6 +195,8 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
     plannedDate: plan.plannedDate,
     plannedTime: plan.plannedTime,
     cooking: plan.cookWorkspaceId != null,
+    workspaceId: plan.cookWorkspaceId,
+    bootedAt: Math.round(Date.now() - os.uptime() * 1000),
     root,
     planScript: row.script?.trim() || null,
     steps,

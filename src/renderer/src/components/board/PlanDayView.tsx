@@ -56,7 +56,7 @@ function CookButton({
         data-testid="plan-cook-open"
         variant="outline"
         size="xs"
-        onClick={() => openCookWorkspace(workspaceId)}
+        onClick={() => openCookWorkspace(workspaceId, card.id)}
       >
         {translate('boards.plan.cookOpen', 'Open workspace')}
       </Button>

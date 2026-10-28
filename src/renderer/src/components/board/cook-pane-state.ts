@@ -1,4 +1,13 @@
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
+import {
+  claudeFirstCard,
+  claudeGoneCard,
+  mmss,
+  NO_CLAUDE_FACTS,
+  RESUME_LINES,
+  type CookClaude,
+  type CookPrompt
+} from './cook-claude-cards'
 
 export type CookView = Extract<EngineCallValue<'getCookView'>, { ok: true }>
 type CookJobStep = NonNullable<CookView['steps']>[number]
@@ -15,8 +24,8 @@ export const COOK_GROUPS = [
 
 export type CookGroup = (typeof COOK_GROUPS)[number]['group']
 
-export type CookTone = 'run' | 'need' | 'err' | 'ok'
-export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'pending'
+export type CookTone = 'run' | 'need' | 'err' | 'ok' | 'idle'
+export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'paused' | 'pending'
 export type CookAction = 'retry' | 'resume' | 'terminal'
 
 export type CookCard = {
@@ -29,12 +38,12 @@ export type CookCard = {
   acts: CookAction[]
   can?: string
   wait?: string
+  prompt?: CookPrompt
+  /** The plain-text question fallback: a reply box that types into the terminal. */
+  reply?: boolean
 }
 
 export type CookSegment = { group: CookGroup; state: SegmentState; time?: string; pct?: number }
-
-export const mmss = (sec: number): string =>
-  `${Math.floor(sec / 60)}:${String(Math.round(sec) % 60).padStart(2, '0')}`
 
 const NOTHING = 'Nothing to do. You can leave; the Plan card shows the progress.'
 
@@ -50,7 +59,12 @@ function currentStep(steps: CookJobStep[]): CookJobStep | undefined {
   )
 }
 
-export function cookSegments(view: CookView): CookSegment[] {
+/** `asked`: Claude waits on a question that long. `stall`: Claude is gone, so the step is failed
+ *  (crashed) or paused (closed, restarted, stopped). */
+export function cookSegments(
+  view: CookView,
+  { asked, stall }: { asked?: string; stall?: 'failed' | 'paused' } = {}
+): CookSegment[] {
   const steps = view.steps ?? []
   const current = currentStep(steps)
   const at = current ? groupOf(current.name) : -1
@@ -62,23 +76,41 @@ export function cookSegments(view: CookView): CookSegment[] {
     if (i !== at || !current) {
       return { group: g.group, state: 'pending' }
     }
+    if (stall) {
+      return { group: g.group, state: stall }
+    }
     const state: SegmentState =
       current.status === 'failed' || view.pidGone
         ? 'failed'
-        : current.status === 'waiting'
+        : current.status === 'waiting' || asked
           ? 'waiting'
           : 'current'
     return {
       group: g.group,
       state,
-      ...(view.elapsedSec != null ? { time: mmss(view.elapsedSec) } : {}),
+      ...(asked
+        ? { time: `asked ${asked}` }
+        : view.elapsedSec != null
+          ? { time: mmss(view.elapsedSec) }
+          : {}),
       ...(current.pct != null ? { pct: current.pct } : {})
     }
   })
 }
 
-/** The one status card on top of the pane: proto v2 states 02 to 11 plus the failures job.json can express. */
-export function cookCard(view: CookView): CookCard {
+/** The one status card on top of the pane: proto v2 states 02 to 15, 32 to 36 and 42, plus the
+ *  failures job.json can express. */
+export function cookCard(
+  view: CookView,
+  claude: CookClaude = NO_CLAUDE_FACTS,
+  now: number = Date.now()
+): CookCard {
+  const steps = view.steps ?? []
+  const done = steps.filter((s) => s.status === 'done').length
+  const early = claudeFirstCard(view, claude, now)
+  if (early) {
+    return early
+  }
   if (!view.steps) {
     return view.cooking
       ? {
@@ -100,8 +132,6 @@ export function cookCard(view: CookView): CookCard {
           wait: 'Nothing runs. The slot is back to Plan.'
         }
   }
-  const steps = view.steps
-  const done = steps.filter((s) => s.status === 'done').length
   const current = currentStep(steps)
   if (!current) {
     return {
@@ -116,10 +146,10 @@ export function cookCard(view: CookView): CookCard {
   // Why Review: job.json names only the 10 known steps; an unknown one sits at the end.
   const group = COOK_GROUPS[groupOf(current.name)]?.group ?? 'Review'
   const kept = `During ${group} (${current.name}). ${done} of ${steps.length} steps are done and kept.`
-  const resume = {
-    acts: ['resume', 'terminal'] satisfies CookAction[],
-    can: 'Resume. Lead Studio starts Claude again here, and it skips the done steps.',
-    wait: 'Nothing runs. The Plan card shows Paused.'
+  const resume = { acts: ['resume', 'terminal'] satisfies CookAction[], ...RESUME_LINES }
+  const gone = claudeGoneCard(view, claude, current.name, group)
+  if (gone) {
+    return gone
   }
   if (current.status === 'failed') {
     return {
@@ -149,7 +179,8 @@ export function cookCard(view: CookView): CookCard {
       tone: 'need',
       head: 'Claude is waiting for you in the terminal',
       acts: ['terminal'],
-      wait: 'Claude waits here. Nothing else runs until you answer.'
+      wait: 'Claude waits here. Nothing else runs until you answer.',
+      reply: true
     }
   }
   const so = view.elapsedSec != null ? ` · ${mmss(view.elapsedSec)} so far` : ''
