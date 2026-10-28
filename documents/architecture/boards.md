@@ -112,15 +112,15 @@ Cards that win over job.json, in order:
 
 Then the card follows job.json as above, except while the row is cooking and Claude is gone:
 
-- The Mac restarted since the pane last saw the cook (36): grey, "Claude stopped when your Mac restarted", Resume cook.
+- The Mac restarted since the pane last saw the cook (36): grey, "Claude stopped when your Mac restarted", Resume cook. Once Claude runs again in the workspace, the pane forgets the restart, so a later exit reads as 32.
 - Claude exited (32): red, "Claude stopped unexpectedly", Resume cook and Show terminal; the strip marks the step `failed`.
-- The tab was closed (34): grey, "Claude is not running", Resume cook; the strip marks the step `paused`.
+- The tab was closed (34): grey, "Claude is not running", Resume cook; the strip marks the step `paused`. Until Orca has restored the workspace's tabs after app start (`workspaceSessionReady` and `terminalStartupRestorationReady`), no Claude tab means unknown, and the card stays on job.json.
 
 A `waiting` step in job.json with no prompt in the hook row is the plain-text fallback: "Claude is waiting for you in the terminal" with a reply box that types the text and Enter into the terminal (`sendNativeChatMessage`).
 
 App reopened (35, 36): each poll stamps `localStorage` `cook-seen:<plan id>` with the time and the done groups. On the first poll after the app started (`performance.timeOrigin` is later than the stamp), the pane compares: if Claude is still alive (Orca's terminal daemon kept the session), one blue line reads "Welcome back. While Lead Studio was closed (N min), Claude kept cooking: <groups> are done.", with a close button; if this Mac booted after the stamp (`getCookView` returns `bootedAt` from `os.uptime()`) and Claude is gone, the card is 36. Board tabs are not restored when the app restarts, so Open workspace on the Plan card puts the Cook pane back in the leftmost group (reusing it when empty, else a new group split to its left).
 
-Stop cook (41, 42): the pane's ⋯ menu has Show terminal and, while cooking, Stop cook…, which asks "Stop this cook?" with what stays in `films/<slug>/` and where the slot goes. Stop cook sends Esc to Claude, then `/exit` and Enter, calls `clearPlanCookingAction`, and stamps `cook-stopped:<plan id>`. Resume cook on a stopped cook runs `cookReel` again, which re-links the workspace and starts a fresh Claude with `/make-reel`.
+Stop cook (41, 42): the pane's ⋯ menu has Show terminal and, while cooking, Stop cook…, which asks "Stop this cook?" with what stays in `films/<slug>/` and where the slot goes. Stop cook sends Esc to Claude, then `/exit` and Enter, calls `clearPlanCookingAction`, and stamps `cook-stopped:<plan id>`. The pane drops the stamp when it sees the row cooking again, however that cook started. Resume cook on a stopped cook runs `cookReel` again, which re-links the workspace and starts a fresh Claude with `/make-reel`.
 
 ## Gate 1 board
 

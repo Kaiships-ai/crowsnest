@@ -107,6 +107,8 @@ describe('Cook pane cards driven by Claude', () => {
     expect(cookCard(v, claude({ liveness: 'closed', restarted: true }), NOW).state).toBe(
       'reopen-dead'
     )
+    // Tabs not restored yet: keep the running card, no grey flash.
+    expect(cookCard(v, claude({ liveness: 'unknown' }), NOW)).toMatchObject({ tone: 'run' })
     expect(cookSegments(v, { stall: 'paused' })[2]).toMatchObject({
       group: 'Build',
       state: 'paused'

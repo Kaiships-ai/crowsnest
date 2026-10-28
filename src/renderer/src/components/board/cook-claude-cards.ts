@@ -20,8 +20,8 @@ type CookOption = { label: string; description?: string; recommended: boolean }
 /** Claude in the reel workspace, from Orca's tabs and hook state. */
 export type CookClaude = {
   /** alive: Claude runs in the newest Claude tab; exited: the tab is there but Claude left it;
-   *  closed: no Claude tab. */
-  liveness: 'alive' | 'exited' | 'closed'
+   *  closed: no Claude tab; unknown: the workspace's tabs are not restored yet. */
+  liveness: 'alive' | 'exited' | 'closed' | 'unknown'
   prompt: CookPrompt | null
   /** When Orca saw Claude start waiting on the prompt (ms). */
   askedAt: number | null
@@ -168,7 +168,7 @@ export function claudeGoneCard(
   step: string,
   group: string
 ): CookCard | null {
-  if (!view.cooking || claude.liveness === 'alive') {
+  if (!view.cooking || claude.liveness === 'alive' || claude.liveness === 'unknown') {
     return null
   }
   const steps = view.steps ?? []

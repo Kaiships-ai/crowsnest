@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Loader2, MoreHorizontal, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -36,8 +36,6 @@ const STALL: Partial<Record<string, 'failed' | 'paused'>> = {
   'stopped-by-kai': 'paused'
 }
 
-const STOPPED_KEY = (planId: string): string => `cook-stopped:${planId}`
-
 /** The Cook pane (proto v2): left half of the "Reel: <title>" workspace, Claude on the right. */
 export function CookPane({
   planId,
@@ -46,8 +44,11 @@ export function CookPane({
   planId: string
   worktreeId: string
 }): React.ReactNode {
-  const { view, now, error, reopen } = useCookView(planId)
+  const { view, now, error, ...cook } = useCookView(planId)
   const { tab, leftBehind } = useCookClaudeTab(worktreeId)
+  // Why: right after app start the reel workspace's tabs are not restored yet; no tab then is
+  // not "Claude is not running", so the running card stays.
+  const tabsReady = useAppStore((s) => s.workspaceSessionReady && s.terminalStartupRestorationReady)
   if (!view) {
     return (
       <div
@@ -59,13 +60,13 @@ export function CookPane({
       </div>
     )
   }
-  const props = { planId, worktreeId, view, now, reopen }
+  const props = { planId, worktreeId, view, now, ...cook }
   return tab ? (
     <CookPaneWithClaude {...props} tab={tab} />
   ) : (
     <CookPaneBody
       {...props}
-      liveness={leftBehind ? 'exited' : 'closed'}
+      liveness={leftBehind ? 'exited' : tabsReady ? 'closed' : 'unknown'}
       entryPrompt={null}
       askedAt={null}
       keys={null}
@@ -112,6 +113,9 @@ type BodyProps = {
   view: CookView
   now: number
   reopen: Reopen | null
+  forgetRestart: () => void
+  stoppedAt: number | null
+  markStopped: (at: number | null) => void
   liveness: CookClaude['liveness']
   entryPrompt: CookPrompt | null
   askedAt: number | null
@@ -124,6 +128,9 @@ function CookPaneBody({
   view,
   now,
   reopen,
+  forgetRestart,
+  stoppedAt,
+  markStopped,
   liveness,
   entryPrompt,
   askedAt,
@@ -133,17 +140,11 @@ function CookPaneBody({
   const [message, setMessage] = useState<string | null>(null)
   const [confirmStop, setConfirmStop] = useState(false)
   const [bannerShut, setBannerShut] = useState(false)
-  const [stoppedAt, setStoppedAt] = useState<number | null>(
-    () => Number(localStorage.getItem(STOPPED_KEY(planId))) || null
-  )
-  const markStopped = (at: number | null): void => {
-    setStoppedAt(at)
-    if (at) {
-      localStorage.setItem(STOPPED_KEY(planId), String(at))
-    } else {
-      localStorage.removeItem(STOPPED_KEY(planId))
+  useEffect(() => {
+    if (liveness === 'alive') {
+      forgetRestart()
     }
-  }
+  }, [liveness, forgetRestart])
   const claude: CookClaude = {
     liveness,
     prompt: entryPrompt,

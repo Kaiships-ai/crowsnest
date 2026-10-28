@@ -278,13 +278,19 @@ export default async function cookPane02({ page, step, snap }) {
     const { head, sub, tone, strip } = await expectCard("reopen-dead", "cook-pane-36-reopen-dead");
     if (head !== "Claude stopped when your Mac restarted" || tone !== "idle" || !strip.includes("Final=paused") || !/^During Final \(render\)\. 6 of 10 steps are done and kept\. The final starts again from frame 0 \(about 3 min\)\.$/.test(sub)) throw new Error(sub);
     if (await pane.getByTestId("cook-banner").count()) throw new Error("a Welcome back line while Claude is gone");
+    // Once Resume brings Claude back, losing it again is 32 or 34, not the restart again (36).
+    // Why close, not Ctrl-D: after a renderer reload Orca does not see the fake's exit.
+    await resume();
+    jobAt("chapters", "running");
+    await expectCard("building", "cook-pane-36-resumed");
+    await page.evaluate((id) => window.__store.getState().closeTab(id), (await claudeTab()).tabId);
+    await expectCard("stopped", "cook-pane-36-then-closed");
     // From here the fake reads raw bytes and prints them with cat -v, so Stop's Esc shows as ^[.
     const raw = path.join(ROOT, "..", "fake-claude-raw.sh");
     writeFileSync(raw, '#!/bin/sh\necho "fake claude $*"\nstty -icanon\nexec cat -uv\n');
     chmodSync(raw, 0o755);
     await page.evaluate((cmd) => window.__store.getState().updateSettings({ agentCmdOverrides: { claude: cmd } }), raw);
     await resume();
-    jobAt("chapters", "running");
     await expectCard("building", "cook-pane-36-resumed");
   });
 
@@ -325,6 +331,23 @@ export default async function cookPane02({ page, step, snap }) {
     console.log(`db cook_workspace_id: ${stored}`);
     if (!stored) throw new Error("not cooking again");
     await expectCard("building", "cook-pane-42-resumed");
+  });
+
+  await step("a cook started again from Plan drops the old Stop cook mark", async () => {
+    const ws = await page.evaluate((id) => window.api.crowsnest.call("getCookView", id).then((r) => r.value.workspaceId), PLAN);
+    await pane.getByTestId("cook-menu").click();
+    await page.getByTestId("cook-stop").click();
+    await page.getByTestId("cook-stop-confirm").click();
+    await expectCard("stopped-by-kai", "cook-pane-42-stopped-again");
+    // What Plan's Cook does to the row; the pane did not start it, so only its poll can see it.
+    await page.evaluate(([id, w]) => window.api.crowsnest.call("markPlanCookingAction", id, w), [PLAN, ws]);
+    let mark = "";
+    for (let i = 0; i < 20 && mark !== null; i++) {
+      await page.waitForTimeout(250);
+      mark = await page.evaluate((id) => localStorage.getItem(`cook-stopped:${id}`), PLAN);
+    }
+    console.log(`stop mark after cooking again: ${mark}`);
+    if (mark !== null) throw new Error("the Stop cook mark outlived the new cook");
   });
 
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
