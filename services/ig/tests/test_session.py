@@ -11,6 +11,7 @@ import json
 import logging
 import threading
 from dataclasses import replace
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -19,7 +20,7 @@ from instagrapi import exceptions as ig_ex
 from crowsnest_ig.config import Config
 from crowsnest_ig.errors import IgError
 from crowsnest_ig.logging import LOGGER_NAME, configure
-from crowsnest_ig.session import ChallengeBroker, SessionManager
+from crowsnest_ig.session import ChallengeBroker, CrowsnestClient, SessionManager
 
 
 class EventCapture(logging.Handler):
@@ -425,6 +426,84 @@ def test_rejected_sessionid_does_not_claim_success(config: Config) -> None:
 
     assert "sessionid" in str(excinfo.value).lower()
     assert not client.dumped, "a rejected sessionid must not be persisted"
+
+
+def test_sample_sessionid_leaves_the_held_session_alone(config: Config) -> None:
+    held = FakeClient()
+    manager = make_manager(config, held)
+    trial = FakeClient()
+    trial.user_info_by_username = lambda name, use_cache: SimpleNamespace(model_dump=lambda mode: {"pk": "42", "username": name})
+    manager._fresh_client = lambda: trial  # noqa: SLF001 - test seam
+
+    assert manager.sample_sessionid(" sess-new ") == {"pk": "42", "username": "burner"}
+    assert trial.sessionids == ["sess-new"]
+    assert manager._client is held  # noqa: SLF001
+    assert held.sessionids == [] and not held.dumped and not trial.dumped
+
+
+SESSION_BLOB = (
+    '{"uuids": {}, "device_settings": {}, "user_agent": "x", "cookies": {"sessionid": "held"},'
+    ' "authorization_data": {"ds_user_id": "7", "sessionid": "held"}, "last_login": null,'
+    ' "country": "US", "country_code": 1, "locale": "en_US", "timezone_offset": 0}'
+)
+TRIAL_ID = "4242424242%3AabcdefghijklmnopqrstuvwxyzABCD%3A1"
+
+
+def held_session(config: Config) -> SessionManager:
+    """A manager that built its client from a saved session file, the way the sidecar boots."""
+    config.session_path.parent.mkdir(parents=True, exist_ok=True)
+    config.session_path.write_text(SESSION_BLOB)
+    manager = SessionManager(replace(config, username="burner", password="secret"))
+    assert manager.client.user_id == 7 and manager.session_loaded
+    return manager
+
+
+def test_sample_sessionid_on_a_real_fresh_client_leaves_the_session_and_its_file_alone(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = held_session(config)
+    held = manager.client
+    held_settings = json.dumps(held.get_settings(), sort_keys=True, default=str)
+    looked_up: list[int] = []
+
+    def user_info_v1(self, user_id: int):
+        looked_up.append(user_id)
+        return SimpleNamespace(username="trial_user", pk=user_id)
+
+    def user_info_by_username(self, username: str, use_cache: bool = True):
+        return SimpleNamespace(model_dump=lambda mode: {"pk": str(self.user_id), "username": username})
+
+    monkeypatch.setattr(CrowsnestClient, "user_info_v1", user_info_v1)
+    monkeypatch.setattr(CrowsnestClient, "user_info_by_username", user_info_by_username)
+
+    assert manager.sample_sessionid(f" {TRIAL_ID} ") == {"pk": "4242424242", "username": "trial_user"}
+    assert looked_up == [4242424242]
+    assert manager._client is held  # noqa: SLF001
+    assert manager.session_loaded is True
+    assert held.user_id == 7
+    assert json.dumps(held.get_settings(), sort_keys=True, default=str) == held_settings
+    assert config.session_path.read_text() == SESSION_BLOB
+
+
+def test_sample_sessionid_rejected_by_instagram_is_auth_required_and_changes_nothing(
+    config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = held_session(config)
+    held = manager.client
+
+    def refused(self, *args, **kwargs):
+        raise ig_ex.LoginRequired("login_required")
+
+    for name in ("user_info_v1", "_user_short_from_private_stream", "user_short_gql"):
+        monkeypatch.setattr(CrowsnestClient, name, refused)
+
+    with pytest.raises(IgError) as excinfo:
+        manager.sample_sessionid(TRIAL_ID)
+
+    assert excinfo.value.code == "IG_AUTH_REQUIRED"
+    assert manager._client is held and held.user_id == 7  # noqa: SLF001
+    assert manager.session_loaded is True
+    assert config.session_path.read_text() == SESSION_BLOB
 
 
 def test_sessionid_import_emits_start_and_outcome_events(config: Config, events) -> None:

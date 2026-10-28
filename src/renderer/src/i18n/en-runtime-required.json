@@ -3035,26 +3035,16 @@
     "vault": {
       "edit": "Edit",
       "empty": "No sources yet.",
-      "fix": {
-        "error": "Click Test to check the connection, fix the key with Edit, then Pull again.",
-        "missing": "Click Edit and enter {{missing}}.",
-        "noAdapter": "You can save the key now with Edit; the app pulls once a connector exists.",
-        "partial": "Pull again later, once the source limit resets.",
-        "stale": "Click Pull again, or wait for the 05:00 pull."
-      },
       "graphLeft": "Graph calls left/hr",
       "lastPull": "Last pull",
-      "nextPull": "Next pull",
       "noSecrets": "This source needs no key.",
       "problem": {
         "error": "The last pull failed.",
         "missing": "Missing {{missing}}.",
         "never": "Never pulled.",
         "noAdapter": "The app has no connector for this source yet.",
-        "partial": "The last pull was partial ({{detail}}), so the old numbers are kept.",
-        "stale": "No complete pull since 05:00 today."
+        "partial": "The last pull was partial ({{detail}}), so the old numbers are kept."
       },
-      "pull": "Pull again",
       "save": "Save",
       "secretMissing": "not set",
       "secretSaved": "saved · source {{source}}",
@@ -3066,9 +3056,7 @@
         "partial": "partial",
         "running": "running",
         "stale": "stale"
-      },
-      "test": "Test",
-      "testOk": "Connected."
+      }
     }
   },
   "browser": {

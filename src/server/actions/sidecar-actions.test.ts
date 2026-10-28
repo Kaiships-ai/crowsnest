@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 // No real process spawns and no real health probe fires here: `control.ts`'s own
 // spawn/pid-file behavior is covered by control.test.ts, and this file is only about
@@ -6,11 +6,17 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 vi.mock("@/server/sidecar/control", () => ({
   startSidecar: vi.fn(),
   stopSidecar: vi.fn(),
-  sidecarPidAlive: vi.fn(() => false),
+  sidecarPidAlive: vi.fn(() => true),
 }));
 vi.mock("@/server/actions/ig-actions", () => ({ getIgStatusAction: vi.fn() }));
+vi.mock("@/server/services/connector-status", () => ({ recordSwitch: vi.fn(), sampleConnector: vi.fn() }));
+vi.mock("@/server/actions/secrets-actions", () => ({ setConnectorSecret: vi.fn() }));
 
-afterEach(() => vi.clearAllMocks());
+beforeEach(() => vi.useFakeTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
+});
 
 type StatusResult = Awaited<ReturnType<typeof import("@/server/actions/ig-actions").getIgStatusAction>>;
 
@@ -45,33 +51,50 @@ describe("startSidecarAction", () => {
     expect(startSidecar).not.toHaveBeenCalled();
   });
 
-  test("reports ok once health answers healthy after a couple of polls", async () => {
+  test("a cold start that answers after 20 s keeps waiting and reports ok", async () => {
     const { getIgStatusAction } = await import("@/server/actions/ig-actions");
-    vi.mocked(getIgStatusAction)
-      .mockResolvedValueOnce(down()) // initial no-op-success check
-      .mockResolvedValueOnce(down()) // poll 1
-      .mockResolvedValueOnce(down()) // poll 2
-      .mockResolvedValueOnce(healthy()); // poll 3
+    const startedAt = Date.now();
+    vi.mocked(getIgStatusAction).mockImplementation(async () => (Date.now() - startedAt >= 20_000 ? healthy() : down()));
     const { startSidecarAction } = await import("./sidecar-actions");
 
-    // Short interval/timeout: the poll window is a parameter precisely so tests never
-    // wait out the real ~5s default.
-    const result = await startSidecarAction(5, 200);
+    const result = startSidecarAction();
+    await vi.advanceTimersByTimeAsync(20_500);
 
-    expect(result).toEqual({ ok: true });
+    expect(await result).toEqual({ ok: true });
   });
 
-  test("reports a clear failure when health never comes up healthy within the window", async () => {
+  test("a process that exits at 3 s fails then, without waiting out the bound", async () => {
     const { getIgStatusAction } = await import("@/server/actions/ig-actions");
+    const { sidecarPidAlive } = await import("@/server/sidecar/control");
+    const startedAt = Date.now();
     vi.mocked(getIgStatusAction).mockResolvedValue(down());
+    vi.mocked(sidecarPidAlive).mockImplementation(() => Date.now() - startedAt < 3_000);
     const { startSidecarAction } = await import("./sidecar-actions");
 
-    const result = await startSidecarAction(5, 30);
+    const result = startSidecarAction();
+    await vi.advanceTimersByTimeAsync(3_500);
 
-    expect(result).toEqual({
+    expect(await result).toEqual({
       ok: false,
       error: "sidecar did not start (check that uv is installed and Instagram credentials are set in Settings)",
     });
+  });
+
+  test("a live process that never answers fails at 60 s and is stopped", async () => {
+    const { getIgStatusAction } = await import("@/server/actions/ig-actions");
+    const { sidecarPidAlive, stopSidecar } = await import("@/server/sidecar/control");
+    vi.mocked(getIgStatusAction).mockResolvedValue(down());
+    vi.mocked(sidecarPidAlive).mockReturnValue(true);
+    const { startSidecarAction } = await import("./sidecar-actions");
+
+    let settled = false;
+    const result = startSidecarAction().finally(() => (settled = true));
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_500);
+
+    expect(await result).toEqual({ ok: false, error: "sidecar did not answer within 60 s" });
+    expect(stopSidecar).toHaveBeenCalledTimes(1);
   });
 
   test("surfaces a synchronous startSidecar throw without polling", async () => {
@@ -83,8 +106,36 @@ describe("startSidecarAction", () => {
     });
     const { startSidecarAction } = await import("./sidecar-actions");
 
-    const result = await startSidecarAction(5, 30);
+    const result = await startSidecarAction();
 
     expect(result).toEqual({ ok: false, error: "spawn uv ENOENT" });
+  });
+});
+
+describe("saveSidecarSessionAction", () => {
+  test("a stored and adopted id is a saved session even when the sample after it hits an Instagram limit", async () => {
+    const { setConnectorSecret } = await import("@/server/actions/secrets-actions");
+    const { sampleConnector } = await import("@/server/services/connector-status");
+    vi.mocked(setConnectorSecret).mockResolvedValue({ ok: true });
+    vi.mocked(sampleConnector).mockResolvedValue({
+      ok: false,
+      message: "Instagram is limiting requests.",
+      retryAfter: "2026-10-28T21:40:00.000Z",
+    });
+    const { saveSidecarSessionAction } = await import("./sidecar-actions");
+
+    expect(await saveSidecarSessionAction("123%3Aabc")).toEqual({ ok: true });
+    expect(vi.mocked(setConnectorSecret).mock.calls).toEqual([["ig-sidecar", "IG_SESSIONID", "123%3Aabc"]]);
+    expect(vi.mocked(sampleConnector).mock.calls).toEqual([["ig-sidecar"]]);
+  });
+
+  test("an id the sidecar refuses is a failed save, and no sample runs", async () => {
+    const { setConnectorSecret } = await import("@/server/actions/secrets-actions");
+    const { sampleConnector } = await import("@/server/services/connector-status");
+    vi.mocked(setConnectorSecret).mockResolvedValue({ ok: false, error: "Saved, but Instagram asks for challenge required." });
+    const { saveSidecarSessionAction } = await import("./sidecar-actions");
+
+    expect(await saveSidecarSessionAction("123%3Aabc")).toEqual({ ok: false, error: "Saved, but Instagram asks for challenge required." });
+    expect(sampleConnector).not.toHaveBeenCalled();
   });
 });

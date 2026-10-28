@@ -16,6 +16,8 @@ export function IntegrationCardShell(props: {
   description: React.ReactNode
   statusLabel: string
   statusTone: IntegrationCardStatusTone
+  /** A spinner inside the pill, for work in flight such as a pull. */
+  statusBusy?: boolean
   checking?: boolean
   className?: string
   settingsSectionId?: string
@@ -29,9 +31,11 @@ export function IntegrationCardShell(props: {
     <span
       className={cn(
         'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-medium',
-        STATUS_TONE_CLASSES[props.statusTone]
+        STATUS_TONE_CLASSES[props.statusTone],
+        props.statusBusy && 'inline-flex items-center gap-1.5'
       )}
     >
+      {props.statusBusy ? <LoaderCircle className="size-3 animate-spin" /> : null}
       {props.statusLabel}
     </span>
   )

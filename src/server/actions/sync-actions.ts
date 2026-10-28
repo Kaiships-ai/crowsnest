@@ -8,6 +8,11 @@ import { IgError, SyncAlreadyRunningError } from "../ig/errors";
 import { igClient, type IgClient } from "../ig/client";
 import { getSetting } from "../settings";
 import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } from "../services/sync-engine";
+import { syncPull, syncSummary } from "../connectors/ig-sidecar";
+import { igSidecar } from "../connectors/ig-sidecar/manifest";
+import { clockNow } from "../lib/clock";
+import { recordPullEnd, recordPullProgress, recordPullStart } from "../services/connector-status";
+import type { PullResult } from "../lib/pull-result";
 import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
   SYNC_PHASES,
@@ -95,8 +100,12 @@ async function markJobFailed(jobId: string, err: unknown): Promise<void> {
  * Losing the lock arrives instead as a `SyncAlreadyRunningError` rejection, surfaced
  * with its code so the UI can say "a sync is already running" and attach to that job
  * rather than reporting a hard failure.
+ *
+ * A run with no `channelIds` is the Sources card's rival pull: it records its progress and
+ * summary on the sidecar card. `skipFreshWithinMinutes` makes it "pull the rest": rivals a
+ * pull updated in that window are left out.
  */
-export async function startSyncAction(channelIds?: string[]): Promise<ActionResult<{ jobId: string }>> {
+export async function startSyncAction(channelIds?: string[], opts: { skipFreshWithinMinutes?: number } = {}): Promise<ActionResult<{ jobId: string }>> {
   try {
     let resolveJobId: (id: string | null) => void = () => {};
     // Resolves to the id when the lock is won, or to null when the run ends without
@@ -106,12 +115,31 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
     });
 
     let failure: unknown;
+    const cardPull = !channelIds;
+    const startedAt = clockNow();
 
     void runSync({
-      ...(channelIds ? { channelIds } : {}),
-      onJobStarted: resolveJobId,
+      ...(channelIds
+        ? { channelIds }
+        : { cardPull: true, onProgress: (p) => recordPullProgress(igSidecar.id, p), skipFreshWithinMinutes: opts.skipFreshWithinMinutes }),
+      onJobStarted: (id) => {
+        resolveJobId(id);
+        if (cardPull) recordPullStart(igSidecar.id);
+      },
     }).then(
-      () => {},
+      (r) => {
+        // A sync scoped to some channels is not the connector's pull, so only a card pull sets the card.
+        if (!cardPull) return;
+        // Whatever reading the run throws, the card leaves Pulling; the throw still reaches the log below.
+        let pull: PullResult<unknown, unknown> = { kind: "failed", reason: "the pull's result could not be read" };
+        let ended = syncSummary(null, startedAt, clockNow());
+        try {
+          ended = syncSummary(r, startedAt, clockNow());
+          pull = syncPull(r);
+        } finally {
+          recordPullEnd(igSidecar.id, pull, ended.summary, ended.retryAfter);
+        }
+      },
       async (err: unknown) => {
         failure = err;
         // No-op when the lock was won (the first resolve wins); the point is the case
@@ -119,9 +147,15 @@ export async function startSyncAction(channelIds?: string[]): Promise<ActionResu
         resolveJobId(null);
         const jobId = await jobIdKnown;
         log.error("sync.detached.failed", { jobId, code: errorCodeOf(err), message: errorMessage(err) });
-        if (jobId) await markJobFailed(jobId, err);
+        if (jobId) {
+          try {
+            await markJobFailed(jobId, err);
+          } finally {
+            if (cardPull) recordPullEnd(igSidecar.id, { kind: "failed", reason: err }, syncSummary(null, startedAt, clockNow()).summary);
+          }
+        }
       }
-    );
+    ).catch((err: unknown) => log.error("sync.status.record_failed", { message: errorMessage(err) }));
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const jobId = await Promise.race([

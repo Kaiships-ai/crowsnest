@@ -34,6 +34,12 @@ export default async function sources01({ page, step, snap }) {
     if (JSON.stringify(ids) !== JSON.stringify(listed.value.map((c) => c.id).sort())) throw new Error(`listConnectors ${JSON.stringify(listed.value.map((c) => c.id))}`);
     if ((await polar.getAttribute("data-state")) !== "not-connected" || (await polar.getByTestId("source-primary").innerText()) !== "Connect") throw new Error(await polar.innerText());
   });
+  await step("only the sidecar card pulls (Pull rivals); no other card has a Pull button", async () => {
+    const buttons = await pane.getByTestId("source-card").evaluateAll((cards) => cards.map((c) => `${c.dataset.connectorId}: ${[...c.querySelectorAll("button")].map((b) => b.innerText.trim()).join(", ")}`));
+    console.log(`card buttons:\n${buttons.join("\n")}`);
+    const labels = await pane.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"])').locator("button").allInnerTexts();
+    if (labels.some((t) => /^Pull/.test(t.trim()))) throw new Error("a card other than the sidecar has a Pull button");
+  });
   await snap("sources-01-dark");
   await setTheme(page, "light");
   await snap("sources-01-light");
@@ -72,10 +78,10 @@ export default async function sources01({ page, step, snap }) {
 
   await step("Re-check shows the connection check", async () => {
     await polar.getByTestId("source-recheck").click();
-    const message = polar.getByTestId("source-check");
-    await message.waitFor({ timeout: 10_000 });
+    const message = polar.getByTestId("source-explanation");
+    await page.waitForFunction(() => document.querySelector('[data-testid="source-card"][data-connector-id="polar"] [data-testid="source-explanation"]')?.textContent?.includes("not connected"), null, { timeout: 10_000 });
     console.log(`check: ${await message.innerText()}`);
-    if (!(await message.innerText()).includes("not connected")) throw new Error(await message.innerText());
+    if ((await polar.getAttribute("data-state")) !== "not-connected") throw new Error(await polar.innerText());
   });
   await snap("sources-01");
   await page.getByRole("button", { name: "Back to app" }).click();

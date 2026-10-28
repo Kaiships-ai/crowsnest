@@ -13,20 +13,20 @@ describe("startInApp", () => {
     vi.useRealTimers();
   });
 
-  it("starts sync, own-measure and the daily pull but not the publish timer when LEAD_STUDIO_PUBLISH_JOBS is unset", () => {
+  it("starts no timer when LEAD_STUDIO_PUBLISH_JOBS is unset: nothing pulls on its own", () => {
     stop = startInApp({ migrationsFolder, env: {} });
-    expect(vi.getTimerCount()).toBe(5);
+    expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("leaves fetch alone, so sync and measure can reach Instagram", () => {
+  it("leaves fetch alone, so a pull can reach Instagram", () => {
     const before = globalThis.fetch;
     stop = startInApp({ migrationsFolder, env: {} });
     expect(globalThis.fetch).toBe(before);
   });
 
-  it("also starts the publish timer when LEAD_STUDIO_PUBLISH_JOBS=1", () => {
+  it("starts only the publish timer when LEAD_STUDIO_PUBLISH_JOBS=1", () => {
     stop = startInApp({ migrationsFolder, env: { LEAD_STUDIO_PUBLISH_JOBS: "1" } });
-    expect(vi.getTimerCount()).toBe(6);
+    expect(vi.getTimerCount()).toBe(1);
   });
 
   it("moves legacy plaintext secrets into the keychain on boot", () => {

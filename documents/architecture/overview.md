@@ -43,8 +43,7 @@ In development the app starts with `pnpm dev` and the sidecar with `pnpm run ig:
 
 There is no separate worker process. Background work runs inside the app:
 
-- **Sync scheduler** starts a library sweep when the `syncCadenceMinutes` setting has elapsed since the newest `sync_jobs` row.
-- **Own-measure scheduler** measures the user's own posts through the Graph API on a call budget.
+- **Pulls** run only when the operator presses Pull on a Settings > Sources card: the IG sidecar card runs a library sweep, the Instagram Graph card measures the user's own posts on a call budget. Nothing pulls on a timer or on start (`src/server/services/connector-status.ts`).
 - **Publish scheduler** claims due scheduled posts and publishes them. The app starts it only with `LEAD_STUDIO_PUBLISH_JOBS=1` (`src/server/start.ts`).
 - **Frame pass** spawns the local Claude Code CLI with a read-only tool allowlist to read sampled frames of one video (`src/server/services/claude-task.ts`).
 
@@ -72,7 +71,7 @@ flowchart LR
 1. A sync reads recent posts per tracked channel through the sidecar and writes `videos` rows with an outlier score against the channel's own baseline.
 2. The app reads those rows directly from SQLite in its main process.
 3. An agent reads the same data over MCP, reasons in its own process, and writes back an analysis, a remix script or a content artifact. The boards and the MCP tools call the same query and service functions.
-4. A script is attached to a planned post. The publish scheduler sends it to the user's own account through the Graph API. The own-measure scheduler then reads performance back.
+4. A script is attached to a planned post. The publish scheduler sends it to the user's own account through the Graph API. Pull on the Instagram Graph card then reads performance back.
 
 ## System-wide invariants
 

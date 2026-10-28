@@ -131,7 +131,7 @@ export function OwnBoard(): React.ReactNode {
       retry={retry}
       emptyMessage={translate(
         'boards.own.empty',
-        'Instagram has never been measured. Connect Instagram in Sources; the app measures at 05:00.'
+        'Instagram has never been measured. Connect Instagram in Sources; numbers show after its first pull.'
       )}
     >
       {([board]) => (

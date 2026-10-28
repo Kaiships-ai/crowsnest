@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { log } from "@/server/lib/logger";
@@ -34,6 +34,8 @@ function childEnv(): NodeJS.ProcessEnv {
  *  exiting. The child's pid is tracked in data/sidecar.pid so Stop and status checks
  *  survive a reload of this server. */
 export function startSidecar(): void {
+  // A pid left by an earlier run may now name an unrelated process; the start poll and Stop must never read it.
+  rmSync(PID_FILE, { force: true });
   const child = spawn("uv", ["run", "python", "-m", "crowsnest_ig"], {
     cwd: SIDECAR_CWD,
     env: childEnv(),
@@ -69,14 +71,21 @@ export function sidecarPidAlive(): boolean {
   }
 }
 
+/** Stops the sidecar and every process under it: `uv run` keeps python as a child, so killing
+ *  only the tracked pid would orphan it. The spawn is detached, so on POSIX the tracked pid
+ *  leads its own process group; Windows has no groups, so taskkill walks the tree. */
 export function stopSidecar(): void {
   if (!existsSync(PID_FILE)) return;
   const pid = Number(readFileSync(PID_FILE, "utf8").trim());
   if (pid) {
-    try {
-      process.kill(pid, "SIGTERM");
-    } catch {
-      // already gone
+    if (process.platform === "win32") {
+      execFile("taskkill", ["/pid", String(pid), "/T", "/F"], { windowsHide: true }, () => {});
+    } else {
+      try {
+        process.kill(-pid, "SIGTERM");
+      } catch {
+        // already gone
+      }
     }
   }
   rmSync(PID_FILE, { force: true });

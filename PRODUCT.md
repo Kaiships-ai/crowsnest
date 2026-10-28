@@ -126,12 +126,12 @@ end-to-end loop is the thing every future decision must keep whole.
   connected agent is the only reasoning brain, so the full workflow (sync, inspect, save an
   analysis, remix, brief) runs with no model key. A brief returned over MCP carries local
   file paths for the video and thumbnail. Transcription needs whisper.cpp locally or `GROQ_API_KEY`.
-- Sync can be cancelled, run for selected channels, and put on an automatic cadence with the
-  `syncCadenceMinutes` setting (0 is off). Several burner accounts can be added and channels stick to one; one account's
+- Sync can be cancelled and run for selected channels. It never runs on its own: the app runs on
+  the operator's Mac, so every pull starts from a click. Several burner accounts can be added and channels stick to one; one account's
   cooldown does not stop the others, but live parallel traffic across accounts is not built.
 - Own-channel numbers come from the official Graph API with a token stored in the secrets store or `.env.local`. Own reels
-  are measured automatically while the app runs, hourly for the first 72 hours and daily after,
-  and `measureOwnChannelAction` runs it on demand. Insights can lag Instagram by up to 48 hours.
+  are measured when the operator presses Pull on the Instagram Graph card (reels under 72 hours
+  are due after an hour, older ones after a day), and `measureOwnChannelAction` measures them all. Insights can lag Instagram by up to 48 hours.
 - Publish: uploads are mp4 only, up to 200 MB, captions up to 2200 characters. A transient
   failure retries automatically up to 3 attempts. A missing bucket or Graph token disables the
   action and names the missing variables.

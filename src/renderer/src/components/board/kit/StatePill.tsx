@@ -13,8 +13,9 @@ export const SOURCE_STATE: Record<
   SourceState,
   { tone: IntegrationStatusTone; label: () => string }
 > = {
-  running: { tone: 'connected', label: () => translate('boards.kit.state.connected', 'Connected') },
-  stale: { tone: 'connected', label: () => translate('boards.kit.state.connected', 'Connected') },
+  off: { tone: 'neutral', label: () => translate('boards.kit.state.off', 'Off') },
+  pulling: { tone: 'neutral', label: () => translate('boards.kit.state.pulling', 'Pulling') },
+  ready: { tone: 'connected', label: () => translate('boards.kit.state.ready', 'Ready') },
   partial: { tone: 'attention', label: () => translate('boards.kit.state.partial', 'Partial') },
   error: { tone: 'attention', label: () => translate('boards.kit.state.error', 'Error') },
   'not-connected': {

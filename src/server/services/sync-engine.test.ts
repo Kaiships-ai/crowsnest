@@ -1706,6 +1706,250 @@ describe("runSync — co-operative cancel", () => {
   });
 });
 
+describe("runSync — the Sources card pull (cardPull)", () => {
+  /** Three rivals; every /profile of the second one walked throws `code`. */
+  async function threeRivals(prefix: string, code: "IG_RATE_LIMITED" | "IG_AUTH_REQUIRED") {
+    const { IgError } = await import("../ig/errors");
+    const ids = [];
+    for (const n of ["a", "b", "c"]) ids.push((await setupChannel(`@${prefix}-${n}`)).channelId);
+    const seen: string[] = [];
+    const calls: Record<string, number> = {};
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        if (!seen.includes(handle)) seen.push(handle);
+        calls[handle] = (calls[handle] ?? 0) + 1;
+        if (handle === seen[1]) throw new IgError(code, "stop here", { retryable: code === "IG_RATE_LIMITED", detail: { retry_after_sec: 1 } });
+        return makeProfile(handle);
+      },
+      async medias() {
+        return { items: [], nextCursor: null, stopReason: "exhausted" as const };
+      },
+    } as unknown as IgClient;
+    return { ids, seen, calls, client };
+  }
+
+  test.each(["IG_RATE_LIMITED", "IG_AUTH_REQUIRED"] as const)("%s on the second rival ends the whole pull after one call", async (code) => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const { ids, seen, calls, client } = await threeRivals(`halt-${code}`, code);
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(calls[seen[1]]).toBe(1);
+    expect(seen).toHaveLength(2);
+    expect(result.handles).toHaveLength(3);
+    expect(result.dispatched).toBe(2);
+    expect(result.channelsSynced).toBe(1);
+    expect(result.gaps.map((g) => g.code)).toEqual([code]);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+  });
+
+  test("without cardPull the same limit is retried and every rival is still walked", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { config } = await import("../config");
+    migrate();
+    const { ids, seen, calls, client } = await threeRivals("trunk", "IG_RATE_LIMITED");
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1 });
+
+    expect(calls[seen[1]]).toBe(config.SYNC_MAX_RETRIES + 1);
+    expect(seen).toHaveLength(3);
+    expect(result.dispatched).toBe(3);
+    expect(result.channelsSynced).toBe(2);
+    expect(result.gaps.map((g) => g.code)).toEqual(["IG_RATE_LIMITED"]);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+  });
+
+  test("Stop finishes the rival in hand, walks no other, and ends partial", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const ids = [];
+    for (const n of ["a", "b", "c"]) ids.push((await setupChannel(`@stop-card-${n}`)).channelId);
+    const pages: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async medias(input: { handle: string; cursor?: string }) {
+        pages.push(`${input.handle} ${input.cursor ?? "page-1"}`);
+        if (!input.cursor) {
+          await requestCancel((await runningJob(null))!.id);
+          return { items: [makeMedia(`stop-${input.handle}-1`, 1)], nextCursor: "page-2", stopReason: null };
+        }
+        return { items: [makeMedia(`stop-${input.handle}-2`, 2)], nextCursor: null, stopReason: "lookback" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(pages).toHaveLength(2);
+    expect(pages[1]).toBe(`${pages[0].split(" ")[0]} page-2`);
+    expect(result.dispatched).toBe(1);
+    expect(result.channelsSynced).toBe(1);
+    expect(result.itemsSeen).toBe(2);
+    expect(result.stopReason).toBe("cancelled");
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect(job.status).toBe("partial");
+    expect(job.channelsDone).toBe(1);
+  });
+
+  test("the own channel is pulled after the rivals but counted and listed nowhere", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { syncSummary } = await import("../connectors/ig-sidecar");
+    migrate();
+    const ids = [];
+    for (const h of ["@own-r1", "@own-r2", "@own-me"]) ids.push((await setupChannel(h)).channelId);
+    await db.update(tables.channels).set({ isOwn: true }).where(eq(tables.channels.id, ids[2]));
+    const profiles: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        profiles.push(handle);
+        return makeProfile(handle);
+      },
+      async medias(input: { handle: string }) {
+        const items = input.handle === "@own-me" ? [makeMedia("own-new-1", 1)] : [];
+        return { items, nextCursor: null, stopReason: "exhausted" as const };
+      },
+    } as unknown as IgClient;
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(profiles).toHaveLength(3);
+    expect(profiles[2]).toBe("@own-me");
+    expect([...result.handles].sort()).toEqual(["@own-r1", "@own-r2"]);
+    expect(result.dispatched).toBe(2);
+    expect(result.channelsSynced).toBe(2);
+    expect(result.itemsCreated).toBe(0);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect([job.status, job.channelsTotal, job.channelsDone]).toEqual(["success", 2, 2]);
+    const { summary } = syncSummary(result, new Date(0), new Date(0));
+    expect([summary.total, summary.done, summary.updated, summary.newItems, summary.failed]).toEqual([2, 2, 2, 0, 0]);
+    expect(summary.items.map((i) => i.label).sort()).toEqual(["@own-r1", "@own-r2"]);
+    const own = (await db.select().from(tables.channels).where(eq(tables.channels.id, ids[2])))[0];
+    expect(own.lastSuccessfulSyncAt).not.toBeNull();
+  });
+
+  /** Two rivals and the own channel. `profile` answers each handle, and every call is logged in `profiles`. */
+  async function rivalsAndOwn(prefix: string, profile: (handle: string, profiles: string[]) => Promise<IgProfile>) {
+    const { db, tables } = await import("../db");
+    const ids = [];
+    for (const h of [`@${prefix}-r1`, `@${prefix}-r2`, `@${prefix}-me`]) ids.push((await setupChannel(h)).channelId);
+    await db.update(tables.channels).set({ isOwn: false }).where(eq(tables.channels.isOwn, true));
+    await db.update(tables.channels).set({ isOwn: true }).where(eq(tables.channels.id, ids[2]));
+    const profiles: string[] = [];
+    const { client: base } = stubClient({});
+    const client = {
+      ...base,
+      async profile(handle: string) {
+        profiles.push(handle);
+        return profile(handle, profiles);
+      },
+      async medias() {
+        return { items: [], nextCursor: null, stopReason: "exhausted" as const };
+      },
+    } as unknown as IgClient;
+    return { ids, profiles, client, own: `@${prefix}-me` };
+  }
+
+  test("an Instagram limit on a rival ends the pull before the own channel is pulled", async () => {
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { IgError } = await import("../ig/errors");
+    migrate();
+    const { ids, profiles, client, own } = await rivalsAndOwn("own-halt", async (handle, seen) => {
+      if (seen.length === 2) throw new IgError("IG_RATE_LIMITED", "limited", { retryable: true, detail: { retry_after_sec: 1 } });
+      return makeProfile(handle);
+    });
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(profiles).toHaveLength(2);
+    expect(profiles).not.toContain(own);
+    expect(result.gaps.map((g) => g.code)).toEqual(["IG_RATE_LIMITED"]);
+  });
+
+  test("Stop during a rival ends the pull before the own channel is pulled", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, requestCancel } = await import("./sync-engine");
+    migrate();
+    await db.delete(tables.syncJobs).where(eq(tables.syncJobs.status, "running"));
+    const { ids, profiles, client, own } = await rivalsAndOwn("own-stop", async (handle) => {
+      await requestCancel((await runningJob(null))!.id);
+      return makeProfile(handle);
+    });
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(profiles).toHaveLength(1);
+    expect(profiles).not.toContain(own);
+    expect(result.stopReason).toBe("cancelled");
+  });
+
+  test("a failing own-channel pull leaves the job and the card summary as the rivals made them", async () => {
+    const { db, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    const { syncSummary } = await import("../connectors/ig-sidecar");
+    const { IgError } = await import("../ig/errors");
+    migrate();
+    const { ids, profiles, client, own } = await rivalsAndOwn("own-fail", async (handle) => {
+      if (handle.endsWith("-me")) throw new IgError("IG_SERVICE_DOWN", "sidecar gone", { retryable: false });
+      return makeProfile(handle);
+    });
+
+    const result = await runSync({ channelIds: ids, client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+    expect(profiles[2]).toBe(own);
+    expect(result.gaps).toEqual([]);
+    expect([result.dispatched, result.channelsSynced]).toEqual([2, 2]);
+    const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+    expect([job.status, job.channelsTotal, job.channelsDone]).toEqual(["success", 2, 2]);
+    const { summary } = syncSummary(result, new Date(0), new Date(0));
+    expect([summary.total, summary.done, summary.updated, summary.failed]).toEqual([2, 2, 2, 0]);
+    expect(summary.items.map((i) => [i.label, i.result]).sort()).toEqual([
+      [`@own-fail-r1`, "updated"],
+      [`@own-fail-r2`, "updated"],
+    ]);
+  });
+
+  test("a card pull with no channel ids walks every live Instagram channel and the own channel last", async () => {
+    const { db, nowIso, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync } = await import("./sync-engine");
+    migrate();
+    const earlier = (await db.select({ id: tables.channels.id }).from(tables.channels).where(isNull(tables.channels.deletedAt))).map((c) => c.id);
+    await db.update(tables.channels).set({ deletedAt: nowIso() }).where(inArray(tables.channels.id, earlier));
+    try {
+      const { profiles, client, own } = await rivalsAndOwn("own-default", async (handle) => makeProfile(handle));
+
+      const result = await runSync({ client, sleep: noopSleep, concurrency: 1, cardPull: true });
+
+      expect([...result.handles].sort()).toEqual(["@own-default-r1", "@own-default-r2"]);
+      expect(profiles).toHaveLength(3);
+      expect(profiles[2]).toBe(own);
+      const job = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, result.jobId)))[0];
+      expect([job.status, job.channelsTotal, job.channelsDone]).toEqual(["success", 2, 2]);
+    } finally {
+      await db.update(tables.channels).set({ deletedAt: null }).where(inArray(tables.channels.id, earlier));
+    }
+  });
+});
+
 describe("runSync — stale-lock safety (audit F3)", () => {
   test("a long page still heartbeats, so the reaper can't declare a live run dead", async () => {
     const { migrate } = await import("../db/test-migrate");
