@@ -245,7 +245,29 @@ export function GraphPullOutcome(props: {
       )
     }
     case 'partial':
-      return (
+      // A pull the app quit mid-way never finished, so it reads as stopped, not as finished with failures.
+      return pull?.stop === 'interrupted' ? (
+        <>
+          <Warn testId="graph-line">
+            {translate(
+              'leadStudio.sources.sidecar.interruptedAt',
+              'The pull stopped before it finished, at'
+            )}{' '}
+            <Num>
+              {updated}/{total}
+            </Num>
+            .
+          </Warn>
+          <Dim testId="graph-rest-line">
+            {translate(
+              'leadStudio.sources.graph.limitedRest',
+              'The other {{rest}} posts keep their older numbers.',
+              { rest }
+            )}
+          </Dim>
+          <Actions>{pullRest(false, pullRestLabel)}</Actions>
+        </>
+      ) : (
         <>
           <Warn testId="graph-line">
             {translate('leadStudio.sources.sidecar.partialAt', 'The pull finished with')}{' '}

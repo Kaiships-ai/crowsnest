@@ -288,12 +288,18 @@ async function acquireLock(channelId: string | null, lookbackDays: number): Prom
   return jobId;
 }
 
+/** When this process loaded the engine. A running row last heard from before then was left by a process
+ *  that quit or crashed, so a pull after a relaunch never waits out `LOCK_STALE_MS` on its lock. */
+// ponytail: a sync script started before the app and still running is reaped too if the app runs a sync
+// within one heartbeat of its launch; a writer id column on sync_jobs would close that window.
+const PROCESS_STARTED_AT = nowIso();
+
 async function reapStaleLocks(): Promise<void> {
   const cutoff = new Date(Date.now() - LOCK_STALE_MS).toISOString();
   const stale = await db
     .select({ id: tables.syncJobs.id, channelId: tables.syncJobs.channelId })
     .from(tables.syncJobs)
-    .where(and(eq(tables.syncJobs.status, "running"), lt(tables.syncJobs.heartbeatAt, cutoff)));
+    .where(and(eq(tables.syncJobs.status, "running"), or(lt(tables.syncJobs.heartbeatAt, cutoff), lt(tables.syncJobs.heartbeatAt, PROCESS_STARTED_AT))));
   for (const row of stale) {
     log.warn("sync.lock.reaped", { jobId: row.id, channelId: row.channelId, staleAfterSeconds: LOCK_STALE_MS / 1000 });
     await db
