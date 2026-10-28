@@ -1,7 +1,8 @@
 import { clockNow } from "@/server/lib/clock";
 import { readSecret } from "../secrets";
 import type { Connector, ConnectorManifest } from "../types";
-import { checkUmami, pullUmami, type UmamiAccess, type UmamiWebsite } from "./pull";
+import { SourceDownError } from "@/server/lib/pull-result";
+import { checkUmami, pullUmami, umamiBase, type UmamiAccess, type UmamiWebsite } from "./pull";
 
 export const umami = {
   id: "umami",
@@ -27,7 +28,7 @@ export function umamiAccess(): UmamiAccess | null {
 }
 
 /** The card's line for a website: its domain and the Umami host. */
-export const websiteLine = (website: UmamiWebsite, url: string): string => `${website.domain || website.name} · ${new URL(url).host}`;
+export const websiteLine = (website: UmamiWebsite, url: string): string => `${website.domain || website.name} · ${new URL(umamiBase(url)).host}`;
 
 const failure = (err: unknown) => (err instanceof Error ? err.message : "Umami check failed");
 
@@ -50,7 +51,7 @@ export const connector: Connector = {
       try {
         return { ok: true, line: websiteLine(await checkUmami(a), a.url) };
       } catch (err) {
-        return { ok: false, message: failure(err), retryAfter: null };
+        return { ok: false, message: failure(err), retryAfter: null, down: err instanceof SourceDownError };
       }
     },
     async pull() {

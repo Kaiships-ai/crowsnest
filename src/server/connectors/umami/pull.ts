@@ -1,6 +1,6 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { db, newId, tables } from "@/server/db";
-import type { PullResult } from "@/server/lib/pull-result";
+import { SourceDownError, type PullResult } from "@/server/lib/pull-result";
 import { countDays, daysBetween, vnDay, vnDayStart, nextDay, type UmamiDay, type UmamiEvent } from "./days";
 
 export interface UmamiAccess {
@@ -55,7 +55,7 @@ async function getJson<T>(url: string, apiKey: string): Promise<T> {
   try {
     res = await fetch(url, { headers: { accept: "application/json", authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(30_000) });
   } catch (err) {
-    throw new Error(err instanceof Error && err.name === "TimeoutError" ? `${hostOf(url)} did not answer within 30 seconds. Try again later.` : unreachable(url));
+    throw err instanceof Error && err.name === "TimeoutError" ? new Error(`${hostOf(url)} did not answer within 30 seconds. Try again later.`) : new SourceDownError(unreachable(url));
   }
   if (res.status === 401) throw new Error(UMAMI_KEY_REJECTED);
   if (!res.ok) throw new Error(`Umami answered HTTP ${res.status} on ${new URL(url).pathname}`);
@@ -127,7 +127,7 @@ const windowLabel = (days: string[]) => (days.length === 1 ? "events, today" : `
 /** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted.
  *  Paging ends once `count` events came back, or at the first empty page when Umami sends no count; past MAX_PAGES the pull is partial.
  *  Only a pull whose every page came back is stored; a stopped, partial or failed pull writes nothing. */
-export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPullControl = {}): Promise<PullResult<UmamiPull>> {
+export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPullControl = {}): Promise<PullResult<UmamiPull, string | SourceDownError>> {
   const days = daysBetween(firstDay(now), vnDay(now));
   const startAt = vnDayStart(days[0]).getTime() - 86_400_000;
   const endAt = now.getTime();
@@ -145,7 +145,8 @@ export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPu
       if (!res.data?.length || (res.count !== undefined && events.length >= res.count)) break;
     }
   } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
+    // A source that did not answer keeps its kind, so the card can offer Change address.
+    const reason = err instanceof SourceDownError ? err : err instanceof Error ? err.message : String(err);
     if (events.length === 0) return { kind: "failed", reason };
     return { kind: "partial", rows: { days, events: events.length, keywords: 0 }, missing: `events after the first ${events.length}`, reason };
   }

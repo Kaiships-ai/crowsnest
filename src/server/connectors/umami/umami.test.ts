@@ -1,10 +1,14 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
 import { getFunnelBoard } from "@/server/queries/funnel-board";
-import { setSecret } from "@/server/secrets/store";
+import { saveUmamiKeyAction } from "@/server/actions/umami-actions";
+import { SourceDownError } from "@/server/lib/pull-result";
+import { getSecret, setSecret } from "@/server/secrets/store";
+import { getFunnelTotals } from "@/server/services/funnel";
+import { getSecretStore, setSecretStore } from "../../../shared/secret-store";
 import { getFunnel } from "@/server/services/funnel";
 import type { UmamiEvent } from "./days";
 import { connector } from "./index";
@@ -204,8 +208,19 @@ describe("Umami pull", () => {
     expect(funnelRows()).toEqual([]);
   });
 
-  test("an address nothing answers on fails with Cannot reach and its host", async () => {
-    expect(await pullUmami({ ...access, url: "http://127.0.0.1:9" }, NOW)).toEqual({ kind: "failed", reason: "Cannot reach 127.0.0.1:9. Check that your Umami server is up, then try again." });
+  test("an address nothing answers on fails with Cannot reach and its host, kept as a SourceDownError", async () => {
+    const result = await pullUmami({ ...access, url: "http://127.0.0.1:9" }, NOW);
+    expect(result.kind).toBe("failed");
+    const reason = result.kind === "failed" ? result.reason : null;
+    expect(reason).toBeInstanceOf(SourceDownError);
+    expect(reason instanceof Error && reason.message).toBe("Cannot reach 127.0.0.1:9. Check that your Umami server is up, then try again.");
+  });
+
+  test("the funnel totals are the per-keyword Umami sums of the last pull", async () => {
+    expect(await getFunnelTotals()).toEqual({ gift_page_visit: null, email: null, checkout: null });
+    fake.events = [...EVENTS, ev("s1", "2026-10-17T01:03:00.000Z", "/free/shark.html", "checkout_click")];
+    await pullUmami(access, NOW);
+    expect(await getFunnelTotals()).toEqual({ gift_page_visit: 5, email: 2, checkout: 1 });
   });
 });
 
@@ -239,5 +254,42 @@ describe("Umami connector", () => {
 
     save({ UMAMI_WEBSITE_ID: "site-1", UMAMI_API_KEY: "wrong" });
     expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "Umami rejected the key (401). Create a new key and paste it." });
+  });
+});
+
+describe("Umami key save", () => {
+  const keychain = getSecretStore();
+  afterEach(() => setSecretStore(keychain));
+  const stored = () => ["UMAMI_URL", "UMAMI_API_KEY", "UMAMI_WEBSITE_ID", "UMAMI_USERNAME", "UMAMI_PASSWORD"].map((n) => getSecret(n) ?? null);
+
+  test("Save tests the key again, stores the trimmed key with the address and the pick, and clears the old login", async () => {
+    setSecret("UMAMI_USERNAME", "kai");
+    setSecret("UMAMI_PASSWORD", "old-password");
+    expect(await saveUmamiKeyAction(access.url, "wrong", "site-1")).toEqual({ ok: false, error: UMAMI_KEY_REJECTED });
+    expect(await saveUmamiKeyAction(access.url, "key-1", "site-9")).toEqual({ ok: false, error: "That website is not readable with this key. Test again and pick one." });
+    expect(stored()).toEqual([null, null, null, "kai", "old-password"]);
+
+    expect(await saveUmamiKeyAction(`${access.url}/`, "  key-1\n", "site-1")).toEqual({ ok: true });
+    expect(stored()).toEqual([access.url.replace(/\/$/, ""), "key-1", "site-1", null, null]);
+    expect(fake.authHeaders.every((h) => h === "Bearer key-1" || h === "Bearer wrong")).toBe(true);
+  });
+
+  test("a write that fails mid-save keeps every old value", async () => {
+    setSecret("UMAMI_URL", "https://old.example");
+    setSecret("UMAMI_API_KEY", "old-key");
+    setSecret("UMAMI_PASSWORD", "old-password");
+    setSecretStore({ ...keychain, encryptString: (v) => (v === "key-1" ? (() => { throw new Error("keychain write failed"); })() : keychain.encryptString(v)) });
+    expect(await saveUmamiKeyAction(access.url, "key-1", "site-1")).toEqual({ ok: false, error: "keychain write failed" });
+    expect(stored()).toEqual(["https://old.example", "old-key", null, null, "old-password"]);
+  });
+
+  test("an unreachable address samples as down, so the card offers Change address", async () => {
+    setSecret("UMAMI_URL", "http://127.0.0.1:9");
+    setSecret("UMAMI_API_KEY", "key-1");
+    setSecret("UMAMI_WEBSITE_ID", "site-1");
+    expect(await connector.adapter?.sample?.()).toEqual({ ok: false, message: "Cannot reach 127.0.0.1:9. Check that your Umami server is up, then try again.", retryAfter: null, down: true });
+    setSecret("UMAMI_API_KEY", "wrong");
+    setSecret("UMAMI_URL", access.url);
+    expect(await connector.adapter?.sample?.()).toMatchObject({ ok: false, down: false });
   });
 });

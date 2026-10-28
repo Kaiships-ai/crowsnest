@@ -23,8 +23,6 @@ type View =
   | 'error'
   | 'unreachable'
 
-const UNREACHABLE = 'Cannot reach'
-
 function viewOf(row: SourceRow, local: { testing: boolean; form: boolean }): View {
   const pull = row.summary.pull
   if (row.state === 'pulling') {
@@ -40,7 +38,7 @@ function viewOf(row: SourceRow, local: { testing: boolean; form: boolean }): Vie
     return 'not-connected'
   }
   if (row.state === 'error') {
-    return (row.detail ?? row.message ?? '').startsWith(UNREACHABLE) ? 'unreachable' : 'error'
+    return row.summary.down ? 'unreachable' : 'error'
   }
   if (row.state === 'partial') {
     return pull?.stop === 'stopped' ? 'stopped' : 'partial'

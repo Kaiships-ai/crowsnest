@@ -1,3 +1,4 @@
+import { db } from "@/server/db";
 import { clearSecret, getSecret, secretSource, setSecret, type SecretSource } from "@/server/secrets/store";
 import type { ConnectorManifest, SecretName } from "./types";
 
@@ -23,9 +24,12 @@ export function deleteSecret<M extends ConnectorManifest>(manifest: M, name: Sec
   clearSecret(key(manifest, name, accountId));
 }
 
-/** Deletes a secret no manifest declares any more, such as a login an older build saved. */
-export function deleteRetiredSecret(name: string): void {
-  clearSecret(name);
+/** Writes several of a connector's secrets and deletes retired ones as one transaction: one failed write keeps every old value. */
+export function writeSecrets<M extends ConnectorManifest>(manifest: M, values: [SecretName<M>, string][], retired: readonly string[] = []): void {
+  db.transaction(() => {
+    for (const [name, value] of values) writeSecret(manifest, name, value);
+    for (const name of retired) clearSecret(name);
+  });
 }
 
 export function readSecretSource<M extends ConnectorManifest>(manifest: M, name: SecretName<M>): SecretSource {

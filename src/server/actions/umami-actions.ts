@@ -2,13 +2,12 @@
 
 import { LEGACY_UMAMI_SECRETS, umami, umamiAccess, websiteLine } from "../connectors/umami";
 import { listUmamiWebsites, pullUmami, umamiBase, type UmamiWebsite } from "../connectors/umami/pull";
-import { deleteRetiredSecret, readSecret } from "../connectors/secrets";
+import { readSecret, writeSecrets } from "../connectors/secrets";
 import type { SimpleResult } from "../lib/action-result";
 import { clockNow } from "../lib/clock";
 import { log } from "../lib/logger";
 import type { PullResult } from "../lib/pull-result";
 import { recordPullEnd, recordPullProgress, recordPullStart, recordSample } from "../services/connector-status";
-import { setConnectorSecret } from "./secrets-actions";
 
 const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -24,17 +23,18 @@ export async function testUmamiKeyAction(url: string, apiKey: string): Promise<{
 }
 
 /** Save in the key dialog: checks the pick again, stores address, key and website, and clears an older build's login. */
-export async function saveUmamiKeyAction(url: string, apiKey: string, websiteId: string): Promise<SimpleResult> {
+export async function saveUmamiKeyAction(url: string, rawKey: string, websiteId: string): Promise<SimpleResult> {
+  const apiKey = rawKey.trim();
   const tested = await testUmamiKeyAction(url, apiKey);
   if (!tested.ok) return { ok: false, error: tested.message };
   const website = tested.websites.find((w) => w.id === websiteId);
   if (!website) return { ok: false, error: "That website is not readable with this key. Test again and pick one." };
   const address = umamiBase(url);
-  for (const [field, value] of [["UMAMI_URL", address], ["UMAMI_API_KEY", apiKey], ["UMAMI_WEBSITE_ID", websiteId]] as const) {
-    const saved = await setConnectorSecret(umami.id, field, value);
-    if (!saved.ok) return saved;
+  try {
+    writeSecrets(umami, [["UMAMI_URL", address], ["UMAMI_API_KEY", apiKey], ["UMAMI_WEBSITE_ID", websiteId]], LEGACY_UMAMI_SECRETS);
+  } catch (err) {
+    return { ok: false, error: messageOf(err) };
   }
-  for (const name of LEGACY_UMAMI_SECRETS) deleteRetiredSecret(name);
   recordSample(umami.id, { ok: true, line: websiteLine(website, address) });
   return { ok: true };
 }
@@ -58,7 +58,7 @@ export async function startUmamiPullAction(): Promise<SimpleResult> {
   let last = { done: 0, total: 0 };
   recordPullStart(umami.id);
   void (async () => {
-    let result: PullResult<unknown> = { kind: "failed", reason: "the pull did not finish" };
+    let result: PullResult<unknown, unknown> = { kind: "failed", reason: "the pull did not finish" };
     try {
       result = await pullUmami(access, startedAt, {
         shouldStop: () => pull.stop,
