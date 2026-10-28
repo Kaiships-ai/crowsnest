@@ -160,6 +160,7 @@ describe('Cook pane cards driven by Claude', () => {
           caption
         }
       ],
+      qa: '12/12',
       caption,
       sent
     })

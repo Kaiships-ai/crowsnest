@@ -284,7 +284,7 @@ export function CaptionBox({ view }: { view: CookView }): React.ReactNode {
         {translate('boards.cook.caption', 'Caption')}
         <span className="font-mono text-2xs font-normal text-muted-foreground">
           {view.caption
-            ? 'CAPTION.md'
+            ? translate('boards.cook.captionFile', 'CAPTION.md')
             : writing
               ? translate('boards.cook.captionWritingMeta', 'writing…')
               : ''}

@@ -21532,7 +21532,8 @@
       "captionWriting": "Claude is writing CAPTION.md",
       "noCaption": "No caption yet. Claude writes it last, after the review.",
       "keywordOnLine1": "{{keyword}} on line 1 ✓",
-      "keywordNotOnLine1": "{{keyword}} not on line 1"
+      "keywordNotOnLine1": "{{keyword}} not on line 1",
+      "captionFile": "CAPTION.md"
     }
   },
   "gate": {
