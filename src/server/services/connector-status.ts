@@ -5,7 +5,7 @@ import { db, tables } from "@/server/db";
 import { SyncAlreadyRunningError } from "@/server/ig/errors";
 import { clockNow } from "@/server/lib/clock";
 import { log } from "@/server/lib/logger";
-import type { PullResult } from "@/server/lib/pull-result";
+import { SourceDownError, type PullResult } from "@/server/lib/pull-result";
 
 export type StatusRow = typeof tables.connectorStatus.$inferSelect;
 /** The one state a card shows, derived from the row. */
@@ -77,6 +77,8 @@ export interface PullSummary {
   failed: number;
   durationSec: number;
   startedAt: string | null;
+  /** What the pull covered, such as "last 30 days", when the source pulls a time window. */
+  window?: string;
   /** When the items this pull did not reach got their numbers: the pull before it. */
   olderFrom: string | null;
   stop: PullStop | null;
@@ -89,6 +91,8 @@ export interface ConnectorSummary {
   /** One line from the last passing test, such as "@kaiships.ai · 12,345 followers · 210 posts". */
   sample?: string;
   pull?: PullSummary;
+  /** The newest failed test or pull failed because the source did not answer (`SourceDownError`). */
+  down?: boolean;
 }
 
 /** A `pulling` row with no heartbeat for this long reads as Partial. */
@@ -154,14 +158,14 @@ export function recordPullEnd(connectorId: string, result: PullResult<unknown, u
   livePulls.delete(connectorId);
   const pull: PullSummary = { ...ended, olderFrom: readRow(connectorId)?.pulledAt ?? null };
   const outcome = recordPull(connectorId, result);
-  upsert(connectorId, { progressDone: pull.done, progressTotal: pull.total, progressLabel: null, retryAfter, summary: withSummary(connectorId, { pull }) });
+  upsert(connectorId, { progressDone: pull.done, progressTotal: pull.total, progressLabel: null, retryAfter, summary: withSummary(connectorId, { pull, down: result.kind !== "complete" && result.reason instanceof SourceDownError }) });
   return outcome;
 }
 
 /** Records a Test connection's sample: a pass keeps its line for the card; a fail is the card's check error. */
 export function recordSample(connectorId: string, sample: Sample): Sample {
   recordCheck(connectorId, sample.ok ? { ok: true, message: null } : { ok: false, message: sample.message });
-  upsert(connectorId, sample.ok ? { retryAfter: null, summary: withSummary(connectorId, { sample: sample.line }) } : { retryAfter: sample.retryAfter });
+  upsert(connectorId, sample.ok ? { retryAfter: null, summary: withSummary(connectorId, { sample: sample.line, down: false }) } : { retryAfter: sample.retryAfter, summary: withSummary(connectorId, { down: sample.down === true }) });
   log.info("connector.sample", { connectorId, ok: sample.ok });
   return sample;
 }
@@ -174,7 +178,7 @@ export async function sampleConnector(connectorId: string, registry: Connector[]
   try {
     result = await sample();
   } catch (err) {
-    result = { ok: false, message: textOf(err), retryAfter: null };
+    result = { ok: false, message: textOf(err), retryAfter: null, down: err instanceof SourceDownError };
   }
   return recordSample(connectorId, result);
 }

@@ -140,7 +140,7 @@ export default async function baseline({ page, step }) {
     }
     await parkMouse();
     await shoot("B1-01-sources");
-    await page.locator('[data-testid="source-card"][data-connector-id="umami"]').getByTestId("source-primary").click();
+    await page.locator('[data-testid="source-card"][data-connector-id="polar"]').getByTestId("source-primary").click();
     await page.getByTestId("source-key-dialog").waitFor();
     await shoot("B1-01-sources-connect-dialog");
     await page.keyboard.press("Escape");

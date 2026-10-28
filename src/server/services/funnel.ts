@@ -145,3 +145,15 @@ export function ratio(numerator: Reading, denominator: Reading): Reading {
   const capturedAt = numerator.capturedAt < denominator.capturedAt ? numerator.capturedAt : denominator.capturedAt;
   return { status: "value", value: numerator.value / denominator.value, capturedAt };
 }
+
+export type FunnelTotals = Record<"gift_page_visit" | "email" | "checkout", number | null>;
+
+/** Umami's three numbers summed over every keyword, as the Funnel board sums its steps; null when no keyword has one. */
+export async function getFunnelTotals(): Promise<FunnelTotals> {
+  const entries = await getFunnel();
+  const total = (id: MetricId): number | null => {
+    const values = entries.flatMap((e) => e.metrics.flatMap((m) => (m.id === id && m.status === "value" ? [m.value] : [])));
+    return values.length > 0 ? values.reduce((a, b) => a + b, 0) : null;
+  };
+  return { gift_page_visit: total("gift_page_visit"), email: total("email"), checkout: total("checkout") };
+}

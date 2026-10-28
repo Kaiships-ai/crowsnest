@@ -16,6 +16,7 @@ import { Bar } from './kit/Bars'
 import { DataTable, type DataColumn } from './kit/DataTable'
 import { kpiFromStep, KpiValue } from './kit/Kpi'
 import { BlockHeader } from './kit/SourceTag'
+import { useOnFunnelChanged } from '@/lib/funnel-changed'
 import { useBoardLoad } from './use-board-load'
 
 type FunnelBoardData = EngineCallValue<'getFunnelBoard'>
@@ -207,6 +208,7 @@ function FunnelView({ board, reload }: { board: FunnelBoardData; reload: () => v
 
 export function FunnelBoard(): React.ReactNode {
   const { state, retry } = useBoardLoad(loadFunnel)
+  useOnFunnelChanged(retry)
   return (
     <BoardStates
       state={state}

@@ -1,13 +1,24 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { db, newId, tables } from "@/server/db";
-import type { PullResult } from "@/server/lib/pull-result";
+import { SourceDownError, type PullResult } from "@/server/lib/pull-result";
 import { countDays, daysBetween, vnDay, vnDayStart, nextDay, type UmamiDay, type UmamiEvent } from "./days";
 
 export interface UmamiAccess {
   url: string;
+  apiKey: string;
   websiteId: string;
-  username: string;
-  password: string;
+}
+
+export interface UmamiWebsite {
+  id: string;
+  name: string;
+  domain: string;
+}
+
+/** Progress per events page, and Stop between pages. */
+export interface UmamiPullControl {
+  onPage?: (progress: { done: number; total: number; label: string }) => void;
+  shouldStop?: () => boolean;
 }
 
 export interface UmamiPull {
@@ -21,30 +32,53 @@ const PAGE_SIZE = 500;
 const MAX_PAGES = 400;
 const BACKFILL_CAP_DAYS = 365;
 
-async function getJson<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(url, { ...init, headers: { accept: "application/json", ...init.headers }, signal: AbortSignal.timeout(30_000) });
+export const UMAMI_KEY_REJECTED = "Umami rejected the key (401). Create a new key and paste it.";
+const unreachable = (url: string) => `Cannot reach ${hostOf(url)}. Check that your Umami server is up, then try again.`;
+/** Thrown on a stop between pages; never leaves pullUmami. */
+const STOPPED = "you stopped the pull";
+
+const hostOf = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
+/** The address as typed, without a trailing slash; one typed with no scheme means https. */
+export const umamiBase = (url: string): string => {
+  const trimmed = url.trim().replace(/\/+$/, "");
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+};
+
+async function getJson<T>(url: string, apiKey: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(url, { headers: { accept: "application/json", authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(30_000) });
+  } catch (err) {
+    throw err instanceof Error && err.name === "TimeoutError" ? new Error(`${hostOf(url)} did not answer within 30 seconds. Try again later.`) : new SourceDownError(unreachable(url));
+  }
+  if (res.status === 401) throw new Error(UMAMI_KEY_REJECTED);
   if (!res.ok) throw new Error(`Umami answered HTTP ${res.status} on ${new URL(url).pathname}`);
   // SAFETY: the callers name the Umami response shape they read; a missing field fails their own check.
   return (await res.json()) as T;
 }
 
-async function login(access: UmamiAccess): Promise<string> {
-  const { token } = await getJson<{ token?: string }>(`${access.url.replace(/\/+$/, "")}/api/auth/login`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ username: access.username, password: access.password }),
-  });
-  if (!token) throw new Error("Umami login returned no token");
-  return token;
+type Listing<T> = T[] | { data?: T[] };
+const rowsOf = <T>(body: Listing<T>): T[] => (Array.isArray(body) ? body : (body.data ?? []));
+
+/** Every website the key can read: its own, and each of its teams'. An admin's own list can be empty while a team holds the site. */
+export async function listUmamiWebsites(url: string, apiKey: string): Promise<UmamiWebsite[]> {
+  const root = umamiBase(url);
+  const [own, teams] = await Promise.all([getJson<Listing<UmamiWebsite>>(`${root}/api/websites?pageSize=200`, apiKey), getJson<Listing<{ id: string }>>(`${root}/api/teams?pageSize=200`, apiKey)]);
+  const teamLists = await Promise.all(rowsOf(teams).map((t) => getJson<Listing<UmamiWebsite>>(`${root}/api/teams/${encodeURIComponent(t.id)}/websites?pageSize=200`, apiKey)));
+  const byId = new Map([own, ...teamLists].flatMap(rowsOf).map((w) => [w.id, { id: w.id, name: w.name, domain: w.domain }]));
+  return [...byId.values()];
 }
 
-const site = (access: UmamiAccess) => `${access.url.replace(/\/+$/, "")}/api/websites/${encodeURIComponent(access.websiteId)}`;
-const bearer = (token: string) => ({ authorization: `Bearer ${token}` });
-
-export async function checkUmami(access: UmamiAccess): Promise<void> {
-  const token = await login(access);
-  const website = await getJson<{ id?: string }>(site(access), { headers: bearer(token) });
-  if (website.id !== access.websiteId) throw new Error("Umami has no website with that id");
+export async function checkUmami(access: UmamiAccess): Promise<UmamiWebsite> {
+  const website = (await listUmamiWebsites(access.url, access.apiKey)).find((w) => w.id === access.websiteId);
+  if (!website) throw new Error("This key cannot read the saved website. Connect Umami again and pick a website.");
+  return website;
 }
 
 /** The first day to pull: the oldest day not yet final, else the oldest keyword reel's day (at most a year back). */
@@ -88,23 +122,36 @@ function storeDays(days: UmamiDay[], now: Date): void {
   }
 }
 
-/** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted. Paging stops at the first empty page; past MAX_PAGES the pull is partial. Only a pull whose every page came back is stored; a partial or failed pull writes nothing. */
-export async function pullUmami(access: UmamiAccess, now: Date): Promise<PullResult<UmamiPull>> {
+/** What a pull covers, as the card says it: "today" or "last 30 days". */
+export const pullWindow = (days: string[]): string => (days.length === 1 ? "today" : `last ${days.length} days`);
+
+/** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted.
+ *  Paging ends once `count` events came back, or at the first empty page when Umami sends no count; an empty page before `count` and past MAX_PAGES are partial.
+ *  Only a pull whose every page came back is stored; a stopped, partial or failed pull writes nothing. */
+export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPullControl = {}): Promise<PullResult<UmamiPull, string | SourceDownError>> {
   const days = daysBetween(firstDay(now), vnDay(now));
   const startAt = vnDayStart(days[0]).getTime() - 86_400_000;
   const endAt = now.getTime();
+  const label = `events, ${pullWindow(days)}`;
   const events: UmamiEvent[] = [];
   try {
-    const token = await login(access);
     for (let page = 1; ; page++) {
       if (page > MAX_PAGES) throw new Error(`Umami still had events after ${MAX_PAGES} pages`);
+      if (page > 1 && control.shouldStop?.()) throw new Error(STOPPED);
       const query = new URLSearchParams({ startAt: String(startAt), endAt: String(endAt), pageSize: String(PAGE_SIZE), page: String(page) });
-      const res = await getJson<{ data?: UmamiEvent[] }>(`${site(access)}/events?${query}`, { headers: bearer(token) });
+      const res = await getJson<{ data?: UmamiEvent[]; count?: number; pageSize?: number }>(`${umamiBase(access.url)}/api/websites/${encodeURIComponent(access.websiteId)}/events?${query}`, access.apiKey);
       events.push(...(res.data ?? []));
-      if (!res.data?.length) break;
+      const total = res.count === undefined ? page + 1 : Math.max(1, Math.ceil(res.count / (res.pageSize || PAGE_SIZE)));
+      control.onPage?.({ done: page, total: Math.max(page, total), label });
+      if (res.count !== undefined && events.length >= res.count) break;
+      if (!res.data?.length) {
+        if (res.count !== undefined) throw new Error(`Umami sent an empty page ${page} after ${events.length} of ${res.count} events`);
+        break;
+      }
     }
   } catch (err) {
-    const reason = err instanceof Error ? err.message : String(err);
+    // A source that did not answer keeps its kind, so the card can offer Change address.
+    const reason = err instanceof SourceDownError ? err : err instanceof Error ? err.message : String(err);
     if (events.length === 0) return { kind: "failed", reason };
     return { kind: "partial", rows: { days, events: events.length, keywords: 0 }, missing: `events after the first ${events.length}`, reason };
   }

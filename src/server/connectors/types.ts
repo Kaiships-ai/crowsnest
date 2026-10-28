@@ -24,7 +24,7 @@ export interface ConnectionCheck {
 }
 
 /** One real read that proves the key works, with a line to show for it. */
-export type Sample = { ok: true; line: string } | { ok: false; message: string; retryAfter: string | null };
+export type Sample = { ok: true; line: string } | { ok: false; message: string; retryAfter: string | null; down?: boolean };
 
 export interface ConnectorAdapter {
   testConnection(): Promise<ConnectionCheck>;

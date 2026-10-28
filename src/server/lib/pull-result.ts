@@ -14,3 +14,6 @@ export type PullResult<T, R = string> =
   | { kind: "failed"; reason: R };
 
 export type CompletePull<T> = { kind: "complete"; rows: T };
+
+/** A pull or test that failed because the source did not answer at all (down, wrong address), not because it refused. */
+export class SourceDownError extends Error {}

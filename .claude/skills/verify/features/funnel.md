@@ -7,6 +7,7 @@ Every funnel number (views, follows, link in bio taps, keyword comments, DMs, gi
 - `crowsnest_save_funnel`: an agent appends funnel snapshots per keyword.
 - `crowsnest_funnel` and bridge `getFunnel`: every ledger metric per keyword, with target and status `value`, `missing` or `not-connected`.
 - Bridge `getMetricLedger`: the ledger, read only.
+- Bridge `getFunnelTotals` (`services/funnel.ts`): Umami's gift page visits, emails and checkouts summed over every keyword, the same per-keyword readings the Funnel board's steps add up; null when no keyword has one. The Umami card's pull summary shows it, and `umami-01` checks the card against it.
 - Funnel board: `funnel-step` (`data-step-id`, `data-status`) with a `kit-bar` and a `kpi-value` (`data-state`), `funnel-rate`, `funnel-keywords` with `funnel-keyword-row` (`data-row-key`), `funnel-coverage-visits`, `funnel-coverage-orders`, one `source-tag` per block, `open-sources` on a not connected step.
 
 ## How to get to it (user POV)
