@@ -290,9 +290,17 @@ function CookPaneBody({
           <DialogHeader>
             <DialogTitle>{translate('boards.cook.stopTitle', 'Stop this cook?')}</DialogTitle>
             <DialogDescription>
-              {`Claude stops now. What is made so far stays in films/${view.slug}/ (${done} of ${steps.length || 10} steps). ${
-                slot ? `The ${slot} slot goes back to Plan.` : 'The slot goes back to Plan.'
-              }`}
+              {slot
+                ? translate(
+                    'boards.cook.stopBody',
+                    'Claude stops now. What is made so far stays in films/{{slug}}/ ({{done}} of {{total}} steps). The {{slot}} slot goes back to Plan.',
+                    { slug: view.slug, done, total: steps.length || 10, slot }
+                  )
+                : translate(
+                    'boards.cook.stopBodyNoSlot',
+                    'Claude stops now. What is made so far stays in films/{{slug}}/ ({{done}} of {{total}} steps). The slot goes back to Plan.',
+                    { slug: view.slug, done, total: steps.length || 10 }
+                  )}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

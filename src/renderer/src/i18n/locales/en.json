@@ -21483,6 +21483,8 @@
       "stopTitle": "Stop this cook?",
       "keepCooking": "Keep cooking",
       "stopConfirm": "Stop cook",
+      "stopBody": "Claude stops now. What is made so far stays in films/{{slug}}/ ({{done}} of {{total}} steps). The {{slot}} slot goes back to Plan.",
+      "stopBodyNoSlot": "Claude stops now. What is made so far stays in films/{{slug}}/ ({{done}} of {{total}} steps). The slot goes back to Plan.",
       "step": {
         "Script": "Script",
         "Voice": "Voice",
