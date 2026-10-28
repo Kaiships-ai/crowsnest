@@ -14,7 +14,7 @@ an MP4; they are visual narration, not synthesized audio.
 Keep the raw video as evidence, attach the polished MP4, and never commit media
 or `.artifacts/` output. Save the raw video and the MP4 under `data/verify/evidence/<run-id>/`.
 In a worktree, run `.claude/skills/verify/scripts/keep-evidence.sh` when the recording is
-done, so the proof lands in the main checkout before the worktree is retired. Inspect the entire capture for unrelated or private
+done, so the proof lands in `~/.claude/orchestrate/proof/evidence/<branch>/` before the worktree is retired. Inspect the entire capture for unrelated or private
 content (a real Instagram handle, a session cookie, a burner credential) before
 publishing under the PR's existing authorization.
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # retire.sh <worktree-path> -- run from outside the worktree; after the branch's PR merged: stop its verify server, copy its
-# evidence to the main checkout, then remove the worktree and its local branch.
+# evidence to ~/.claude/orchestrate/proof/evidence/<branch>/, then remove the worktree and its local branch.
 # Refuses the main checkout, a worktree with uncommitted changes, and an unmerged branch.
 set -euo pipefail
 WT="$(cd "${1:?usage: retire.sh <worktree-path>, run from outside it}" && git rev-parse --show-toplevel)"
@@ -34,8 +34,8 @@ git -C "$MAIN" worktree list --porcelain | awk '/^worktree /{print substr($0,10)
 S="$WT/.claude/skills/verify/scripts"
 if [ -x "$S/app-down.sh" ]; then "$S/app-down.sh"; fi
 if [ -x "$S/keep-evidence.sh" ]; then "$S/keep-evidence.sh"; else
-  [ -d "$WT/data/verify/evidence" ] && mkdir -p "$MAIN/data/verify/evidence/${BRANCH//\//-}" \
-    && cp -R "$WT/data/verify/evidence/." "$MAIN/data/verify/evidence/${BRANCH//\//-}/"
+  [ -d "$WT/data/verify/evidence" ] && mkdir -p "$HOME/.claude/orchestrate/proof/evidence/${BRANCH//\//-}" \
+    && cp -R "$WT/data/verify/evidence/." "$HOME/.claude/orchestrate/proof/evidence/${BRANCH//\//-}/"
 fi
 git -C "$MAIN" worktree remove --force "$WT"
 git -C "$MAIN" branch -D "$BRANCH" >/dev/null 2>&1 || true
