@@ -135,7 +135,11 @@ export function cookCard(view: CookView): CookCard {
       state: 'pid-gone',
       tone: 'err',
       head: `The ${current.name} process stopped`,
-      sub: `${kept} Its process (pid ${current.pid}) is gone.`,
+      sub: `${kept} Its process (pid ${current.pid}) is gone.${
+        current.name === 'render'
+          ? ` The final starts again from frame 0 (about ${Math.max(1, Math.round(view.usualRenderSec / 60))} min).`
+          : ''
+      }`,
       ...resume
     }
   }
@@ -185,7 +189,8 @@ export function cookCard(view: CookView): CookCard {
         state: 'draft',
         tone: 'run',
         head: 'Rendering a quick draft',
-        sub: `Step 4 of 6${current.pct != null ? ` · ${current.pct}%` : ''}${so}`,
+        // draft.mjs in studio-reel renders at 270x480 and 8 fps unless called with --w/--fps, which nothing does.
+        sub: `Step 4 of 6 · 270×480 at 8 fps${current.pct != null ? ` · ${current.pct}%` : ''}${so}`,
         acts: [],
         can: 'Nothing to do.',
         wait: 'The draft plays here, then the final render starts by itself.'

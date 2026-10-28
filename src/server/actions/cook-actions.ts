@@ -108,7 +108,7 @@ export type CookView = {
   style: string | null;
   /** vo/script.json lines once Claude wrote them. */
   scriptLines: string[] | null;
-  /** Seconds the running step has run: its `started`, else the first time Lead Studio saw it running. */
+  /** Seconds the running step has run: its `started`, else its first running write; null when neither is known. */
   elapsedSec: number | null;
   /** The running step's pid is gone (killed or crashed); null when it has no pid. */
   pidGone: boolean | null;
@@ -116,7 +116,7 @@ export type CookView = {
   usualRenderSec: number;
 };
 
-const firstSeen = new Map<string, number>();
+const firstSeen = new Map<string, number | null>();
 const DEFAULT_RENDER_SEC = 180;
 
 const readJson = async (file: string): Promise<unknown> => {
@@ -176,9 +176,11 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
   let elapsedSec: number | null = null;
   if (running && jobFile) {
     const key = `${slug}:${running.name}`;
-    const since = Date.parse(running.started ?? "") || firstSeen.get(key) || (await stat(jobFile)).mtimeMs;
-    firstSeen.set(key, since);
-    elapsedSec = Math.max(0, Math.round((Date.now() - since) / 1000));
+    // Without `started`, the file's mtime is the step's start only while it is the step's first running write: a step
+    // that reports pct rewrites job.json on each update, so one first seen past 0% has an unknown start (null).
+    if (!firstSeen.has(key)) firstSeen.set(key, running.pct ? null : (await stat(jobFile)).mtimeMs);
+    const since = Date.parse(running.started ?? "") || firstSeen.get(key);
+    if (since) elapsedSec = Math.max(0, Math.round((Date.now() - since) / 1000));
   }
   const vo = film ? z.object({ lines: z.array(z.object({ text: z.string() })) }).safeParse(await readJson(path.join(film, "vo/script.json"))) : null;
   return {

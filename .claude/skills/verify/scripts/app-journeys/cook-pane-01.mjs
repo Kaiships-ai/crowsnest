@@ -150,7 +150,7 @@ export default async function cookPane01({ page, step, snap }) {
     job("audio", "done");
     job("draft", "running", { pct: 60, started: ago(15), pid: process.pid });
     const { sub } = await expectCard("draft", "cook-pane-07-draft");
-    if (!sub.startsWith("Step 4 of 6 · 60%")) throw new Error(sub);
+    if (!sub.startsWith("Step 4 of 6 · 270×480 at 8 fps · 60%")) throw new Error(sub);
     const width = await pane.locator('[data-testid="cook-segment"][data-state="current"] b').evaluate((e) => e.style.width);
     if (width !== "60%") throw new Error(`draft bar ${width}`);
   });
@@ -160,6 +160,8 @@ export default async function cookPane01({ page, step, snap }) {
     job("render", "running", { started: ago(90), pid: process.pid });
     const { sub } = await expectCard("rendering", "cook-pane-09-rendering");
     if (!/^Step 5 of 6 · 1:3\d so far, usually about 3:00$/.test(sub) || sub.includes("%")) throw new Error(sub);
+    const bar = await pane.locator('[data-testid="cook-segment"][data-state="current"] b').evaluate((e) => [e.style.width, e.dataset.indeterminate]);
+    if (bar[0] !== "100%" || bar[1] !== "true") throw new Error(`final bar ${bar} is not indeterminate`);
   });
 
   await step("10 long render: past 2x usual the card stays neutral with one amber line", async () => {
@@ -171,7 +173,8 @@ export default async function cookPane01({ page, step, snap }) {
 
   await step("the render's pid is gone: a red card with Resume cook", async () => {
     job("render", "running", { started: ago(470), pid: DEAD_PID });
-    await expectCard("pid-gone", "cook-pane-pid-gone");
+    const { sub } = await expectCard("pid-gone", "cook-pane-pid-gone");
+    if (!sub.endsWith("The final starts again from frame 0 (about 3 min).")) throw new Error(sub);
     if ((await card.getAttribute("data-tone")) !== "err") throw new Error("not red");
     await card.getByTestId("cook-resume").waitFor({ timeout: 2_000 });
   });

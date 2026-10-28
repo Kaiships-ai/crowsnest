@@ -69,4 +69,6 @@ test("the Cook view reads job.json: elapsed from started, a dead pid, and the us
   expect(await getCookView("plan-dddddd")).toMatchObject({ elapsedSec: 90, pidGone: true, usualRenderSec: 180 });
   for (const [i, sec] of [60, 120, 300].entries()) writeJob(`old-${i}`, [{ name: "render", status: "done", started: ago(1000 + sec), ended: ago(1000) }]);
   expect(await getCookView("plan-dddddd")).toMatchObject({ usualRenderSec: 120 });
+  writeJob("hook-a-dddddd", [{ name: "draft", status: "running", pct: 40 }]);
+  expect(await getCookView("plan-dddddd")).toMatchObject({ elapsedSec: null });
 });

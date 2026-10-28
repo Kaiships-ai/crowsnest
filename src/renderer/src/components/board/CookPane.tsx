@@ -178,18 +178,21 @@ function Strip({ segments }: { segments: CookSegment[] }): React.ReactNode {
           className="flex min-w-0 flex-col gap-1.5"
         >
           <i className="relative block h-[5px] overflow-hidden rounded-full bg-muted">
+            {/* No pct = indeterminate: a faint full-width pulse, never a width job.json did not give. */}
             <b
+              data-testid="cook-segment-bar"
+              data-indeterminate={seg.state === 'current' && seg.pct == null ? 'true' : undefined}
               className={cn(
                 'absolute inset-y-0 left-0 rounded-full',
                 SEGMENT_BAR[seg.state],
-                seg.state === 'current' && seg.pct == null && 'animate-pulse'
+                seg.state === 'current' && seg.pct == null && 'animate-pulse opacity-40'
               )}
               style={{
                 width:
                   seg.state === 'pending'
                     ? 0
-                    : seg.state === 'current'
-                      ? `${seg.pct ?? 38}%`
+                    : seg.state === 'current' && seg.pct != null
+                      ? `${seg.pct}%`
                       : '100%'
               }}
             />
