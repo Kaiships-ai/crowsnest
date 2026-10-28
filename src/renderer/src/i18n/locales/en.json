@@ -21503,8 +21503,7 @@
         "sidecar": "Rivals' public reels for the Rivals board.",
         "chatbotx": "Keyword comments and gift DMs.",
         "umami": "Gift page visits and email signups per reel.",
-        "polar": "Checkouts and orders per reel.",
-        "groq": "Transcripts of reels for the agents to read."
+        "polar": "Checkouts and orders per reel."
       },
       "group": {
         "instagram": "Instagram",
@@ -21533,7 +21532,7 @@
       "recheck": "Re-check",
       "title": "Sources",
       "description": "Connect the services Lead Studio pulls your numbers from.",
-      "searchDescription": "API keys, pull status and connections for Instagram, ChatbotX, Umami, Polar and Groq.",
+      "searchDescription": "API keys, pull status and connections for Instagram, ChatbotX, Umami and Polar.",
       "keyword": {
         "vault": "vault",
         "apiKey": "api key"

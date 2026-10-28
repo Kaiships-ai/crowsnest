@@ -8,7 +8,7 @@ The core loop runs on the local database. A few things reach past it to a servic
 | --- | --- | --- | --- | --- |
 | Instagram, through the sidecar | New videos in the feed; sidecar-side channel and post fetch | Shared token `IG_SERVICE_TOKEN` for the Node to sidecar hop; an Instagram session (username and password, or an imported session id) held by the sidecar | Feed goes stale, never errors. A failed sync is recorded on its `sync_jobs` row. | Works on the videos already stored |
 | Instagram Graph API | Own-channel measurement, own-post insights, and publishing | `IG_GRAPH_TOKEN` and `IG_GRAPH_USER_ID` (secret or environment); host `graph.instagram.com`, version `IG_GRAPH_API_VERSION` (default v21.0) | The cached token state names what is wrong. Past measurements stay stored. Publish fails with a coded error. | Feed, remix and planning work. Planning and scheduling need no token until the moment of publish. |
-| Transcript providers | A transcript for a video that has none stored | whisper.cpp is local and keyless; Groq needs `GROQ_API_KEY` | If neither is available, transcription fails with the reasons from each provider | A stored transcript needs no provider |
+| Transcript providers | A transcript for a video that has none stored | whisper.cpp is local and keyless | If whisper.cpp or its model is missing, transcription fails with a message that says how to install it | A stored transcript needs no provider |
 | Local Claude Code CLI | The frame pass (layout analysis from sampled frames) | The user's own Claude Code login | The frame-pass job ends failed with an error code | Works |
 | Polar | License activation at install and `kai login` | License key; public customer-portal endpoints | Install or login fails. The running app never calls it. | Not applicable |
 
@@ -36,7 +36,7 @@ The app makes no model call of its own and holds no model key. Analysis and remi
 
 ## Transcript providers
 
-`getOrCreateTranscript` (`src/server/transcribe/index.ts`) returns a stored transcript first, then tries whisper.cpp, then Groq, and persists the result so later reads reuse it. whisper.cpp is available only when `whisper-cli` resolves on PATH (or `WHISPER_CPP_BIN_PATH`) and the model file exists (`WHISPER_MODEL_PATH`). With none available it throws `NoTranscriptProviderError` carrying each provider's reason. A video with no downloaded video asset throws `VideoNotDownloadedError`; there is no remote-URL fallback.
+`getOrCreateTranscript` (`src/server/transcribe/index.ts`) returns a stored transcript first, otherwise runs whisper.cpp, and persists the result so later reads reuse it. whisper.cpp is available only when `whisper-cli` resolves on PATH (or `WHISPER_CPP_BIN_PATH`) and the model file exists (`WHISPER_MODEL_PATH`). When either is missing it throws `NoTranscriptProviderError`, whose message names `brew install whisper-cpp` or the missing model path. A key an older version saved for its removed cloud transcriber is never read. A video with no downloaded video asset throws `VideoNotDownloadedError`; there is no remote-URL fallback.
 
 The MCP tool `crowsnest_transcribe` is the on-demand path. Transcription is keyless with whisper.cpp, so a machine with no API key can still transcribe.
 

@@ -1,14 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import {
-  AudioLines,
-  BarChart3,
-  Bot,
-  Camera,
-  CreditCard,
-  ExternalLink,
-  LoaderCircle,
-  Plug
-} from 'lucide-react'
+import { BarChart3, Bot, Camera, CreditCard, ExternalLink, LoaderCircle, Plug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import type { EngineCallValue } from '../../../../preload/api/crowsnest-api'
@@ -64,13 +55,6 @@ const SOURCE_INFO: Record<string, SourceInfo> = {
     icon: <CreditCard className="size-5" />,
     gives: () => translate('leadStudio.sources.gives.polar', 'Checkouts and orders per reel.'),
     learnMore: 'https://docs.polar.sh/api-reference/introduction'
-  },
-  groq: {
-    group: 'tools',
-    icon: <AudioLines className="size-5" />,
-    gives: () =>
-      translate('leadStudio.sources.gives.groq', 'Transcripts of reels for the agents to read.'),
-    learnMore: 'https://console.groq.com/docs/quickstart'
   }
 }
 

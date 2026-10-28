@@ -7,7 +7,7 @@ Onboarding takes an empty install to a tracked channel and a first sync underway
 Onboarding owns no table of its own; schemas are in `src/server/db/schema.ts`.
 
 - `app_settings`: `first_run_completed` (the flag the gate reads), `niche_profile` and `niche_keywords` (read by `services/remix.ts`).
-- The seven managed secrets (`IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD`, `IG_SESSIONID`, `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`, `GROQ_API_KEY`), declared by the connector manifests and sealed by the Keychain ([connectors](connectors.md)). A stored value wins over the env var of the same name. Never returned to a client or logged.
+- The six managed secrets (`IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD`, `IG_SESSIONID`, `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID`), declared by the connector manifests and sealed by the Keychain ([connectors](connectors.md)). A stored value wins over the env var of the same name. Never returned to a client or logged.
 - `channels` rows, written through the shared `addChannelAction`, and a `sync_jobs` row from the first sync. Both belong to ig-sync.
 - `.env.local`, the only artifact the two halves share. `kai kit init` writes it at mode `0600` (it can hold the Instagram password).
 

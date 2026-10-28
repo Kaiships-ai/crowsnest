@@ -202,7 +202,7 @@ export function buildSetupSettingsSections({
           title: translate('leadStudio.sources.title', 'Sources'),
           description: translate(
             'leadStudio.sources.searchDescription',
-            'API keys, pull status and connections for Instagram, ChatbotX, Umami, Polar and Groq.'
+            'API keys, pull status and connections for Instagram, ChatbotX, Umami and Polar.'
           ),
           keywords: [
             ...translateSearchKeyword('leadStudio.sources.keyword.vault', 'vault'),

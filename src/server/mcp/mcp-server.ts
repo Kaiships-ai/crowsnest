@@ -179,7 +179,7 @@ export function buildMcpServer(agent?: string): McpServer {
     {
       title: "Transcribe video",
       description:
-        "Fetch and transcribe one video by id, returning its verbatim transcript. Downloads the video from Instagram on demand if it is not already stored (needs a live IG sidecar session), then runs the local whisper.cpp then Groq fallback chain and caches the result; a repeat call returns the cached transcript instantly. Use this to ground an analysis in the exact words of a post that has no transcript yet. Errors (isError) when the id is unknown, the post is a photo or carousel with no downloadable video, Instagram cannot be reached, or no transcript provider is available.",
+        "Fetch and transcribe one video by id, returning its verbatim transcript. Downloads the video from Instagram on demand if it is not already stored (needs a live IG sidecar session), then transcribes it with local whisper.cpp and caches the result; a repeat call returns the cached transcript instantly. Use this to ground an analysis in the exact words of a post that has no transcript yet. Errors (isError) when the id is unknown, the post is a photo or carousel with no downloadable video, Instagram cannot be reached, or local whisper.cpp is not installed (the error says how to install it).",
       inputSchema: { videoId: z.string().describe("The video id, from crowsnest_feed items.") },
     },
     async (args) => {

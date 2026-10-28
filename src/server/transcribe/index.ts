@@ -1,18 +1,12 @@
 import { eq } from "drizzle-orm";
 import { db, nowIso, tables } from "../db";
-import { errorMessage } from "../lib/action-result";
-import { GroqProvider, groqAvailability } from "./groq";
 import { WhisperCppProvider, whisperAvailability } from "./whispercpp";
 
-type TranscriptSource = "whisper-local" | "groq";
-
-/** Thrown by getOrCreateTranscript when no transcript provider could produce a result. */
+/** Thrown by getOrCreateTranscript when local whisper is not installed; the message says how to install it. */
 export class NoTranscriptProviderError extends Error {
-  readonly reasons: { name: string; reason: string }[];
-  constructor(reasons: { name: string; reason: string }[]) {
-    super(`no transcript provider available — ${reasons.map((r) => `${r.name}: ${r.reason}`).join("; ")}`);
+  constructor(reason: string) {
+    super(`no transcript provider available: ${reason}`);
     this.name = "NoTranscriptProviderError";
-    this.reasons = reasons;
   }
 }
 
@@ -30,14 +24,13 @@ export class VideoNotDownloadedError extends Error {
 }
 
 const whisperProvider = new WhisperCppProvider();
-const groqProvider = new GroqProvider();
 
 async function persist(
   videoId: string,
-  text: string,
-  source: TranscriptSource
+  text: string
 ): Promise<{ text: string; source: string; cached: boolean }> {
   const createdAt = nowIso();
+  const source = "whisper-local";
   await db
     .insert(tables.transcripts)
     .values({ videoId, text, source, createdAt })
@@ -47,9 +40,9 @@ async function persist(
 
 /**
  * Cache-first transcript lookup: returns the committed `transcripts` row for `videoId`
- * if one exists, otherwise runs the provider fallback chain (local whisper.cpp, then
- * Groq) against the video's media URL, persists the result, and returns it. Throws
- * `NoTranscriptProviderError` (carrying a reason per provider) when neither is usable.
+ * if one exists, otherwise runs local whisper.cpp on the video's downloaded file,
+ * persists the result, and returns it. Throws `NoTranscriptProviderError` with the
+ * install hint when whisper.cpp or its model is missing.
  */
 export async function getOrCreateTranscript(
   videoId: string
@@ -79,43 +72,8 @@ export async function getOrCreateTranscript(
   if (!asset) throw new VideoNotDownloadedError(videoId);
   const mediaPath = resolveAssetPath(asset.storagePath);
 
-  const reasons: { name: string; reason: string }[] = [];
-
   const whisperAvail = await whisperAvailability();
-  if (whisperAvail.available) {
-    try {
-      const result = await whisperProvider.transcribe(mediaPath);
-      return await persist(videoId, result.text, "whisper-local");
-    } catch (err) {
-      reasons.push({ name: whisperProvider.name, reason: errorMessage(err) });
-    }
-  } else {
-    reasons.push({ name: whisperProvider.name, reason: whisperAvail.reason ?? "unavailable" });
-  }
-
-  const groqAvail = groqAvailability();
-  if (groqAvail.available) {
-    try {
-      const result = await groqProvider.transcribe(mediaPath);
-      return await persist(videoId, result.text, "groq");
-    } catch (err) {
-      reasons.push({ name: groqProvider.name, reason: errorMessage(err) });
-    }
-  } else {
-    reasons.push({ name: groqProvider.name, reason: groqAvail.reason ?? "unavailable" });
-  }
-
-  throw new NoTranscriptProviderError(reasons);
-}
-
-/** Current availability of each transcript provider, for a Settings-style status list. */
-export async function availableTranscriptProviders(): Promise<
-  { name: string; available: boolean; reason?: string }[]
-> {
-  const whisper = await whisperAvailability();
-  const groq = groqAvailability();
-  return [
-    { name: whisperProvider.name, available: whisper.available, reason: whisper.reason },
-    { name: groqProvider.name, available: groq.available, reason: groq.reason },
-  ];
+  if (!whisperAvail.available) throw new NoTranscriptProviderError(whisperAvail.reason ?? "whisper.cpp unavailable");
+  const result = await whisperProvider.transcribe(mediaPath);
+  return await persist(videoId, result.text);
 }

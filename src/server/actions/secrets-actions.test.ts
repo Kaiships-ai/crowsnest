@@ -30,22 +30,22 @@ describe("secrets actions", () => {
   });
 
   test("set then status shows configured from the keychain", async () => {
-    await actions.setSecretAction("GROQ_API_KEY", "sk-1");
-    const s = (await actions.getSecretStatusAction()).find((x) => x.name === "GROQ_API_KEY");
+    await actions.setSecretAction("IG_GRAPH_USER_ID", "sk-1");
+    const s = (await actions.getSecretStatusAction()).find((x) => x.name === "IG_GRAPH_USER_ID");
     expect(s).toMatchObject({ configured: true, source: "keychain" });
   });
 
   test("no value leaks in a response", async () => {
-    await actions.setSecretAction("GROQ_API_KEY", "super-secret");
+    await actions.setSecretAction("IG_GRAPH_USER_ID", "super-secret");
     const json = JSON.stringify(await actions.getSecretStatusAction());
     expect(json).not.toContain("super-secret");
   });
 
   test("clear removes the stored value", async () => {
-    await actions.setSecretAction("GROQ_API_KEY", "sk-1");
-    await actions.clearSecretAction("GROQ_API_KEY");
-    const s = (await actions.getSecretStatusAction()).find((x) => x.name === "GROQ_API_KEY");
-    expect(s?.source).toBe(process.env.GROQ_API_KEY ? "env" : "none");
+    await actions.setSecretAction("IG_GRAPH_USER_ID", "sk-1");
+    await actions.clearSecretAction("IG_GRAPH_USER_ID");
+    const s = (await actions.getSecretStatusAction()).find((x) => x.name === "IG_GRAPH_USER_ID");
+    expect(s?.source).toBe(process.env.IG_GRAPH_USER_ID ? "env" : "none");
   });
 
   test("regenerate service token changes the stored value and returns ok", async () => {

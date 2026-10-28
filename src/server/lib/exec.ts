@@ -45,10 +45,9 @@ export async function detectBinary(bin: string): Promise<string | null> {
 const DEFAULT_TMP_DIR = "data/tmp";
 
 /**
- * Downloads a remote media URL to a local tmp mp4 via yt-dlp. Shared by the transcript
- * providers (whisper.cpp needs a local file to feed whisper-cli; Groq needs bytes to
- * upload) — either may be handed a `videoUrlOrPath` that turns out to be a URL rather
- * than an already-local path. Filename is a short hash of the URL so repeat calls for
+ * Downloads a remote media URL to a local tmp mp4 via yt-dlp. whisper.cpp needs a local
+ * file to feed whisper-cli and may be handed a `videoUrlOrPath` that turns out to be a URL
+ * rather than an already-local path. Filename is a short hash of the URL so repeat calls for
  * the same reel resolve to the same path instead of piling up randomly-named tmp files.
  * Caller owns cleanup (delete the returned path when done).
  */

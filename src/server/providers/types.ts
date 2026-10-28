@@ -70,10 +70,9 @@ export interface SocialProvider {
   ): Promise<Pick<VideoStats, "id" | "viewCount" | "likeCount" | "commentCount">[]>;
 }
 
-// Transcripts are a separate concern from data acquisition — kept as its own
-// interface so "local whisper.cpp" and "hosted Groq" are interchangeable too.
+// Transcripts are a separate concern from data acquisition, kept as its own interface.
 export interface TranscriptProvider {
-  readonly name: string;   // "whisper-cpp-local" | "groq-whisper"
+  readonly name: string;   // "whisper-cpp-local"
   transcribe(videoUrlOrPath: string): Promise<{
     text: string;
     language?: string;

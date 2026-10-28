@@ -128,8 +128,7 @@ challenge.
 **Claude** (or Codex), connected over MCP, writes video analysis and the remix hook, outline,
 and script. The app holds no model key.
 
-**Local Whisper** (`whisper.cpp`, with Metal acceleration; Groq API as a fallback) powers
-keyless transcription. For transcription and manual reel import:
+**Local Whisper** (`whisper.cpp`, with Metal acceleration) powers keyless transcription. For transcription and manual reel import:
 
 ```bash
 brew install yt-dlp whisper-cpp

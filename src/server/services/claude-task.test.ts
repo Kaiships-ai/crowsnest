@@ -143,14 +143,14 @@ describe("scrubClaudeEnv", () => {
       IG_PASSWORD: "p",
       IG_SERVICE_TOKEN: "t",
       IG_SESSIONID: "s",
-      GROQ_API_KEY: "k",
+      SOME_API_KEY: "k",
     } as unknown as NodeJS.ProcessEnv);
     expect(out.PATH).toBe("/usr/bin");
     expect(out.HOME).toBe("/Users/x");
     expect(out.IG_PASSWORD).toBeUndefined();
     expect(out.IG_SERVICE_TOKEN).toBeUndefined();
     expect(out.IG_SESSIONID).toBeUndefined();
-    expect(out.GROQ_API_KEY).toBeUndefined();
+    expect(out.SOME_API_KEY).toBeUndefined();
   });
 });
 

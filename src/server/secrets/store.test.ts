@@ -18,7 +18,7 @@ beforeEach(async () => {
   migrate();
   await db.delete(tables.secrets);
   await db.delete(tables.sealedSecrets);
-  delete process.env.GROQ_API_KEY;
+  delete process.env.IG_GRAPH_USER_ID;
 });
 
 afterEach(() => setSecretStore(fakeKeychain));
@@ -35,31 +35,31 @@ const brokenKeychain = (overrides: Partial<SecretStore>): SecretStore => ({ ...f
 
 describe("keychain store", () => {
   test("a set value reads back from the keychain and is not stored as plaintext", () => {
-    store.setSecret("GROQ_API_KEY", "gsk-plain-value");
-    expect(store.getSecret("GROQ_API_KEY")).toBe("gsk-plain-value");
-    expect(store.secretSource("GROQ_API_KEY")).toBe("keychain");
-    expect(allStoredText()).not.toContain("gsk-plain-value");
+    store.setSecret("IG_GRAPH_USER_ID", "plain-value");
+    expect(store.getSecret("IG_GRAPH_USER_ID")).toBe("plain-value");
+    expect(store.secretSource("IG_GRAPH_USER_ID")).toBe("keychain");
+    expect(allStoredText()).not.toContain("plain-value");
   });
 
   test("the keychain value wins over env, env fills in when nothing is stored", () => {
-    process.env.GROQ_API_KEY = "env-value";
-    expect(store.getSecret("GROQ_API_KEY")).toBe("env-value");
-    store.setSecret("GROQ_API_KEY", "sealed-value");
-    expect(store.getSecret("GROQ_API_KEY")).toBe("sealed-value");
-    store.clearSecret("GROQ_API_KEY");
-    expect(store.getSecret("GROQ_API_KEY")).toBe("env-value");
+    process.env.IG_GRAPH_USER_ID = "env-value";
+    expect(store.getSecret("IG_GRAPH_USER_ID")).toBe("env-value");
+    store.setSecret("IG_GRAPH_USER_ID", "sealed-value");
+    expect(store.getSecret("IG_GRAPH_USER_ID")).toBe("sealed-value");
+    store.clearSecret("IG_GRAPH_USER_ID");
+    expect(store.getSecret("IG_GRAPH_USER_ID")).toBe("env-value");
   });
 
   test("setSecret refuses an empty value and an unavailable keychain", () => {
-    expect(() => store.setSecret("GROQ_API_KEY", "   ")).toThrow("empty");
+    expect(() => store.setSecret("IG_GRAPH_USER_ID", "   ")).toThrow("empty");
     setSecretStore(brokenKeychain({ isEncryptionAvailable: () => false }));
-    expect(() => store.setSecret("GROQ_API_KEY", "v")).toThrow("Keychain is unavailable");
+    expect(() => store.setSecret("IG_GRAPH_USER_ID", "v")).toThrow("Keychain is unavailable");
     expect(db.select().from(tables.sealedSecrets).all()).toEqual([]);
   });
 
   test("a set drops the legacy plaintext row of the same name", () => {
-    legacyRow("GROQ_API_KEY", "old-plain");
-    store.setSecret("GROQ_API_KEY", "new-value");
+    legacyRow("IG_GRAPH_USER_ID", "old-plain");
+    store.setSecret("IG_GRAPH_USER_ID", "new-value");
     expect(db.select().from(tables.secrets).all()).toEqual([]);
     expect(allStoredText()).not.toContain("old-plain");
   });
@@ -77,14 +77,14 @@ describe("a host with no SecretStore (kai CLI, tsx scripts)", () => {
   });
 
   test("a legacy row nobody migrated still reads", () => {
-    legacyRow("GROQ_API_KEY", "legacy-key");
+    legacyRow("IG_GRAPH_USER_ID", "legacy-key");
     _resetSecretStoreForTests();
-    expect(store.getSecret("GROQ_API_KEY")).toBe("legacy-key");
+    expect(store.getSecret("IG_GRAPH_USER_ID")).toBe("legacy-key");
   });
 
   test("a write is refused", () => {
     _resetSecretStoreForTests();
-    expect(() => store.setSecret("GROQ_API_KEY", "v")).toThrow("Keychain is unavailable");
+    expect(() => store.setSecret("IG_GRAPH_USER_ID", "v")).toThrow("Keychain is unavailable");
   });
 });
 
