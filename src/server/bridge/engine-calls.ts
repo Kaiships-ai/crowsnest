@@ -8,6 +8,8 @@ import { errorMessage } from "@/server/lib/action-result";
 import { approvePlanChanges, listPlanVersions, PlanRefSchema, undoPlanVersion } from "@/server/services/plan-versions";
 import { checkConnector, pullConnector, sampleConnector } from "@/server/services/connector-status";
 import { saveSidecarSessionAction, startSidecarAction, stopSidecarAction, testSidecarSessionAction } from "@/server/actions/sidecar-actions";
+import { readPolarOrganization } from "@/server/connectors/polar";
+import { savePolarTokenAction, testPolarTokenAction } from "@/server/connectors/polar/actions";
 import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
 import { getFunnel } from "@/server/services/funnel";
 import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
@@ -112,6 +114,7 @@ function scrubFailure<T>(value: T): T {
 
 const none = z.tuple([]);
 const id = z.tuple([z.string()]);
+const POLAR_TOKEN = z.string().trim().min(1, "Enter a token.").max(4096);
 const nullableText = z.string().nullable().optional();
 
 const feedFilters = z.object({
@@ -286,6 +289,9 @@ export const ENGINE_CALLS = {
   saveSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), saveSidecarSessionAction),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
+  testPolarTokenAction: call(z.tuple([POLAR_TOKEN]), testPolarTokenAction),
+  savePolarTokenAction: call(z.tuple([POLAR_TOKEN]), savePolarTokenAction),
+  getPolarOrganization: call(none, readPolarOrganization),
   // The folder workspace a board opens in when no project is open: next to the app's database.
   ensureLeadStudioWorkspaceDir: call(none, () => {
     const dir = path.resolve(path.dirname(process.env.CROWSNEST_DB_PATH ?? "data/crowsnest.db"), "Lead Studio");

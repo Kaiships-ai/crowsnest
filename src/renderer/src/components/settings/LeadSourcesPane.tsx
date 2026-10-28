@@ -21,6 +21,7 @@ import {
 } from './integration-card-shell'
 import { SourceKeyDialog } from './LeadSourceKeyDialog'
 import { SidecarSourceCard } from './sidecar-source-card'
+import { PolarSourceCard } from './polar-source-card'
 
 type SourceRow = EngineCallValue<'getVaultBoard'>[number]
 
@@ -336,6 +337,8 @@ export function LeadSourcesPane(): React.JSX.Element {
               {groupRows.map((row) =>
                 row.id === 'ig-sidecar' ? (
                   <SidecarSourceCard key={row.id} row={row} reload={reload} />
+                ) : row.id === 'polar' ? (
+                  <PolarSourceCard key={row.id} row={row} reload={reload} />
                 ) : (
                   <SourceCard key={row.id} row={row} onEdit={() => setEditing(row)} reload={reload} />
                 )

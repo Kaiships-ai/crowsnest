@@ -16,4 +16,11 @@ echo $! >"$DIR/fake-umami.pid"
 for _ in $(seq 1 50); do [ -s "$DIR/fake-umami.port" ] && break; sleep 0.1; done
 [ -s "$DIR/fake-umami.port" ] || { echo "boards: fake Umami did not start, see $DIR/fake-umami.log" >&2; exit 1; }
 echo "boards: Umami at http://127.0.0.1:$(cat "$DIR/fake-umami.port")"
+rm -f "$DIR/fake-polar.port"
+node .claude/skills/verify/scripts/fake-polar.mjs >"$DIR/fake-polar.log" 2>&1 &
+echo $! >"$DIR/fake-polar.pid"
+for _ in $(seq 1 50); do [ -s "$DIR/fake-polar.port" ] && break; sleep 0.1; done
+[ -s "$DIR/fake-polar.port" ] || { echo "boards: fake Polar did not start, see $DIR/fake-polar.log" >&2; exit 1; }
+export POLAR_API_URL="http://127.0.0.1:$(cat "$DIR/fake-polar.port")"
+echo "boards: Polar at $POLAR_API_URL"
 .claude/skills/verify/scripts/app-up.sh --seed

@@ -15,8 +15,8 @@ export default async function connectors01({ page, step, snap }) {
     connectors = res.value;
     const states = Object.fromEntries(connectors.map((c) => [c.id, c.status]));
     console.log(`listConnectors: ${JSON.stringify(states)}`);
-    for (const id of ["polar", "chatbotx"]) if (states[id] !== "not-connected") throw new Error(`${id} is ${states[id]}`);
-    if (!["needs-setup", "configured"].includes(states.umami)) throw new Error(`umami is ${states.umami}`);
+    if (states.chatbotx !== "not-connected") throw new Error(`chatbotx is ${states.chatbotx}`);
+    for (const id of ["umami", "polar"]) if (!["needs-setup", "configured"].includes(states[id])) throw new Error(`${id} is ${states[id]}`);
     if (states["instagram-graph"] !== "configured") throw new Error(`instagram-graph is ${states["instagram-graph"]}`);
   });
   await step("the seeded Graph token moved to the keychain on boot and no value crosses the bridge", async () => {
@@ -34,8 +34,8 @@ export default async function connectors01({ page, step, snap }) {
     if (legacy !== "0" || sealed === "0" || leaked !== "0") throw new Error("plaintext left in SQLite");
   });
   await step("a manifest-only connector is never called", async () => {
-    const res = await call(page, "testConnector", "polar");
-    console.log(`testConnector(polar): ${JSON.stringify(res)}`);
+    const res = await call(page, "testConnector", "chatbotx");
+    console.log(`testConnector(chatbotx): ${JSON.stringify(res)}`);
     if (!res.ok || res.value.ok !== false) throw new Error(JSON.stringify(res));
   });
   await snap("connectors-01");

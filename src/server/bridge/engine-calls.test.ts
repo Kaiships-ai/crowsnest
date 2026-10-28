@@ -100,6 +100,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getSecretStatusAction: [],
   listConnectors: [],
   getVaultBoard: [],
+  getPolarOrganization: [],
   listNotificationsAction: [],
   listAgentActions: [10],
   listMcpTokens: [],
