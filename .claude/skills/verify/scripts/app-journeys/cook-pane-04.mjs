@@ -2,7 +2,7 @@
 // Caption box (CAPTION.md), "Keyword not on caption line 1" with Ask Claude to fix it and Edit caption, then
 // Send to Gate 2: the version's mp4, its sibling cover and the caption go on the plan row, the PublishSheet
 // runs its five checks, and a draft waits in Gate 2. Nothing is published: the lane's Graph is a dead port
-// (app-up.sh IG_GRAPH_HOST) and the journey never approves. Fixtures only: job.json written here, a tiny
+// (app-up.sh's dead port, or gate2-lane.sh's fake Graph) and the journey never approves. Fixtures only: job.json written here, a tiny
 // ffmpeg testsrc mp4, the fake Claude (`cat`), Orca's hook row driven with `setAgentStatus`.
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -12,7 +12,8 @@ export const dod = ["B6-01"];
 
 const { userDataDir, cookRoot: ROOT } = JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/state.json"), "utf8"));
 if (!ROOT || !ROOT.includes("lead-studio-cook")) throw new Error("run on an app-up.sh lane, which points Cook at a temp studio-reel copy");
-if (!/127\.0\.0\.1:9\b/.test(process.env.IG_GRAPH_HOST ?? "http://127.0.0.1:9")) throw new Error("this journey runs only with the fake Graph");
+// The lane's Graph is local: app-up.sh's dead port 9, or gate2-lane.sh's fake-graph.mjs. Never the real one.
+if (!/^https?:\/\/127\.0\.0\.1(:\d+)?(\/|$)/.test(process.env.IG_GRAPH_HOST ?? "http://127.0.0.1:9")) throw new Error("this journey runs only with a local fake Graph");
 const sql = (query) => execFileSync("sqlite3", [path.join(userDataDir, "crowsnest.db"), query], { encoding: "utf8" }).trim();
 const PLAN = "plan-e2e-full";
 const SLUG = "plan01-full-script-e-full";
