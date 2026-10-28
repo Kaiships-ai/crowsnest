@@ -19,7 +19,7 @@ async function settle(page, state) {
   await page.waitForFunction(
     ([sel, want]) => {
       const c = document.querySelector(sel);
-      return c?.getAttribute("data-state") === want && !c.querySelector('[data-testid="source-recheck"]')?.hasAttribute("disabled");
+      return c?.getAttribute("data-state") === want && !c.querySelector('[data-testid="sidecar-test"]')?.hasAttribute("disabled");
     },
     [SELECTOR, state],
     { timeout: 60_000 },
@@ -29,10 +29,12 @@ async function settle(page, state) {
 /** Clicks a card button and waits for the call to end with the card in `state`. */
 async function press(page, card, testId, state) {
   await card.getByTestId(testId).click();
+  // The card may already read `state`, so first see the call start.
+  await page.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-state") === "checking", SELECTOR, { timeout: 5_000 }).catch(() => {});
   await settle(page, state);
 }
 
-/** The card has no Pull, so the sidecar pulls through the bridge and Sources reopens to read the new state. */
+/** The sidecar pulls through the bridge here, the way an agent does, and Sources reopens to read the new state. */
 async function pull(page, card, state) {
   await page.evaluate(() => window.api.crowsnest.call("pullConnector", "ig-sidecar"));
   await page.getByRole("button", { name: "Back to app" }).click();
@@ -41,18 +43,18 @@ async function pull(page, card, state) {
   await settle(page, state);
 }
 
-const pills = (card) => card.evaluate((c) => [...c.querySelectorAll("span")].filter((s) => /^(Ready|Error|Partial|Not configured|Checking|Pulling|Verified)$/.test(s.innerText.trim())).map((s) => s.innerText.trim()));
+const pills = (card) => card.evaluate((c) => [...c.querySelectorAll("span")].filter((s) => /^(Ready|Error|Partial|Not configured|Checking|Testing|Pulling|Verified)$/.test(s.innerText.trim())).map((s) => s.innerText.trim()));
 
 export default async function cardState01({ page, step, snap }) {
   const card = page.locator(SELECTOR);
   try {
-    await step("Settings > Sources: no card names a next pull time or has a Pull button", async () => {
+    await step("Settings > Sources: no card names a next pull time; only the sidecar card has a Pull button", async () => {
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
       const text = await page.getByTestId("lead-sources").innerText();
       console.log(`pull lines: ${(await page.getByTestId("source-pulls").allInnerTexts()).join(" | ")}`);
       if (/\bnext\b|05:00/i.test(text)) throw new Error(`a card names a scheduled pull: ${text.replace(/\s+/g, " ").slice(0, 400)}`);
-      if (await page.getByTestId("lead-sources").getByRole("button", { name: /^Pull/ }).count()) throw new Error("a card has a Pull button");
+      if (await page.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"])').getByRole("button", { name: /^Pull/ }).count()) throw new Error("a card other than the sidecar has a Pull button");
     });
 
     await step("the sidecar's session expires and a pull fails: the card shows Error with its reason", async () => {
@@ -65,9 +67,9 @@ export default async function cardState01({ page, step, snap }) {
     });
     await snap("card-state-01-error");
 
-    await step("the session is back and Re-check passes: the failed pull still shows Error, a check proves the key and not the data", async () => {
+    await step("the session is back and Test connection passes: the failed pull still shows Error, a check proves the key and not the data", async () => {
       await setSession("ok");
-      await press(page, card, "source-recheck", "error");
+      await press(page, card, "sidecar-test", "error");
       const shown = await pills(card);
       if (JSON.stringify(shown) !== '["Error"]') throw new Error(`pills ${JSON.stringify(shown)}`);
       const row = sql("select pull_state || ' ' || coalesce(check_message, 'passed') || ' ' || (checked_at > pulled_at) from connector_status where connector_id = 'ig-sidecar'");

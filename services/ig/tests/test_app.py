@@ -58,6 +58,7 @@ def test_wrong_token_is_401(client: TestClient) -> None:
         ("post", "/download", {"url": "https://x/y.jpg", "kind": "thumbnail"}),
         ("post", "/resolve-media", {"pk": "1"}),
         ("post", "/media-stats", {"pk": "1"}),
+        ("post", "/sample-session", {"sessionid": "1"}),
     ],
 )
 def test_every_endpoint_requires_the_token(
@@ -225,3 +226,47 @@ def test_health_reports_a_loaded_session(config: Config) -> None:
     assert body["session_loaded"] is True
     assert body["can_login"] is True
     assert body["logged_in"] is False  # a blob without a user id is not a session
+
+
+# ---------------------------------------------------------- sample-session --
+def test_sample_session_answers_the_ids_own_profile_and_adopts_nothing(
+    client: TestClient, config: Config, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from crowsnest_ig.session import CrowsnestClient
+
+    monkeypatch.setattr(CrowsnestClient, "user_info_v1", lambda self, user_id: SimpleNamespace(username="trial_user", pk=user_id))
+    monkeypatch.setattr(
+        CrowsnestClient,
+        "user_info_by_username",
+        lambda self, username, use_cache=True: SimpleNamespace(
+            model_dump=lambda mode: {"pk": str(self.user_id), "username": username, "full_name": "Trial", "follower_count": 12345, "following_count": 1, "media_count": 210}
+        ),
+    )
+
+    response = client.post("/sample-session", headers=AUTH, json={"sessionid": "4242424242%3AabcdefghijklmnopqrstuvwxyzABCD%3A1"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [body["username"], body["follower_count"], body["media_count"]] == ["trial_user", 12345, 210]
+    health = client.get("/health", headers=AUTH).json()
+    assert [health["logged_in"], health["session_loaded"]] == [False, False]
+    assert not config.session_path.exists()
+
+
+def test_sample_session_with_a_refused_id_is_401_auth_required(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    from instagrapi import exceptions as ig_ex
+
+    from crowsnest_ig.session import CrowsnestClient
+
+    def refused(self, *args, **kwargs):
+        raise ig_ex.LoginRequired("login_required")
+
+    for name in ("user_info_v1", "_user_short_from_private_stream", "user_short_gql"):
+        monkeypatch.setattr(CrowsnestClient, name, refused)
+
+    response = client.post("/sample-session", headers=AUTH, json={"sessionid": "4242424242%3AabcdefghijklmnopqrstuvwxyzABCD%3A1"})
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "IG_AUTH_REQUIRED"
