@@ -166,5 +166,18 @@
     "writing-fragments": "off",
     "writing-great-skills": "off",
     "writing-shape": "off"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/scripts/agent-guard.sh\""
+          }
+        ]
+      }
+    ]
   }
 }
