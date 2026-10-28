@@ -25,11 +25,17 @@ if (proof.video && !proof.video.endsWith(".min.mp4")) {
 
 const RISK = { low: "THẤP · CI xanh là tự merge", medium: "VỪA · anh xem trang này", high: "CAO · anh xem trang này và chạy thật 1 lần trên app của anh" };
 const shot = (f, label) => (f ? `<figure><a href="${esc(f)}"><img src="${esc(f)}" alt="${esc(label)}"></a><figcaption>${esc(label)}</figcaption></figure>` : `<figure class="none"><span>không có ảnh</span><figcaption>${esc(label)}</figcaption></figure>`);
+// A number matches when equal, or within tolerancePct of the source for measurements such as timings
+// (PR 244: 2.20 s vs 2.27 s is noise, not a defect).
+const matches = (n) => n.expected === n.app || (n.tolerancePct != null && Math.abs(Number(n.app) - Number(n.expected)) <= Math.abs(Number(n.expected)) * n.tolerancePct / 100);
+// Every state the app shows needs an approved prototype (Kai's gate); a state without one fails the page's checks.
+const unapproved = proof.states.filter((s) => s.after && !s.prototype).map((s) => s.name);
+if (unapproved.length) proof.checks.push({ label: `Chưa có prototype được duyệt cho: ${unapproved.join(", ")}`, ok: false });
 const states = proof.states
   .map((s) => `<h3>${esc(s.name)}</h3><div class="row">${shot(s.prototype, "Prototype")}${shot(s.before, "Trước (main)")}${shot(s.after, "Sau (PR này)")}</div>`)
   .join("");
 const numbers = proof.numbers
-  .map((n) => `<tr><td>${esc(n.label)}</td><td>${esc(n.source)}: <b>${esc(n.expected)}</b></td><td>App: <b>${esc(n.app)}</b></td><td class="${n.expected === n.app ? "ok" : "bad"}">${n.expected === n.app ? "✓ khớp" : "✗ lệch"}</td></tr>`)
+  .map((n) => `<tr><td>${esc(n.label)}</td><td>${esc(n.source)}: <b>${esc(n.expected)}</b></td><td>App: <b>${esc(n.app)}</b></td><td class="${matches(n) ? "ok" : "bad"}">${matches(n) ? "✓ khớp" : "✗ lệch"}</td></tr>`)
   .join("");
 const checks = proof.checks.map((c) => `<li class="${c.ok ? "ok" : "bad"}">${c.ok ? "✓" : "✗"} ${esc(c.label)}</li>`).join("");
 
@@ -59,7 +65,7 @@ a{color:inherit}ul{list-style:none;padding:0}.meta{color:var(--muted);font-size:
 
 writeFileSync(path.join(dir, "index.html"), html);
 const passed = proof.checks.filter((c) => c.ok).length;
-const matched = proof.numbers.filter((n) => n.expected === n.app).length;
+const matched = proof.numbers.filter(matches).length;
 writeFileSync(path.join(dir, "comment.md"), [
   `**Trang bằng chứng** · rủi ro ${RISK[proof.risk] ?? proof.risk}`,
   `Đã kiểm ${passed}/${proof.checks.length} · số thật khớp ${matched}/${proof.numbers.length} · ${proof.video ? "có video" : "chưa có video"}`,

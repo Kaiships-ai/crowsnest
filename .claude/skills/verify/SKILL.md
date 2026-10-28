@@ -93,7 +93,7 @@ Every complex PR ends with one page Kai opens to decide it. The owner fills `~/.
   "cost": "new tokens · minutes", "undo": "Revert button on the PR" }
 ```
 
-`node .claude/skills/verify/scripts/proof-page.mjs ~/.claude/orchestrate/proof/<pr>` checks every media file exists and writes `index.html` and `comment.md`. A state with no before shot (a new state) sets `before` to null. `numbers` compare the app with the real source on the smallest real sample, never a fake. The root publishes `index.html` as a private claude.ai artifact with the media as supporting files, puts the page URL in `comment.md`, and runs `gh pr comment <pr> --body-file comment.md`. Kai opens that one link.
+`node .claude/skills/verify/scripts/proof-page.mjs ~/.claude/orchestrate/proof/<pr>` checks every media file exists and writes `index.html` and `comment.md`. A state with no before shot (a new state) sets `before` to null. A state with no prototype adds a failing check, "Chưa có prototype được duyệt", because every state the app shows needs one Kai approved. A measured number (a timing) sets `tolerancePct`; others must be equal. `numbers` compare the app with the real source on the smallest real sample, never a fake. The root publishes `index.html` as a private claude.ai artifact with the media as supporting files, puts the page URL in `comment.md`, and runs `gh pr comment <pr> --body-file comment.md`. Kai opens that one link.
 
 ## Cleanup
 
