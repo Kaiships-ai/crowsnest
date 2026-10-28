@@ -77,6 +77,8 @@ export interface PullSummary {
   failed: number;
   durationSec: number;
   startedAt: string | null;
+  /** What the pull covered, such as "last 30 days", when the source pulls a time window. */
+  window?: string;
   /** When the items this pull did not reach got their numbers: the pull before it. */
   olderFrom: string | null;
   stop: PullStop | null;

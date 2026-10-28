@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { openBoardInActiveWorkspace } from '@/lib/open-board-tab'
 import { useAppStore } from '@/store'
 import { formatClock } from '../board/board-time'
+import { notifyFunnelChanged } from '@/lib/funnel-changed'
 import { IntegrationCardDetails, IntegrationCardShell } from './integration-card-shell'
 import { Actions, Dim, Num, PILL, Strong, Warn, type SourceRow } from './sidecar-card-view'
 import { formatElapsed, SourcePullProgress, SourcePullSummary } from './source-pull-progress'
@@ -100,7 +101,12 @@ export function UmamiSourceCard({
     })
   }, [form])
 
+  const wasPulling = useRef(false)
   useEffect(() => {
+    if (wasPulling.current && view === 'done') {
+      notifyFunnelChanged()
+    }
+    wasPulling.current = view === 'pulling'
     if (view !== 'pulling') {
       setStopping(false)
       return
@@ -128,7 +134,7 @@ export function UmamiSourceCard({
   }
   const openFunnel = (): void => {
     useAppStore.getState().closeSettingsPage()
-    void openBoardInActiveWorkspace('funnel')
+    void openBoardInActiveWorkspace('funnel').then(notifyFunnelChanged)
   }
 
   const pullButton = (primary: boolean): React.ReactNode => (
@@ -229,7 +235,7 @@ export function UmamiSourceCard({
                 <>
                   {translate('leadStudio.sources.umami.lastPull', 'Last pull:')}{' '}
                   <Num>
-                    {formatClock(row.pulledAt)} · {pull.total} {pages()}
+                    {formatClock(row.pulledAt)} · {pull.window ?? `${pull.total} ${pages()}`}
                   </Num>
                 </>
               ) : (
@@ -263,14 +269,7 @@ export function UmamiSourceCard({
                 'Stopping after this page…'
               )
             }}
-            tally={[
-              translate('leadStudio.sources.umami.pagesRead', '✓ {{count}} read', {
-                count: done
-              }),
-              translate('leadStudio.sources.pull.toGo', '{{count}} to go', {
-                count: Math.max(0, (total ?? done) - done)
-              })
-            ]}
+            noTally
             slowReason={translate('leadStudio.sources.umami.slow', 'Umami is answering slowly.')}
             onStop={() => {
               setStopping(true)
@@ -288,7 +287,7 @@ export function UmamiSourceCard({
                   {translate('leadStudio.sources.umami.pulledAt', 'Pulled the funnel at')}{' '}
                   <Num>{row.pulledAt ? formatClock(row.pulledAt) : ''}</Num>{' '}
                   {translate('leadStudio.sources.umami.in', 'in')}{' '}
-                  <Num>{formatElapsed(pull?.durationSec ?? 0)}</Num> ({pageCount}).
+                  <Num>{formatElapsed(pull?.durationSec ?? 0)}</Num> ({pull?.window ?? pageCount}).
                 </>
               }
               cells={[

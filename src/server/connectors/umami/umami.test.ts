@@ -35,7 +35,7 @@ const EVENTS: UmamiEvent[] = [
 ];
 
 const NOW = new Date("2026-10-18T10:00:00.000Z");
-const fake = { failPage: 0, eventCalls: [] as URLSearchParams[], authHeaders: [] as (string | undefined)[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false };
+const fake = { failPage: 0, eventCalls: [] as URLSearchParams[], authHeaders: [] as (string | undefined)[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false, emptyPage: 0 };
 let server: Server;
 let access: UmamiAccess;
 
@@ -58,7 +58,7 @@ beforeAll(async () => {
       const from = Number(url.searchParams.get("startAt"));
       const to = Number(url.searchParams.get("endAt"));
       const inRange = fake.events.filter((e) => Date.parse(e.createdAt) >= from && Date.parse(e.createdAt) <= to);
-      const data = fake.ignorePage ? inRange.slice(0, fake.pageSize) : inRange.slice((page - 1) * fake.pageSize, page * fake.pageSize);
+      const data = page === fake.emptyPage ? [] : fake.ignorePage ? inRange.slice(0, fake.pageSize) : inRange.slice((page - 1) * fake.pageSize, page * fake.pageSize);
       return send(200, fake.sendCount ? { data, count: inRange.length, page, pageSize: fake.pageSize } : { data, page, pageSize: fake.pageSize });
     }
     send(404, { error: "not found" });
@@ -72,7 +72,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 beforeEach(async () => {
   migrate();
   for (const t of [tables.umamiDays, tables.reelFunnel, tables.plannedPosts, tables.sealedSecrets, tables.secrets]) await db.delete(t);
-  Object.assign(fake, { failPage: 0, eventCalls: [], authHeaders: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false });
+  Object.assign(fake, { failPage: 0, eventCalls: [], authHeaders: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false, emptyPage: 0 });
   const at = "2026-10-17T00:30:00.000Z";
   await db.insert(tables.plannedPosts).values([
     { id: "plan-shark", state: "published", title: "Shark reel", keyword: "SHARK", createdAt: at, updatedAt: at },
@@ -143,6 +143,18 @@ describe("Umami pull", () => {
       rows: { days: ["2026-10-17", "2026-10-18"], events: 4, keywords: 0 },
       missing: "events after the first 4",
       reason: "Umami answered HTTP 503 on /api/websites/site-1/events",
+    });
+    expect(db.select().from(tables.umamiDays).all()).toEqual([]);
+    expect(funnelRows()).toEqual([]);
+  });
+
+  test("an empty page before count is reached is a partial pull and stores nothing", async () => {
+    fake.emptyPage = 2;
+    expect(await pullUmami(access, NOW)).toEqual({
+      kind: "partial",
+      rows: { days: ["2026-10-17", "2026-10-18"], events: 4, keywords: 0 },
+      missing: "events after the first 4",
+      reason: "Umami sent an empty page 2 after 4 of 11 events",
     });
     expect(db.select().from(tables.umamiDays).all()).toEqual([]);
     expect(funnelRows()).toEqual([]);

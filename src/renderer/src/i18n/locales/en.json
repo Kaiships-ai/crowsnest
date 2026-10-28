@@ -21581,7 +21581,6 @@
         "noSample": "Not tested yet. Press Test connection to check the key.",
         "lastPull": "Last pull:",
         "stoppingPage": "Stopping after this page…",
-        "pagesRead": "✓ {{count}} read",
         "slow": "Umami is answering slowly.",
         "pulledAt": "Pulled the funnel at",
         "in": "in",

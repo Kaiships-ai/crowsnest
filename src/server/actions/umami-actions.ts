@@ -1,7 +1,7 @@
 "use server";
 
 import { LEGACY_UMAMI_SECRETS, umami, umamiAccess, websiteLine } from "../connectors/umami";
-import { listUmamiWebsites, pullUmami, umamiBase, type UmamiWebsite } from "../connectors/umami/pull";
+import { listUmamiWebsites, pullUmami, pullWindow, umamiBase, type UmamiPull, type UmamiWebsite } from "../connectors/umami/pull";
 import { readSecret, writeSecrets } from "../connectors/secrets";
 import type { SimpleResult } from "../lib/action-result";
 import { clockNow } from "../lib/clock";
@@ -58,7 +58,7 @@ export async function startUmamiPullAction(): Promise<SimpleResult> {
   let last = { done: 0, total: 0 };
   recordPullStart(umami.id);
   void (async () => {
-    let result: PullResult<unknown, unknown> = { kind: "failed", reason: "the pull did not finish" };
+    let result: PullResult<UmamiPull, unknown> = { kind: "failed", reason: "the pull did not finish" };
     try {
       result = await pullUmami(access, startedAt, {
         shouldStop: () => pull.stop,
@@ -80,6 +80,7 @@ export async function startUmamiPullAction(): Promise<SimpleResult> {
         failed: 0,
         durationSec: Math.round((clockNow().getTime() - startedAt.getTime()) / 1000),
         startedAt: startedAt.toISOString(),
+        ...(result.kind === "failed" ? {} : { window: pullWindow(result.rows.days) }),
         stop: pull.stop && result.kind === "partial" ? "stopped" : null,
         items: [],
       });

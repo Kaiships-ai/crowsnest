@@ -122,16 +122,17 @@ function storeDays(days: UmamiDay[], now: Date): void {
   }
 }
 
-const windowLabel = (days: string[]) => (days.length === 1 ? "events, today" : `events, last ${days.length} days`);
+/** What a pull covers, as the card says it: "today" or "last 30 days". */
+export const pullWindow = (days: string[]): string => (days.length === 1 ? "today" : `last ${days.length} days`);
 
 /** Pulls every event from the day before the first open day to now; the day before only seeds each session's campaign and is not counted.
- *  Paging ends once `count` events came back, or at the first empty page when Umami sends no count; past MAX_PAGES the pull is partial.
+ *  Paging ends once `count` events came back, or at the first empty page when Umami sends no count; an empty page before `count` and past MAX_PAGES are partial.
  *  Only a pull whose every page came back is stored; a stopped, partial or failed pull writes nothing. */
 export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPullControl = {}): Promise<PullResult<UmamiPull, string | SourceDownError>> {
   const days = daysBetween(firstDay(now), vnDay(now));
   const startAt = vnDayStart(days[0]).getTime() - 86_400_000;
   const endAt = now.getTime();
-  const label = windowLabel(days);
+  const label = `events, ${pullWindow(days)}`;
   const events: UmamiEvent[] = [];
   try {
     for (let page = 1; ; page++) {
@@ -142,7 +143,11 @@ export async function pullUmami(access: UmamiAccess, now: Date, control: UmamiPu
       events.push(...(res.data ?? []));
       const total = res.count === undefined ? page + 1 : Math.max(1, Math.ceil(res.count / (res.pageSize || PAGE_SIZE)));
       control.onPage?.({ done: page, total: Math.max(page, total), label });
-      if (!res.data?.length || (res.count !== undefined && events.length >= res.count)) break;
+      if (res.count !== undefined && events.length >= res.count) break;
+      if (!res.data?.length) {
+        if (res.count !== undefined) throw new Error(`Umami sent an empty page ${page} after ${events.length} of ${res.count} events`);
+        break;
+      }
     }
   } catch (err) {
     // A source that did not answer keeps its kind, so the card can offer Change address.
