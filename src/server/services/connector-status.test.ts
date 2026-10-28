@@ -112,7 +112,7 @@ describe("Pull the rest on the sidecar card", () => {
     vi.setSystemTime(new Date(at));
     // SAFETY: the test reads only the fields syncSummary reads.
     vi.mocked(runSync).mockImplementationOnce(async (o) => {
-      o.onJobStarted?.("job-1");
+      o?.onJobStarted?.("job-1");
       return r as unknown as Awaited<ReturnType<typeof runSync>>;
     });
     await startSyncAction(undefined, opts);
@@ -126,7 +126,7 @@ describe("Pull the rest on the sidecar card", () => {
     await pullAt("2026-10-28T10:05:00.000Z", { rest: true }, result(["b", "c", "d"], 2, 2, 1, true));
     await pullAt("2026-10-28T10:10:00.000Z", { rest: true }, result(["d"], 1, 1, 0, false));
     vi.useRealTimers();
-    expect(vi.mocked(runSync).mock.calls.map(([o]) => o.skipSyncedSince)).toEqual([undefined, "2026-10-28T10:00:00.000Z", "2026-10-28T10:00:00.000Z"]);
+    expect(vi.mocked(runSync).mock.calls.map(([o]) => o?.skipSyncedSince)).toEqual([undefined, "2026-10-28T10:00:00.000Z", "2026-10-28T10:00:00.000Z"]);
     expect(parseSummary(readStatuses().get("ig-sidecar")?.summary ?? null).pull).toMatchObject({
       total: 4, done: 4, updated: 4, newItems: 4, stop: null, startedAt: "2026-10-28T10:10:00.000Z", chainFrom: "2026-10-28T10:00:00.000Z",
     });
