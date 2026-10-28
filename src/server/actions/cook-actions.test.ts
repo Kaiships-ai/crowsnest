@@ -1,11 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
-import { clearPlanCookingAction, cookPlanCardAction, cookRoot, getCookView, markPlanCookingAction } from "./cook-actions";
+import { attachCookToPlanAction, clearPlanCookingAction, cookPlanCardAction, cookRoot, getCookView, markPlanCookingAction } from "./cook-actions";
+import { postCaption } from "./cook-versions";
 
 const T = "2026-10-01T00:00:00.000Z";
 const tomorrow = () => new Date(Date.now() + 86_400_000).toLocaleDateString("sv-SE");
@@ -71,4 +72,29 @@ test("the Cook view reads job.json: elapsed from started, a dead pid, and the us
   expect(await getCookView("plan-dddddd")).toMatchObject({ usualRenderSec: 120 });
   writeJob("hook-a-dddddd", [{ name: "draft", status: "running", pct: 40 }]);
   expect(await getCookView("plan-dddddd")).toMatchObject({ elapsedSec: null });
+});
+
+test("CAPTION.md's post caption is the text under # Caption, without the pinned comment", () => {
+  expect(postCaption("# Caption\n\nHook line.\n\nComment APPS and I'll send it.\n\n## Pinned comment\n\nComment APPS below.")).toBe("Hook line.\n\nComment APPS and I'll send it.");
+  expect(postCaption("Comment HOOKS first.\nMore.")).toBe("Comment HOOKS first.\nMore.");
+  expect(postCaption("# Caption\n\n## Pinned comment\nx")).toBeNull();
+});
+
+test("Send to Gate 2 puts the newest version's mp4, its cover and CAPTION.md on the plan row, and sends nothing", async () => {
+  await db.insert(tables.plannedPosts).values(plan("plan-eeeeee", { cookWorkspaceId: "ws1", keyword: "HOOKS" }));
+  expect(await attachCookToPlanAction("plan-eeeeee")).toMatchObject({ ok: false, code: "COOK_NO_VERSION" });
+  const film = path.join(root, "films", "hook-a-eeeeee");
+  writeJob("hook-a-eeeeee", [{ name: "render", status: "done" }, { name: "deliver", status: "done" }]);
+  writeFileSync(path.join(film, "job.json"), JSON.stringify({ steps: [{ name: "render", status: "done" }, { name: "deliver", status: "done" }], outputs: ["reel.mp4", "reel-cover.png", "CAPTION.md"] }));
+  copyFileSync(path.join(__dirname, "../media/__fixtures__/tiny.mp4"), path.join(film, "reel.mp4"));
+  writeFileSync(path.join(film, "reel-cover.png"), "png");
+  writeFileSync(path.join(film, "CAPTION.md"), "# Caption\n\nA hook line.\n\nComment HOOKS and I'll send it.\n\n## Pinned comment\n\nHOOKS");
+  const view = await getCookView("plan-eeeeee");
+  expect(view).toMatchObject({ ok: true, caption: "A hook line.\n\nComment HOOKS and I'll send it.", sent: null });
+  // Claude moves the keyword after deliver: the newest version reads the film's own CAPTION.md.
+  writeFileSync(path.join(film, "CAPTION.md"), "# Caption\n\nComment HOOKS and I'll send it.\nA hook line.");
+  expect(await attachCookToPlanAction("plan-eeeeee")).toEqual({ ok: true, version: 1 });
+  const [row] = await db.select().from(tables.plannedPosts);
+  expect([row.videoAssetId != null, row.coverAssetId != null, row.caption, row.state]).toEqual([true, true, "Comment HOOKS and I'll send it.\nA hook line.", "draft"]);
+  expect(await db.select().from(tables.gateDrafts)).toEqual([]);
 });

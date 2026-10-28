@@ -50,11 +50,87 @@ export function roundCard(view: CookView, group: string | null, so: string): Coo
   }
 }
 
-/** Proto 17 (its version line), 22 and 24: the reel is delivered and saved in versions/. */
+const HASHTAGS = /^(#\S+\s*)+$/
+
+/** Where the plan's keyword sits in the post caption. Line 0 is what Gate 2's keywordCheck reads
+ *  (rule R7), with the same case-blind match. Null without a keyword or a caption. */
+export function keywordSpot(
+  view: Pick<CookView, 'keyword' | 'caption'>
+): { keyword: string; line: number | null; last: boolean } | null {
+  if (!view.keyword || !view.caption) {
+    return null
+  }
+  const lines = view.caption.split('\n')
+  const kw = view.keyword.toLowerCase()
+  const at = lines.findIndex((line) => line.toLowerCase().includes(kw))
+  const textLines = lines.flatMap((line, i) =>
+    line.trim() && !HASHTAGS.test(line.trim()) ? [i] : []
+  )
+  return {
+    keyword: view.keyword,
+    line: at === -1 ? null : at,
+    last: at !== -1 && at === textLines.at(-1)
+  }
+}
+
+const sentFormat = new Intl.DateTimeFormat('en-GB', {
+  weekday: 'short',
+  day: 'numeric',
+  month: 'short'
+})
+
+/** Proto 26: a publish draft of this reel waits in Gate 2. */
+function sentCard(view: CookView, at: string): CookCard {
+  const when =
+    at === 'now'
+      ? 'right after approval'
+      : `${sentFormat.format(new Date(at)).replace(',', '')} · ${at.slice(11, 16)}`
+  return {
+    state: 'sent',
+    tone: 'ok',
+    head: 'Sent to Gate 2. Nothing is published yet.',
+    sub: `v${gateVersion(view)} · ${when}`,
+    acts: ['opengate'],
+    can: 'Approve it in Gate 2, or keep working here.',
+    wait: 'Gate 2 waits for your approval. Nothing posts on its own.'
+  }
+}
+
+/** Proto 18: the keyword is not on caption line 1, so Gate 2 would warn. */
+function keywordCard(spot: { keyword: string; line: number | null; last: boolean }): CookCard {
+  const where =
+    spot.line == null
+      ? 'CAPTION.md does not have it.'
+      : spot.last
+        ? 'CAPTION.md has it only in its last line.'
+        : `CAPTION.md has it only in line ${spot.line + 1}.`
+  return {
+    state: 'keyword-missing',
+    tone: 'need',
+    head: `Keyword ${spot.keyword} is not on caption line 1`,
+    sub: `Gate 2 checks line 1. ${where}`,
+    acts: ['fixkw', 'editcap'],
+    can: 'Let Claude move it, or edit CAPTION.md yourself.',
+    wait: 'Gate 2 shows a yellow check and asks you to confirm before it posts.'
+  }
+}
+
+/** The message "Ask Claude to fix it" types into Claude (rule R7). */
+export const keywordFixMessage = (view: CookView, keyword: string): string =>
+  `Rule R7: the keyword ${keyword} must be on line 1 of the post caption, Gate 2 checks only that line. Edit films/${view.slug}/CAPTION.md so its first caption line carries "Comment ${keyword}". Change nothing else and render nothing.`
+
+/** Proto 17 (its version line), 18, 22, 24 and 26: the reel is delivered and saved in versions/. */
 export function deliveredCard(view: CookView): CookCard {
   const last = view.versions.at(-1)
   const n = lastVersion(view)
   const pick = gateVersion(view)
+  if (view.sent) {
+    return sentCard(view, view.sent.at)
+  }
+  const spot = keywordSpot(view)
+  if (last && spot && spot.line !== 0) {
+    return keywordCard(spot)
+  }
   const facts = [
     last?.durationSec != null ? mmss(last.durationSec) : null,
     view.qa ? `QA ${view.qa}` : null
@@ -65,9 +141,18 @@ export function deliveredCard(view: CookView): CookCard {
       tone: 'ok',
       head: 'Ready for Gate 2',
       ...(facts.length || last
-        ? { sub: [last ? `v${n}` : null, ...facts].filter(Boolean).join(' · ') }
+        ? {
+            sub: [
+              last ? `v${n}` : null,
+              ...facts,
+              spot ? `${spot.keyword} on caption line 1` : null
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          }
         : {}),
-      acts: [],
+      acts: last ? ['gate2'] : [],
+      ...(last ? { can: 'Watch it, send feedback, or send it to Gate 2.' } : {}),
       wait: 'Nothing posts. The reel waits here, and the Plan card reads Ready.'
     }
   }
@@ -85,7 +170,7 @@ export function deliveredCard(view: CookView): CookCard {
           ]
             .filter(Boolean)
             .join(' · '),
-    acts: ['compare'],
+    acts: ['gate2', 'compare'],
     compare: [n - 1, n],
     can: `Compare, send more feedback, or send v${pick} to Gate 2.`,
     wait:

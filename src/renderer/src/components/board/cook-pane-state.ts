@@ -27,7 +27,16 @@ export type CookGroup = (typeof COOK_GROUPS)[number]['group']
 
 export type CookTone = 'run' | 'need' | 'err' | 'ok' | 'idle'
 export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'paused' | 'pending'
-export type CookAction = 'retry' | 'resume' | 'terminal' | 'compare' | 'donecompare'
+export type CookAction =
+  | 'retry'
+  | 'resume'
+  | 'terminal'
+  | 'compare'
+  | 'donecompare'
+  | 'gate2'
+  | 'fixkw'
+  | 'editcap'
+  | 'opengate'
 
 export type CookCard = {
   /** The proto v2 state this card is, for journeys and docs. */

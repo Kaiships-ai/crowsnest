@@ -21,10 +21,12 @@ import { useAppStore } from '@/store'
 import type { TerminalTab } from '../../../../shared/terminal-tab-types'
 import { useNativeChatInteractiveSend } from '../native-chat/use-native-chat-interactive-send'
 import { sendNativeChatMessage } from '../native-chat/native-chat-runtime-send'
+import { openBoardInActiveWorkspace } from '@/lib/open-board-tab'
 import { cookReel, launchCookClaude, showCookTerminal } from './cook-reel'
 import { cookCard, cookSegments, type CookAction, type CookView } from './cook-pane-state'
 import { reopenBanner, waited, type CookClaude, type CookPrompt } from './cook-claude-cards'
-import { metaLine, ScriptBox, slotLabel, StatusCard, Strip } from './cook-pane-parts'
+import { CaptionBox, metaLine, ScriptBox, slotLabel, StatusCard, Strip } from './cook-pane-parts'
+import { attachCookToPlan, captionAction, CookGate2Sheet } from './cook-gate2'
 import { ApprovalButtons, QuestionOptions, ReplyBox, type ClaudeKeys } from './cook-prompt-answers'
 import {
   ESC,
@@ -163,6 +165,7 @@ function CookPaneBody({
   const [message, setMessage] = useState<string | null>(null)
   const [confirmStop, setConfirmStop] = useState(false)
   const [bannerShut, setBannerShut] = useState(false)
+  const [sheet, setSheet] = useState(false)
   useEffect(() => {
     if (liveness === 'alive') {
       forgetRestart()
@@ -199,6 +202,22 @@ function CookPaneBody({
     }
   }
   const onAction = async (action: CookAction): Promise<void> => {
+    if (action === 'gate2') {
+      setBusy(true)
+      const error = await attachCookToPlan(planId)
+      setBusy(false)
+      setMessage(error)
+      setSheet(!error)
+      return
+    }
+    if (action === 'opengate') {
+      openBoardInActiveWorkspace('gate2')
+      return
+    }
+    if (action === 'editcap' || action === 'fixkw') {
+      setMessage(captionAction(action, view, worktreeId, liveness === 'alive' ? keys : null))
+      return
+    }
     if (action === 'terminal') {
       showCookTerminal(worktreeId)
       return
@@ -321,7 +340,10 @@ function CookPaneBody({
         ) : (
           <div className="grid gap-3 @min-[520px]:grid-cols-[188px_minmax(0,1fr)]">
             <VideoBox view={view} shown={shown} onShow={setShown} />
-            <ScriptBox view={view} />
+            <div className="flex min-w-0 flex-col gap-3">
+              <ScriptBox view={view} />
+              <CaptionBox view={view} />
+            </div>
           </div>
         )}
         {!comparing && (view.video || view.versions.length > 0) ? (
@@ -333,6 +355,7 @@ function CookPaneBody({
           />
         ) : null}
       </div>
+      <CookGate2Sheet planId={planId} view={view} open={sheet} onOpenChange={setSheet} />
       <Dialog open={confirmStop} onOpenChange={setConfirmStop}>
         <DialogContent data-testid="cook-stop-dialog" showCloseButton={false}>
           <DialogHeader>

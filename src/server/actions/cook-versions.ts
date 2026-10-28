@@ -182,6 +182,26 @@ export async function cookVersions(film: string, index: CookIndex): Promise<Cook
   );
 }
 
+/** The post caption in studio-reel's CAPTION.md: the text under its `# Caption` heading, up to the next
+ *  section (`## Pinned comment`). A file with no heading is the caption as it is. */
+export function postCaption(md: string): string | null {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const start = /^#\s/.test(lines.find((l) => l.trim()) ?? "") ? lines.findIndex((l) => l.trim()) + 1 : 0;
+  const rest = lines.slice(start);
+  const end = rest.findIndex((l) => /^##\s/.test(l));
+  return (end === -1 ? rest : rest.slice(0, end)).join("\n").trim() || null;
+}
+
+/** The files Gate 2 gets for version n: its saved mp4, and CAPTION.md. The newest version reads the film's own
+ *  CAPTION.md, so a fix by Claude or Kai after deliver shows; an older pick reads the copy saved with it. */
+export async function gateFiles(film: string, index: CookIndex, n: number): Promise<{ mp4: string; caption: string | null } | null> {
+  const v = index.versions.find((x) => x.n === n);
+  if (!v) return null;
+  const newest = n === index.versions.at(-1)?.n;
+  const md = await readText(path.join(newest ? film : path.join(film, "versions", `v${n}`), "CAPTION.md"));
+  return { mp4: path.join(film, "versions", `v${n}`, v.mp4), caption: md == null ? null : postCaption(md) };
+}
+
 /** Proto v2's feedback message template, on one line so Enter submits it. */
 export const feedbackMessage = (round: number, from: number, note: string): string =>
   `Feedback round ${round} from Lead Studio. v${from} is kept in versions/v${from}/. Note: "${note.replace(/\s+/g, " ").trim()}". Re-run only what this changes, draft first, then the final. End with job.mjs … deliver done --change="…".`;
