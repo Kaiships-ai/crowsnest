@@ -27,10 +27,18 @@ export function FeedbackBox({
   const [queued, setQueued] = useState<string | null>(() => localStorage.getItem(QUEUE_KEY(planId)))
   const [error, setError] = useState<string | null>(null)
   const sending = useRef(false)
+  // Sent, and the view does not show its round yet: Claude's hook still reads done until then.
+  const [sent, setSent] = useState(false)
   const round = openRound(view)
+  const roundN = round?.n
+  useEffect(() => {
+    if (roundN != null) {
+      setSent(false)
+    }
+  }, [roundN])
   const delivered = view.steps?.find((s) => s.name === 'deliver')?.status === 'done'
   // Why: a round starts from a saved version, so a note waits for deliver and for the copy to versions/.
-  const ready = claudeIdle && type != null && delivered && !round && lastVersion(view) > 0
+  const ready = claudeIdle && type != null && delivered && !round && !sent && lastVersion(view) > 0
   const keep = (text: string | null): void => {
     setQueued(text)
     if (text) {
@@ -44,15 +52,18 @@ export function FeedbackBox({
       return
     }
     sending.current = true
+    // Why: a remount while this awaits reads the queue again, and would send the note twice.
+    keep(null)
     const result = await window.api.crowsnest
       .call('recordCookRoundAction', planId, text)
       .catch(() => null)
     const value = result?.ok ? result.value : null
     if (value?.ok) {
+      setSent(true)
       type(value.message)
-      keep(null)
       setError(null)
     } else {
+      setNote(text)
       setError(value ? value.error : 'Could not send the note.')
     }
     sending.current = false

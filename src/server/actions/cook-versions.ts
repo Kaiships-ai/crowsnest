@@ -21,7 +21,8 @@ export type CookIndex = z.infer<typeof Index>;
 export type CookRound = z.infer<typeof Round>;
 export type CookVersion = z.infer<typeof Version> & { file: string; scriptLines: string[] | null; caption: string | null };
 
-type DeliveredJob = { outputs: string[]; qa?: string; change?: string };
+type JobStep = { name: string; status: string; started?: string; ended?: string };
+type CookJob = { steps: JobStep[]; outputs: string[]; qa?: string; change?: string };
 
 const readJson = async (file: string): Promise<unknown> => {
   try {
@@ -113,26 +114,53 @@ export function changeFallback(
 }
 
 const snapshots = new Map<string, Promise<CookIndex>>();
+// Films whose deliver this process saw not done since their last saved version.
+const deliverOpened = new Set<string>();
 
-/** When deliver is done and its final is not saved yet, copies the delivered files plus src/, vo/script.json and
+/** deliver is done for this round, not left done from the last one: a feedback round reruns render, and job.mjs
+ *  leaves deliver as it was. deliver's ended (or started) must be after render's ended or the last version's save. */
+export function deliveredThisRound(steps: JobStep[], savedAt: string, seenOpen: boolean): boolean {
+  const deliver = steps.find((s) => s.name === "deliver");
+  const at = Date.parse(deliver?.ended ?? deliver?.started ?? "");
+  // ponytail: studio-reel's job.mjs writes no started/ended yet, so then it is "this process saw deliver not done
+  // since the last version"; an app restart in between loses that and the round's version waits for the next deliver.
+  if (Number.isNaN(at)) return seenOpen;
+  return at > Date.parse(steps.find((s) => s.name === "render")?.ended ?? "") || at > Date.parse(savedAt);
+}
+
+/** When deliver is done for this round and its final is not saved yet, copies the delivered files plus src/, vo/script.json and
  *  audio/cues.json to versions/vN/. Idempotent: a version is keyed by its final mp4's mtime. */
-export function snapshotCookVersion(film: string, job: DeliveredJob): Promise<CookIndex> {
+export function snapshotCookVersion(film: string, job: CookJob): Promise<CookIndex> {
   // Why: the pane and the Studio board poll the same film; one copy at a time, or both would save the same final.
   const pending = snapshots.get(film) ?? snapshot(film, job).finally(() => snapshots.delete(film));
   snapshots.set(film, pending);
   return pending;
 }
 
-async function snapshot(film: string, job: DeliveredJob): Promise<CookIndex> {
+async function snapshot(film: string, job: CookJob): Promise<CookIndex> {
   const index = await readCookIndex(film);
+  if (job.steps.find((s) => s.name === "deliver")?.status !== "done") {
+    deliverOpened.add(film);
+    return index;
+  }
   const mp4 = finalMp4(job.outputs);
   const mtime = mp4 ? (await stat(path.join(film, mp4)).catch(() => null))?.mtimeMs : undefined;
   const last = index.versions.at(-1);
   if (!mp4 || mtime == null || last?.mp4Mtime === mtime) return index;
+  if (last && !deliveredThisRound(job.steps, last.savedAt, deliverOpened.has(film))) return index;
   const n = (last?.n ?? 0) + 1;
   const dir = path.join(film, "versions", `v${n}`);
-  for (const rel of [...job.outputs.filter((f) => !f.startsWith("out/")), "src", "vo/script.json", "audio/cues.json"]) {
-    await cp(path.join(film, rel), path.join(dir, rel), { recursive: true }).catch(() => undefined);
+  const copy = (rel: string) => cp(path.join(film, rel), path.join(dir, rel), { recursive: true });
+  // Why: no index entry for a version whose mp4 or a file that exists failed to copy, so the next poll retries it.
+  try {
+    await copy(mp4);
+    for (const rel of [...job.outputs.filter((f) => !f.startsWith("out/") && f !== mp4), "src", "vo/script.json", "audio/cues.json"]) {
+      await copy(rel).catch((e: unknown) => {
+        if (!(e instanceof Error && "code" in e && e.code === "ENOENT")) throw e;
+      });
+    }
+  } catch {
+    return index;
   }
   const [durationSec, hookSec, scriptLines] = [await mp4Duration(path.join(dir, mp4)), await hookSecOf(film), await scriptLinesOf(dir)];
   const prev = last ? { ...last, scriptLines: await scriptLinesOf(path.join(film, "versions", `v${last.n}`)) } : null;
@@ -141,6 +169,7 @@ async function snapshot(film: string, job: DeliveredJob): Promise<CookIndex> {
   const change = prev ? (fresh ?? changeFallback(prev, { hookSec, durationSec, scriptLines })) : null;
   index.versions.push({ n, mp4, mp4Mtime: mtime, durationSec, hookSec, qa: job.qa ?? null, change, savedAt: new Date().toISOString() });
   await writeCookIndex(film, index);
+  deliverOpened.delete(film);
   return index;
 }
 
@@ -184,7 +213,7 @@ const alive = (pid: number): boolean => {
   }
 };
 
-/** studio-reel's core/render/slot.mjs: one dir per slot holding the holder's pid. With RENDER_SLOTS=1 a render
+/** studio-reel's core/render/slot.mjs: one dir per slot holding the holder's pid and a `beat` it touches every 15 s. With RENDER_SLOTS=1 a render
  *  waits there ("waiting for a render slot") while another reel's video.mjs, whose argv names its film, holds it.
  *  Returns the films holding a slot, or null when no slot is held. */
 export async function renderSlotFilms(): Promise<string[] | null> {
@@ -196,6 +225,9 @@ export async function renderSlotFilms(): Promise<string[] | null> {
   for (const slot of slots) {
     const pid = Number((await readText(path.join(dir, slot, "pid")))?.trim());
     if (!Number.isInteger(pid) || pid <= 0 || !alive(pid)) continue;
+    // Why: slot.mjs takes over a slot whose beat is older than 90 s (a hung holder), so it holds nothing.
+    const beat = (await stat(path.join(dir, slot, "beat")).catch(() => null)) ?? (await stat(path.join(dir, slot)).catch(() => null));
+    if (!beat || Date.now() - beat.mtimeMs > 90_000) continue;
     const command = (await execFileP("ps", ["-o", "command=", "-p", String(pid)], { timeout: 5_000 }).catch(() => ({ stdout: "" }))).stdout;
     films.push(/films\/([^/\s]+)/.exec(command)?.[1] ?? "");
   }

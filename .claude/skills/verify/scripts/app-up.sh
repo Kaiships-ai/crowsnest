@@ -57,7 +57,7 @@ export LEAD_STUDIO_COOK_ROOT="$LANE_COOK/studio-reel"
 export RENDER_SLOT_DIR="$LANE_COOK/render-slots"
 rm -rf "$RENDER_SLOT_DIR"
 rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
-for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md core/job.mjs; do
+for f in CLAUDE.md AGENTS.md workspace/README.md .claude/settings.json .claude/skills/make-reel/SKILL.md core/job.mjs; do
   if [ -f "$STUDIO/$f" ]; then
     mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
   fi

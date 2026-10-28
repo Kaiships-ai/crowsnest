@@ -18,7 +18,15 @@ const deliver = (dir: string, hook: string, hookSec: number, at: number) => {
   writeFileSync(path.join(dir, "vo/script.json"), JSON.stringify({ lines: [{ text: hook }, { text: "Two." }] }));
   writeFileSync(path.join(dir, "vo/vo.json"), JSON.stringify({ lines: [{ s: 0, e: hookSec }] }));
 };
-const JOB = { outputs: ["out/verify/draft.mp4", "reel.mp4"], qa: "12/12" };
+const STEPS = ["render", "verify", "review", "deliver"];
+/** job.json with every step done; `deliver` set to `status` with the given fields. */
+const job = (deliver: { status?: string; ended?: string } = {}, render: { ended?: string } = {}) => ({
+  steps: STEPS.map((name) => ({ name, status: "done", ...(name === "deliver" ? deliver : name === "render" ? render : {}) })),
+  outputs: ["out/verify/draft.mp4", "reel.mp4"],
+  qa: "12/12",
+});
+const JOB = job();
+const iso = (msFromNow: number): string => new Date(Date.now() + msFromNow).toISOString();
 
 test("deliver saves one version per final, keeps its files, and the next one gets a fallback change", async () => {
   const dir = film();
@@ -33,12 +41,17 @@ test("deliver saves one version per final, keeps its files, and the next one get
   expect(round?.message).toBe(feedbackMessage(1, 1, "make the hook faster"));
   expect(round?.message).toContain('v1 is kept in versions/v1/. Note: "make the hook faster".');
 
+  // Round 1 reruns render; deliver is still done from v1 (ended before v1 was saved): no v2 yet.
   deliver(dir, "Hook 1.", 2.1, 2000);
-  const index = await snapshotCookVersion(dir, JOB);
+  const stale = { ended: iso(-60_000) };
+  expect((await snapshotCookVersion(dir, job(stale, { ended: iso(0) }))).versions.map((v) => v.n)).toEqual([1]);
+  const index = await snapshotCookVersion(dir, job({ ended: iso(1_000) }, { ended: iso(0) }));
   expect(index.versions.map((v) => [v.n, v.change])).toEqual([[1, null], [2, "hook 2.6 s → 2.1 s · 1 script line"]]);
-  // A `change` already used by the last version is stale; a new one wins.
+  // Without started/ended, deliver must have been seen not done since the last version. A new `change` wins.
   deliver(dir, "Hook 1.", 2.1, 3000);
-  expect((await snapshotCookVersion(dir, { ...JOB, change: "CTA slower" })).versions.at(-1)?.change).toBe("CTA slower");
+  expect((await snapshotCookVersion(dir, { ...JOB, change: "CTA slower" })).versions.map((v) => v.n)).toEqual([1, 2]);
+  await snapshotCookVersion(dir, job({ status: "running" }));
+  expect((await snapshotCookVersion(dir, { ...JOB, change: "CTA slower" })).versions.at(-1)).toMatchObject({ n: 3, change: "CTA slower" });
 });
 
 test("the fallback change names only what differs", () => {

@@ -23,11 +23,12 @@ const STAGES = ["script", "voice", "storyboard", "chapters", "audio", "draft", "
 const HOOK_V1 = "Claude Code runs your script before every edit.";
 const LINES = ["A hook is one line in settings.json.", "Exit 2, and the edit never happens.", "Comment HOOKS and I'll send you my five hooks."];
 
-/** job.json with every step before `at` done, `at` in `status`, the rest pending (studio-reel's format). */
-function job(film, at, status, { extra = {}, outputs = [], top = {} } = {}) {
+/** job.json with every step before `at` done, `at` in `status`, the rest pending (studio-reel's format).
+ *  `stamps` adds fields (the proposed started/ended) to named steps. */
+function job(film, at, status, { extra = {}, outputs = [], top = {}, stamps = {} } = {}) {
   mkdirSync(film, { recursive: true });
   const i = at ? STAGES.indexOf(at) : STAGES.length;
-  const steps = STAGES.map((name, n) => ({ name, status: n < i ? "done" : n === i ? status : "pending", ...(n === i ? extra : {}) }));
+  const steps = STAGES.map((name, n) => ({ name, status: n < i ? "done" : n === i ? status : "pending", ...(n === i ? extra : {}), ...stamps[name] }));
   writeFileSync(path.join(film, "job.json"), JSON.stringify({ slug: path.basename(film), campaign: "COOKPANE", steps, outputs, qa: "12/12", ...top }, null, 1));
 }
 /** A tiny testsrc mp4 (moov at the end, as ffmpeg writes it by default). */
@@ -286,6 +287,18 @@ export default async function cookPane03({ page, step, snap }) {
       await player("draft");
     });
 
+    await step("the final v2 is rendered but deliver is still done from v1: no v2 until deliver runs again", async () => {
+      mp4(`${SLUG}.mp4`, 4, "216x384");
+      const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+      // job.mjs reruns render only; deliver keeps v1's done, which ended before v1 was saved.
+      job(FILM, null, "done", { outputs: DELIVERED, stamps: { render: { ended: ago(0) }, deliver: { ended: ago(600) } } });
+      const { head } = await expectCard("v2-making");
+      await page.waitForTimeout(2_000);
+      const saved = index().versions.map((v) => v.n);
+      console.log(`stale deliver: card "${head}" · versions ${JSON.stringify(saved)} · v2 dir ${existsSync(path.join(FILM, "versions/v2"))}`);
+      if (head !== "Making v2 from your note" || saved.length !== 1 || existsSync(path.join(FILM, "versions/v2"))) throw new Error(`v2 saved before deliver: ${saved}`);
+    });
+
     await step("22 v2 delivered with no `change` in job.json: the chip falls back to hook, length and script lines", async () => {
       mp4(`${SLUG}.mp4`, 4, "216x384");
       reelFiles("Claude runs your script before every edit.", 2.1, "Comment HOOKS and I'll send you my five hooks.\n");
@@ -329,7 +342,7 @@ export default async function cookPane03({ page, step, snap }) {
       await typed('Feedback round 2 from Lead Studio. v2 is kept in versions/v2/. Note: "slower CTA".');
       await hook("working");
       mp4(`${SLUG}.mp4`, 5, "216x384");
-      job(FILM, null, "done", { outputs: DELIVERED, top: { change: "CTA 1.2 s → 1.6 s" } });
+      job(FILM, null, "done", { outputs: DELIVERED, top: { change: "CTA 1.2 s → 1.6 s" }, stamps: { deliver: { ended: new Date().toISOString() } } });
       const { head, sub, can } = await expectCard("rounds", "cook-pane-c-24-rounds");
       const rounds = await feedback.getByTestId("cook-round").allInnerTexts();
       console.log(`rounds: ${rounds.map((r) => r.replace(/\n/g, " ")).join(" | ")}`);

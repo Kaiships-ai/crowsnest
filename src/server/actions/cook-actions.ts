@@ -211,7 +211,7 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
   const playable = !film ? null : done("render") && final ? { kind: "final" as const, file: path.join(film, final) } : done("draft") && draft ? { kind: "draft" as const, file: path.join(film, draft) } : null;
   const mtime = playable ? (await stat(playable.file).catch(() => null))?.mtimeMs : undefined;
   const video = playable && mtime != null ? { ...playable, mtime } : null;
-  const index = film && job?.success && done("deliver") ? await snapshotCookVersion(film, job.data) : film ? await readCookIndex(film) : null;
+  const index = film && job?.success ? await snapshotCookVersion(film, job.data) : film ? await readCookIndex(film) : null;
   const pidGone = running?.pid != null ? !pidAlive(running.pid) : null;
   const usual = root ? await usualRenderSec(root) : DEFAULT_RENDER_SEC;
   const renderQueue = root && running?.name === "render" && !pidGone ? await queuedBehind(root, slug, usual) : null;
