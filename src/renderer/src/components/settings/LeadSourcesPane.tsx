@@ -22,6 +22,7 @@ import {
 import { SourceKeyDialog } from './LeadSourceKeyDialog'
 import { SidecarSourceCard } from './sidecar-source-card'
 import { PolarSourceCard } from './polar-source-card'
+import { UmamiSourceCard } from './umami-source-card'
 
 type SourceRow = EngineCallValue<'getVaultBoard'>[number]
 
@@ -160,7 +161,10 @@ function explanation(row: SourceRow): { text: string; problem: boolean } {
     case 'off':
       return { text: translate('leadStudio.sources.explain.off', 'Off.'), problem: false }
     case 'pulling':
-      return { text: translate('leadStudio.sources.explain.pulling', 'Pulling now.'), problem: false }
+      return {
+        text: translate('leadStudio.sources.explain.pulling', 'Pulling now.'),
+        problem: false
+      }
   }
 }
 
@@ -339,8 +343,15 @@ export function LeadSourcesPane(): React.JSX.Element {
                   <SidecarSourceCard key={row.id} row={row} reload={reload} />
                 ) : row.id === 'polar' ? (
                   <PolarSourceCard key={row.id} row={row} reload={reload} />
+                ) : row.id === 'umami' ? (
+                  <UmamiSourceCard key={row.id} row={row} reload={reload} />
                 ) : (
-                  <SourceCard key={row.id} row={row} onEdit={() => setEditing(row)} reload={reload} />
+                  <SourceCard
+                    key={row.id}
+                    row={row}
+                    onEdit={() => setEditing(row)}
+                    reload={reload}
+                  />
                 )
               )}
             </div>

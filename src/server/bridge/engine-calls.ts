@@ -10,8 +10,9 @@ import { checkConnector, pullConnector, sampleConnector } from "@/server/service
 import { saveSidecarSessionAction, startSidecarAction, stopSidecarAction, testSidecarSessionAction } from "@/server/actions/sidecar-actions";
 import { readPolarOrganization } from "@/server/connectors/polar";
 import { savePolarTokenAction, testPolarTokenAction } from "@/server/connectors/polar/actions";
+import { saveUmamiKeyAction, startUmamiPullAction, stopUmamiPullAction, testUmamiKeyAction, umamiAddressAction } from "@/server/actions/umami-actions";
 import { approveGateDraft, draftPublish, getGate2Board, getPublishChecks, rejectGateDraft } from "@/server/services/gate2-drafts";
-import { getFunnel } from "@/server/services/funnel";
+import { getFunnel, getFunnelTotals } from "@/server/services/funnel";
 import { journalOutcome, journalPending, listAgentActions } from "@/server/services/agent-journal";
 import { createMcpToken, listMcpTokens, revokeMcpToken } from "@/server/services/mcp-tokens";
 import { METRIC_LEDGER } from "@/server/metrics/ledger";
@@ -179,6 +180,7 @@ export const ENGINE_CALLS = {
   getFunnel: call(z.tuple([z.string().max(64).optional()]), getFunnel),
   getMetricLedger: call(none, () => METRIC_LEDGER),
   getFunnelBoard: call(none, getFunnelBoard),
+  getFunnelTotals: call(none, getFunnelTotals),
   getTodayBoard: call(none, () => getTodayBoard()),
   getOwnBoard: call(z.tuple([z.union([z.literal(7), z.literal(30)]).optional()]), getOwnBoard),
   getOwnReelBoard: call(id, getOwnReelBoard),
@@ -287,6 +289,11 @@ export const ENGINE_CALLS = {
   stopSidecarAction: call(none, stopSidecarAction),
   testSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), testSidecarSessionAction),
   saveSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), saveSidecarSessionAction),
+  testUmamiKeyAction: call(z.tuple([z.string().min(1).max(2048), z.string().min(1).max(4096)]), testUmamiKeyAction),
+  saveUmamiKeyAction: call(z.tuple([z.string().min(1).max(2048), z.string().min(1).max(4096), z.string().min(1).max(200)]), saveUmamiKeyAction),
+  umamiAddressAction: call(none, umamiAddressAction),
+  startUmamiPullAction: call(none, startUmamiPullAction),
+  stopUmamiPullAction: call(none, stopUmamiPullAction),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
   testPolarTokenAction: call(z.tuple([POLAR_TOKEN]), testPolarTokenAction),

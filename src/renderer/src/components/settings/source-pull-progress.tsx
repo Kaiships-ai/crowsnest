@@ -31,6 +31,10 @@ export function SourcePullProgress(props: {
   onStop: () => void
   /** The long-pull note's reason sentence, such as why Instagram is slow. */
   slowReason: string
+  /** Replaces "Pulling <label>…" and "Stopping after <label>…", for a card whose label reads differently. */
+  nowText?: { pulling: string; stopping: string }
+  /** Replaces the tally line's "✓ x updated" and "n to go". */
+  tally?: [React.ReactNode, React.ReactNode]
 }): React.ReactNode {
   const elapsed = useElapsedSec(props.startedAt)
   const total = props.total ?? 0
@@ -40,15 +44,19 @@ export function SourcePullProgress(props: {
       <div className="space-y-2 rounded-md border border-border/60 p-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
           <span data-testid="source-pull-current" className="min-w-0 flex-1 text-foreground">
-            {props.stopping
-              ? translate('leadStudio.sources.pull.stoppingAfter', 'Stopping after {{label}}…', {
-                  label: props.label ?? ''
-                })
-              : props.label
-                ? translate('leadStudio.sources.pull.pullingLabel', 'Pulling {{label}}…', {
-                    label: props.label
+            {props.nowText && (props.stopping || props.label)
+              ? props.stopping
+                ? props.nowText.stopping
+                : props.nowText.pulling
+              : props.stopping
+                ? translate('leadStudio.sources.pull.stoppingAfter', 'Stopping after {{label}}…', {
+                    label: props.label ?? ''
                   })
-                : translate('leadStudio.sources.pull.starting', 'Starting the pull…')}
+                : props.label
+                  ? translate('leadStudio.sources.pull.pullingLabel', 'Pulling {{label}}…', {
+                      label: props.label
+                    })
+                  : translate('leadStudio.sources.pull.starting', 'Starting the pull…')}
           </span>
           <span data-testid="source-pull-count" className="font-mono tabular-nums">
             {props.done} / {props.total ?? '?'} {props.unit}
@@ -62,13 +70,15 @@ export function SourcePullProgress(props: {
         </div>
         <Progress value={total ? (100 * props.done) / total : 0} className="h-1.5" />
         <div className="flex gap-4 font-mono text-2xs text-muted-foreground">
-          <span>
-            {translate('leadStudio.sources.pull.updated', '✓ {{count}} updated', {
-              count: props.done
-            })}
+          <span data-testid="source-pull-tally-done">
+            {props.tally?.[0] ??
+              translate('leadStudio.sources.pull.updated', '✓ {{count}} updated', {
+                count: props.done
+              })}
           </span>
-          <span>
-            {translate('leadStudio.sources.pull.toGo', '{{count}} to go', { count: left })}
+          <span data-testid="source-pull-tally-rest">
+            {props.tally?.[1] ??
+              translate('leadStudio.sources.pull.toGo', '{{count}} to go', { count: left })}
           </span>
         </div>
       </div>
