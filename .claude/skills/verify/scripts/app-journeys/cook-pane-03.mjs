@@ -217,7 +217,7 @@ export default async function cookPane03({ page, step, snap }) {
       await snap("cook-pane-c-39-studio");
       await studio.locator(`[data-testid="studio-row"][data-plan-id="${PLAN}"]`).getByTestId("studio-open").click();
       await pane.waitFor({ timeout: 8_000 });
-      holder.kill();
+      process.kill(-holder.pid); // the group: sh and its sleep
       rmSync(SLOTS, { recursive: true, force: true });
       sql(`update planned_posts set cook_workspace_id = null where id = '${OTHER}'`);
       await expectCard("rendering");
@@ -340,7 +340,9 @@ export default async function cookPane03({ page, step, snap }) {
     });
   } finally {
     alive.kill();
-    holder?.kill();
+    try {
+      if (holder) process.kill(-holder.pid);
+    } catch {}
     rmSync(SLOTS, { recursive: true, force: true });
     sql(`update planned_posts set cook_workspace_id = null where id = '${OTHER}'`);
     await page.evaluate(() => document.documentElement.classList.remove("dark"));
