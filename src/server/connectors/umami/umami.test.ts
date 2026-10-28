@@ -8,7 +8,7 @@ import { setSecret } from "@/server/secrets/store";
 import { getFunnel } from "@/server/services/funnel";
 import type { UmamiEvent } from "./days";
 import { connector } from "./index";
-import { pullUmami, type UmamiAccess } from "./pull";
+import { listUmamiWebsites, pullUmami, UMAMI_KEY_REJECTED, type UmamiAccess } from "./pull";
 
 const pv = (sessionId: string, createdAt: string, url: string): UmamiEvent => {
   const [urlPath, urlQuery = null] = url.split("?");
@@ -31,7 +31,7 @@ const EVENTS: UmamiEvent[] = [
 ];
 
 const NOW = new Date("2026-10-18T10:00:00.000Z");
-const fake = { failPage: 0, failLogin: false, eventCalls: [] as URLSearchParams[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false };
+const fake = { failPage: 0, eventCalls: [] as URLSearchParams[], authHeaders: [] as (string | undefined)[], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false };
 let server: Server;
 let access: UmamiAccess;
 
@@ -42,18 +42,11 @@ beforeAll(async () => {
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(body));
     };
-    if (url.pathname === "/api/auth/login") {
-      let body = "";
-      req.on("data", (c) => (body += c));
-      req.on("end", () => {
-        const { username, password } = JSON.parse(body);
-        if (fake.failLogin) return send(502, { error: "down" });
-        send(username === "kai" && password === "pw-secret" ? 200 : 401, username === "kai" && password === "pw-secret" ? { token: "tok" } : { error: "bad" });
-      });
-      return;
-    }
-    if (req.headers.authorization !== "Bearer tok") return send(401, { error: "no token" });
-    if (url.pathname === "/api/websites/site-1") return send(200, { id: "site-1", name: "kaiships" });
+    fake.authHeaders.push(req.headers.authorization);
+    if (req.headers.authorization !== "Bearer key-1") return send(401, { error: "Unauthorized" });
+    if (url.pathname === "/api/websites") return send(200, { data: [], count: 0, page: 1, pageSize: 200 });
+    if (url.pathname === "/api/teams") return send(200, { data: [{ id: "team-1", name: "kaiships" }], count: 1, page: 1, pageSize: 200 });
+    if (url.pathname === "/api/teams/team-1/websites") return send(200, { data: [{ id: "site-1", name: "kaiships", domain: "kai-ships-ai-website.vercel.app" }], count: 1 });
     if (url.pathname === "/api/websites/site-1/events") {
       fake.eventCalls.push(url.searchParams);
       const page = Number(url.searchParams.get("page"));
@@ -67,7 +60,7 @@ beforeAll(async () => {
     send(404, { error: "not found" });
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  access = { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, websiteId: "site-1", username: "kai", password: "pw-secret" };
+  access = { url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/`, apiKey: "key-1", websiteId: "site-1" };
 });
 
 afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
@@ -75,7 +68,7 @@ afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 beforeEach(async () => {
   migrate();
   for (const t of [tables.umamiDays, tables.reelFunnel, tables.plannedPosts, tables.sealedSecrets, tables.secrets]) await db.delete(t);
-  Object.assign(fake, { failPage: 0, failLogin: false, eventCalls: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false });
+  Object.assign(fake, { failPage: 0, eventCalls: [], authHeaders: [], events: EVENTS, pageSize: 4, sendCount: true, ignorePage: false });
   const at = "2026-10-17T00:30:00.000Z";
   await db.insert(tables.plannedPosts).values([
     { id: "plan-shark", state: "published", title: "Shark reel", keyword: "SHARK", createdAt: at, updatedAt: at },
@@ -93,7 +86,8 @@ const funnelRows = () =>
 describe("Umami pull", () => {
   test("stores each VN day, raw and without test sessions, and each keyword's lifetime gift-page visits and signups", async () => {
     expect(await pullUmami(access, NOW)).toEqual({ kind: "complete", rows: { days: ["2026-10-17", "2026-10-18"], events: 11, keywords: 2 } });
-    expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3", "4"]);
+    expect(fake.eventCalls.map((q) => q.get("page"))).toEqual(["1", "2", "3"]);
+    expect(fake.authHeaders).toEqual(["Bearer key-1", "Bearer key-1", "Bearer key-1"]);
     expect(fake.eventCalls[0].get("startAt")).toBe(String(Date.parse("2026-10-15T17:00:00.000Z")));
 
     const days = db.select().from(tables.umamiDays).orderBy(tables.umamiDays.day).all();
@@ -157,7 +151,7 @@ describe("Umami pull", () => {
   });
 
   test("a server that never sends an empty page stops at the page cap as a partial pull and stores nothing", async () => {
-    fake.ignorePage = true;
+    Object.assign(fake, { ignorePage: true, sendCount: false });
     expect(await pullUmami(access, NOW)).toEqual({
       kind: "partial",
       rows: { days: ["2026-10-17", "2026-10-18"], events: 1600, keywords: 0 },
@@ -189,30 +183,61 @@ describe("Umami pull", () => {
     expect((await getFunnelBoard()).coverage.visits).toEqual({ status: "value", tied: 5, total: 6 });
   });
 
-  test("a failed login is a failed pull and stores nothing", async () => {
-    fake.failLogin = true;
-    expect(await pullUmami(access, NOW)).toEqual({ kind: "failed", reason: "Umami answered HTTP 502 on /api/auth/login" });
+  test("progress is reported per events page, and a Stop between pages ends the pull as partial with nothing stored", async () => {
+    const seen: string[] = [];
+    let stop = false;
+    const result = await pullUmami(access, NOW, {
+      onPage: (p) => {
+        seen.push(`${p.done}/${p.total} ${p.label}`);
+        stop = p.done === 2;
+      },
+      shouldStop: () => stop,
+    });
+    expect(seen).toEqual(["1/3 events, last 2 days", "2/3 events, last 2 days"]);
+    expect(result).toEqual({ kind: "partial", rows: { days: ["2026-10-17", "2026-10-18"], events: 8, keywords: 0 }, missing: "events after the first 8", reason: "you stopped the pull" });
+    expect(db.select().from(tables.umamiDays).all()).toEqual([]);
     expect(funnelRows()).toEqual([]);
+  });
+
+  test("a rejected key fails the pull with the C13 message and stores nothing", async () => {
+    expect(await pullUmami({ ...access, apiKey: "old-key" }, NOW)).toEqual({ kind: "failed", reason: "Umami rejected the key (401). Create a new key and paste it." });
+    expect(funnelRows()).toEqual([]);
+  });
+
+  test("an address nothing answers on fails with Cannot reach and its host", async () => {
+    expect(await pullUmami({ ...access, url: "http://127.0.0.1:9" }, NOW)).toEqual({ kind: "failed", reason: "Cannot reach 127.0.0.1:9. Check that your Umami server is up, then try again." });
+  });
+});
+
+describe("Umami websites", () => {
+  test("the key, sent as Bearer, finds the website under a team when the user's own list is empty", async () => {
+    expect(await listUmamiWebsites(access.url, "key-1")).toEqual([{ id: "site-1", name: "kaiships", domain: "kai-ships-ai-website.vercel.app" }]);
+    expect(fake.authHeaders).toEqual(["Bearer key-1", "Bearer key-1", "Bearer key-1"]);
+  });
+
+  test("a 401 maps to the C13 message", async () => {
+    await expect(listUmamiWebsites(access.url, "wrong")).rejects.toThrow(UMAMI_KEY_REJECTED);
+    expect(UMAMI_KEY_REJECTED).toBe("Umami rejected the key (401). Create a new key and paste it.");
   });
 });
 
 describe("Umami connector", () => {
-  const save = (values: Partial<Record<"UMAMI_URL" | "UMAMI_WEBSITE_ID" | "UMAMI_USERNAME" | "UMAMI_PASSWORD", string>>) => {
+  const save = (values: Partial<Record<"UMAMI_URL" | "UMAMI_API_KEY" | "UMAMI_WEBSITE_ID", string>>) => {
     for (const [name, value] of Object.entries(values)) setSecret(name, value);
   };
 
-  test("reads its four secrets from the store, checks the website, and never echoes the password", async () => {
-    expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "Umami address, website id, username or password is missing" });
-    expect(await connector.adapter?.pull?.()).toEqual({ kind: "failed", reason: "Umami address, website id, username or password is missing" });
+  test("reads its three secrets from the store, samples the website line, and names a rejected key", async () => {
+    expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "Umami address, API key or website is missing. Connect Umami." });
+    expect(await connector.adapter?.pull?.()).toEqual({ kind: "failed", reason: "Umami address, API key or website is missing. Connect Umami." });
 
-    save({ UMAMI_URL: access.url, UMAMI_WEBSITE_ID: "site-1", UMAMI_USERNAME: "kai", UMAMI_PASSWORD: "pw-secret" });
+    save({ UMAMI_URL: access.url.replace(/\/$/, ""), UMAMI_API_KEY: "key-1", UMAMI_WEBSITE_ID: "site-1" });
     expect(await connector.adapter?.testConnection()).toEqual({ ok: true, message: null });
+    expect(await connector.adapter?.sample?.()).toEqual({ ok: true, line: `kai-ships-ai-website.vercel.app · ${new URL(access.url).host}` });
 
     save({ UMAMI_WEBSITE_ID: "site-2" });
-    expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "Umami answered HTTP 404 on /api/websites/site-2" });
+    expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "This key cannot read the saved website. Connect Umami again and pick a website." });
 
-    save({ UMAMI_WEBSITE_ID: "site-1", UMAMI_PASSWORD: "wrong" });
-    const check = await connector.adapter?.testConnection();
-    expect(check).toEqual({ ok: false, message: "Umami answered HTTP 401 on /api/auth/login" });
+    save({ UMAMI_WEBSITE_ID: "site-1", UMAMI_API_KEY: "wrong" });
+    expect(await connector.adapter?.testConnection()).toEqual({ ok: false, message: "Umami rejected the key (401). Create a new key and paste it." });
   });
 });
