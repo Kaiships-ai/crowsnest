@@ -111,13 +111,6 @@ export function restOf(pull: PullSummary | undefined): number {
   return pull ? Math.max(0, pull.total - pull.updated) : 0
 }
 
-/** Minutes back to the pull's start: "pull the rest" skips rivals that pull updated. */
-export function sinceStartMinutes(pull: PullSummary | undefined): number | undefined {
-  return pull?.startedAt
-    ? Math.max(1, Math.ceil((Date.now() - Date.parse(pull.startedAt)) / 60_000))
-    : undefined
-}
-
 /** The rival that hit the limit, with one row either side. */
 export function LimitWindow({ pull }: { pull: PullSummary }): React.ReactNode {
   const at = pull.items.findIndex((item) => item.result === 'limited')

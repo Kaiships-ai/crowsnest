@@ -79,6 +79,8 @@ export interface PullSummary {
   startedAt: string | null;
   /** What the pull covered, such as "last 30 days", when the source pulls a time window. */
   window?: string;
+  /** When the first pull of a Pull the rest chain started; the counts above cover the whole chain. Null on a pull that crashed. */
+  chainFrom: string | null;
   /** When the items this pull did not reach got their numbers: the pull before it. */
   olderFrom: string | null;
   stop: PullStop | null;
@@ -123,7 +125,7 @@ function settleStale(row: StatusRow, now: Date): StatusRow {
   if (livePulls.has(row.connectorId) && now.getTime() - Date.parse(row.updatedAt) < PULL_STALE_MS) return row;
   const done = row.progressDone ?? 0;
   const total = row.progressTotal ?? done;
-  const pull: PullSummary = { total, done, updated: done, newItems: 0, failed: 0, durationSec: 0, startedAt: row.startedAt, olderFrom: row.pulledAt, stop: "interrupted", items: [] };
+  const pull: PullSummary = { total, done, updated: done, newItems: 0, failed: 0, durationSec: 0, startedAt: row.startedAt, chainFrom: null, olderFrom: row.pulledAt, stop: "interrupted", items: [] };
   return {
     ...row,
     pullState: "partial",
@@ -155,10 +157,35 @@ export function recordPullProgress(connectorId: string, progress: { done: number
     .run();
 }
 
-/** Records the pull's outcome as `recordPull` does, plus its summary and the source's retry time. */
-export function recordPullEnd(connectorId: string, result: PullResult<unknown, unknown>, ended: Omit<PullSummary, "olderFrom">, retryAfter: string | null = null): CardStatus {
+/** Where Pull the rest starts from: the start of the last pull's chain. Whatever the chain pulled since then is skipped. */
+export function restFrom(connectorId: string): string | null {
+  const pull = parseSummary(readRow(connectorId)?.summary ?? null).pull;
+  return pull ? (pull.chainFrom ?? pull.startedAt) : null;
+}
+
+/** Records the pull's outcome as `recordPull` does, plus its summary and the source's retry time.
+ *  `chainFrom` (from `restFrom`) marks Pull the rest: the counts add to the chain's, against the whole source. */
+export function recordPullEnd(
+  connectorId: string,
+  result: PullResult<unknown, unknown>,
+  ended: Omit<PullSummary, "olderFrom" | "chainFrom">,
+  retryAfter: string | null = null,
+  chainFrom: string | null = null,
+): CardStatus {
   livePulls.delete(connectorId);
-  const pull: PullSummary = { ...ended, olderFrom: readRow(connectorId)?.pulledAt ?? null };
+  const row = readRow(connectorId);
+  const prev = chainFrom ? parseSummary(row?.summary ?? null).pull : undefined;
+  const pull: PullSummary = prev
+    ? {
+        ...ended,
+        chainFrom,
+        olderFrom: prev.olderFrom,
+        updated: prev.updated + ended.updated,
+        done: prev.updated + ended.done,
+        newItems: prev.newItems + ended.newItems,
+        total: Math.max(prev.total, prev.updated + ended.total),
+      }
+    : { ...ended, chainFrom: ended.startedAt, olderFrom: row?.pulledAt ?? null };
   const outcome = recordPull(connectorId, result);
   upsert(connectorId, { progressDone: pull.done, progressTotal: pull.total, progressLabel: null, retryAfter, summary: withSummary(connectorId, { pull, down: result.kind !== "complete" && result.reason instanceof SourceDownError }) });
   return outcome;

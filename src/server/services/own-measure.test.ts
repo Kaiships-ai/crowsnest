@@ -21,13 +21,18 @@ let svc: typeof import("./own-measure");
 // Captured once: a later test resets modules, and a fresh import would be a different logger.
 let log: typeof import("@/server/lib/logger")["log"];
 let trySpendCall: typeof import("@/server/lib/call-budget")["trySpendCall"];
+let hourFreesAt: typeof import("@/server/lib/call-budget")["hourFreesAt"];
+let graphActions: typeof import("@/server/actions/graph-actions");
+let status: typeof import("./connector-status");
 
 beforeAll(async () => {
   ({ db, tables } = await import("@/server/db"));
   ({ migrate } = await import("@/server/db/test-migrate"));
   svc = await import("./own-measure");
   ({ log } = await import("@/server/lib/logger"));
-  ({ trySpendCall } = await import("@/server/lib/call-budget"));
+  ({ trySpendCall, hourFreesAt } = await import("@/server/lib/call-budget"));
+  graphActions = await import("@/server/actions/graph-actions");
+  status = await import("./connector-status");
 });
 
 const ACCOUNT = { id: "acct1", username: "kallaway", followersCount: 1000, followsCount: 50, mediaCount: 10 };
@@ -646,6 +651,49 @@ describe("the Graph card's pull", () => {
     graphClient.fetchMedia.mockImplementation(spend(1, fifty()));
     const r = await svc.measureOwnChannel({ scope: "all", now: NOW, shouldStop: () => graphClient.fetchPostInsights.mock.calls.length >= 12 });
     expect(r).toMatchObject({ ok: true, postsMeasured: 12, stoppedEarly: "stopped", retryAfter: null });
+  });
+
+  test("Graph's rate limit ends the pull with a retry one hour after the hour's oldest call", async () => {
+    trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T11:20:00.000Z"));
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 3)));
+    graphClient.fetchPostInsights.mockImplementationOnce(spend(2, complete(insights()))).mockRejectedValueOnce(new GraphApiError("GRAPH_RATE_LIMITED", "slow down"));
+    const r = await svc.measureOwnChannel({ scope: "all", now: NOW });
+    expect(r).toMatchObject({ ok: true, stoppedEarly: "rate_limited", postsMeasured: 1, retryAfter: "2026-09-29T12:20:00.000Z" });
+  });
+
+  test("the hour frees no call when it holds none", async () => {
+    expect(hourFreesAt("instagram-graph", NOW)).toBeNull();
+    trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T10:59:00.000Z"));
+    expect(hourFreesAt("instagram-graph", NOW)).toBeNull();
+  });
+
+  test("Pull the rest twice: the third pull measures only posts the chain never measured, the failed post is retried, and the counts cover the channel", async () => {
+    const { startGraphPullAction, stopGraphPullAction } = graphActions;
+    const { parseSummary, readStatuses } = status;
+    await db.delete(tables.connectorStatus);
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 5)));
+    const pullAt = async (at: string, rest: boolean, stopAfter: number | null, failing: string[] = []) => {
+      vi.setSystemTime(new Date(at));
+      const seen: string[] = [];
+      graphClient.fetchPostInsights.mockImplementation(async (m: GraphMedia) => {
+        seen.push(m.externalId);
+        if (seen.length === stopAfter) await stopGraphPullAction();
+        return failing.includes(m.externalId) ? insightsFailed(new GraphApiError("GRAPH_UNKNOWN", "post gone"), false) : spend(2, complete(insights()))();
+      });
+      expect(await startGraphPullAction(rest ? { rest: true } : {})).toEqual({ ok: true });
+      await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).not.toBe("pulling"));
+      return { seen, pull: parseSummary(readStatuses().get("instagram-graph")?.summary ?? null).pull };
+    };
+
+    const first = await pullAt("2026-09-29T10:00:00.000Z", false, 2, ["r1"]);
+    expect(first.seen).toEqual(["r0", "r1"]);
+    expect(first.pull).toMatchObject({ total: 5, done: 2, updated: 1, failed: 1, stop: "stopped" });
+    const second = await pullAt("2026-09-29T10:05:00.000Z", true, 2);
+    expect(second.seen).toEqual(["r1", "r2"]);
+    expect(second.pull).toMatchObject({ total: 5, done: 3, updated: 3, failed: 0, stop: "stopped" });
+    const third = await pullAt("2026-09-29T10:10:00.000Z", true, null);
+    expect(third.seen).toEqual(["r3", "r4"]);
+    expect(third.pull).toMatchObject({ total: 5, done: 5, updated: 5, failed: 0, stop: null, chainFrom: "2026-09-29T10:00:00.000Z" });
   });
 
   test("Pull the rest skips posts measured since the last pull started", async () => {

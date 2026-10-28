@@ -128,12 +128,12 @@ export function SidecarSourceCard({
     }
     await refresh()
   }
-  const pullRivals = (sinceMinutes?: number): Promise<void> =>
+  const pullRivals = (rest?: true): Promise<void> =>
     run(async () => {
       const res = await window.api.crowsnest.call(
         'startSyncAction',
         undefined,
-        sinceMinutes ? { skipFreshWithinMinutes: sinceMinutes } : undefined
+        rest ? { rest } : undefined
       )
       if (!res.ok) {
         return { error: res.error.message }

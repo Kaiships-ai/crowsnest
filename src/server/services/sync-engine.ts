@@ -87,13 +87,13 @@ export interface RunSyncOpts {
    *  >= 1 the same way the resolved setting is. */
   concurrency?: number;
   /**
-   * Only meaningful for a library sweep (no `channelIds`). When > 0, a channel whose
-   * `lastSuccessfulSyncAt` is within this many minutes of now is left out of the run: it
-   * was synced recently enough that re-walking it now would only spend Instagram requests
-   * for nothing. A run scoped to explicit `channelIds` ignores this — naming a channel is
-   * an explicit "sync it now". Defaults to 0 (no skip).
+   * Only meaningful for a library sweep (no `channelIds`): a channel whose
+   * `lastSuccessfulSyncAt` is at or after this ISO time is left out of the run. Pull the rest
+   * passes the start of the card's pull chain, so rivals that chain already synced are not
+   * walked again. A run scoped to explicit `channelIds` ignores this; naming a channel is
+   * an explicit "sync it now".
    */
-  skipFreshWithinMinutes?: number;
+  skipSyncedSince?: string;
   /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
@@ -1745,10 +1745,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // A removed channel is never synced again, whether it was named explicitly or
     // picked up by the platform sweep. Removal is soft, so without this filter the
     // flag would set and the next run would go straight back to fetching it.
-    const skipBeforeIso =
-      opts.channelIds || !opts.skipFreshWithinMinutes || opts.skipFreshWithinMinutes <= 0
-        ? null
-        : new Date(now().getTime() - opts.skipFreshWithinMinutes * 60_000).toISOString();
+    const skipBeforeIso = opts.channelIds ? null : (opts.skipSyncedSince ?? null);
 
     const walked = opts.channelIds
       ? await db

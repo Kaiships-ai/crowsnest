@@ -10,7 +10,7 @@ import { log } from "../lib/logger";
 import type { SimpleResult } from "../lib/action-result";
 import { measurePull, TOKEN_REJECTED_FORM } from "../connectors/instagram-graph";
 import { instagramGraph } from "../connectors/instagram-graph/manifest";
-import { recordPull, recordPullEnd, recordPullProgress, recordPullStart, recordSample, type PullSummary } from "../services/connector-status";
+import { recordPull, recordPullEnd, recordPullProgress, recordPullStart, recordSample, restFrom, type PullSummary } from "../services/connector-status";
 import { measureOwnChannel, messageOf, toFailure, type MeasureResult } from "../services/own-measure";
 import { setConnectorSecret } from "./secrets-actions";
 
@@ -66,8 +66,9 @@ export async function testGraphTokenAction(token: string): Promise<{ ok: true; u
 }
 
 /** Save in the token form: /me again for the user id, then stores the token and the id and records the card's sample. */
-export async function saveGraphTokenAction(token: string): Promise<SimpleResult> {
-  const me = await tokenAccount(token.trim());
+export async function saveGraphTokenAction(pasted: string): Promise<SimpleResult> {
+  const token = pasted.trim();
+  const me = await tokenAccount(token);
   if (!me.ok) return { ok: false, error: me.code === "GRAPH_AUTH_FAILED" ? TOKEN_REJECTED_FORM : me.message };
   for (const [field, value] of [["IG_GRAPH_TOKEN", token], ["IG_GRAPH_USER_ID", me.id]] as const) {
     const saved = await setConnectorSecret(instagramGraph.id, field, value);
@@ -87,21 +88,23 @@ async function followers(measuredAt: string): Promise<PullSummary["followers"]> 
 }
 
 /** Pull my channel from the Graph card. Returns once the pull starts; the card reads its progress from the row.
- *  `skipMeasuredSince` is Pull the rest: posts measured since the last pull started are left out. */
-export async function startGraphPullAction(opts: { skipMeasuredSince?: string } = {}): Promise<SimpleResult> {
+ *  `rest` is Pull the rest: posts the last pull's chain measured are left out, and the counts add to that chain's. */
+export async function startGraphPullAction(opts: { rest?: true } = {}): Promise<SimpleResult> {
   if (cardPull) return { ok: false, error: "A pull of your channel is already running." };
   const pull = { stop: false };
   cardPull = pull;
   const startedAt = clockNow();
   let last = { done: 0, total: 0 };
-  recordPullStart(instagramGraph.id);
+  let chainFrom: string | null = null;
   void (async () => {
     let r: MeasureResult = { ok: false, error: "the pull did not finish", code: "MEASURE_FAILED" };
     try {
+      chainFrom = opts.rest ? restFrom(instagramGraph.id) : null;
+      recordPullStart(instagramGraph.id);
       r = await measureOwnChannel({
         scope: "all",
         wait: true,
-        skipMeasuredSince: opts.skipMeasuredSince,
+        skipMeasuredSince: chainFrom ?? undefined,
         shouldStop: () => pull.stop,
         onProgress: (p) => {
           last = p;
@@ -131,6 +134,7 @@ export async function startGraphPullAction(opts: { skipMeasuredSince?: string } 
           followers: r.ok ? await followers(r.measuredAt).catch(() => undefined) : undefined,
         },
         r.ok ? r.retryAfter : null,
+        chainFrom,
       );
     }
   })().catch((err: unknown) => log.error("graph.card_pull.record_failed", { error: messageOf(err) }));

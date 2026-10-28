@@ -9,20 +9,29 @@ const graphClient = vi.hoisted(() => ({
 
 // CLASSIFIER_VERSION is imported by own-measure.ts directly, so the mock must supply
 // it too, not just graphClient — same shape the real module exports.
-vi.mock("../graph/client", () => ({ graphClient, CLASSIFIER_VERSION: "test-classifier-v1" }));
+const tokenAccount = vi.hoisted(() => vi.fn());
+vi.mock("../graph/client", () => ({ graphClient, tokenAccount, CLASSIFIER_VERSION: "test-classifier-v1" }));
+const setConnectorSecret = vi.hoisted(() => vi.fn());
+vi.mock("./secrets-actions", () => ({ setConnectorSecret }));
 const measureOwnChannel = vi.hoisted(() => vi.fn());
 vi.mock("@/server/services/own-measure", async (orig) => ({ ...(await orig<typeof import("@/server/services/own-measure")>()), measureOwnChannel }));
 // The in-memory DB is not migrated, so it has no connector_status table to record the pull in.
-vi.mock("../services/connector-status", () => ({ recordPull: vi.fn() }));
+const recordSample = vi.hoisted(() => vi.fn());
+const recordPullStart = vi.hoisted(() => vi.fn());
+const recordPullEnd = vi.hoisted(() => vi.fn());
+vi.mock("../services/connector-status", () => ({ recordPull: vi.fn(), recordSample, recordPullStart, recordPullEnd, recordPullProgress: vi.fn(), restFrom: vi.fn() }));
 
 process.env.CROWSNEST_DB_PATH = ":memory:";
 process.env.IG_SERVICE_TOKEN ??= "test-token";
 
 let measureOwnChannelAction: typeof import("./graph-actions")["measureOwnChannelAction"];
 let checkGraphTokenAction: typeof import("./graph-actions")["checkGraphTokenAction"];
+let testGraphTokenAction: typeof import("./graph-actions")["testGraphTokenAction"];
+let saveGraphTokenAction: typeof import("./graph-actions")["saveGraphTokenAction"];
+let startGraphPullAction: typeof import("./graph-actions")["startGraphPullAction"];
 
 beforeAll(async () => {
-  ({ measureOwnChannelAction, checkGraphTokenAction } = await import("./graph-actions"));
+  ({ measureOwnChannelAction, checkGraphTokenAction, testGraphTokenAction, saveGraphTokenAction, startGraphPullAction } = await import("./graph-actions"));
 });
 
 beforeEach(() => {
@@ -74,5 +83,53 @@ describe("checkGraphTokenAction", () => {
     expect(graphClient.checkToken).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ ok: true, status: { state: "permission_denied", message: "no insights" } });
     invalidateTokenStatus();
+  });
+});
+
+describe("the Graph token form", () => {
+  test("Test connection answers with the account and stores nothing", async () => {
+    tokenAccount.mockResolvedValue({ ok: true, id: "17841400000000001", username: "kaiships.ai" });
+    expect(await testGraphTokenAction("  IGAAtoken \n")).toEqual({ ok: true, username: "kaiships.ai", userId: "17841400000000001" });
+    expect(tokenAccount).toHaveBeenCalledWith("IGAAtoken");
+    expect(setConnectorSecret).not.toHaveBeenCalled();
+    expect(recordSample).not.toHaveBeenCalled();
+  });
+
+  test("Test connection with a refused token says so in the form's words", async () => {
+    tokenAccount.mockResolvedValue({ ok: false, code: "GRAPH_AUTH_FAILED", message: "Invalid OAuth access token" });
+    const { TOKEN_REJECTED_FORM } = await import("../connectors/instagram-graph");
+    expect(await testGraphTokenAction("IGAAold")).toEqual({ ok: false, message: TOKEN_REJECTED_FORM });
+  });
+
+  test("Save stores the trimmed token and the user id, then records the sample", async () => {
+    tokenAccount.mockResolvedValue({ ok: true, id: "17841400000000001", username: "kaiships.ai" });
+    setConnectorSecret.mockResolvedValue({ ok: true });
+    expect(await saveGraphTokenAction(" IGAAtoken\n")).toEqual({ ok: true });
+    expect(setConnectorSecret.mock.calls).toEqual([
+      ["instagram-graph", "IG_GRAPH_TOKEN", "IGAAtoken"],
+      ["instagram-graph", "IG_GRAPH_USER_ID", "17841400000000001"],
+    ]);
+    expect(recordSample).toHaveBeenCalledWith("instagram-graph", { ok: true, line: "@kaiships.ai" });
+  });
+
+  test("Save with a refused token stores nothing", async () => {
+    tokenAccount.mockResolvedValue({ ok: false, code: "GRAPH_AUTH_FAILED", message: "Invalid OAuth access token" });
+    expect(await saveGraphTokenAction("IGAAold")).toMatchObject({ ok: false });
+    expect(setConnectorSecret).not.toHaveBeenCalled();
+    expect(recordSample).not.toHaveBeenCalled();
+  });
+});
+
+describe("startGraphPullAction", () => {
+  test("a pull whose start record throws ends as failed, and Pull my channel works again", async () => {
+    recordPullStart.mockImplementationOnce(() => {
+      throw new Error("SQLITE_BUSY: database is locked");
+    });
+    expect(await startGraphPullAction()).toEqual({ ok: true });
+    await vi.waitFor(() => expect(recordPullEnd).toHaveBeenCalledTimes(1));
+    expect(recordPullEnd.mock.calls[0][1]).toMatchObject({ kind: "failed" });
+    measureOwnChannel.mockResolvedValue({ ok: true, measuredAt: "t", postsSeen: 0, postsMeasured: 0, postsFailed: 0, commentsSeen: 0, partial: false, callsUsed: 2, stoppedEarly: null, retryAfter: null });
+    expect(await startGraphPullAction()).toEqual({ ok: true });
+    await vi.waitFor(() => expect(recordPullEnd).toHaveBeenCalledTimes(2));
   });
 });

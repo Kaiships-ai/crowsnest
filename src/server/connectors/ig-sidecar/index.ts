@@ -21,7 +21,7 @@ export function syncPull(r: SyncResult): PullResult<SyncResult, unknown> {
 }
 
 /** What a card pull did, for its summary, and when Instagram allows the next one. `null` is a run that threw. */
-export function syncSummary(r: SyncResult | null, startedAt: Date, now: Date): { summary: Omit<PullSummary, "olderFrom">; retryAfter: string | null } {
+export function syncSummary(r: SyncResult | null, startedAt: Date, now: Date): { summary: Omit<PullSummary, "olderFrom" | "chainFrom">; retryAfter: string | null } {
   const durationSec = Math.round((now.getTime() - startedAt.getTime()) / 1000);
   const base = { durationSec, startedAt: startedAt.toISOString() };
   if (!r) return { summary: { ...base, total: 0, done: 0, updated: 0, newItems: 0, failed: 0, stop: null, items: [] }, retryAfter: null };

@@ -61,7 +61,7 @@ export function GraphSourceCard({
     setCallError(null)
     const res = await window.api.crowsnest.call(
       'startGraphPullAction',
-      rest && pull?.startedAt ? { skipMeasuredSince: pull.startedAt } : undefined
+      rest ? { rest: true } : undefined
     )
     const failure = !res.ok ? res.error.message : !res.value.ok ? res.value.error : null
     setCallError(failure)

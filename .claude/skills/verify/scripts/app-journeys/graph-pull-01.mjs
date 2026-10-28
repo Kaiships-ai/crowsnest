@@ -224,12 +224,15 @@ export default async function graphPull01({ page, step, snap }) {
       const row = sql("select retry_after from connector_status where connector_id = 'instagram-graph'");
       const oldest = Number(sql("select min(called_at) from source_calls where source = 'instagram-graph'"));
       console.log(`limited: ${line} | ${rest} | ${button} | retry_after ${row}, oldest call ${new Date(oldest).toISOString()}`);
-      // Pull the rest leaves out the posts the long pull measured, so N is 50 less those.
-      const n = Number(sql("select progress_total from connector_status where connector_id = 'instagram-graph'"));
-      if (line !== `Pulled 30/${n} posts. The 200 calls for this hour are used up.`) throw new Error(line);
-      if (!new RegExp(`^The other ${n - 30} posts keep their older numbers\\. Pull the rest after \\d\\d:\\d\\d( [AP]M)?\\.$`).test(rest)) throw new Error(rest);
+      // Third pull of one chain (Stop, Stop, the limit): it measures only posts the chain never measured, and counts the whole channel.
+      const pull = JSON.parse(sql("select summary from connector_status where connector_id = 'instagram-graph'")).pull;
+      const chained = Number(sql(`select count(*) from own_posts where last_measured_at >= '${pull.chainFrom}'`));
+      console.log(`chain from ${pull.chainFrom}: ${pull.updated}/${pull.total}, posts measured since ${chained}, this pull ${measuredLastPull()}`);
+      if (measuredLastPull() !== 30 || pull.total !== 50 || pull.updated !== chained) throw new Error(JSON.stringify(pull));
+      if (line !== `Pulled ${chained}/50 posts. The 200 calls for this hour are used up.`) throw new Error(line);
+      if (!new RegExp(`^The other ${50 - chained} posts keep their older numbers\\. Pull the rest after \\d\\d:\\d\\d( [AP]M)?\\.$`).test(rest)) throw new Error(rest);
       if (Date.parse(row) !== oldest + 3_600_000) throw new Error(`retry_after ${row} is not the oldest call plus an hour`);
-      if (!button.startsWith(`Pull the rest (${n - 30}) · after `) || !(await disabled("graph-pull-rest"))) throw new Error(button);
+      if (!button.startsWith(`Pull the rest (${50 - chained}) · after `) || !(await disabled("graph-pull-rest"))) throw new Error(button);
       await shoot("partial");
       await fake();
     });

@@ -3605,8 +3605,8 @@ describe("runSync — lastSuccessfulSyncAt", () => {
   });
 });
 
-describe("runSync — skipFreshWithinMinutes", () => {
-  test("library sweep skips a channel synced within skipFreshWithinMinutes", async () => {
+describe("runSync — skipSyncedSince", () => {
+  test("library sweep skips a channel synced since skipSyncedSince", async () => {
     const { db, newId, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { runSync } = await import("./sync-engine");
@@ -3639,7 +3639,7 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     // Only the stale channel was walked; the fresh one was skipped entirely.
@@ -3669,14 +3669,14 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     const row = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, neverId));
     expect(row[0].ts).toBe(now.toISOString()); // swept despite the skip window
   });
 
-  test("an explicit channelIds run ignores skipFreshWithinMinutes", async () => {
+  test("an explicit channelIds run ignores skipSyncedSince", async () => {
     const { db, newId, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { runSync } = await import("./sync-engine");
@@ -3698,7 +3698,7 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     expect(result.channelsSynced).toBe(1);
