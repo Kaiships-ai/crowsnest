@@ -111,7 +111,8 @@ export function cookCard(view: CookView): CookCard {
       wait: 'Nothing posts. The reel waits here, and the Plan card reads Ready.'
     }
   }
-  const group = COOK_GROUPS[groupOf(current.name)]?.label ?? current.name
+  // Why Review: job.json names only the 10 known steps; an unknown one sits at the end.
+  const group = COOK_GROUPS[groupOf(current.name)]?.label ?? 'Review'
   const kept = `During ${group} (${current.name}). ${done} of ${steps.length} steps are done and kept.`
   const resume = {
     acts: ['resume', 'terminal'] satisfies CookAction[],
@@ -215,7 +216,7 @@ export function cookCard(view: CookView): CookCard {
         wait: 'When the render is done, Claude checks it and reviews it.'
       }
     }
-    default:
+    case 'Review':
       return {
         state: 'mp4-ready',
         tone: 'run',
