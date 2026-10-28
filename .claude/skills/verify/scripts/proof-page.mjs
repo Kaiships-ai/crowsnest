@@ -1,7 +1,8 @@
 // proof-page.mjs <proof-dir> -- the one page Kai opens to decide a PR: what he will see, the video,
 // prototype | before | after shots per state, real numbers against their source, checks, cost, undo.
 // Reads <proof-dir>/proof.json and writes <proof-dir>/index.html; media paths in proof.json are relative to <proof-dir>.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 const dir = path.resolve(process.argv[2] ?? ".");
@@ -11,6 +12,16 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const missing = [proof.video, ...proof.states.flatMap((s) => [s.prototype, s.before, s.after])]
   .filter((f) => f && !existsSync(path.join(dir, f)));
 if (missing.length) throw new Error(`proof-page: missing files in ${dir}: ${missing.join(", ")}`);
+
+// Screen recordings barely move, so 12 fps, 1200 px wide and CRF 32 stay readable at about a tenth of
+// the raw size (PR 242: 2,150 KB webm to 178 KB). H.264 mp4 also plays in Safari, which VP9 webm may not.
+if (proof.video && !proof.video.endsWith(".min.mp4")) {
+  const small = proof.video.replace(/\.[^.]+$/, ".min.mp4");
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-i", path.join(dir, proof.video), "-vf", "fps=12,scale='min(1200,iw)':-2",
+    "-c:v", "libx264", "-preset", "slow", "-crf", "32", "-tune", "animation", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-an", path.join(dir, small)]);
+  console.log(`video ${Math.round(statSync(path.join(dir, proof.video)).size / 1024)} KB -> ${Math.round(statSync(path.join(dir, small)).size / 1024)} KB`);
+  proof.video = small;
+}
 
 const RISK = { low: "THẤP · CI xanh là tự merge", medium: "VỪA · anh xem trang này", high: "CAO · anh xem trang này và chạy thật 1 lần trên app của anh" };
 const shot = (f, label) => (f ? `<figure><a href="${esc(f)}"><img src="${esc(f)}" alt="${esc(label)}"></a><figcaption>${esc(label)}</figcaption></figure>` : `<figure class="none"><span>không có ảnh</span><figcaption>${esc(label)}</figcaption></figure>`);
