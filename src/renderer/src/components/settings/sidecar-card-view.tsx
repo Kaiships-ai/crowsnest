@@ -89,11 +89,12 @@ export function viewOf(
   if (row.state === 'off' || health?.running === false) {
     return 'off'
   }
-  if (row.state === 'error') {
-    return later(row.retryAfter) ? 'limited-test' : 'error'
-  }
+  // A setup state outranks an older error: with no session there is nothing to pull with yet (C3).
   if (health?.loggedIn === false) {
     return 'not-connected'
+  }
+  if (row.state === 'error') {
+    return later(row.retryAfter) ? 'limited-test' : 'error'
   }
   if (row.state === 'partial') {
     return pull?.stop === 'limited' ? 'limited' : pull?.stop === 'stopped' ? 'stopped' : 'partial'

@@ -57,7 +57,7 @@ export default async function sidecarPull01({ page, step, snap }) {
   const added = [];
 
   try {
-    await step(`setup: ${RIVALS.length} rivals tracked, and the fake answers /medias`, async () => {
+    await step(`setup: ${RIVALS.length} rivals tracked, the fake answers /medias, and one complete pull leaves the card Ready`, async () => {
       await fake("__medias", "?state=empty");
       for (const handle of RIVALS) {
         const res = await call(page, "addChannelAction", handle);
@@ -66,6 +66,9 @@ export default async function sidecarPull01({ page, step, snap }) {
       }
       total = Number(sql("select count(*) from channels where platform = 'instagram' and deleted_at is null and is_own = 0"));
       console.log(`rivals to pull: ${total}`);
+      // Start from Ready whatever the journeys before left: a complete pull clears an older pull or check error.
+      const reset = await call(page, "pullConnector", "ig-sidecar");
+      if (!reset.ok || reset.value.state !== "ready") throw new Error(`reset pull: ${JSON.stringify(reset)}`);
     });
 
     await step("the switch off shows the C2 sentence; on brings the card back", async () => {
