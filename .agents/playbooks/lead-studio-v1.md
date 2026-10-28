@@ -13,7 +13,7 @@ Every change gets exactly one tier before its owner starts. The owner's report n
 
 | Tier | Entry | Gate before merge | Who merges |
 | --- | --- | --- | --- |
-| docs | Docs, comments, plan text, skill text only | `node scripts/check-doc-paths.mjs` and `bash scripts/skill-lint.sh` locally; CI runs typecheck, lint, and tests on the PR | The root, once CI is green, no review |
+| docs | Docs, comments, plan text, skill text, tests and verify harness only, no app behavior change | `node scripts/check-doc-paths.mjs` and `bash scripts/skill-lint.sh` locally; CI runs typecheck, lint, and tests on the PR | The root babysits the PR to green and arms Auto-merge (`gh pr merge <n> --merge --auto --match-head-commit <sha>`), no review and no click from Kai |
 | small | Under about 1000 changed lines or under 7 to 10 files, and no external surface | Green CI (typecheck, lint, `test:changed`), plus the verify journeys for the screens it touches, run locally in dev mode | The root, then the post-merge smoke |
 | complex | Any external surface, whatever its size, or above the small size | An owner in its own worktree, one independent review with a full first round, and the proof page | Kai, with Auto-merge after the proof page |
 
@@ -39,6 +39,7 @@ Every real defect review found in PR-15s, PR-M1, and PR-M2 was a small diff with
 - **In** "Verify each round." at most three review rounds. After the third, the owner stops, writes what it tried, and the root asks Kai whether to change the approach.
 - **In** "Verify each round." every complex PR ends with a proof page (`.claude/skills/verify/SKILL.md`, Proof page). The root publishes it and comments its link on the PR. A PR without a proof page is not merge-ready.
 - **In** "Verify each round." nobody polls CI. After a push the owner ends its turn. Kai turns on Auto-merge on the PR after the proof page, and GitHub merges once the required checks pass.
+- **In** "Verify each round." Kai only clicks Auto-merge for medium and high risk, after the proof page. A docs-tier PR never waits for him.
 - **Replace** "Append on a clean verdict, never ship." with this rule. The root merges docs and small changes itself, then runs the post-merge smoke on `main` (`app-up.sh --seed`, `app-drive.sh shell-01`, and the journeys for touched screens). A red smoke points at the last merge, and the root fixes or reverts it before the next merge. Only complex changes wait for Kai's merge.
 - **In** "Settle open questions by prototype before you write." first show Kai two or three runtime and repo shapes, always including the end-state shape, each with its cost, one current-versus-target diagram, and the restated definition of done. Write the full plan only after Kai picks one.
 - **In** "Settle open questions by prototype before you write." before the plan encodes a guard or invariant about another system, check that system's live state and record the result.

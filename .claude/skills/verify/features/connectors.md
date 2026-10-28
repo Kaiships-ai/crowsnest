@@ -2,6 +2,8 @@
 
 Each outside source is a connector: a manifest (id, label, auth kind, the secrets it needs, the ledger counts it feeds) plus an adapter (test connection, pull). `src/server/connectors/registry.ts` finds every folder under `src/server/connectors/` on its own. Secrets are sealed by the macOS Keychain through Orca's `SecretStore`; on boot a legacy plaintext `secrets` row moves to `sealed_secrets`. Architecture: `documents/architecture/connectors.md`.
 
+Prerequisite for a real-data run of a connector: its key saved with `test-keys.sh save <service>` and `test-keys.sh check` passing (SKILL.md, Real-service keys). Lanes with fakes need no key.
+
 ## Sub-features
 
 - Bridge `listConnectors`: every connector, its status (`configured`, `needs-setup`, `not-connected`) and where each secret comes from (`keychain`, `db`, `env`, `none`), never a value.
