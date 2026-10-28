@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Copies this worktree's data/verify/evidence into the main checkout under
-# data/verify/evidence/<branch>/, so proof outlives the worktree. No-op in the main checkout.
+# Copies this worktree's data/verify/evidence to ~/.claude/orchestrate/proof/evidence/<branch>/, so proof
+# outlives the worktree. Never writes into the operator's main checkout. No-op in the main checkout.
 set -euo pipefail
 cd "$(dirname "$0")/../../../.."
 HERE="$(pwd -P)"
@@ -13,7 +13,7 @@ fi
 [ -d "$SRC" ] || { echo "verify: no evidence to keep"; exit 0; }
 BRANCH="$(git branch --show-current)"
 [ -n "$BRANCH" ] || BRANCH="$(git rev-parse --short HEAD)"
-DEST="$MAIN/data/verify/evidence/${BRANCH//\//-}"
+DEST="$HOME/.claude/orchestrate/proof/evidence/${BRANCH//\//-}"
 mkdir -p "$DEST"
 cp -R "$SRC/." "$DEST/"
 echo "verify: evidence copied to $DEST/"

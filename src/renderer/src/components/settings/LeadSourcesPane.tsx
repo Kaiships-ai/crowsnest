@@ -19,7 +19,7 @@ import { UmamiSourceCard } from './umami-source-card'
 type SourceRow = EngineCallValue<'getVaultBoard'>[number]
 
 type SourceInfo = {
-  group: 'instagram' | 'funnel' | 'tools'
+  group: 'instagram' | 'funnel'
   icon: React.ReactNode
   gives: () => string
   learnMore?: string
@@ -60,7 +60,7 @@ const SOURCE_INFO: Record<string, SourceInfo> = {
 }
 
 const FALLBACK_INFO: SourceInfo = {
-  group: 'tools',
+  group: 'funnel',
   icon: <Plug className="size-5" />,
   gives: () => ''
 }
@@ -82,15 +82,6 @@ const GROUPS: { id: SourceInfo['group']; title: () => string; description: () =>
       translate(
         'leadStudio.sources.group.funnelDescription',
         'What happens after a view: comments, DMs, gift page visits and orders.'
-      )
-  },
-  {
-    id: 'tools',
-    title: () => translate('leadStudio.sources.group.tools', 'Tools'),
-    description: () =>
-      translate(
-        'leadStudio.sources.group.toolsDescription',
-        'Services the agents use while they work.'
       )
   }
 ]

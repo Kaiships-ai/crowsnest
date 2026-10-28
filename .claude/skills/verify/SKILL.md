@@ -79,6 +79,15 @@ A real-data run (the smallest real sample, never a lane with fakes) reads its ke
 
 A run loads a key with `set -a; . ~/.config/lead-studio-test/umami.env; set +a`. When `check` fails for the service a run needs, the run stops with `BLOCKED need <service> key` and names the `save` command; it does not guess or reuse a key from another file.
 
+### Real check
+
+```bash
+.claude/skills/verify/scripts/real-check.sh umami --db <userData>/crowsnest.db [--proof ~/.claude/orchestrate/proof/<pr>/proof.json]
+.claude/skills/verify/scripts/real-check.sh graph --db <userData>/crowsnest.db [--proof ...]
+```
+
+Run it after a real-data lane (`app-up.sh --real`) has pulled. It reads the key from `~/.config/lead-studio-test/<service>.env`, makes read-only GETs, and prints a table of the lane DB's value against the real service's, one `ok` or `DIFF` per row; it exits 1 on any `DIFF`, and on a missing key prints `BLOCKED need <service> key`. `umami`: pageviews, summed daily visitors and `checkout_click` over the 7 complete Asia/Ho_Chi_Minh days before today (the app's `umami_days.clean`, test sessions dropped; set `UMAMI_WEBSITE_ID` when the key reads more than one site). `graph`: followers (latest `own_account_snapshots`) and views, likes, comments of the 5 newest reels (latest `own_post_insights`). With `--proof` it writes the rows into that file's `numbers` list (`label`, `source`, `expected` = real, `app`), replacing rows with the same label, so the proof page compares them.
+
 ## Proof page
 
 Every complex PR ends with one page Kai opens to decide it. The owner fills `~/.claude/orchestrate/proof/<pr>/proof.json` and puts the media beside it:
@@ -101,7 +110,7 @@ Every complex PR ends with one page Kai opens to decide it. The owner fills `~/.
 .claude/skills/verify/scripts/app-down.sh
 ```
 
-Stops only the app `app-up.sh` started and keeps `data/verify/evidence/`. Never `pkill node` or `pkill Electron`; the operator's own app is one too. In a worktree, `app-down.sh` also runs `keep-evidence.sh`, which copies `data/verify/evidence/` into the main checkout at `data/verify/evidence/<branch>/` (slashes become dashes). Run it on its own after recording outside `app-drive.sh`, such as a proof video. Proof lives in the main checkout; the worktree copy is scratch.
+Stops only the app `app-up.sh` started and keeps `data/verify/evidence/`. Never `pkill node` or `pkill Electron`; the operator's own app is one too. In a worktree, `app-down.sh` also runs `keep-evidence.sh`, which copies `data/verify/evidence/` to `~/.claude/orchestrate/proof/evidence/<branch>/` (slashes become dashes); it never writes into the operator's main checkout. Run it on its own after recording outside `app-drive.sh`, such as a proof video. Evidence lives in the worktree or under `~/.claude/orchestrate/proof/`.
 
 After the branch's PR merges, retire the worktree:
 

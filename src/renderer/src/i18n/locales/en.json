@@ -21509,9 +21509,7 @@
         "instagram": "Instagram",
         "instagramDescription": "Your own channel and the rivals you track, pulled on request, never on a timer.",
         "funnel": "Funnel",
-        "funnelDescription": "What happens after a view: comments, DMs, gift page visits and orders.",
-        "tools": "Tools",
-        "toolsDescription": "Services the agents use while they work."
+        "funnelDescription": "What happens after a view: comments, DMs, gift page visits and orders."
       },
       "explain": {
         "missing": "Add your {{missing}} to connect. Lead Studio pulls from it only on request, never on a timer.",
