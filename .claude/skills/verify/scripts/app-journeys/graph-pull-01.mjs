@@ -214,7 +214,7 @@ export default async function graphPull01({ page, step, snap }) {
       await fake();
     });
 
-    await step("the hour's calls run out at post 31: Partial, Pull the rest off until the oldest call plus an hour (C11)", async () => {
+    await step("the hour's calls run out at post 31: Partial, Pull the rest off until 30 calls are free again (C11)", async () => {
       await fake("?posts=50&budget=62");
       await card.getByTestId("graph-pull-rest").click();
       await waitView("limited", 60_000);
@@ -222,8 +222,10 @@ export default async function graphPull01({ page, step, snap }) {
       const rest = await text("graph-rest-line");
       const button = await text("graph-pull-rest");
       const row = sql("select retry_after from connector_status where connector_id = 'instagram-graph'");
-      const oldest = Number(sql("select min(called_at) from source_calls where source = 'instagram-graph'"));
-      console.log(`limited: ${line} | ${rest} | ${button} | retry_after ${row}, oldest call ${new Date(oldest).toISOString()}`);
+      // 30 calls free again: with n calls in the hour, the (n - 170)th oldest has to age out.
+      const inHour = Number(sql("select count(*) from source_calls where source = 'instagram-graph'"));
+      const frees = Number(sql(`select called_at from source_calls where source = 'instagram-graph' order by called_at limit 1 offset ${Math.max(0, inHour - 170 - 1)}`));
+      console.log(`limited: ${line} | ${rest} | ${button} | retry_after ${row}, ${inHour} calls in the hour, 30 free at ${new Date(frees + 3_600_000).toISOString()}`);
       // Third pull of one chain (Stop, Stop, the limit): it measures only posts the chain never measured, and counts the whole channel.
       const pull = JSON.parse(sql("select summary from connector_status where connector_id = 'instagram-graph'")).pull;
       const chained = Number(sql(`select count(*) from own_posts where last_measured_at >= '${pull.chainFrom}'`));
@@ -231,7 +233,7 @@ export default async function graphPull01({ page, step, snap }) {
       if (measuredLastPull() !== 30 || pull.total !== 50 || pull.updated !== chained) throw new Error(JSON.stringify(pull));
       if (line !== `Pulled ${chained}/50 posts. The 200 calls for this hour are used up.`) throw new Error(line);
       if (!new RegExp(`^The other ${50 - chained} posts keep their older numbers\\. Pull the rest after \\d\\d:\\d\\d( [AP]M)?\\.$`).test(rest)) throw new Error(rest);
-      if (Date.parse(row) !== oldest + 3_600_000) throw new Error(`retry_after ${row} is not the oldest call plus an hour`);
+      if (Date.parse(row) !== frees + 3_600_000) throw new Error(`retry_after ${row} is not when 30 calls are free again`);
       if (!button.startsWith(`Pull the rest (${50 - chained}) · after `) || !(await disabled("graph-pull-rest"))) throw new Error(button);
       await shoot("partial");
       await fake();

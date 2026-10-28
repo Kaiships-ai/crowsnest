@@ -148,7 +148,9 @@ function settleStale(row: StatusRow, now: Date): StatusRow {
   if (row.pullState !== "pulling") return row;
   if (livePulls.has(row.connectorId) && now.getTime() - Date.parse(row.updatedAt) < PULL_STALE_MS) return row;
   const reached = row.progressDone ?? 0;
-  const ended: EndedPull = { total: row.progressTotal ?? reached, done: reached, updated: reached, newItems: 0, failed: 0, durationSec: 0, startedAt: row.startedAt, stop: "interrupted", items: [] };
+  // progressDone counts failed posts too; Pull the rest retries those, so they stay out of the chain's done count.
+  const failed = Math.min(startedPull(row).failed, reached);
+  const ended: EndedPull = { total: row.progressTotal ?? reached, done: reached - failed, updated: reached - failed, newItems: 0, failed, durationSec: 0, startedAt: row.startedAt, stop: "interrupted", items: [] };
   const pull = addToChain(startedPull(row), ended);
   const { done, total } = pull;
   return {
@@ -175,18 +177,25 @@ export function recordPullStart(connectorId: string, chainFrom: string | null = 
   const row = settledRow(connectorId);
   const startedAt = clockNow().toISOString();
   const prev = chainFrom ? parseSummary(row?.summary ?? null).pull : undefined;
-  const pull = prev ? { ...prev, startedAt, chainFrom, stop: null, items: [] } : emptyPull(startedAt, row?.pulledAt ?? null);
+  const pull = prev ? { ...prev, startedAt, chainFrom, failed: 0, stop: null, items: [] } : emptyPull(startedAt, row?.pulledAt ?? null);
   livePulls.add(connectorId);
   upsert(connectorId, { pullState: "pulling", pullMessage: null, pullDetail: null, startedAt, progressDone: 0, progressTotal: null, progressLabel: null, retryAfter: null, summary: withSummary(connectorId, { pull }) });
 }
 
+/** The summary with the running pull's failed count, so a crash can tell failed posts from measured ones. */
+function failedSummary(connectorId: string, failed: number): string | undefined {
+  const row = readRow(connectorId);
+  return row && JSON.stringify({ ...parseSummary(row.summary), pull: { ...startedPull(row), failed } });
+}
+
 /** Also the pull's heartbeat. Undefined fields keep their value. */
-export function recordPullProgress(connectorId: string, progress: { done: number; total?: number; label?: string | null }): void {
+export function recordPullProgress(connectorId: string, progress: { done: number; total?: number; label?: string | null; failed?: number }): void {
   db.update(tables.connectorStatus)
     .set({
       progressDone: progress.done,
       ...(progress.total !== undefined ? { progressTotal: progress.total } : {}),
       ...(progress.label !== undefined ? { progressLabel: progress.label } : {}),
+      ...(progress.failed !== undefined ? { summary: failedSummary(connectorId, progress.failed) } : {}),
       updatedAt: clockNow().toISOString(),
     })
     .where(and(eq(tables.connectorStatus.connectorId, connectorId), eq(tables.connectorStatus.pullState, "pulling")))
