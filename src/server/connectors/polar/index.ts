@@ -1,5 +1,7 @@
-import { eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
+import { eq, inArray } from "drizzle-orm";
 import { db, tables } from "@/server/db";
+import { getAppEnvironment, hasAppEnvironment } from "../../../shared/app-environment";
 import { readSecret } from "../secrets";
 import type { Connector, ConnectorManifest } from "../types";
 
@@ -17,14 +19,21 @@ const NO_ORGANIZATION = "This token sees no organization. Create an organization
 const NO_TOKEN = "Add your Polar access token to connect.";
 /** The organization the saved token last proved, for the Ready card. Not a secret. */
 const ORGANIZATION_KEY = "polar_organization";
+/** A hash of the token that proved it, so a token written any other way never shows that name. */
+const PROVED_BY_KEY = "polar_organization_token";
 
 export type TokenCheck = { ok: true; organization: string } | { ok: false; message: string };
 
-/** One real read: the organizations this token sees. `POLAR_API_URL` points a verify lane at a fake. */
+/** `POLAR_API_URL` points a dev or verify app at a fake Polar; the packaged Kit always calls the real one. */
+export function polarApiBase(packaged = hasAppEnvironment() && getAppEnvironment().isPackaged()): string {
+  return (!packaged && process.env.POLAR_API_URL) || "https://api.polar.sh";
+}
+
+/** One real read: the organizations this token sees. */
 export async function checkPolarToken(token: string): Promise<TokenCheck> {
   let res: Response;
   try {
-    res = await fetch(`${process.env.POLAR_API_URL ?? "https://api.polar.sh"}/v1/organizations`, {
+    res = await fetch(`${polarApiBase()}/v1/organizations`, {
       headers: { authorization: `Bearer ${token}`, accept: "application/json" },
       signal: AbortSignal.timeout(10_000),
     });
@@ -44,12 +53,23 @@ function organizationName(body: unknown): string | null {
   return typeof first === "object" && first !== null && "name" in first && typeof first.name === "string" ? first.name : null;
 }
 
+const fingerprint = (token: string) => createHash("sha256").update(token).digest("hex");
+const setting = (key: string) => db.select().from(tables.appSettings).where(eq(tables.appSettings.key, key)).get()?.value ?? null;
+
+/** The kept name, only while the saved token is the one that proved it. */
 export function readPolarOrganization(): string | null {
-  return db.select().from(tables.appSettings).where(eq(tables.appSettings.key, ORGANIZATION_KEY)).get()?.value ?? null;
+  const token = readSecret(polar, "POLAR_ACCESS_TOKEN");
+  return token && setting(PROVED_BY_KEY) === fingerprint(token) ? setting(ORGANIZATION_KEY) : null;
 }
 
-export function storeOrganization(name: string): void {
-  db.insert(tables.appSettings).values({ key: ORGANIZATION_KEY, value: name }).onConflictDoUpdate({ target: tables.appSettings.key, set: { value: name } }).run();
+export function storeOrganization(name: string, token: string): void {
+  for (const [key, value] of [[ORGANIZATION_KEY, name], [PROVED_BY_KEY, fingerprint(token)]]) {
+    db.insert(tables.appSettings).values({ key, value }).onConflictDoUpdate({ target: tables.appSettings.key, set: { value } }).run();
+  }
+}
+
+function clearOrganization(): void {
+  db.delete(tables.appSettings).where(inArray(tables.appSettings.key, [ORGANIZATION_KEY, PROVED_BY_KEY])).run();
 }
 
 export const connector: Connector = {
@@ -57,10 +77,16 @@ export const connector: Connector = {
   adapter: {
     async testConnection() {
       const token = readSecret(polar, "POLAR_ACCESS_TOKEN");
-      if (!token) return { ok: false, message: NO_TOKEN };
+      if (!token) {
+        clearOrganization();
+        return { ok: false, message: NO_TOKEN };
+      }
       const check = await checkPolarToken(token);
-      if (!check.ok) return { ok: false, message: check.message };
-      storeOrganization(check.organization);
+      if (!check.ok) {
+        clearOrganization();
+        return { ok: false, message: check.message };
+      }
+      storeOrganization(check.organization, token);
       return { ok: true, message: null };
     },
   },

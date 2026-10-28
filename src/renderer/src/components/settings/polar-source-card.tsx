@@ -219,12 +219,15 @@ export function PolarSourceCard({
   const testSaved = async (): Promise<void> => {
     setTesting(true)
     setCallError(null)
-    const res = await window.api.crowsnest.call('testConnector', row.id)
-    if (!res.ok) {
-      setCallError(res.error.message)
+    try {
+      const res = await window.api.crowsnest.call('testConnector', row.id)
+      if (!res.ok) {
+        setCallError(res.error.message)
+      }
+      await Promise.all([reload(), loadOrganization()])
+    } finally {
+      setTesting(false)
     }
-    await Promise.all([reload(), loadOrganization()])
-    setTesting(false)
   }
 
   const closeForm = async (saved: boolean): Promise<void> => {

@@ -18,7 +18,7 @@ export async function testPolarTokenAction(token: string): Promise<TokenCheck> {
 export async function savePolarTokenAction(token: string): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!passedDraft || passedDraft.token !== token.trim()) return { ok: false, error: "Test the token before you save it." };
   writeSecret(polar, "POLAR_ACCESS_TOKEN", passedDraft.token);
-  storeOrganization(passedDraft.organization);
+  storeOrganization(passedDraft.organization, passedDraft.token);
   recordCheck(polar.id, { ok: true, message: null });
   passedDraft = null;
   return { ok: true };

@@ -114,6 +114,7 @@ function scrubFailure<T>(value: T): T {
 
 const none = z.tuple([]);
 const id = z.tuple([z.string()]);
+const POLAR_TOKEN = z.string().trim().min(1, "Enter a token.").max(4096);
 const nullableText = z.string().nullable().optional();
 
 const feedFilters = z.object({
@@ -288,8 +289,8 @@ export const ENGINE_CALLS = {
   saveSidecarSessionAction: call(z.tuple([z.string().min(1).max(4096)]), saveSidecarSessionAction),
   getVaultBoard: call(none, () => getVaultBoard()),
   setConnectorSecret: call(z.tuple([z.string(), z.string(), z.string().min(1).max(4096)]), setConnectorSecret),
-  testPolarTokenAction: call(z.tuple([z.string().min(1).max(4096)]), testPolarTokenAction),
-  savePolarTokenAction: call(z.tuple([z.string().min(1).max(4096)]), savePolarTokenAction),
+  testPolarTokenAction: call(z.tuple([POLAR_TOKEN]), testPolarTokenAction),
+  savePolarTokenAction: call(z.tuple([POLAR_TOKEN]), savePolarTokenAction),
   getPolarOrganization: call(none, readPolarOrganization),
   // The folder workspace a board opens in when no project is open: next to the app's database.
   ensureLeadStudioWorkspaceDir: call(none, () => {
