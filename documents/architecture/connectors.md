@@ -1,6 +1,6 @@
 # Connectors
 
-A connector is one outside source crowsnest reads from: Instagram Graph, the instagrapi sidecar, Groq, Umami, Polar, and later ChatbotX. Each is a manifest (what it is, as data) plus an adapter (the code that talks to it). The connector also owns the secrets the source needs, and those secrets are sealed by the macOS Keychain.
+A connector is one outside source crowsnest reads from: Instagram Graph, the instagrapi sidecar, Umami, Polar, and later ChatbotX. Each is a manifest (what it is, as data) plus an adapter (the code that talks to it). The connector also owns the secrets the source needs, and those secrets are sealed by the macOS Keychain.
 
 ## Data it holds
 
@@ -14,7 +14,6 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 | --- | --- | --- | --- | --- |
 | `instagram-graph` | oauth | `IG_GRAPH_TOKEN`, `IG_GRAPH_USER_ID` | view, follow, bio_link_tap | `graphClient.checkToken`; pull is a due `measureOwnChannel` run, partial when a post's insights, the comments or the breakdowns failed or the run stopped early |
 | `ig-sidecar` | browser-session | `IG_SERVICE_TOKEN`, `IG_USERNAME`, `IG_PASSWORD` (also per account), `IG_SESSIONID`, all optional | none | `igClient.health`; `sample()` is `/health` then `/profile` of the sidecar's own handle; pull is a library `runSync`, read back from its `sync_jobs` row; a run that failed `IG_AUTH_REQUIRED` reads "The session id expired. Sign in to instagram.com and copy a new session id." |
-| `groq` | api-key | `GROQ_API_KEY` | none | key present |
 | `umami` | api-key | `UMAMI_URL`, `UMAMI_API_KEY`, `UMAMI_WEBSITE_ID` | gift_page_visit, email, checkout | the key's websites hold the saved id; sample is that website's line; pull is `pullUmami` |
 | `polar` | api-key | `POLAR_ACCESS_TOKEN` | purchase, revenue | `GET /v1/organizations` with the token, the first organization's name kept; no pull yet |
 | `chatbotx` | mcp | `CHATBOTX_API_KEY` | comment_keyword, dm | manifest only |
@@ -22,7 +21,7 @@ A connector is one outside source crowsnest reads from: Instagram Graph, the ins
 ## Boundaries
 
 - Owns: `src/server/connectors/` (types, `registry.ts`, `secrets.ts`, one folder per connector) and `src/server/secrets/store.ts`.
-- Called by: the Graph client, the sidecar client and launcher, Groq transcription, IG accounts, the Settings secret actions, the engine bridge (`listConnectors`, `testConnector`, `sampleConnector`, `pullConnector`, `getVaultBoard`, `setConnectorSecret`, `startSidecarAction`, `stopSidecarAction`, `testSidecarSessionAction`, `testPolarTokenAction`, `savePolarTokenAction`, `getPolarOrganization`, error scrubbing), `src/server/services/connector-status.ts`, the `kai` CLI, and boot (`startInApp` in `src/server/start.ts` runs the migration).
+- Called by: the Graph client, the sidecar client and launcher, IG accounts, the Settings secret actions, the engine bridge (`listConnectors`, `testConnector`, `sampleConnector`, `pullConnector`, `getVaultBoard`, `setConnectorSecret`, `startSidecarAction`, `stopSidecarAction`, `testSidecarSessionAction`, `testPolarTokenAction`, `savePolarTokenAction`, `getPolarOrganization`, error scrubbing), `src/server/services/connector-status.ts`, the `kai` CLI, and boot (`startInApp` in `src/server/start.ts` runs the migration).
 - Calls: the source's own client through the adapter, and `SecretStore` for sealing.
 
 ## Invariants

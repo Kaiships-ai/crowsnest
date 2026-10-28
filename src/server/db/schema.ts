@@ -227,7 +227,7 @@ export const transcripts = sqliteTable("transcripts", {
   text: text("text").notNull(),
   language: text("language"),
   durationSec: real("duration_sec"),
-  source: text("source").notNull(), // "whisper-local" | "groq" | "caption"
+  source: text("source").notNull(), // "whisper-local" | "caption" (older rows may name a removed cloud provider)
   createdAt: text("created_at").notNull(),
 });
 

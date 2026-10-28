@@ -38,8 +38,7 @@ const board = {
       label: 'Instagram Graph',
       state: 'partial',
       pulledAt: T
-    },
-    { id: 'groq', label: 'Groq', state: 'not-connected', pulledAt: null }
+    }
   ]
 }
 

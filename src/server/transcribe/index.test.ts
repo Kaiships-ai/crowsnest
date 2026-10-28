@@ -13,12 +13,9 @@ beforeAll(() => {
   process.env.MEDIA_ROOT ??= mkdtempSync(path.join(tmpdir(), "crowsnest-transcribe-"));
 });
 
-const ORIGINAL_GROQ_KEY = process.env.GROQ_API_KEY;
 const ORIGINAL_WHISPER_BIN = process.env.WHISPER_CPP_BIN_PATH;
 
 afterEach(() => {
-  if (ORIGINAL_GROQ_KEY === undefined) delete process.env.GROQ_API_KEY;
-  else process.env.GROQ_API_KEY = ORIGINAL_GROQ_KEY;
   if (ORIGINAL_WHISPER_BIN === undefined) delete process.env.WHISPER_CPP_BIN_PATH;
   else process.env.WHISPER_CPP_BIN_PATH = ORIGINAL_WHISPER_BIN;
 });
@@ -49,19 +46,18 @@ describe("getOrCreateTranscript", () => {
       createdAt: nowIso(),
     });
 
-    // No GROQ_API_KEY / whisper binary is set up in this test env — if the cache check
-    // didn't short-circuit, this would fall through to NoTranscriptProviderError instead.
+    // No whisper binary is set up in this test env. If the cache check did not
+    // short-circuit, this would fall through to NoTranscriptProviderError instead.
     const result = await getOrCreateTranscript(videoId);
     expect(result).toEqual({ text: "Cached transcript text.", source: "whisper-local", cached: true });
   });
 
-  test("throws NoTranscriptProviderError when nothing is cached, a local video asset exists, but no provider is available", async () => {
+  test("throws NoTranscriptProviderError with the install hint when nothing is cached and whisper is missing", async () => {
     const { db, newId, nowIso, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { getOrCreateTranscript } = await import("./index");
     migrate();
 
-    delete process.env.GROQ_API_KEY;
     // Force whisper unavailable deterministically — a dev/CI box may have a real
     // whisper-cli on PATH, so point at a binary name that can never resolve rather
     // than relying on absence of the env override.
@@ -93,7 +89,7 @@ describe("getOrCreateTranscript", () => {
       firstSeenAt: nowIso(),
     });
 
-    await expect(getOrCreateTranscript(videoId)).rejects.toThrow(/no transcript provider/i);
+    await expect(getOrCreateTranscript(videoId)).rejects.toThrow(/brew install whisper-cpp/);
   });
 
   test("throws VideoNotDownloadedError instead of falling back to a remote URL when the video has no local asset yet", async () => {

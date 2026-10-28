@@ -125,7 +125,7 @@ end-to-end loop is the thing every future decision must keep whole.
 - The MCP server at `/api/mcp` exposes 30 tools. Crowsnest holds the data and actions and the
   connected agent is the only reasoning brain, so the full workflow (sync, inspect, save an
   analysis, remix, brief) runs with no model key. A brief returned over MCP carries local
-  file paths for the video and thumbnail. Transcription needs whisper.cpp locally or `GROQ_API_KEY`.
+  file paths for the video and thumbnail. Transcription needs whisper.cpp installed locally.
 - Sync can be cancelled and run for selected channels. It never runs on its own: the app runs on
   the operator's Mac, so every pull starts from a click. Several burner accounts can be added and channels stick to one; one account's
   cooldown does not stop the others, but live parallel traffic across accounts is not built.
@@ -173,7 +173,7 @@ end-to-end proof on a buyer's machine.
   live follower-band counts (nano under 10k, micro 10k to 100k, mid 100k to 1M, macro 1M and
   up), one-video preview read, keep-this-post shortlist, save to vault, manual import of one
   pasted post URL.
-- **Analyze.** Agent-written analysis over MCP, on-demand transcription (whisper.cpp or Groq).
+- **Analyze.** Agent-written analysis over MCP, on-demand transcription with local whisper.cpp.
 - **Mine.** The planner (planned posts and plan versions), and own-channel Graph measurement
   stored for MCP.
 - **Remix.** Six-stage pipeline, local research assembly, hook, outline, and script prompts

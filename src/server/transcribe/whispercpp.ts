@@ -25,19 +25,16 @@ export async function whisperAvailability(
 ): Promise<{ available: boolean; reason?: string }> {
   const bin = await detectBinary(whisperBin(env));
   if (!bin) {
-    // `scripts/setup-local.sh` (spec §4's original plan) was never actually created —
-    // Settings' Local Binaries row is the real, working "how do I fix this" path
-    // (final-review pre-ship copy fix), so point there instead of a dead reference.
     return {
       available: false,
-      reason: "whisper-cli not found on PATH (see Settings, or run `brew install whisper-cpp`)",
+      reason: "whisper-cli not found on PATH. Install it with `brew install whisper-cpp`",
     };
   }
   const model = modelPath(env);
   if (!existsSync(model)) {
     return {
       available: false,
-      reason: `whisper model not found at ${model} (see Settings, or download ggml-large-v3-turbo.bin — brew install doesn't fetch it)`,
+      reason: `whisper model not found at ${model}. Download ggml-large-v3-turbo.bin there (brew install does not fetch it)`,
     };
   }
   return { available: true };

@@ -24,7 +24,6 @@ describe("connector registry", () => {
     expect(CONNECTORS.map((c) => c.manifest.id)).toEqual(folders.sort());
     expect(CONNECTORS.map((c) => [c.manifest.id, c.adapter ? "adapter" : "manifest-only"])).toEqual([
       ["chatbotx", "manifest-only"],
-      ["groq", "adapter"],
       ["ig-sidecar", "adapter"],
       ["instagram-graph", "adapter"],
       ["polar", "adapter"],
