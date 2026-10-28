@@ -66,6 +66,22 @@ Each journey runs on the lane it needs, in dev mode: `baseline-lane.sh --compare
 
 Network boundaries are fakes, never the real services: `fake-graph.mjs` (Graph v23 and the S3 bucket), `fake-sidecar.mjs` (the IG sidecar) and `fake-umami.mjs`, started by the lane scripts. A fake answers the way the real service does, refusals included: `fake-graph.mjs` refuses a metric or breakdown Graph v23 refuses for a reel with its HTTP 400 code 100 body, and `fake-sidecar.mjs` answers an expired session with the body the real sidecar sends. When a real run finds the service answering something a fake does not, teach the fake that answer and add the journey that would have caught it. A lane with no fake for a service points it at a refused port (`baseline-lane.sh` sets `IG_GRAPH_HOST` to `127.0.0.1:9`).
 
+## Proof page
+
+Every complex PR ends with one page Kai opens to decide it. The owner fills `~/.claude/orchestrate/proof/<pr>/proof.json` and puts the media beside it:
+
+```json
+{ "pr": 242, "title": "...", "risk": "low|medium|high", "prUrl": "https://github.com/...",
+  "youWillSee": ["one step Kai takes, in his words", "..."],
+  "video": "flow.webm",
+  "states": [{ "name": "Ready", "prototype": "proto-ready.png", "before": "before-ready.png", "after": "after-ready.png" }],
+  "numbers": [{ "label": "Visits, 7 days", "source": "Umami dashboard", "expected": 123, "app": 123 }],
+  "checks": [{ "label": "CI green", "ok": true }],
+  "cost": "new tokens · minutes", "undo": "Revert button on the PR" }
+```
+
+`node .claude/skills/verify/scripts/proof-page.mjs ~/.claude/orchestrate/proof/<pr>` checks every media file exists and writes `index.html` and `comment.md`. A state with no before shot (a new state) sets `before` to null. `numbers` compare the app with the real source on the smallest real sample, never a fake. The root publishes `index.html` as a private claude.ai artifact with the media as supporting files, puts the page URL in `comment.md`, and runs `gh pr comment <pr> --body-file comment.md`. Kai opens that one link.
+
 ## Cleanup
 
 ```bash
