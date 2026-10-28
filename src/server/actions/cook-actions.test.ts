@@ -1,11 +1,11 @@
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, test } from "vitest";
 
 import { db, tables } from "@/server/db";
 import { migrate } from "@/server/db/test-migrate";
-import { clearPlanCookingAction, cookPlanCardAction, cookRoot, markPlanCookingAction } from "./cook-actions";
+import { clearPlanCookingAction, cookPlanCardAction, cookRoot, getCookView, markPlanCookingAction } from "./cook-actions";
 
 const T = "2026-10-01T00:00:00.000Z";
 const tomorrow = () => new Date(Date.now() + 86_400_000).toLocaleDateString("sv-SE");
@@ -48,4 +48,25 @@ test("a reel already cooking, or armed with Instagram, is refused; a rolled-back
   expect(await cookPlanCardAction("p1")).toMatchObject({ ok: false, code: "COOK_ALREADY" });
   await clearPlanCookingAction("p1", "ws1");
   expect(await cookPlanCardAction("p1")).toMatchObject({ ok: true });
+});
+
+test("the script's front matter names the keyword as campaign, so job.json's campaign is set", async () => {
+  await db.insert(tables.plannedPosts).values(plan("plan-cccccc", { keyword: "HOOKS" }));
+  const cooked = await cookPlanCardAction("plan-cccccc");
+  expect(cooked.ok && readFileSync(path.join(root, cooked.scriptPath), "utf8")).toContain("\ncta_keyword: HOOKS\ncampaign: HOOKS\n");
+});
+
+const writeJob = (slug: string, steps: object[]) => {
+  mkdirSync(path.join(root, "films", slug), { recursive: true });
+  writeFileSync(path.join(root, "films", slug, "job.json"), JSON.stringify({ slug, steps, outputs: [] }));
+};
+const ago = (sec: number) => new Date(Date.now() - sec * 1000).toISOString();
+
+test("the Cook view reads job.json: elapsed from started, a dead pid, and the usual render from the last renders", async () => {
+  await db.insert(tables.plannedPosts).values(plan("plan-dddddd", { cookWorkspaceId: "ws1" }));
+  expect(await getCookView("plan-dddddd")).toMatchObject({ ok: true, slug: "hook-a-dddddd", cooking: true, steps: null, usualRenderSec: 180 });
+  writeJob("hook-a-dddddd", [{ name: "render", status: "running", started: ago(90), pid: 2 ** 22 + 7 }]);
+  expect(await getCookView("plan-dddddd")).toMatchObject({ elapsedSec: 90, pidGone: true, usualRenderSec: 180 });
+  for (const [i, sec] of [60, 120, 300].entries()) writeJob(`old-${i}`, [{ name: "render", status: "done", started: ago(1000 + sec), ended: ago(1000) }]);
+  expect(await getCookView("plan-dddddd")).toMatchObject({ usualRenderSec: 120 });
 });

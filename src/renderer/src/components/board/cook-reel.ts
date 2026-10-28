@@ -12,13 +12,84 @@ const STUDIO_GROUP = 'Studio Reel'
 
 type CookOutcome = { ok: true } | { ok: false; error: string }
 
+export const COOK_TAB_PREFIX = 'board::cook::'
+
 export function openCookWorkspace(workspaceId: string): boolean {
   return activateAndRevealFolderWorkspace(workspaceId, { navigationIntent: 'user-open' }) !== false
 }
 
+/** Opens the Cook pane (a board tab) in the workspace's first group and returns the group beside
+ *  it for Claude, splitting to the right when there is none yet (proto v2 `cook()`). */
+function openCookSplit(worktreeId: string, planId: string): string | undefined {
+  const store = useAppStore.getState()
+  const filePath = `${COOK_TAB_PREFIX}${planId}`
+  // Why: a retry or Resume runs with Claude's group active; the pane stays in the group it is in.
+  const paneTab = (store.unifiedTabsByWorktree[worktreeId] ?? []).find(
+    (tab) => tab.entityId === filePath
+  )
+  const left =
+    (paneTab &&
+      store.groupsByWorktree[worktreeId]?.find((group) => group.tabOrder.includes(paneTab.id))
+        ?.id) ??
+    store.ensureWorktreeRootGroup(worktreeId)
+  store.openFile(
+    {
+      filePath,
+      relativePath: 'Cook',
+      worktreeId,
+      language: 'plaintext',
+      mode: 'board'
+    },
+    { targetGroupId: left, preview: false }
+  )
+  const right = (useAppStore.getState().groupsByWorktree[worktreeId] ?? []).find(
+    (group) => group.id !== left
+  )
+  return right?.id ?? store.createEmptySplitGroup(worktreeId, left, 'right') ?? undefined
+}
+
+/** Starts Claude on the reel's script in the group beside the Cook pane. Resume uses it too:
+ *  /make-reel continues from job.json and skips the done steps. */
+export function launchCookClaude(args: {
+  worktreeId: string
+  planId: string
+  root: string
+  scriptPath: string
+}): ReturnType<typeof launchAgentInNewTab> {
+  const { worktreeId } = args
+  const groupId = openCookSplit(worktreeId, args.planId)
+  return launchAgentInNewTab({
+    requestId: newAgentLaunchRequestId(),
+    agent: 'claude',
+    worktreeId,
+    ...(groupId ? { groupId } : {}),
+    prompt: `/make-reel ${args.scriptPath}`,
+    initialCwd: args.root,
+    promptDelivery: 'submit-after-ready'
+  })
+}
+
+/** Shows the workspace's Claude terminal, the newest one when Resume started another. */
+export function showCookTerminal(worktreeId: string): void {
+  const state = useAppStore.getState()
+  const terminal = (state.tabsByWorktree[worktreeId] ?? []).findLast(
+    (tab) => tab.launchAgent === 'claude'
+  )
+  const tab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
+    (candidate) => candidate.entityId === terminal?.id
+  )
+  if (tab) {
+    state.activateTab(tab.id, { worktreeId })
+  }
+}
+
 /** Cook (B5-01): write the script into studio-reel, open a "Reel: <title>" folder workspace
- *  there and type /make-reel into Claude once its TUI is ready. */
-export async function cookReel(card: PlanCard, onLaunchFailed: () => void): Promise<CookOutcome> {
+ *  there split in two, the Cook pane left and Claude right, and type /make-reel into Claude
+ *  once its TUI is ready. */
+export async function cookReel(
+  card: Pick<PlanCard, 'id'>,
+  onLaunchFailed: () => void
+): Promise<CookOutcome> {
   const result = await window.api.crowsnest.call('cookPlanCardAction', card.id)
   const cooked = result.ok ? result.value : { ok: false as const, error: result.error.message }
   if (!cooked.ok) {
@@ -61,13 +132,11 @@ export async function cookReel(card: PlanCard, onLaunchFailed: () => void): Prom
   )
   const rollBack = () => window.api.crowsnest.call('clearPlanCookingAction', card.id, workspace.id)
   openCookWorkspace(workspace.id)
-  const launched = launchAgentInNewTab({
-    requestId: newAgentLaunchRequestId(),
-    agent: 'claude',
+  const launched = launchCookClaude({
     worktreeId: folderWorkspaceKey(workspace.id),
-    prompt: `/make-reel ${cooked.scriptPath}`,
-    initialCwd: cooked.root,
-    promptDelivery: 'submit-after-ready'
+    planId: card.id,
+    root: cooked.root,
+    scriptPath: cooked.scriptPath
   })
   if (!launched) {
     await rollBack()

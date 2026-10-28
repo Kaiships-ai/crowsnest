@@ -126,7 +126,13 @@ export function EditorContent({
       activeFile.diffSource === 'combined-commit')
 
   if (activeFile.mode === 'board') {
-    return <BoardView boardId={activeFile.boardId} />
+    return (
+      <BoardView
+        boardId={activeFile.boardId}
+        filePath={activeFile.filePath}
+        worktreeId={activeFile.worktreeId}
+      />
+    )
   }
 
   if (activeFile.mode === 'check-details') {

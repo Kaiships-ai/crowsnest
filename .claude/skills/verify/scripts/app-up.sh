@@ -52,7 +52,7 @@ host_fingerprint >"$DIR/host.fingerprint"
 STUDIO="$HOME/Desktop/kaiships/studio-reel"
 export LEAD_STUDIO_COOK_ROOT="/tmp/lead-studio-cook/studio-reel"
 rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
-for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md; do
+for f in CLAUDE.md AGENTS.md workspace/README.md .claude/skills/make-reel/SKILL.md core/job.mjs; do
   if [ -f "$STUDIO/$f" ]; then
     mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
   fi
