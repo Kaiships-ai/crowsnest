@@ -21595,6 +21595,8 @@
         "gives": "Gift page visits, email signups, checkout.",
         "help": "Create a key: Umami › Settings › API keys",
         "addressLabel": "Umami address",
+        "addressPlaceholder": "https://umami.example.com",
+        "keyPlaceholder": "umami_…",
         "keyLabel": "API key",
         "keyWorks": "✓ Key works · website {{site}}",
         "website": "Website",

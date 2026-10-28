@@ -2,12 +2,11 @@
 
 import { LEGACY_UMAMI_SECRETS, umami, umamiAccess, websiteLine } from "../connectors/umami";
 import { listUmamiWebsites, pullUmami, umamiBase, type UmamiWebsite } from "../connectors/umami/pull";
-import { readSecret } from "../connectors/secrets";
+import { deleteRetiredSecret, readSecret } from "../connectors/secrets";
 import type { SimpleResult } from "../lib/action-result";
 import { clockNow } from "../lib/clock";
 import { log } from "../lib/logger";
 import type { PullResult } from "../lib/pull-result";
-import { clearSecret } from "../secrets/store";
 import { recordPullEnd, recordPullProgress, recordPullStart, recordSample } from "../services/connector-status";
 import { setConnectorSecret } from "./secrets-actions";
 
@@ -35,7 +34,7 @@ export async function saveUmamiKeyAction(url: string, apiKey: string, websiteId:
     const saved = await setConnectorSecret(umami.id, field, value);
     if (!saved.ok) return saved;
   }
-  for (const name of LEGACY_UMAMI_SECRETS) clearSecret(name);
+  for (const name of LEGACY_UMAMI_SECRETS) deleteRetiredSecret(name);
   recordSample(umami.id, { ok: true, line: websiteLine(website, address) });
   return { ok: true };
 }

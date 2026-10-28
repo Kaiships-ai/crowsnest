@@ -91,7 +91,10 @@ export function UmamiKeyForm(props: {
         data-testid="umami-addr-input"
         autoComplete="off"
         className="font-mono"
-        placeholder="https://umami.example.com"
+        placeholder={translate(
+          'leadStudio.sources.umami.addressPlaceholder',
+          'https://umami.example.com'
+        )}
         value={address}
         disabled={busy}
         onChange={edit(setAddress)}
@@ -105,7 +108,7 @@ export function UmamiKeyForm(props: {
         type="password"
         autoComplete="off"
         className="font-mono"
-        placeholder="umami_…"
+        placeholder={translate('leadStudio.sources.umami.keyPlaceholder', 'umami_…')}
         value={key}
         disabled={busy}
         onChange={edit(setKey)}
