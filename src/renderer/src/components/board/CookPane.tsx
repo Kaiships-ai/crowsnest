@@ -26,7 +26,13 @@ import { cookCard, cookSegments, type CookAction, type CookView } from './cook-p
 import { reopenBanner, waited, type CookClaude, type CookPrompt } from './cook-claude-cards'
 import { metaLine, ScriptBox, slotLabel, StatusCard, Strip } from './cook-pane-parts'
 import { ApprovalButtons, QuestionOptions, ReplyBox, type ClaudeKeys } from './cook-prompt-answers'
-import { ESC, promptFromStatus, useCookClaudeTab, useTabStatusEntry } from './use-cook-claude'
+import {
+  ESC,
+  promptFromStatus,
+  useCookClaudeTab,
+  useClaudeForeground,
+  useTabStatusEntry
+} from './use-cook-claude'
 import { useCookView, type Reopen } from './use-cook-view'
 
 const STALL: Partial<Record<string, 'failed' | 'paused'>> = {
@@ -81,9 +87,10 @@ function CookPaneWithClaude({
 }: Omit<BodyProps, 'liveness' | 'entryPrompt' | 'askedAt' | 'keys'> & {
   tab: TerminalTab
 }): React.ReactNode {
-  const alive = useTabAgent(tab) != null
   const entry = useTabStatusEntry(tab.id)
   const ptyId = useAppStore((s) => s.ptyIdsByTabId[tab.id]?.[0] ?? null)
+  const foreground = useClaudeForeground(ptyId)
+  const agent = useTabAgent(tab)
   const send = useNativeChatInteractiveSend(entry?.paneKey ?? tab.id, ptyId, 'claude')
   const keys: ClaudeKeys | null = ptyId
     ? {
@@ -99,7 +106,13 @@ function CookPaneWithClaude({
   return (
     <CookPaneBody
       {...props}
-      liveness={alive ? 'alive' : 'exited'}
+      liveness={
+        agent == null || foreground === 'shell'
+          ? 'exited'
+          : foreground === 'unknown'
+            ? 'unknown'
+            : 'alive'
+      }
       entryPrompt={promptFromStatus(entry)}
       askedAt={entry?.stateStartedAt ?? null}
       keys={keys}

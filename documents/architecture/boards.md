@@ -103,7 +103,7 @@ A Day card in `draft`, `plan` or `missed` with a script has Cook (B5-01). `cookR
 
 ### Claude in the Cook pane
 
-The pane also reads the workspace's Claude from Orca's own state (`use-cook-claude.ts`, `cook-claude-cards.ts`). The Claude tab is the workspace's newest terminal tab with `launchAgent` `claude`. Claude is alive while Orca's `useTabAgent` still names an agent for it. Orca clears a tab's `launchAgent` once Claude has left it, so the pane remembers the last Claude tab it saw: if that tab is still open, Claude exited; if it is gone, the tab was closed.
+The pane also reads the workspace's Claude from Orca's own state (`use-cook-claude.ts`, `cook-claude-cards.ts`). The Claude tab is the workspace's newest terminal tab with `launchAgent` `claude`. Claude is alive while Orca's `useTabAgent` still names an agent for it and a shell does not hold the tab's pty foreground. Orca clears `launchAgent` only once it saw Claude in this renderer session, so after a reload or an app reopen a dead Claude keeps it; the pane therefore asks the pty for its foreground process every 2 s (`useClaudeForeground`), and a shell there for 6 s means Claude exited. Until the first answer, and during those 6 s (a fresh tab's shell before Claude starts), Claude is unknown and the card does not change. Orca clears a tab's `launchAgent` once Claude has left it, so the pane remembers the last Claude tab it saw: if that tab is still open, Claude exited; if it is gone, the tab was closed.
 
 Cards that win over job.json, in order:
 

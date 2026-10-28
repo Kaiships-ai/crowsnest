@@ -18,6 +18,8 @@ const JOB = path.join(FILM, "job.json");
 const STAGES = ["script", "voice", "storyboard", "chapters", "audio", "draft", "render", "verify", "review", "deliver"];
 const DEAD_PID = 4_000_007;
 const MIN = 60_000;
+// The fake Claude's pid (`exec` keeps it), so a step can kill it while the renderer is gone.
+const PID_FILE = path.join(ROOT, "..", "fake-claude.pid");
 
 /** job.json with every step before `at` done, `at` in `status`, the rest pending (studio-reel's format). */
 function jobAt(at, status, extra = {}) {
@@ -82,9 +84,9 @@ export default async function cookPane02({ page, step, snap }) {
       return Array.from({ length: buffer.length }, (_, i) => buffer.getLine(i)?.translateToString(true) ?? "").join("\n");
     }, t?.tabId);
   };
-  const expectCard = async (state, shot) => {
+  const expectCard = async (state, shot, timeout = 8_000) => {
     const shown = card.and(page.locator(`[data-state="${state}"]`));
-    await shown.waitFor({ timeout: 8_000 });
+    await shown.waitFor({ timeout });
     await page.waitForTimeout(1_200);
     await shown.waitFor({ timeout: 5_000 });
     const head = await card.getByTestId("cook-card-head").innerText();
@@ -115,7 +117,7 @@ export default async function cookPane02({ page, step, snap }) {
 
   await step("a fresh Cook of plan-e2e-full: the reel workspace with the Cook pane and a fake Claude", async () => {
     const fake = path.join(ROOT, "..", "fake-claude.sh");
-    writeFileSync(fake, '#!/bin/sh\necho "fake claude $*"\nexec cat\n');
+    writeFileSync(fake, `#!/bin/sh\necho "fake claude $*"\necho $$ > ${PID_FILE}\nexec cat\n`);
     chmodSync(fake, 0o755);
     await page.evaluate((cmd) => window.__store.getState().updateSettings({ agentCmdOverrides: { claude: cmd } }), fake);
     rmSync(FILM, { recursive: true, force: true });
@@ -225,8 +227,16 @@ export default async function cookPane02({ page, step, snap }) {
 
   /** Reloads the renderer (the app reopening: Claude's terminal survives in the daemon, board
    *  tabs do not), stamps the pane's last look, then goes back the way Kai does: Plan, Open workspace. */
-  const reopen = async (seen) => {
-    await page.reload();
+  const reopen = async (seen, whileClosed) => {
+    if (whileClosed) {
+      // The renderer is gone while it runs, so Orca's exit detection never sees what it does.
+      const url = page.url();
+      await page.goto("about:blank");
+      await whileClosed();
+      await page.goto(url);
+    } else {
+      await page.reload();
+    }
     await page.waitForFunction(() => window.__store?.getState().folderWorkspaces?.length > 0, null, { timeout: 30_000 });
     await page.waitForTimeout(1_500);
     await setTheme();
@@ -268,18 +278,39 @@ export default async function cookPane02({ page, step, snap }) {
     await banner.waitFor({ state: "detached", timeout: 2_000 });
   });
 
+  await step("32 Claude dies after the reopen: the same red card", async () => {
+    const t = await claudeTab();
+    const pty = await page.evaluate((id) => window.__store.getState().ptyIdsByTabId[id]?.[0], t.tabId);
+    await page.evaluate((id) => window.api.pty.write(id, "\x04"), pty);
+    // If Orca missed the exit, the pane calls Claude gone after a shell holds the pty for 6 s.
+    const { head, tone } = await expectCard("crashed", "cook-pane-32-after-reload", 15_000);
+    const kept = await page.evaluate(([k, id]) => (window.__store.getState().tabsByWorktree[k] ?? []).find((x) => x.id === id)?.launchAgent ?? null, [key, t.tabId]);
+    console.log(`tab launchAgent after the exit: ${kept}`);
+    if (head !== "Claude stopped unexpectedly" || tone !== "err") throw new Error(head);
+  });
+
   await step("36 the app reopened after a Mac restart and Claude did not survive: grey, Resume cook", async () => {
     jobAt("render", "running", { pid: DEAD_PID });
-    const t = await claudeTab();
-    await page.evaluate((id) => window.__store.getState().closeTab(id), t.tabId);
     const booted = await page.evaluate((id) => window.api.crowsnest.call("getCookView", id).then((r) => r.value.bootedAt), PLAN);
-    // The pane last looked before this Mac booted: the session did not survive the restart.
-    await reopen(() => ({ at: booted - MIN, done: ["Script", "Voice", "Build", "Draft"] }));
-    const { head, sub, tone, strip } = await expectCard("reopen-dead", "cook-pane-36-reopen-dead");
+    // The pane last looked before this Mac booted: the session did not survive the restart. A
+    // fresh Claude dies while the app is closed, so its tab comes back still marked Claude.
+    await resume();
+    await typed("/make-reel");
+    await reopen(
+      () => ({ at: booted - MIN, done: ["Script", "Voice", "Build", "Draft"] }),
+      async () => {
+        process.kill(Number(readFileSync(PID_FILE, "utf8")), "SIGKILL");
+        await new Promise((r) => setTimeout(r, 1_000));
+      },
+    );
+    const dead = await claudeTab();
+    if (!dead) throw new Error("the dead Claude tab did not come back with launchAgent");
+    const { head, sub, tone, strip } = await expectCard("reopen-dead", "cook-pane-36-reopen-dead", 15_000);
     if (head !== "Claude stopped when your Mac restarted" || tone !== "idle" || !strip.includes("Final=paused") || !/^During Final \(render\)\. 6 of 10 steps are done and kept\. The final starts again from frame 0 \(about 3 min\)\.$/.test(sub)) throw new Error(sub);
     if (await pane.getByTestId("cook-banner").count()) throw new Error("a Welcome back line while Claude is gone");
+    // Kai closes the dead tab; Resume would otherwise leave it as the next Claude tab under the new one.
+    await page.evaluate((id) => window.__store.getState().closeTab(id), dead.tabId);
     // Once Resume brings Claude back, losing it again is 32 or 34, not the restart again (36).
-    // Why close, not Ctrl-D: after a renderer reload Orca does not see the fake's exit.
     await resume();
     jobAt("chapters", "running");
     await expectCard("building", "cook-pane-36-resumed");

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store'
+import { isShellProcess } from '../../../../shared/agent-detection'
 import { parseAskFromStatus } from '../../../../shared/native-chat-ask'
 import { parseNativeChatApprovalEnvelope } from '../../../../shared/native-chat-approval-envelope'
 import type { AgentStatusEntry } from '../../../../shared/agent-status-types'
@@ -29,6 +30,38 @@ export function useCookClaudeTab(worktreeId: string): {
       !tab && lastId != null && (s.tabsByWorktree[worktreeId] ?? []).some((t) => t.id === lastId)
   )
   return { tab, leftBehind }
+}
+
+const SHELL_GRACE_MS = 6_000
+
+/** Who holds the pty's foreground: Claude, or a shell for SHELL_GRACE_MS (Claude left the tab).
+ *  Why: Orca clears `launchAgent` only once it saw Claude in this renderer session, so after a
+ *  reload or an app reopen a dead Claude keeps it. Before the first answer and during the grace
+ *  (a fresh tab's shell before Claude starts) it is `unknown`. No pty, or one Orca cannot
+ *  inspect (null), counts as Claude. */
+export function useClaudeForeground(ptyId: string | null): 'claude' | 'shell' | 'unknown' {
+  const [held, setHeld] = useState<'claude' | 'shell' | 'unknown'>('unknown')
+  useEffect(() => {
+    setHeld(ptyId ? 'unknown' : 'claude')
+    if (!ptyId) {
+      return
+    }
+    let since: number | null = null
+    const check = async (): Promise<void> => {
+      const name = await window.api.pty.getForegroundProcess(ptyId).catch(() => null)
+      if (name == null || !isShellProcess(name)) {
+        since = null
+        setHeld('claude')
+        return
+      }
+      since ??= Date.now()
+      setHeld(Date.now() - since >= SHELL_GRACE_MS ? 'shell' : 'unknown')
+    }
+    void check()
+    const timer = setInterval(check, 2_000)
+    return () => clearInterval(timer)
+  }, [ptyId])
+  return held
 }
 
 /** Orca's hook row for a one-pane Claude tab. */
