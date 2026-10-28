@@ -6,7 +6,7 @@ import { afterEach, beforeAll, describe, expect, test, vi } from "vitest";
 // a hoisted mock would intercept its real file reads along with control.ts's pid-file
 // calls. Instead the fs mock is installed with `vi.doMock` after migration has already
 // run, so it only ever affects the later, fresh import of `./control`.
-vi.mock("node:child_process", () => ({ spawn: vi.fn(() => ({ pid: 4242, unref: vi.fn(), on: vi.fn() })) }));
+vi.mock("node:child_process", () => ({ spawn: vi.fn(() => ({ pid: 4242, unref: vi.fn(), on: vi.fn() })), execFile: vi.fn() }));
 
 // Keeps the "spawn failed asynchronously" test from actually printing a log line, and
 // gives a spy to assert against.
@@ -51,6 +51,21 @@ describe("sidecar control", () => {
     expect(writeArgs[1]).toBe("4242");
   });
 
+  test("startSidecar clears a stale pid file before it spawns, so a failed spawn leaves no old pid to poll or kill", async () => {
+    const { spawn } = await import("node:child_process");
+    const fs = await import("node:fs");
+    const order: string[] = [];
+    vi.mocked(fs.rmSync).mockImplementationOnce(() => void order.push("rm data/sidecar.pid"));
+    vi.mocked(spawn).mockImplementationOnce(((() => {
+      order.push("spawn");
+      return { pid: undefined, unref: vi.fn(), on: vi.fn() };
+    }) as unknown) as typeof spawn);
+    control.startSidecar();
+    expect(order).toEqual(["rm data/sidecar.pid", "spawn"]);
+    expect(vi.mocked(fs.rmSync).mock.calls[0][0]).toBe("data/sidecar.pid");
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
   test("startSidecar registers an error handler, so an async spawn failure (e.g. ENOENT for a missing `uv`) is observed instead of crashing this process", async () => {
     const { spawn } = await import("node:child_process");
     const { log } = await import("@/server/lib/logger");
@@ -63,11 +78,11 @@ describe("sidecar control", () => {
     expect(log.error).toHaveBeenCalled();
   });
 
-  test("stopSidecar kills the tracked pid and removes the file", async () => {
+  test("stopSidecar kills the tracked pid's whole process group, so uv's python child is not orphaned, and removes the file", async () => {
     const fs = await import("node:fs");
     const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true as const);
     control.stopSidecar();
-    expect(killSpy).toHaveBeenCalledWith(4242, "SIGTERM");
+    expect(killSpy.mock.calls).toEqual([[-4242, "SIGTERM"]]);
     expect(fs.rmSync).toHaveBeenCalled();
     killSpy.mockRestore();
   });

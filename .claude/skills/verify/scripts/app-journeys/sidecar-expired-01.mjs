@@ -7,7 +7,7 @@ export const dod = [];
 
 const port = readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.port"), "utf8").trim();
 const setSession = (state) => fetch(`http://127.0.0.1:${port}/__session?state=${state}`, { method: "POST" });
-const RELOGIN = "Instagram session expired. Sign in again: Edit key, then save a new Browser session id.";
+const RELOGIN = "The session id expired. Sign in to instagram.com and copy a new session id.";
 
 export default async function sidecarExpired01({ page, step, snap }) {
   const card = page.locator('[data-testid="source-card"][data-connector-id="ig-sidecar"]');

@@ -236,6 +236,12 @@ class SessionManager:
             return self._client
 
     def _build_client(self) -> CrowsnestClient:
+        client = self._fresh_client()
+        self._session_loaded = self._load_session(client)
+        return client
+
+    def _fresh_client(self) -> CrowsnestClient:
+        """A client with this device, locale and proxy, and no session loaded."""
         client = CrowsnestClient(broker=self.broker)
         # delay_range is the pacing control, and the ONLY one. Deliberately not setting
         # client.request_timeout: despite the name, instagrapi sleeps that many SECONDS
@@ -277,8 +283,6 @@ class SessionManager:
         if self.config.proxy:
             client.set_proxy(self.config.proxy)
             log_event("session.proxy_set", proxy=_mask_proxy(self.config.proxy))
-
-        self._session_loaded = self._load_session(client)
         return client
 
     def _load_session(self, client: CrowsnestClient) -> bool:
@@ -549,6 +553,30 @@ class SessionManager:
             username = getattr(client, "username", None) or self.config.username
             log_event("session.import.succeeded", user_id=client.user_id, username=username)
             return {"status": "ok", "username": username, "user_id": str(client.user_id)}
+
+    def sample_sessionid(self, sessionid: str) -> dict[str, Any]:
+        """Try a sessionid on a throwaway client and return its own profile.
+
+        Test connection in the app's session form: nothing is adopted or persisted, so
+        the session the sidecar already holds keeps working whatever the test says.
+        """
+        sessionid = sessionid.strip().strip('"').strip("'")
+        if not sessionid:
+            raise IgError(IG_BAD_REQUEST, "A sessionid is required.")
+        with self._lock:
+            self._enforce_cooldown()
+            client = self._fresh_client()
+            try:
+                ok = client.login_by_sessionid(sessionid)
+                if not ok or not client.user_id:
+                    raise IgError(IG_AUTH_REQUIRED, "Instagram rejected that sessionid.")
+                user = client.user_info_by_username(client.username, use_cache=False)
+            except IgError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - translated below
+                raise self._handle(exc, "sample_sessionid") from exc
+            log_event("session.sample.succeeded", user_id=client.user_id)
+            return user.model_dump(mode="json")
 
     def logout(self) -> dict[str, Any]:
         with self._lock:

@@ -422,6 +422,11 @@ export const igClient = {
     return request("/login-by-session", { method: "POST", body: { sessionid }, timeoutMs: 120_000 });
   },
 
+  /** Tests a session id on a throwaway sidecar client: the sidecar's own session stays as it was. */
+  async sampleSession(sessionid: string): Promise<IgProfile> {
+    return mapProfile(await request<unknown>("/sample-session", { method: "POST", body: { sessionid }, timeoutMs: 120_000 }));
+  },
+
   resolveChallenge(input: { choice?: "email" | "sms"; code?: string }): Promise<{ status: IgLoginStatus }> {
     return request("/challenge/resolve", { method: "POST", body: input, timeoutMs: 120_000 });
   },

@@ -1,34 +1,39 @@
 "use server";
 
 import { getIgStatusAction } from "@/server/actions/ig-actions";
+import { igSidecar } from "@/server/connectors/ig-sidecar/manifest";
+import type { Sample } from "@/server/connectors/types";
+import { igClient } from "@/server/ig/client";
+import { IgError } from "@/server/ig/errors";
+import { sampleFailure, sampleLine, SESSION_EXPIRED_FORM } from "@/server/connectors/ig-sidecar";
+import { setConnectorSecret } from "@/server/actions/secrets-actions";
+import { clockNow } from "@/server/lib/clock";
+import { recordSwitch, sampleConnector } from "@/server/services/connector-status";
 import { sidecarPidAlive, startSidecar, stopSidecar } from "@/server/sidecar/control";
 
 type SimpleResult = { ok: true } | { ok: false; error: string };
 
-/** Real-world poll cadence for confirming a freshly spawned sidecar actually came up:
- *  check every half second, give up after five. Exposed as default parameters (not
- *  hardcoded constants) so tests can pass a millisecond-scale window instead of
- *  actually waiting five seconds. */
+/** A fresh install's first `uv run` builds the venv before the sidecar answers: measured 7 s
+ *  with an empty uv cache and 18 s when uv also downloads Python 3.12, so 60 s leaves about
+ *  3x headroom for a slower link. A process that exits fails at once, not at the bound. */
 const START_POLL_INTERVAL_MS = 500;
-const START_POLL_TIMEOUT_MS = 5000;
+const START_POLL_TIMEOUT_MS = 60_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Polls health until it answers healthy or the window elapses. `startSidecar` returns
- *  as soon as the child process is spawned, which is not the same as the sidecar being
- *  up: a missing `uv` binary or a crash on boot only shows up a moment later, on the
- *  next health check, and `startSidecar` itself has no way to observe that (see its
- *  `child.on("error", ...)` handler, which only logs). This is what actually confirms
- *  success before the action reports one. */
-async function waitForHealthy(intervalMs: number, timeoutMs: number): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
+/** Polls health until it answers, the spawned process exits, or the window elapses.
+ *  `startSidecar` returns once the child is spawned, so a missing `uv` or a crash on boot
+ *  shows up only here, as a dead pid. */
+async function waitForHealthy(): Promise<"healthy" | "exited" | "timeout"> {
+  const deadline = Date.now() + START_POLL_TIMEOUT_MS;
   for (;;) {
     const status = await getIgStatusAction();
-    if (status.ok) return true;
-    if (Date.now() >= deadline) return false;
-    await sleep(intervalMs);
+    if (status.ok) return "healthy";
+    if (!sidecarPidAlive()) return "exited";
+    if (Date.now() >= deadline) return "timeout";
+    await sleep(START_POLL_INTERVAL_MS);
   }
 }
 
@@ -38,28 +43,62 @@ async function waitForHealthy(intervalMs: number, timeoutMs: number): Promise<bo
  *
  *  A successful `startSidecar()` call only means the process was launched, not that it
  *  came up: nothing here is allowed to report `ok: true` on the strength of that call
- *  alone, so the health check is polled for a few seconds before this returns. */
-export async function startSidecarAction(
-  intervalMs: number = START_POLL_INTERVAL_MS,
-  timeoutMs: number = START_POLL_TIMEOUT_MS,
-): Promise<SimpleResult> {
+ *  alone, so the health check is polled until it answers or the process exits. */
+export async function startSidecarAction(): Promise<SimpleResult> {
   const status = await getIgStatusAction();
-  if (status.ok) return { ok: true };
+  if (status.ok) {
+    recordSwitch(igSidecar.id, true);
+    return { ok: true };
+  }
   try {
     startSidecar();
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "failed to start sidecar" };
   }
-  const healthy = await waitForHealthy(intervalMs, timeoutMs);
-  if (healthy) return { ok: true };
-  return { ok: false, error: "sidecar did not start (check that uv is installed and Instagram credentials are set in Settings)" };
+  const outcome = await waitForHealthy();
+  if (outcome === "healthy") {
+    recordSwitch(igSidecar.id, true);
+    return { ok: true };
+  }
+  if (outcome === "timeout") stopSidecar();
+  return {
+    ok: false,
+    error:
+      outcome === "exited"
+        ? "sidecar did not start (check that uv is installed and Instagram credentials are set in Settings)"
+        : `sidecar did not answer within ${START_POLL_TIMEOUT_MS / 1000} s`,
+  };
 }
 
 export async function stopSidecarAction(): Promise<SimpleResult> {
   stopSidecar();
+  recordSwitch(igSidecar.id, false);
   return { ok: true };
 }
 
 export async function sidecarProcessAliveAction(): Promise<boolean> {
   return sidecarPidAlive();
+}
+
+/**
+ * Test connection in the session id form: the sidecar tries the pasted id on a throwaway
+ * client and pulls the sample. Nothing is saved or adopted, so Cancel leaves the old session.
+ */
+export async function testSidecarSessionAction(sessionid: string): Promise<Sample> {
+  try {
+    return { ok: true, line: sampleLine(await igClient.sampleSession(sessionid.trim())) };
+  } catch (err) {
+    if (err instanceof IgError && err.code === "IG_AUTH_REQUIRED") return { ok: false, message: SESSION_EXPIRED_FORM, retryAfter: null };
+    return sampleFailure(err, clockNow());
+  }
+}
+
+/** Save in the session id form: stores the id and has the sidecar adopt it. That is the save's
+ *  outcome. The card's sample is recorded after it, and a failed sample (an Instagram limit, say)
+ *  shows on the card as its own Error, not as a failed save. */
+export async function saveSidecarSessionAction(sessionid: string): Promise<SimpleResult> {
+  const saved = await setConnectorSecret(igSidecar.id, "IG_SESSIONID", sessionid);
+  if (!saved.ok) return saved;
+  await sampleConnector(igSidecar.id);
+  return { ok: true };
 }

@@ -943,7 +943,7 @@ export const sourceCalls = sqliteTable(
   (t) => [index("source_calls_source_at").on(t.source, t.calledAt)],
 );
 
-export const CONNECTOR_STATES = ["ready", "partial", "error"] as const;
+export const CONNECTOR_STATES = ["ready", "pulling", "partial", "error"] as const;
 
 /** One row per connector. The last pull's outcome stays until the next pull; a check sets or clears only its own message. */
 export const connectorStatus = sqliteTable("connector_status", {
@@ -955,8 +955,20 @@ export const connectorStatus = sqliteTable("connector_status", {
   /** The last check's failure message; null when it passed or never ran. */
   checkMessage: text("check_message"),
   checkedAt: text("checked_at"),
+  /** The pull's heartbeat as well: every progress write moves it. */
   updatedAt: text("updated_at").notNull(),
-}, (t) => [check("connector_status_pull_state", sql`${t.pullState} in ('ready', 'partial', 'error')`)]);
+  /** Set while the sidecar is switched off. */
+  offAt: text("off_at"),
+  progressDone: integer("progress_done"),
+  progressTotal: integer("progress_total"),
+  /** What the pull is on now, such as a rival's handle. */
+  progressLabel: text("progress_label"),
+  startedAt: text("started_at"),
+  /** No pull or test before this time: the source asked to wait. */
+  retryAfter: text("retry_after"),
+  /** JSON `ConnectorSummary`: the last test's sample and the last pull's counts. */
+  summary: text("summary"),
+}, (t) => [check("connector_status_pull_state", sql`${t.pullState} in ('ready', 'pulling', 'partial', 'error')`)]);
 
 export const GATE_LEVELS = ["read", "free", "gate1", "gate2"] as const;
 export const AGENT_ACTION_RESULTS = ["pending", "ok", "error", "drafted", "rejected"] as const;
