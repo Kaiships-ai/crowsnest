@@ -5,6 +5,7 @@ import { migrate } from "@/server/db/test-migrate";
 import { SyncAlreadyRunningError } from "@/server/ig/errors";
 import type { PullResult } from "@/server/lib/pull-result";
 import { startSyncAction } from "@/server/actions/sync-actions";
+import { runSync } from "@/server/services/sync-engine";
 import { cardStatus, checkConnector, parseSummary, pullConnector, readStatuses, recordPullProgress, recordPullStart } from "./connector-status";
 
 vi.mock("@/server/services/sync-engine", async (real) => ({
@@ -100,5 +101,62 @@ describe("a pulling row that lost its pull", () => {
 
     const stale = readStatuses(new Date(Date.now() + 11 * 60_000)).get("ig-sidecar");
     expect(cardStatus(stale)).toEqual({ state: "partial", message: "The pull stopped at 6/15 before it finished. 6 have new numbers; the rest keep their older numbers.", detail: null });
+  });
+});
+
+describe("Pull the rest on the sidecar card", () => {
+  const result = (handles: string[], dispatched: number, synced: number, created: number, cancelled: boolean) => ({
+    jobId: "job-1", handles, dispatched, channelsSynced: synced, itemsCreated: created, gaps: [], stopReason: cancelled ? "cancelled" : null,
+  });
+  const pullAt = async (at: string, opts: { rest?: true } | undefined, r: ReturnType<typeof result>) => {
+    vi.setSystemTime(new Date(at));
+    // SAFETY: the test reads only the fields syncSummary reads.
+    vi.mocked(runSync).mockImplementationOnce(async (o) => {
+      o?.onJobStarted?.("job-1");
+      return r as unknown as Awaited<ReturnType<typeof runSync>>;
+    });
+    await startSyncAction(undefined, opts);
+    await flush();
+  };
+
+  test("two stops in a row: the third pull skips everything since the first pull started, and counts the whole chain", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.mocked(runSync).mockClear();
+    await pullAt("2026-10-28T10:00:00.000Z", undefined, result(["a", "b", "c", "d"], 1, 1, 3, true));
+    await pullAt("2026-10-28T10:05:00.000Z", { rest: true }, result(["b", "c", "d"], 2, 2, 1, true));
+    await pullAt("2026-10-28T10:10:00.000Z", { rest: true }, result(["d"], 1, 1, 0, false));
+    vi.useRealTimers();
+    expect(vi.mocked(runSync).mock.calls.map(([o]) => o?.skipSyncedSince)).toEqual([undefined, "2026-10-28T10:00:00.000Z", "2026-10-28T10:00:00.000Z"]);
+    expect(parseSummary(readStatuses().get("ig-sidecar")?.summary ?? null).pull).toMatchObject({
+      total: 4, done: 4, updated: 4, newItems: 4, stop: null, startedAt: "2026-10-28T10:10:00.000Z", chainFrom: "2026-10-28T10:00:00.000Z",
+    });
+  });
+
+  test("a pull the app quit at 2/5, then Pull the rest: the rest skips only what it reached and counts from its 2", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.mocked(runSync).mockClear();
+    await pullAt("2026-10-26T10:00:00.000Z", undefined, result(["a", "b", "c", "d", "e"], 5, 5, 0, false));
+    vi.setSystemTime(new Date("2026-10-28T10:00:00.000Z"));
+    vi.mocked(runSync).mockImplementationOnce((o) => {
+      o?.onJobStarted?.("job-2");
+      o?.onProgress?.({ done: 2, total: 5, label: "@b" });
+      return new Promise(() => {});
+    });
+    void startSyncAction();
+    await flush();
+    vi.setSystemTime(new Date("2026-10-28T10:15:00.000Z"));
+    expect(card("ig-sidecar").message).toBe("The pull stopped at 2/5 before it finished. 2 have new numbers; the rest keep their older numbers.");
+    await pullAt("2026-10-28T10:15:00.000Z", { rest: true }, result(["c", "d", "e"], 3, 3, 0, false));
+    vi.useRealTimers();
+    expect(vi.mocked(runSync).mock.calls.map(([o]) => o?.skipSyncedSince)).toEqual([undefined, undefined, "2026-10-28T10:00:00.000Z"]);
+    expect(parseSummary(readStatuses().get("ig-sidecar")?.summary ?? null).pull).toMatchObject({ total: 5, done: 5, updated: 5, stop: null, chainFrom: "2026-10-28T10:00:00.000Z" });
+  });
+
+  test("a fresh pull after a chain starts a new chain", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    await pullAt("2026-10-28T10:00:00.000Z", undefined, result(["a", "b"], 1, 1, 0, true));
+    await pullAt("2026-10-28T10:05:00.000Z", undefined, result(["a", "b"], 1, 1, 0, true));
+    vi.useRealTimers();
+    expect(parseSummary(readStatuses().get("ig-sidecar")?.summary ?? null).pull).toMatchObject({ total: 2, updated: 1, chainFrom: "2026-10-28T10:05:00.000Z" });
   });
 });

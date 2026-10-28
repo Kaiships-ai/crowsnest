@@ -11,7 +11,7 @@ import { addChannel, importReelByUrl, normalizeHandle, requestCancel, runSync } 
 import { syncPull, syncSummary } from "../connectors/ig-sidecar";
 import { igSidecar } from "../connectors/ig-sidecar/manifest";
 import { clockNow } from "../lib/clock";
-import { recordPullEnd, recordPullProgress, recordPullStart } from "../services/connector-status";
+import { recordPullEnd, recordPullProgress, recordPullStart, restFrom } from "../services/connector-status";
 import type { PullResult } from "../lib/pull-result";
 import { BackfillBlockedError, runViewCountBackfill } from "../services/backfill-view-counts";
 import {
@@ -102,10 +102,10 @@ async function markJobFailed(jobId: string, err: unknown): Promise<void> {
  * rather than reporting a hard failure.
  *
  * A run with no `channelIds` is the Sources card's rival pull: it records its progress and
- * summary on the sidecar card. `skipFreshWithinMinutes` makes it "pull the rest": rivals a
- * pull updated in that window are left out.
+ * summary on the sidecar card. `rest` makes it "pull the rest": rivals the last pull's chain
+ * updated are left out, and the counts add to that chain's.
  */
-export async function startSyncAction(channelIds?: string[], opts: { skipFreshWithinMinutes?: number } = {}): Promise<ActionResult<{ jobId: string }>> {
+export async function startSyncAction(channelIds?: string[], opts: { rest?: true } = {}): Promise<ActionResult<{ jobId: string }>> {
   try {
     let resolveJobId: (id: string | null) => void = () => {};
     // Resolves to the id when the lock is won, or to null when the run ends without
@@ -117,14 +117,15 @@ export async function startSyncAction(channelIds?: string[], opts: { skipFreshWi
     let failure: unknown;
     const cardPull = !channelIds;
     const startedAt = clockNow();
+    const chainFrom = cardPull && opts.rest ? restFrom(igSidecar.id) : null;
 
     void runSync({
       ...(channelIds
         ? { channelIds }
-        : { cardPull: true, onProgress: (p) => recordPullProgress(igSidecar.id, p), skipFreshWithinMinutes: opts.skipFreshWithinMinutes }),
+        : { cardPull: true, onProgress: (p) => recordPullProgress(igSidecar.id, p), skipSyncedSince: chainFrom ?? undefined }),
       onJobStarted: (id) => {
         resolveJobId(id);
-        if (cardPull) recordPullStart(igSidecar.id);
+        if (cardPull) recordPullStart(igSidecar.id, chainFrom);
       },
     }).then(
       (r) => {

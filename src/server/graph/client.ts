@@ -658,6 +658,15 @@ export const graphClient: GraphClient = {
   },
 };
 
+/** /me with a token that is not saved yet: Test connection in the token form. One Graph call. */
+export async function tokenAccount(token: string): Promise<{ ok: true; id: string; username: string | null } | { ok: false; code: GraphErrorCode; message: string }> {
+  const result = await graphGet<unknown>("me", { fields: "id,username" }, token);
+  if (!result.ok) return { ok: false, code: errorCodeFor(result.kind), message: result.message };
+  const acct = rec(result.data);
+  const id = str(acct.id) ?? (num(acct.id) !== null ? String(acct.id) : null);
+  return id ? { ok: true, id, username: str(acct.username) } : { ok: false, code: "GRAPH_UNKNOWN", message: "Graph answered /me without an id" };
+}
+
 // ---------------------------------------------------------------- Reels publish (B2)
 // Three-step own-channel publish flow (see `documents/architecture/publish.md`): create a media container against a
 // public `video_url`, poll `status_code` until it leaves IN_PROGRESS, then publish the

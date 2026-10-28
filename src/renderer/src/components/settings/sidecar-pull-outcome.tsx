@@ -9,7 +9,6 @@ import {
   later,
   Num,
   restOf,
-  sinceStartMinutes,
   Warn,
   type Health,
   type SourceRow
@@ -27,7 +26,7 @@ export function SidecarPullOutcome(props: {
   view: PullOutcomeView
   row: SourceRow
   health: Health | null
-  onPull: (sinceMinutes?: number) => Promise<void>
+  onPull: (rest?: true) => Promise<void>
   onTurnOn: () => Promise<boolean>
   onOpenRivals: () => void
   testButton: React.ReactNode
@@ -46,7 +45,7 @@ export function SidecarPullOutcome(props: {
       data-testid="sidecar-pull-rest"
       size="sm"
       disabled={disabled}
-      onClick={() => void props.onPull(sinceStartMinutes(pull))}
+      onClick={() => void props.onPull(true)}
     >
       {label}
     </Button>
@@ -235,7 +234,7 @@ export function SidecarPullOutcome(props: {
                 if (!health?.running && !(await props.onTurnOn())) {
                   return
                 }
-                await props.onPull(sinceStartMinutes(pull))
+                await props.onPull(true)
               }}
             >
               {health?.running

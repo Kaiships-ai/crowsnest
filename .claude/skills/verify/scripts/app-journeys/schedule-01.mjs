@@ -30,9 +30,9 @@ export default async function schedule01({ page, step, snap }) {
     await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
     await card.waitFor({ timeout: 10_000 });
     const after = Number(sql("select count(*) from own_account_snapshots"));
-    console.log(`snapshots ${before} -> ${after}; card: ${(await card.getByTestId("source-pulls").innerText())}`);
+    console.log(`snapshots ${before} -> ${after}; card: ${(await card.getByTestId("graph-last-pull").innerText())}`);
     console.log(`connector_status: ${sql("select connector_id || ' ' || pull_state || ' ' || pulled_at from connector_status")}`);
-    if ((await card.getAttribute("data-state")) !== "ready" || !(await card.getByTestId("source-pulls").innerText()).startsWith("Last pull")) throw new Error(await card.innerText());
+    if ((await card.getAttribute("data-state")) !== "ready" || !(await card.getByTestId("graph-last-pull").innerText()).startsWith("Last pull:")) throw new Error(await card.innerText());
     if (after !== before + 1) throw new Error("the pull wrote no snapshot");
   });
   await step("every Graph call is counted in SQLite", async () => {

@@ -87,13 +87,13 @@ export interface RunSyncOpts {
    *  >= 1 the same way the resolved setting is. */
   concurrency?: number;
   /**
-   * Only meaningful for a library sweep (no `channelIds`). When > 0, a channel whose
-   * `lastSuccessfulSyncAt` is within this many minutes of now is left out of the run: it
-   * was synced recently enough that re-walking it now would only spend Instagram requests
-   * for nothing. A run scoped to explicit `channelIds` ignores this — naming a channel is
-   * an explicit "sync it now". Defaults to 0 (no skip).
+   * Only meaningful for a library sweep (no `channelIds`): a channel whose
+   * `lastSuccessfulSyncAt` is at or after this ISO time is left out of the run. Pull the rest
+   * passes the start of the card's pull chain, so rivals that chain already synced are not
+   * walked again. A run scoped to explicit `channelIds` ignores this; naming a channel is
+   * an explicit "sync it now".
    */
-  skipFreshWithinMinutes?: number;
+  skipSyncedSince?: string;
   /**
    * Fired once, synchronously, the moment the lock is genuinely won and before any
    * network call. Exists so a caller can start a run WITHOUT awaiting it and still hold
@@ -288,12 +288,18 @@ async function acquireLock(channelId: string | null, lookbackDays: number): Prom
   return jobId;
 }
 
+/** When this process loaded the engine. A running row last heard from before then was left by a process
+ *  that quit or crashed, so a pull after a relaunch never waits out `LOCK_STALE_MS` on its lock. */
+// ponytail: a sync script started before the app and still running is reaped too if the app runs a sync
+// within one heartbeat of its launch; a writer id column on sync_jobs would close that window.
+const PROCESS_STARTED_AT = nowIso();
+
 async function reapStaleLocks(): Promise<void> {
   const cutoff = new Date(Date.now() - LOCK_STALE_MS).toISOString();
   const stale = await db
     .select({ id: tables.syncJobs.id, channelId: tables.syncJobs.channelId })
     .from(tables.syncJobs)
-    .where(and(eq(tables.syncJobs.status, "running"), lt(tables.syncJobs.heartbeatAt, cutoff)));
+    .where(and(eq(tables.syncJobs.status, "running"), or(lt(tables.syncJobs.heartbeatAt, cutoff), lt(tables.syncJobs.heartbeatAt, PROCESS_STARTED_AT))));
   for (const row of stale) {
     log.warn("sync.lock.reaped", { jobId: row.id, channelId: row.channelId, staleAfterSeconds: LOCK_STALE_MS / 1000 });
     await db
@@ -1745,10 +1751,7 @@ export async function runSync(opts: RunSyncOpts = {}): Promise<SyncResult> {
     // A removed channel is never synced again, whether it was named explicitly or
     // picked up by the platform sweep. Removal is soft, so without this filter the
     // flag would set and the next run would go straight back to fetching it.
-    const skipBeforeIso =
-      opts.channelIds || !opts.skipFreshWithinMinutes || opts.skipFreshWithinMinutes <= 0
-        ? null
-        : new Date(now().getTime() - opts.skipFreshWithinMinutes * 60_000).toISOString();
+    const skipBeforeIso = opts.channelIds ? null : (opts.skipSyncedSince ?? null);
 
     const walked = opts.channelIds
       ? await db

@@ -34,11 +34,11 @@ export default async function sources01({ page, step, snap }) {
     if (JSON.stringify(ids) !== JSON.stringify(listed.value.map((c) => c.id).sort())) throw new Error(`listConnectors ${JSON.stringify(listed.value.map((c) => c.id))}`);
     if ((await chatbotx.getAttribute("data-state")) !== "not-connected" || (await chatbotx.getByTestId("source-primary").innerText()) !== "Connect") throw new Error(await chatbotx.innerText());
   });
-  await step("only the sidecar card pulls (Pull rivals); no other card has a Pull button", async () => {
+  await step("only the sidecar (Pull rivals) and Graph (Pull my channel) cards pull", async () => {
     const buttons = await pane.getByTestId("source-card").evaluateAll((cards) => cards.map((c) => `${c.dataset.connectorId}: ${[...c.querySelectorAll("button")].map((b) => b.innerText.trim()).join(", ")}`));
     console.log(`card buttons:\n${buttons.join("\n")}`);
-    const labels = await pane.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"])').locator("button").allInnerTexts();
-    if (labels.some((t) => /^Pull/.test(t.trim()))) throw new Error("a card other than the sidecar has a Pull button");
+    const labels = await pane.locator('[data-testid="source-card"]:not([data-connector-id="ig-sidecar"]):not([data-connector-id="instagram-graph"])').locator("button").allInnerTexts();
+    if (labels.some((t) => /^Pull/.test(t.trim()))) throw new Error("a card other than the sidecar and Graph has a Pull button");
   });
   await snap("sources-01-dark");
   await setTheme(page, "light");

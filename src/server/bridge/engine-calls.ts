@@ -57,7 +57,7 @@ import {
   renameFleetAction,
   reorderFleetsAction,
 } from "@/server/actions/fleet-actions";
-import { checkGraphTokenAction, measureOwnChannelAction } from "@/server/actions/graph-actions";
+import { checkGraphTokenAction, measureOwnChannelAction, saveGraphTokenAction, startGraphPullAction, stopGraphPullAction, testGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { movePlanCardAction } from "@/server/actions/plan-board-actions";
 import { clearPlanCookingAction, cookPlanCardAction, markPlanCookingAction } from "@/server/actions/cook-actions";
@@ -266,7 +266,7 @@ export const ENGINE_CALLS = {
   moveChannelsAction: call(z.tuple([z.array(z.object({ channelId: z.string(), fleetId: z.string().nullable() }))]), moveChannelsAction),
 
   startSyncAction: call(
-    z.tuple([z.array(z.string()).optional(), z.object({ skipFreshWithinMinutes: z.number().int().positive().optional() }).optional()]),
+    z.tuple([z.array(z.string()).optional(), z.object({ rest: z.literal(true).optional() }).optional()]),
     startSyncAction,
   ),
   cancelSyncAction: call(id, cancelSyncAction),
@@ -275,6 +275,10 @@ export const ENGINE_CALLS = {
   getLatestSyncJob: call(none, getLatestSyncJob),
   measureOwnChannelAction: call(none, measureOwnChannelAction),
   checkGraphTokenAction: call(none, checkGraphTokenAction),
+  testGraphTokenAction: call(z.tuple([z.string().min(1).max(4096)]), testGraphTokenAction),
+  saveGraphTokenAction: call(z.tuple([z.string().min(1).max(4096)]), saveGraphTokenAction),
+  startGraphPullAction: call(z.tuple([z.object({ rest: z.literal(true).optional() }).optional()]), startGraphPullAction),
+  stopGraphPullAction: call(none, stopGraphPullAction),
   getIgStatusAction: call(none, getIgStatusAction),
   listRuns: call(z.tuple([z.number().int().positive().optional()]), listRuns),
   getRun: call(id, getRun),

@@ -240,6 +240,10 @@ export default async function sidecarPull01({ page, step, snap }) {
       await page.waitForFunction((sel) => document.querySelector(sel)?.querySelector('[data-testid="sidecar-pull-rest"]')?.disabled === false, SELECTOR, { timeout: 40_000 });
       await rest.click();
       await waitView("done", 60_000);
+      const cells = await card.getByTestId("source-pull-summary").innerText();
+      console.log(`rest after the limit: ${cells.replace(/\s+/g, " ")}`);
+      // Pull the rest counts the whole chain: the limited pull's rivals plus the rest it pulled.
+      if (!cells.includes(`Pulled ${total}/${total} rivals`)) throw new Error(cells);
     });
 
     await step("the sidecar dies mid-pull: the card reads Partial with the done count within 15 seconds", async () => {

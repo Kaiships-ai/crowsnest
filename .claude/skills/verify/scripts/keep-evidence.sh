@@ -12,6 +12,7 @@ if [ "$HERE" = "$MAIN" ]; then
 fi
 [ -d "$SRC" ] || { echo "verify: no evidence to keep"; exit 0; }
 BRANCH="$(git branch --show-current)"
+[ -n "$BRANCH" ] || BRANCH="$(git rev-parse --short HEAD)"
 DEST="$MAIN/data/verify/evidence/${BRANCH//\//-}"
 mkdir -p "$DEST"
 cp -R "$SRC/." "$DEST/"

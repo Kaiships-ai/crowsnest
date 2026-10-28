@@ -1,135 +1,42 @@
-import React, { useState } from 'react'
-import { LoaderCircle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import React from 'react'
 import { translate } from '@/i18n/i18n'
-import { Dim } from './sidecar-card-view'
+import { SourceKeyForm } from './source-key-form'
 
-type FormTest =
-  | { state: 'idle' | 'testing' }
-  | { state: 'ok'; line: string }
-  | { state: 'err'; message: string }
-
-/** The session id form: nothing tests on paste, Test connection tests, Save turns on only after a pass. */
+/** The session id form. Only Save stores the id and hands it to the sidecar; Cancel leaves the old session.
+ *  A saved id closes the form even when the sample after it fails: the card shows that error. */
 export function SidecarSessionForm({ onClose }: { onClose: () => Promise<void> }): React.ReactNode {
-  const [draft, setDraft] = useState('')
-  const [formTest, setFormTest] = useState<FormTest>({ state: 'idle' })
-  const [saving, setSaving] = useState(false)
-  const busy = formTest.state === 'testing' || saving
-
-  const test = async (): Promise<void> => {
-    setFormTest({ state: 'testing' })
-    const res = await window.api.crowsnest.call('testSidecarSessionAction', draft)
-    if (!res.ok) {
-      setFormTest({ state: 'err', message: res.error.message })
-      return
-    }
-    setFormTest(
-      res.value.ok
-        ? { state: 'ok', line: res.value.line }
-        : { state: 'err', message: res.value.message }
-    )
-  }
-
-  // Only Save stores the id and hands it to the sidecar; Cancel leaves the old session.
-  // A saved id closes the form even when the sample after it fails: the card shows that error.
-  const save = async (): Promise<void> => {
-    setSaving(true)
-    const res = await window.api.crowsnest.call('saveSidecarSessionAction', draft)
-    setSaving(false)
-    const failure = !res.ok ? res.error.message : !res.value.ok ? res.value.error : null
-    if (failure) {
-      setFormTest({ state: 'err', message: failure })
-      return
-    }
-    await onClose()
-  }
-
   return (
-    <div data-testid="sidecar-session-form" className="space-y-2">
-      <Label htmlFor="sidecar-session-input" className="text-xs">
-        {translate('leadStudio.sources.sidecar.sessionLabel', 'Instagram session id')}
-      </Label>
-      <Input
-        id="sidecar-session-input"
-        data-testid="sidecar-session-input"
-        type="password"
-        autoComplete="off"
-        className="font-mono"
-        placeholder={translate(
-          'leadStudio.sources.sidecar.sessionPlaceholder',
-          '1234567890%3AAbCdEf…'
-        )}
-        value={draft}
-        disabled={busy}
-        onChange={(event) => {
-          setDraft(event.target.value)
-          setFormTest({ state: 'idle' })
-        }}
-      />
-      <Dim testId="sidecar-session-hint">
-        {translate(
-          'leadStudio.sources.sidecar.sessionHint',
-          'Open instagram.com › DevTools › Application › Cookies › sessionid.'
-        )}
-      </Dim>
-      {formTest.state === 'testing' ? (
-        <p
-          data-testid="sidecar-form-check"
-          data-check="testing"
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-        >
-          <LoaderCircle className="size-3 animate-spin" />
-          {translate('leadStudio.sources.testing', 'Testing…')}
-        </p>
-      ) : formTest.state === 'ok' ? (
-        <p data-testid="sidecar-form-check" data-check="ok" className="text-xs text-status-success">
-          {translate(
-            'leadStudio.sources.sidecar.sessionWorks',
-            '✓ Session works · sample {{line}}',
-            { line: formTest.line }
-          )}
-        </p>
-      ) : formTest.state === 'err' ? (
-        <p data-testid="sidecar-form-check" data-check="err" className="text-xs text-destructive">
-          {formTest.message}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          data-testid="sidecar-form-cancel"
-          variant="ghost"
-          size="sm"
-          disabled={busy}
-          onClick={() => void onClose()}
-        >
-          {translate('leadStudio.sources.cancel', 'Cancel')}
-        </Button>
-        <Button
-          data-testid="sidecar-form-test"
-          variant="outline"
-          size="sm"
-          disabled={!draft.trim() || busy}
-          onClick={() => void test()}
-        >
-          {translate('leadStudio.sources.testConnection', 'Test connection')}
-        </Button>
-        <Button
-          data-testid="sidecar-form-save"
-          size="sm"
-          disabled={formTest.state !== 'ok' || saving}
-          onClick={() => void save()}
-        >
-          {saving ? <LoaderCircle className="size-3.5 animate-spin" /> : null}
-          {translate('leadStudio.sources.save', 'Save')}
-        </Button>
-      </div>
-      {formTest.state === 'ok' ? null : (
-        <p className="text-right font-mono text-2xs text-muted-foreground">
-          {translate('leadStudio.sources.saveAfterTest', 'Save turns on after a passing test.')}
-        </p>
+    <SourceKeyForm
+      testIdPrefix="sidecar"
+      keyTestId="sidecar-session"
+      label={translate('leadStudio.sources.sidecar.sessionLabel', 'Instagram session id')}
+      placeholder={translate(
+        'leadStudio.sources.sidecar.sessionPlaceholder',
+        '1234567890%3AAbCdEf…'
       )}
-    </div>
+      hint={translate(
+        'leadStudio.sources.sidecar.sessionHint',
+        'Open instagram.com › DevTools › Application › Cookies › sessionid.'
+      )}
+      okText={(line) =>
+        translate('leadStudio.sources.sidecar.sessionWorks', '✓ Session works · sample {{line}}', {
+          line
+        })
+      }
+      test={async (draft) => {
+        const res = await window.api.crowsnest.call('testSidecarSessionAction', draft)
+        if (!res.ok) {
+          return { ok: false, message: res.error.message }
+        }
+        return res.value.ok
+          ? { ok: true, line: res.value.line }
+          : { ok: false, message: res.value.message }
+      }}
+      save={async (draft) => {
+        const res = await window.api.crowsnest.call('saveSidecarSessionAction', draft)
+        return !res.ok ? res.error.message : !res.value.ok ? res.value.error : null
+      }}
+      onClose={onClose}
+    />
   )
 }

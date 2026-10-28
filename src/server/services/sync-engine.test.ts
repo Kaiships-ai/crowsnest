@@ -765,6 +765,35 @@ describe("runSync — concurrency lock", () => {
     expect(reaped.status).toBe("failed");
     expect(reaped.errorCode).toBe("SYNC_ABANDONED");
   });
+
+  test("a running job left by a process that quit is reaped at once after the relaunch, not after LOCK_STALE_MS", async () => {
+    const { db, newId, tables } = await import("../db");
+    const { migrate } = await import("../db/test-migrate");
+    const { runSync, LOCK_STALE_MS } = await import("./sync-engine");
+    migrate();
+    const { channelId } = await setupChannel("@quit");
+
+    // Last heard from before this process loaded the engine, but well inside LOCK_STALE_MS.
+    const beforeLaunch = new Date(Date.now() - LOCK_STALE_MS / 3).toISOString();
+    const leftId = newId();
+    await db.insert(tables.syncJobs).values({
+      id: leftId,
+      channelId,
+      lockKey: channelId,
+      startedAt: beforeLaunch,
+      heartbeatAt: beforeLaunch,
+      status: "running",
+      lookbackDays: 30,
+    });
+
+    const { client } = stubClient({ pages: [{ items: [makeMedia("q1", 1)], nextCursor: null, stopReason: "exhausted" }] });
+    const result = await runSync({ channelIds: [channelId], client, sleep: noopSleep });
+
+    expect(result.itemsSeen).toBe(1);
+    const left = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, leftId)))[0];
+    expect(left.status).toBe("failed");
+    expect(left.errorCode).toBe("SYNC_ABANDONED");
+  });
 });
 
 describe("runSync — job bookkeeping", () => {
@@ -2117,21 +2146,28 @@ describe("runSync — stale-lock safety (audit F3)", () => {
     const { channelId } = await setupChannel("@quiet");
 
     // "The UI shows a stalled warning" and "we declare the process dead and let a second
-    // sync loose on the same channel" must not be the same threshold.
+    // sync loose on the same channel" must not be the same threshold. The run started in
+    // this process (after the engine loaded), then went quiet.
     const quietId = newId();
+    const heardAt = new Date().toISOString();
     await db.insert(tables.syncJobs).values({
       id: quietId,
       channelId,
       lockKey: channelId,
-      startedAt: new Date(Date.now() - 10 * 60_000).toISOString(),
-      heartbeatAt: new Date(Date.now() - (SYNC_STALL_SECONDS + 60) * 1000).toISOString(),
+      startedAt: heardAt,
+      heartbeatAt: heardAt,
       status: "running",
       lookbackDays: 30,
     });
 
     const { client } = stubClient({ pages: [{ items: [], nextCursor: null, stopReason: "exhausted" }] });
     const { SyncAlreadyRunningError } = await import("../ig/errors");
-    await expect(runSync({ channelIds: [channelId], client, sleep: noopSleep })).rejects.toBeInstanceOf(SyncAlreadyRunningError);
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse(heardAt) + (SYNC_STALL_SECONDS + 60) * 1000 });
+    try {
+      await expect(runSync({ channelIds: [channelId], client, sleep: noopSleep })).rejects.toBeInstanceOf(SyncAlreadyRunningError);
+    } finally {
+      vi.useRealTimers();
+    }
 
     const still = (await db.select().from(tables.syncJobs).where(eq(tables.syncJobs.id, quietId)))[0];
     expect(still.status).toBe("running");
@@ -3605,8 +3641,8 @@ describe("runSync — lastSuccessfulSyncAt", () => {
   });
 });
 
-describe("runSync — skipFreshWithinMinutes", () => {
-  test("library sweep skips a channel synced within skipFreshWithinMinutes", async () => {
+describe("runSync — skipSyncedSince", () => {
+  test("library sweep skips a channel synced since skipSyncedSince", async () => {
     const { db, newId, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { runSync } = await import("./sync-engine");
@@ -3639,7 +3675,7 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     // Only the stale channel was walked; the fresh one was skipped entirely.
@@ -3669,14 +3705,14 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     const row = await db.select({ ts: tables.channels.lastSuccessfulSyncAt }).from(tables.channels).where(eq(tables.channels.id, neverId));
     expect(row[0].ts).toBe(now.toISOString()); // swept despite the skip window
   });
 
-  test("an explicit channelIds run ignores skipFreshWithinMinutes", async () => {
+  test("an explicit channelIds run ignores skipSyncedSince", async () => {
     const { db, newId, tables } = await import("../db");
     const { migrate } = await import("../db/test-migrate");
     const { runSync } = await import("./sync-engine");
@@ -3698,7 +3734,7 @@ describe("runSync — skipFreshWithinMinutes", () => {
       client: stubClient({ pages }).client,
       sleep: noopSleep,
       now: () => now,
-      skipFreshWithinMinutes: 30,
+      skipSyncedSince: new Date(now.getTime() - 30 * 60_000).toISOString(),
     });
 
     expect(result.channelsSynced).toBe(1);
