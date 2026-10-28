@@ -143,7 +143,7 @@ export function GraphSourceCard({
             testIdPrefix="graph"
             keyTestId="graph-token"
             label={translate('leadStudio.sources.graph.tokenLabel', 'Instagram Graph access token')}
-            placeholder="IGAA…"
+            placeholder={translate('leadStudio.sources.graph.tokenPlaceholder', 'IGAA…')}
             hint={
               <Button
                 variant="link"

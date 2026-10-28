@@ -21686,7 +21686,8 @@
         "measured": "✓ {{count}} measured",
         "callsLeftShort": "{{count}} calls left this hour",
         "slow": "Graph is answering slowly.",
-        "gives": "Your own channel: reels, reach, follows."
+        "gives": "Your own channel: reels, reach, follows.",
+        "tokenPlaceholder": "IGAA…"
       }
     },
     "nav": {
