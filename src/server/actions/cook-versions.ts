@@ -1,9 +1,8 @@
-import { execFile } from "node:child_process";
 import { cp, mkdir, open, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { promisify } from "node:util";
 import { z } from "zod";
+import { execFileP } from "../lib/exec";
 
 // films/<slug>/versions/ belongs to Lead Studio alone (proposal 3): Claude reads it, never writes it.
 const Version = z.object({
@@ -176,7 +175,6 @@ export async function pickCookVersion(film: string, n: number): Promise<boolean>
   return true;
 }
 
-const run = promisify(execFile);
 const alive = (pid: number): boolean => {
   try {
     process.kill(pid, 0);
@@ -198,7 +196,7 @@ export async function renderSlotFilms(): Promise<string[] | null> {
   for (const slot of slots) {
     const pid = Number((await readText(path.join(dir, slot, "pid")))?.trim());
     if (!Number.isInteger(pid) || pid <= 0 || !alive(pid)) continue;
-    const command = (await run("ps", ["-o", "command=", "-p", String(pid)]).catch(() => ({ stdout: "" }))).stdout;
+    const command = (await execFileP("ps", ["-o", "command=", "-p", String(pid)], { timeout: 5_000 }).catch(() => ({ stdout: "" }))).stdout;
     films.push(/films\/([^/\s]+)/.exec(command)?.[1] ?? "");
   }
   return films.length ? films : null;
