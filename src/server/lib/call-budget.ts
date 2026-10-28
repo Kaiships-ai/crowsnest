@@ -1,4 +1,4 @@
-import { and, count, eq, gt, lte, min } from "drizzle-orm";
+import { and, asc, count, eq, gt, lte } from "drizzle-orm";
 import { db, tables } from "@/server/db";
 
 const HOUR_MS = 3_600_000;
@@ -10,11 +10,12 @@ export function callsInLastHour(source: string, at: Date): number {
   return row?.n ?? 0;
 }
 
-/** When the hour's window frees its first call again: the oldest call in the last hour, plus an hour. Null when the hour holds none. */
-export function hourFreesAt(source: string, at: Date): Date | null {
+/** When the hour's window has `free` calls free again: the call that brings the free count to `free`, plus an hour (the oldest call when the hour is not that full). Null when the hour holds none. */
+export function hourFreesAt(source: string, at: Date, free = 1, limit = Infinity): Date | null {
   const t = at.getTime();
-  const row = db.select({ oldest: min(sourceCalls.calledAt) }).from(sourceCalls).where(and(eq(sourceCalls.source, source), gt(sourceCalls.calledAt, t - HOUR_MS), lte(sourceCalls.calledAt, t))).get();
-  return row?.oldest == null ? null : new Date(row.oldest + HOUR_MS);
+  const inHour = db.select({ calledAt: sourceCalls.calledAt }).from(sourceCalls).where(and(eq(sourceCalls.source, source), gt(sourceCalls.calledAt, t - HOUR_MS), lte(sourceCalls.calledAt, t))).orderBy(asc(sourceCalls.calledAt)).all();
+  const nth = inHour[Math.max(0, inHour.length - (limit - free) - 1)];
+  return nth ? new Date(nth.calledAt + HOUR_MS) : null;
 }
 
 export function trySpendCall(source: string, limit: number, at: Date): boolean {

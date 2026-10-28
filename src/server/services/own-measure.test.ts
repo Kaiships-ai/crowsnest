@@ -633,16 +633,17 @@ describe("account breakdowns", () => {
 describe("the Graph card's pull", () => {
   const fifty = () => Array.from({ length: 50 }, (_, i) => media(`r${i}`, { caption: `post ${i}` }));
 
-  test("the hour's budget ends the pull at post 31: Partial, retry one hour after the hour's oldest call", async () => {
+  test("the hour's budget ends the pull at post 31: Partial, retry when 30 calls are free again", async () => {
     // 126 calls already spent this hour, the oldest at 11:20: 200 - 126 - 10 headroom leaves 64, so account + media + 31 reels.
+    // The run ends with 190 calls in the hour; 30 free needs the 20 oldest freed, the last of them from 11:50.
     trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T11:20:00.000Z"));
     for (let i = 1; i < 126; i++) trySpendCall("instagram-graph", Infinity, new Date("2026-09-29T11:50:00.000Z"));
     graphClient.fetchMedia.mockImplementation(spend(1, fifty()));
-    const progress: { done: number; total: number; label: string | null }[] = [];
+    const progress: { done: number; total: number; label: string | null; failed: number }[] = [];
     const r = await svc.measureOwnChannel({ scope: "all", now: NOW, onProgress: (p) => progress.push(p) });
-    expect(r).toMatchObject({ ok: true, postsMeasured: 31, stoppedEarly: "budget", retryAfter: "2026-09-29T12:20:00.000Z" });
-    expect(progress[0]).toEqual({ done: 0, total: 50, label: "post 0" });
-    expect(progress.at(-1)).toEqual({ done: 31, total: 50, label: null });
+    expect(r).toMatchObject({ ok: true, postsMeasured: 31, stoppedEarly: "budget", retryAfter: "2026-09-29T12:50:00.000Z" });
+    expect(progress[0]).toEqual({ done: 0, total: 50, label: "post 0", failed: 0 });
+    expect(progress.at(-1)).toEqual({ done: 31, total: 50, label: null, failed: 0 });
     const { measurePull } = await import("@/server/connectors/instagram-graph");
     expect(measurePull(r).kind).toBe("partial");
   });
@@ -721,6 +722,28 @@ describe("the Graph card's pull", () => {
     await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).toBe("ready"));
     expect(seen).toEqual(["r2", "r3", "r4"]);
     expect(parseSummary(readStatuses().get("instagram-graph")?.summary ?? null).pull).toMatchObject({ total: 5, done: 5, updated: 5, stop: null, chainFrom: "2026-09-29T10:00:00.000Z" });
+  });
+
+  test("after Pull the rest the Followers delta is against the snapshot from before the chain began", async () => {
+    const { startGraphPullAction } = graphActions;
+    const { parseSummary, readStatuses, recordPullStart, recordPullProgress } = status;
+    await db.delete(tables.connectorStatus);
+    graphClient.fetchMedia.mockImplementation(spend(1, fifty().slice(0, 5)));
+    graphClient.fetchPostInsights.mockImplementation(spend(2, complete(insights())));
+    const followersAt = (at: string, followersCount: number) => {
+      vi.setSystemTime(new Date(at));
+      graphClient.fetchAccount.mockImplementation(spend(1, { ...ACCOUNT, followersCount }));
+    };
+    followersAt("2026-09-27T10:00:00.000Z", 1000);
+    await startGraphPullAction();
+    await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).toBe("ready"));
+    followersAt("2026-09-29T10:00:00.000Z", 1100);
+    recordPullStart("instagram-graph", null);
+    await svc.measureOwnChannel({ scope: "all", wait: true, shouldStop: () => graphClient.fetchPostInsights.mock.calls.length >= 7, onProgress: (p) => recordPullProgress("instagram-graph", p) });
+    followersAt("2026-09-29T10:15:00.000Z", 1300);
+    await startGraphPullAction({ rest: true });
+    await vi.waitFor(() => expect(readStatuses().get("instagram-graph")?.pullState).toBe("ready"));
+    expect(parseSummary(readStatuses().get("instagram-graph")?.summary ?? null).pull?.followers).toEqual({ count: 1300, delta: 300 });
   });
 
   test("Pull the rest skips posts measured since the last pull started", async () => {

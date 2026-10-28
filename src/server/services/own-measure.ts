@@ -28,6 +28,8 @@ export const OWN_MEASURE_CALL_BUDGET = 150;
 /** Measure now: close to the 200-an-hour Graph limit. The rate-limit stop is the real guard. */
 export const OWN_MEASURE_MANUAL_CALL_BUDGET = 190;
 const GRAPH_CALL_HEADROOM = 10;
+/** Pull the rest after a budget wait turns on once this many calls are free, so the run has room to measure posts. */
+const REST_MIN_FREE_CALLS = 30;
 
 export type MeasureScope = "all" | "due";
 export interface MeasureSummary {
@@ -241,7 +243,7 @@ async function measureComments(
 
 /** A card pull's hooks: progress after each post, a Stop checked between posts, and Pull the rest. */
 export interface MeasureHooks {
-  onProgress?: (p: { done: number; total: number; label: string | null }) => void;
+  onProgress?: (p: { done: number; total: number; label: string | null; failed: number }) => void;
   shouldStop?: () => boolean;
   /** Skip posts measured at or after this time. */
   skipMeasuredSince?: string;
@@ -255,7 +257,7 @@ export function captionLabel(caption: string | null): string | null {
 }
 
 const retryAfterOf = (stoppedEarly: MeasureSummary["stoppedEarly"], now: Date): string | null =>
-  stoppedEarly === "budget" || stoppedEarly === "rate_limited" ? (hourFreesAt(instagramGraph.id, now)?.toISOString() ?? null) : null;
+  stoppedEarly === "budget" || stoppedEarly === "rate_limited" ? (hourFreesAt(instagramGraph.id, now, REST_MIN_FREE_CALLS, GRAPH_CALLS_PER_HOUR)?.toISOString() ?? null) : null;
 
 async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: number } & MeasureHooks): Promise<MeasureResult> {
   const now = opts.now;
@@ -325,7 +327,7 @@ async function runMeasure(opts: { scope: MeasureScope; now: Date; budget?: numbe
   let postsMeasured = 0;
   let postsFailed = 0;
   let stoppedEarly: MeasureSummary["stoppedEarly"] = null;
-  const progress = (label: string | null) => opts.onProgress?.({ done: postsMeasured + postsFailed, total: inScope.length, label });
+  const progress = (label: string | null) => opts.onProgress?.({ done: postsMeasured + postsFailed, total: inScope.length, label, failed: postsFailed });
   for (const m of inScope) {
     if (opts.shouldStop?.()) {
       stoppedEarly = "stopped";

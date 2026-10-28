@@ -104,6 +104,16 @@ describe("a pulling row that lost its pull", () => {
   });
 });
 
+describe("a crashed pull's counts", () => {
+  test("failed posts stay out of what the chain counts as done, since Pull the rest retries them", () => {
+    recordPullStart("ig-sidecar");
+    recordPullProgress("ig-sidecar", { done: 4, total: 10, label: null, failed: 1 });
+    const row = readStatuses(new Date(Date.now() + 11 * 60_000)).get("ig-sidecar");
+    expect(cardStatus(row).message).toBe("The pull stopped at 3/10 before it finished. 3 have new numbers; the rest keep their older numbers.");
+    expect(parseSummary(row?.summary ?? null).pull).toMatchObject({ done: 3, updated: 3, failed: 1, total: 10 });
+  });
+});
+
 describe("Pull the rest on the sidecar card", () => {
   const result = (handles: string[], dispatched: number, synced: number, created: number, cancelled: boolean) => ({
     jobId: "job-1", handles, dispatched, channelsSynced: synced, itemsCreated: created, gaps: [], stopReason: cancelled ? "cancelled" : null,

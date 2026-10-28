@@ -1,6 +1,6 @@
 "use server";
 
-import { desc } from "drizzle-orm";
+import { desc, lt } from "drizzle-orm";
 import { db, tables } from "../db";
 import { tokenAccount, type GraphTokenStatus } from "../graph/client";
 import type { GraphErrorCode } from "../graph/errors";
@@ -81,9 +81,12 @@ export async function saveGraphTokenAction(pasted: string): Promise<SimpleResult
 // ponytail: one card pull at a time in the app's one main process, so a module flag is the Stop.
 let cardPull: { stop: boolean } | null = null;
 
-async function followers(measuredAt: string): Promise<PullSummary["followers"]> {
-  const [now, before] = await db.select({ capturedAt: tables.ownAccountSnapshots.capturedAt, count: tables.ownAccountSnapshots.followerCount }).from(tables.ownAccountSnapshots).orderBy(desc(tables.ownAccountSnapshots.capturedAt)).limit(2);
+/** The count now, against the newest snapshot from before this pull's chain began (before this pull itself when it is not a Pull the rest). */
+async function followers(measuredAt: string, chainFrom: string | null): Promise<PullSummary["followers"]> {
+  const snapshots = db.select({ capturedAt: tables.ownAccountSnapshots.capturedAt, count: tables.ownAccountSnapshots.followerCount }).from(tables.ownAccountSnapshots).orderBy(desc(tables.ownAccountSnapshots.capturedAt));
+  const [now] = await snapshots.limit(1);
   if (now?.capturedAt !== measuredAt || now.count === null) return undefined;
+  const [before] = await snapshots.where(lt(tables.ownAccountSnapshots.capturedAt, chainFrom ?? measuredAt)).limit(1);
   return { count: now.count, delta: before?.count != null ? now.count - before.count : null };
 }
 
@@ -95,10 +98,11 @@ export async function startGraphPullAction(opts: { rest?: true } = {}): Promise<
   cardPull = pull;
   const startedAt = clockNow();
   let last = { done: 0, total: 0 };
+  let chainFrom: string | null = null;
   void (async () => {
     let r: MeasureResult = { ok: false, error: "the pull did not finish", code: "MEASURE_FAILED" };
     try {
-      const chainFrom = opts.rest ? restFrom(instagramGraph.id) : null;
+      chainFrom = opts.rest ? restFrom(instagramGraph.id) : null;
       recordPullStart(instagramGraph.id, chainFrom);
       r = await measureOwnChannel({
         scope: "all",
@@ -130,7 +134,7 @@ export async function startGraphPullAction(opts: { rest?: true } = {}): Promise<
           startedAt: startedAt.toISOString(),
           stop,
           items: [],
-          followers: r.ok ? await followers(r.measuredAt).catch(() => undefined) : undefined,
+          followers: r.ok ? await followers(r.measuredAt, chainFrom).catch(() => undefined) : undefined,
         },
         r.ok ? r.retryAfter : null,
       );
