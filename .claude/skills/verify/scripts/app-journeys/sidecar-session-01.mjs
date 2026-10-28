@@ -17,6 +17,7 @@ const SAMPLE = "@fake_sidecar · 2,500 followers · 30 posts";
 const STATES = path.resolve(import.meta.dirname, "../../../../../data/verify/evidence/sidecar-states");
 const port = readFileSync(path.resolve(import.meta.dirname, "../../../../../data/verify/app/fake-sidecar.port"), "utf8").trim();
 const fakeMode = (query = "") => fetch(`http://127.0.0.1:${port}/__mode${query}`, { method: "POST" });
+const fakeMedias = (state) => fetch(`http://127.0.0.1:${port}/__medias?state=${state}`, { method: "POST" });
 
 async function setTheme(page, dark) {
   await page.evaluate((dark) => {
@@ -61,6 +62,13 @@ export default async function sidecarSession01({ page, step, snap }) {
   };
 
   try {
+    await step("start: one complete pull through the bridge leaves the card Ready, whatever the journeys before left", async () => {
+      await fakeMedias("empty");
+      const reset = await page.evaluate(() => window.api.crowsnest.call("pullConnector", "ig-sidecar"));
+      await fakeMedias("refuse");
+      if (!reset.ok || reset.value.state !== "ready") throw new Error(`reset pull: ${JSON.stringify(reset)}`);
+    });
+
     await step("Settings > Sources: the sidecar card opens the session id form", async () => {
       await page.locator('[data-testid="ls-nav-row"][data-nav-id="sources"]').click();
       await card.waitFor({ timeout: 10_000 });
@@ -122,13 +130,14 @@ export default async function sidecarSession01({ page, step, snap }) {
       if (savedSession() === beforeSave) throw new Error("Save did not store IG_SESSIONID");
     });
 
-    await step("Save closes the form; the check passed and the card keeps the sample (Ready shows it; an older pull error still shows first)", async () => {
+    await step("Save closes the form; the check passed and the card reads Ready with the sample", async () => {
       const checkMessage = sql("select coalesce(check_message, '') from connector_status where connector_id = 'ig-sidecar'");
       const summary = sql("select summary from connector_status where connector_id = 'ig-sidecar'");
       const view = await card.getAttribute("data-view");
       console.log(`after save: view ${view} | check_message '${checkMessage}' | sample ${JSON.parse(summary).sample}`);
       if (checkMessage || JSON.parse(summary).sample !== SAMPLE) throw new Error("the passing test was not recorded");
-      if (view === "ready" && !(await card.getByTestId("sidecar-sample").innerText()).includes(SAMPLE)) throw new Error("Ready without the sample");
+      if (view !== "ready") throw new Error(`card reads ${view}, not ready`);
+      if (!(await card.getByTestId("sidecar-sample").innerText()).includes(SAMPLE)) throw new Error("Ready without the sample");
     });
     await snap("sidecar-session-01");
 
