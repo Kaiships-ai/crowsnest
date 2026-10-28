@@ -22,9 +22,12 @@ type FormTest =
 const TOKEN_HELP = 'https://docs.polar.sh/api-reference/introduction'
 const clock = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
 
-function pillOf(view: View, row: SourceRow): { label: string; tone: IntegrationCardStatusTone } {
+function pillOf(
+  view: View,
+  row: SourceRow
+): { label: string; tone: IntegrationCardStatusTone; busy?: true } {
   if (view === 'testing') {
-    return { label: translate('boards.kit.state.checking', 'Testing'), tone: 'neutral' }
+    return { label: translate('boards.kit.state.checking', 'Testing'), tone: 'neutral', busy: true }
   }
   if (row.state === 'not-connected') {
     return {
@@ -279,13 +282,9 @@ export function PolarSourceCard({
         return <PolarTokenForm onClose={closeForm} />
       case 'testing':
         return (
-          <p
-            data-testid="polar-line"
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-          >
-            <LoaderCircle className="size-3 animate-spin" />
+          <Dim>
             {translate('leadStudio.sources.polar.testingLine', 'Testing the token with Polar…')}
-          </p>
+          </Dim>
         )
       case 'ready':
         return (
@@ -344,6 +343,7 @@ export function PolarSourceCard({
         description={translate('leadStudio.sources.polar.gives', 'Orders and revenue.')}
         statusLabel={pill.label}
         statusTone={pill.tone}
+        statusBusy={pill.busy}
       >
         <IntegrationCardDetails>{body}</IntegrationCardDetails>
       </IntegrationCardShell>
