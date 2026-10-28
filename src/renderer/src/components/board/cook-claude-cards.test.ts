@@ -39,7 +39,12 @@ function view(at: string, status: 'running' | 'waiting', cooking = true): CookVi
     scriptLines: null,
     elapsedSec: null,
     pidGone: null,
-    usualRenderSec: 180
+    usualRenderSec: 180,
+    video: null,
+    versions: [],
+    rounds: [],
+    use: null,
+    renderQueue: null
   }
 }
 

@@ -279,7 +279,7 @@ export async function pickCookVersionAction(id: string, n: number): Promise<Simp
 }
 
 /** Every reel cooking now, for the Studio board (proto 39). */
-export async function listCooksAction(): Promise<{ id: string; view: CookView }[]> {
+export async function listCooksAction(): Promise<{ id: string; view: Extract<ActionResult<CookView>, { ok: true }> }[]> {
   const rows = await db.select({ id: tables.plannedPosts.id }).from(tables.plannedPosts).where(isNotNull(tables.plannedPosts.cookWorkspaceId));
   const views = await Promise.all(rows.map(async (r) => ({ id: r.id, view: await getCookView(r.id) })));
   return views.flatMap(({ id, view }) => (view.ok ? [{ id, view }] : []));
