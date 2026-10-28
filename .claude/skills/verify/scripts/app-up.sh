@@ -8,6 +8,14 @@ if [ -f "$DIR/host.pid" ] && kill -0 "$(cat "$DIR/host.pid")" 2>/dev/null; then
   echo "app: already running (host pid $(cat "$DIR/host.pid")). Run app-down.sh first." >&2
   exit 1
 fi
+# One lane app on the Mac at a time (four parallel lane apps pushed the load average to 70). The operator's
+# own app from the main checkout does not count. APP_ALLOW_SECOND=1 is for a human who means it.
+main_out="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/out/"
+other=$(pgrep -fl "out/electron-dev/" | grep -v "$PWD/out/" | grep -v "$main_out" | head -1 || true)
+if [ -n "$other" ] && [ "${APP_ALLOW_SECOND:-0}" != 1 ]; then
+  echo "app: another lane app is running, one at a time on this Mac: $other. Wait for it, or stop it with that worktree's app-down.sh." >&2
+  exit 1
+fi
 [ -d node_modules/electron ] || { echo "app: run 'pnpm install' first (node 24)" >&2; exit 1; }
 
 # A lane never reaches the real Graph or the operator's sidecar: anything a lane script did not
