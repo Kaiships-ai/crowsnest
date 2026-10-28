@@ -3003,6 +3003,16 @@
     }
   },
   "boards": {
+    "cook": {
+      "step": {
+        "Build": "Build",
+        "Draft": "Draft",
+        "Final": "Final",
+        "Review": "Review",
+        "Script": "Script",
+        "Voice": "Voice"
+      }
+    },
     "funnel": {
       "missingKeywords": "missing {{count}} keywords",
       "step": {
