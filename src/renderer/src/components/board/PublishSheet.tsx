@@ -33,7 +33,10 @@ function SheetBody({
   onSent?: () => void
 }): React.ReactNode {
   const [mode, setMode] = useState<'now' | 'at'>('at')
-  const [time, setTime] = useState(`${card.date}T${card.time ?? '19:30'}`)
+  const [time, setTime] = useState(
+    // A reel with no slot starts from today (local), so the time is always a valid datetime-local value.
+    () => `${card.date || new Date().toLocaleDateString('sv-SE')}T${card.time ?? '19:30'}`
+  )
   const [checks, setChecks] = useState<PublishCheck[] | null>(null)
   const [sent, setSent] = useState<Sent>({ status: 'idle' })
   const [busy, setBusy] = useState(false)

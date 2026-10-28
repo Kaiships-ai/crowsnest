@@ -227,6 +227,29 @@ export default async function cookPane04({ page, step, snap }) {
       await snapCaption("cook-pane-d-17-caption");
     });
 
+    await step("A reel with no slot opens the sheet at today (local) 19:30; Cancel keeps the attached video, cover and caption on the plan row", async () => {
+      sql(`update planned_posts set planned_date = null where id = '${PLAN}'`);
+      await page.waitForTimeout(2_500); // the pane re-reads the view every 2 s
+      await card.getByTestId("cook-gate2").click();
+      const sheet = page.getByTestId("publish-sheet");
+      await sheet.waitFor({ timeout: 8_000 });
+      const value = await sheet.getByTestId("publish-time").inputValue();
+      const today = new Date().toLocaleDateString("sv-SE");
+      console.log(`no slot: publish-time ${value}`);
+      if (value !== `${today}T19:30`) throw new Error(`no-slot time ${value}`);
+      await page.mouse.move(5, 5);
+      await page.waitForTimeout(800); // the sheet's slide-in
+      await snap("cook-pane-d-25-no-slot");
+      await sheet.getByTestId("publish-cancel").click();
+      await sheet.waitFor({ state: "detached", timeout: 8_000 });
+      const row = sql(`select video_asset_id is not null, cover_asset_id is not null, caption is not null, state from planned_posts where id = '${PLAN}'`);
+      const drafts = sql(`select count(*) from gate_drafts where json_extract(input, '$.postId') = '${PLAN}'`);
+      console.log(`after Cancel: plan row video|cover|caption|state ${row} · drafts ${drafts}`);
+      if (row !== "1|1|1|draft" || drafts !== "0") throw new Error(`${row} ${drafts}`);
+      sql(`update planned_posts set planned_date = '${tomorrow}' where id = '${PLAN}'`);
+      await page.waitForTimeout(2_500);
+    });
+
     await step("25 Send to Gate 2…: v1's mp4, its cover and the caption are on the plan row; the sheet's five checks pass", async () => {
       await card.getByTestId("cook-gate2").click();
       const sheet = page.getByTestId("publish-sheet");

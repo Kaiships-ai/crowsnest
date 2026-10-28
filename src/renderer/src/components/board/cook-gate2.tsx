@@ -55,7 +55,7 @@ export function CookGate2Sheet({
   const n = gateVersion(view)
   return (
     <PublishSheet
-      // Why '': a reel with no slot has no date, so the sheet asks for a time.
+      // A reel with no slot passes '': the sheet starts from today.
       card={{ id: planId, title: view.title, date: view.plannedDate ?? '', time: view.plannedTime }}
       open={open}
       onOpenChange={onOpenChange}

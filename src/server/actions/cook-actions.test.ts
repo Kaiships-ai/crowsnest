@@ -74,6 +74,20 @@ test("the Cook view reads job.json: elapsed from started, a dead pid, and the us
   expect(await getCookView("plan-dddddd")).toMatchObject({ elapsedSec: null });
 });
 
+test("Send to Gate 2 with no post caption attaches the video and cover and keeps Kai's own caption", async () => {
+  await db.insert(tables.plannedPosts).values(plan("plan-ffffff", { cookWorkspaceId: "ws1", caption: "Kai's caption." }));
+  const film = path.join(root, "films", "hook-a-ffffff");
+  writeJob("hook-a-ffffff", []);
+  writeFileSync(path.join(film, "job.json"), JSON.stringify({ steps: [{ name: "render", status: "done" }, { name: "deliver", status: "done" }], outputs: ["reel.mp4", "reel-cover.png"] }));
+  copyFileSync(path.join(__dirname, "../media/__fixtures__/tiny.mp4"), path.join(film, "reel.mp4"));
+  writeFileSync(path.join(film, "reel-cover.png"), "png");
+  writeFileSync(path.join(film, "CAPTION.md"), "# Caption\n\n## Pinned comment\n\nHOOKS");
+  await getCookView("plan-ffffff");
+  expect(await attachCookToPlanAction("plan-ffffff")).toEqual({ ok: true, version: 1 });
+  const [row] = await db.select().from(tables.plannedPosts);
+  expect([row.videoAssetId != null, row.coverAssetId != null, row.caption]).toEqual([true, true, "Kai's caption."]);
+});
+
 test("CAPTION.md's post caption is the text under # Caption, without the pinned comment", () => {
   expect(postCaption("# Caption\n\nHook line.\n\nComment APPS and I'll send it.\n\n## Pinned comment\n\nComment APPS below.")).toBe("Hook line.\n\nComment APPS and I'll send it.");
   expect(postCaption("Comment HOOKS first.\nMore.")).toBe("Comment HOOKS first.\nMore.");

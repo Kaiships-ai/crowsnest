@@ -313,7 +313,9 @@ export async function attachCookToPlanAction(id: string): Promise<ActionResult<{
   if (!files || n == null) return { ok: false, error: "There is no final video to send yet.", code: "COOK_NO_VERSION" };
   const video = await attachPlanVideo(id, files.mp4);
   if (!video.ok) return video;
-  const caption = await setPlanCaptionAction(id, files.caption ?? "");
+  // No post caption in this version: keep whatever caption the plan row already has.
+  if (files.caption == null) return { ok: true, version: n };
+  const caption = await setPlanCaptionAction(id, files.caption);
   return caption.ok ? { ok: true, version: n } : caption;
 }
 
