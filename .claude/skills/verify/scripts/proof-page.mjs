@@ -22,20 +22,20 @@ const numbers = proof.numbers
   .join("");
 const checks = proof.checks.map((c) => `<li class="${c.ok ? "ok" : "bad"}">${c.ok ? "✓" : "✗"} ${esc(c.label)}</li>`).join("");
 
-const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Proof PR ${esc(proof.pr)}</title><style>
-:root{--bg:#fff;--fg:#111;--muted:#666;--line:#e5e5e5;--ok:#1a7f37;--bad:#c62828}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111;--fg:#eee;--muted:#999;--line:#2a2a2a;--ok:#4cc26b;--bad:#ef6b6b}}
-:root[data-theme="dark"]{--bg:#111;--fg:#eee;--muted:#999;--line:#2a2a2a;--ok:#4cc26b;--bad:#ef6b6b}
+// A body fragment, no doctype/html/head: claude.ai artifacts wrap it in their own skeleton, and browsers open it as is.
+const html = `<title>Proof PR ${esc(proof.pr)}</title><meta name="claude:viewport-fit-sides" content="cover"><style>
+:root{--bg:#fff;--fg:#111;--muted:#666;--line:#e5e5e5;--ok:#1a7f37;--bad:#c62828;--video:#000}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#111;--fg:#eee;--muted:#999;--line:#2a2a2a;--ok:#4cc26b;--bad:#ef6b6b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#111;--fg:#eee;--muted:#999;--line:#2a2a2a;--ok:#4cc26b;--bad:#ef6b6b;color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,system-ui,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:24px 16px 64px}h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 8px}h3{font-size:14px;color:var(--muted);margin:16px 0 6px}
+main{max-width:1100px;margin:0 auto;padding-block:24px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}h1{font-size:24px;margin:0 0 4px}h2{font-size:17px;margin:32px 0 8px}h3{font-size:14px;color:var(--muted);margin:16px 0 6px}
 .risk{display:inline-block;border:1px solid var(--line);border-radius:99px;padding:2px 10px;font-size:13px}ol{padding-left:20px}
-video{width:100%;max-height:70vh;background:#000;border-radius:8px}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+video{width:100%;max-height:70vh;background:var(--video);border-radius:8px}.row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 figure{margin:0}img{width:100%;border:1px solid var(--line);border-radius:6px;display:block}figcaption{font-size:12px;color:var(--muted)}
 .none span{display:flex;align-items:center;justify-content:center;aspect-ratio:16/10;border:1px dashed var(--line);border-radius:6px;color:var(--muted)}
 table{border-collapse:collapse;width:100%}td{border-bottom:1px solid var(--line);padding:8px 6px;font-size:14px}.ok{color:var(--ok)}.bad{color:var(--bad)}
 a{color:inherit}ul{list-style:none;padding:0}.meta{color:var(--muted);font-size:14px}@media (max-width:640px){.row{grid-template-columns:1fr}}
-</style></head><body><main>
+</style><main>
 <h1>PR #${esc(proof.pr)} · ${esc(proof.title)}</h1><span class="risk">Rủi ro ${esc(RISK[proof.risk] ?? proof.risk)}</span>
 <h2>Anh sẽ thấy</h2><ol>${proof.youWillSee.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
 <h2>Video</h2>${proof.video ? `<video src="${esc(proof.video)}" controls playsinline></video>` : `<p class="bad">Chưa có video.</p>`}
@@ -44,7 +44,7 @@ a{color:inherit}ul{list-style:none;padding:0}.meta{color:var(--muted);font-size:
 <h2>Đã kiểm</h2><ul>${checks}</ul>
 <h2>Chi phí và hoàn tác</h2><p class="meta">${esc(proof.cost)}</p><p class="meta">Hoàn tác: ${esc(proof.undo)}</p>
 <p class="meta"><a href="${esc(proof.prUrl)}">Quay lại PR</a> để bấm Auto-merge, hoặc ghi lỗi ở đó.</p>
-</main></body></html>`;
+</main>`;
 
 writeFileSync(path.join(dir, "index.html"), html);
 const passed = proof.checks.filter((c) => c.ok).length;
