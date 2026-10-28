@@ -66,6 +66,19 @@ Each journey runs on the lane it needs, in dev mode: `baseline-lane.sh --compare
 
 Network boundaries are fakes, never the real services: `fake-graph.mjs` (Graph v23 and the S3 bucket), `fake-sidecar.mjs` (the IG sidecar) and `fake-umami.mjs`, started by the lane scripts. A fake answers the way the real service does, refusals included: `fake-graph.mjs` refuses a metric or breakdown Graph v23 refuses for a reel with its HTTP 400 code 100 body, and `fake-sidecar.mjs` answers an expired session with the body the real sidecar sends. When a real run finds the service answering something a fake does not, teach the fake that answer and add the journey that would have caught it. A lane with no fake for a service points it at a refused port (`baseline-lane.sh` sets `IG_GRAPH_HOST` to `127.0.0.1:9`).
 
+## Real-service keys
+
+A real-data run (the smallest real sample, never a lane with fakes) reads its keys from one place outside the repo, `~/.config/lead-studio-test/<service>.env` (mode 600). Agents never ask Kai for a key again and never print one.
+
+```bash
+.claude/skills/verify/scripts/test-keys.sh save umami        # Kai, in his own terminal: address + API key, hidden, tested at once
+.claude/skills/verify/scripts/test-keys.sh save graph        # Instagram Graph token, tested with /me
+.claude/skills/verify/scripts/test-keys.sh save ig-session   # sidecar sessionid; proved by the sidecar card's Test connection
+.claude/skills/verify/scripts/test-keys.sh check             # exit 1 when a key is missing or refused
+```
+
+A run loads a key with `set -a; . ~/.config/lead-studio-test/umami.env; set +a`. When `check` fails for the service a run needs, the run stops with `BLOCKED need <service> key` and names the `save` command; it does not guess or reuse a key from another file.
+
 ## Proof page
 
 Every complex PR ends with one page Kai opens to decide it. The owner fills `~/.claude/orchestrate/proof/<pr>/proof.json` and puts the media beside it:
