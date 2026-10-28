@@ -21460,6 +21460,16 @@
         "pulling": "Pulling"
       },
       "missingPosts": "missing {{count}} posts"
+    },
+    "cook": {
+      "retry": "Retry cook",
+      "resume": "Resume cook",
+      "terminal": "Show terminal",
+      "youCan": "You can",
+      "ifYouWait": "If you wait",
+      "script": "Script",
+      "wordForWord": "word for word",
+      "fromPlan": "from Plan · Claude reads it next"
     }
   },
   "gate": {
