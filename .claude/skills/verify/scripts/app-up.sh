@@ -53,15 +53,23 @@ host_fingerprint >"$DIR/host.fingerprint"
 # dir) live beside it, so a lane's fixtures never see Kai's real renders, nor his them.
 STUDIO="$HOME/Desktop/kaiships/studio-reel"
 LANE_COOK="/tmp/lead-studio-cook/$(basename "$PWD")"
-export LEAD_STUDIO_COOK_ROOT="$LANE_COOK/studio-reel"
 export RENDER_SLOT_DIR="$LANE_COOK/render-slots"
 rm -rf "$RENDER_SLOT_DIR"
-rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
-for f in CLAUDE.md AGENTS.md workspace/README.md .claude/settings.json .claude/skills/make-reel/SKILL.md core/job.mjs; do
-  if [ -f "$STUDIO/$f" ]; then
-    mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
-  fi
-done
+# APP_COOK_STUDIO=<dir> is a real cook run: a full studio-reel worktree the agent made (pixi installed),
+# used as it is and never wiped. It must not be Kai's checkout.
+if [ -n "${APP_COOK_STUDIO:-}" ]; then
+  [ "$(cd "$APP_COOK_STUDIO" && pwd -P)" != "$(cd "$STUDIO" 2>/dev/null && pwd -P)" ] \
+    || { echo "app: APP_COOK_STUDIO is Kai's studio-reel checkout; make a worktree" >&2; exit 1; }
+  export LEAD_STUDIO_COOK_ROOT="$APP_COOK_STUDIO"
+else
+  export LEAD_STUDIO_COOK_ROOT="$LANE_COOK/studio-reel"
+  rm -rf "$LEAD_STUDIO_COOK_ROOT" && mkdir -p "$LEAD_STUDIO_COOK_ROOT"
+  for f in CLAUDE.md AGENTS.md workspace/README.md .claude/settings.json .claude/skills/make-reel/SKILL.md core/job.mjs; do
+    if [ -f "$STUDIO/$f" ]; then
+      mkdir -p "$LEAD_STUDIO_COOK_ROOT/$(dirname "$f")" && cp "$STUDIO/$f" "$LEAD_STUDIO_COOK_ROOT/$f"
+    fi
+  done
+fi
 
 rm -f "$DIR/state.json"
 set -m
