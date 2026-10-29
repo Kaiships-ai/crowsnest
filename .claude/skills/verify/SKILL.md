@@ -74,10 +74,11 @@ A real-data run (the smallest real sample, never a lane with fakes) reads its ke
 .claude/skills/verify/scripts/test-keys.sh save umami        # Kai, in his own terminal: address + API key, hidden, tested at once
 .claude/skills/verify/scripts/test-keys.sh save graph        # Instagram Graph token, tested with /me
 .claude/skills/verify/scripts/test-keys.sh save ig-session   # sidecar sessionid; proved by the sidecar card's Test connection
+.claude/skills/verify/scripts/test-keys.sh save s3          # endpoint, bucket, key, secret, public base; hidden; check is a HEAD on the public base only (no write)
 .claude/skills/verify/scripts/test-keys.sh check             # exit 1 when a key is missing or refused
 ```
 
-A run loads a key with `set -a; . ~/.config/lead-studio-test/umami.env; set +a`. When `check` fails for the service a run needs, the run stops with `BLOCKED need <service> key` and names the `save` command; it does not guess or reuse a key from another file.
+A run loads a key with `set -a; . ~/.config/lead-studio-test/umami.env; set +a`. When `check` fails for the service a run needs, the run stops with `BLOCKED need <service> key` and names the `save` command; it does not guess or reuse a key from another file. Publish lanes load s3 from there (`s3.env`), never from `.env.local`.
 
 ### Real check
 
