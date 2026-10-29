@@ -31,6 +31,12 @@ boundaries, and its invariants.
 | app (Lead Studio Electron shell) | [app](architecture/app.md) |
 | boards (workspace board tabs) | [boards](architecture/boards.md) |
 
+## Brand
+
+The Lead Studio mascot is a live 3D page: [brand/mascot/index.html](brand/mascot/index.html)
+(expressions, poses, colours, app icons, in-app examples, a Play walkthrough). Screenshots sit in
+`brand/mascot/shots/`.
+
 ## Where things live
 
 - Built-feature lists and browse-e2e test cases: `scripts/e2e/cases/<component>.md`, read by
