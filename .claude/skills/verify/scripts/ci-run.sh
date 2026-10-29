@@ -10,9 +10,13 @@ OUT="data/verify/evidence/$RUN"
 mkdir -p "$OUT"
 export APP_DEV=1 BASELINE_SKIP=1
 
-ffmpeg -loglevel error -y -f x11grab -framerate 10 -video_size 1440x900 -i "$DISPLAY" \
-  -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$OUT/run.mp4" </dev/null &
-FF=$!
+# Video only on Linux (x11grab); the macOS runner has no screen-recording grant, so it keeps screenshots only.
+FF=
+if [ "$(uname)" = Linux ]; then
+  ffmpeg -loglevel error -y -f x11grab -framerate 10 -video_size 1440x900 -i "$DISPLAY" \
+    -c:v libx264 -preset ultrafast -pix_fmt yuv420p "$OUT/run.mp4" </dev/null &
+  FF=$!
+fi
 
 rc=0
 { echo "| Journey | Result |"; echo "|---|---|"; } >"$OUT/summary.md"
@@ -29,5 +33,5 @@ else
 fi
 cp data/verify/app/*.log "$OUT/" 2>/dev/null
 "$S/app-down.sh" >/dev/null
-kill -INT "$FF" 2>/dev/null; wait "$FF" 2>/dev/null
+[ -n "$FF" ] && { kill -INT "$FF" 2>/dev/null; wait "$FF" 2>/dev/null; }
 exit $rc

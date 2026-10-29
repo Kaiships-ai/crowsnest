@@ -1,17 +1,16 @@
 name: verify
 
-# Runs the Lead Studio verify journeys for a PR on a Linux runner under Xvfb, in dev mode on the boards lane
-# (fake sidecar, Umami and Polar; no real-service keys). Journeys come from the feature files the PR
-# changes (ci-journeys.mjs), shell-01 when none. Screenshots, transcripts and a video go up as an
-# artifact, and its link is commented on the PR. Not a required check.
+# Runs the Lead Studio verify journeys in dev mode on the boards lane (fake sidecar, Umami and Polar; no
+# real-service keys). Journeys come from the feature files the PR changes (ci-journeys.mjs), shell-01 when
+# none. Linux (Xvfb) runs on PRs that touch the renderer, server or verify skill; macOS (arm64) runs on PRs
+# that touch src/main, src/preload, native modules or the lockfile, and on every push to main; a manual run
+# does both. Screenshots and transcripts go up as one artifact per platform (Linux also a video), and each
+# platform comments its link on the PR. Not a required check.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
-    paths:
-      - 'src/renderer/**'
-      - 'src/server/**'
-      - '.claude/skills/verify/**'
-      - '.github/workflows/verify.yml'
 
 permissions:
   contents: read
@@ -22,9 +21,42 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  journeys:
+  plan:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: pick
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          changed=""
+          [ "$GITHUB_EVENT_NAME" = pull_request ] && changed=$(git diff --name-only "origin/$BASE...HEAD")
+          linux='{"name":"linux","os":"ubuntu-latest"}'
+          macos='{"name":"macos","os":"macos-latest"}'
+          m=()
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              grep -qE '^(src/renderer/|src/server/|\.claude/skills/verify/|\.github/workflows/verify\.yml$)' <<<"$changed" && m+=("$linux")
+              grep -qE '^(src/main/|src/preload/|native/|package\.json$|pnpm-lock\.yaml$|\.github/workflows/verify\.yml$)' <<<"$changed" && m+=("$macos") ;;
+            push) m+=("$macos") ;;
+            *) m+=("$linux" "$macos") ;;
+          esac
+          echo "matrix=[$(IFS=,; echo "${m[*]}")]" >> "$GITHUB_OUTPUT"
+
+  journeys:
+    needs: plan
+    if: needs.plan.outputs.matrix != '[]'
+    name: journeys (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,6 +74,7 @@ jobs:
 
       # Ubuntu 24.04 blocks the unprivileged user namespaces Electron's sandbox needs.
       - name: Display, recorder and sandbox
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb ffmpeg >/dev/null
@@ -51,7 +84,12 @@ jobs:
         id: pick
         run: echo "journeys=$(node .claude/skills/verify/scripts/ci-journeys.mjs origin/${{ github.base_ref || 'main' }})" >> "$GITHUB_OUTPUT"
 
-      - name: Run the journeys
+      - name: Run the journeys (macOS)
+        if: runner.os == 'macOS'
+        run: .claude/skills/verify/scripts/ci-run.sh ci ${{ steps.pick.outputs.journeys }}
+
+      - name: Run the journeys (Linux)
+        if: runner.os == 'Linux'
         run: |
           echo "journeys: ${{ steps.pick.outputs.journeys }}"
           Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
@@ -63,7 +101,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: verify-evidence
+          name: verify-evidence-${{ matrix.name }}
           path: data/verify/evidence/ci/
           if-no-files-found: warn
 
@@ -77,7 +115,7 @@ jobs:
           STATUS: ${{ job.status }}
         run: |
           {
-            echo "**Verify journeys (CI, fakes only): $STATUS**"
+            echo "**Verify journeys (CI, ${{ matrix.name }}, fakes only): $STATUS**"
             echo
             cat data/verify/evidence/ci/summary.md 2>/dev/null || echo "No summary: the run stopped before the journeys."
             echo
