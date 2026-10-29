@@ -125,7 +125,10 @@ export function deliveredThisRound(steps: JobStep[], savedAt: string, seenOpen: 
   // ponytail: studio-reel's job.mjs writes no started/ended yet, so then it is "this process saw deliver not done
   // since the last version"; an app restart in between loses that and the round's version waits for the next deliver.
   if (Number.isNaN(at)) return seenOpen;
-  return at > Date.parse(steps.find((s) => s.name === "render")?.ended ?? "") || at > Date.parse(savedAt);
+  // Why not "or after the last save": a real round reran render while deliver was still done from the round
+  // before (ended after v1 was saved), and v2 was saved before Claude delivered it, with that round's change.
+  const rendered = Date.parse(steps.find((s) => s.name === "render")?.ended ?? "");
+  return Number.isNaN(rendered) ? at > Date.parse(savedAt) : at > rendered;
 }
 
 /** When deliver is done for this round and its final is not saved yet, copies the delivered files plus src/, vo/script.json and
