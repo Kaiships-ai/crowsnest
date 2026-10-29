@@ -60,7 +60,7 @@ import {
 import { checkGraphTokenAction, measureOwnChannelAction, saveGraphTokenAction, startGraphPullAction, stopGraphPullAction, testGraphTokenAction } from "@/server/actions/graph-actions";
 import { getIgStatusAction } from "@/server/actions/ig-actions";
 import { movePlanCardAction } from "@/server/actions/plan-board-actions";
-import { clearPlanCookingAction, cookPlanCardAction, markPlanCookingAction } from "@/server/actions/cook-actions";
+import { clearPlanCookingAction, cookPlanCardAction, getCookView, markPlanCookingAction } from "@/server/actions/cook-actions";
 import { listNotificationsAction, markAllReadAction, markReadAction } from "@/server/actions/notification-actions";
 import {
   attachScriptToPlanAction,
@@ -190,6 +190,7 @@ export const ENGINE_CALLS = {
   cookPlanCardAction: call(id, cookPlanCardAction),
   markPlanCookingAction: call(z.tuple([z.string(), z.string().min(1)]), markPlanCookingAction),
   clearPlanCookingAction: call(z.tuple([z.string(), z.string().min(1)]), clearPlanCookingAction),
+  getCookView: call(id, getCookView),
 
   getPlannedPosts: call(z.tuple([z.object({ from: z.string(), to: z.string() }).optional()]), getPlannedPosts),
   getPlannedPostById: call(id, getPlannedPostById),

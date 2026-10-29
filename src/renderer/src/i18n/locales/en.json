@@ -21460,6 +21460,24 @@
         "pulling": "Pulling"
       },
       "missingPosts": "missing {{count}} posts"
+    },
+    "cook": {
+      "retry": "Retry cook",
+      "resume": "Resume cook",
+      "terminal": "Show terminal",
+      "youCan": "You can",
+      "ifYouWait": "If you wait",
+      "script": "Script",
+      "voScript": "vo/script.json · word for word",
+      "fromPlan": "from Plan · Claude reads it next",
+      "step": {
+        "Script": "Script",
+        "Voice": "Voice",
+        "Build": "Build",
+        "Draft": "Draft",
+        "Final": "Final",
+        "Review": "Review"
+      }
     }
   },
   "gate": {
