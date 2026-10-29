@@ -57,6 +57,17 @@ test("the script's front matter names the keyword as campaign, so job.json's cam
   expect(cooked.ok && readFileSync(path.join(root, cooked.scriptPath), "utf8")).toContain("\ncta_keyword: HOOKS\ncampaign: HOOKS\n");
 });
 
+test("REEL_PRESET lands as preset: in the front matter, so job.json keeps the test render", async () => {
+  await db.insert(tables.plannedPosts).values(plan("plan-eeeeee"));
+  process.env.REEL_PRESET = "test";
+  try {
+    const cooked = await cookPlanCardAction("plan-eeeeee");
+    expect(cooked.ok && readFileSync(path.join(root, cooked.scriptPath), "utf8")).toContain("\npreset: test\nstatus: draft\n");
+  } finally {
+    delete process.env.REEL_PRESET;
+  }
+});
+
 const writeJob = (slug: string, steps: object[]) => {
   mkdirSync(path.join(root, "films", slug), { recursive: true });
   writeFileSync(path.join(root, "films", slug, "job.json"), JSON.stringify({ slug, steps, outputs: [] }));

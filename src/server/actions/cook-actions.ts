@@ -55,7 +55,8 @@ export async function cookPlanCardAction(id: string): Promise<ActionResult<{ roo
   if (!root || !existsSync(root)) return { ok: false, error: root ? `studio-reel is not at ${root}.` : "This verify lane names no studio-reel copy (LEAD_STUDIO_COOK_ROOT).", code: "COOK_NO_STUDIO" };
   const slug = reelSlug(plan.title, id);
   const scriptPath = `workspace/scripts/${slug}.md`;
-  const front = [`slug: ${slug}`, plan.targetLengthSec ? `target_seconds: ${plan.targetLengthSec}` : null, plan.keyword ? `cta_keyword: ${plan.keyword}` : null, plan.keyword ? `campaign: ${plan.keyword}` : null, "status: draft"].filter(Boolean);
+  // Why preset: with REEL_PRESET only in the env, job.json named no preset and a real Claude unset it to render the full reel.
+  const front = [`slug: ${slug}`, plan.targetLengthSec ? `target_seconds: ${plan.targetLengthSec}` : null, plan.keyword ? `cta_keyword: ${plan.keyword}` : null, plan.keyword ? `campaign: ${plan.keyword}` : null, process.env.REEL_PRESET ? `preset: ${process.env.REEL_PRESET}` : null, "status: draft"].filter(Boolean);
   await mkdir(path.join(root, "workspace/scripts"), { recursive: true });
   await writeFile(path.join(root, scriptPath), `---\n${front.join("\n")}\n---\n# ${plan.title}\n\n## Script\n${row.script.trim()}\n`);
   return { ok: true, root, scriptPath, title: plan.title };
