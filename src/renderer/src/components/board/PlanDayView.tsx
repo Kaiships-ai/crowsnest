@@ -6,6 +6,7 @@ import { cookReel, openCookWorkspace } from './cook-reel'
 import { StatePill } from './kit/StatePill'
 import { openPostInBrowser } from './open-post'
 import { PublishButton } from './PublishSheet'
+import { PlanCookStatus } from './plan-cook-status'
 import { AddButton, ITEM_LABEL, StateBadge, type PlanCard, type PlanDay } from './plan-card-parts'
 
 function Field({
@@ -126,6 +127,9 @@ export function DayView({
                 {card.time ?? ''}
               </span>
               <PublishButton card={card} />
+              {card.cookWorkspaceId ? (
+                <PlanCookStatus planId={card.id} workspaceId={card.cookWorkspaceId} />
+              ) : null}
               <CookButton
                 card={card}
                 retry={failedCookId === card.id}

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { translate } from '@/i18n/i18n'
 import { cn } from '@/lib/utils'
 import type { CookAction, CookCard, CookSegment, CookView } from './cook-pane-state'
+import { keywordSpot } from './cook-version-cards'
 
 const TONE: Record<CookCard['tone'], string> = {
   run: 'border-border bg-card',
@@ -40,7 +41,11 @@ const ACTION_LABEL: Record<CookAction, (card: CookCard) => string> = {
   resume: () => translate('boards.cook.resume', 'Resume cook'),
   terminal: () => translate('boards.cook.terminal', 'Show terminal'),
   compare: (card) => `Compare v${card.compare?.[0]} · v${card.compare?.[1]}`,
-  donecompare: () => translate('boards.cook.done', 'Done')
+  donecompare: () => translate('boards.cook.done', 'Done'),
+  gate2: () => translate('boards.cook.gate2', 'Send to Gate 2…'),
+  fixkw: () => translate('boards.cook.fixKeyword', 'Ask Claude to fix it'),
+  editcap: () => translate('boards.cook.editCaption', 'Edit caption'),
+  opengate: () => translate('gate2.sheet.open', 'Open Gate 2')
 }
 
 export function StatusCard({
@@ -244,6 +249,95 @@ export function ScriptBox({ view }: { view: CookView }): React.ReactNode {
           </p>
         ))}
       </div>
+    </div>
+  )
+}
+
+function withKeyword(line: string, keyword: string | null): React.ReactNode {
+  const at = keyword ? line.toLowerCase().indexOf(keyword.toLowerCase()) : -1
+  if (!keyword || at < 0) {
+    return line
+  }
+  return (
+    <>
+      {line.slice(0, at)}
+      <b className="font-semibold">{line.slice(at, at + keyword.length)}</b>
+      {line.slice(at + keyword.length)}
+    </>
+  )
+}
+
+/** CAPTION.md's post caption (proto 17 and 18): line 1 is lit when the keyword is not on it. */
+export function CaptionBox({ view }: { view: CookView }): React.ReactNode {
+  const spot = keywordSpot(view)
+  const writing =
+    !view.caption &&
+    view.steps?.some((s) => (s.name === 'review' || s.name === 'deliver') && s.status === 'running')
+  const lines = (view.caption ?? '').split('\n').filter((line) => line.trim())
+  return (
+    <div
+      data-testid="cook-caption"
+      data-keyword-line={spot ? (spot.line ?? -1) + 1 : undefined}
+      className="rounded-xl border border-border bg-card px-4 py-3"
+    >
+      <h4 className="mb-2 flex items-baseline justify-between gap-3 text-sm font-semibold">
+        {translate('boards.cook.caption', 'Caption')}
+        <span className="font-mono text-2xs font-normal text-muted-foreground">
+          {view.caption
+            ? translate('boards.cook.captionFile', 'CAPTION.md')
+            : writing
+              ? translate('boards.cook.captionWritingMeta', 'writing…')
+              : ''}
+        </span>
+      </h4>
+      {view.caption ? (
+        <div className="flex flex-col gap-1.5 text-sm">
+          {lines.map((line, i) => (
+            <p
+              key={i}
+              data-testid={i === 0 ? 'cook-caption-line1' : undefined}
+              className={cn(
+                /^(#\S+\s*)+$/.test(line.trim()) && 'text-muted-foreground',
+                i === 0 &&
+                  spot &&
+                  spot.line !== 0 &&
+                  '-mx-1.5 rounded-md bg-status-warning-background px-1.5 py-0.5'
+              )}
+            >
+              {withKeyword(line, view.keyword)}
+            </p>
+          ))}
+          {spot ? (
+            <span
+              data-testid="cook-caption-keyword"
+              data-status={spot.line === 0 ? 'ok' : 'warn'}
+              className={cn(
+                'mt-1 self-start rounded-[5px] border px-1.5 font-mono text-2xs',
+                spot.line === 0
+                  ? 'border-status-success-border bg-status-success-background text-status-success'
+                  : 'border-status-warning-border bg-status-warning-background'
+              )}
+            >
+              {spot.line === 0
+                ? translate('boards.cook.keywordOnLine1', '{{keyword}} on line 1 ✓', {
+                    keyword: spot.keyword
+                  })
+                : translate('boards.cook.keywordNotOnLine1', '{{keyword}} not on line 1', {
+                    keyword: spot.keyword
+                  })}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {writing
+            ? translate('boards.cook.captionWriting', 'Claude is writing CAPTION.md')
+            : translate(
+                'boards.cook.noCaption',
+                'No caption yet. Claude writes it last, after the review.'
+              )}
+        </p>
+      )}
     </div>
   )
 }

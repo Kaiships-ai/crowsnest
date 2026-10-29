@@ -21522,7 +21522,18 @@
       "captionChanged": "caption changed",
       "compare": "Compare",
       "diffOne": "Script · 1 line changed · {{caption}}",
-      "diffMany": "Script · {{n}} lines changed · {{caption}}"
+      "diffMany": "Script · {{n}} lines changed · {{caption}}",
+      "gate2": "Send to Gate 2…",
+      "fixKeyword": "Ask Claude to fix it",
+      "editCaption": "Edit caption",
+      "fixNoClaude": "Claude is not running here, so it cannot fix the caption. Edit caption instead.",
+      "caption": "Caption",
+      "captionWritingMeta": "writing…",
+      "captionWriting": "Claude is writing CAPTION.md",
+      "noCaption": "No caption yet. Claude writes it last, after the review.",
+      "keywordOnLine1": "{{keyword}} on line 1 ✓",
+      "keywordNotOnLine1": "{{keyword}} not on line 1",
+      "captionFile": "CAPTION.md"
     }
   },
   "gate": {
@@ -21800,7 +21811,9 @@
       "publish": "Publish",
       "send": "Send to Gate 2",
       "sent": "Sent to Gate 2. Nothing is published yet.",
-      "title": "Publish \"{{title}}\""
+      "title": "Publish \"{{title}}\"",
+      "cancel": "Cancel",
+      "hint": "Nothing is published from here. Gate 2 asks you once more."
     },
     "stale": "The reel's video, caption or cover changed after this draft. Reject it and send the reel again.",
     "subtitle": "Actions that reach people outside. Nothing is sent until you approve it.",

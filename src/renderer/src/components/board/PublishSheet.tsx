@@ -19,9 +19,24 @@ const PUBLISHABLE = new Set<PlanCard['state']>(['draft', 'plan', 'missed', 'cook
 
 type Sent = { status: 'idle' } | { status: 'sent' } | { status: 'error'; message: string }
 
-function SheetBody({ card }: { card: PlanCard }): React.ReactNode {
+/** The reel the sheet sends: a Plan card, or the Cook pane's plan row. */
+export type PublishTarget = Pick<PlanCard, 'id' | 'title' | 'date' | 'time'>
+
+function SheetBody({
+  card,
+  onCancel,
+  onSent
+}: {
+  card: PublishTarget
+  /** Set when the Cook pane opened the sheet (proto 25): it adds Cancel and the "nothing is published" line. */
+  onCancel?: () => void
+  onSent?: () => void
+}): React.ReactNode {
   const [mode, setMode] = useState<'now' | 'at'>('at')
-  const [time, setTime] = useState(`${card.date}T${card.time ?? '19:30'}`)
+  const [time, setTime] = useState(
+    // A reel with no slot starts from today (local), so the time is always a valid datetime-local value.
+    () => `${card.date || new Date().toLocaleDateString('sv-SE')}T${card.time ?? '19:30'}`
+  )
   const [checks, setChecks] = useState<PublishCheck[] | null>(null)
   const [sent, setSent] = useState<Sent>({ status: 'idle' })
   const [busy, setBusy] = useState(false)
@@ -57,6 +72,7 @@ function SheetBody({ card }: { card: PlanCard }): React.ReactNode {
       setSent({ status: 'error', message: res.value.error })
     } else {
       setSent({ status: 'sent' })
+      onSent?.()
     }
   }
 
@@ -100,37 +116,51 @@ function SheetBody({ card }: { card: PlanCard }): React.ReactNode {
           </Button>
         </div>
       ) : (
-        <Button
-          data-testid="publish-send"
-          className="self-start"
-          disabled={busy || blocked}
-          onClick={() => void send()}
-        >
-          <Send />
-          {translate('gate2.sheet.send', 'Send to Gate 2')}
-        </Button>
+        <div className={onCancel ? 'flex items-center justify-end gap-2' : 'self-start'}>
+          {onCancel ? (
+            <Button data-testid="publish-cancel" variant="ghost" onClick={onCancel}>
+              {translate('gate2.sheet.cancel', 'Cancel')}
+            </Button>
+          ) : null}
+          <Button data-testid="publish-send" disabled={busy || blocked} onClick={() => void send()}>
+            <Send />
+            {translate('gate2.sheet.send', 'Send to Gate 2')}
+          </Button>
+        </div>
       )}
       {sent.status === 'error' ? (
         <p data-testid="publish-error" className="text-xs text-destructive">
           {sent.message}
         </p>
       ) : null}
+      {onCancel ? (
+        <p className="text-xs text-muted-foreground">
+          {translate(
+            'gate2.sheet.hint',
+            'Nothing is published from here. Gate 2 asks you once more.'
+          )}
+        </p>
+      ) : null}
     </div>
   )
 }
 
-/** "Publish" on a reel card with a video: the sheet runs the five checks and sends a draft to Gate 2. */
-export function PublishButton({ card }: { card: PlanCard }): React.ReactNode {
-  const [open, setOpen] = useState(false)
-  if (!card.hasVideo || !PUBLISHABLE.has(card.state)) {
-    return null
-  }
+/** The publish sheet (wireframe B6-01, proto 25). `version` is the Cook pane's chip ("v1 · versions/v1/"). */
+export function PublishSheet({
+  card,
+  open,
+  onOpenChange,
+  version,
+  onSent
+}: {
+  card: PublishTarget
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  version?: string
+  onSent?: () => void
+}): React.ReactNode {
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <Button data-testid="plan-publish" variant="outline" size="xs" onClick={() => setOpen(true)}>
-        <Send />
-        {translate('gate2.sheet.publish', 'Publish')}
-      </Button>
+    <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent data-testid="publish-sheet" className="w-96 sm:max-w-96">
         <SheetHeader>
           <SheetTitle>
@@ -142,9 +172,40 @@ export function PublishButton({ card }: { card: PlanCard }): React.ReactNode {
               'Lead Studio checks the reel, then it waits in Gate 2 for your approval.'
             )}
           </SheetDescription>
+          {version ? (
+            <span
+              data-testid="publish-version"
+              className="self-start rounded-[5px] border border-border px-1.5 font-mono text-2xs text-muted-foreground"
+            >
+              {version}
+            </span>
+          ) : null}
         </SheetHeader>
-        {open ? <SheetBody card={card} /> : null}
+        {open ? (
+          <SheetBody
+            card={card}
+            {...(version ? { onCancel: () => onOpenChange(false) } : {})}
+            onSent={onSent}
+          />
+        ) : null}
       </SheetContent>
     </Sheet>
+  )
+}
+
+/** "Publish" on a reel card with a video: the sheet runs the five checks and sends a draft to Gate 2. */
+export function PublishButton({ card }: { card: PlanCard }): React.ReactNode {
+  const [open, setOpen] = useState(false)
+  if (!card.hasVideo || !PUBLISHABLE.has(card.state)) {
+    return null
+  }
+  return (
+    <>
+      <Button data-testid="plan-publish" variant="outline" size="xs" onClick={() => setOpen(true)}>
+        <Send />
+        {translate('gate2.sheet.publish', 'Publish')}
+      </Button>
+      <PublishSheet card={card} open={open} onOpenChange={setOpen} />
+    </>
   )
 }

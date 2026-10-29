@@ -4,13 +4,16 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, nowIso, tables } from "../db";
 import type { ActionResult, SimpleResult } from "../lib/action-result";
 import { clockNow } from "../lib/clock";
+import { setPlanCaptionAction } from "./planned-post-actions";
 import { planCardState, type PlanCardState } from "../queries/plan-board";
-import { cookVersions, finalMp4, pickCookVersion, readCookIndex, recordCookRound, renderSlotFilms, snapshotCookVersion, type CookRound, type CookVersion } from "./cook-versions";
+import { attachPlanVideo } from "../media/video-file";
+import { PUBLISH_TOOL } from "../services/publish-post";
+import { cookVersions, finalMp4, gateFiles, pickCookVersion, readCookIndex, recordCookRound, renderSlotFilms, snapshotCookVersion, type CookRound, type CookVersion } from "./cook-versions";
 
 /** studio-reel's checkout. A verify lane (ORCA_E2E_USER_DATA_DIR) must name its temp copy in
  *  LEAD_STUDIO_COOK_ROOT and never falls back to the real one. */
@@ -52,7 +55,8 @@ export async function cookPlanCardAction(id: string): Promise<ActionResult<{ roo
   if (!root || !existsSync(root)) return { ok: false, error: root ? `studio-reel is not at ${root}.` : "This verify lane names no studio-reel copy (LEAD_STUDIO_COOK_ROOT).", code: "COOK_NO_STUDIO" };
   const slug = reelSlug(plan.title, id);
   const scriptPath = `workspace/scripts/${slug}.md`;
-  const front = [`slug: ${slug}`, plan.targetLengthSec ? `target_seconds: ${plan.targetLengthSec}` : null, plan.keyword ? `cta_keyword: ${plan.keyword}` : null, plan.keyword ? `campaign: ${plan.keyword}` : null, "status: draft"].filter(Boolean);
+  // Why preset: with REEL_PRESET only in the env, job.json named no preset and a real Claude unset it to render the full reel.
+  const front = [`slug: ${slug}`, plan.targetLengthSec ? `target_seconds: ${plan.targetLengthSec}` : null, plan.keyword ? `cta_keyword: ${plan.keyword}` : null, plan.keyword ? `campaign: ${plan.keyword}` : null, process.env.REEL_PRESET ? `preset: ${process.env.REEL_PRESET}` : null, "status: draft"].filter(Boolean);
   await mkdir(path.join(root, "workspace/scripts"), { recursive: true });
   await writeFile(path.join(root, scriptPath), `---\n${front.join("\n")}\n---\n# ${plan.title}\n\n## Script\n${row.script.trim()}\n`);
   return { ok: true, root, scriptPath, title: plan.title };
@@ -136,6 +140,12 @@ export type CookView = {
   use: number | null;
   /** The render waits for studio-reel's render slot (RENDER_SLOTS=1) while another reel renders. */
   renderQueue: { behind: string | null; startsInSec: number | null } | null;
+  /** The post caption Gate 2 gets (CAPTION.md of the version Gate 2 gets); null before Claude writes it. */
+  caption: string | null;
+  /** films/<slug>/CAPTION.md, for Edit caption. */
+  captionFile: string | null;
+  /** A publish draft of this reel waits in Gate 2 (proto 26), and when it is set to go out. */
+  sent: { at: string } | null;
 };
 
 const firstSeen = new Map<string, number | null>();
@@ -215,6 +225,9 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
   const pidGone = running?.pid != null ? !pidAlive(running.pid) : null;
   const usual = root ? await usualRenderSec(root) : DEFAULT_RENDER_SEC;
   const renderQueue = root && running?.name === "render" && !pidGone ? await queuedBehind(root, slug, usual) : null;
+  const versions = film && index ? await cookVersions(film, index) : [];
+  const gateN = index?.use ?? index?.versions.at(-1)?.n;
+  const gate = film && index && gateN != null ? await gateFiles(film, index, gateN) : null;
   const vo = film ? z.object({ lines: z.array(z.object({ text: z.string() })) }).safeParse(await readJson(path.join(film, "vo/script.json"))) : null;
   return {
     ok: true,
@@ -236,11 +249,24 @@ export async function getCookView(id: string): Promise<ActionResult<CookView>> {
     pidGone,
     usualRenderSec: usual,
     video,
-    versions: film && index ? await cookVersions(film, index) : [],
+    versions,
     rounds: index?.rounds ?? [],
     use: index?.use ?? null,
     renderQueue,
+    caption: gate?.caption ?? null,
+    captionFile: film ? path.join(film, "CAPTION.md") : null,
+    sent: await waitingInGate2(id),
   };
+}
+
+async function waitingInGate2(id: string): Promise<CookView["sent"]> {
+  const [draft] = await db
+    .select({ input: tables.gateDrafts.rawInput })
+    .from(tables.gateDrafts)
+    .where(and(eq(tables.gateDrafts.tool, PUBLISH_TOOL), eq(tables.gateDrafts.status, "pending"), sql`json_extract(${tables.gateDrafts.rawInput}, '$.postId') = ${id}`))
+    .limit(1);
+  const at = z.object({ at: z.string() }).safeParse(draft?.input);
+  return draft ? { at: at.success ? at.data.at : "now" } : null;
 }
 
 /** In line for the render (proto 40): a render slot is held, and not by this film. */
@@ -276,6 +302,22 @@ export async function recordCookRoundAction(id: string, note: string): Promise<A
 export async function pickCookVersionAction(id: string, n: number): Promise<SimpleResult> {
   const film = await filmOf(id);
   return film && (await pickCookVersion(film, n)) ? { ok: true } : { ok: false, error: "That version does not exist.", code: "COOK_NO_VERSION" };
+}
+
+/** Send to Gate 2 (proto 25): puts the picked version's final mp4 (and its sibling cover) and CAPTION.md on the
+ *  plan row, so the PublishSheet's checks see them. Nothing is sent or published here. */
+export async function attachCookToPlanAction(id: string): Promise<ActionResult<{ version: number }>> {
+  const film = await filmOf(id);
+  const index = film ? await readCookIndex(film) : null;
+  const n = index?.use ?? index?.versions.at(-1)?.n;
+  const files = film && index && n != null ? await gateFiles(film, index, n) : null;
+  if (!files || n == null) return { ok: false, error: "There is no final video to send yet.", code: "COOK_NO_VERSION" };
+  const video = await attachPlanVideo(id, files.mp4);
+  if (!video.ok) return video;
+  // No post caption in this version: keep whatever caption the plan row already has.
+  if (files.caption == null) return { ok: true, version: n };
+  const caption = await setPlanCaptionAction(id, files.caption);
+  return caption.ok ? { ok: true, version: n } : caption;
 }
 
 /** Every reel cooking now, for the Studio board (proto 39). */

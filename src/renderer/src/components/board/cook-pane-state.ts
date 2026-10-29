@@ -27,7 +27,16 @@ export type CookGroup = (typeof COOK_GROUPS)[number]['group']
 
 export type CookTone = 'run' | 'need' | 'err' | 'ok' | 'idle'
 export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'paused' | 'pending'
-export type CookAction = 'retry' | 'resume' | 'terminal' | 'compare' | 'donecompare'
+export type CookAction =
+  | 'retry'
+  | 'resume'
+  | 'terminal'
+  | 'compare'
+  | 'donecompare'
+  | 'gate2'
+  | 'fixkw'
+  | 'editcap'
+  | 'opengate'
 
 export type CookCard = {
   /** The proto v2 state this card is, for journeys and docs. */
@@ -151,13 +160,25 @@ export function cookCard(
     return gone
   }
   if (current.status === 'failed') {
-    return {
-      state: 'step-failed',
-      tone: 'err',
-      head: `The ${current.name} step failed`,
-      sub: kept,
-      ...resume
-    }
+    // Why: a tool marks its step failed and Claude, still running, fixes it and runs it again (a real
+    // cook's voice step failed twice, then passed). Resume then would start a second Claude on the film; once Claude stops working, Resume is back.
+    return claude.liveness === 'alive' && claude.working
+      ? {
+          state: 'step-failed',
+          tone: 'err',
+          head: `The ${current.name} step failed`,
+          sub: kept,
+          acts: ['terminal'],
+          can: 'Nothing yet. Claude still runs in the terminal and usually fixes the step and runs it again.',
+          wait: 'Claude retries the step. If Claude stops, this card offers Resume cook.'
+        }
+      : {
+          state: 'step-failed',
+          tone: 'err',
+          head: `The ${current.name} step failed`,
+          sub: kept,
+          ...resume
+        }
   }
   if (current.status === 'running' && view.pidGone) {
     return {

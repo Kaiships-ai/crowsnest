@@ -125,7 +125,10 @@ export function deliveredThisRound(steps: JobStep[], savedAt: string, seenOpen: 
   // ponytail: studio-reel's job.mjs writes no started/ended yet, so then it is "this process saw deliver not done
   // since the last version"; an app restart in between loses that and the round's version waits for the next deliver.
   if (Number.isNaN(at)) return seenOpen;
-  return at > Date.parse(steps.find((s) => s.name === "render")?.ended ?? "") || at > Date.parse(savedAt);
+  // Why not "or after the last save": a real round reran render while deliver was still done from the round
+  // before (ended after v1 was saved), and v2 was saved before Claude delivered it, with that round's change.
+  const rendered = Date.parse(steps.find((s) => s.name === "render")?.ended ?? "");
+  return Number.isNaN(rendered) ? at > Date.parse(savedAt) : at > rendered;
 }
 
 /** When deliver is done for this round and its final is not saved yet, copies the delivered files plus src/, vo/script.json and
@@ -180,6 +183,30 @@ export async function cookVersions(film: string, index: CookIndex): Promise<Cook
       return { ...v, file: path.join(dir, v.mp4), scriptLines: await scriptLinesOf(dir), caption: await readText(path.join(dir, "CAPTION.md")) };
     }),
   );
+}
+
+/** The post caption in studio-reel's CAPTION.md: the text under its `# Caption` heading, up to the next
+ *  section (`## Pinned comment`). A file with no heading is the caption as it is. */
+export function postCaption(md: string): string | null {
+  const lines = md.replace(/\r\n/g, "\n").split("\n");
+  const start = /^#\s/.test(lines.find((l) => l.trim()) ?? "") ? lines.findIndex((l) => l.trim()) + 1 : 0;
+  const rest = lines.slice(start);
+  const end = rest.findIndex((l) => /^##\s/.test(l));
+  const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
+  // Why: a real cook's Claude wrote the caption in a ``` block under a **Post caption** label, with the
+  // pinned comment and keyword after it in the same section; the block is the post caption.
+  const fenced = /^```[^\n]*\n([\s\S]*?)\n```/m.exec(section);
+  return (fenced ? fenced[1] : section).trim() || null;
+}
+
+/** The files Gate 2 gets for version n: its saved mp4, and CAPTION.md. The newest version reads the film's own
+ *  CAPTION.md, so a fix by Claude or Kai after deliver shows; an older pick reads the copy saved with it. */
+export async function gateFiles(film: string, index: CookIndex, n: number): Promise<{ mp4: string; caption: string | null } | null> {
+  const v = index.versions.find((x) => x.n === n);
+  if (!v) return null;
+  const newest = n === index.versions.at(-1)?.n;
+  const md = await readText(path.join(newest ? film : path.join(film, "versions", `v${n}`), "CAPTION.md"));
+  return { mp4: path.join(film, "versions", `v${n}`, v.mp4), caption: md == null ? null : postCaption(md) };
 }
 
 /** Proto v2's feedback message template, on one line so Enter submits it. */

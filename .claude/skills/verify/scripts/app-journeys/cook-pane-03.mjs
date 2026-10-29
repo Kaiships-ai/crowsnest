@@ -64,6 +64,7 @@ export default async function cookPane03({ page, step, snap }) {
   const alive = spawn("sleep", ["900"], { stdio: "ignore", detached: true });
   let holder;
   let key;
+  let kw;
 
   const claudeTab = () =>
     page.evaluate((k) => {
@@ -149,6 +150,7 @@ export default async function cookPane03({ page, step, snap }) {
       await page.waitForTimeout(500);
       sql(`update planned_posts set cook_workspace_id = null, keyword = coalesce(keyword, 'COOKPANE') where id = '${PLAN}'`);
       sql(`update planned_posts set cook_workspace_id = null where id = '${OTHER}'`);
+      kw = sql(`select keyword from planned_posts where id = '${PLAN}'`);
       const board = page.locator('[data-testid="board-tab"]:visible');
       await page.getByRole("button", { name: "New tab" }).first().click();
       await page.locator('[data-testid="new-tab-board"][data-board-id="plan"]').click();
@@ -241,18 +243,18 @@ export default async function cookPane03({ page, step, snap }) {
       const { can } = await expectCard("mp4-ready");
       const v = await player("final");
       if (can !== "Watch the final. Claude may fix small things and render again. / Claude writes the caption and hands the reel to you.") throw new Error(can);
-      if (v.draft || v.label !== "v1 · 0:03 · 1080×1920") throw new Error(v.label);
+      if (v.draft || v.label !== "v1 · 0:03 · 216×384") throw new Error(v.label);
       await snap("cook-pane-c-11-final");
     });
 
     await step("17 deliver done: Lead Studio copies v1 to versions/v1/ (outputs, src/, vo/script.json, audio/cues.json)", async () => {
-      reelFiles(HOOK_V1, 2.6, "Comment HOOKS and I'll send you my five hooks.\n");
+      reelFiles(HOOK_V1, 2.6, `Comment ${kw} and I'll send you my five hooks.\n`);
       writeFileSync(path.join(FILM, `${SLUG}-cover.png`), "png");
       job(FILM, null, "done", { outputs: DELIVERED });
       const { sub } = await expectCard("ready", "cook-pane-c-17-v1");
       const kept = ["versions/v1/" + `${SLUG}.mp4`, "versions/v1/src/ch/c1_hook.js", "versions/v1/vo/script.json", "versions/v1/audio/cues.json", "versions/v1/CAPTION.md"].filter((f) => existsSync(path.join(FILM, f)));
       console.log(`sub: ${sub} · kept: ${kept.join(", ")} · index: ${JSON.stringify(index().versions.map((v) => [v.n, v.durationSec, v.hookSec]))}`);
-      if (sub !== "v1 · 0:03 · QA 12/12" || kept.length !== 5) throw new Error(sub);
+      if (sub !== `v1 · 0:03 · QA 12/12 · ${kw} on caption line 1` || kept.length !== 5) throw new Error(sub);
       const v = await player("final");
       if (v.versions !== "v1 ✓") throw new Error(v.versions);
     });
@@ -268,7 +270,7 @@ export default async function cookPane03({ page, step, snap }) {
       const round = await feedback.getByTestId("cook-round").first().innerText();
       console.log(`round: ${round.replace(/\n/g, " ")} · queue gone: ${(await feedback.getByTestId("cook-queued").count()) === 0}`);
       if (head !== "Making v2 from your note" || sub !== '"bigger captions"' || !can.startsWith("Watch v1 meanwhile. It stays here.")) throw new Error(head);
-      if (v.label !== "v1 · 0:03 · 1080×1920" || v.versions !== "v1 ✓ v2 …") throw new Error(`${v.label} | ${v.versions}`);
+      if (v.label !== "v1 · 0:03 · 216×384" || v.versions !== "v1 ✓ v2 …") throw new Error(`${v.label} | ${v.versions}`);
       if (!round.includes("making v2")) throw new Error(round);
       await snap("cook-pane-c-19-v2-making");
     });
@@ -282,7 +284,7 @@ export default async function cookPane03({ page, step, snap }) {
       await snap("cook-pane-c-21-v2-draft");
       await video.getByTestId("cook-version-v1").click();
       const back = await player("version");
-      if (back.label !== "v1 · 0:03 · 1080×1920") throw new Error(back.label);
+      if (back.label !== "v1 · 0:03 · 216×384") throw new Error(back.label);
       await video.getByTestId("cook-version-v2").click();
       await player("draft");
     });
@@ -301,7 +303,7 @@ export default async function cookPane03({ page, step, snap }) {
 
     await step("22 v2 delivered with no `change` in job.json: the chip falls back to hook, length and script lines", async () => {
       mp4(`${SLUG}.mp4`, 4, "216x384");
-      reelFiles("Claude runs your script before every edit.", 2.1, "Comment HOOKS and I'll send you my five hooks.\n");
+      reelFiles("Claude runs your script before every edit.", 2.1, `Comment ${kw} and I'll send you my five hooks.\n`);
       job(FILM, null, "done", { outputs: DELIVERED });
       const { head, sub } = await expectCard("v2-ready", "cook-pane-c-22-v2-ready");
       const v = await player("final");
@@ -309,7 +311,7 @@ export default async function cookPane03({ page, step, snap }) {
       const round = await feedback.getByTestId("cook-round").first().innerText();
       console.log(`chip: ${chip} · round: ${round.replace(/\n/g, " ")}`);
       if (head !== "v2 ready" || sub !== "Changed: hook 2.6 s → 2.1 s · length 0:03 → 0:04 · 1 script line · 0:04 · QA 12/12") throw new Error(sub);
-      if (v.versions !== "v1 v2 ✓" || v.label !== "v2 · 0:04 · 1080×1920") throw new Error(v.versions);
+      if (v.versions !== "v1 v2 ✓" || v.label !== "v2 · 0:04 · 216×384") throw new Error(v.versions);
       if (!round.includes("→ hook 2.6 s → 2.1 s")) throw new Error(round);
     });
 

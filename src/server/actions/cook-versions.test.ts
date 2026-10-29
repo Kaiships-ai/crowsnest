@@ -45,6 +45,8 @@ test("deliver saves one version per final, keeps its files, and the next one get
   deliver(dir, "Hook 1.", 2.1, 2000);
   const stale = { ended: iso(-60_000) };
   expect((await snapshotCookVersion(dir, job(stale, { ended: iso(0) }))).versions.map((v) => v.n)).toEqual([1]);
+  // Deliver closed an earlier round after v1 was saved, but before this render: still not this round's.
+  expect((await snapshotCookVersion(dir, job({ ended: iso(-1_000) }, { ended: iso(0) }))).versions.map((v) => v.n)).toEqual([1]);
   const index = await snapshotCookVersion(dir, job({ ended: iso(1_000) }, { ended: iso(0) }));
   expect(index.versions.map((v) => [v.n, v.change])).toEqual([[1, null], [2, "hook 2.6 s → 2.1 s · 1 script line"]]);
   // Without started/ended, deliver must have been seen not done since the last version. A new `change` wins.

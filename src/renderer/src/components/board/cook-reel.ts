@@ -129,6 +129,24 @@ export function showCookTerminal(worktreeId: string): void {
   }
 }
 
+/** Opens a film file (CAPTION.md) in Orca's editor, in Claude's group so the Cook pane stays in view. */
+export function openCookFile(worktreeId: string, filePath: string, relativePath: string): void {
+  const state = useAppStore.getState()
+  const terminal = (state.tabsByWorktree[worktreeId] ?? []).findLast(
+    (tab) => tab.launchAgent === 'claude'
+  )
+  const tab = (state.unifiedTabsByWorktree[worktreeId] ?? []).find(
+    (candidate) => candidate.entityId === terminal?.id
+  )
+  const groupId = state.groupsByWorktree[worktreeId]?.find(
+    (g) => tab && g.tabOrder.includes(tab.id)
+  )?.id
+  state.openFile(
+    { filePath, relativePath, worktreeId, language: 'markdown', mode: 'edit' },
+    { ...(groupId ? { targetGroupId: groupId } : {}), preview: false }
+  )
+}
+
 /** Cook (B5-01): write the script into studio-reel, open a "Reel: <title>" folder workspace
  *  there split in two, the Cook pane left and Claude right, and type /make-reel into Claude
  *  once its TUI is ready. */
