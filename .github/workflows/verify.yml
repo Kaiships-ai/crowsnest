@@ -1,0 +1,87 @@
+name: verify
+
+# Runs the Lead Studio verify journeys for a PR on a Linux runner under Xvfb, in dev mode on the boards lane
+# (fake sidecar, Umami and Polar; no real-service keys). Journeys come from the feature files the PR
+# changes (ci-journeys.mjs), shell-01 when none. Screenshots, transcripts and a video go up as an
+# artifact, and its link is commented on the PR. Not a required check.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/renderer/**'
+      - 'src/server/**'
+      - '.claude/skills/verify/**'
+      - '.github/workflows/verify.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  journeys:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Electron's sandbox needs.
+      - name: Display, recorder and sandbox
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb ffmpeg >/dev/null
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Pick the journeys
+        id: pick
+        run: echo "journeys=$(node .claude/skills/verify/scripts/ci-journeys.mjs origin/${{ github.base_ref || 'main' }})" >> "$GITHUB_OUTPUT"
+
+      - name: Run the journeys
+        run: |
+          echo "journeys: ${{ steps.pick.outputs.journeys }}"
+          Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
+          for _ in $(seq 1 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
+          DISPLAY=:99 .claude/skills/verify/scripts/ci-run.sh ci ${{ steps.pick.outputs.journeys }}
+
+      - name: Upload evidence
+        id: upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-evidence
+          path: data/verify/evidence/ci/
+          if-no-files-found: warn
+
+      - name: Comment the evidence link
+        if: always() && github.event_name == 'pull_request' && steps.upload.outputs.artifact-url != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          URL: ${{ steps.upload.outputs.artifact-url }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "**Verify journeys (CI, fakes only): $STATUS**"
+            echo
+            cat data/verify/evidence/ci/summary.md 2>/dev/null || echo "No summary: the run stopped before the journeys."
+            echo
+            echo "Evidence (screenshots, transcripts, run.mp4): $URL"
+            echo "Run: $RUN_URL"
+          } > comment.md
+          gh pr comment "$PR" --body-file comment.md

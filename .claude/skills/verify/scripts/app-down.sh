@@ -26,7 +26,7 @@ POLAR="$(cat "$DIR/fake-polar.pid" 2>/dev/null || true)"
 rm -f "$DIR/fake-polar.pid" "$DIR/fake-polar.port"
 rc=0
 if [ -f "$DIR/host.fingerprint" ]; then
-  now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1)"
+  now="$({ jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null || true; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null || true; } | shasum | cut -d' ' -f1)"
   if [ "$now" != "$(cat "$DIR/host.fingerprint")" ]; then
     echo "app: HOST CHANGED: ~/.claude/settings.json hooks or ~/.orca/agent-hooks differ from before app-up. Report it with a revert path; a plugin install or Orca.app restart during the run also trips it." >&2
     rc=1

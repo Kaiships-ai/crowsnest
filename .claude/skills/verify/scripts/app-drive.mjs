@@ -66,6 +66,8 @@ async function runJourney(name, runId) {
         mkdirSync(process.env.BASELINE_DIR, { recursive: true });
         copyFileSync(out, path.join(process.env.BASELINE_DIR, `${file}.png`));
       }
+      // CI (verify.yml) shoots on Linux, where no approved baseline exists.
+      if (process.env.BASELINE_SKIP === "1") return log(`baseline: ${file} not compared (BASELINE_SKIP)`);
       const approved = path.join(APPROVED, `${file}.png`);
       if (process.env.UPDATE_BASELINE === "1") {
         mkdirSync(APPROVED, { recursive: true });
