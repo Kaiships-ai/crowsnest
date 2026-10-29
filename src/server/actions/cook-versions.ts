@@ -189,7 +189,11 @@ export function postCaption(md: string): string | null {
   const start = /^#\s/.test(lines.find((l) => l.trim()) ?? "") ? lines.findIndex((l) => l.trim()) + 1 : 0;
   const rest = lines.slice(start);
   const end = rest.findIndex((l) => /^##\s/.test(l));
-  return (end === -1 ? rest : rest.slice(0, end)).join("\n").trim() || null;
+  const section = (end === -1 ? rest : rest.slice(0, end)).join("\n");
+  // Why: a real cook's Claude wrote the caption in a ``` block under a **Post caption** label, with the
+  // pinned comment and keyword after it in the same section; the block is the post caption.
+  const fenced = /^```[^\n]*\n([\s\S]*?)\n```/m.exec(section);
+  return (fenced ? fenced[1] : section).trim() || null;
 }
 
 /** The files Gate 2 gets for version n: its saved mp4, and CAPTION.md. The newest version reads the film's own

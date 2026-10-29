@@ -102,6 +102,7 @@ test("Send to Gate 2 with no post caption attaches the video and cover and keeps
 test("CAPTION.md's post caption is the text under # Caption, without the pinned comment", () => {
   expect(postCaption("# Caption\n\nHook line.\n\nComment APPS and I'll send it.\n\n## Pinned comment\n\nComment APPS below.")).toBe("Hook line.\n\nComment APPS and I'll send it.");
   expect(postCaption("Comment HOOKS first.\nMore.")).toBe("Comment HOOKS first.\nMore.");
+  expect(postCaption("# Caption · reel\n\n**Post caption** (first line = the hook):\n\n```\nHook line.\n\nComment HOOKS and I'll send it.\n```\n\n**Keyword:** `HOOKS`")).toBe("Hook line.\n\nComment HOOKS and I'll send it.");
   expect(postCaption("# Caption\n\n## Pinned comment\nx")).toBeNull();
 });
 
