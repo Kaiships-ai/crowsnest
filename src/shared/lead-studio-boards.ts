@@ -4,6 +4,7 @@ export const LEAD_STUDIO_BOARDS = [
   { id: 'own', label: 'My channel' },
   { id: 'rivals', label: 'Rivals' },
   { id: 'plan', label: 'Plan' },
+  { id: 'studio', label: 'Studio' },
   { id: 'gate', label: 'Gate 1' },
   { id: 'gate2', label: 'Gate 2' },
   { id: 'agents', label: 'Agents' }

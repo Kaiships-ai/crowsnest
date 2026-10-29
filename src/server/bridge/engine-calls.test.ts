@@ -84,6 +84,7 @@ const READ_ARGS: Record<string, unknown[]> = {
   getPlannedPosts: [],
   getPlannedPostById: ["p-1"],
   getCookView: ["p-1"],
+  listCooksAction: [],
   getCalendarMonth: [new Date().toISOString().slice(0, 7)],
   getScripts: [],
   listPlanVersions: [{ period: "month", periodKey: "2026-11" }],

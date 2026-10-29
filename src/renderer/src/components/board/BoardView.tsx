@@ -9,6 +9,7 @@ import { Gate2Board } from './Gate2Board'
 import { OwnBoard } from './OwnBoard'
 import { PlanBoard } from './PlanBoard'
 import { RivalsBoard } from './RivalsBoard'
+import { StudioBoard } from './StudioBoard'
 import { TodayBoard } from './TodayBoard'
 
 const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
@@ -17,6 +18,7 @@ const BOARD_VIEWS: Record<BoardId, () => React.ReactNode> = {
   own: OwnBoard,
   rivals: RivalsBoard,
   plan: PlanBoard,
+  studio: StudioBoard,
   gate: GateBoard,
   gate2: Gate2Board,
   agents: AgentsBoard

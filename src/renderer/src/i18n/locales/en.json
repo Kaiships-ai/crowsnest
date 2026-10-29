@@ -21492,7 +21492,37 @@
         "Draft": "Draft",
         "Final": "Final",
         "Review": "Review"
-      }
+      },
+      "feedback": "Feedback to Claude",
+      "sameSession": "same session",
+      "round": "Round {{n}}",
+      "making": "making v{{n}}",
+      "queuedRender": "Queued: \"{{note}}\". Claude gets it when the final render is done.",
+      "queuedIdle": "Queued: \"{{note}}\". Claude gets it when it finishes.",
+      "cancel": "Cancel",
+      "feedbackPlaceholder": "e.g. make the hook faster",
+      "queue": "Queue",
+      "sendHint": "Claude changes the reel in the terminal on the right. This version stays.",
+      "queueHint": "Claude is busy. Your note goes in when it finishes.",
+      "done": "Done",
+      "draftBadge": "DRAFT",
+      "video": "Video",
+      "draftProgress": "Draft · 270×480",
+      "noVideo": "No video yet. It comes after Build.",
+      "versions": "Versions",
+      "gateGetsVersion": "Gate 2 gets this version",
+      "changed": "changed: {{change}}",
+      "gateGets": "Gate 2 gets this",
+      "length": "Length",
+      "hook": "Hook",
+      "qa": "QA",
+      "usingVersion": "Using v{{n}}",
+      "useVersion": "Use v{{n}}",
+      "captionSame": "caption the same",
+      "captionChanged": "caption changed",
+      "compare": "Compare",
+      "diffOne": "Script · 1 line changed · {{caption}}",
+      "diffMany": "Script · {{n}} lines changed · {{caption}}"
     }
   },
   "gate": {
@@ -21778,5 +21808,12 @@
     "to": "To",
     "trail": "proposed by {{proposer}} · {{verdict}} by {{who}} {{time}}",
     "what": "Does"
+  },
+  "studio": {
+    "title": "Studio",
+    "cooking": "{{count}} cooking",
+    "empty": "Nothing is cooking. Cook a reel from Plan.",
+    "oneRender": "One render at a time, so the Mac stays fast. The second one starts by itself.",
+    "open": "Open"
   }
 }

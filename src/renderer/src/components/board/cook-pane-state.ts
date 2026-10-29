@@ -8,6 +8,7 @@ import {
   type CookClaude,
   type CookPrompt
 } from './cook-claude-cards'
+import { deliveredCard, openRound, queuedRenderCard, roundCard } from './cook-version-cards'
 
 export type CookView = Extract<EngineCallValue<'getCookView'>, { ok: true }>
 type CookJobStep = NonNullable<CookView['steps']>[number]
@@ -26,7 +27,7 @@ export type CookGroup = (typeof COOK_GROUPS)[number]['group']
 
 export type CookTone = 'run' | 'need' | 'err' | 'ok' | 'idle'
 export type SegmentState = 'done' | 'current' | 'waiting' | 'failed' | 'paused' | 'pending'
-export type CookAction = 'retry' | 'resume' | 'terminal'
+export type CookAction = 'retry' | 'resume' | 'terminal' | 'compare' | 'donecompare'
 
 export type CookCard = {
   /** The proto v2 state this card is, for journeys and docs. */
@@ -41,6 +42,8 @@ export type CookCard = {
   prompt?: CookPrompt
   /** The plain-text question fallback: a reply box that types into the terminal. */
   reply?: boolean
+  /** The two versions Compare shows (proto 22). */
+  compare?: [number, number]
 }
 
 export type CookSegment = { group: CookGroup; state: SegmentState; time?: string; pct?: number }
@@ -90,9 +93,11 @@ export function cookSegments(
       state,
       ...(asked
         ? { time: `asked ${asked}` }
-        : view.elapsedSec != null
-          ? { time: mmss(view.elapsedSec) }
-          : {}),
+        : current.name === 'render' && view.renderQueue
+          ? { time: 'in line' }
+          : view.elapsedSec != null
+            ? { time: mmss(view.elapsedSec) }
+            : {}),
       ...(current.pct != null ? { pct: current.pct } : {})
     }
   })
@@ -134,14 +139,8 @@ export function cookCard(
   }
   const current = currentStep(steps)
   if (!current) {
-    return {
-      state: 'ready',
-      tone: 'ok',
-      head: 'Ready for Gate 2',
-      ...(view.qa ? { sub: `QA ${view.qa}` } : {}),
-      acts: [],
-      wait: 'Nothing posts. The reel waits here, and the Plan card reads Ready.'
-    }
+    // Why: right after feedback is sent, every step still reads done until Claude starts the round.
+    return (openRound(view) && roundCard(view, null, '')) || deliveredCard(view)
   }
   // Why Review: job.json names only the 10 known steps; an unknown one sits at the end.
   const group = COOK_GROUPS[groupOf(current.name)]?.group ?? 'Review'
@@ -184,6 +183,12 @@ export function cookCard(
     }
   }
   const so = view.elapsedSec != null ? ` · ${mmss(view.elapsedSec)} so far` : ''
+  const queued = current.name === 'render' ? queuedRenderCard(view) : null
+  const round = queued ?? roundCard(view, group, so)
+  if (round) {
+    return round
+  }
+  const draftPlays = view.video?.kind === 'draft'
   switch (group) {
     case 'Script':
       return {
@@ -230,6 +235,18 @@ export function cookCard(
       // Why no %: the full render reports none yet, so the pane shows elapsed against the usual time.
       const el = view.elapsedSec
       const usual = mmss(view.usualRenderSec)
+      // ponytail: "just started" is the render's first minute; the proto draws 08 at 4%.
+      if (current.name === 'render' && draftPlays && (el == null || el < 60)) {
+        return {
+          state: 'draft-ready',
+          tone: 'run',
+          head: 'Draft ready to watch. Final render running',
+          sub: `Step 5 of 6 · 1080×1920${el != null ? ` · ${mmss(el)} so far, usually about ${usual}` : ''}`,
+          acts: [],
+          can: 'Watch the draft. Feedback can go in now; Claude reads it after the final.',
+          wait: 'The final replaces the draft in this player.'
+        }
+      }
       if (current.name === 'render' && el != null && el > 2 * view.usualRenderSec) {
         return {
           state: 'long-render',
@@ -251,6 +268,7 @@ export function cookCard(
             ? `Step 5 of 6 · ${mmss(el)} so far, usually about ${usual}`
             : `Step 5 of 6${so}`,
         acts: [],
+        ...(draftPlays ? { can: 'Watch the draft meanwhile.' } : {}),
         wait: 'When the render is done, Claude checks it and reviews it.'
       }
     }
@@ -261,6 +279,9 @@ export function cookCard(
         head: 'Final video ready. Claude is reviewing it',
         sub: `Step 6 of 6${view.qa ? ` · QA ${view.qa}` : ''}`,
         acts: [],
+        ...(view.video?.kind === 'final'
+          ? { can: 'Watch the final. Claude may fix small things and render again.' }
+          : {}),
         wait: 'Claude writes the caption and hands the reel to you.'
       }
   }

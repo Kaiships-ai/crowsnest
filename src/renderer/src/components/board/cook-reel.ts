@@ -6,6 +6,7 @@ import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
+import { resolveTuiAgentLaunchArgs } from '../../../../shared/tui-agent-launch-defaults'
 import type { TabGroupLayoutNode } from '../../../../shared/tab-types'
 import type { PlanCard } from './plan-card-parts'
 
@@ -85,6 +86,11 @@ function openCookSplit(worktreeId: string, planId: string): string | undefined {
   return right?.id ?? store.createEmptySplitGroup(worktreeId, left, 'right') ?? undefined
 }
 
+// Why --settings: Claude Code's `env` setting reaches every command Claude runs, on every launch path
+// (local or host-published), where a tab env would not. studio-reel's video.mjs then takes one render
+// slot at a time, so two cooks never render at once (proto 40). POSIX quoting: the cook root is a Mac path.
+const COOK_SETTINGS = `--settings '${JSON.stringify({ env: { RENDER_SLOTS: '1' } })}'`
+
 /** Starts Claude on the reel's script in the group beside the Cook pane. Resume uses it too:
  *  /make-reel continues from job.json and skips the done steps. */
 export function launchCookClaude(args: {
@@ -101,6 +107,9 @@ export function launchCookClaude(args: {
     worktreeId,
     ...(groupId ? { groupId } : {}),
     prompt: `/make-reel ${args.scriptPath}`,
+    agentArgs: [resolveTuiAgentLaunchArgs('claude', useAppStore.getState().settings), COOK_SETTINGS]
+      .filter(Boolean)
+      .join(' '),
     initialCwd: args.root,
     promptDelivery: 'submit-after-ready'
   })

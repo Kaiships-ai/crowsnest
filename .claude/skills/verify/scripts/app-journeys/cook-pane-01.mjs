@@ -85,6 +85,15 @@ export default async function cookPane01({ page, step, snap }) {
     chmodSync(fake, 0o755);
     await page.evaluate((cmd) => window.__store.getState().updateSettings({ agentCmdOverrides: { claude: cmd } }), fake);
     rmSync(FILM, { recursive: true, force: true });
+    // A rerun, or cook-pane-02/03 before it, reuses the reel workspace: close the terminals they left there.
+    await page.evaluate(() => {
+      const s = window.__store.getState();
+      const w = s.folderWorkspaces.find((x) => x.name === "Reel: PLAN01 full script");
+      for (const t of (w && s.tabsByWorktree[`folder:${w.id}`]) ?? []) s.closeTab(t.id);
+      for (const t of (w && s.unifiedTabsByWorktree[`folder:${w.id}`]) ?? []) s.closeUnifiedTab(t.id);
+      if (w) s.setActiveWorktree(`folder:${w.id}`);
+    });
+    await page.waitForTimeout(500);
     // The seeded reel has no keyword; Cook writes it as campaign: and job.mjs copies it into job.json.
     sql(`update planned_posts set cook_workspace_id = null, keyword = coalesce(keyword, 'COOKPANE') where id = '${PLAN}'`);
     console.log(`claude: ${fake}\njob.mjs: ${existsSync(JOB_MJS) ? "studio-reel core/job.mjs" : "inline writer, same format"}`);
