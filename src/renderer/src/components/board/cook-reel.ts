@@ -6,6 +6,7 @@ import { launchAgentInNewTab } from '@/lib/launch-agent-in-new-tab'
 import { activateAndRevealFolderWorkspace } from '@/lib/worktree-activation'
 import { LOCAL_EXECUTION_HOST_ID } from '../../../../shared/execution-host'
 import { folderWorkspaceKey } from '../../../../shared/workspace-scope'
+import type { TabGroupLayoutNode } from '../../../../shared/tab-types'
 import type { PlanCard } from './plan-card-parts'
 
 const STUDIO_GROUP = 'Studio Reel'
@@ -14,8 +15,53 @@ type CookOutcome = { ok: true } | { ok: false; error: string }
 
 export const COOK_TAB_PREFIX = 'board::cook::'
 
-export function openCookWorkspace(workspaceId: string): boolean {
-  return activateAndRevealFolderWorkspace(workspaceId, { navigationIntent: 'user-open' }) !== false
+/** Opens the reel workspace. With `planId` it also puts the Cook pane back left of Claude when the
+ *  workspace has none: board tabs are not restored when the app restarts, Claude's terminal is. */
+export function openCookWorkspace(workspaceId: string, planId?: string): boolean {
+  const opened =
+    activateAndRevealFolderWorkspace(workspaceId, { navigationIntent: 'user-open' }) !== false
+  if (opened && planId) {
+    ensureCookPane(folderWorkspaceKey(workspaceId), planId)
+  }
+  return opened
+}
+
+function openCookTab(worktreeId: string, planId: string, groupId: string): void {
+  useAppStore.getState().openFile(
+    {
+      filePath: `${COOK_TAB_PREFIX}${planId}`,
+      relativePath: 'Cook',
+      worktreeId,
+      language: 'plaintext',
+      mode: 'board'
+    },
+    { targetGroupId: groupId, preview: false }
+  )
+}
+
+function leftmostGroup(node: TabGroupLayoutNode | undefined): string | undefined {
+  return node?.type === 'leaf' ? node.groupId : node ? leftmostGroup(node.first) : undefined
+}
+
+function ensureCookPane(worktreeId: string, planId: string): void {
+  const store = useAppStore.getState()
+  const filePath = `${COOK_TAB_PREFIX}${planId}`
+  if ((store.unifiedTabsByWorktree[worktreeId] ?? []).some((tab) => tab.entityId === filePath)) {
+    return
+  }
+  // The leftmost group on screen: reuse it when a restart left it empty, else split left of it.
+  const first =
+    leftmostGroup(store.layoutByWorktree[worktreeId]) ?? store.groupsByWorktree[worktreeId]?.[0]?.id
+  const empty =
+    store.groupsByWorktree[worktreeId]?.find((g) => g.id === first)?.tabOrder.length === 0
+  const left = !first
+    ? store.ensureWorktreeRootGroup(worktreeId)
+    : empty
+      ? first
+      : store.createEmptySplitGroup(worktreeId, first, 'left')
+  if (left) {
+    openCookTab(worktreeId, planId, left)
+  }
 }
 
 /** Opens the Cook pane (a board tab) in the workspace's first group and returns the group beside
@@ -32,16 +78,7 @@ function openCookSplit(worktreeId: string, planId: string): string | undefined {
       store.groupsByWorktree[worktreeId]?.find((group) => group.tabOrder.includes(paneTab.id))
         ?.id) ??
     store.ensureWorktreeRootGroup(worktreeId)
-  store.openFile(
-    {
-      filePath,
-      relativePath: 'Cook',
-      worktreeId,
-      language: 'plaintext',
-      mode: 'board'
-    },
-    { targetGroupId: left, preview: false }
-  )
+  openCookTab(worktreeId, planId, left)
   const right = (useAppStore.getState().groupsByWorktree[worktreeId] ?? []).find(
     (group) => group.id !== left
   )
