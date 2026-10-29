@@ -7,7 +7,15 @@ export const lastVersion = (view: CookView): number => view.versions.at(-1)?.n ?
 /** The feedback round Claude is working on: sent from the newest version, its result not saved yet. */
 export function openRound(view: CookView): CookView['rounds'][number] | null {
   const round = view.rounds.at(-1)
-  return round && round.from === lastVersion(view) ? round : null
+  if (!round || round.from !== lastVersion(view)) {
+    return null
+  }
+  // Why: in a real cook Claude closed a round with deliver done and no new render (the note asked for
+  // nothing), so no version came and the pane said "Making v2" forever, holding the queued note.
+  const deliver = view.steps?.find((s) => s.name === 'deliver')
+  const closed =
+    deliver?.status === 'done' && Date.parse(deliver.ended ?? '') > Date.parse(round.sentAt)
+  return closed ? null : round
 }
 
 /** The version Gate 2 gets: Kai's pick, else the newest. */

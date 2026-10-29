@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { cookPrompt, reopenBanner, type CookClaude } from './cook-claude-cards'
 import { cookCard, cookSegments, type CookView } from './cook-pane-state'
+import { openRound } from './cook-version-cards'
 
 const STEPS = [
   'script',
@@ -130,6 +131,20 @@ describe('Cook pane cards driven by Claude', () => {
       acts: ['terminal']
     })
     expect(cookCard(v, claude({ working: false }), NOW).acts).toEqual(['resume', 'terminal'])
+  })
+
+  it('a round Claude closed with deliver done and no new render is no longer open', () => {
+    const v = view('deliver', 'running')
+    const sent = {
+      ...v,
+      rounds: [{ n: 1, note: 'hi', from: 0, sentAt: '2026-10-29T13:51:20.000Z' }]
+    }
+    const done = (ended: string): CookView => ({
+      ...sent,
+      steps: sent.steps!.map((s) => (s.name === 'deliver' ? { ...s, status: 'done', ended } : s))
+    })
+    expect(openRound(done('2026-10-29T13:40:00.000Z'))?.n).toBe(1)
+    expect(openRound(done('2026-10-29T13:51:25.000Z'))).toBeNull()
   })
 
   it('a stopped cook reads stopped by you, and a cook that is cooking again ignores the stamp', () => {
