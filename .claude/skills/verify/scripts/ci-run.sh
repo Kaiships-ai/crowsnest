@@ -16,7 +16,7 @@ FF=$!
 
 rc=0
 { echo "| Journey | Result |"; echo "|---|---|"; } >"$OUT/summary.md"
-if env SHELLOPTS=xtrace "$S/boards-lane.sh" >"$OUT/lane-boards.out" 2>&1; then
+if "$S/boards-lane.sh" >"$OUT/lane-boards.out" 2>&1; then
   for j in "$@"; do
     if "$S/app-drive.sh" "$j" "$RUN" >"$OUT/$j.out" 2>&1; then r=ok; else r=FAIL; rc=1; fi
     echo "| \`$j\` | $r |" >>"$OUT/summary.md"
