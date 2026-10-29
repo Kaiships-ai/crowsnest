@@ -55,6 +55,7 @@ jobs:
         run: |
           echo "journeys: ${{ steps.pick.outputs.journeys }}"
           Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
+          for _ in $(seq 1 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
           DISPLAY=:99 .claude/skills/verify/scripts/ci-run.sh ci ${{ steps.pick.outputs.journeys }}
 
       - name: Upload evidence
