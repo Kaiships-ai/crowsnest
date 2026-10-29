@@ -4,7 +4,7 @@ import { translate } from '@/i18n/i18n'
 import { BoardStates } from './BoardStates'
 import { cookCard, cookSegments, type CookView } from './cook-pane-state'
 import { Strip } from './cook-pane-parts'
-import { openCookWorkspace } from './cook-reel'
+import { cookReel, openCookWorkspace } from './cook-reel'
 import type { BoardLoadState } from './use-board-load'
 
 type Cook = { id: string; view: CookView }
@@ -103,7 +103,17 @@ function StudioRow({ id, view }: Cook): React.ReactNode {
         size="sm"
         variant="outline"
         disabled={!view.workspaceId}
-        onClick={() => view.workspaceId && openCookWorkspace(view.workspaceId, id)}
+        onClick={() => {
+          const workspaceId = view.workspaceId
+          if (!workspaceId || openCookWorkspace(workspaceId, id)) {
+            return
+          }
+          // Why: after an app restart in a real cook the reel workspace was gone while the row still
+          // said cooking, so Open did nothing and Cook was refused. Cook again: /make-reel skips done steps.
+          void window.api.crowsnest
+            .call('clearPlanCookingAction', id, workspaceId)
+            .then(() => cookReel({ id }, () => {}))
+        }}
       >
         {translate('studio.open', 'Open')}
       </Button>
