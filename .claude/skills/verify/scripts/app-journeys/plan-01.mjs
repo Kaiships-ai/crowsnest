@@ -55,6 +55,7 @@ export default async function plan01({ page, step, snap, snapAndCompare }) {
   await page.setViewportSize(SCREEN);
 
   await step("open Plan from the new-tab menu: the month shows each seeded reel on its day with its state, flagged when it misses an item", async () => {
+    if (sql("select ifnull(cook_workspace_id, '') from planned_posts where id = 'plan-e2e-full'")) throw new Error("plan-e2e-full was Cooked on this lane: run plan-01 before the cook journeys, or on a fresh lane");
     await openFromNewTabMenu(page);
     const cell = board.locator(`[data-testid="plan-month-day"][data-date="${date}"]`);
     await cell.getByTestId("plan-chip").first().waitFor({ timeout: 10_000 });
@@ -63,7 +64,7 @@ export default async function plan01({ page, step, snap, snapAndCompare }) {
     console.log(`${date}: ${chips.join(" ")} (db ${db.join(" ")})`);
     // A run-all lane approves Gate 1 first, which syncs that week's plan drafts onto the same days.
     const seeded = chips.filter((c) => c.startsWith("plan-e2e-"));
-    if (seeded.sort().join() !== ["plan-e2e-armed:scheduled:flag", "plan-e2e-draft:draft:flag", "plan-e2e-full:plan:flag"].join()) throw new Error("month chips differ");
+    if (seeded.sort().join() !== ["plan-e2e-armed:scheduled:flag", "plan-e2e-draft:draft:flag", "plan-e2e-full:plan:flag"].join()) throw new Error(`month chips differ: ${seeded.join(" ")}`);
   });
   await snapBoth(page, snap, "plan-01-month");
 
