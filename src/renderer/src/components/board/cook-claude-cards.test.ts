@@ -16,7 +16,7 @@ const STEPS = [
 ]
 const NOW = 1_800_000_000_000
 
-function view(at: string, status: 'running' | 'waiting', cooking = true): CookView {
+function view(at: string, status: 'running' | 'waiting' | 'failed', cooking = true): CookView {
   const i = STEPS.indexOf(at)
   return {
     ok: true,
@@ -121,6 +121,15 @@ describe('Cook pane cards driven by Claude', () => {
       group: 'Build',
       state: 'paused'
     })
+  })
+
+  it('a failed step offers Resume only once Claude stops working on it', () => {
+    const v = view('voice', 'failed')
+    expect(cookCard(v, claude({ working: true }), NOW)).toMatchObject({
+      state: 'step-failed',
+      acts: ['terminal']
+    })
+    expect(cookCard(v, claude({ working: false }), NOW).acts).toEqual(['resume', 'terminal'])
   })
 
   it('a stopped cook reads stopped by you, and a cook that is cooking again ignores the stamp', () => {

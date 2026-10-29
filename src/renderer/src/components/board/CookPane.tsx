@@ -175,6 +175,7 @@ function CookPaneBody({
     liveness,
     prompt: entryPrompt,
     askedAt,
+    working: claudeState === 'working',
     stoppedAt,
     restarted: reopen?.restarted ?? false
   }

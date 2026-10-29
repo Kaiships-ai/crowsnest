@@ -115,6 +115,7 @@ function WithClaude({
           : 'alive',
     prompt: promptFromStatus(entry),
     askedAt: entry?.stateStartedAt ?? null,
+    working: entry?.state === 'working',
     stoppedAt: null,
     restarted: false
   }

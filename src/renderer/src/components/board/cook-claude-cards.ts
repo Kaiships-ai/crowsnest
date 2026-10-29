@@ -23,6 +23,8 @@ export type CookClaude = {
    *  closed: no Claude tab; unknown: the workspace's tabs are not restored yet. */
   liveness: 'alive' | 'exited' | 'closed' | 'unknown'
   prompt: CookPrompt | null
+  /** Claude's status is working (its hooks say it is mid-turn). */
+  working?: boolean
   /** When Orca saw Claude start waiting on the prompt (ms). */
   askedAt: number | null
   /** Kai stopped the cook with Stop cook (ms). */
