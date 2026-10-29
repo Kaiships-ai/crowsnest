@@ -71,7 +71,7 @@ export default async function cookRestart01({ page, step, snap }) {
     let browser;
     let fresh;
     for (let i = 0; !fresh && i < 120; i++) {
-      browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`).catch(() => null);
+      browser = await chromium.connectOverCDP(`http://127.0.0.1:${cdpPort}`, { timeout: 5_000 }).catch(() => null);
       fresh = browser?.contexts().flatMap((c) => c.pages()).find((p) => /\/renderer\/index\.html$|^http:\/\/localhost:\d+\/$/.test(p.url()));
       if (!fresh) await new Promise((r) => setTimeout(r, 500));
     }
