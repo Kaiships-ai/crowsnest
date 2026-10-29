@@ -243,7 +243,7 @@ export default async function cookPane03({ page, step, snap }) {
       const { can } = await expectCard("mp4-ready");
       const v = await player("final");
       if (can !== "Watch the final. Claude may fix small things and render again. / Claude writes the caption and hands the reel to you.") throw new Error(can);
-      if (v.draft || v.label !== "v1 · 0:03 · 1080×1920") throw new Error(v.label);
+      if (v.draft || v.label !== "v1 · 0:03 · 216×384") throw new Error(v.label);
       await snap("cook-pane-c-11-final");
     });
 
@@ -270,7 +270,7 @@ export default async function cookPane03({ page, step, snap }) {
       const round = await feedback.getByTestId("cook-round").first().innerText();
       console.log(`round: ${round.replace(/\n/g, " ")} · queue gone: ${(await feedback.getByTestId("cook-queued").count()) === 0}`);
       if (head !== "Making v2 from your note" || sub !== '"bigger captions"' || !can.startsWith("Watch v1 meanwhile. It stays here.")) throw new Error(head);
-      if (v.label !== "v1 · 0:03 · 1080×1920" || v.versions !== "v1 ✓ v2 …") throw new Error(`${v.label} | ${v.versions}`);
+      if (v.label !== "v1 · 0:03 · 216×384" || v.versions !== "v1 ✓ v2 …") throw new Error(`${v.label} | ${v.versions}`);
       if (!round.includes("making v2")) throw new Error(round);
       await snap("cook-pane-c-19-v2-making");
     });
@@ -284,7 +284,7 @@ export default async function cookPane03({ page, step, snap }) {
       await snap("cook-pane-c-21-v2-draft");
       await video.getByTestId("cook-version-v1").click();
       const back = await player("version");
-      if (back.label !== "v1 · 0:03 · 1080×1920") throw new Error(back.label);
+      if (back.label !== "v1 · 0:03 · 216×384") throw new Error(back.label);
       await video.getByTestId("cook-version-v2").click();
       await player("draft");
     });
@@ -311,7 +311,7 @@ export default async function cookPane03({ page, step, snap }) {
       const round = await feedback.getByTestId("cook-round").first().innerText();
       console.log(`chip: ${chip} · round: ${round.replace(/\n/g, " ")}`);
       if (head !== "v2 ready" || sub !== "Changed: hook 2.6 s → 2.1 s · length 0:03 → 0:04 · 1 script line · 0:04 · QA 12/12") throw new Error(sub);
-      if (v.versions !== "v1 v2 ✓" || v.label !== "v2 · 0:04 · 1080×1920") throw new Error(v.versions);
+      if (v.versions !== "v1 v2 ✓" || v.label !== "v2 · 0:04 · 216×384") throw new Error(v.versions);
       if (!round.includes("→ hook 2.6 s → 2.1 s")) throw new Error(round);
     });
 

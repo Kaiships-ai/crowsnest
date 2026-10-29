@@ -36,7 +36,7 @@ function Player({
   file: string
   revision: string
   draft?: boolean
-  onDuration?: (sec: number) => void
+  onDuration?: (sec: number, size: string) => void
 }): React.ReactNode {
   const url = useMediaUrl(file, revision)
   return (
@@ -48,7 +48,12 @@ function Player({
           controls
           preload="metadata"
           className="size-full bg-black object-contain"
-          onLoadedMetadata={(e) => onDuration?.(e.currentTarget.duration)}
+          onLoadedMetadata={(e) =>
+            onDuration?.(
+              e.currentTarget.duration,
+              `${e.currentTarget.videoWidth}×${e.currentTarget.videoHeight}`
+            )
+          }
         />
       ) : null}
       {draft ? (
@@ -71,6 +76,8 @@ export function VideoBox({
   onShow: (n: number | null) => void
 }): React.ReactNode {
   const [duration, setDuration] = useState<number | null>(null)
+  // Why: a test-preset cook renders 270×480, so the label reads the file, not a fixed 1080×1920.
+  const [size, setSize] = useState<string | null>(null)
   const round = openRound(view)
   const last = lastVersion(view)
   const delivered = view.steps?.find((s) => s.name === 'deliver')?.status === 'done'
@@ -86,12 +93,12 @@ export function VideoBox({
   const draftStep = view.steps?.find((s) => s.name === 'draft')
   const len = duration != null ? mmss(duration) : null
   const label = older
-    ? `v${older.n}${len ? ` · ${len}` : ''} · 1080×1920`
+    ? `v${older.n}${len ? ` · ${len}` : ''}${size ? ` · ${size}` : ''}`
     : draft
       ? round
         ? `v${newest} draft · low quality`
         : `Draft · low quality${len ? ` · ${len}` : ''}`
-      : `v${newest}${len ? ` · ${len}` : ''} · 1080×1920`
+      : `v${newest}${len ? ` · ${len}` : ''}${size ? ` · ${size}` : ''}`
   const change = (older ?? (delivered && !round ? view.versions.at(-1) : undefined))?.change
   const pick = gateVersion(view)
   return (
@@ -107,7 +114,10 @@ export function VideoBox({
           file={file}
           revision={String(older ? older.mp4Mtime : view.video?.mtime)}
           draft={draft}
-          onDuration={setDuration}
+          onDuration={(sec, wh) => {
+            setDuration(sec)
+            setSize(wh)
+          }}
         />
       ) : draftStep?.status === 'running' && draftStep.pct != null ? (
         <div className="mx-auto flex aspect-[9/16] w-full max-w-[188px] flex-col items-center justify-center gap-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
