@@ -60,3 +60,21 @@ describe('normalizeFolderWorkspaces host attribution', () => {
     expect(inherited.connectionId).toBe('ssh-group')
   })
 })
+
+describe('normalizeFolderWorkspaces group without a parent path', () => {
+  const plainGroup = { ...folderGroup, id: 'group-2', parentPath: null } as unknown as ProjectGroup
+
+  it('keeps a workspace that names its own folder', () => {
+    const workspaces = normalizeFolderWorkspaces(
+      [{ id: 'ws-1', projectGroupId: 'group-2', name: 'Reel: x', folderPath: '/tmp/studio-reel' }],
+      [plainGroup]
+    )
+    expect(workspaces.map((w) => w.folderPath)).toEqual(['/tmp/studio-reel'])
+  })
+
+  it('drops a workspace with no folder of its own or from its group', () => {
+    expect(
+      normalizeFolderWorkspaces([{ id: 'ws-1', projectGroupId: 'group-2' }], [plainGroup])
+    ).toEqual([])
+  })
+})

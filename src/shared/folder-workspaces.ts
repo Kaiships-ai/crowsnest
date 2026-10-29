@@ -23,12 +23,9 @@ export function normalizeFolderWorkspaces(
   if (!Array.isArray(value)) {
     return []
   }
-  const folderGroups = new Map<string, ProjectGroup>()
-  for (const group of projectGroups) {
-    if (group.parentPath) {
-      folderGroups.set(group.id, group)
-    }
-  }
+  // Why every group: createFolderWorkspace accepts a group with no parentPath when the workspace
+  // names its own folder (Cook's "Reel: <title>"); dropping it here lost it on every restart.
+  const folderGroups = new Map(projectGroups.map((group) => [group.id, group]))
 
   const workspaces: FolderWorkspace[] = []
   const seen = new Set<string>()
