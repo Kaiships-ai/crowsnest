@@ -1,6 +1,6 @@
 name: verify
 
-# Runs the Lead Studio verify journeys for a PR on a Linux runner under xvfb, in dev mode on the boards lane
+# Runs the Lead Studio verify journeys for a PR on a Linux runner under Xvfb, in dev mode on the boards lane
 # (fake sidecar, Umami and Polar; no real-service keys). Journeys come from the feature files the PR
 # changes (ci-journeys.mjs), shell-01 when none. Screenshots, transcripts and a video go up as an
 # artifact, and its link is commented on the PR. Not a required check.
@@ -54,8 +54,8 @@ jobs:
       - name: Run the journeys
         run: |
           echo "journeys: ${{ steps.pick.outputs.journeys }}"
-          xvfb-run -a -s "-screen 0 1440x900x24" \
-            .claude/skills/verify/scripts/ci-run.sh ci ${{ steps.pick.outputs.journeys }}
+          Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
+          DISPLAY=:99 .claude/skills/verify/scripts/ci-run.sh ci ${{ steps.pick.outputs.journeys }}
 
       - name: Upload evidence
         id: upload

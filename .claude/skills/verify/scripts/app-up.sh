@@ -42,7 +42,7 @@ fi
 
 # Lead Studio must never touch the installed Orca.app's hooks: app-down.sh compares these after the run.
 host_fingerprint() {
-  { jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null; } | shasum | cut -d' ' -f1
+  { jq -S '.hooks // {}' "$HOME/.claude/settings.json" 2>/dev/null; cat "$HOME"/.orca/agent-hooks/* 2>/dev/null || true; } | shasum | cut -d' ' -f1
 }
 host_fingerprint >"$DIR/host.fingerprint"
 

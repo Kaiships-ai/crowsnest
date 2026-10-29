@@ -36,6 +36,12 @@ APP_REAL_DB=<db> .claude/skills/verify/scripts/app-up.sh --real  # DB = a copy o
 
 `app-drive.sh <journey>` connects over CDP and runs `app-journeys/<journey>.mjs`. A journey exports `default async ({ page, step, snap, snapAndCompare })`; each `step(label, fn)` prints `ok: <label>` or `FAIL: <label>` and exits 1. `snapAndCompare(name, locator?)` shoots the page (or one element) and fails when more than 0.5% of its pixels (`BASELINE_DIFF_MAX`) differ from `<name>.png` in the approved baseline (`~/.claude/orchestrate/lead-studio-v2/baseline`, or `BASELINE_APPROVED`); run it once with `UPDATE_BASELINE=1` to approve a new shot. Shoot on `baseline-lane.sh`, whose stopped clock keeps dates fixed. Journeys reuse Orca's own e2e helpers from `tests/e2e/helpers/`. Use `mcp.sh` for agent-side setup (plan versions, funnel rows, attach video), then prove the result in the UI. Each feature's journey and gotchas are in `features/`.
 
+## Run in CI
+
+`.github/workflows/verify.yml` runs on every PR that touches `src/renderer/`, `src/server/` or the verify skill: an Ubuntu runner, Xvfb, dev mode, the boards lane (fake sidecar, Umami and Polar; no real-service keys). `ci-journeys.mjs` picks the journeys: each `app-drive.sh <journey>` a changed feature file names, minus the ones that need their own lane (`gate2-01`, `schedule-01`, `fresh-01`, `card-state-*`, `graph-pull-01`, `crash-rest-*`, `baseline-v2`), or `shell-01` when none is left. `ci-run.sh` records the display with ffmpeg (`run.mp4`), drives each journey, and writes `summary.md`; the workflow uploads `data/verify/evidence/ci/` as the `verify-evidence` artifact and comments its link and the journey table on the PR. `BASELINE_SKIP=1` turns `snapAndCompare` into a plain shot, since the approved baselines are macOS shots. It is not a required check.
+
+When a change needs no real keys, use the CI run as its proof instead of a local app: push, then read the PR comment and the artifact. Run the app locally only for a real-data run, a lane-only journey, or a baseline compare.
+
 ## Run every journey
 
 ```bash

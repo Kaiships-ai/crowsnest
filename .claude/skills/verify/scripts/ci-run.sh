@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ci-run.sh <run-id> <journey>... -- verify.yml's run, inside xvfb-run: records the X display with ffmpeg,
+# ci-run.sh <run-id> <journey>... -- verify.yml's run, on an X display (Xvfb in CI): records the X display with ffmpeg,
 # starts the boards lane in dev mode (fakes only), drives each journey, and writes summary.md beside the
 # evidence in data/verify/evidence/<run-id>/. Exits 1 when the lane or any journey failed.
 set -uo pipefail
