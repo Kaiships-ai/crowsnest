@@ -18,4 +18,6 @@ for (const f of changed.filter(isFeatureFile)) {
     if (!OWN_LANE.test(j) && existsSync(`${JOURNEYS}/${j}.mjs`)) picked.add(j);
   }
 }
-console.log([...(picked.size ? picked : ["shell-01"])].join(" "));
+// Cook journeys go last: they Cook the seeded plan-e2e-full, and plan-01 asserts it is not cooking yet.
+const ordered = [...picked].sort((a, b) => a.startsWith("cook") - b.startsWith("cook"));
+console.log((ordered.length ? ordered : ["shell-01"]).join(" "));
