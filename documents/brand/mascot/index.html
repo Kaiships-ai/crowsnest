@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Studio Mascot</title>
+<style>
+:root{
+  --bg:#faf6f2; --card:#fffcfa; --ink:#1f1b29; --muted:#7c7587; --faint:#a9a2b2;
+  --line:rgba(45,25,50,.075); --soft:#f4eee9; --hover:#f7f1ec;
+  --glow:rgba(255,186,150,.42); --glow2:rgba(255,160,185,.22);
+  --shadow:0 1px 2px rgba(60,30,40,.04),0 18px 48px -26px rgba(130,70,60,.22);
+  --c1b:#ffeadf; --c1:#c25d39; --c2b:#e5edff; --c2:#4a66d6; --c3b:#efe6ff; --c3:#7c55d8;
+  --c4b:#e1f5ea; --c4:#2d8f62; --c5b:#ffe4ea; --c5:#cf4f6d;
+  --icon-clean:#ffffff; --icon-edge:rgba(45,25,50,.08);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121117; --card:#1a1920; --ink:#f3eff7; --muted:#a19aab; --faint:#6f6979;
+    --line:rgba(255,255,255,.07); --soft:#24222b; --hover:#211f28;
+    --glow:rgba(255,150,120,.20); --glow2:rgba(255,120,160,.12);
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 48px -26px rgba(0,0,0,.6);
+    --c1b:rgba(255,150,110,.14); --c1:#ffb08f; --c2b:rgba(110,140,255,.15); --c2:#a9bcff;
+    --c3b:rgba(160,120,255,.15); --c3:#c9b2ff; --c4b:rgba(80,200,140,.13); --c4:#86dcb0;
+    --c5b:rgba(255,110,150,.14); --c5:#ff9fb6; --icon-clean:#f7f3ef; --icon-edge:rgba(255,255,255,.06);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121117; --card:#1a1920; --ink:#f3eff7; --muted:#a19aab; --faint:#6f6979;
+  --line:rgba(255,255,255,.07); --soft:#24222b; --hover:#211f28;
+  --glow:rgba(255,150,120,.20); --glow2:rgba(255,120,160,.12);
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 48px -26px rgba(0,0,0,.6);
+  --c1b:rgba(255,150,110,.14); --c1:#ffb08f; --c2b:rgba(110,140,255,.15); --c2:#a9bcff;
+  --c3b:rgba(160,120,255,.15); --c3:#c9b2ff; --c4b:rgba(80,200,140,.13); --c4:#86dcb0;
+  --c5b:rgba(255,110,150,.14); --c5:#ff9fb6; --icon-clean:#f7f3ef; --icon-edge:rgba(255,255,255,.06);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 ui-sans-serif,-apple-system,"SF Pro Text","Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible{outline:2px solid #ff9a76;outline-offset:2px}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 16px 56px}
+.top{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 18px}
+.theme{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted)}
+.theme:hover{background:var(--hover)}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:28px;padding:28px;box-shadow:var(--shadow);min-width:0}
+.card h2{font-size:20px;line-height:1.2;margin:0;font-weight:650;letter-spacing:-.01em}
+.card .sub{margin:4px 0 18px;color:var(--muted);font-size:14px}
+.hero{grid-column:span 7;display:flex;flex-direction:column;gap:18px}
+.side{grid-column:span 5;display:grid;gap:16px;align-content:start}
+.expr,.poses,.inapp{grid-column:span 12}
+@media (max-width:980px){.hero,.side{grid-column:span 12}}
+.angles .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* hero */
+.hero-top{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:8px;align-items:center}
+@media (max-width:640px){.hero-top{grid-template-columns:1fr}.stage{order:-1}}
+h1{font-size:clamp(34px,4.4vw,50px);line-height:1.04;letter-spacing:-.03em;margin:10px 0 14px;font-weight:700}
+.lede{color:var(--muted);margin:0 0 20px;max-width:34ch}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0;padding:0;list-style:none}
+.chips li{padding:5px 13px;border-radius:999px;font-size:13.5px;font-weight:500}
+.chips li:nth-child(1){background:var(--c1b);color:var(--c1)}.chips li:nth-child(2){background:var(--c2b);color:var(--c2)}
+.chips li:nth-child(3){background:var(--c3b);color:var(--c3)}.chips li:nth-child(4){background:var(--c4b);color:var(--c4)}
+.chips li:nth-child(5){background:var(--c5b);color:var(--c5)}
+.stage{position:relative;aspect-ratio:1;width:100%;max-width:480px;justify-self:center}
+.stage::before{content:"";position:absolute;inset:8% 6% 4%;border-radius:50%;background:radial-gradient(closest-side,var(--glow),var(--glow2) 55%,transparent);filter:blur(10px)}
+#hero{position:relative;width:100%;height:100%;display:block;touch-action:pan-y;cursor:grab}
+#hero:active{cursor:grabbing}
+.hint{position:absolute;bottom:2px;left:0;right:0;text-align:center;margin:0}
+.bubble{position:absolute;left:50%;bottom:-6px;max-width:86%;width:max-content;text-align:center;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:16px;padding:9px 16px;font-size:14px;line-height:1.35;opacity:0;transform:translate(-50%,6px);transition:opacity .35s,transform .35s;pointer-events:none}
+.bubble.on{opacity:1;transform:translate(-50%,0)}
+.stage:has(.bubble.on) .hint{opacity:0}
+.hint{transition:opacity .3s}
+.bubble b{font-weight:550}
+
+.tour{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.play{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 16px 0 13px;border-radius:999px;background:var(--ink);color:var(--card);font-weight:600;font-size:14px}
+.play svg{width:12px;height:12px}
+.step{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);font-size:18px;line-height:1;color:var(--muted)}
+.step:hover{background:var(--hover)}
+.dots{display:flex;gap:6px;align-items:center}
+.dots button{width:8px;height:8px;border-radius:99px;background:var(--line);position:relative;overflow:hidden;transition:width .3s}
+.dots button.on{width:26px;background:var(--soft)}
+.dots button.on::after{content:"";position:absolute;inset:0;background:#ff9f7c;transform-origin:left;transform:scaleX(1)}
+.tour.playing .dots button.on::after{animation:fill var(--dur,3.2s) linear forwards}
+@keyframes fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.tour-cap{margin:8px 0 0;color:var(--muted);font-size:13.5px;min-height:1.5em}
+
+.dock{border-top:1px solid var(--line);padding-top:16px;display:grid;gap:10px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row .mono{width:76px;flex:none}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{padding:4px 11px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--muted)}
+.seg button:hover{background:var(--hover);color:var(--ink)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.sw{width:24px;height:24px;border-radius:50%;border:2px solid var(--card);box-shadow:0 0 0 1px var(--line)}
+.sw[aria-pressed="true"]{box-shadow:0 0 0 2px var(--ink)}
+
+/* tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));gap:6px}
+.tile{display:flex;flex-direction:column;align-items:center;border-radius:20px;padding:6px 4px 10px;transition:background .2s}
+.tile:hover{background:var(--hover)}
+.tile[aria-pressed="true"]{background:var(--soft)}
+.tile canvas{width:100%;aspect-ratio:1;display:block}
+.tile span{font-size:13.5px;font-weight:500;margin-top:-4px}
+.tile small{font-size:12px;color:var(--muted)}
+.colors .tiles{grid-template-columns:repeat(5,minmax(0,1fr))}
+.colors .tile{padding:2px 0 6px}
+@media (max-width:480px){.colors .tiles{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.icons{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.icon{display:flex;flex-direction:column;align-items:center;gap:8px}
+.icon .tilebg{width:100%;aspect-ratio:1;border-radius:24%;overflow:hidden;box-shadow:0 0 0 1px var(--icon-edge),0 10px 24px -14px rgba(90,50,40,.35)}
+.icon canvas{width:100%;height:100%;display:block}
+.icon small{font-size:12.5px;color:var(--muted)}
+.ic-clean{background:var(--icon-clean)}.ic-dark{background:radial-gradient(circle at 50% 40%,#252a44,#11142a 70%)}
+.ic-grad{background:linear-gradient(140deg,#ffcf9e 0%,#ff9fa8 55%,#c7a6ff 100%)}.ic-min{background:var(--icon-clean)}
+
+/* in-app */
+.apps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+@media (max-width:820px){.apps{grid-template-columns:1fr}}
+.app{border:1px solid var(--line);border-radius:22px;padding:18px;background:var(--bg);min-height:190px}
+.hi{display:flex;align-items:center;gap:10px}
+.hi canvas{width:64px;height:64px;flex:none}
+.hi p{margin:0;font-size:13px;color:var(--muted);line-height:1.35}.hi b{display:block;color:var(--ink);font-size:16px}
+.nav{list-style:none;margin:14px 0 0;padding:0;display:grid;gap:4px}
+.nav li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;font-size:13.5px;color:var(--muted)}
+.nav li.on{background:var(--card);color:var(--ink);box-shadow:inset 3px 0 0 #ff9f7c}
+.nav svg{width:15px;height:15px}
+.done{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center}
+.done .pic{position:relative;width:118px;height:118px}
+.done canvas{width:118px;height:118px}
+.check{position:absolute;right:-8px;top:38px;width:30px;height:30px;border-radius:50%;background:#4fc3a1;display:grid;place-items:center;box-shadow:0 6px 14px -6px rgba(40,140,110,.6)}
+.done b{font-size:16px;margin-top:2px}.done p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+.foot{text-align:center;margin:28px 0 0;color:var(--faint);font-size:13px}
+html.still *{transition:none!important}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:560px){.card{padding:20px;border-radius:24px}.icons{gap:8px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <span class="mono">Lead Studio · mascot</span>
+    <button class="theme" id="theme" aria-label="Toggle dark mode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+  </header>
+
+  <main class="grid">
+    <section class="card hero" id="hero-card">
+      <div class="hero-top">
+        <div>
+          <span class="mono">Main mascot</span>
+          <h1>Your friendly AI teammate</h1>
+          <p class="lede">A small, warm companion that stays by your side, thinks with you, and makes work feel lighter.</p>
+          <ul class="chips"><li>Friendly</li><li>Proactive</li><li>Curious</li><li>Reliable</li><li>Always learning</li></ul>
+        </div>
+        <div class="stage">
+          <canvas id="hero" aria-label="Lead Studio mascot. Drag to turn, click to bounce."></canvas>
+          <div class="bubble" id="bubble" aria-live="polite"></div>
+          <p class="hint mono">drag to turn · click to bounce</p>
+        </div>
+      </div>
+      <div>
+        <div class="tour" id="tour">
+          <button class="play" id="play"><svg viewBox="0 0 12 12" id="playIcon"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg><span id="playTxt">Play walkthrough</span></button>
+          <button class="step" id="prev" aria-label="Previous step">‹</button>
+          <div class="dots" id="dots"></div>
+          <button class="step" id="next" aria-label="Next step">›</button>
+        </div>
+        <p class="tour-cap" id="cap">Greeting → thinking → working → celebrating</p>
+      </div>
+      <div class="dock">
+        <div class="row"><span class="mono">Expression</span><div class="seg" id="exprSeg"></div></div>
+        <div class="row"><span class="mono">Pose</span><div class="seg" id="poseSeg"></div></div>
+        <div class="row"><span class="mono">Colour</span><div class="seg" id="colorSeg"></div></div>
+        <div class="row"><span class="mono">Angle</span><div class="seg" id="angleSeg"></div></div>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="card colors">
+        <h2>Colour variations</h2><p class="sub">Same character, different moods.</p>
+        <div class="tiles" id="colorTiles"></div>
+      </section>
+      <section class="card">
+        <h2>App icon ideas</h2><p class="sub">Rendered from the same 3D model.</p>
+        <div class="icons" id="icons"></div>
+      </section>
+      <section class="card angles">
+      <h2>Different angles</h2><p class="sub">Drag the hero to turn it.</p>
+      <div class="tiles" id="angleTiles"></div>
+      </section>
+    </div>
+
+    <section class="card expr" id="expressions">
+      <h2>Expressions</h2><p class="sub">A few key emotions for everyday moments. Tap one to try it on the hero.</p>
+      <div class="tiles" id="exprTiles"></div>
+    </section>
+
+    <section class="card poses" id="poses">
+      <h2>Poses &amp; actions</h2><p class="sub">Common poses used across the product.</p>
+      <div class="tiles" id="poseTiles"></div>
+    </section>
+
+    <section class="card inapp" id="inapp">
+      <h2>In-app examples</h2><p class="sub">How the mascot shows up inside Lead Studio.</p>
+      <div class="apps">
+        <div class="app">
+          <div class="hi"><canvas class="mini" data-expr="happy" data-pose="greeting"></canvas><p><b>Hi Kai!</b>Ready to help today?</p></div>
+          <ul class="nav">
+            <li class="on"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z"/></svg>Home</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 13h5"/></svg>Projects</li>
+            <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Tasks</li>
+          </ul>
+        </div>
+        <div class="app done">
+          <div class="pic"><canvas class="mini" data-expr="happy" data-zoom="1"></canvas><span class="check"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span></div>
+          <b>All set!</b><p>Your report is ready.</p>
+        </div>
+        <div class="app done">
+          <div class="pic"><canvas class="mini" data-expr="celebrating" data-zoom="1"></canvas></div>
+          <b>Great progress!</b><p>You're on track this week.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+  <p class="foot">Small character. Big impact. ◡</p>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let REDUCED = mq.matches;
+mq.addEventListener('change', e => { REDUCED = e.matches; });
+const Q = new URLSearchParams(location.search);
+const TAU = Math.PI * 2;
+const STILL = Q.has('still');
+if (STILL) document.documentElement.classList.add('still');
+const lerp = (a, b, k) => a + (b - a) * k;
+const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const v3 = hex => { const n = parseInt(hex.slice(1), 16); return new THREE.Vector3((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255); };
+
+const PALETTES = {
+  peach:    { top:'#ffd69e', mid:'#ffb582', bottom:'#ff8fa5', rim:'#ffe9da', orbTop:'#ffc690', orbBottom:'#ff8a66', blush:'255,110,138', shadow:'#ff9f78' },
+  mint:     { top:'#e6f9a6', mid:'#a6ee9d', bottom:'#5ed79c', rim:'#eefff2', orbTop:'#d2f8a4', orbBottom:'#6fdc8f', blush:'255,130,150', shadow:'#76d6a2' },
+  sky:      { top:'#d3e5ff', mid:'#98bcff', bottom:'#5f86ff', rim:'#eaf2ff', orbTop:'#bcd4ff', orbBottom:'#6a92ff', blush:'255,130,185', shadow:'#7d9cff' },
+  lavender: { top:'#f1d9ff', mid:'#c9a4ff', bottom:'#9b72ff', rim:'#f6ecff', orbTop:'#dfbcff', orbBottom:'#a37bff', blush:'255,125,185', shadow:'#a78aff' },
+  pink:     { top:'#ffd6df', mid:'#ffa9c2', bottom:'#ff7ba3', rim:'#ffecf1', orbTop:'#ffb8cb', orbBottom:'#ff7397', blush:'255,90,135', shadow:'#ff8fb0' },
+};
+const COLOR_META = [['peach','Peach','Main (default)'],['mint','Mint','Calm & focus'],['sky','Sky','Professional'],['lavender','Lavender','Creative'],['pink','Pink','Playful']];
+const EXPRS = [['normal','Normal'],['happy','Happy'],['excited','Excited'],['curious','Curious'],['thinking','Thinking'],['focused','Focused'],['surprised','Surprised'],['sleeping','Sleeping'],['celebrating','Celebrating']];
+const POSES = [['floating','Floating'],['greeting','Greeting'],['thinking','Thinking'],['explaining','Explaining'],['working','Working'],['finding','Finding answers'],['cheering','Cheering']];
+const POSE_EXPR = { floating:'normal', greeting:'happy', thinking:'thinking', explaining:'happy', working:'focused', finding:'curious', cheering:'celebrating' };
+const ANGLES = [['front','Front',0],['three','3/4 view',0.62],['side','Side view',1.25]];
+const STEPS = [
+  { pose:'greeting', expr:'happy',       title:'Greeting',    say:'Hi Kai! Ready to help today?' },
+  { pose:'thinking', expr:'thinking',    title:'Thinking',    say:'Hmm, let me think this through…' },
+  { pose:'working',  expr:'focused',     title:'Working',     say:'Pulling your numbers into a report…' },
+  { pose:'cheering', expr:'celebrating', title:'Celebrating', say:'All set! Great progress!' },
+];
+const STEP_MS = 3200;
+
+// ---------- shared geometry ----------
+const B = 0.86; // distance from body centre to its flat-ish bottom
+function withDir(g) { g.setAttribute('dir', g.attributes.normal.clone()); return g; }
+function blobGeometry() {
+  const g = new THREE.SphereGeometry(1, 112, 80);
+  const p = g.attributes.position, dir = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    dir.set([v.x, v.y, v.z], i * 3);
+    let { x, y, z } = v;
+    const s = 1 + 0.08 * (1 - ss(-0.7, 0.45, y)) - 0.045 * ss(0.1, 1, y);   // narrow top, soft wide bottom
+    x *= s * 1.03; z *= s * 0.94;
+    y = y < 0 ? -0.86 * (-y) * (1.14 - 0.14 * y * y) : 1.0 * y;            // squat, rounded-flat underside
+    x += 0.055 * y;                                                        // top leans right, belly bulges left
+    p.setXYZ(i, x, y, z);
+  }
+  g.setAttribute('dir', new THREE.BufferAttribute(dir, 3));
+  g.computeVertexNormals();
+  return g;
+}
+const GEO = {
+  body: blobGeometry(),
+  nub: withDir(new THREE.SphereGeometry(0.2, 40, 28)),
+  orb: withDir(new THREE.SphereGeometry(0.155, 40, 28)),
+  conf: new THREE.PlaneGeometry(0.05, 0.085),
+  shadow: new THREE.PlaneGeometry(1, 1),
+};
+
+const VS = `
+attribute vec3 dir;
+uniform float uTime, uWobble;
+varying vec3 vDir, vN, vV;
+void main(){
+  vDir = dir;
+  float w = sin(dir.y*3.1 + uTime*1.6) * sin(dir.x*2.3 + uTime*1.1);
+  vec4 mv = modelViewMatrix * vec4(position + normal * w * uWobble, 1.0);
+  vV = -mv.xyz;
+  vN = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+uniform vec3 uTop, uMid, uBottom, uRim;
+uniform sampler2D uFace;
+uniform float uFaceOn, uGlow;
+varying vec3 vDir, vN, vV;
+void main(){
+  vec3 N = normalize(vN), V = normalize(vV);
+  float h = vDir.y;
+  vec3 base = mix(uBottom, uMid, smoothstep(-0.95, 0.05, h));
+  base = mix(base, uTop, smoothstep(0.1, 0.95, h));
+  float wash = smoothstep(0.15, 1.1, -0.55*vDir.x - 0.75*vDir.y + 0.1*vDir.z);
+  base = mix(base, uBottom, 0.42*wash);
+  vec3 L = normalize(vec3(-0.5, 0.8, 0.6));
+  float wrap = clamp((dot(N, L) + 0.8) / 1.8, 0.0, 1.0);
+  vec3 col = base * (0.86 + 0.2 * wrap);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.3);
+  col = mix(col, uRim, fres * (0.5 + 0.3*uGlow));
+  col += uBottom * 0.10 * smoothstep(-0.2, -1.0, N.y);
+  vec3 H = normalize(L + V);
+  float nh = max(dot(N, H), 0.0);
+  vec3 spec = vec3(1.0, 0.98, 0.95) * (pow(nh, 14.0) * 0.06 + pow(nh, 70.0) * 0.08);
+  col += spec;
+  // sample outside any branch so mip selection stays smooth; mask to the front half
+  vec2 uv = vec2(atan(vDir.x, vDir.z) * 0.5 + 0.5, asin(clamp(vDir.y, -1.0, 1.0)) + 0.5);
+  vec4 f = texture2D(uFace, uv) * uFaceOn * smoothstep(0.05, 0.25, vDir.z);
+  col = col * (1.0 - f.a) + f.rgb + spec * 1.6 * f.a;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ---------- shared sprite textures ----------
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const FONT = '"SF Pro Rounded",ui-rounded,"Nunito","Varela Round",system-ui,sans-serif';
+const TEX = {
+  q: canvasTex(128, 128, (x) => { x.fillStyle = '#8b87f3'; x.font = `800 112px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', 64, 70); }),
+  z: canvasTex(128, 128, (x) => { x.fillStyle = '#7f8bf2'; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', 64, 62); }),
+  shadow: canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }),
+};
+const dashTex = {};
+function dash(color) {
+  return dashTex[color] ||= canvasTex(128, 32, (x) => { x.strokeStyle = color; x.lineWidth = 15; x.lineCap = 'round'; x.beginPath(); x.moveTo(14, 16); x.lineTo(114, 16); x.stroke(); });
+}
+
+// ---------- shared prop materials ----------
+const MAT = {
+  lap: new THREE.MeshStandardMaterial({ color: '#626a96', roughness: 0.38, metalness: 0.2 }),
+  lapDark: new THREE.MeshStandardMaterial({ color: '#434a72', roughness: 0.55 }),
+  logo: new THREE.MeshStandardMaterial({ color: '#9aa1cc', roughness: 0.3 }),
+  ring: new THREE.MeshStandardMaterial({ color: '#2d355c', roughness: 0.3, metalness: 0.3 }),
+  glass: new THREE.MeshBasicMaterial({ color: '#e4f2ff', transparent: true, opacity: 0.32, depthWrite: false }),
+  bulb: new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffbe3d', emissiveIntensity: 0.65, roughness: 0.25 }),
+  neck: new THREE.MeshStandardMaterial({ color: '#c9c2d9', roughness: 0.4, metalness: 0.2 }),
+  conf: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+};
+const CONF_COLORS = ['#ff9f6e', '#9b8cf5', '#5ccfa0', '#ffc94d', '#ff7ea1', '#6aa5ff'].map(c => new THREE.Color(c));
+
+function sprite(tex, w, h = w) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  s.scale.set(w, h, 1); return s;
+}
+// little radiating dashes, like the "!" marks on the boards
+function burst(color, cx, cy, pts) {
+  const g = new THREE.Group();
+  for (const [x, y, len = 0.17] of pts) {
+    const s = sprite(dash(color), len, len / 4);
+    s.material.rotation = Math.atan2(y - cy, x - cx);
+    s.position.set(x, y, 0.3); s.userData.base = [x, y, cx, cy]; g.add(s);
+  }
+  return g;
+}
+
+let THEME_DARK = false;
+const allMascots = new Set();
+
+// ---------- the mascot ----------
+class Mascot {
+  constructor({ faceSize = 512, hero = false, faceless = false } = {}) {
+    this.hero = hero; this.faceless = faceless;
+    this.group = new THREE.Group();
+    this.root = new THREE.Group(); this.group.add(this.root);
+    this.squash = new THREE.Group(); this.squash.position.y = -B; this.root.add(this.squash);
+    this.turn = new THREE.Group(); this.turn.position.y = B; this.squash.add(this.turn);
+
+    this.fc = document.createElement('canvas'); this.fc.width = faceSize; this.fc.height = faceSize / 2;
+    this.fx = this.fc.getContext('2d');
+    this.faceTex = new THREE.CanvasTexture(this.fc);
+    this.faceTex.premultiplyAlpha = true; this.faceTex.colorSpace = THREE.NoColorSpace;
+    if (hero) { this.faceTex.generateMipmaps = false; this.faceTex.minFilter = THREE.LinearFilter; }
+    else this.faceTex.anisotropy = 4;
+
+    const U = this.u = {
+      uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uRim: { value: new THREE.Vector3() },
+      uFace: { value: this.faceTex }, uFaceOn: { value: faceless ? 0 : 1 }, uGlow: { value: 0 }, uTime: { value: 0 }, uWobble: { value: 0.012 },
+    };
+    const mat = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS });
+    this.body = new THREE.Mesh(GEO.body, mat(U)); this.turn.add(this.body);
+
+    const nubU = { ...U, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    const nubMat = mat(nubU);
+    this.nubR = new THREE.Mesh(GEO.nub, nubMat); this.nubL = new THREE.Mesh(GEO.nub, nubMat);
+    this.nubR.scale.set(1, 0.86, 0.9); this.nubL.scale.copy(this.nubR.scale);
+    this.turn.add(this.nubR, this.nubL);
+
+    this.ou = { ...U, uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    this.orb = new THREE.Mesh(GEO.orb, mat(this.ou)); this.group.add(this.orb);
+
+    this.shadowMat = new THREE.MeshBasicMaterial({ map: TEX.shadow, transparent: true, depthWrite: false, opacity: 0.5 });
+    this.shadow = new THREE.Mesh(GEO.shadow, this.shadowMat);
+    this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = -B - 0.06; this.group.add(this.shadow);
+
+    this.buildProps();
+    this.buildDecor();
+
+    this.s = { expr: 'normal', pose: 'floating', color: 'peach' };
+    this.yaw = 0; this.yawTarget = 0; this.tilt = 0;
+    this.gaze = { x: 0, y: 0 }; this.gazeTarget = { x: 0, y: 0 };
+    this.seed = Math.random() * 100;
+    this.nextBlink = 1 + Math.random() * 3; this.blinkAt = -9;
+    this.bounceAt = -9; this.popAt = -9; this.happyUntil = -9;
+    this.now = 0; this.faceKey = '';
+    this.setColor('peach');
+    allMascots.add(this);
+  }
+
+  buildProps() {
+    const lap = this.laptop = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.56), MAT.lapDark);
+    const lid = new THREE.Group(); lid.position.set(0, 0.02, 0.28); lid.rotation.x = 0.22;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.035), MAT.lap); panel.position.y = 0.28;
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(0.045, 24), MAT.logo); logo.position.set(0, 0.3, 0.019);
+    lid.add(panel, logo); lap.add(base, lid);
+    lap.position.set(0.34, -0.74, 0.98); lap.rotation.y = -0.38;
+
+    const mag = this.magnifier = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.045, 18, 56), MAT.ring);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.25, 40), MAT.glass);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.36, 18), MAT.ring);
+    const d = new THREE.Vector2(0.5, -0.86).normalize();
+    handle.position.set(d.x * 0.45, d.y * 0.45, 0); handle.rotation.z = -Math.atan2(d.x, d.y) + Math.PI;
+    mag.add(ring, glass, handle);
+    mag.position.set(-1.08, 0.18, 0.42); mag.rotation.y = 0.35;
+
+    const bulb = this.bulb = new THREE.Group();
+    const glassB = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), MAT.bulb);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.11, 20), MAT.neck); neck.position.y = -0.17;
+    bulb.add(glassB, neck, burst('#ffc14d', 0, 0, [[0, 0.3, 0.13], [-0.25, 0.2, 0.13], [0.25, 0.2, 0.13], [-0.32, -0.02, 0.12], [0.32, -0.02, 0.12]]));
+    bulb.position.set(-0.8, 1.12, 0.2);
+    this.turn.add(lap, mag); this.root.add(bulb);
+  }
+
+  buildDecor() {
+    const r = this.root;
+    this.q = sprite(TEX.q, 0.36); this.q.position.set(0.98, 1.08, 0.25);
+    this.z1 = sprite(TEX.z, 0.2); this.z2 = sprite(TEX.z, 0.32);
+    this.sparkR = burst('#ff9f62', 0.62, 0.58, [[0.98, 1.02], [1.16, 0.84], [1.24, 0.6]]);
+    this.sparkV = burst('#9d8df6', 0.6, 0.6, [[0.9, 1.08, 0.15], [1.12, 0.92, 0.15]]);
+    this.sparkL = burst('#ff9f62', -0.62, 0.58, [[-0.98, 1.0], [-1.18, 0.78], [-1.24, 0.55]]);
+    this.wave = burst('#4b5a9e', 0.7, 0.35, [[1.08, 0.72, 0.15], [1.22, 0.52, 0.15]]);
+    r.add(this.q, this.z1, this.z2, this.sparkR, this.sparkV, this.sparkL, this.wave);
+  }
+
+  initConfetti() {
+    const n = 40;
+    this.conf = new THREE.InstancedMesh(GEO.conf, MAT.conf, n);
+    this.cp = [];
+    for (let i = 0; i < n; i++) {
+      this.conf.setColorAt(i, CONF_COLORS[i % CONF_COLORS.length]);
+      const c = { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() };
+      this.spawn(c, true); this.cp.push(c);
+    }
+    this.confDummy = new THREE.Object3D();
+    this.group.add(this.conf);
+  }
+  spawn(c, scatter) {
+    const R = Math.random;
+    if (scatter) c.p.set((R() - 0.5) * 2.8, R() * 1.9 - 0.4, (R() - 0.5) * 0.8 + 0.2);
+    else c.p.set((R() - 0.5) * 0.5, 0.95, 0.2);
+    c.v.set((R() - 0.5) * 2.6, 1.8 + R() * 1.8, (R() - 0.5) * 0.9);
+    c.r.set(R() * TAU, R() * TAU, R() * TAU);
+    c.w.set((R() - 0.5) * 9, (R() - 0.5) * 9, (R() - 0.5) * 9);
+  }
+
+  setColor(name) {
+    const P = PALETTES[name]; this.s.color = name;
+    this.u.uTop.value.copy(v3(P.top)); this.u.uMid.value.copy(v3(P.mid)); this.u.uBottom.value.copy(v3(P.bottom)); this.u.uRim.value.copy(v3(P.rim));
+    this.ou.uTop.value.copy(v3(P.orbTop)); this.ou.uMid.value.copy(v3(P.orbTop)).lerp(v3(P.orbBottom), 0.5); this.ou.uBottom.value.copy(v3(P.orbBottom));
+    this.shadowMat.color.set(P.shadow);
+    this.blush = P.blush; this.faceKey = '';
+  }
+  setExpr(e) { if (e !== this.s.expr) { this.s.expr = e; this.popAt = this.now; } }
+  setPose(p) { if (p !== this.s.pose) { this.s.pose = p; this.popAt = this.now; } }
+  bounce() { this.bounceAt = this.now; this.happyUntil = this.now + 1.2; }
+
+  update(t, dt) {
+    this.now = t;
+    const R = REDUCED, s = this.s;
+    const expr = t < this.happyUntil && !['excited', 'celebrating'].includes(s.expr) ? 'happy' : s.expr;
+    const pose = s.pose;
+    const sleeping = expr === 'sleeping';
+    const ft = R ? 0 : t + this.seed;
+    this.u.uTime.value = ft;
+    this.u.uGlow.value = this.glow ?? (THEME_DARK ? 1 : 0);
+
+    let y = R ? 0 : Math.sin(ft * (sleeping ? 0.8 : 1.5)) * (sleeping ? 0.03 : 0.065);
+    let sy = 1 + (R ? 0 : Math.sin(ft * (sleeping ? 1.1 : 2.2)) * (sleeping ? 0.03 : 0.022));
+    if (!R && (expr === 'excited' || expr === 'celebrating' || pose === 'cheering')) {
+      const hop = Math.abs(Math.sin(ft * 4.2));
+      y += hop * 0.11; sy *= 1 + 0.035 * hop - 0.07 * (1 - ss(0, 0.3, hop));
+    }
+    const bp = (t - this.bounceAt) / 0.9;
+    if (!R && bp >= 0 && bp < 1) {
+      if (bp < 0.15) sy *= 1 - 0.15 * Math.sin(bp / 0.15 * Math.PI / 2);
+      else if (bp < 0.72) { const q = (bp - 0.15) / 0.57; y += Math.sin(q * Math.PI) * 0.42; sy *= 1 + 0.13 * (1 - 2 * q) ** 2; }
+      else { const r = (bp - 0.72) / 0.28; sy *= 1 - 0.14 * Math.sin(r * Math.PI) * (1 - 0.4 * r); }
+    }
+    const pp = (t - this.popAt) / 0.35;
+    if (!R && pp >= 0 && pp < 1) sy *= 1 + 0.07 * Math.sin(pp * Math.PI) * (1 - pp);
+    const sx = 1 / Math.sqrt(sy);
+    this.squash.scale.set(sx, sy, sx);
+    this.root.position.y = y;
+
+    // gaze + turn
+    const gt = expr === 'thinking' ? { x: 0.6, y: 0.75 } : sleeping ? { x: 0, y: -0.2 } : pose === 'finding' ? { x: -0.55, y: 0.05 } : pose === 'working' ? { x: 0.2, y: -0.55 } : this.gazeTarget;
+    const kg = R ? 1 : 1 - Math.exp(-dt * 10);
+    this.gaze.x = lerp(this.gaze.x, gt.x, kg); this.gaze.y = lerp(this.gaze.y, gt.y, kg);
+    const ky = R ? 1 : 1 - Math.exp(-dt * 6);
+    this.yaw = lerp(this.yaw, this.yawTarget + this.gaze.x * 0.26, ky);
+    this.turn.rotation.y = this.yaw;
+    this.turn.rotation.x = lerp(this.turn.rotation.x, -this.gaze.y * 0.12, ky);
+    const tiltT = expr === 'curious' ? 0.13 : expr === 'thinking' ? -0.07 : sleeping ? 0.06 : 0;
+    this.tilt = lerp(this.tilt, tiltT, ky); this.root.rotation.z = this.tilt;
+
+    // blink
+    if (!R && !STILL && t > this.nextBlink) { this.blinkAt = t; this.nextBlink = t + (Math.random() < 0.2 ? 0.25 : 2.4 + Math.random() * 3); }
+    const bt = (t - this.blinkAt) / 0.15;
+    const blink = bt >= 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+
+    if (!this.faceless) {
+      const key = `${expr}|${this.gaze.x.toFixed(2)}|${this.gaze.y.toFixed(2)}|${blink.toFixed(2)}|${this.blush}`;
+      if (key !== this.faceKey) { this.faceKey = key; drawFace(this.fx, this.fc.width, this.fc.height, expr, this.gaze, blink, this.blush); this.faceTex.needsUpdate = true; }
+    }
+
+    // orb companion
+    const fl = this.faceless;
+    this.orb.position.set(fl ? 0.72 : 0.98 + 0.04 * Math.sin(ft * 0.9), (fl ? -0.38 : 0.98) + 0.06 * Math.sin(ft * 1.7 + 1), fl ? 0.75 : 0.15);
+    this.orb.scale.setScalar(fl ? 1.9 : 1);
+    this.orb.visible = fl || !['curious', 'sleeping', 'surprised', 'excited'].includes(expr) && pose !== 'greeting';
+
+    // shadow
+    const sh = 1 - y * 0.55;
+    this.shadow.scale.set(2.0 * sh, 1.25 * sh, 1);
+    this.shadowMat.opacity = (THEME_DARK && !this.glow ? 0.32 : 0.5) * (1 - y * 0.9);
+
+    // props
+    const wave = R ? 0 : Math.sin(ft * 9);
+    this.laptop.visible = pose === 'working';
+    this.magnifier.visible = pose === 'finding';
+    if (this.magnifier.visible) this.magnifier.position.y = 0.18 + (R ? 0 : 0.04 * Math.sin(ft * 1.3));
+    this.bulb.visible = pose === 'explaining';
+    if (this.bulb.visible) this.bulb.position.y = 1.12 + (R ? 0 : 0.04 * Math.sin(ft * 2));
+    this.nubR.visible = pose === 'greeting' || pose === 'thinking' || pose === 'cheering';
+    this.nubL.visible = pose === 'cheering';
+    if (pose === 'greeting') this.nubR.position.set(0.98 + 0.02 * wave, -0.22 + 0.09 * wave, 0.32);
+    if (pose === 'thinking') this.nubR.position.set(0.3, -0.55 + (R ? 0 : 0.015 * Math.sin(ft * 2)), 0.86);
+    if (pose === 'cheering') {
+      const c = R ? 0.5 : (Math.sin(ft * 8.4) + 1) / 2;
+      this.nubR.position.set(0.98, 0.08 + 0.12 * c, 0.26); this.nubL.position.set(-1.0, 0.08 + 0.12 * (1 - c), 0.26);
+    }
+
+    // decor
+    this.q.visible = expr === 'curious';
+    if (this.q.visible) { this.q.position.y = 1.08 + (R ? 0 : 0.05 * Math.sin(ft * 2.2)); this.q.material.rotation = R ? 0.15 : 0.15 + 0.1 * Math.sin(ft * 1.7); }
+    this.z1.visible = this.z2.visible = sleeping;
+    if (sleeping) {
+      [this.z1, this.z2].forEach((z, i) => {
+        const ph = R ? 0.35 + i * 0.3 : (ft * 0.3 + i * 0.5) % 1;
+        z.position.set(0.66 + ph * 0.42 + i * 0.05, 0.78 + ph * 0.55, 0.3);
+        z.material.opacity = R ? 1 : Math.sin(ph * Math.PI);
+        z.material.rotation = -0.2;
+      });
+    }
+    const celebrate = expr === 'celebrating' || pose === 'cheering';
+    this.sparkR.visible = expr === 'excited' || celebrate;
+    this.sparkL.visible = celebrate;
+    this.sparkV.visible = expr === 'surprised';
+    this.wave.visible = pose === 'greeting';
+    const pulse = R ? 1 : 1 + 0.08 * Math.sin(ft * 6);
+    for (const g of [this.sparkR, this.sparkL, this.sparkV, this.wave]) if (g.visible) for (const d of g.children) {
+      const [x, yy, cx, cy] = d.userData.base;
+      d.position.set(cx + (x - cx) * pulse, cy + (yy - cy) * pulse, 0.3);
+    }
+
+    // confetti
+    if (celebrate && !this.conf) this.initConfetti();
+    if (this.conf) {
+      this.conf.visible = celebrate;
+      if (celebrate && !R) {
+        const D = this.confDummy;
+        this.cp.forEach((c, i) => {
+          c.v.y -= 3.4 * dt; c.v.x *= 0.985; c.v.z *= 0.985; if (c.v.y < -0.9) c.v.y = -0.9;
+          c.p.addScaledVector(c.v, dt);
+          c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+          if (c.p.y < -1.0) this.spawn(c, false);
+          D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix);
+        });
+        this.conf.instanceMatrix.needsUpdate = true;
+      } else if (celebrate && !this.confStill) {
+        const D = this.confDummy; this.confStill = true;
+        this.cp.forEach((c, i) => { D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix); });
+        this.conf.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+}
+
+// ---------- the face, painted in angle space (1 canvas px row = same angle both axes) ----------
+const INK = '#1b1520';
+function drawFace(x, W, H, expr, gaze, blink, blush) {
+  const S = W / 2, cx = W / 2, cy = H / 2;
+  const P = (ax, ay) => [cx + ax * S, cy - ay * S];
+  x.clearRect(0, 0, W, H);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+
+  const strong = expr === 'celebrating' || expr === 'excited' || expr === 'happy' || expr === 'sleeping';
+  for (const sd of [-1, 1]) {
+    const [bx, by] = P(sd * 0.56, -0.03), r = 0.15 * S;
+    const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+    g.addColorStop(0, `rgba(${blush},${strong ? 0.62 : 0.54})`); g.addColorStop(0.55, `rgba(${blush},${strong ? 0.3 : 0.25})`); g.addColorStop(1, `rgba(${blush},0)`);
+    x.fillStyle = g; x.beginPath(); x.ellipse(bx, by, r, r * 0.78, 0, 0, TAU); x.fill();
+  }
+
+  const ox = gaze.x * 0.05, oy = gaze.y * 0.035;
+  const rx = 0.088 * S, ry = 0.136 * S, lw = 0.032 * S;
+  x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = lw;
+  for (const sd of [-1, 1]) {
+    const [ex, ey] = P(sd * 0.37 + ox, 0.14 + oy);
+    let k = 1 - blink * 0.94;
+    const big = expr === 'curious' && sd === 1 ? 1.12 : 1;
+    if (expr === 'happy' || expr === 'celebrating') arc(x, ex, ey + ry * 0.2, rx * 1.15, -ry * 0.95);
+    else if (expr === 'sleeping') arc(x, ex, ey - ry * 0.05, rx * 1.15, ry * 0.75);
+    else if (expr === 'excited') {
+      x.beginPath(); x.moveTo(ex + sd * rx * 0.85, ey - ry * 0.62); x.lineTo(ex - sd * rx * 0.75, ey); x.lineTo(ex + sd * rx * 0.85, ey + ry * 0.62); x.stroke();
+    } else if (k < 0.3) arc(x, ex, ey, rx * 1.05, ry * 0.3);
+    else if (expr === 'surprised') eye(x, ex, ey, rx * 1.15, rx * 1.2 * k, 0, null, true);
+    else if (expr === 'focused') eye(x, ex, ey + ry * 0.08, rx, ry * 0.92 * k, 0, sd);
+    else eye(x, ex, ey, rx * big, ry * big * k, sd * 0.08);
+  }
+
+  const m = (ax, ay) => P((ax + ox * 0.6) * 1.25, (ay + oy * 0.5) * 1.25 + 0.02);
+  x.lineWidth = lw * 0.95;
+  x.beginPath();
+  if (expr === 'happy') { x.moveTo(...m(-0.08, -0.02)); x.quadraticCurveTo(...m(0, -0.11), ...m(0.08, -0.02)); x.stroke(); }
+  else if (expr === 'excited' || expr === 'celebrating') {
+    x.moveTo(...m(-0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.005), ...m(0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.15), ...m(-0.085, -0.02)); x.closePath();
+    x.fillStyle = '#3a1a28'; x.fill(); x.save(); x.clip(); x.fillStyle = '#ff7f96'; x.beginPath(); x.ellipse(...m(0, -0.115), 0.06 * S, 0.04 * S, 0, 0, TAU); x.fill(); x.restore();
+    x.fillStyle = INK;
+  } else if (expr === 'surprised') { x.ellipse(...m(0, -0.06), 0.028 * S, 0.036 * S, 0, 0, TAU); x.fillStyle = '#3a1a28'; x.fill(); x.fillStyle = INK; }
+  else if (expr === 'thinking') { x.moveTo(...m(0.0, -0.045)); x.quadraticCurveTo(...m(0.035, -0.06), ...m(0.07, -0.035)); x.stroke(); }
+  else if (expr === 'focused') { x.moveTo(...m(-0.035, -0.05)); x.lineTo(...m(0.035, -0.05)); x.stroke(); }
+  else if (expr === 'sleeping') { x.moveTo(...m(-0.035, -0.04)); x.quadraticCurveTo(...m(0, -0.075), ...m(0.035, -0.04)); x.stroke(); }
+  else if (expr === 'curious') { x.moveTo(...m(-0.055, -0.03)); x.quadraticCurveTo(...m(0, -0.085), ...m(0.05, -0.04)); x.stroke(); }
+  else { x.moveTo(...m(-0.068, -0.025)); x.quadraticCurveTo(...m(0, -0.1), ...m(0.068, -0.025)); x.stroke(); }
+}
+function arc(x, cx, cy, hw, bend) { x.beginPath(); x.moveTo(cx - hw, cy); x.quadraticCurveTo(cx, cy + bend, cx + hw, cy); x.stroke(); }
+function eye(x, cx, cy, rx, ry, rot, lidSide, round) {
+  x.save(); x.translate(cx, cy); x.rotate(rot);
+  if (lidSide) { // determined lids: inner corner lower
+    x.beginPath(); x.moveTo(lidSide * rx * 1.4, -ry * 0.62); x.lineTo(-lidSide * rx * 1.4, -ry * 0.05); x.lineTo(-lidSide * rx * 1.4, ry * 2); x.lineTo(lidSide * rx * 1.4, ry * 2); x.closePath(); x.clip();
+  }
+  const g = x.createRadialGradient(-rx * 0.3, -ry * 0.35, ry * 0.08, 0, 0, Math.max(rx, ry) * 1.1);
+  g.addColorStop(0, '#2c2432'); g.addColorStop(1, '#0d0910');
+  x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.96)';
+  x.beginPath(); x.ellipse(-rx * 0.3, -ry * (round ? 0.38 : 0.42), rx * (round ? 0.3 : 0.34), Math.max(1, ry * (round ? 0.3 : 0.24)), -0.5, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.5)';
+  x.beginPath(); x.ellipse(rx * 0.32, ry * 0.42, rx * 0.13, Math.max(1, ry * 0.09), 0, 0, TAU); x.fill();
+  x.restore(); x.fillStyle = INK;
+}
+
+// ---------- scenes ----------
+function makeScene(m) {
+  const scene = new THREE.Scene();
+  scene.add(m.group, new THREE.HemisphereLight('#fff4ec', '#ead8ff', 1.3));
+  const d = new THREE.DirectionalLight('#ffffff', 1.7); d.position.set(-2, 3, 5); scene.add(d);
+  return scene;
+}
+function makeCam(z = 6.4, ty = 0.14) {
+  const c = new THREE.PerspectiveCamera(30, 1, 0.1, 50); c.position.set(0, 0.42, z); c.lookAt(0, ty, 0); return c;
+}
+
+// hero
+const heroCanvas = document.getElementById('hero');
+const heroR = new THREE.WebGLRenderer({ canvas: heroCanvas, antialias: true, alpha: true });
+heroR.setPixelRatio(Math.min(devicePixelRatio, 2));
+const hero = new Mascot({ faceSize: 1024, hero: true });
+const heroScene = makeScene(hero), heroCam = makeCam(5.7, 0.2);
+new ResizeObserver(() => { const w = heroCanvas.clientWidth, h = heroCanvas.clientHeight; heroR.setSize(w, h, false); heroCam.aspect = w / h; heroCam.updateProjectionMatrix(); }).observe(heroCanvas);
+
+// minis: one shared offscreen renderer, copied into each 2D canvas
+const miniR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+miniR.setPixelRatio(1); miniR.setClearColor(0x000000, 0);
+let bufW = 1, bufH = 1;
+const minis = [];
+const io = new IntersectionObserver(es => es.forEach(e => { e.target._mini.visible = e.isIntersecting; }), { rootMargin: '120px' });
+function addMini(el, { expr = 'normal', pose = 'floating', color = 'peach', yaw = 0, faceless = false, glow, zoom = 0 } = {}) {
+  const css = el.getBoundingClientRect().width || 120;
+  const m = new Mascot({ faceSize: css > 90 ? 512 : 256, faceless });
+  m.setColor(color); m.s.expr = expr; m.s.pose = pose; m.yawTarget = m.yaw = yaw;
+  if (glow !== undefined) m.glow = glow;
+  const mini = { el, ctx: el.getContext('2d'), m, scene: makeScene(m), cam: zoom ? makeCam(4.7, 0.1) : makeCam(pose === 'floating' ? 5.2 : 5.9, 0.16), visible: false, last: 0 };
+  el._mini = mini; minis.push(mini); io.observe(el);
+  return mini;
+}
+function renderMinis(t) {
+  const dpr = Math.min(devicePixelRatio, 2);
+  for (const mi of minis) {
+    if (!mi.visible) continue;
+    const w = Math.max(2, Math.round(mi.el.clientWidth * dpr)), h = Math.max(2, Math.round(mi.el.clientHeight * dpr));
+    if (mi.el.width !== w || mi.el.height !== h) { mi.el.width = w; mi.el.height = h; }
+    if (w > bufW || h > bufH) { bufW = Math.max(bufW, w); bufH = Math.max(bufH, h); miniR.setSize(bufW, bufH, false); }
+    mi.m.update(t, Math.min(0.1, t - (mi.last || t))); mi.last = t;
+    mi.cam.aspect = w / h; mi.cam.updateProjectionMatrix();
+    miniR.setViewport(0, 0, w, h); miniR.render(mi.scene, mi.cam);
+    mi.ctx.clearRect(0, 0, w, h);
+    mi.ctx.drawImage(miniR.domElement, 0, bufH - h, w, h, 0, 0, w, h);
+  }
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+function tile(parent, label, sub, data) {
+  const b = document.createElement('button'); b.className = 'tile'; b.setAttribute('aria-pressed', 'false');
+  b.innerHTML = `<canvas></canvas><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}`;
+  parent.append(b); return b;
+}
+const exprTiles = EXPRS.map(([k, l]) => { const b = tile($('exprTiles'), l); b.dataset.expr = k; return b; });
+const poseTiles = POSES.map(([k, l]) => { const b = tile($('poseTiles'), l); b.dataset.pose = k; return b; });
+const colorTiles = COLOR_META.map(([k, l, sub]) => { const b = tile($('colorTiles'), l, sub); b.dataset.color = k; return b; });
+const angleTiles = ANGLES.map(([k, l]) => { const b = tile($('angleTiles'), l); b.dataset.angle = k; return b; });
+for (const [cls, label] of [['ic-clean', '1. Clean'], ['ic-dark', '2. Dark'], ['ic-grad', '3. Gradient'], ['ic-min', '4. Minimal']]) {
+  $('icons').insertAdjacentHTML('beforeend', `<div class="icon"><div class="tilebg ${cls}"><canvas data-icon="${cls}"></canvas></div><small>${label}</small></div>`);
+}
+// minis need layout first
+requestAnimationFrame(() => {
+  exprTiles.forEach(b => addMini(b.querySelector('canvas'), { expr: b.dataset.expr }));
+  poseTiles.forEach(b => addMini(b.querySelector('canvas'), { pose: b.dataset.pose, expr: POSE_EXPR[b.dataset.pose] }));
+  colorTiles.forEach(b => addMini(b.querySelector('canvas'), { color: b.dataset.color }));
+  angleTiles.forEach((b, i) => addMini(b.querySelector('canvas'), { yaw: ANGLES[i][2] }));
+  document.querySelectorAll('[data-icon]').forEach(c => {
+    const k = c.dataset.icon;
+    addMini(c, { faceless: k === 'ic-min', glow: k === 'ic-dark' ? 1 : 0, expr: k === 'ic-grad' ? 'happy' : 'normal', zoom: 1 });
+  });
+  document.querySelectorAll('canvas.mini').forEach(c => addMini(c, { expr: c.dataset.expr, pose: c.dataset.pose || 'floating', zoom: +c.dataset.zoom || 0 }));
+});
+
+function segButtons(el, items, onClick, swatch) {
+  return items.map(([k, label]) => {
+    const b = document.createElement('button'); b.setAttribute('aria-pressed', 'false'); b.dataset.k = k;
+    if (swatch) { b.className = 'sw'; b.title = label; b.setAttribute('aria-label', label); b.style.background = `linear-gradient(160deg, ${PALETTES[k].top}, ${PALETTES[k].bottom})`; }
+    else b.textContent = label;
+    b.onclick = () => { pauseTour(); onClick(k); };
+    el.append(b); return b;
+  });
+}
+const segE = segButtons($('exprSeg'), EXPRS, k => setHero({ expr: k }));
+const segP = segButtons($('poseSeg'), POSES.map(([k, l]) => [k, l]), k => setHero({ pose: k, expr: POSE_EXPR[k] }));
+const segC = segButtons($('colorSeg'), COLOR_META.map(([k, l]) => [k, l]), k => setHero({ color: k }));
+const segA = segButtons($('angleSeg'), ANGLES.map(([k, l]) => [k, l.replace(' view', '')]), k => setHero({ angle: k }));
+$('colorSeg').style.gap = '8px';
+segC.forEach(b => { b.className = 'sw'; b.textContent = ''; b.style.background = `linear-gradient(160deg, ${PALETTES[b.dataset.k].top}, ${PALETTES[b.dataset.k].bottom})`; b.setAttribute('aria-label', b.title = b.dataset.k); });
+
+exprTiles.forEach(b => b.onclick = () => { pauseTour(); setHero({ expr: b.dataset.expr }); });
+poseTiles.forEach(b => b.onclick = () => { pauseTour(); setHero({ pose: b.dataset.pose, expr: POSE_EXPR[b.dataset.pose] }); });
+colorTiles.forEach(b => b.onclick = () => { pauseTour(); setHero({ color: b.dataset.color }); });
+angleTiles.forEach(b => b.onclick = () => { pauseTour(); setHero({ angle: b.dataset.angle }); });
+
+let heroAngle = 'front';
+function setHero({ expr, pose, color, angle }) {
+  if (expr) hero.setExpr(expr);
+  if (pose) hero.setPose(pose);
+  if (color) hero.setColor(color);
+  if (angle) { heroAngle = angle; hero.yawTarget = ANGLES.find(a => a[0] === angle)[2]; }
+  const s = hero.s;
+  const press = (list, key, v) => list.forEach(b => b.setAttribute('aria-pressed', String((b.dataset[key] ?? b.dataset.k) === v)));
+  press(segE, 'k', s.expr); press(segP, 'k', s.pose); press(segC, 'k', s.color); press(segA, 'k', heroAngle);
+  press(exprTiles, 'expr', s.expr); press(poseTiles, 'pose', s.pose); press(colorTiles, 'color', s.color); press(angleTiles, 'angle', heroAngle);
+  if (expr === 'celebrating') hero.bounce();
+}
+
+// pointer: eyes follow, drag turns, click bounces
+let drag = null, idleTimer;
+addEventListener('pointermove', e => {
+  const r = heroCanvas.getBoundingClientRect();
+  const gx = (e.clientX - (r.left + r.width / 2)) / (r.width * 0.7), gy = -(e.clientY - (r.top + r.height * 0.45)) / (r.height * 0.7);
+  hero.gazeTarget = { x: Math.max(-1, Math.min(1, gx)), y: Math.max(-1, Math.min(1, gy)) };
+  clearTimeout(idleTimer); idleTimer = setTimeout(() => { hero.gazeTarget = { x: 0, y: 0 }; }, 2500);
+  if (drag) {
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) > 5) drag.moved = true;
+    if (drag.moved) { hero.yawTarget = Math.max(-1.6, Math.min(1.6, drag.yaw + dx * 0.011)); heroAngle = ''; setHero({}); }
+  }
+});
+document.addEventListener('pointerleave', () => { hero.gazeTarget = { x: 0, y: 0 }; });
+heroCanvas.addEventListener('pointerdown', e => { drag = { x: e.clientX, yaw: hero.yawTarget, moved: false }; heroCanvas.setPointerCapture(e.pointerId); });
+heroCanvas.addEventListener('pointerup', () => { if (drag && !drag.moved) hero.bounce(); drag = null; });
+heroCanvas.addEventListener('pointercancel', () => { drag = null; });
+
+// theme
+function applyTheme(dark) { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; THEME_DARK = dark; }
+THEME_DARK = Q.get('theme') ? Q.get('theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+if (Q.get('theme')) applyTheme(THEME_DARK);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => { if (!document.documentElement.dataset.theme) THEME_DARK = e.matches; });
+$('theme').onclick = () => applyTheme(!THEME_DARK);
+
+// walkthrough
+let stepI = -1, playing = false, stepTimer;
+const tourEl = $('tour'), bubble = $('bubble');
+STEPS.forEach((st, i) => {
+  const d = document.createElement('button'); d.setAttribute('aria-label', `Step ${i + 1}: ${st.title}`);
+  d.onclick = () => goStep(i); $('dots').append(d);
+});
+tourEl.style.setProperty('--dur', STEP_MS + 'ms');
+function goStep(i) {
+  stepI = (i + STEPS.length) % STEPS.length;
+  const st = STEPS[stepI];
+  setHero({ pose: st.pose, expr: st.expr, angle: 'front' });
+  bubble.classList.remove('on');
+  setTimeout(() => { bubble.innerHTML = `<b>${st.say}</b>`; bubble.classList.add('on'); }, REDUCED ? 0 : 140);
+  $('cap').textContent = `${stepI + 1} / ${STEPS.length} · ${st.title}`;
+  [...$('dots').children].forEach((d, j) => { d.classList.remove('on'); void d.offsetWidth; d.classList.toggle('on', j === stepI); });
+  clearTimeout(stepTimer);
+  if (playing) stepTimer = setTimeout(() => goStep(stepI + 1), STEP_MS);
+}
+function setPlayUI() {
+  tourEl.classList.toggle('playing', playing);
+  $('playTxt').textContent = playing ? 'Pause' : (stepI < 0 ? 'Play walkthrough' : 'Play');
+  $('playIcon').innerHTML = playing ? '<path d="M2 1h3v10H2zM7 1h3v10H7z" fill="currentColor"/>' : '<path d="M2 1l9 5-9 5z" fill="currentColor"/>';
+}
+function pauseTour() { if (!playing) return; playing = false; clearTimeout(stepTimer); setPlayUI(); }
+$('play').onclick = () => { if (playing) return pauseTour(); playing = true; setPlayUI(); goStep(stepI < 0 ? 0 : stepI); };
+$('prev').onclick = () => goStep(stepI < 0 ? STEPS.length - 1 : stepI - 1);
+$('next').onclick = () => goStep(stepI + 1);
+
+// initial state (query params make screenshots reproducible)
+setHero({ expr: Q.get('expr') || 'normal', pose: Q.get('pose') || 'floating', color: Q.get('color') || 'peach', angle: Q.get('angle') || 'front' });
+if (Q.get('pose') && !Q.get('expr')) setHero({ expr: POSE_EXPR[Q.get('pose')] });
+if (Q.get('step')) { goStep(+Q.get('step') - 1); }
+if (Q.get('play')) $('play').click();
+if (Q.get('scroll')) requestAnimationFrame(() => requestAnimationFrame(() => document.getElementById(Q.get('scroll'))?.scrollIntoView()));
+
+let last = performance.now(), frame = 0;
+function loop(now) {
+  requestAnimationFrame(loop);
+  const t = now / 1000, dt = Math.min(0.05, (now - last) / 1000); last = now;
+  hero.update(t, dt); heroR.render(heroScene, heroCam);
+  if ((frame++ & 1) === 0) renderMinis(t);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
