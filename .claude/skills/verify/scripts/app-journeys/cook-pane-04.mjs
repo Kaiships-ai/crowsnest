@@ -7,6 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { logCookState } from "../cook-diagnostics.mjs";
 
 export const dod = ["B6-01"];
 
@@ -287,6 +288,9 @@ export default async function cookPane04({ page, step, snap }) {
       console.log(`gate 2 board shows the reel, waiting for approval; never approved here`);
       await snap("cook-pane-d-26-gate2");
     });
+  } catch (error) {
+    await logCookState(page, key, PLAN).catch((e) => console.log(`diagnostics failed: ${e.message}`));
+    throw error;
   } finally {
     sql(`delete from gate_drafts where tool = 'publish_reel' and json_extract(input, '$.postId') = '${PLAN}' and status = 'pending'`);
     await page.evaluate(() => document.documentElement.classList.remove("dark"));

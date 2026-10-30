@@ -20,6 +20,7 @@ const { chromium } = createRequire(path.join(REPO, "package.json"))("@playwright
 const PLAN = "plan-e2e-full";
 const NAME = "Reel: PLAN01 full script";
 const mainStarts = () => readFileSync(LOG, "utf8").split("[crowsnest] db ").length - 1;
+const cdpBindFailures = () => readFileSync(LOG, "utf8").split("Cannot start http server for devtools").length - 1;
 
 const readReel = (name) => {
   const s = window.__store.getState();
@@ -61,12 +62,21 @@ export default async function cookRestart01({ page, step, snap }) {
   });
 
   await step("main restarts: the reel workspace and its Claude tab are still there", async () => {
-    const starts = mainStarts();
-    const now = new Date();
-    utimesSync(path.join(REPO, "src/main/index.ts"), now, now);
-    for (let i = 0; mainStarts() <= starts; i++) {
-      if (i === 120) throw new Error("main did not restart within 60 s");
-      await new Promise((r) => setTimeout(r, 500));
+    // Why the retry: electron-vite starts the new Electron at once, and on Linux the old one can still hold the
+    // CDP port, so the new one runs with no CDP server. Another touch restarts it once the port is free.
+    for (let attempt = 1; ; attempt++) {
+      const starts = mainStarts();
+      const failures = cdpBindFailures();
+      const now = new Date();
+      utimesSync(path.join(REPO, "src/main/index.ts"), now, now);
+      for (let i = 0; mainStarts() <= starts; i++) {
+        if (i === 120) throw new Error("main did not restart within 60 s");
+        await new Promise((r) => setTimeout(r, 500));
+      }
+      await new Promise((r) => setTimeout(r, 2_000));
+      if (cdpBindFailures() === failures) break;
+      console.log(`restart ${attempt}: the new Electron could not bind the CDP port`);
+      if (attempt === 3) throw new Error("the CDP port stayed taken after 3 restarts");
     }
     let browser;
     let fresh;

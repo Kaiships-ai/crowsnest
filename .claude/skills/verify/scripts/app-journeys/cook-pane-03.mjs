@@ -6,6 +6,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { logCookState } from "../cook-diagnostics.mjs";
 
 export const dod = ["B5-04"];
 
@@ -353,6 +354,9 @@ export default async function cookPane03({ page, step, snap }) {
       const v = await player("final");
       if (v.versions !== "v1 v2 v3 ✓") throw new Error(v.versions);
     });
+  } catch (error) {
+    await logCookState(page, key, PLAN).catch((e) => console.log(`diagnostics failed: ${e.message}`));
+    throw error;
   } finally {
     alive.kill();
     try {
