@@ -30,6 +30,12 @@ const readReel = (name) => {
 };
 
 export default async function cookRestart01({ page, step, snap }) {
+  // Why: on Linux the PTY daemon inherits Electron's CDP listening socket and outlives main by design, so a
+  // restarted Electron can never bind the port. Measured in CI: lsof names daemon-entry.js after 3 restarts.
+  if (process.platform === "linux") {
+    console.log("skip: the PTY daemon keeps the CDP port across a main restart on Linux; this journey runs on macOS");
+    return;
+  }
   const board = page.locator('[data-testid="board-tab"]:visible');
   let before;
   let after;
@@ -62,8 +68,8 @@ export default async function cookRestart01({ page, step, snap }) {
   });
 
   await step("main restarts: the reel workspace and its Claude tab are still there", async () => {
-    // Why the retry: electron-vite starts the new Electron at once, and on Linux the old one can still hold the
-    // CDP port, so the new one runs with no CDP server. Another touch restarts it once the port is free.
+    // Why the retry: electron-vite starts the new Electron at once, and the old one can still hold the CDP port,
+    // so the new one runs with no CDP server (seen on macOS CI). Another touch restarts it once the port is free.
     for (let attempt = 1; ; attempt++) {
       const starts = mainStarts();
       const failures = cdpBindFailures();
