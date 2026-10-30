@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Studio Bench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Geist+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#141216;--panel:#1a181d;--raise:#232026;--ink:#f6f0ea;--muted:#ada5a8;--faint:#776f75;
+  --line:rgba(255,238,226,.09);--line2:rgba(255,238,226,.18);--ghost:rgba(255,238,226,.07);
+  --peach:#ff9f7c;--peach-ink:#ffb699;--peach-soft:rgba(255,159,124,.14);--on-peach:#2a140b;
+  --err:#ff8a84;--err-soft:rgba(255,120,110,.13);--ok:#86dcb0;--shadow:0 16px 48px -18px rgba(0,0,0,.7);
+  --stage:#0d0c0f;
+  --display:"Bricolage Grotesque","SF Pro Display",-apple-system,sans-serif;
+  --body:"Instrument Sans","SF Pro Text",-apple-system,sans-serif;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  --ease:cubic-bezier(.22,1,.36,1);color-scheme:dark;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#faf6f2;--panel:#fffcfa;--raise:#f2ebe5;--ink:#1f1b29;--muted:#6e6673;--faint:#9c94a0;
+  --line:rgba(45,25,50,.09);--line2:rgba(45,25,50,.2);--ghost:rgba(45,25,50,.06);
+  --peach:#ff9f7c;--peach-ink:#b44f2c;--peach-soft:rgba(226,110,70,.12);--on-peach:#2a140b;
+  --err:#c23b36;--err-soft:rgba(200,60,50,.09);--ok:#237a52;--shadow:0 16px 48px -20px rgba(90,50,40,.35);
+  --stage:#efe8e1;color-scheme:light}}
+:root[data-theme="light"]{
+  --bg:#faf6f2;--panel:#fffcfa;--raise:#f2ebe5;--ink:#1f1b29;--muted:#6e6673;--faint:#9c94a0;
+  --line:rgba(45,25,50,.09);--line2:rgba(45,25,50,.2);--ghost:rgba(45,25,50,.06);
+  --peach:#ff9f7c;--peach-ink:#b44f2c;--peach-soft:rgba(226,110,70,.12);--on-peach:#2a140b;
+  --err:#c23b36;--err-soft:rgba(200,60,50,.09);--ok:#237a52;--shadow:0 16px 48px -20px rgba(90,50,40,.35);
+  --stage:#efe8e1;color-scheme:light}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:14.5px/1.5 var(--body);-webkit-font-smoothing:antialiased;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;height:100dvh;overflow:hidden}
+button,input,textarea{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer;transition:transform .12s var(--ease),background .16s,color .16s,border-color .16s}
+button:active{transform:scale(.97)}
+:focus-visible{outline:2px solid var(--peach);outline-offset:2px;border-radius:4px}
+h1,h2,p{margin:0}
+.tc{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;letter-spacing:-.01em}
+
+/* prototype band: not part of the app */
+.band{display:flex;align-items:center;gap:10px;padding:7px 14px;background:var(--stage);border-bottom:1px solid var(--line);font-size:13px;min-width:0;flex-wrap:wrap}
+.band select{background:var(--raise);border:1px solid var(--line);border-radius:7px;padding:3px 6px;max-width:190px}
+.b-play{height:28px;padding:0 12px 0 10px;border-radius:7px;background:var(--ink);color:var(--bg);font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.b-step{width:26px;height:26px;border-radius:7px;border:1px solid var(--line);color:var(--muted);font-size:16px;line-height:1}
+.dots{display:flex;gap:4px;align-items:center}
+.dots button{width:7px;height:7px;border-radius:9px;background:var(--line2)}
+.dots button.on{background:var(--peach);width:18px}
+.cap{flex:1;min-width:200px;color:var(--ink);line-height:1.3}
+.b-ghost{height:28px;padding:0 10px;border-radius:7px;border:1px solid var(--line);color:var(--muted)}
+.b-ghost:hover{color:var(--ink);border-color:var(--line2)}
+.matrix{position:fixed;z-index:90;top:48px;right:12px;background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:14px;box-shadow:var(--shadow);display:none;max-width:calc(100vw - 24px);overflow:auto}
+.matrix.on{display:block}
+.matrix table{border-collapse:collapse;font-size:12.5px}
+.matrix th{font-weight:500;color:var(--muted);padding:3px 8px;text-align:left}
+.matrix td{padding:2px}
+.matrix td button{width:26px;height:22px;border-radius:5px;background:var(--raise)}
+.matrix td button:hover,.matrix td button.on{background:var(--peach);}
+
+/* top bar: the 6 steps */
+.top{display:flex;align-items:center;gap:6px;padding:0 14px;height:48px;border-bottom:1px solid var(--line);min-width:0}
+.brand{font:700 15px/1 var(--display);letter-spacing:-.02em;padding:6px 10px 6px 2px;white-space:nowrap}
+.steps{display:flex;align-items:center;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.step{display:flex;align-items:center;gap:7px;height:32px;padding:0 11px;border-radius:8px;color:var(--muted);white-space:nowrap;position:relative}
+.step:hover{color:var(--ink);background:var(--ghost)}
+.step[aria-current="true"]{color:var(--ink);background:var(--raise);font-weight:600}
+.step i{width:6px;height:6px;border-radius:9px;background:var(--line2);flex:none}
+.step.w8 i{background:var(--peach)}
+.step.run i{background:var(--peach);animation:breathe 1.6s ease-in-out infinite}
+.step.err i{background:var(--err)}
+.step.done i{background:var(--ok)}
+.sep{width:10px;height:1px;background:var(--line2);flex:none}
+@keyframes breathe{50%{opacity:.25}}
+.tool{height:30px;padding:0 10px;border-radius:7px;color:var(--muted);white-space:nowrap}
+.tool:hover{color:var(--ink);background:var(--ghost)}
+
+/* bench: monitor, desk, note */
+.bench{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr) 332px;min-height:0}
+.mon{padding:16px 0 10px 16px;display:flex;flex-direction:column;align-items:center;gap:8px;min-height:0;container-type:size}
+.frame{position:relative;flex:none;width:min(100%,calc((100cqh - 34px)*9/16));aspect-ratio:9/16;background:#17151a;border-radius:10px;overflow:hidden;border:1px solid var(--line);cursor:pointer}
+.frame svg.doodle{position:absolute;inset:0;width:100%;height:100%;transition:opacity .2s}
+.frame .capn{position:absolute;left:8%;right:8%;bottom:18%;text-align:center;font:800 clamp(15px,2.1vh,22px)/1.14 var(--display);letter-spacing:-.01em;color:#fffdf8;text-shadow:0 1px 0 #000,0 0 12px rgba(0,0,0,.65);text-wrap:balance}
+.frame.dim svg.doodle{opacity:.22}
+.frame.draft svg.doodle{filter:saturate(.6) contrast(.85)}
+.frame .tag{position:absolute;top:9px;left:9px;font:600 11px/1 var(--body);padding:4px 7px;border-radius:5px;background:rgba(0,0,0,.55);color:#fff}
+.frame .blank{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:center;padding:0 12px 16%;text-align:center;color:var(--muted);font-size:13px}
+.mctl{display:flex;align-items:center;gap:8px;width:100%;max-width:240px}
+.mctl button{width:26px;height:26px;border-radius:7px;display:grid;place-items:center;color:var(--ink)}
+.mctl button:hover{background:var(--ghost)}
+.scrub{flex:1;height:18px;position:relative;cursor:pointer}
+.scrub::before{content:"";position:absolute;left:0;right:0;top:8px;height:2px;background:var(--line2);border-radius:2px}
+.scrub b{position:absolute;left:0;top:8px;height:2px;background:var(--peach);border-radius:2px}
+.desk{padding:22px 30px 26px;overflow:auto;min-width:0}
+.desk h1{font:700 clamp(24px,2.5vw,32px)/1.08 var(--display);letter-spacing:-.025em;margin-bottom:6px;text-wrap:balance}
+.desk .lead{color:var(--muted);max-width:60ch;margin-bottom:18px}
+.note{position:relative;border-left:1px solid var(--line);padding:20px 22px;overflow:auto;display:flex;flex-direction:column;gap:12px;min-width:0}
+.note h2{font:700 19px/1.18 var(--display);letter-spacing:-.015em;text-wrap:pretty}
+.note .sub{color:var(--muted);font-size:13.5px}
+.note.err h2{color:var(--err)}
+.mslot{display:block;flex:none}
+.mslot.away{position:absolute;right:22px;top:16px;visibility:hidden}
+.acts{display:flex;flex-wrap:wrap;gap:8px}
+.btn{height:36px;padding:0 14px;border-radius:9px;font-weight:600;background:var(--raise);white-space:nowrap}
+.btn:hover{background:var(--line2)}
+.btn.pri{background:var(--peach);color:var(--on-peach)}
+.btn.pri:hover{background:#ffb092}
+.btn[disabled]{opacity:.45;cursor:default}
+.rows{display:grid;grid-template-columns:auto 1fr;gap:9px 12px;font-size:13.5px;border-top:1px solid var(--line);padding-top:12px}
+.rows dt{font:500 10.5px/1.7 var(--mono);letter-spacing:.06em;color:var(--faint);white-space:nowrap}
+.rows dd{margin:0}
+.strip{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;font-size:11.5px;color:var(--faint)}
+.strip span{display:block}
+.strip span::before{content:"";display:block;height:3px;border-radius:3px;background:var(--line2);margin-bottom:5px;transition:background .3s}
+.strip .d{color:var(--muted)}.strip .d::before{background:var(--ink)}
+.strip .c{color:var(--ink);font-weight:600}.strip .c::before{background:var(--peach);animation:breathe 1.6s ease-in-out infinite}
+.strip .x{color:var(--err);font-weight:600}.strip .x::before{background:var(--err)}
+
+/* desk parts */
+.list{border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,2fr) auto;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line);min-height:44px}
+.row b{font-weight:600}
+.row .m{color:var(--muted);font-size:13.5px}
+.bar{height:3px;border-radius:3px;background:var(--line2);overflow:hidden;margin-top:6px}
+.bar b{display:block;height:100%;background:var(--peach);transition:width .3s var(--ease)}
+.pill{font-size:12px;padding:2px 8px;border-radius:6px;background:var(--ghost);color:var(--muted);white-space:nowrap}
+.pill.ok{color:var(--ok)}.pill.err{color:var(--err);background:var(--err-soft)}.pill.warm{color:var(--peach-ink);background:var(--peach-soft)}
+.nums{display:flex;flex-wrap:wrap;gap:6px 30px;margin:0 0 20px}
+.nums div b{display:block;font:700 24px/1.1 var(--display);letter-spacing:-.02em}
+.nums div span{color:var(--muted);font-size:12.5px}
+.nums .bad b{color:var(--err)}
+.tabs{display:flex;gap:2px;margin:0 0 18px;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.tabs button{padding:6px 11px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs button[aria-selected="true"]{color:var(--ink);border-color:var(--peach);font-weight:600}
+.moment{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:12px;align-items:baseline;padding:11px 8px;border-bottom:1px solid var(--line);width:100%;text-align:left;border-radius:0}
+.moment:hover{background:var(--ghost)}
+.moment .tc{color:var(--peach-ink)}
+.moment p{color:var(--muted);font-size:13.5px;margin-top:1px}
+.field{display:grid;grid-template-columns:82px minmax(0,1fr);gap:12px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.field label{color:var(--muted);font-size:13px}
+.field input,.field textarea{width:100%;background:none;border:0;padding:3px 6px;margin-left:-6px;border-radius:6px;resize:none;outline:0}
+.field input:hover,.field textarea:hover{background:var(--ghost)}
+.field input:focus,.field textarea:focus{background:var(--raise)}
+.field.gap input{border:1px dashed var(--line2)}
+.field.gap input::placeholder{color:var(--peach-ink)}
+.beat{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;padding:2px 6px 2px 0;border-radius:6px;cursor:pointer}
+.beat:hover{background:var(--ghost)}
+.beat .tc{color:var(--faint);line-height:1.8}
+.beat.on .tc{color:var(--peach-ink)}
+.swap{padding:13px 0;border-bottom:1px solid var(--line);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:start}
+.swap .was{color:var(--faint);text-decoration:line-through;text-decoration-color:var(--line2)}
+.swap .now{font-weight:600}
+.swap .why{color:var(--muted);font-size:13px;grid-column:1}
+.swap .where{font-size:12px;color:var(--muted);margin-bottom:3px}
+.seg{display:inline-flex;background:var(--ghost);border-radius:8px;padding:2px}
+.seg button{height:24px;padding:0 9px;border-radius:6px;color:var(--muted);font-size:12.5px}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--ink);font-weight:600;box-shadow:0 1px 1px rgba(0,0,0,.14)}
+.check{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.check i{font-style:normal;width:15px;flex:none;text-align:center;color:var(--ok)}
+.check.no i{color:var(--err)}
+.check span{color:var(--muted);font-size:13.5px;margin-left:auto;text-align:right}
+.pin{display:flex;gap:8px;margin-top:14px}
+.pin input{flex:1;min-width:0;background:var(--raise);border:1px solid transparent;border-radius:9px;padding:7px 11px;outline:0}
+.pin input:focus{border-color:var(--line2)}
+.pinned{display:flex;gap:9px;padding:8px 0;font-size:13.5px}
+.pinned .tc{color:var(--peach-ink);line-height:1.8}
+.todo{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line)}
+.todo p{color:var(--muted);font-size:13.5px}
+.bars{display:flex;align-items:flex-end;gap:3px;height:68px;margin:0 0 18px}
+.bars i{flex:1;background:var(--line2);border-radius:2px 2px 0 0;min-width:2px}
+.bars i.hi{background:var(--peach)}
+.kw{width:100%;border-collapse:collapse;font-size:13.5px}
+.kw th{font-weight:500;color:var(--muted);text-align:right;padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.kw td{padding:8px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.kw th:first-child,.kw td:first-child{text-align:left}
+.tw{overflow-x:auto}
+.rv{padding:12px 0;border-bottom:1px solid var(--line)}
+.rv .k{font-size:12px;font-weight:600;color:var(--peach-ink)}
+.rv p{color:var(--muted);font-size:13.5px}
+
+/* ghost: reserved shape, then fill */
+.ghosting [data-f]{color:transparent!important;background:var(--ghost)!important;border-color:transparent!important;border-radius:6px}
+.ghosting [data-f] *{visibility:hidden}
+.filling [data-f]{animation:fill .22s var(--ease) both;animation-delay:calc(var(--i,0)*14ms)}
+@keyframes fill{from{opacity:.25;transform:translateY(3px)}}
+
+/* first open */
+.first{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px}
+.first h1{font:800 clamp(34px,5vw,58px)/1.02 var(--display);letter-spacing:-.035em}
+.first p{color:var(--muted);max-width:44ch}
+
+/* timeline */
+.tl{border-top:1px solid var(--line);background:var(--panel);min-width:0;user-select:none}
+.tl-h{display:flex;align-items:center;gap:12px;padding:6px 14px;min-height:38px}
+.tl-h .hint{margin-left:auto;color:var(--faint);font-size:12px;white-space:nowrap}
+.tl-h .what{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tl-b{position:relative;height:150px;overflow:hidden;margin:0 14px 10px;touch-action:pan-y}
+.ruler{position:absolute;left:0;right:0;top:0;height:20px;color:var(--faint);font-size:11px}
+.ruler span{position:absolute;top:2px;white-space:nowrap;padding-left:4px;border-left:1px solid var(--line)}
+.ruler span.tod{color:var(--peach-ink)}
+.clip{position:absolute;top:24px;height:86px;border-radius:8px;background:var(--raise);overflow:hidden;cursor:pointer;border:1px solid transparent;will-change:left,width,height}
+.clip.sel{border-color:var(--line2)}
+.clip.plan{background:none;border:1px dashed var(--line2)}
+.clip.wait{border:1.5px solid var(--peach);background:var(--peach-soft)}
+.clip.cook{background:var(--raise)}
+.clip.err{border:1.5px solid var(--err);background:var(--err-soft)}
+.clip.slot{background:none;border:1px dashed var(--line);color:var(--faint);display:grid;place-items:center;font-size:12px}
+.clip.slot:hover{border-color:var(--line2);color:var(--muted)}
+.c-w{position:absolute;inset:0;padding:7px 9px;display:flex;flex-direction:column;justify-content:space-between;min-width:0;pointer-events:none}
+.c-w .t{font-weight:600;font-size:12.5px;line-height:1.22;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.c-w .s{font-size:11.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clip.wait .c-w .s{color:var(--peach-ink);font-weight:600}
+.clip.err .c-w .s{color:var(--err);font-weight:600}
+.c-m{position:absolute;left:0;right:0;bottom:0;height:3px}
+.c-r{position:absolute;inset:0;pointer-events:none;opacity:0}
+.c-r .beats{position:absolute;left:0;right:0;top:0;height:38px;display:flex;gap:1px;padding:1px}
+.c-r .beats div{flex:var(--w) 1 0;min-width:0;padding:4px 7px;font-size:11.5px;line-height:1.25;background:var(--ghost);border-radius:5px;overflow:hidden}
+.c-r .beats div.on{background:var(--peach-soft);color:var(--peach-ink)}
+.c-r svg{position:absolute;left:0;right:0;top:40px;bottom:0;width:100%;height:calc(100% - 40px)}
+.c-r .ph{position:absolute;top:0;bottom:0;width:2px;background:var(--peach);left:0}
+.c-r .ph b{position:absolute;bottom:2px;left:4px;font:500 10.5px/1.3 var(--mono);color:var(--peach-ink);background:var(--panel);padding:0 3px;border-radius:3px}
+.render{position:absolute;left:0;bottom:0;height:3px;background:repeating-linear-gradient(115deg,var(--peach) 0 8px,#ffc4ad 8px 16px);background-size:200% 100%;animation:slide 1.4s linear infinite;transition:width .4s var(--ease)}
+.render.stop{animation:none;background:var(--err)}
+@keyframes slide{to{background-position:-68px 0}}
+.tail{position:absolute;top:24px;height:126px;padding:2px 2px 2px 14px;opacity:0;pointer-events:none;overflow:hidden}
+.tail h3{font:600 12px/1.3 var(--body);margin:0 0 4px;color:var(--muted)}
+.tail div{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;line-height:1.55;border-bottom:1px solid var(--line)}
+.tail div b{font-variant-numeric:tabular-nums}
+.tail .gapn{color:var(--peach-ink)}
+.rtrack{position:absolute;left:0;right:0;top:114px;height:32px}
+.rv-c{position:absolute;height:32px;border-radius:6px;background:var(--ghost);font-size:11.5px;padding:3px 7px;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis;line-height:26px}
+.todayl{position:absolute;top:0;height:20px;width:1.5px;background:var(--peach);opacity:.7;pointer-events:none}
+
+/* mascot */
+#mate{position:fixed;left:0;top:0;width:360px;height:360px;z-index:40;pointer-events:none;transform-origin:0 0;opacity:0;transition:opacity .25s}
+#mate.fallback{display:none}
+.say{position:fixed;z-index:41;left:0;top:0;max-width:230px;background:var(--ink);color:var(--bg);font-size:13px;line-height:1.3;font-weight:500;padding:6px 10px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .22s;box-shadow:var(--shadow)}
+.say.on{opacity:1}
+
+/* drawers */
+.sheet{position:fixed;z-index:70;right:0;top:0;bottom:0;width:min(480px,100vw);background:var(--panel);border-left:1px solid var(--line2);box-shadow:var(--shadow);padding:22px;overflow:auto;transform:translateX(102%);transition:transform .26s var(--ease);visibility:hidden}
+.sheet.on{transform:none;visibility:visible}
+.sheet h2{font:700 22px/1.15 var(--display);letter-spacing:-.02em;margin-bottom:6px}
+.sheet .x{position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:7px;color:var(--muted);font-size:18px}
+.sheet .sub{color:var(--muted);margin-bottom:14px}
+.hood{position:fixed;z-index:60;left:0;right:0;bottom:0;height:min(290px,46vh);background:#0f0e11;color:#d8d2cf;border-top:1px solid var(--line2);transform:translateY(102%);transition:transform .26s var(--ease);visibility:hidden;display:flex;flex-direction:column}
+.hood.on{transform:none;visibility:visible}
+.hood header{display:flex;gap:10px;align-items:center;padding:8px 14px;font-size:13px;border-bottom:1px solid rgba(255,255,255,.09)}
+.hood header button{margin-left:auto;color:#a49e9c}
+.hood pre{margin:0;padding:12px 14px;font:12px/1.55 var(--mono);overflow:auto;flex:1;white-space:pre-wrap}
+
+/* fake cursor */
+#cur{position:fixed;z-index:95;left:0;top:0;width:22px;height:22px;pointer-events:none;opacity:0;transition:transform .62s cubic-bezier(.45,.05,.2,1),opacity .2s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+#cur.on{opacity:1}
+#ring{position:fixed;z-index:94;width:28px;height:28px;margin:-14px 0 0 -14px;border-radius:50%;border:2px solid var(--peach);opacity:0;pointer-events:none}
+#ring.go{animation:ring .42s var(--ease)}
+@keyframes ring{from{opacity:1;transform:scale(.35)}to{opacity:0;transform:scale(1.3)}}
+
+@media (max-width:1180px){.bench{grid-template-columns:minmax(190px,240px) minmax(0,1fr) 290px}.desk{padding:18px 20px}}
+@media (max-width:900px){
+  body{display:block;height:auto;overflow:auto;overflow-x:hidden}
+  .top{position:sticky;top:0;z-index:30;background:var(--bg)}
+  .brand{display:none}
+  .tool.hoodb{display:none}
+  .bench{display:flex;flex-direction:column}
+  .mon{padding:12px 16px 0;order:0}
+  .mon{container-type:normal}.frame{width:auto;height:300px}
+  .note{order:1;border-left:0;border-top:1px solid var(--line);margin-top:10px;padding:16px;overflow:visible}
+  .desk{order:2;padding:16px;overflow:visible;border-top:1px solid var(--line)}
+  .row{grid-template-columns:minmax(0,1fr) auto}.row .m{grid-column:1/-1;grid-row:2}
+  .tl-h .hint{display:none}
+  .mslot.away{width:44px!important;height:44px!important;right:14px;top:10px}
+  .note h2{padding-right:50px}
+  .dots{flex:1;min-width:0;overflow:hidden}
+  .band select{max-width:130px}
+  .cap{order:9;flex-basis:100%}
+  .first{min-height:64vh}
+  .field{grid-template-columns:64px minmax(0,1fr)}
+  .check{flex-wrap:wrap}.check span{margin-left:25px;text-align:left;flex-basis:100%}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="band" data-testid="band">
+  <select id="jsel" aria-label="Chọn hành trình" data-testid="journey"></select>
+  <button class="b-play" id="bplay" data-testid="tour-play"></button>
+  <button class="b-step" id="bprev" aria-label="Bước trước" data-testid="tour-prev">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="b-step" id="bnext" aria-label="Bước sau" data-testid="tour-next">›</button>
+  <div class="cap" id="cap" data-testid="tour-cap" aria-live="polite">Bấm Play để xem con trỏ giả đi qua cả vòng 6 bước.</div>
+  <button class="b-ghost" id="bstates" data-testid="states">Every state</button>
+  <button class="b-ghost" id="btheme" data-testid="theme">Dark / light</button>
+</div>
+<div class="matrix" id="matrix"></div>
+<header class="top">
+  <button class="brand" id="brand" data-testid="home">Lead Studio</button>
+  <nav class="steps" id="steps" aria-label="The 6 steps"></nav>
+  <button class="tool hoodb" id="bhood" data-testid="hood-btn">Under the hood</button>
+  <button class="tool" id="bset" data-testid="settings">Sources</button>
+</header>
+<div class="bench" id="bench"></div>
+<footer class="tl" data-testid="timeline">
+  <div class="tl-h">
+    <div class="seg" id="zoom"><button data-do="zoom:month">Month</button><button data-do="zoom:week">Week</button><button data-do="zoom:reel" data-testid="zoom-reel">Reel</button></div>
+    <span class="what" id="tl-what"></span>
+    <span class="hint">1 2 3 zoom · Space play · ← → move</span>
+  </div>
+  <div class="tl-b" id="tlb"></div>
+</footer>
+<canvas id="mate" aria-hidden="true"></canvas>
+<div class="say" id="say" role="status"></div>
+<aside class="sheet" id="sheet"></aside>
+<section class="hood" id="hood" aria-label="Under the hood"><header><b>Under the hood</b><span style="color:#a49e9c">Claude in this workspace</span><button data-do="closeHood" data-testid="hood-close">Close</button></header><pre id="hoodlog"></pre></section>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="wob"><feTurbulence baseFrequency=".035" numOctaves="2" seed="4"/><feDisplacementMap in="SourceGraphic" scale="3.4"/></filter></svg>
+<svg id="cur" viewBox="0 0 22 22" aria-hidden="true"><path d="M3 2l15 9-7 1.6L8 19z" fill="#fff" stroke="#1f1b29" stroke-width="1.4" stroke-linejoin="round"/></svg>
+<div id="ring"></div>
+<script>
+/* Fake data only. Every reel, handle and number below is invented for this prototype. */
+const STATIONS = [['pull','Pull'],['insight','Insight'],['plan','Plan'],['approve','Approve plan'],['cook','Cook'],['check','Final check']];
+const STATES = ['normal','running','long','error','empty','limited'];
+const TODAY = 29; // day index; day 0 is Oct 1, a Thursday
+const REELS = [
+  {id:'a1',d:4,t:'Your README is a landing page',views:9120,skip:47,kw:'README'},
+  {id:'a2',d:6,t:'One command I run every morning',views:15400,skip:39,kw:'MORNING'},
+  {id:'a3',d:9,t:'Stop naming things utils',views:27800,skip:33,kw:'NAMES'},
+  {id:'a4',d:11,t:'Tests I would never write again',views:11200,skip:45,kw:'TESTS'},
+  {id:'a5',d:13,t:'My desk, in 12 seconds',views:6400,skip:58,kw:''},
+  {id:'a6',d:15,t:'Three tabs, one brain',views:18900,skip:36,kw:'TABS'},
+  {id:'r1',d:18,t:'Stop writing prompts like emails',views:48210,skip:31,kw:'PROMPT'},
+  {id:'r2',d:20,t:'The 3 files every repo needs',views:22640,skip:44,kw:'FILES'},
+  {id:'r3',d:22,t:'My 30-second terminal setup',views:61900,skip:24,kw:'SETUP'},
+  {id:'r4',d:25,t:'Why your app feels slow',views:12480,skip:52,kw:'SLOW',watch:'9.4 s',shares:86,saves:212,follows:17},
+  {id:'r5',d:27,t:'The bug that cost me a weekend',views:34020,skip:38,kw:'BUG',watch:'14.1 s',shares:402,saves:880,follows:96},
+  {id:'r6',d:29,t:'Ship on Friday, sleep on Saturday',kw:'DEPLOY',future:true},
+  {id:'r7',d:30,t:'One hook, three rewrites',kw:'',future:true,missing:2},
+];
+const BEATS = {
+  r4:[[0,3,'Hi, welcome back to the channel','talk'],[3,4,'Today: why apps feel slow','laptop'],[7,7,'Your app is not slow. Your first paint is.','clock'],[14,8,'Show the shape before the data','laptop'],[22,5,'I tested this on my own app','arrow'],[27,3,'Comment SLOW for the checklist','talk']],
+  r6:[[0,3,'I shipped on Friday. I slept fine.','talk'],[3,5,'Three checks. That is the whole trick.','laptop'],[8,7,'One: the deploy can undo itself','arrow'],[15,6,'Two: it tells you before users do','clock'],[21,5,'Three: nobody has to stay awake','moon'],[26,4,'Comment DEPLOY for my checklist','talk']],
+};
+const fallbackBeats = r => [[0,3,r.t,'talk'],[3,7,'Why this matters to you','laptop'],[10,10,'What I did instead','arrow'],[20,6,'What changed after that','clock'],[26,4,r.kw?`Comment ${r.kw} and I will send it`:'Follow for part two','talk']];
+const beatsOf = r => BEATS[r.id] || fallbackBeats(r);
+const durOf = r => { const b = beatsOf(r).at(-1); return b[0]+b[1]; };
+const TAIL = {
+  r4:[['Comment SLOW',164],['Got the DM',121],['Opened the gift',38],['Clicked checkout',4],['Bought',1]],
+  r5:[['Comment BUG',610],['Got the DM',544],['Opened the gift',203],['Clicked checkout',17],['Bought',3]],
+  r3:[['Comment SETUP',1210],['Got the DM',1080],['Opened the gift',402],['Clicked checkout',31],['Bought',6]],
+};
+const defaultTail = r => { const c = Math.round((r.views||0)*.012); return [[`Comment ${r.kw||'keyword'}`,c],['Got the DM',Math.round(c*.86)],['Opened the gift',Math.round(c*.3)],['Clicked checkout',Math.round(c*.03)],['Bought',Math.round(c*.005)]]; };
+const RIVALS_T = [{d:19,t:'hana.ships · 212k'},{d:24,t:'dario.builds · 96k'},{d:26,t:'hana.ships · 88k'},{d:28,t:'june.makes · 140k'},{d:12,t:'june.makes · 74k'},{d:7,t:'dario.builds · 51k'}];
+const COOK_STEPS = [['Script','Copying your script into the reel'],['Voice','Recording the voice'],['Build','Building the chapters'],['Draft','Rendering a quick draft'],['Final','Rendering the final video'],['Review','Checking the reel against your plan']];
+const SOURCES = [['Your channel','14 reels on Instagram'],['Rivals','13 channels you follow'],['DM replies','ChatbotX'],['Gift page visits','Umami'],['Sales','Polar']];
+const CHANGES = [
+  {where:'Hook',from:'So today I want to talk about Friday deploys.',to:'I shipped on Friday. I slept fine.',why:'Your best hook opens on a claim. "My 30-second terminal setup" kept 76% past second 3.'},
+  {where:'At 0:03',from:'There are many things you could check.',to:'Three checks. That is the whole trick.',why:'People left "Why your app feels slow" during a setup line just like this one.'},
+  {where:'Keyword',from:'No keyword',to:'Comment DEPLOY for my checklist',why:"Without a keyword, this reel can't send anyone to your gift page."},
+];
+const KW = [['SETUP',1,'61.9k','1,210','1,080','402','31','6'],['BUG',1,'34.0k','610','544','203','17','3'],['PROMPT',1,'48.2k','740','655','188','12','2'],['SLOW',1,'12.5k','164','121','38','4','1'],['No keyword',2,'14.8k','31','0','0','0','0']];
+const RIVAL_CARDS = [
+  ['Take','hana.ships','Opens on the result, then rewinds. 212k views. Fits your "what I shipped" reels.'],
+  ['Learn','june.makes','Puts the keyword on screen at second 20, not only in the caption. Their comment count doubled over 6 reels.'],
+  ['Avoid','dario.builds','Long logo intros. Their 3 lowest reels all open this way.'],
+];
+const THIRTY = [12,14,9,11,18,16,8,10,22,31,26,19,14,17,12,9,14,18,62,44,28,20,18,24,12,10,34,28,20,16];
+const HOOD = `claude › /make-reel workspace/scripts/ship-on-friday.md
+  read job.json, 2 of 6 steps done
+  voice: ok, 30.2 s
+  chapters: 6 planned
+  chapter 1 of 6 built
+  chapter 2 of 6 built
+  chapter 3 of 6 building...
+lead › this log is word for word. You never need it to finish a reel.`;
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const k = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 1 : 1).replace(/\.0$/, '') + 'k' : String(n);
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+
+/* ---------- app state ---------- */
+const init = () => ({
+  station: 'today', first: false, world: 'full', r6: 'approve', sel: 'r6', zoom: 'week', tab: 'reel', t: 0, playing: false,
+  st: { pull: 'normal', insight: 'normal', plan: 'normal', approve: 'normal', cook: 'normal', check: 'normal' },
+  run: { pull: { done: 13, sec: 0, live: false }, insight: { done: 6, sec: 0, live: false }, plan: { done: 3, sec: 0, live: false }, approve: { sec: 0, live: false }, cook: { step: 0, sec: 0, live: false }, check: { step: 0, sec: 0, live: false } },
+  keep: [true, true, true], notes: [], kw: '', gift: '', fresh: '07:02',
+});
+let S = init();
+const reel = id => REELS.find(r => r.id === id);
+const sel = () => reel(S.sel) || reel('r5');
+
+/* ---------- copy for every step and state ---------- */
+const COPY = {
+  pull: {
+    normal: () => ({ h: 'Your numbers are fresh', sub: `Pulled at ${S.fresh}. 5 sources answered.`, can: 'Pull again, or read what changed.', wait: 'Nothing happens. Lead Studio pulls on request, never on a timer.', acts: [['Read what changed', 'goInsight', 1], ['Pull again', 'startPull']], mate: { expr: 'happy', pose: 'floating' } }),
+    running: () => ({ h: `Pulling rivals, ${S.run.pull.done} of 13`, sub: `<span data-clock="pull">${mmss(S.run.pull.sec)}</span> so far, usually about 3:00`, can: 'Leave this screen. The pull keeps going.', wait: 'New numbers show up on the timeline as each channel answers.', acts: [['Stop', 'stopPull']], mate: { expr: 'curious', pose: 'finding', say: 'Fetching your numbers.' } }),
+    long: () => ({ h: 'Taking longer than usual', sub: `<span data-clock="pull">${mmss(S.run.pull.sec)}</span> so far, usually about 3:00. Instagram is answering slowly, so Lead Studio waits between rivals to avoid a limit.`, can: 'Leave this screen and keep planning. The pull keeps going.', wait: `The other ${13 - S.run.pull.done} rivals finish in a few more minutes.`, acts: [['Stop', 'stopPull']], mate: { expr: 'focused', pose: 'finding', say: 'Slow today. Still on it.' } }),
+    error: () => ({ err: 1, h: '3 rivals have new numbers', sub: 'The other 10 keep their older numbers. Instagram stopped answering at 07:04.', can: 'Pull the other 10 now.', wait: 'Your plan and your own channel are not affected. Rival numbers stay from yesterday.', acts: [['Pull the rest (10)', 'resumePull', 1]], mate: { expr: 'surprised', pose: 'floating', say: 'Your 3 are safe.' } }),
+    empty: () => ({ h: 'Nothing pulled yet', sub: 'Start with your own channel. It takes about a minute.', can: 'Pull your channel, then add rivals later.', wait: 'The timeline stays empty until the first pull.', acts: [['Pull my channel', 'startPull', 1]], mate: { expr: 'curious', pose: 'finding', big: 1, say: 'Nothing here yet. Shall I look?' } }),
+    limited: () => ({ h: 'Instagram limit reached for this hour', sub: '6 rivals are done. The other 7 wait for the next hour at 08:00.', can: 'Have it finish by itself at 08:00, or plan meanwhile.', wait: 'Nothing is lost. The 6 finished rivals are already on your timeline.', acts: [['Pull the rest at 08:00', 'queuePull', 1]], mate: { expr: 'sleeping', pose: 'floating', say: 'Back at 08:00.' } }),
+  },
+  insight: {
+    normal: () => ({ h: 'Fix the first 3 seconds', sub: `"Why your app feels slow" lost 52% before second 3. Your usual is 36%.`, can: 'Put this lesson into the next reel.', wait: 'Nothing changes. Lead Studio never edits your plan by itself.', acts: [['Use this in my next reel', 'lessonToPlan', 1]], mate: { expr: 'thinking', pose: 'explaining' } }),
+    running: () => ({ h: `Claude is reading your reels, ${S.run.insight.done} of 6`, sub: `<span data-clock="insight">${mmss(S.run.insight.sec)}</span> so far, usually about 1:00`, can: 'Leave. Each reading is saved as it finishes.', wait: 'Readings fill in on the left, one reel at a time.', acts: [['Stop', 'stopInsight']], mate: { expr: 'thinking', pose: 'thinking', say: 'Reading your reels.' } }),
+    long: () => ({ h: 'Still reading, slower than usual', sub: `<span data-clock="insight">${mmss(S.run.insight.sec)}</span> so far, usually about 1:00. ${S.run.insight.done} of 6 reels are read and saved.`, can: 'Open any finished reading now.', wait: 'The last 2 readings finish by themselves.', acts: [['Stop', 'stopInsight']], mate: { expr: 'thinking', pose: 'thinking', say: 'Thinking hard on this one.' } }),
+    error: () => ({ err: 1, h: '4 readings are saved', sub: 'The other 2 stopped because Claude signed out.', can: 'Sign in, then read the other 2.', wait: 'The 4 stay as they are. The other 2 show numbers without a reading.', acts: [['Read the other 2', 'startInsight', 1], ['See what happened', 'openHood']], mate: { expr: 'surprised', pose: 'floating', say: 'Your 4 are safe.' } }),
+    empty: () => ({ h: 'No numbers to read yet', sub: 'Post one reel or pull your channel. A reel needs about 48 hours to settle.', can: 'Pull your channel.', wait: 'This screen stays empty. Nothing is wrong.', acts: [['Pull my channel', 'goPullEmpty', 1]], mate: { expr: 'curious', pose: 'floating', big: 1 } }),
+    limited: () => ({ h: 'Numbers are ready. The reading waits', sub: "Claude's usage limit resets at 14:00. Every number is still here.", can: 'Read the curve yourself, or run this at 14:00.', wait: 'Readings start by themselves at 14:00.', acts: [['Read at 14:00', 'queueGeneric', 1]], mate: { expr: 'sleeping', pose: 'floating', say: 'Back at 14:00.' } }),
+  },
+  plan: {
+    normal: () => { const m = missing(); return { h: m ? `Friday's reel is missing ${plural(m, 'thing')}` : "Friday's reel is ready to approve", sub: m ? 'Fill the gaps on the left, or send it and let Claude suggest them.' : 'Claude proposes 3 changes. You decide each one.', can: 'Write here, or drag from Rivals.', wait: 'Nothing is sent. Your draft is saved as you type.', acts: [['Send for approval', 'sendPlan', 1]], mate: { expr: 'happy', pose: 'floating' } }; },
+    running: () => ({ h: `Claude is drafting, ${S.run.plan.done} of 3`, sub: `<span data-clock="plan">${mmss(S.run.plan.sec)}</span> so far, usually about 2:00`, can: 'Keep editing any finished reel.', wait: 'New drafts land on empty days of your timeline.', acts: [['Stop', 'stopPlan']], mate: { expr: 'focused', pose: 'working', say: 'Drafting next week.' } }),
+    long: () => ({ h: 'Drafting is slower than usual', sub: `<span data-clock="plan">${mmss(S.run.plan.sec)}</span> so far, usually about 2:00. ${S.run.plan.done} of 3 drafts are saved.`, can: 'Edit the finished draft now.', wait: 'The other 2 finish by themselves.', acts: [['Stop', 'stopPlan']], mate: { expr: 'focused', pose: 'working', say: 'Taking my time on these.' } }),
+    error: () => ({ err: 1, h: '2 of 3 drafts are saved', sub: "The third stopped because Claude lost its connection.", can: 'Draft the third again.', wait: 'The 2 saved drafts stay on your timeline. The empty day stays open.', acts: [['Draft the third', 'startPlan', 1]], mate: { expr: 'surprised', pose: 'floating', say: 'Your 2 are safe.' } }),
+    empty: () => ({ h: 'Nothing planned this week', sub: 'Your best reel last week was "My 30-second terminal setup".', can: 'Plan from that reel, or start with a blank script.', wait: 'Empty days stay open. Nothing gets posted.', acts: [['Plan from my best reel', 'startPlan', 1], ['Start blank', 'blankPlan']], mate: { expr: 'curious', pose: 'floating', big: 1, say: 'A free week. What shall we make?' } }),
+    limited: () => ({ h: 'Writing by hand until 14:00', sub: "Claude's usage limit resets at 14:00. Everything you type is saved.", can: 'Keep writing. Only suggestions are paused.', wait: 'Claude picks up your draft at 14:00.', acts: [['Send for approval', 'sendPlan', 1]], mate: { expr: 'sleeping', pose: 'floating', say: 'Back at 14:00.' } }),
+  },
+  approve: {
+    normal: () => { const n = S.keep.filter(Boolean).length; return { h: 'Your call on Friday\'s reel', sub: 'Claude proposes these. Nothing changes until you approve.', can: 'Keep or skip each change, or tell Claude what to fix.', wait: 'The reel does not cook. Tonight\'s 21:00 slot stays open until 18:00.', acts: [[n ? `Approve ${plural(n, 'change')}` : 'Approve as written', 'approve', 1]], mate: { expr: 'curious', pose: 'floating', onClip: 1, say: 'Waiting on you.' } }; },
+    running: () => ({ h: 'Claude is rewriting after your note', sub: `<span data-clock="approve">${mmss(S.run.approve.sec)}</span> so far, usually under 0:40`, can: 'Leave. The new version waits here.', wait: 'New changes appear on the left.', acts: [], mate: { expr: 'focused', pose: 'working', say: 'Rewriting.' } }),
+    long: () => ({ h: 'The rewrite is taking longer', sub: `<span data-clock="approve">${mmss(S.run.approve.sec)}</span> so far, usually under 0:40. Your approved changes are already saved.`, can: 'Cook with what you approved, or wait.', wait: 'The rewrite lands here.', acts: [['Cook without the rewrite', 'approve']], mate: { expr: 'thinking', pose: 'thinking', say: 'Almost there.' } }),
+    error: () => ({ err: 1, h: "Your note didn't reach Claude", sub: 'Your 2 approved changes are kept. Your note is kept too.', can: 'Send the note again.', wait: 'The reel keeps your 2 approved changes.', acts: [['Send the note again', 'resendNote', 1]], mate: { expr: 'surprised', pose: 'floating', say: 'Your note is safe.' } }),
+    empty: () => ({ h: 'Nothing waits for you', sub: 'Every plan is approved. "Ship on Friday" is next to cook.', can: 'Cook it, or plan further ahead.', wait: 'Nothing happens until you start a cook.', acts: [['Go to Cook', 'goCook', 1]], mate: { expr: 'sleeping', pose: 'floating', big: 1 } }),
+    limited: () => ({ h: 'You can approve 2 of 3 now', sub: 'The keyword change needs a gift page. DEPLOY has none yet.', can: 'Approve 2 now, and add the gift page later.', wait: 'The reel can cook. It will post with no DM reply until the gift page exists.', acts: [['Approve 2 changes', 'approve', 1]], mate: { expr: 'curious', pose: 'floating', onClip: 1, say: 'One needs a gift page.' } }),
+  },
+  cook: {
+    normal: () => ({ h: 'Ready to cook', sub: '3 changes approved. Usually about 12 minutes.', can: 'Start, then go do anything else.', wait: 'Nothing runs until you press Cook.', acts: [['Cook this reel', 'startCook', 1]], mate: { expr: 'happy', pose: 'floating' } }),
+    running: () => { const c = S.run.cook, st = COOK_STEPS[c.step]; return { h: `Claude is ${lower(st[1])}`, sub: `Step ${c.step + 1} of 6 · <span data-clock="cook">${mmss(c.sec)}</span> so far`, can: 'Nothing to do. You can leave; the timeline shows the progress.', wait: c.step < 3 ? 'A quick draft appears in the monitor at step 4.' : 'The draft is playable now. The final replaces it.', acts: [['Stop', 'stopCook']], strip: c.step, mate: { expr: 'focused', pose: 'working', onClip: 1, say: 'Cooking. Go do something else.' } }; },
+    long: () => ({ h: 'The final video is taking a while', sub: `Step 5 of 6 · <span data-clock="cook">${mmss(S.run.cook.sec)}</span> so far, usually about 3:00`, can: 'Watch the draft in the monitor. It is real and it plays.', wait: 'The final replaces the draft by itself. Your Mac stays usable.', acts: [['Stop', 'stopCook']], strip: 4, mate: { expr: 'focused', pose: 'working', onClip: 1, say: 'Slow render. Still going.' } }),
+    error: () => ({ err: 1, h: 'The cook stopped at the final video', sub: '4 of 6 steps are done and kept, including your draft.', can: 'Resume from step 5. Nothing is redone.', wait: 'The draft stays. Tonight\'s slot stays open until 20:00.', acts: [['Resume cook', 'resumeCook', 1], ['See what happened', 'openHood']], strip: -4, mate: { expr: 'surprised', pose: 'floating', say: 'Your draft is safe.' } }),
+    empty: () => ({ h: 'Nothing is cooking', sub: 'Cook a reel from Plan.', can: 'Pick a reel on the timeline.', wait: 'Nothing happens.', acts: [['Go to Plan', 'goPlan', 1]], mate: { expr: 'sleeping', pose: 'floating', big: 1 } }),
+    limited: () => ({ h: 'The cook paused at step 3', sub: "Claude's usage limit resets at 14:00. 2 of 6 steps are done and kept.", can: 'Have it resume by itself at 14:00.', wait: 'The cook stays paused. Tonight\'s slot still fits if it resumes by 16:00.', acts: [['Resume at 14:00', 'queueGeneric', 1]], strip: 2, mate: { expr: 'sleeping', pose: 'floating', onClip: 1, say: 'Back at 14:00.' } }),
+    done: () => ({ h: 'The reel is ready', sub: '6 of 6 steps done in 11:48.', can: 'Watch it and do the final check.', wait: 'It waits here. Nothing posts without you.', acts: [['Final check', 'goCheck', 1]], strip: 6, mate: { expr: 'happy', pose: 'greeting', say: 'Done. Come and look.' } }),
+  },
+  check: {
+    normal: () => ({ h: 'Watch it once, then post', sub: 'Lead Studio checked 5 things. You judge the rest.', can: 'Pin a note at any second, or post.', wait: 'Nothing posts. The 21:00 slot stays open until 20:30.', acts: [[S.notes.length ? `Send ${plural(S.notes.length, 'note')} to Claude` : 'Post at 21:00', S.notes.length ? 'sendNotes' : 'openPost', 1]], mate: { expr: 'curious', pose: 'floating', onClip: 1, say: 'Your turn to watch.' } }),
+    running: () => ({ h: S.run.check.step < 1 ? 'Uploading to Instagram' : S.run.check.step < 2 ? 'Instagram is processing the video' : 'Attaching the DM reply', sub: `<span data-clock="check">${mmss(S.run.check.sec)}</span> so far, usually about 1:00`, can: 'Leave. Posting does not need this window.', wait: 'The reel goes live, then the DM reply attaches.', acts: [], mate: { expr: 'focused', pose: 'working', say: 'Posting.' } }),
+    long: () => ({ h: 'Instagram is still processing', sub: `<span data-clock="check">${mmss(S.run.check.sec)}</span> so far, usually about 1:00. This is on Instagram\'s side.`, can: 'Leave. Do not post again: this one is still going.', wait: 'If it is not live in 10 minutes, this offers a retry.', acts: [], mate: { expr: 'thinking', pose: 'thinking', say: 'Instagram is slow.' } }),
+    error: () => ({ err: 1, h: 'The reel is live. The DM reply is not', sub: 'People who comment DEPLOY get no reply yet. The reel stays up.', can: 'Attach the DM reply. It catches comments from the last hour.', wait: 'Comments keep coming without a reply.', acts: [['Attach DM reply', 'attachDm', 1]], mate: { expr: 'surprised', pose: 'floating', say: 'Live, with one thing to fix.' } }),
+    empty: () => ({ h: 'Nothing to check', sub: 'A cooked reel lands here.', can: 'Cook a reel.', wait: 'Nothing happens.', acts: [['Go to Cook', 'goCook', 1]], mate: { expr: 'sleeping', pose: 'floating', big: 1 } }),
+    limited: () => ({ h: 'You can post, but with no DM reply', sub: 'ChatbotX is not connected. Comment DEPLOY will get no answer.', can: 'Connect it in a minute, or post anyway.', wait: 'The reel stays ready for the 21:00 slot.', acts: [['Connect ChatbotX', 'openSettings', 1], ['Post without replies', 'openPost']], mate: { expr: 'curious', pose: 'floating', onClip: 1, say: 'One thing is off.' } }),
+    posted: () => ({ h: 'Posted', sub: 'First honest numbers in about 48 hours. Lead Studio will not guess before then.', can: 'Plan the next reel.', wait: 'Pull on Sunday to see how it did.', acts: [['Plan the next reel', 'goPlan', 1], ['Back to today', 'goToday']], mate: { expr: 'celebrating', pose: 'cheering', big: 1, say: 'It is out there!' } }),
+  },
+};
+const lower = s => s[0].toLowerCase() + s.slice(1);
+const missing = () => (S.kw.trim() ? 0 : 1) + (S.gift.trim() ? 0 : 1);
+
+/* ---------- world: which clips exist ---------- */
+function clips() {
+  if (S.world === 'none') return [];
+  return REELS.filter(r => S.world === 'full' || !r.future);
+}
+function clipState(r) {
+  if (!r.future) return { c: '', s: `${k(r.views)} views` };
+  if (r.id === 'r7') return { c: 'plan', s: `Missing ${r.missing}` };
+  const stage = S.r6;
+  if (stage === 'plan') { const m = missing(); return { c: 'plan', s: m ? `Missing ${m}` : 'Ready to approve' }; }
+  if (stage === 'approve') return S.st.approve === 'error' ? { c: 'err', s: 'Note not sent' } : { c: 'wait', s: 'Approve plan' };
+  if (stage === 'cook') {
+    const st = S.st.cook;
+    if (st === 'running' || st === 'long') return { c: 'cook', s: `Cooking · step ${(st === 'long' ? 5 : S.run.cook.step + 1)} of 6`, bar: (st === 'long' ? 4.5 : S.run.cook.step + .5) / 6 };
+    if (st === 'error') return { c: 'err', s: 'Stopped · resume', bar: 4 / 6, stop: 1 };
+    if (st === 'limited') return { c: 'cook', s: 'Paused until 14:00', bar: 2 / 6, stop: 1 };
+    if (st === 'done') return { c: 'wait', s: 'Final check' };
+    return { c: 'plan', s: 'Ready to cook' };
+  }
+  if (stage === 'check') return S.st.check === 'error' ? { c: 'err', s: 'Live · no DM reply' } : S.st.check === 'posted' ? { c: '', s: 'Posted · 21:00' } : { c: 'wait', s: 'Final check' };
+  return { c: '', s: 'Posted' };
+}
+
+/* ---------- render ---------- */
+let ghostT = 0;
+function render(ghost = true) {
+  $('#bench').className = 'bench';
+  renderSteps();
+  if (S.first) { renderFirst(); renderTimelineClips(); layout(true); return; }
+  if (!$('#desk')) $('#bench').innerHTML = `<section class="mon" id="mon"></section><main class="desk" id="desk"></main><aside class="note" id="note" aria-live="polite"></aside>`;
+  renderDesk(); renderNote(); renderMonitor(); renderTimelineClips(); layout(true); placeMate();
+  if (ghost) ghostFill();
+}
+function ghostFill() {
+  const d = $('#desk'), n = $('#note');
+  clearTimeout(ghostT);
+  for (const el of [d, n]) { el.classList.remove('filling'); el.classList.add('ghosting'); $$('[data-f]', el).forEach((x, i) => x.style.setProperty('--i', Math.min(i, 14))); }
+  ghostT = setTimeout(() => { for (const el of [d, n]) { el.classList.remove('ghosting'); el.classList.add('filling'); } }, 90);
+}
+function renderSteps() {
+  const dot = id => {
+    if (S.first) return '';
+    const st = S.st[id];
+    if (st === 'running' || st === 'long') return 'run';
+    if (st === 'error') return 'err';
+    if ((id === 'approve' && S.r6 === 'approve' && st === 'normal') || (id === 'check' && S.r6 === 'check' && st === 'normal') || (id === 'cook' && st === 'done')) return 'w8';
+    return '';
+  };
+  $('#steps').innerHTML = STATIONS.map(([id, n], i) => `${i ? '<span class="sep"></span>' : ''}<button class="step ${dot(id)}" data-testid="step-${id}" data-do="nav:${id}" aria-current="${S.station === id}"><i></i>${n}</button>`).join('');
+  const cur = $('#steps [aria-current="true"]'); if (cur) $('#steps').scrollLeft = cur.offsetLeft - 60;
+}
+function renderFirst() {
+  $('#bench').innerHTML = `<div class="first" data-testid="first-open"><span class="mslot" id="m-first" style="width:230px;height:230px;margin-bottom:6px"></span><h1>Hi Kai. Let's make a reel.</h1><p>Lead Studio keeps every reel on one timeline, from idea to its numbers. I'll sit wherever the next thing is.</p><div class="acts" style="justify-content:center;margin-top:8px"><button class="btn pri" data-do="connect" data-testid="connect">Connect Instagram</button><button class="btn" data-do="sample" data-testid="sample">Look around with sample reels</button></div></div>`;
+  Mate_go({ slot: ['#m-first'], expr: 'happy', pose: 'greeting', say: "Hi! I'm your studio helper." });
+}
+function renderNote() {
+  const n = $('#note');
+  if (S.station === 'today') {
+    const c = todayItems();
+    n.className = 'note';
+    n.innerHTML = `<span class="mslot ${c[0]?.onClip ? 'away' : ''}" id="m-note" style="width:68px;height:68px"></span><h2 data-f>${c.length ? 'One thing at a time' : 'All clear'}</h2><p class="sub" data-f>Numbers pulled at ${S.fresh}. Today is Friday.</p><dl class="rows"><dt>YOU CAN</dt><dd data-f>${c.length ? 'Start with the top row. It is the one with a clock on it.' : 'Pull numbers or plan ahead.'}</dd><dt>IF YOU WAIT</dt><dd data-f>Nothing posts by itself. Ever.</dd></dl>`;
+    Mate_go(c.length && c[0].onClip ? { slot: ['#m-clip', '#m-note'], expr: 'curious', pose: 'floating', say: 'Waiting on you.' } : { slot: ['#m-note'], expr: 'happy', pose: 'floating' });
+    return;
+  }
+  const c = COPY[S.station][S.st[S.station]]();
+  n.className = 'note' + (c.err ? ' err' : '');
+  const strip = c.strip === undefined ? '' : `<div class="strip" data-testid="cook-strip">${COOK_STEPS.map(([s], i) => { const x = c.strip; const cl = x < 0 ? (i < -x ? 'd' : i === -x ? 'x' : '') : (i < x ? 'd' : i === x && S.st.cook !== 'limited' ? 'c' : i === x ? 'x' : ''); return `<span class="${cl}">${i < (x < 0 ? -x : x) ? '✓ ' : ''}${s}</span>`; }).join('')}</div>`;
+  const m = c.mate, r6c = clipState(reel('r6')).c, onClip = m.onClip && S.world === 'full' && ['wait', 'cook'].includes(r6c);
+  n.innerHTML = `<span class="mslot ${onClip || m.big ? 'away' : ''}" id="m-note" style="width:68px;height:68px"></span><h2 data-f data-testid="note-head">${c.h}</h2><p class="sub" data-f>${c.sub}</p>${strip}<div class="acts">${c.acts.map(([l, a, p]) => `<button class="btn ${p ? 'pri' : ''}" data-do="${a}" data-testid="act-${a}" data-f>${l}</button>`).join('')}</div><dl class="rows"><dt>YOU CAN</dt><dd data-f>${c.can}</dd><dt>IF YOU WAIT</dt><dd data-f>${c.wait}</dd></dl>`;
+  const slots = m.big ? ['#m-mon', '#m-note'] : onClip ? ['#m-clip', '#m-note'] : ['#m-note'];
+  Mate_go({ slot: slots, expr: m.expr, pose: m.pose, say: m.say });
+}
+function todayItems() {
+  const out = [];
+  if (S.r6 === 'approve') out.push({ t: 'Approve the plan for tonight\'s reel', d: '"Ship on Friday, sleep on Saturday". 3 changes. Decide by 18:00 to post at 21:00.', a: 'nav:approve', l: 'Review 3 changes', onClip: 1 });
+  if (S.r6 === 'cook' && ['running', 'long'].includes(S.st.cook)) out.push({ t: 'Tonight\'s reel is cooking', d: 'Nothing to do. It keeps going if you leave.', a: 'nav:cook', l: 'Open', onClip: 1 });
+  if (S.r6 === 'cook' && S.st.cook === 'normal') out.push({ t: 'Tonight\'s reel is ready to cook', d: 'Takes about 12 minutes.', a: 'nav:cook', l: 'Open', onClip: 1 });
+  if (S.r6 === 'check' && S.st.check === 'normal' || S.st.cook === 'done') out.push({ t: 'Watch tonight\'s reel', d: 'Lead Studio checked 5 things. You judge the rest.', a: 'nav:check', l: 'Final check', onClip: 1 });
+  if (S.world === 'full') out.push({ t: 'Saturday has gaps', d: '"One hook, three rewrites" is missing a keyword and a gift.', a: 'nav:plan', l: 'Fill' });
+  return out;
+}
+const curve = (r, w = 100, h = 100) => {
+  const dur = durOf(r), sk = r.skip || 36, end = Math.max(8, 56 - sk * .55);
+  const pts = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = i / 40 * dur;
+    const v = t <= 3 ? 100 - sk * (t / 3) ** .8 : (100 - sk) - (100 - sk - end) * ((t - 3) / (dur - 3)) ** .75;
+    pts.push(`${(t / dur * w).toFixed(1)},${(h - v / 100 * h).toFixed(1)}`);
+  }
+  return pts.join(' ');
+};
+function renderDesk() {
+  const d = $('#desk');
+  const f = { today: deskToday, pull: deskPull, insight: deskInsight, plan: deskPlan, approve: deskApprove, cook: deskCook, check: deskCheck }[S.station];
+  d.innerHTML = f();
+}
+function deskToday() {
+  const items = todayItems();
+  const r = reel('r5');
+  return `<h1 data-f data-testid="today-head">Morning, Kai. ${items.length ? plural(items.length, 'thing') + ' for you.' : 'Nothing needs you.'}</h1><p class="lead" data-f>Last reel: "${r.t}", ${k(r.views)} views. ${r.skip}% left in the first 3 seconds, better than your usual 36%.</p>
+  <div class="list">${items.map(i => `<div class="todo"><div data-f><b>${i.t}</b><p>${i.d}</p></div><button class="btn" data-do="${i.a}" data-f>${i.l}</button></div>`).join('') || '<p class="lead" style="margin:14px 0">Pull your numbers, or plan something for Sunday.</p>'}</div>`;
+}
+function deskPull() {
+  const st = S.st.pull, run = S.run.pull;
+  if (st === 'empty') return `<h1 data-f>Bring in your numbers</h1><p class="lead" data-f>Pulled on request, never on a timer.</p><div class="list">${SOURCES.map(([a, b]) => `<div class="row"><b data-f>${a}</b><span class="m" data-f>${b}</span><span class="pill" data-f>Not pulled</span></div>`).join('')}</div>`;
+  const rvDone = st === 'normal' ? 13 : st === 'error' ? 3 : st === 'limited' ? 6 : run.done;
+  const row = (i, a, b) => {
+    if (i === 1) {
+      const status = st === 'normal' ? ['ok', '13 updated'] : st === 'error' ? ['err', '10 kept older'] : st === 'limited' ? ['warm', '7 wait for 08:00'] : ['warm', `${13 - rvDone} to go`];
+      return `<div class="row" data-testid="pull-rivals"><b data-f>${a}</b><div class="m" data-f>${rvDone} of 13 channels<div class="bar"><b style="width:${rvDone / 13 * 100}%"></b></div></div><span class="pill ${status[0]}" data-f>${status[1]}</span></div>`;
+    }
+    const ok = st !== 'running' && st !== 'long' || i === 0;
+    return `<div class="row"><b data-f>${a}</b><span class="m" data-f>${b}</span><span class="pill ${ok ? 'ok' : ''}" data-f>${ok ? `Fresh ${S.fresh}` : 'Next'}</span></div>`;
+  };
+  const headline = { normal: 'Everything is up to date', running: 'Pulling your numbers', long: 'Pulling your numbers', error: 'Pulled what it could', limited: 'Pulled what the hour allows' }[st];
+  return `<h1 data-f data-testid="pull-head">${headline}</h1><p class="lead" data-f>Pulled on request, never on a timer.</p><div class="list">${SOURCES.map(([a, b], i) => row(i, a, b)).join('')}</div>`;
+}
+const tabs = () => `<div class="tabs" role="tablist">${[['reel', 'This reel'], ['channel', 'My channel'], ['keywords', 'Keywords'], ['rivals', 'Rivals']].map(([id, l]) => `<button role="tab" aria-selected="${S.tab === id}" data-do="tab:${id}" data-testid="tab-${id}">${l}</button>`).join('')}</div>`;
+function deskInsight() {
+  const st = S.st.insight;
+  if (st === 'empty') return `<h1 data-f>Numbers land on the timeline</h1><p class="lead" data-f>Each reel will show where people left, in the seconds where it happened.</p>`;
+  if (st === 'running' || st === 'long' || st === 'error') {
+    const done = st === 'error' ? 4 : S.run.insight.done;
+    const list = ['Why your app feels slow', 'The bug that cost me a weekend', 'My 30-second terminal setup', 'The 3 files every repo needs', 'Stop writing prompts like emails', 'Three tabs, one brain'];
+    return `<h1 data-f>Reading 6 reels</h1><p class="lead" data-f>Numbers are already here. Claude adds what it means.</p><div class="list">${list.map((t, i) => `<div class="row"><b data-f>${t}</b><span class="m" ${i < done ? 'data-f' : ''}>${i < done ? 'Lost people in the opening line.' : ''}</span><span class="pill ${i < done ? 'ok' : st === 'error' ? 'err' : ''}" data-f>${i < done ? 'Read' : st === 'error' ? 'Not read' : 'Waiting'}</span></div>`).join('')}</div>`;
+  }
+  if (S.tab === 'channel') return `<h1 data-f>My channel, last 30 days</h1><p class="lead" data-f>@mira.ships · pulled at ${S.fresh}.</p>${tabs()}<div class="nums"><div data-f><b>246k</b><span>views</span></div><div data-f><b>31%</b><span>from non-followers</span></div><div data-f><b>+412</b><span>followers</span></div><div data-f><b>${plural(1, 'reel')}</b><span>above 50k</span></div></div><div class="bars" data-f>${THIRTY.map(v => `<i class="${v > 40 ? 'hi' : ''}" style="height:${v / 62 * 100}%"></i>`).join('')}</div><p class="lead" data-f>Spikes line up with reels that open on a claim.</p>`;
+  if (S.tab === 'keywords') return `<h1 data-f>What each keyword sold</h1><p class="lead" data-f>From the reel to the sale. Each number comes from its own source, pulled at ${S.fresh}.</p>${tabs()}<div class="tw"><table class="kw"><tr><th>Keyword</th><th>Views</th><th>Comments</th><th>DMs</th><th>Gift</th><th>Checkout</th><th>Bought</th></tr>${KW.map(r => `<tr><td>${r[0]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td><td>${r[6]}</td><td>${r[7]}</td></tr>`).join('')}</table></div>`;
+  if (S.tab === 'rivals') return `<h1 data-f>What rivals teach you</h1><p class="lead" data-f>13 channels. Each card is one thing to do, not a chart.</p>${tabs()}${RIVAL_CARDS.map(([a, b, c]) => `<div class="rv"><span class="k" data-f>${a} · ${b}</span><p data-f>${c}</p></div>`).join('')}<div class="pin"><input placeholder="@handle or channel link" aria-label="Add a rival"><button class="btn" data-do="noop">Add rival</button></div>`;
+  const r = reel('r4');
+  return `<h1 data-f data-testid="insight-head">People left at "Hi, welcome back"</h1><p class="lead" data-f>Hover the timeline: the monitor shows the frame where each drop happens.</p>${tabs()}
+  <div class="nums"><div class="bad" data-f><b>${r.skip}%</b><span>skipped in 3 s · usual 36%</span></div><div data-f><b>${r.watch}</b><span>watched of 30 s</span></div><div data-f><b>${r.shares}</b><span>shares</span></div><div data-f><b>${r.saves}</b><span>saves</span></div><div data-f><b>${r.follows}</b><span>follows</span></div></div>
+  ${st === 'limited' ? '' : `<div class="list"><button class="moment" data-do="seek:1" data-testid="moment-0"><span class="tc" data-f>0:01</span><div data-f><b>A greeting instead of a claim</b><p>Your 3 best reels open on the result.</p></div><span class="pill" data-f>-52%</span></button><button class="moment" data-do="seek:5"><span class="tc" data-f>0:05</span><div data-f><b>The topic arrives late</b><p>The promise lands at second 7. Move it to second 1.</p></div><span class="pill" data-f>-9%</span></button><button class="moment" data-do="seek:27"><span class="tc" data-f>0:27</span><div data-f><b>The keyword came too late</b><p>Most people never reach it. Say it on screen at second 20.</p></div><span class="pill" data-f>164 comments</span></button></div>`}`;
+}
+const fieldsHtml = () => {
+  const r = reel('r6');
+  const line = beatsOf(r).map(([s, l, t]) => `<div class="beat" data-do="seek:${s}"><span class="tc">${mmss(s)}</span><span>${t}</span></div>`).join('');
+  return `<div class="list" data-testid="plan-fields"><div class="field"><label>Hook</label><input data-f value="I shipped on Friday. I slept fine."></div>
+  <div class="field"><label>Script</label><div data-f>${line}</div></div>
+  <div class="field ${S.kw ? '' : 'gap'}" id="f-kw"><label for="kw">Keyword</label><input id="kw" data-testid="plan-kw" data-f placeholder="Add a keyword people comment" value="${S.kw}"></div>
+  <div class="field ${S.gift ? '' : 'gap'}" id="f-gift"><label for="gift">Gift</label><input id="gift" data-testid="plan-gift" data-f placeholder="Add what they get in the DM" value="${S.gift}"></div>
+  <div class="field"><label>Style</label><input data-f value="Hand-drawn, big captions"></div>
+  <div class="field"><label>Caption</label><input data-f value="Three checks. That is the whole trick."></div>
+  <div class="field"><label>Posts</label><input data-f value="Tonight, Fri 21:00"></div></div>`;
+};
+function deskPlan() {
+  const st = S.st.plan;
+  if (st === 'empty') return `<h1 data-f>Your week is open</h1><p class="lead" data-f>Pick an empty day on the timeline, or start from a reel that worked.</p><div class="list"><div class="todo"><div data-f><b>My 30-second terminal setup</b><p>61.9k views. 24% skipped, your best opening this month.</p></div><button class="btn" data-do="startPlan" data-f>Plan from this</button></div><div class="todo"><div data-f><b>From hana.ships</b><p>Open on the result, then rewind.</p></div><button class="btn" data-do="startPlan" data-f>Plan from this</button></div></div>`;
+  if (st === 'running' || st === 'long' || st === 'error') {
+    const done = st === 'error' ? 2 : S.run.plan.done;
+    return `<h1 data-f>Drafting 3 reels</h1><p class="lead" data-f>Each one starts from what worked on your channel.</p><div class="list">${['Ship on Friday, sleep on Saturday', 'One hook, three rewrites', 'Delete half your prompt'].map((t, i) => `<div class="row"><b ${i < done ? 'data-f' : ''}>${i < done ? t : (i === 2 && st === 'error' ? 'Third draft' : 'Draft ' + (i + 1))}</b><span class="m" data-f>${i < done ? 'Hook, script and caption ready' : ''}</span><span class="pill ${i < done ? 'ok' : st === 'error' ? 'err' : ''}" data-f>${i < done ? 'Saved' : st === 'error' ? 'Stopped' : 'Next'}</span></div>`).join('')}</div>`;
+  }
+  return `<h1 data-f data-testid="plan-head">Ship on Friday, sleep on Saturday</h1><p class="lead" data-f>The script is the reel. Change a line here, and the cook follows it.</p>${fieldsHtml()}`;
+}
+function deskApprove() {
+  const st = S.st.approve;
+  if (st === 'empty') return `<h1 data-f>You are all caught up</h1><p class="lead" data-f>Approvals land here when Claude proposes a change. Nothing changes without you.</p>`;
+  if (st === 'running' || st === 'long') return `<h1 data-f>Rewriting after your note</h1><p class="lead" data-f>"Make the hook less smug."</p><div class="list">${[0, 1, 2].map(() => `<div class="swap"><div data-f style="height:60px"></div></div>`).join('')}</div>`;
+  const rows = CHANGES.map((c, i) => {
+    const blocked = st === 'limited' && i === 2;
+    const on = S.keep[i] && !blocked;
+    return `<div class="swap" data-testid="change-${i}"><div><div class="where" data-f>${c.where}</div><div class="was" data-f>${c.from}</div><div class="now" data-f>${c.to}</div></div><div class="seg" data-f>${blocked ? '<span class="pill warm">Needs a gift page</span>' : `<button aria-pressed="${on}" data-do="keep:${i}:1" data-testid="keep-${i}">Keep</button><button aria-pressed="${!on}" data-do="keep:${i}:0" data-testid="skip-${i}">Skip</button>`}</div><p class="why" data-f>${c.why}</p></div>`;
+  }).join('');
+  return `<h1 data-f data-testid="approve-head">Claude proposes ${plural(3, 'change')}</h1><p class="lead" data-f>Each one says why, from your own reels.</p><div class="list">${rows}</div><div class="pin"><input id="noteTo" data-testid="approve-note" placeholder="Or tell Claude what to fix" aria-label="Note for Claude"><button class="btn" data-do="sendNote" data-testid="send-note">Send note</button></div>`;
+}
+function deskCook() {
+  const st = S.st.cook;
+  if (st === 'empty') return `<h1 data-f>Nothing is cooking</h1><p class="lead" data-f>Cook a reel from Plan. Everything that happens shows up on its clip.</p>`;
+  const r = reel('r6'), c = S.run.cook;
+  const cur = st === 'long' ? 3 : st === 'error' ? 3 : st === 'limited' ? 1 : st === 'done' ? 5 : st === 'running' ? Math.min(c.step, 5) : -1;
+  const b = beatsOf(r);
+  return `<h1 data-f data-testid="cook-head">${st === 'normal' ? 'The script it will cook' : st === 'done' ? 'Cooked' : 'Cooking from this script'}</h1><p class="lead" data-f>${st === 'normal' ? 'Approved, word for word.' : 'Each line lights up as its chapter is built.'}</p><div class="list">${b.map(([s, l, t], i) => `<div class="beat ${cur >= 0 && i <= cur ? 'on' : ''}" data-do="seek:${s}"><span class="tc" data-f>${mmss(s)}</span><span data-f>${t}</span></div>`).join('')}</div>`;
+}
+function deskCheck() {
+  const st = S.st.check;
+  if (st === 'empty') return `<h1 data-f>Your draft lands here</h1><p class="lead" data-f>You watch it, pin notes at any second, then post.</p>`;
+  if (st === 'posted') return `<h1 data-f>"Ship on Friday" is posted</h1><p class="lead" data-f>The loop starts again. Its numbers will land on this clip.</p><div class="list"><div class="row"><b data-f>Next pull</b><span class="m" data-f>When you press Pull. A reel needs about 48 hours to settle.</span><span class="pill" data-f>Sunday</span></div></div>`;
+  if (st === 'running' || st === 'long') return `<h1 data-f>Posting</h1><p class="lead" data-f>Once it starts, leave it alone. Posting twice makes two reels.</p><div class="list">${['Upload', 'Instagram processing', 'DM reply'].map((t, i) => { const v = st === 'long' ? 1 : S.run.check.step; return `<div class="row"><b data-f>${t}</b><span class="m"></span><span class="pill ${i < v ? 'ok' : i === v ? 'warm' : ''}" data-f>${i < v ? 'Done' : i === v ? 'Now' : 'Next'}</span></div>`; }).join('')}</div>`;
+  const dmOff = st === 'limited', dmFail = st === 'error';
+  const row = (ok, t, n) => `<div class="check ${ok ? '' : 'no'}" data-f><i>${ok ? '✓' : '!'}</i><b>${t}</b><span>${n}</span></div>`;
+  return `<h1 data-f data-testid="check-head">${dmFail ? 'It is live' : 'Does it hold you past second 3?'}</h1><p class="lead" data-f>Press Space to watch. Only you can judge this part. Lead Studio gives no virality score.</p><div class="list">${row(1, 'Hook in the first 3 s', '"I shipped on Friday."')}${row(1, 'Captions match the voice', '30.2 s, checked word for word')}${row(1, 'Keyword in the first caption line', 'DEPLOY')}${row(!dmOff && !dmFail, 'DM reply', dmOff ? 'ChatbotX not connected' : dmFail ? 'Not attached' : 'Sends your checklist')}${row(1, 'Gift page opens', 'mira.ships/deploy')}</div>${S.notes.map(n => `<div class="pinned"><span class="tc">${mmss(n.t)}</span><span>${n.x}</span></div>`).join('')}<div class="pin"><input id="pinNote" data-testid="pin-note" placeholder="Pin a note at ${mmss(S.t)}" aria-label="Pin a note"><button class="btn" data-do="pin" data-testid="pin">Pin</button></div>`;
+}
+
+/* ---------- monitor ---------- */
+const HUES = ['#3a2a3f', '#2b3550', '#3f3128', '#27403a', '#402a33'];
+const DOODLE = {
+  talk: `<circle cx="90" cy="118" r="30"/><path d="M78 112h2M100 112h2M80 130q10 8 20 0"/><path d="M60 230q2-70 30-72q28 2 30 72"/><path d="M128 100q12-8 18-22M138 118q12-2 22-12"/>`,
+  laptop: `<path d="M44 176h92l10 24H34zM54 176v-60h72v60"/><path d="M66 132h30M66 146h48M66 160h20"/><circle cx="90" cy="86" r="18"/>`,
+  clock: `<circle cx="90" cy="130" r="48"/><path d="M90 130v-30M90 130l22 14"/><path d="M60 72l-12-12M120 72l12-12"/>`,
+  arrow: `<path d="M34 196q40-8 58-44t56-74"/><path d="M122 76l28-2-4 28"/><path d="M34 214h112"/>`,
+  moon: `<path d="M116 80a50 50 0 1 0 22 66a40 40 0 0 1-22-66z"/><path d="M44 80h14l-14 16h14M140 60h9l-9 11h9"/>`,
+};
+let lastBeatKey = '';
+function renderMonitor() {
+  const m = $('#mon');
+  if (!m) return;
+  const st = S.station, cs = S.st[st];
+  const empty = S.world === 'none' || (st !== 'today' && cs === 'empty') || (st === 'check' && cs === 'posted');
+  const r = sel();
+  const draft = st === 'cook' && ((cs === 'running' && S.run.cook.step >= 3) || cs === 'long' || cs === 'error');
+  const noVid = !empty && r.future && !draft && !(st === 'cook' && cs === 'done') && !['check', 'posted'].includes(S.r6);
+  const tag = empty ? '' : draft ? 'Draft' : noVid ? 'Script' : st === 'check' ? 'Final' : r.future ? 'Script' : '';
+  m.innerHTML = `<div class="frame ${noVid ? 'dim' : ''} ${draft ? 'draft' : ''}" id="frame" data-do="toggle" data-testid="monitor">
+    ${empty ? `<div class="blank"><span>${st === 'check' && cs === 'posted' ? '' : 'Your reel shows here'}</span></div><span class="mslot" id="m-mon" style="position:absolute;left:50%;top:42%;width:128px;height:128px;transform:translate(-50%,-50%)"></span>` : `<svg class="doodle" id="dood" viewBox="0 0 180 320" preserveAspectRatio="xMidYMid slice" fill="none" stroke="#fff6ea" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"></svg><div class="capn" id="capn"></div>${tag ? `<span class="tag" data-testid="frame-tag">${tag}</span>` : ''}`}
+  </div>
+  <div class="mctl" ${empty ? 'style="visibility:hidden"' : ''}><button data-do="toggle" aria-label="Play or pause" data-testid="play-reel"><svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor"><path id="pp" d="M2 1l9 5-9 5z"/></svg></button><div class="scrub" id="scrub"><b id="scrubB"></b></div><span class="tc" id="tcode" style="color:var(--muted)">0:00</span></div>`;
+  lastBeatKey = '';
+  drawFrame();
+}
+function drawFrame() {
+  const r = sel(), dur = durOf(r), t = clamp(S.t, 0, dur);
+  const b = beatsOf(r).find(([s, l]) => t >= s && t < s + l) || beatsOf(r).at(-1);
+  const key = r.id + b[0];
+  const d = $('#dood');
+  if (d && key !== lastBeatKey) {
+    lastBeatKey = key;
+    const hue = HUES[REELS.indexOf(r) % HUES.length];
+    d.innerHTML = `<rect width="180" height="320" fill="${hue}" stroke="none"/><g filter="url(#wob)">${DOODLE[b[3]]}</g>`;
+    $('#capn').textContent = b[2];
+  }
+  const bb = $('#scrubB'); if (bb) bb.style.width = (t / dur * 100) + '%';
+  const tc = $('#tcode'); if (tc) tc.textContent = mmss(t);
+  $$('.c-r .ph').forEach(p => { p.style.left = (t / dur * 100) + '%'; const q = p.querySelector('b'); if (q) q.textContent = mmss(t); });
+  $$('.c-r .beats div').forEach((x, i) => x.classList.toggle('on', beatsOf(r)[i] && beatsOf(r)[i][0] === b[0]));
+  const pp = $('#pp'); if (pp) pp.setAttribute('d', S.playing ? 'M2 1h3v10H2zM7 1h3v10H7z' : 'M2 1l9 5-9 5z');
+}
+
+/* ---------- timeline: one zoomable axis, month to second ---------- */
+const VP = { month: () => [4, 39], week: () => [25, 32], reel: () => [sel().d, sel().d + 1.42] };
+const view = { a: 25, b: 32, z: 0 };
+const TAIL_DAYS = 0.42;
+let animT = 0;
+function renderTimelineClips() {
+  const tb = $('#tlb');
+  const list = clips();
+  const empties = [];
+  if (S.world !== 'none') { if (S.world !== 'full') empties.push(29, 30, 31); else empties.push(28, 31); } else for (let d = 25; d <= 31; d++) empties.push(d);
+  tb.innerHTML = `<div class="ruler" id="ruler"></div><div class="todayl" id="todayl"></div>${empties.map(d => `<button class="clip slot" data-day="${d}" data-do="slot" data-testid="slot-${d}" aria-label="Add a reel on this day">+</button>`).join('')}
+  ${list.map(r => { const c = clipState(r), isS = r.id === S.sel; const b = beatsOf(r); const dur = durOf(r);
+    return `<div class="clip ${c.c} ${isS ? 'sel' : ''}" data-id="${r.id}" data-day="${r.d}" data-testid="clip-${r.id}" role="button" tabindex="0" aria-label="${r.t}. ${c.s}">
+      <div class="c-w"><div class="t">${r.t}</div><div class="s">${c.s}</div></div>
+      ${c.bar !== undefined ? `<div class="render ${c.stop ? 'stop' : ''}" style="width:${c.bar * 100}%"></div>` : ''}
+      ${isS ? `<div class="c-r" data-testid="reel-zoom"><div class="beats">${b.map(([s, l, t]) => `<div style="--w:${l}">${t}</div>`).join('')}</div>${r.future ? '' : `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Retention curve"><rect width="${3 / dur * 100}" height="100" fill="var(--peach-soft)"/><polyline points="${curve(reel('r3'))}" fill="none" stroke="var(--faint)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/><polyline points="${curve(r)}" fill="none" stroke="var(--peach)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`}<div class="ph"><b>0:00</b></div></div>` : ''}
+    </div>`; }).join('')}
+  <div class="tail" id="tail"></div>
+  <div class="rtrack" id="rtrack">${S.world === 'none' ? '' : RIVALS_T.map(v => `<div class="rv-c" data-day="${v.d}">${v.t}</div>`).join('')}</div>
+    ${S.first ? '' : (() => { const m = clips().find(r => r.future && ['wait', 'cook'].includes(clipState(r).c)); return m ? `<span class="mslot" id="m-clip" data-track="${m.id}" style="position:absolute;width:50px;height:50px"></span>` : ''; })()}`;
+  drawTail();
+  $('#tl-what').innerHTML = S.zoom === 'reel' ? `${sel().t} · <span style="color:var(--faint)">dashed line: your best opening</span>` : S.zoom === 'week' ? 'This week' : 'Last 5 weeks';
+  $$('#zoom button').forEach(b => b.setAttribute('aria-pressed', b.dataset.do === 'zoom:' + S.zoom));
+}
+function drawTail() {
+  const r = sel(), t = $('#tail');
+  if (r.future) { t.innerHTML = '<h3>After the reel</h3><p style="margin:0;font-size:12.5px;color:var(--muted)">Comments, DMs, gift page and sales land here after you post.</p>'; return; }
+  const rows = TAIL[r.id] || defaultTail(r);
+  t.innerHTML = `<h3>After the reel</h3>${rows.map(([n, v]) => `<div><span>${n}</span><b>${v.toLocaleString('en-US')}</b></div>`).join('')}`;
+}
+function layout(snap) {
+  const tb = $('#tlb');
+  const W = tb.clientWidth;
+  const tgt = VP[S.zoom](), tz = S.zoom === 'reel' ? 1 : 0;
+  const step = dt => {
+    const q = 1 - Math.exp(-dt * 11);
+    view.a += (tgt[0] - view.a) * q; view.b += (tgt[1] - view.b) * q; view.z += (tz - view.z) * q;
+  };
+  const paint = () => {
+    const x = d => (d - view.a) / (view.b - view.a) * W;
+    const z = view.z, fd = sel().d;
+    const shift = d => d > fd ? TAIL_DAYS * z : 0;
+    $$('.clip', tb).forEach(c => {
+      const d = +c.dataset.day, id = c.dataset.id, f = id === S.sel;
+      const inset = .03 * (f ? 1 - z : 1);
+      const l = x(d + inset + shift(d)), w = x(d + 1 - inset + shift(d)) - l;
+      c.style.left = l + 'px'; c.style.width = w + 'px';
+      c.style.height = (f ? 86 + z * 40 : 86) + 'px';
+      c.style.display = l + w < -40 || l > W + 40 ? 'none' : '';
+      c.style.opacity = f ? 1 : 1 - z * .85;
+      const cw = c.querySelector('.c-w');
+      if (cw) cw.style.opacity = clamp((w - 54) / 40) * (f ? 1 - clamp(z * 1.6) : 1);
+      const cr = c.querySelector('.c-r');
+      if (cr) { cr.style.opacity = clamp((z - .45) * 2.2); cr.style.pointerEvents = z > .7 ? 'auto' : 'none'; }
+    });
+    const tail = $('#tail'), fr = x(fd + 1);
+    tail.style.left = fr + 'px'; tail.style.width = (W - fr) + 'px'; tail.style.opacity = clamp((z - .6) * 2.5);
+    const rt = $('#rtrack'); rt.style.opacity = 1 - clamp(z * 2);
+    $$('.rv-c', rt).forEach(v => { const d = +v.dataset.day; const l = x(d + .03 + shift(d)), w = x(d + .97 + shift(d)) - l; v.style.left = l + 'px'; v.style.width = w + 'px'; v.style.display = w < 44 ? 'none' : ''; });
+    const tl = $('#todayl'); tl.style.left = x(TODAY + .5 + shift(TODAY + .5)) + 'px'; tl.style.opacity = (1 - clamp(z * 2)) * .7;
+    const ms = $('#m-clip');
+    if (ms) { const c = $(`.clip[data-id="${ms.dataset.track}"]`); if (c && c.style.display !== 'none') { const cx = parseFloat(c.style.left) + parseFloat(c.style.width); ms.style.left = Math.min(W - 50, cx - 50) + 'px'; ms.style.top = '64px'; ms.style.display = ''; } else ms.style.display = 'none'; }
+    // ruler
+    const span = view.b - view.a, ru = $('#ruler'); let h = '';
+    if (z > .6) { const r = sel(), dur = durOf(r), cw = x(fd + 1) - x(fd); for (let s = 0; s < dur; s += 5) h += `<span class="tc" style="left:${x(fd) + s / dur * cw}px">${mmss(s)}</span>`; h += `<span style="left:${x(fd + 1)}px">after the reel</span>`; }
+    else if (span > 14) { for (let d = 4; d < 45; d += 7) h += `<span style="left:${x(d + shift(d))}px">${dayName(d, 1)}</span>`; }
+    else for (let d = Math.floor(view.a) - 1; d <= view.b + 1; d++) h += `<span class="${d === TODAY ? 'tod' : ''}" style="left:${x(d + shift(d))}px">${d === TODAY ? 'Today' : dayName(d)}</span>`;
+    ru.innerHTML = h;
+  };
+  cancelAnimationFrame(animT);
+  if (snap || matchMedia('(prefers-reduced-motion:reduce)').matches) { view.a = tgt[0]; view.b = tgt[1]; view.z = tz; paint(); return; }
+  let last = performance.now();
+  const loop = n => { step(Math.min(.14, (n - last) / 1000)); last = n; paint(); if (Math.abs(view.a - tgt[0]) + Math.abs(view.b - tgt[1]) + Math.abs(view.z - tz) > .002) animT = requestAnimationFrame(loop); else { view.a = tgt[0]; view.b = tgt[1]; view.z = tz; paint(); } };
+  animT = requestAnimationFrame(loop);
+}
+const DOW = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
+function dayName(d, wk) { const dom = d < 31 ? d + 1 : d - 30, mon = d < 31 ? 'Oct' : 'Nov'; return wk ? `${mon} ${dom}` : `${DOW[d % 7]} ${dom}`; }
+
+/* ---------- mascot bridge ---------- */
+let mateWant = null;
+function Mate_go(o) { mateWant = o; window.Mate?.go(o); }
+function placeMate() { if (mateWant) window.Mate?.go(mateWant); }
+addEventListener('mate-ready', placeMate);
+
+/* ---------- actions ---------- */
+const FOCUS = { today: 'r6', pull: 'r5', insight: 'r4', plan: 'r6', approve: 'r6', cook: 'r6', check: 'r6' };
+function nav(st, keepSel) {
+  S.station = st; S.first = false;
+  if (!keepSel) S.sel = S.world === 'none' ? S.sel : (clips().find(r => r.id === FOCUS[st]) ? FOCUS[st] : (clips().at(-1)?.id || S.sel));
+  S.t = 0; S.playing = false;
+  if (S.r6 === 'posted' && st === 'plan') S.sel = 'r7';
+  render(true);
+}
+const ACT = {
+  noop() {}, connect() { S.world = 'none'; S.st.pull = 'empty'; nav('pull'); }, sample() { Object.assign(S, init()); render(true); },
+  goInsight() { S.tab = 'reel'; nav('insight'); }, goPlan() { S.r6 = S.r6 === 'posted' || S.st.check === 'posted' ? 'posted' : 'plan'; S.st.cook === 'empty' && (S.r6 = 'plan'); S.st.plan = 'normal'; S.world = 'full'; nav('plan'); },
+  goCook() { S.r6 = 'cook'; if (S.st.cook === 'empty') S.st.cook = 'normal'; S.world = 'full'; nav('cook'); }, goCheck() { S.r6 = 'check'; S.st.check = 'normal'; nav('check'); }, goToday() { nav('today'); }, goPullEmpty() { S.st.pull = 'empty'; nav('pull'); },
+  startPull() { S.world = 'full'; S.st.pull = 'running'; S.run.pull = { done: 0, sec: 0, live: true }; nav('pull'); },
+  resumePull() { S.st.pull = 'running'; S.run.pull = { done: 3, sec: 0, live: true }; render(false); },
+  stopPull() { S.run.pull.live = false; S.st.pull = 'error'; render(false); }, queuePull() { say('Set. I will finish at 08:00.'); },
+  queueGeneric() { say('Set. I will start by myself.'); },
+  startInsight() { S.st.insight = 'running'; S.run.insight = { done: 4, sec: 0, live: true }; render(false); }, stopInsight() { S.run.insight.live = false; S.st.insight = 'error'; render(false); },
+  lessonToPlan() { S.r6 = 'plan'; S.st.plan = 'normal'; nav('plan'); say('Lesson added: open on the result.'); },
+  startPlan() { S.world = 'full'; S.st.plan = 'running'; S.run.plan = { done: 0, sec: 0, live: true }; nav('plan'); }, stopPlan() { S.run.plan.live = false; S.st.plan = 'error'; render(false); }, blankPlan() { S.world = 'full'; S.st.plan = 'normal'; S.r6 = 'plan'; nav('plan'); },
+  sendPlan() { S.r6 = 'approve'; S.st.approve = 'normal'; nav('approve'); },
+  approve() { S.r6 = 'cook'; S.st.cook = 'normal'; nav('cook'); },
+  sendNote() { const v = $('#noteTo')?.value.trim(); if (!v) { $('#noteTo')?.focus(); return; } S.st.approve = 'running'; S.run.approve = { sec: 0, live: true }; render(false); },
+  resendNote() { S.st.approve = 'running'; S.run.approve = { sec: 0, live: true }; render(false); },
+  startCook() { S.r6 = 'cook'; S.st.cook = 'running'; S.run.cook = { step: 0, sec: 0, live: true }; nav('cook'); },
+  stopCook() { S.run.cook.live = false; S.st.cook = 'error'; render(false); },
+  resumeCook() { S.st.cook = 'running'; S.run.cook = { step: 4, sec: 408, live: true }; render(false); },
+  sendNotes() { S.notes = []; S.r6 = 'cook'; S.st.cook = 'running'; S.run.cook = { step: 2, sec: 0, live: true }; nav('cook'); say('Fixing your notes.'); },
+  pin() { const v = $('#pinNote')?.value.trim(); if (!v) { $('#pinNote')?.focus(); return; } S.notes.push({ t: Math.floor(S.t), x: v }); render(false); },
+  openPost() { openSheet('post'); }, confirmPost() { closeSheets(); S.st.check = 'running'; S.run.check = { step: 0, sec: 0, live: true }; render(false); },
+  attachDm() { S.st.check = 'posted'; render(false); say('Attached. Replies are going out.'); },
+  openHood() { $('#hood').classList.add('on'); }, closeHood() { $('#hood').classList.remove('on'); }, openSettings() { openSheet('settings'); }, closeSheets, toggle, slot() { S.world = 'full'; S.r6 = 'plan'; S.st.plan = 'normal'; nav('plan'); },
+};
+function say(t) { if (mateWant) Mate_go({ ...mateWant, say: t }); }
+function closeSheets() { $$('.sheet').forEach(s => s.classList.remove('on')); }
+function openSheet(which) {
+  const s = $('#sheet');
+  if (which === 'post') s.innerHTML = `<button class="x" data-do="closeSheets" aria-label="Close">×</button><h2>Post tonight at 21:00?</h2><p class="sub">This one goes out to people. Everything else in the app can be undone.</p><div class="list"><div class="field"><label>Reel</label><b>Ship on Friday, sleep on Saturday</b></div><div class="field"><label>Caption</label><span>Comment DEPLOY for my checklist</span></div><div class="field"><label>Reply</label><span>${S.st.check === 'limited' ? 'None. ChatbotX is not connected.' : 'Sends your checklist in a DM'}</span></div><div class="field"><label>Posts</label><span>Fri 21:00, on @mira.ships</span></div></div><div class="acts" style="margin-top:16px"><button class="btn pri" data-do="confirmPost" data-testid="confirm-post">Post at 21:00</button><button class="btn" data-do="closeSheets">Not yet</button></div>`;
+  else s.innerHTML = `<button class="x" data-do="closeSheets" aria-label="Close">×</button><h2>Sources and helpers</h2><p class="sub">Pulled on request, never on a timer. Lead Studio never calls a model itself. Claude does the thinking, on your own plan.</p><div class="list">${SOURCES.map(([a, b], i) => `<div class="row" style="grid-template-columns:1fr auto"><div><b>${a}</b><div class="m">${b}</div></div><span class="pill ${i === 2 ? 'warm' : 'ok'}">${i === 2 ? 'Connect' : '✓ On'}</span></div>`).join('')}</div><h2 style="font-size:17px;margin:20px 0 6px">Helpers on this Mac</h2><div class="list"><div class="row" style="grid-template-columns:1fr auto"><b>Claude</b><span class="pill ok">✓ Signed in</span></div><div class="row" style="grid-template-columns:1fr auto"><b>Codex</b><span class="pill">Not signed in</span></div></div>`;
+  s.classList.add('on');
+}
+function toggle() { S.playing = !S.playing; if (S.t >= durOf(sel()) - .05) S.t = 0; drawFrame(); }
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-do]');
+  const clip = e.target.closest('.clip[data-id]');
+  if (clip && !el) { clickClip(clip.dataset.id); return; }
+  if (!el) return;
+  const [a, b, c] = el.dataset.do.split(':');
+  if (a === 'nav') return nav(b);
+  if (a === 'zoom') { S.zoom = b; renderTimelineClips(); return layout(); }
+  if (a === 'tab') { S.tab = b; renderDesk(); return; }
+  if (a === 'seek') { S.t = +b; S.zoom = 'reel'; renderTimelineClips(); layout(); drawFrame(); return; }
+  if (a === 'keep') { S.keep[+b] = c === '1'; renderDesk(); renderNote(); return; }
+  ACT[a] ? ACT[a]() : console.error('Unknown action', a);
+});
+function clickClip(id) {
+  if (S.sel === id && S.zoom !== 'reel') { S.zoom = 'reel'; renderTimelineClips(); drawFrame(); layout(); return; }
+  S.sel = id; S.t = 0; lastBeatKey = '';
+  if (S.first) return;
+  renderMonitor(); renderTimelineClips(); layout(S.zoom !== 'reel');
+}
+document.addEventListener('input', e => {
+  if (e.target.id === 'kw' || e.target.id === 'gift') {
+    S[e.target.id === 'kw' ? 'kw' : 'gift'] = e.target.value;
+    $('#f-' + e.target.id).classList.toggle('gap', !e.target.value);
+    renderNote(); renderTimelineClips(); layout(true);
+  }
+});
+// hover a zoomed reel: the monitor follows the pointer, like skimming in an editor
+document.addEventListener('pointermove', e => {
+  const cr = e.target.closest?.('.c-r');
+  if (!cr) return;
+  const r = cr.getBoundingClientRect();
+  S.t = clamp((e.clientX - r.left) / r.width) * durOf(sel()); S.playing = false; drawFrame();
+});
+document.addEventListener('pointerdown', e => {
+  const sc = e.target.closest?.('#scrub');
+  if (!sc) return;
+  const r = sc.getBoundingClientRect();
+  S.t = clamp((e.clientX - r.left) / r.width) * durOf(sel()); S.playing = false; drawFrame();
+});
+document.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey) || !e.target.closest?.('#tlb')) return;
+  e.preventDefault();
+  const order = ['month', 'week', 'reel'], i = order.indexOf(S.zoom) + (e.deltaY < 0 ? 1 : -1);
+  if (order[i]) { S.zoom = order[i]; renderTimelineClips(); layout(); }
+}, { passive: false });
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select')) return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  else if (e.key === '1' || e.key === '2' || e.key === '3') { S.zoom = ['month', 'week', 'reel'][+e.key - 1]; renderTimelineClips(); layout(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { const dl = e.key === 'ArrowLeft' ? -1 : 1; if (S.zoom === 'reel') { S.t = clamp(S.t + dl, 0, durOf(sel())); drawFrame(); } else { const l = clips(), ix = l.findIndex(r => r.id === S.sel); const nx = l[ix + dl]; if (nx) clickClip(nx.id); } }
+  else if (e.key === '`' && e.ctrlKey) $('#hood').classList.toggle('on');
+  else if (e.key === 'Escape') { closeSheets(); ACT.closeHood(); $('#matrix').classList.remove('on'); }
+});
+
+/* ---------- clocks and live runs ---------- */
+setInterval(() => {
+  for (const id of ['pull', 'insight', 'plan', 'approve', 'cook', 'check']) {
+    const st = S.st[id];
+    if (st !== 'running' && st !== 'long') continue;
+    S.run[id].sec += .25;
+    const el = $(`[data-clock="${id}"]`); if (el) el.textContent = mmss(S.run[id].sec);
+  }
+  if (S.playing) { S.t += .25; if (S.t >= durOf(sel())) { S.t = durOf(sel()); S.playing = false; } drawFrame(); }
+}, 250);
+const liveEvery = (id, ms, f) => setInterval(() => { if (S.st[id] === 'running' && S.run[id].live) f(S.run[id]); }, ms);
+const onStation = id => S.station === id;
+const refresh = id => { renderSteps(); if (onStation(id)) { renderDesk(); renderNote(); renderMonitor(); } renderTimelineClips(); layout(true); };
+liveEvery('pull', 260, r => { r.done++; if (r.done >= 13) { r.done = 13; S.st.pull = 'normal'; r.live = false; S.fresh = '07:12'; if (S.world === 'none') S.world = 'full'; } refresh('pull'); });
+liveEvery('insight', 600, r => { r.done++; if (r.done >= 6) { S.st.insight = 'normal'; r.live = false; } refresh('insight'); });
+liveEvery('plan', 700, r => { r.done++; if (r.done >= 3) { S.st.plan = 'normal'; S.r6 = 'plan'; r.live = false; } refresh('plan'); });
+liveEvery('approve', 1600, r => { S.st.approve = 'normal'; r.live = false; refresh('approve'); });
+liveEvery('cook', 1100, r => { r.step++; r.sec += 110; if (r.step >= 6) { r.step = 5; S.st.cook = 'done'; r.live = false; } refresh('cook'); });
+liveEvery('check', 900, r => { r.step++; if (r.step >= 3) { S.st.check = 'posted'; r.live = false; } refresh('check'); });
+
+/* ---------- prototype: set any step to any state ---------- */
+const SNAP = {
+  pull: { normal: {}, running: { run: { done: 4, sec: 42 } }, long: { run: { done: 4, sec: 160 } }, error: {}, empty: { world: 'none' }, limited: {} },
+  insight: { normal: {}, running: { run: { done: 2, sec: 18 } }, long: { run: { done: 4, sec: 190 } }, error: {}, empty: { world: 'none' }, limited: {} },
+  plan: { normal: { r6: 'plan' }, running: { r6: 'plan', run: { done: 1, sec: 40 } }, long: { r6: 'plan', run: { done: 1, sec: 260 } }, error: { r6: 'plan' }, empty: { world: 'noplan' }, limited: { r6: 'plan' } },
+  approve: { normal: { r6: 'approve' }, running: { r6: 'approve', run: { sec: 9 } }, long: { r6: 'approve', run: { sec: 84 } }, error: { r6: 'approve' }, empty: { r6: 'cook' }, limited: { r6: 'approve' } },
+  cook: { normal: { r6: 'cook' }, running: { r6: 'cook', run: { step: 2, sec: 401 } }, long: { r6: 'cook', run: { step: 4, sec: 462 } }, error: { r6: 'cook' }, empty: { r6: 'plan' }, limited: { r6: 'cook', run: { step: 2, sec: 260 } } },
+  check: { normal: { r6: 'check' }, running: { r6: 'check', run: { step: 1, sec: 22 } }, long: { r6: 'check', run: { step: 1, sec: 130 } }, error: { r6: 'check' }, empty: { r6: 'cook' }, limited: { r6: 'check' } },
+};
+function setState(id, st) {
+  const fresh = init(); const sn = SNAP[id][st];
+  S.world = sn.world || 'full'; S.r6 = sn.r6 || fresh.r6; S.first = false; S.st = fresh.st; S.run = fresh.run; S.notes = []; S.keep = [true, true, true]; S.tab = 'reel';
+  S.st[id] = st; if (sn.run) S.run[id] = { live: false, ...sn.run };
+  closeSheets(); ACT.closeHood();
+  nav(id);
+}
+function setFirst() { Object.assign(S, init(), { first: true, world: 'none', station: 'none' }); closeSheets(); render(false); }
+function buildMatrix() {
+  $('#matrix').innerHTML = `<table><tr><th></th>${STATES.map(s => `<th>${s}</th>`).join('')}</tr>${STATIONS.map(([id, n]) => `<tr><th>${n}</th>${STATES.map(s => `<td><button data-testid="st-${id}-${s}" data-state="${id}:${s}" aria-label="${n}, ${s}"></button></td>`).join('')}</tr>`).join('')}</table><p style="margin:8px 0 0;font-size:12px;color:var(--muted)"><button class="b-ghost" data-first data-testid="st-first">First open</button></p>`;
+  $('#matrix').addEventListener('click', e => { const b = e.target.closest('[data-state]'); if (b) { stopTour(); const [i, s] = b.dataset.state.split(':'); setState(i, s); $$('#matrix td button').forEach(x => x.classList.toggle('on', x === b)); } if (e.target.closest('[data-first]')) { stopTour(); setFirst(); } });
+}
+
+/* ---------- walkthrough ---------- */
+const reset = (o = {}) => { Object.assign(S, init(), o); closeSheets(); ACT.closeHood(); };
+const JOURNEYS = [
+  { n: 'Cả vòng 6 bước', steps: [
+    { c: 'Mở app là thấy ngay việc của hôm nay. Thẻ reel tối nay có viền cam, và mascot ngồi đúng trên reel đang chờ anh.', set() { reset(); render(true); } },
+    { c: 'Bước 1, Pull: anh chủ động bấm kéo số. App không tự kéo theo giờ.', to: '[data-testid=step-pull]', click: 1 },
+    { c: 'Bấm Pull again. Số từng kênh đếm dần, mascot cầm kính lúp đi tìm.', to: '[data-testid=act-startPull]', click: 1, wait: 3200 },
+    { c: 'Bước 2, Insight: không có điểm virality. App chỉ ra đúng chỗ người xem bỏ đi.', set() { S.st.pull = 'normal'; S.run.pull = { done: 13, sec: 0, live: false }; S.tab = 'reel'; nav('insight'); }, to: '[data-testid=step-insight]', click: 1 },
+    { c: 'Bấm vào khoảnh khắc 0:01. Timeline phóng to từ tuần xuống từng giây của reel đó.', to: '[data-testid=moment-0]', click: 1, wait: 2400 },
+    { c: 'Rê chuột trên đường giữ chân: khung hình đi theo con trỏ. Đường đứt là mở đầu tốt nhất của anh, để so sánh.', hover: '.c-r', wait: 2600 },
+    { c: 'Bài học này đưa thẳng vào reel kế tiếp, không phải copy qua lại.', to: '[data-testid=act-lessonToPlan]', click: 1 },
+    { c: 'Bước 3, Plan: script chính là reel. Thiếu gì thì ô đó có viền đứt, gõ vào là thẻ trên timeline bớt "Missing".', set() { S.zoom = 'week'; S.t = 0; S.r6 = 'plan'; nav('plan'); }, to: '[data-testid=plan-kw]', type: 'DEPLOY' },
+    { c: 'Điền nốt món quà. Thẻ trên timeline chuyển sang sẵn sàng duyệt.', to: '[data-testid=plan-gift]', type: 'My deploy checklist' },
+    { c: 'Gửi đi duyệt. Đây là Cổng 1, nhưng trong app gọi là Approve plan.', to: '[data-testid=act-sendPlan]', click: 1 },
+    { c: 'Mỗi thay đổi có câu cũ, câu mới và lý do lấy từ chính reel của anh. Không phải code diff.', set() { S.r6 = 'approve'; S.st.approve = 'normal'; S.keep = [true, true, true]; S.kw = 'DEPLOY'; S.gift = 'My deploy checklist'; nav('approve'); }, wait: 2600 },
+    { c: 'Bỏ một thay đổi, nút duyệt tự đếm lại còn 2.', to: '[data-testid=skip-1]', click: 1, wait: 1600 },
+    { c: 'Duyệt. Reel chuyển sang Cook.', set() { S.r6 = 'approve'; S.st.approve = 'normal'; S.keep = [true, false, true]; nav('approve'); }, to: '[data-testid=act-approve]', click: 1 },
+    { c: 'Bước 5, Cook: một nút. Terminal ẩn đi, chỉ mở khi anh muốn xem.', set() { S.r6 = 'cook'; S.st.cook = 'normal'; nav('cook'); }, to: '[data-testid=act-startCook]', click: 1, wait: 2800 },
+    { c: 'Thanh render chạy ngay trên thẻ reel, mascot ôm laptop ngồi trên thẻ đó. Anh rời đi đâu cũng thấy tiến độ. Hàng YOU CAN và IF YOU WAIT nói thật phải làm gì.', set() { S.r6 = 'cook'; S.st.cook = 'running'; S.run.cook = { step: 2, sec: 401, live: false }; nav('cook'); }, wait: 3400 },
+    { c: 'Xong rồi, bước 6: Final check. App kiểm 5 thứ, phần còn lại anh tự xem.', set() { S.r6 = 'check'; S.st.check = 'normal'; S.st.cook = 'normal'; nav('check'); }, wait: 2400 },
+    { c: 'Ghim góp ý tại đúng giây đang xem.', to: '[data-testid=pin-note]', type: 'Caption a bit lower here', wait: 1200 },
+    { c: 'Không có góp ý thì đăng. Việc chạm tới người ngoài luôn hỏi lại một lần.', set() { S.notes = []; S.r6 = 'check'; S.st.check = 'normal'; nav('check'); }, to: '[data-testid=act-openPost]', click: 1 },
+    { c: 'Xác nhận đăng lúc 21:00.', to: '[data-testid=confirm-post]', click: 1, wait: 2600 },
+    { c: 'Đăng xong mascot ăn mừng. Reel về lại timeline và số của nó sẽ đổ vào đúng thẻ này. Vòng lặp khép lại.', set() { S.r6 = 'check'; S.st.check = 'posted'; S.run.check.live = false; closeSheets(); nav('check'); }, wait: 3200 },
+  ] },
+  { n: 'Lần đầu mở app', steps: [
+    { c: 'Lần đầu mở: mascot chào to giữa màn hình, chỉ có 2 nút.', set() { setFirst(); }, wait: 3000 },
+    { c: 'Kết nối Instagram. Chưa có gì cũng không sao: timeline đã giữ sẵn chỗ trống từng ngày.', to: '[data-testid=connect]', click: 1, wait: 1800 },
+    { c: 'Màn trống có việc rõ ràng: mascot ngồi trong khung reel, hỏi anh có muốn tìm số không.', wait: 2600 },
+    { c: 'Bấm Pull my channel, từng nguồn đổ vào, các thẻ reel xuất hiện.', to: '[data-testid=act-startPull]', click: 1, wait: 4400 },
+  ] },
+  { n: 'Phóng to timeline', steps: [
+    { c: 'Cả app là một trục thời gian. Đây là mức tuần.', set() { reset({ station: 'insight', sel: 'r4' }); nav('insight'); }, wait: 1800 },
+    { c: 'Thu ra mức 5 tuần: cả kênh trong một dải, thay cho bảng My channel.', to: '[data-do="zoom:month"]', click: 1, wait: 2200 },
+    { c: 'Quay về tuần.', to: '[data-do="zoom:week"]', click: 1, wait: 1600 },
+    { c: 'Bấm thẻ đang chọn: phóng vào từng giây của reel, thanh chạy mượt và không có màn hình chuyển.', to: '[data-testid=clip-r4]', click: 1, wait: 2400 },
+    { c: 'Phần kéo dài sau reel là After the reel: comment, DM, trang quà, đơn. Phễu nằm ngay sau video tạo ra nó.', to: '#tail', wait: 3200 },
+    { c: 'Phím tắt 1, 2, 3 làm đúng việc này. Space để phát.', to: '[data-testid=play-reel]', click: 1, wait: 2400 },
+  ] },
+  { n: 'Đợi lâu vẫn yên tâm', steps: [
+    { c: 'Pull lâu: app nói thật lý do và không có thanh phần trăm giả.', set() { setState('pull', 'long'); }, wait: 3000 },
+    { c: 'Anh rời đi làm việc khác. Chấm cam ở Pull vẫn thở, số vẫn chạy.', set() { S.r6 = 'plan'; S.st.plan = 'normal'; S.station = 'plan'; S.sel = 'r6'; render(true); }, to: '[data-testid=plan-kw]', type: 'DEPLOY', wait: 1400 },
+    { c: 'Cook lâu: "Step 5 of 6, usually about 3:00". Bản nháp đã xem được ngay trong khung.', set() { setState('cook', 'long'); }, wait: 3200 },
+    { c: 'Bấm phát bản nháp ngay trong lúc chờ render bản cuối.', to: '[data-testid=play-reel]', click: 1, wait: 2800 },
+    { c: 'Đăng lâu: lỗi là do phía Instagram, và app dặn đừng đăng lần hai.', set() { setState('check', 'long'); }, wait: 3000 },
+  ] },
+  { n: 'Lỗi không mất việc', steps: [
+    { c: 'Pull lỗi giữa chừng: 3 kênh có số mới, 10 kênh còn lại giữ số cũ. Mascot nói phần đã giữ trước, chứ không la lỗi.', set() { setState('pull', 'error'); }, wait: 3000 },
+    { c: 'Một nút chạy tiếp phần còn lại.', to: '[data-testid=act-resumePull]', click: 1, wait: 3200 },
+    { c: 'Cook dừng ở bước 5: 4 bước đã giữ, kể cả bản nháp. Thẻ reel có viền đỏ.', set() { setState('cook', 'error'); }, wait: 3000 },
+    { c: 'Muốn xem kỹ thì mở Under the hood: terminal thật nằm ở đây, không chắn đường anh.', to: '[data-testid=act-openHood]', click: 1, wait: 2400 },
+    { c: 'Resume chạy tiếp từ bước 5, không làm lại từ đầu.', set() { setState('cook', 'error'); }, to: '[data-testid=act-resumeCook]', click: 1, wait: 2600 },
+    { c: 'Đăng được rồi nhưng thiếu DM: reel vẫn sống, app nói đúng phần hỏng và một nút sửa.', set() { setState('check', 'error'); }, to: '[data-testid=act-attachDm]', click: 1, wait: 2800 },
+  ] },
+  { n: 'Khi bị giới hạn', steps: [
+    { c: 'Hết hạn mức Instagram trong giờ: mascot đi ngủ đến 08:00, 6 kênh đã xong vẫn còn đó.', set() { setState('pull', 'limited'); }, wait: 3000 },
+    { c: 'Hết hạn mức Claude: số vẫn đọc được, chỉ phần diễn giải phải chờ.', set() { setState('insight', 'limited'); }, wait: 3000 },
+    { c: 'Plan vẫn viết tay được.', set() { setState('plan', 'limited'); }, wait: 2600 },
+    { c: 'Duyệt được 2 trên 3, thay đổi còn lại cần trang quà.', set() { setState('approve', 'limited'); }, wait: 2800 },
+    { c: 'Cook tạm dừng ở bước 3 và tự chạy tiếp lúc 14:00.', set() { setState('cook', 'limited'); }, wait: 2800 },
+    { c: 'Chưa nối ChatbotX vẫn đăng được, nhưng app nói rõ sẽ không có DM trả lời.', set() { setState('check', 'limited'); }, wait: 3000 },
+  ] },
+];
+const T = { j: 0, i: 0, playing: false, token: 0 };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const cursor = $('#cur'), ring = $('#ring');
+async function moveTo(el) {
+  const r = el.getBoundingClientRect();
+  const x = Math.min(innerWidth - 12, Math.max(4, r.left + r.width / 2)), y = Math.min(innerHeight - 12, Math.max(4, r.top + r.height / 2));
+  cursor.classList.add('on');
+  cursor.style.transform = `translate(${x}px,${y}px)`;
+  T.cx = x; T.cy = y;
+  await sleep(matchMedia('(prefers-reduced-motion:reduce)').matches ? 40 : 640);
+}
+function pulse() { ring.style.left = T.cx + 'px'; ring.style.top = T.cy + 'px'; ring.classList.remove('go'); void ring.offsetWidth; ring.classList.add('go'); }
+const need = (sel) => { const el = $(sel); if (!el) throw new Error('walkthrough target missing: ' + sel); return el; };
+async function runStep(token) {
+  const st = JOURNEYS[T.j].steps[T.i];
+  $('#cap').textContent = st.c;
+  renderDots();
+  if (st.set) st.set();
+  await sleep(120);
+  if (token !== T.token) return;
+  if (st.hover) {
+    const el = need(st.hover); const r = el.getBoundingClientRect();
+    cursor.classList.add('on');
+    for (const q of [.08, .22, .4, .62, .85]) { if (token !== T.token) return; const x = r.left + r.width * q, y = r.top + r.height * .6; cursor.style.transform = `translate(${x}px,${y}px)`; S.t = q * durOf(sel()); drawFrame(); await sleep(480); }
+  } else if (st.to) {
+    const el = need(st.to);
+    await moveTo(el);
+    if (token !== T.token) return;
+    if (st.click) { pulse(); await sleep(120); if (token !== T.token) return; el.click(); }
+    if (st.type) { el.focus(); el.value = ''; for (const ch of st.type) { if (token !== T.token) return; el.value += ch; el.dispatchEvent(new Event('input', { bubbles: true })); await sleep(36); } const again = $(st.to); if (again && again !== el) again.focus(); }
+  }
+  await sleep(st.wait ?? 1700);
+}
+async function play() {
+  const token = ++T.token; T.playing = true; syncBand();
+  while (T.playing && token === T.token) {
+    try { await runStep(token); } catch (e) { console.error(e); T.playing = false; break; }
+    if (token !== T.token) return;
+    if (T.i >= JOURNEYS[T.j].steps.length - 1) { T.playing = false; break; }
+    T.i++;
+  }
+  syncBand();
+}
+function stopTour() { T.token++; T.playing = false; cursor.classList.remove('on'); syncBand(); }
+async function jump(i) { T.token++; T.playing = false; T.i = clamp(i, 0, JOURNEYS[T.j].steps.length - 1); syncBand(); const token = ++T.token; try { await runStep(token); } catch (e) { console.error(e); } }
+function renderDots() { $('#dots').innerHTML = JOURNEYS[T.j].steps.map((_, i) => `<button class="${i === T.i ? 'on' : ''}" data-dot="${i}" aria-label="Bước ${i + 1}"></button>`).join(''); }
+function syncBand() { $('#bplay').innerHTML = T.playing ? '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M2 1h3v10H2zM7 1h3v10H7z"/></svg>Pause' : '<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M2 1l9 5-9 5z"/></svg>Play'; }
+$('#jsel').innerHTML = JOURNEYS.map((j, i) => `<option value="${i}">${j.n}</option>`).join('');
+$('#jsel').addEventListener('change', e => { T.j = +e.target.value; T.i = 0; stopTour(); renderDots(); $('#cap').textContent = 'Bấm Play để xem con trỏ giả đi qua luồng này.'; });
+$('#bplay').addEventListener('click', () => { if (T.playing) stopTour(); else { if (T.i >= JOURNEYS[T.j].steps.length - 1) T.i = 0; play(); } });
+$('#bprev').addEventListener('click', () => jump(T.i - 1));
+$('#bnext').addEventListener('click', () => jump(T.i + 1));
+$('#dots').addEventListener('click', e => { const d = e.target.closest('[data-dot]'); if (d) jump(+d.dataset.dot); });
+$('#bstates').addEventListener('click', () => $('#matrix').classList.toggle('on'));
+$('#btheme').addEventListener('click', () => {
+  const r = document.documentElement, cur = r.dataset.theme || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light');
+  r.dataset.theme = cur === 'dark' ? 'light' : 'dark';
+});
+$('#bhood').addEventListener('click', () => $('#hood').classList.toggle('on'));
+$('#bset').addEventListener('click', () => openSheet('settings'));
+$('#brand').addEventListener('click', () => nav('today'));
+$('#hoodlog').textContent = HOOD;
+addEventListener('resize', () => layout(true));
+buildMatrix(); renderDots(); syncBand();
+window.LS = { S: () => S, setState, setFirst, JOURNEYS, T, jump, stopTour, render };
+if (new URLSearchParams(location.search).has('first')) setFirst(); else render(true);
+</script>
+<script type="module">
+// three.js from cdnjs, exact version. If it does not load, the app still works, just without the mascot.
+import('https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js').then(THREE => {
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let REDUCED = mq.matches;
+mq.addEventListener('change', e => { REDUCED = e.matches; });
+const Q = new URLSearchParams(location.search);
+const TAU = Math.PI * 2;
+const STILL = Q.has('still');
+if (STILL) document.documentElement.classList.add('still');
+const lerp = (a, b, k) => a + (b - a) * k;
+const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const v3 = hex => { const n = parseInt(hex.slice(1), 16); return new THREE.Vector3((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255); };
+
+const PALETTES = {
+  peach:    { top:'#ffd69e', mid:'#ffb582', bottom:'#ff8fa5', rim:'#ffe9da', orbTop:'#ffc690', orbBottom:'#ff8a66', blush:'255,110,138', shadow:'#ff9f78' },
+  mint:     { top:'#e6f9a6', mid:'#a6ee9d', bottom:'#5ed79c', rim:'#eefff2', orbTop:'#d2f8a4', orbBottom:'#6fdc8f', blush:'255,130,150', shadow:'#76d6a2' },
+  sky:      { top:'#d3e5ff', mid:'#98bcff', bottom:'#5f86ff', rim:'#eaf2ff', orbTop:'#bcd4ff', orbBottom:'#6a92ff', blush:'255,130,185', shadow:'#7d9cff' },
+  lavender: { top:'#f1d9ff', mid:'#c9a4ff', bottom:'#9b72ff', rim:'#f6ecff', orbTop:'#dfbcff', orbBottom:'#a37bff', blush:'255,125,185', shadow:'#a78aff' },
+  pink:     { top:'#ffd6df', mid:'#ffa9c2', bottom:'#ff7ba3', rim:'#ffecf1', orbTop:'#ffb8cb', orbBottom:'#ff7397', blush:'255,90,135', shadow:'#ff8fb0' },
+};
+const COLOR_META = [['peach','Peach','Main (default)'],['mint','Mint','Calm & focus'],['sky','Sky','Professional'],['lavender','Lavender','Creative'],['pink','Pink','Playful']];
+const EXPRS = [['normal','Normal'],['happy','Happy'],['excited','Excited'],['curious','Curious'],['thinking','Thinking'],['focused','Focused'],['surprised','Surprised'],['sleeping','Sleeping'],['celebrating','Celebrating']];
+const POSES = [['floating','Floating'],['greeting','Greeting'],['thinking','Thinking'],['explaining','Explaining'],['working','Working'],['finding','Finding answers'],['cheering','Cheering']];
+const POSE_EXPR = { floating:'normal', greeting:'happy', thinking:'thinking', explaining:'happy', working:'focused', finding:'curious', cheering:'celebrating' };
+const ANGLES = [['front','Front',0],['three','3/4 view',0.62],['side','Side view',1.25]];
+const STEPS = [
+  { pose:'greeting', expr:'happy',       title:'Greeting',    say:'Hi Kai! Ready to help today?' },
+  { pose:'thinking', expr:'thinking',    title:'Thinking',    say:'Hmm, let me think this through…' },
+  { pose:'working',  expr:'focused',     title:'Working',     say:'Pulling your numbers into a report…' },
+  { pose:'cheering', expr:'celebrating', title:'Celebrating', say:'All set! Great progress!' },
+];
+const STEP_MS = 3200;
+
+// ---------- shared geometry ----------
+const B = 0.86; // distance from body centre to its flat-ish bottom
+function withDir(g) { g.setAttribute('dir', g.attributes.normal.clone()); return g; }
+function blobGeometry() {
+  const g = new THREE.SphereGeometry(1, 112, 80);
+  const p = g.attributes.position, dir = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    dir.set([v.x, v.y, v.z], i * 3);
+    let { x, y, z } = v;
+    const s = 1 + 0.08 * (1 - ss(-0.7, 0.45, y)) - 0.045 * ss(0.1, 1, y);   // narrow top, soft wide bottom
+    x *= s * 1.03; z *= s * 0.94;
+    y = y < 0 ? -0.86 * (-y) * (1.14 - 0.14 * y * y) : 1.0 * y;            // squat, rounded-flat underside
+    x += 0.055 * y;                                                        // top leans right, belly bulges left
+    p.setXYZ(i, x, y, z);
+  }
+  g.setAttribute('dir', new THREE.BufferAttribute(dir, 3));
+  g.computeVertexNormals();
+  return g;
+}
+const GEO = {
+  body: blobGeometry(),
+  nub: withDir(new THREE.SphereGeometry(0.2, 40, 28)),
+  orb: withDir(new THREE.SphereGeometry(0.155, 40, 28)),
+  conf: new THREE.PlaneGeometry(0.05, 0.085),
+  shadow: new THREE.PlaneGeometry(1, 1),
+};
+
+const VS = `
+attribute vec3 dir;
+uniform float uTime, uWobble;
+varying vec3 vDir, vN, vV;
+void main(){
+  vDir = dir;
+  float w = sin(dir.y*3.1 + uTime*1.6) * sin(dir.x*2.3 + uTime*1.1);
+  vec4 mv = modelViewMatrix * vec4(position + normal * w * uWobble, 1.0);
+  vV = -mv.xyz;
+  vN = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+uniform vec3 uTop, uMid, uBottom, uRim;
+uniform sampler2D uFace;
+uniform float uFaceOn, uGlow;
+varying vec3 vDir, vN, vV;
+void main(){
+  vec3 N = normalize(vN), V = normalize(vV);
+  float h = vDir.y;
+  vec3 base = mix(uBottom, uMid, smoothstep(-0.95, 0.05, h));
+  base = mix(base, uTop, smoothstep(0.1, 0.95, h));
+  float wash = smoothstep(0.15, 1.1, -0.55*vDir.x - 0.75*vDir.y + 0.1*vDir.z);
+  base = mix(base, uBottom, 0.42*wash);
+  vec3 L = normalize(vec3(-0.5, 0.8, 0.6));
+  float wrap = clamp((dot(N, L) + 0.8) / 1.8, 0.0, 1.0);
+  vec3 col = base * (0.86 + 0.2 * wrap);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.3);
+  col = mix(col, uRim, fres * (0.5 + 0.3*uGlow));
+  col += uBottom * 0.10 * smoothstep(-0.2, -1.0, N.y);
+  vec3 H = normalize(L + V);
+  float nh = max(dot(N, H), 0.0);
+  vec3 spec = vec3(1.0, 0.98, 0.95) * (pow(nh, 14.0) * 0.06 + pow(nh, 70.0) * 0.08);
+  col += spec;
+  // sample outside any branch so mip selection stays smooth; mask to the front half
+  vec2 uv = vec2(atan(vDir.x, vDir.z) * 0.5 + 0.5, asin(clamp(vDir.y, -1.0, 1.0)) + 0.5);
+  vec4 f = texture2D(uFace, uv) * uFaceOn * smoothstep(0.05, 0.25, vDir.z);
+  col = col * (1.0 - f.a) + f.rgb + spec * 1.6 * f.a;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ---------- shared sprite textures ----------
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const FONT = '"SF Pro Rounded",ui-rounded,"Nunito","Varela Round",system-ui,sans-serif';
+const TEX = {
+  q: canvasTex(128, 128, (x) => { x.fillStyle = '#8b87f3'; x.font = `800 112px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', 64, 70); }),
+  z: canvasTex(128, 128, (x) => { x.fillStyle = '#7f8bf2'; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', 64, 62); }),
+  shadow: canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }),
+};
+const dashTex = {};
+function dash(color) {
+  return dashTex[color] ||= canvasTex(128, 32, (x) => { x.strokeStyle = color; x.lineWidth = 15; x.lineCap = 'round'; x.beginPath(); x.moveTo(14, 16); x.lineTo(114, 16); x.stroke(); });
+}
+
+// ---------- shared prop materials ----------
+const MAT = {
+  lap: new THREE.MeshStandardMaterial({ color: '#626a96', roughness: 0.38, metalness: 0.2 }),
+  lapDark: new THREE.MeshStandardMaterial({ color: '#434a72', roughness: 0.55 }),
+  logo: new THREE.MeshStandardMaterial({ color: '#9aa1cc', roughness: 0.3 }),
+  ring: new THREE.MeshStandardMaterial({ color: '#2d355c', roughness: 0.3, metalness: 0.3 }),
+  glass: new THREE.MeshBasicMaterial({ color: '#e4f2ff', transparent: true, opacity: 0.32, depthWrite: false }),
+  bulb: new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffbe3d', emissiveIntensity: 0.65, roughness: 0.25 }),
+  neck: new THREE.MeshStandardMaterial({ color: '#c9c2d9', roughness: 0.4, metalness: 0.2 }),
+  conf: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+};
+const CONF_COLORS = ['#ff9f6e', '#9b8cf5', '#5ccfa0', '#ffc94d', '#ff7ea1', '#6aa5ff'].map(c => new THREE.Color(c));
+
+function sprite(tex, w, h = w) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  s.scale.set(w, h, 1); return s;
+}
+// little radiating dashes, like the "!" marks on the boards
+function burst(color, cx, cy, pts) {
+  const g = new THREE.Group();
+  for (const [x, y, len = 0.17] of pts) {
+    const s = sprite(dash(color), len, len / 4);
+    s.material.rotation = Math.atan2(y - cy, x - cx);
+    s.position.set(x, y, 0.3); s.userData.base = [x, y, cx, cy]; g.add(s);
+  }
+  return g;
+}
+
+let THEME_DARK = false;
+const allMascots = new Set();
+
+// ---------- the mascot ----------
+class Mascot {
+  constructor({ faceSize = 512, hero = false, faceless = false } = {}) {
+    this.hero = hero; this.faceless = faceless;
+    this.group = new THREE.Group();
+    this.root = new THREE.Group(); this.group.add(this.root);
+    this.squash = new THREE.Group(); this.squash.position.y = -B; this.root.add(this.squash);
+    this.turn = new THREE.Group(); this.turn.position.y = B; this.squash.add(this.turn);
+
+    this.fc = document.createElement('canvas'); this.fc.width = faceSize; this.fc.height = faceSize / 2;
+    this.fx = this.fc.getContext('2d');
+    this.faceTex = new THREE.CanvasTexture(this.fc);
+    this.faceTex.premultiplyAlpha = true; this.faceTex.colorSpace = THREE.NoColorSpace;
+    if (hero) { this.faceTex.generateMipmaps = false; this.faceTex.minFilter = THREE.LinearFilter; }
+    else this.faceTex.anisotropy = 4;
+
+    const U = this.u = {
+      uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uRim: { value: new THREE.Vector3() },
+      uFace: { value: this.faceTex }, uFaceOn: { value: faceless ? 0 : 1 }, uGlow: { value: 0 }, uTime: { value: 0 }, uWobble: { value: 0.012 },
+    };
+    const mat = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS });
+    this.body = new THREE.Mesh(GEO.body, mat(U)); this.turn.add(this.body);
+
+    const nubU = { ...U, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    const nubMat = mat(nubU);
+    this.nubR = new THREE.Mesh(GEO.nub, nubMat); this.nubL = new THREE.Mesh(GEO.nub, nubMat);
+    this.nubR.scale.set(1, 0.86, 0.9); this.nubL.scale.copy(this.nubR.scale);
+    this.turn.add(this.nubR, this.nubL);
+
+    this.ou = { ...U, uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    this.orb = new THREE.Mesh(GEO.orb, mat(this.ou)); this.group.add(this.orb);
+
+    this.shadowMat = new THREE.MeshBasicMaterial({ map: TEX.shadow, transparent: true, depthWrite: false, opacity: 0.5 });
+    this.shadow = new THREE.Mesh(GEO.shadow, this.shadowMat);
+    this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = -B - 0.06; this.group.add(this.shadow);
+
+    this.buildProps();
+    this.buildDecor();
+
+    this.s = { expr: 'normal', pose: 'floating', color: 'peach' };
+    this.yaw = 0; this.yawTarget = 0; this.tilt = 0;
+    this.gaze = { x: 0, y: 0 }; this.gazeTarget = { x: 0, y: 0 };
+    this.seed = Math.random() * 100;
+    this.nextBlink = 1 + Math.random() * 3; this.blinkAt = -9;
+    this.bounceAt = -9; this.popAt = -9; this.happyUntil = -9;
+    this.now = 0; this.faceKey = '';
+    this.setColor('peach');
+    allMascots.add(this);
+  }
+
+  buildProps() {
+    const lap = this.laptop = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.56), MAT.lapDark);
+    const lid = new THREE.Group(); lid.position.set(0, 0.02, 0.28); lid.rotation.x = 0.22;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.035), MAT.lap); panel.position.y = 0.28;
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(0.045, 24), MAT.logo); logo.position.set(0, 0.3, 0.019);
+    lid.add(panel, logo); lap.add(base, lid);
+    lap.position.set(0.34, -0.74, 0.98); lap.rotation.y = -0.38;
+
+    const mag = this.magnifier = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.045, 18, 56), MAT.ring);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.25, 40), MAT.glass);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.36, 18), MAT.ring);
+    const d = new THREE.Vector2(0.5, -0.86).normalize();
+    handle.position.set(d.x * 0.45, d.y * 0.45, 0); handle.rotation.z = -Math.atan2(d.x, d.y) + Math.PI;
+    mag.add(ring, glass, handle);
+    mag.position.set(-1.08, 0.18, 0.42); mag.rotation.y = 0.35;
+
+    const bulb = this.bulb = new THREE.Group();
+    const glassB = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), MAT.bulb);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.11, 20), MAT.neck); neck.position.y = -0.17;
+    bulb.add(glassB, neck, burst('#ffc14d', 0, 0, [[0, 0.3, 0.13], [-0.25, 0.2, 0.13], [0.25, 0.2, 0.13], [-0.32, -0.02, 0.12], [0.32, -0.02, 0.12]]));
+    bulb.position.set(-0.8, 1.12, 0.2);
+    this.turn.add(lap, mag); this.root.add(bulb);
+  }
+
+  buildDecor() {
+    const r = this.root;
+    this.q = sprite(TEX.q, 0.36); this.q.position.set(0.98, 1.08, 0.25);
+    this.z1 = sprite(TEX.z, 0.2); this.z2 = sprite(TEX.z, 0.32);
+    this.sparkR = burst('#ff9f62', 0.62, 0.58, [[0.98, 1.02], [1.16, 0.84], [1.24, 0.6]]);
+    this.sparkV = burst('#9d8df6', 0.6, 0.6, [[0.9, 1.08, 0.15], [1.12, 0.92, 0.15]]);
+    this.sparkL = burst('#ff9f62', -0.62, 0.58, [[-0.98, 1.0], [-1.18, 0.78], [-1.24, 0.55]]);
+    this.wave = burst('#4b5a9e', 0.7, 0.35, [[1.08, 0.72, 0.15], [1.22, 0.52, 0.15]]);
+    r.add(this.q, this.z1, this.z2, this.sparkR, this.sparkV, this.sparkL, this.wave);
+  }
+
+  initConfetti() {
+    const n = 40;
+    this.conf = new THREE.InstancedMesh(GEO.conf, MAT.conf, n);
+    this.cp = [];
+    for (let i = 0; i < n; i++) {
+      this.conf.setColorAt(i, CONF_COLORS[i % CONF_COLORS.length]);
+      const c = { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() };
+      this.spawn(c, true); this.cp.push(c);
+    }
+    this.confDummy = new THREE.Object3D();
+    this.group.add(this.conf);
+  }
+  spawn(c, scatter) {
+    const R = Math.random;
+    if (scatter) c.p.set((R() - 0.5) * 2.8, R() * 1.9 - 0.4, (R() - 0.5) * 0.8 + 0.2);
+    else c.p.set((R() - 0.5) * 0.5, 0.95, 0.2);
+    c.v.set((R() - 0.5) * 2.6, 1.8 + R() * 1.8, (R() - 0.5) * 0.9);
+    c.r.set(R() * TAU, R() * TAU, R() * TAU);
+    c.w.set((R() - 0.5) * 9, (R() - 0.5) * 9, (R() - 0.5) * 9);
+  }
+
+  setColor(name) {
+    const P = PALETTES[name]; this.s.color = name;
+    this.u.uTop.value.copy(v3(P.top)); this.u.uMid.value.copy(v3(P.mid)); this.u.uBottom.value.copy(v3(P.bottom)); this.u.uRim.value.copy(v3(P.rim));
+    this.ou.uTop.value.copy(v3(P.orbTop)); this.ou.uMid.value.copy(v3(P.orbTop)).lerp(v3(P.orbBottom), 0.5); this.ou.uBottom.value.copy(v3(P.orbBottom));
+    this.shadowMat.color.set(P.shadow);
+    this.blush = P.blush; this.faceKey = '';
+  }
+  setExpr(e) { if (e !== this.s.expr) { this.s.expr = e; this.popAt = this.now; } }
+  setPose(p) { if (p !== this.s.pose) { this.s.pose = p; this.popAt = this.now; } }
+  bounce() { this.bounceAt = this.now; this.happyUntil = this.now + 1.2; }
+
+  update(t, dt) {
+    this.now = t;
+    const R = REDUCED, s = this.s;
+    const expr = t < this.happyUntil && !['excited', 'celebrating'].includes(s.expr) ? 'happy' : s.expr;
+    const pose = s.pose;
+    const sleeping = expr === 'sleeping';
+    const ft = R ? 0 : t + this.seed;
+    this.u.uTime.value = ft;
+    this.u.uGlow.value = this.glow ?? (THEME_DARK ? 1 : 0);
+
+    let y = R ? 0 : Math.sin(ft * (sleeping ? 0.8 : 1.5)) * (sleeping ? 0.03 : 0.065);
+    let sy = 1 + (R ? 0 : Math.sin(ft * (sleeping ? 1.1 : 2.2)) * (sleeping ? 0.03 : 0.022));
+    if (!R && (expr === 'excited' || expr === 'celebrating' || pose === 'cheering')) {
+      const hop = Math.abs(Math.sin(ft * 4.2));
+      y += hop * 0.11; sy *= 1 + 0.035 * hop - 0.07 * (1 - ss(0, 0.3, hop));
+    }
+    const bp = (t - this.bounceAt) / 0.9;
+    if (!R && bp >= 0 && bp < 1) {
+      if (bp < 0.15) sy *= 1 - 0.15 * Math.sin(bp / 0.15 * Math.PI / 2);
+      else if (bp < 0.72) { const q = (bp - 0.15) / 0.57; y += Math.sin(q * Math.PI) * 0.42; sy *= 1 + 0.13 * (1 - 2 * q) ** 2; }
+      else { const r = (bp - 0.72) / 0.28; sy *= 1 - 0.14 * Math.sin(r * Math.PI) * (1 - 0.4 * r); }
+    }
+    const pp = (t - this.popAt) / 0.35;
+    if (!R && pp >= 0 && pp < 1) sy *= 1 + 0.07 * Math.sin(pp * Math.PI) * (1 - pp);
+    const sx = 1 / Math.sqrt(sy);
+    this.squash.scale.set(sx, sy, sx);
+    this.root.position.y = y;
+
+    // gaze + turn
+    const gt = expr === 'thinking' ? { x: 0.6, y: 0.75 } : sleeping ? { x: 0, y: -0.2 } : pose === 'finding' ? { x: -0.55, y: 0.05 } : pose === 'working' ? { x: 0.2, y: -0.55 } : this.gazeTarget;
+    const kg = R ? 1 : 1 - Math.exp(-dt * 10);
+    this.gaze.x = lerp(this.gaze.x, gt.x, kg); this.gaze.y = lerp(this.gaze.y, gt.y, kg);
+    const ky = R ? 1 : 1 - Math.exp(-dt * 6);
+    this.yaw = lerp(this.yaw, this.yawTarget + this.gaze.x * 0.26, ky);
+    this.turn.rotation.y = this.yaw;
+    this.turn.rotation.x = lerp(this.turn.rotation.x, -this.gaze.y * 0.12, ky);
+    const tiltT = expr === 'curious' ? 0.13 : expr === 'thinking' ? -0.07 : sleeping ? 0.06 : 0;
+    this.tilt = lerp(this.tilt, tiltT, ky); this.root.rotation.z = this.tilt;
+
+    // blink
+    if (!R && !STILL && t > this.nextBlink) { this.blinkAt = t; this.nextBlink = t + (Math.random() < 0.2 ? 0.25 : 2.4 + Math.random() * 3); }
+    const bt = (t - this.blinkAt) / 0.15;
+    const blink = bt >= 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+
+    if (!this.faceless) {
+      const key = `${expr}|${this.gaze.x.toFixed(2)}|${this.gaze.y.toFixed(2)}|${blink.toFixed(2)}|${this.blush}`;
+      if (key !== this.faceKey) { this.faceKey = key; drawFace(this.fx, this.fc.width, this.fc.height, expr, this.gaze, blink, this.blush); this.faceTex.needsUpdate = true; }
+    }
+
+    // orb companion
+    const fl = this.faceless;
+    this.orb.position.set(fl ? 0.72 : 0.98 + 0.04 * Math.sin(ft * 0.9), (fl ? -0.38 : 0.98) + 0.06 * Math.sin(ft * 1.7 + 1), fl ? 0.75 : 0.15);
+    this.orb.scale.setScalar(fl ? 1.9 : 1);
+    this.orb.visible = fl || !['curious', 'sleeping', 'surprised', 'excited'].includes(expr) && pose !== 'greeting';
+
+    // shadow
+    const sh = 1 - y * 0.55;
+    this.shadow.scale.set(2.0 * sh, 1.25 * sh, 1);
+    this.shadowMat.opacity = (THEME_DARK && !this.glow ? 0.32 : 0.5) * (1 - y * 0.9);
+
+    // props
+    const wave = R ? 0 : Math.sin(ft * 9);
+    this.laptop.visible = pose === 'working';
+    this.magnifier.visible = pose === 'finding';
+    if (this.magnifier.visible) this.magnifier.position.y = 0.18 + (R ? 0 : 0.04 * Math.sin(ft * 1.3));
+    this.bulb.visible = pose === 'explaining';
+    if (this.bulb.visible) this.bulb.position.y = 1.12 + (R ? 0 : 0.04 * Math.sin(ft * 2));
+    this.nubR.visible = pose === 'greeting' || pose === 'thinking' || pose === 'cheering';
+    this.nubL.visible = pose === 'cheering';
+    if (pose === 'greeting') this.nubR.position.set(0.98 + 0.02 * wave, -0.22 + 0.09 * wave, 0.32);
+    if (pose === 'thinking') this.nubR.position.set(0.3, -0.55 + (R ? 0 : 0.015 * Math.sin(ft * 2)), 0.86);
+    if (pose === 'cheering') {
+      const c = R ? 0.5 : (Math.sin(ft * 8.4) + 1) / 2;
+      this.nubR.position.set(0.98, 0.08 + 0.12 * c, 0.26); this.nubL.position.set(-1.0, 0.08 + 0.12 * (1 - c), 0.26);
+    }
+
+    // decor
+    this.q.visible = expr === 'curious';
+    if (this.q.visible) { this.q.position.y = 1.08 + (R ? 0 : 0.05 * Math.sin(ft * 2.2)); this.q.material.rotation = R ? 0.15 : 0.15 + 0.1 * Math.sin(ft * 1.7); }
+    this.z1.visible = this.z2.visible = sleeping;
+    if (sleeping) {
+      [this.z1, this.z2].forEach((z, i) => {
+        const ph = R ? 0.35 + i * 0.3 : (ft * 0.3 + i * 0.5) % 1;
+        z.position.set(0.66 + ph * 0.42 + i * 0.05, 0.78 + ph * 0.55, 0.3);
+        z.material.opacity = R ? 1 : Math.sin(ph * Math.PI);
+        z.material.rotation = -0.2;
+      });
+    }
+    const celebrate = expr === 'celebrating' || pose === 'cheering';
+    this.sparkR.visible = expr === 'excited' || celebrate;
+    this.sparkL.visible = celebrate;
+    this.sparkV.visible = expr === 'surprised';
+    this.wave.visible = pose === 'greeting';
+    const pulse = R ? 1 : 1 + 0.08 * Math.sin(ft * 6);
+    for (const g of [this.sparkR, this.sparkL, this.sparkV, this.wave]) if (g.visible) for (const d of g.children) {
+      const [x, yy, cx, cy] = d.userData.base;
+      d.position.set(cx + (x - cx) * pulse, cy + (yy - cy) * pulse, 0.3);
+    }
+
+    // confetti
+    if (celebrate && !this.conf) this.initConfetti();
+    if (this.conf) {
+      this.conf.visible = celebrate;
+      if (celebrate && !R) {
+        const D = this.confDummy;
+        this.cp.forEach((c, i) => {
+          c.v.y -= 3.4 * dt; c.v.x *= 0.985; c.v.z *= 0.985; if (c.v.y < -0.9) c.v.y = -0.9;
+          c.p.addScaledVector(c.v, dt);
+          c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+          if (c.p.y < -1.0) this.spawn(c, false);
+          D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix);
+        });
+        this.conf.instanceMatrix.needsUpdate = true;
+      } else if (celebrate && !this.confStill) {
+        const D = this.confDummy; this.confStill = true;
+        this.cp.forEach((c, i) => { D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix); });
+        this.conf.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+}
+
+// ---------- the face, painted in angle space (1 canvas px row = same angle both axes) ----------
+const INK = '#1b1520';
+function drawFace(x, W, H, expr, gaze, blink, blush) {
+  const S = W / 2, cx = W / 2, cy = H / 2;
+  const P = (ax, ay) => [cx + ax * S, cy - ay * S];
+  x.clearRect(0, 0, W, H);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+
+  const strong = expr === 'celebrating' || expr === 'excited' || expr === 'happy' || expr === 'sleeping';
+  for (const sd of [-1, 1]) {
+    const [bx, by] = P(sd * 0.56, -0.03), r = 0.15 * S;
+    const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+    g.addColorStop(0, `rgba(${blush},${strong ? 0.62 : 0.54})`); g.addColorStop(0.55, `rgba(${blush},${strong ? 0.3 : 0.25})`); g.addColorStop(1, `rgba(${blush},0)`);
+    x.fillStyle = g; x.beginPath(); x.ellipse(bx, by, r, r * 0.78, 0, 0, TAU); x.fill();
+  }
+
+  const ox = gaze.x * 0.05, oy = gaze.y * 0.035;
+  const rx = 0.088 * S, ry = 0.136 * S, lw = 0.032 * S;
+  x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = lw;
+  for (const sd of [-1, 1]) {
+    const [ex, ey] = P(sd * 0.37 + ox, 0.14 + oy);
+    let k = 1 - blink * 0.94;
+    const big = expr === 'curious' && sd === 1 ? 1.12 : 1;
+    if (expr === 'happy' || expr === 'celebrating') arc(x, ex, ey + ry * 0.2, rx * 1.15, -ry * 0.95);
+    else if (expr === 'sleeping') arc(x, ex, ey - ry * 0.05, rx * 1.15, ry * 0.75);
+    else if (expr === 'excited') {
+      x.beginPath(); x.moveTo(ex + sd * rx * 0.85, ey - ry * 0.62); x.lineTo(ex - sd * rx * 0.75, ey); x.lineTo(ex + sd * rx * 0.85, ey + ry * 0.62); x.stroke();
+    } else if (k < 0.3) arc(x, ex, ey, rx * 1.05, ry * 0.3);
+    else if (expr === 'surprised') eye(x, ex, ey, rx * 1.15, rx * 1.2 * k, 0, null, true);
+    else if (expr === 'focused') eye(x, ex, ey + ry * 0.08, rx, ry * 0.92 * k, 0, sd);
+    else eye(x, ex, ey, rx * big, ry * big * k, sd * 0.08);
+  }
+
+  const m = (ax, ay) => P((ax + ox * 0.6) * 1.25, (ay + oy * 0.5) * 1.25 + 0.02);
+  x.lineWidth = lw * 0.95;
+  x.beginPath();
+  if (expr === 'happy') { x.moveTo(...m(-0.08, -0.02)); x.quadraticCurveTo(...m(0, -0.11), ...m(0.08, -0.02)); x.stroke(); }
+  else if (expr === 'excited' || expr === 'celebrating') {
+    x.moveTo(...m(-0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.005), ...m(0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.15), ...m(-0.085, -0.02)); x.closePath();
+    x.fillStyle = '#3a1a28'; x.fill(); x.save(); x.clip(); x.fillStyle = '#ff7f96'; x.beginPath(); x.ellipse(...m(0, -0.115), 0.06 * S, 0.04 * S, 0, 0, TAU); x.fill(); x.restore();
+    x.fillStyle = INK;
+  } else if (expr === 'surprised') { x.ellipse(...m(0, -0.06), 0.028 * S, 0.036 * S, 0, 0, TAU); x.fillStyle = '#3a1a28'; x.fill(); x.fillStyle = INK; }
+  else if (expr === 'thinking') { x.moveTo(...m(0.0, -0.045)); x.quadraticCurveTo(...m(0.035, -0.06), ...m(0.07, -0.035)); x.stroke(); }
+  else if (expr === 'focused') { x.moveTo(...m(-0.035, -0.05)); x.lineTo(...m(0.035, -0.05)); x.stroke(); }
+  else if (expr === 'sleeping') { x.moveTo(...m(-0.035, -0.04)); x.quadraticCurveTo(...m(0, -0.075), ...m(0.035, -0.04)); x.stroke(); }
+  else if (expr === 'curious') { x.moveTo(...m(-0.055, -0.03)); x.quadraticCurveTo(...m(0, -0.085), ...m(0.05, -0.04)); x.stroke(); }
+  else { x.moveTo(...m(-0.068, -0.025)); x.quadraticCurveTo(...m(0, -0.1), ...m(0.068, -0.025)); x.stroke(); }
+}
+function arc(x, cx, cy, hw, bend) { x.beginPath(); x.moveTo(cx - hw, cy); x.quadraticCurveTo(cx, cy + bend, cx + hw, cy); x.stroke(); }
+function eye(x, cx, cy, rx, ry, rot, lidSide, round) {
+  x.save(); x.translate(cx, cy); x.rotate(rot);
+  if (lidSide) { // determined lids: inner corner lower
+    x.beginPath(); x.moveTo(lidSide * rx * 1.4, -ry * 0.62); x.lineTo(-lidSide * rx * 1.4, -ry * 0.05); x.lineTo(-lidSide * rx * 1.4, ry * 2); x.lineTo(lidSide * rx * 1.4, ry * 2); x.closePath(); x.clip();
+  }
+  const g = x.createRadialGradient(-rx * 0.3, -ry * 0.35, ry * 0.08, 0, 0, Math.max(rx, ry) * 1.1);
+  g.addColorStop(0, '#2c2432'); g.addColorStop(1, '#0d0910');
+  x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.96)';
+  x.beginPath(); x.ellipse(-rx * 0.3, -ry * (round ? 0.38 : 0.42), rx * (round ? 0.3 : 0.34), Math.max(1, ry * (round ? 0.3 : 0.24)), -0.5, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.5)';
+  x.beginPath(); x.ellipse(rx * 0.32, ry * 0.42, rx * 0.13, Math.max(1, ry * 0.09), 0, 0, TAU); x.fill();
+  x.restore(); x.fillStyle = INK;
+}
+
+// ---------- scenes ----------
+function makeScene(m) {
+  const scene = new THREE.Scene();
+  scene.add(m.group, new THREE.HemisphereLight('#fff4ec', '#ead8ff', 1.3));
+  const d = new THREE.DirectionalLight('#ffffff', 1.7); d.position.set(-2, 3, 5); scene.add(d);
+  return scene;
+}
+function makeCam(z = 6.4, ty = 0.14) {
+  const c = new THREE.PerspectiveCamera(30, 1, 0.1, 50); c.position.set(0, 0.42, z); c.lookAt(0, ty, 0); return c;
+}
+
+// One mascot, one canvas. It flies to whichever slot the app names, and tracks that slot every frame.
+const canvas = document.getElementById('mate');
+const BASE = 360;
+const heroR = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+heroR.setPixelRatio(Math.min(devicePixelRatio, 2));
+heroR.setSize(BASE, BASE, false);
+canvas.style.width = canvas.style.height = BASE + 'px';
+const hero = new Mascot({ faceSize: 1024, hero: true });
+const scene = makeScene(hero), cam = makeCam(5.7, 0.2);
+const say = document.getElementById('say');
+const cur = { x: innerWidth / 2, y: innerHeight / 2, s: 80 };
+let target = null, want = { slot: null }, placed = false, sayUntil = 0, last = performance.now() / 1000;
+const syncDark = () => {
+  const a = document.documentElement.dataset.theme;
+  THEME_DARK = a ? a === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+};
+const K = 0.68; // the body fills about this share of the canvas
+window.Mate = {
+  go(o) {
+    const sameSay = want.say === o.say;
+    want = o;
+    if (o.expr) hero.setExpr(o.expr);
+    if (o.pose) hero.setPose(o.pose);
+    if (o.say && !sameSay) { say.textContent = o.say; say.classList.add('on'); sayUntil = performance.now() + 4200; }
+    if (!o.say) { say.classList.remove('on'); }
+  },
+  bounce() { hero.bounce(); },
+  state: () => ({ expr: hero.s.expr, pose: hero.s.pose, visible: canvas.style.opacity === '1', x: cur.x, y: cur.y, s: cur.s }),
+  syncDark,
+};
+addEventListener('pointermove', e => {
+  const dx = (e.clientX - cur.x) / 300, dy = (e.clientY - cur.y) / 300;
+  hero.gazeTarget = { x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, -dy)) };
+});
+addEventListener('pointerdown', e => { if (Math.hypot(e.clientX - cur.x, e.clientY - cur.y) < cur.s * .5) hero.bounce(); });
+function frame() {
+  requestAnimationFrame(frame);
+  if (document.hidden) return;
+  const now = performance.now() / 1000, dt = Math.min(0.1, now - last); last = now;
+  syncDark();
+  let el = null;
+  for (const sel of want.slot || []) {
+    const c = document.querySelector(sel);
+    if (!c) continue;
+    const r = c.getBoundingClientRect();
+    if (r.width && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight) { el = c; target = { x: r.left + r.width / 2, y: r.top + r.height / 2, s: r.width }; break; }
+  }
+  canvas.style.opacity = el ? '1' : '0';
+  if (!el) { say.classList.remove('on'); }
+  if (target) {
+    const k = REDUCED || !placed ? 1 : 1 - Math.exp(-dt * 7);
+    cur.x = lerp(cur.x, target.x, k); cur.y = lerp(cur.y, target.y, k); cur.s = lerp(cur.s, target.s, k);
+    placed = true;
+    const css = cur.s / K, sc = css / BASE;
+    canvas.style.transform = `translate(${cur.x - css / 2}px,${cur.y - css / 2}px) scale(${sc})`;
+    if (say.classList.contains('on')) {
+      const w = say.offsetWidth, h = say.offsetHeight;
+      const x = Math.max(8, Math.min(innerWidth - w - 8, cur.x - w / 2));
+      let y = cur.y - cur.s * .62 - h - (el && el.id === 'm-clip' ? 62 : 0);
+      if (y < 8) y = cur.y + cur.s * .62;
+      say.style.transform = `translate(${x}px,${y}px)`;
+    }
+  }
+  if (sayUntil && performance.now() > sayUntil) { say.classList.remove('on'); sayUntil = 0; }
+  hero.update(now, dt);
+  heroR.render(scene, cam);
+}
+frame();
+window.dispatchEvent(new Event('mate-ready'));
+
+}).catch(err => { document.getElementById('mate').classList.add('fallback'); console.warn('Mascot could not load', err); });
+</script>
+</body>
+</html>
