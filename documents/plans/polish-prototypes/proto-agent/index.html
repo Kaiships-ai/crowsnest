@@ -1,0 +1,1353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Studio: The Line</title>
+<style>
+:root{
+  --bg:#f6f6f3;--surface:#fff;--ink:#17161b;--ink2:#5c5a63;--ink3:#8b8992;--line:rgba(23,22,27,.1);--soft:#ecebe7;--hover:#f0efeb;
+  --you:#c94a1e;--you-soft:#fbebe3;--on-you:#fff;--err:#b92c46;--err-soft:#faeaed;--ok:#1f7a54;--ok-soft:#e5f3ec;--lim:#6a5fb5;--lim-soft:#efedf9;
+  --display:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --out:cubic-bezier(.23,1,.32,1);--spring:cubic-bezier(.34,1.3,.64,1);
+  --demo-h:60px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f0f12;--surface:#18181c;--ink:#f2f1f4;--ink2:#a7a5af;--ink3:#74727c;--line:rgba(255,255,255,.09);--soft:#25252a;--hover:#1f1f24;
+  --you:#ff8a5c;--you-soft:rgba(255,138,92,.13);--on-you:#1c0f09;--err:#ff8197;--err-soft:rgba(255,129,151,.12);--ok:#74d9ad;--ok-soft:rgba(116,217,173,.12);--lim:#b5acf5;--lim-soft:rgba(181,172,245,.13);color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f0f12;--surface:#18181c;--ink:#f2f1f4;--ink2:#a7a5af;--ink3:#74727c;--line:rgba(255,255,255,.09);--soft:#25252a;--hover:#1f1f24;
+  --you:#ff8a5c;--you-soft:rgba(255,138,92,.13);--on-you:#1c0f09;--err:#ff8197;--err-soft:rgba(255,129,151,.12);--ok:#74d9ad;--ok-soft:rgba(116,217,173,.12);--lim:#b5acf5;--lim-soft:rgba(181,172,245,.13);color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow-x:clip}
+body{background:var(--bg);color:var(--ink);font:14.5px/1.5 var(--body);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) var(--demo-h);height:100dvh}
+button,input,textarea,select{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--you);outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+h1{font:600 31px/1.14 var(--display);letter-spacing:-.022em}
+h2{font:600 20px/1.25 var(--display);letter-spacing:-.012em}
+h3{font:600 14.5px/1.35 var(--body)}
+.mute{color:var(--ink2)}.faint{color:var(--ink3)}.small{font-size:13px}
+.num{font-variant-numeric:tabular-nums}
+.label{font:500 10.5px/1.4 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink3)}
+
+/* the Line */
+.top{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:18px;padding:6px 18px 8px;border-bottom:1px solid var(--line);background:var(--bg);position:relative;z-index:5}
+.home{display:flex;align-items:center;gap:7px;height:32px;padding:0 12px;border-radius:9px;font-weight:600;color:var(--ink2);transition:background .14s,color .14s}
+.home:hover{background:var(--hover)}.home[aria-current="page"]{color:var(--ink);background:var(--soft)}
+.home b[hidden]{display:none}
+.home b{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--you);color:var(--on-you);font:600 11px/1 var(--body)}
+.line{position:relative;height:74px;min-width:0}
+.thread{position:absolute;left:8.33%;right:8.33%;top:39px;height:2px;background:var(--line);border-radius:2px}
+.thread i{position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--ink3) 0 6px,transparent 6px 14px);background-size:14px 2px;opacity:0;transition:opacity .2s}
+.thread i.on{opacity:.9;animation:flow 1s linear infinite}
+@keyframes flow{to{background-position:14px 0}}
+.st{position:absolute;top:0;width:16.66%;height:100%;display:flex;flex-direction:column;align-items:center;border-radius:10px;transition:background .14s}
+.st:hover{background:var(--hover)}
+.node{position:absolute;top:33px;width:14px;height:14px;background:var(--bg);border:2px solid var(--ink3);border-radius:50%;transition:background .2s,border-color .2s,transform .2s var(--spring)}
+.st.you .node{border-radius:3px;transform:rotate(45deg);width:15px;height:15px}
+.st.ok .node{background:var(--ink);border-color:var(--ink)}
+.st.run .node{background:var(--ink);border-color:var(--ink)}
+.st.empty .node{border-color:var(--line);border-style:dashed}
+.st.need .node{background:var(--you);border-color:var(--you);animation:breathe 2.4s ease-in-out infinite}
+.st.err .node{background:var(--err);border-color:var(--err)}
+.st.lim .node{background:var(--lim-soft);border-color:var(--lim)}
+@keyframes breathe{50%{box-shadow:0 0 0 6px var(--you-soft)}}
+.stl{position:absolute;bottom:2px;font-size:12.5px;font-weight:500;color:var(--ink2);white-space:nowrap}
+.st[aria-current="page"] .stl{color:var(--ink);font-weight:650}
+.st.need .stl{color:var(--you)}.st.err .stl{color:var(--err)}
+.bead{position:absolute;top:35.5px;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;border:2px solid var(--bg);transition:left .7s var(--out),opacity .3s;pointer-events:none;z-index:1}
+.rider{position:absolute;top:-4px;width:50px;height:50px;margin-left:-25px;transition:left .7s var(--spring);pointer-events:none;z-index:2}
+.rider canvas{width:100%;height:100%;display:block}
+.blob::before{content:"";position:absolute;inset:22%;border-radius:50%;background:linear-gradient(170deg,#ffd69e,#ffb582 55%,#ff8fa5);transition:opacity .3s}
+.gl-on .blob::before{opacity:0}
+.gear{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:var(--ink2);transition:background .14s}
+.gear:hover{background:var(--hover)}
+
+/* page */
+main{overflow-y:auto;overflow-x:clip;min-height:0;scrollbar-gutter:stable}
+.page{max-width:1120px;margin:0 auto;padding:28px 24px 72px}
+.page.enter{animation:enter .2s var(--out)}
+@keyframes enter{from{opacity:.4;transform:translateX(calc(var(--dir,0)*12px))}}
+.page.pending :is(h1,h2,h3,p,td,.val,.btn,.chip,.label,li span){color:transparent!important;background:var(--soft)!important;border-color:transparent!important;border-radius:6px}
+.page.pending :is(svg,.reel>*,.m-slot canvas){opacity:0}
+.page :is(h1,h2,h3,p,td,.val,.btn,.chip,.label){transition:color .18s,background-color .18s}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+.head p{margin-top:5px;max-width:64ch}
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:32px;align-items:start}
+.stack{display:grid;gap:12px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:36px;padding:0 15px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:550;font-size:14px;white-space:nowrap;transition:transform .12s var(--out),background .14s,border-color .14s,opacity .14s}
+.btn:hover{background:var(--hover)}.btn:active{transform:scale(.97)}
+.btn.p{background:var(--ink);border-color:var(--ink);color:var(--bg)}.btn.p:hover{opacity:.88;background:var(--ink)}
+.btn.y{background:var(--you);border-color:var(--you);color:var(--on-you)}.btn.y:hover{opacity:.9;background:var(--you)}
+.btn.q{border-color:transparent;background:none;color:var(--ink2)}.btn.q:hover{background:var(--hover);color:var(--ink)}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.link{color:inherit;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--ink3)}
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:7px;font-size:12px;font-weight:550;background:var(--soft);color:var(--ink2);white-space:nowrap}
+.chip.need{background:var(--you-soft);color:var(--you)}.chip.err{background:var(--err-soft);color:var(--err)}.chip.ok{background:var(--ok-soft);color:var(--ok)}.chip.lim{background:var(--lim-soft);color:var(--lim)}
+
+/* status card */
+.card{border:1px solid var(--line);border-radius:14px;padding:18px 20px;background:var(--surface)}
+.card.err{background:var(--err-soft);border-color:transparent}.card.need{background:var(--you-soft);border-color:transparent}.card.lim{background:var(--lim-soft);border-color:transparent}
+.card .row1{display:flex;gap:12px;align-items:flex-start}
+.card .sub{margin-top:3px;color:var(--ink2)}
+.card .note{margin-top:8px;font-size:13.5px;color:var(--ink2)}
+.rows{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:7px}
+.rows div{display:grid;grid-template-columns:88px minmax(0,1fr);gap:10px;font-size:13.5px}
+.rows .label{padding-top:3px}
+.dot{flex:none;width:9px;height:9px;border-radius:50%;margin-top:7px;background:var(--ink)}
+.card.run .dot{animation:pulse 1.4s ease-in-out infinite}
+.card.err .dot{background:var(--err)}.card.need .dot{background:var(--you)}.card.lim .dot{background:var(--lim)}.card.ok .dot{background:var(--ok)}
+@keyframes pulse{50%{opacity:.25}}
+.narr span{display:inline-block;animation:word .32s var(--out) both}
+@keyframes word{from{opacity:0;transform:translateY(3px)}}
+
+/* mascot slots */
+.m-slot{position:relative;flex:none}
+.m-slot canvas{width:100%;height:100%;display:block}
+.say{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.m-big{width:190px;height:190px}.m-mid{width:128px;height:128px}.m-small{width:68px;height:68px;margin:-8px -4px -8px -10px}.m-wave{width:92px;height:92px;margin:-10px 0 -8px -14px}
+.emptyview{display:flex;flex-direction:column;align-items:center;text-align:center;padding:32px 16px;gap:6px}
+.emptyview p{max-width:50ch}.emptyview .acts{justify-content:center}
+
+/* desk */
+.ask{position:relative;transition:transform .18s var(--out),opacity .18s}
+.ask.leaving{transform:translateY(-14px) scale(.985);opacity:0}
+.ask-grid{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px}
+.ask h2{margin:4px 0 6px}
+.peek{height:9px;margin:0 16px;border:1px solid var(--line);border-top:0;border-radius:0 0 12px 12px;background:var(--surface)}
+.peek+.peek{margin:0 30px;opacity:.6}
+.side h3{margin-bottom:8px}
+.runrow{display:block;width:100%;text-align:left;padding:13px 14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);transition:background .14s}
+.runrow:hover{background:var(--hover)}
+.log{list-style:none;margin:0;padding:0;display:grid;gap:7px;font-size:13.5px}
+.log li{display:grid;grid-template-columns:42px minmax(0,1fr);gap:6px}
+.log time{color:var(--ink3);font-variant-numeric:tabular-nums}
+.segs{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:9px}
+.segs i{height:3px;border-radius:2px;background:var(--line);position:relative;overflow:hidden}
+.segs i.d{background:var(--ink)}.segs i.e{background:var(--err)}.segs i.w{background:var(--you)}
+.segs i.c::after{content:"";position:absolute;inset:0;width:40%;background:var(--ink);animation:slide 1.5s var(--out) infinite}
+@keyframes slide{from{transform:translateX(-100%)}to{transform:translateX(260%)}}
+
+/* cook */
+.cook{display:grid;grid-template-columns:270px minmax(0,1fr);gap:28px;align-items:start}
+.reel{position:relative;aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:var(--soft);display:flex;align-items:center;justify-content:center;text-align:center;color:var(--ink2);font-size:13.5px;padding:18px}
+.reel.has{color:#fff;background:linear-gradient(165deg,#3a3448,#7a4c52 58%,#d58a5e);align-items:flex-end}
+.reel.t2{background:linear-gradient(165deg,#1f3a44,#3b6a68 60%,#b9b078)}
+.reel .cap{position:relative;font:700 21px/1.12 var(--display);letter-spacing:-.01em;text-shadow:0 1px 8px rgba(0,0,0,.35);margin-bottom:34px}
+.reel .tag{position:absolute;top:10px;left:10px;font:600 11px/1 var(--body);padding:5px 7px;border-radius:6px;background:rgba(0,0,0,.45);color:#fff}
+.reel .bar{position:absolute;left:12px;right:12px;bottom:12px;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden}
+.reel .bar i{display:block;height:100%;width:100%;background:#fff;transform-origin:left;animation:play 9s linear infinite}
+.reel.has.draft{filter:saturate(.75)}
+@keyframes play{from{transform:scaleX(0)}}
+.reel.mini{width:92px;flex:none;padding:8px;border-radius:9px}
+.reel.mini .cap{font-size:10.5px;margin-bottom:8px}.reel.mini .tag,.reel.mini .bar{display:none}
+.steer{display:flex;gap:8px;margin-top:0}
+.steer input{flex:1;min-width:0;height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
+.steer input:focus{outline:none;border-color:var(--ink3)}
+.receipt{display:grid;grid-template-columns:auto minmax(0,1fr);gap:9px;font-size:13.5px;padding:8px 0 0}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;text-align:left}
+.sw{flex:none;width:34px;height:20px;border-radius:10px;background:var(--soft);border:1px solid var(--line);position:relative;transition:background .16s}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ink3);transition:transform .18s var(--spring),background .16s}
+[aria-checked="true"] .sw{background:var(--ink);border-color:var(--ink)}
+[aria-checked="true"] .sw::after{transform:translateX(14px);background:var(--bg)}
+.trail{list-style:none;margin:0;padding:0}
+.trail button{display:grid;grid-template-columns:18px minmax(0,1fr) auto;gap:9px;width:100%;padding:7px 2px;text-align:left;border-top:1px solid var(--line);align-items:baseline}
+.trail li:first-child button{border-top:0}
+.trail .proof{padding:0 0 9px 27px;font-size:13.5px;color:var(--ink2)}
+
+/* tables and lists */
+table{width:100%;border-collapse:collapse;font-size:14px}
+td{padding:11px 8px;border-top:1px solid var(--line);vertical-align:middle}
+tr:first-child td{border-top:0}
+.src-tick{width:20px}
+.bars{display:grid;gap:9px}
+.fb{display:grid;grid-template-columns:130px minmax(0,1fr) 62px;gap:10px;align-items:center;font-size:13.5px}
+.fb i{display:block;height:14px;border-radius:4px;background:var(--ink);transform-origin:left;animation:grow .4s var(--out) both}
+.fb.drop i{background:var(--you)}
+.fb .val{text-align:right}
+@keyframes grow{from{transform:scaleX(.2);opacity:.4}}
+.seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--soft);gap:2px}
+.seg button{height:28px;padding:0 12px;border-radius:7px;font-size:13px;font-weight:550;color:var(--ink2);transition:background .14s,color .14s}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.day{min-height:178px;border:1px solid var(--line);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;background:var(--surface)}
+.day.free{background:none;border-style:dashed}
+.day h3{font-size:13px;line-height:1.3}
+.day .btn{min-height:30px;padding:0 10px;font-size:13px;margin-top:auto}
+.tl{display:grid;gap:0}
+.chg{display:grid;grid-template-columns:62px minmax(0,1fr) auto;gap:14px;align-items:center;padding:13px 0;border-top:1px solid var(--line)}
+.chg:first-child{border-top:0}
+.chg.off h3{color:var(--ink3);text-decoration:line-through}
+.chg .sw{cursor:pointer}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:14px}
+.checks li{display:grid;grid-template-columns:18px 1fr;gap:6px}
+.tick{color:var(--ok);font-weight:700}.cross{color:var(--err);font-weight:700}.wait{color:var(--ink3)}
+.caption{width:100%;min-height:82px;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);resize:vertical}
+.toast{position:fixed;left:50%;bottom:calc(var(--demo-h) + 16px);transform:translate(-50%,8px);opacity:0;padding:9px 14px;border-radius:10px;background:var(--ink);color:var(--bg);font-size:13.5px;transition:opacity .16s,transform .16s var(--out);pointer-events:none;z-index:30;max-width:90vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+
+/* sheets */
+.scrim{position:fixed;inset:0 0 var(--demo-h) 0;background:rgba(10,10,14,.28);opacity:0;pointer-events:none;transition:opacity .18s;z-index:10}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;top:0;right:0;bottom:var(--demo-h);width:min(460px,100vw);background:var(--surface);border-left:1px solid var(--line);transform:translateX(100%);transition:transform .24s cubic-bezier(.32,.72,0,1);z-index:11;overflow-y:auto;padding:22px;visibility:hidden}
+.sheet.on{transform:none;visibility:visible}
+.sheet.wide{width:min(620px,100vw)}
+.sheet h2{margin-bottom:14px}
+.sheet section{padding:14px 0;border-top:1px solid var(--line)}
+.tbl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;font-size:13.5px}
+.term{background:#111114;color:#d6d4dc;border-radius:12px;padding:14px;font:12.5px/1.65 var(--mono);min-height:240px;white-space:pre-wrap;word-break:break-word}
+.term em{font-style:normal;color:#8d8b95}
+.banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+/* walkthrough chrome, outside the app */
+.demo{display:flex;align-items:center;gap:10px;padding:0 14px;background:#1c1b21;color:#eeecf2;font-size:13px;z-index:40;position:relative;min-width:0}
+.demo .play{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 14px 0 11px;border-radius:17px;background:#eeecf2;color:#1c1b21;font-weight:650;flex:none}
+.demo .play svg{width:11px;height:11px}
+.demo .stp{width:28px;height:28px;border-radius:50%;border:1px solid rgba(255,255,255,.2);font-size:16px;line-height:1;color:#c9c7d0;flex:none}
+.demo .stp:hover{background:rgba(255,255,255,.1)}
+.dots{display:flex;gap:5px;align-items:center;flex:none}
+.dots button{width:7px;height:7px;border-radius:7px;background:rgba(255,255,255,.26);transition:width .2s,background .2s}
+.dots button.on{width:20px;background:#ff9f7c}.dots button.past{background:rgba(255,255,255,.6)}
+.demo select{height:30px;border-radius:8px;background:#2b2a31;border:1px solid rgba(255,255,255,.14);color:#eeecf2;padding:0 6px;max-width:190px;min-width:0}
+.demo .sp{flex:1;min-width:0}
+.demo .st-seg{display:flex;gap:2px;padding:2px;border-radius:9px;background:#2b2a31}
+.demo .st-seg button{height:26px;padding:0 9px;border-radius:7px;color:#c9c7d0;font-size:12.5px}
+.demo .st-seg button[aria-pressed="true"]{background:#eeecf2;color:#1c1b21;font-weight:600}
+.demo .th{width:30px;height:30px;border-radius:50%;border:1px solid rgba(255,255,255,.2);display:grid;place-items:center;flex:none}
+#stateSel{display:none}
+.capt{position:fixed;left:50%;bottom:calc(var(--demo-h) + 14px);transform:translate(-50%,6px);max-width:min(640px,calc(100vw - 32px));width:max-content;padding:11px 16px;border-radius:13px;background:#1c1b21;color:#f4f2f7;font-size:14.5px;line-height:1.42;opacity:0;transition:opacity .18s,transform .18s var(--out);pointer-events:none;z-index:45;box-shadow:0 10px 30px -12px rgba(0,0,0,.5)}
+.capt.on{opacity:1;transform:translate(-50%,0)}
+.capt small{display:block;color:#ff9f7c;font:500 10.5px/1.5 var(--mono);letter-spacing:.08em;text-transform:uppercase}
+.cursor{position:fixed;left:0;top:0;width:22px;height:22px;z-index:50;pointer-events:none;opacity:0;transition:transform .62s cubic-bezier(.45,.05,.2,1),opacity .2s;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.cursor.on{opacity:1}
+.cursor.press svg{transform:scale(.8)}
+.cursor svg{transition:transform .1s;transform-origin:3px 3px}
+.ring{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px solid #ff9f7c;z-index:49;pointer-events:none;animation:ring .45s var(--out) forwards}
+@keyframes ring{from{transform:scale(.4);opacity:1}to{transform:scale(1.3);opacity:0}}
+
+@media (max-width:1180px){.demo .st-seg{display:none}#stateSel{display:block}}
+@media (max-width:900px){
+  .cols{grid-template-columns:1fr}.cook{grid-template-columns:1fr}.reel.big{width:190px;margin:0 auto}
+  .week{grid-template-columns:1fr}.day{min-height:0}
+  .day .btn{align-self:flex-start;margin-top:4px}
+}
+@media (max-width:640px){
+  :root{--demo-h:94px}
+  h1{font-size:25px}
+  .top{grid-template-columns:auto minmax(0,1fr) auto;gap:4px;padding:4px 8px 6px}
+  .home{padding:0 7px;font-size:13px}
+  .line{height:64px}
+  .thread{top:31px}.node{top:25px}.bead{top:27.5px}.rider{top:-2px;width:40px;height:40px;margin-left:-20px}
+  .stl{display:none}.st[aria-current="page"] .stl{display:block;font-size:11.5px;bottom:0;max-width:92px;overflow:visible}
+  .page{padding:20px 16px 72px}
+  .ask-grid{grid-template-columns:1fr}.ask .reel.mini{display:none}
+  .fb{grid-template-columns:96px minmax(0,1fr) 48px}
+  .chg{grid-template-columns:48px minmax(0,1fr) auto;gap:10px}
+  .rows div{grid-template-columns:72px minmax(0,1fr)}
+  .m-big{width:150px;height:150px}
+  .demo{flex-wrap:wrap;align-content:center;gap:6px 6px;padding:6px 10px}
+  .demo .sp{display:none}.demo select{order:5;flex:1 1 calc(50% - 4px);max-width:none;height:28px}
+  .dots{gap:3px;flex:1 1 40px;min-width:0;justify-content:center}.dots button{width:6px;height:6px}.dots button.on{width:12px}
+  .btn{white-space:normal;text-align:center;padding:6px 13px}
+  .m-wave{width:64px;height:64px;margin:-6px 0 -6px -8px}
+  .demo .play{height:32px}
+  .capt{font-size:13.5px;padding:9px 12px}
+  td{padding:9px 5px}
+  .hide-phone{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <button class="home" id="home" data-go="desk">Desk <b id="homeCount" hidden>0</b></button>
+  <nav class="line" id="line" aria-label="Production line">
+    <div class="thread"><i id="flow"></i></div>
+    <div id="beads"></div>
+    <div class="rider blob" id="rider"><canvas id="riderCanvas" aria-hidden="true"></canvas></div>
+  </nav>
+  <button class="gear" data-a="openSettings" aria-label="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
+</header>
+<main><div class="page" id="page"></div></main>
+<div class="demo" aria-label="Prototype controls">
+  <button class="play" id="play"><svg viewBox="0 0 12 12" id="playIcon"><path d="M2 1l9 5-9 5z" fill="currentColor"/></svg><span id="playTxt">Play</span></button>
+  <button class="stp" id="prev" aria-label="Previous step">‹</button>
+  <div class="dots" id="dots"></div>
+  <button class="stp" id="next" aria-label="Next step">›</button>
+  <select id="journey" aria-label="Journey"></select>
+  <span class="sp"></span>
+  <div class="st-seg" id="stateSeg" role="group" aria-label="State"></div>
+  <select id="stateSel" aria-label="State"></select>
+  <button class="th" id="theme" aria-label="Dark or light"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+</div>
+<div id="heroHome" hidden><div id="heroWrap" style="position:absolute;inset:0"><canvas id="heroCanvas" aria-hidden="true"></canvas></div></div>
+<div class="scrim" id="scrim" data-a="scrim"></div>
+<aside class="sheet" id="settings" aria-label="Settings">
+  <div class="banner" style="margin-bottom:6px"><h2 style="margin:0">Settings</h2><button class="btn q" data-a="closeSettings">Close</button></div>
+  <section><h3 style="margin-bottom:8px">When Claude asks you</h3><div class="tbl"><span>Pull, Insight, Cook</span><span class="mute">Just does it</span><span>Drafting a plan</span><span class="mute">Proposes</span><span>Changing your plan</span><span class="mute">Always asks</span><span>Posting</span><span class="mute">Always asks. Can't be undone.</span></div></section>
+  <section><h3 style="margin-bottom:8px">Who does the work</h3><div class="tbl"><span><b style="font-weight:600">Claude</b></span><span class="chip ok">In use</span><span>Codex</span><span class="mute">Ready as a backup</span></div><p class="small mute" style="margin-top:10px">Lead Studio never calls a model itself. They run on your own subscription.</p></section>
+  <section><h3 style="margin-bottom:8px">Accounts</h3><div class="tbl"><span>Instagram</span><span class="chip ok">Connected</span><span>Comment replies</span><span class="chip ok">Connected</span><span>Site visits</span><span class="chip ok">Connected</span><span>Sales</span><button class="btn" data-a="noop" style="min-height:28px;font-size:13px">Connect</button></div></section>
+  <section><button class="toggle" role="switch" aria-checked="false" data-a="noop"><span><h3>Workshop</h3><span class="small mute">Terminal, browser and split panes, for the days you want to do it by hand.</span></span><span class="sw"></span></button></section>
+</aside>
+<aside class="sheet wide" id="screen" aria-label="Claude's screen"></aside>
+<div class="toast" id="toast" role="status"></div>
+<div class="capt" id="capt" role="status"></div>
+<div class="cursor" id="cursor"><svg width="22" height="22" viewBox="0 0 24 24"><path d="M4 2l15 11-7 1.2-3.6 6.3z" fill="#fff" stroke="#17161b" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const STATIONS = [
+  { id: 'pull', label: 'Pull' }, { id: 'insight', label: 'Insight' }, { id: 'plan', label: 'Plan' },
+  { id: 'okplan', label: 'Approve plan', you: true }, { id: 'cook', label: 'Cook' }, { id: 'okpost', label: 'Approve post', you: true },
+];
+const STATES = [['normal', 'Normal'], ['running', 'Running'], ['long', 'Long wait'], ['error', 'Error'], ['empty', 'Empty'], ['limited', 'Limited']];
+const stationX = id => (STATIONS.findIndex(s => s.id === id) + 0.5) / 6 * 100;
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const mmss = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
+const COOK_STEPS = [
+  { k: 'Script', head: 'Claude is copying your script into the reel', sub: 'Step 1 of 6 · word for word', can: 'Nothing to do. You can leave; the Line shows the progress.', wait: 'Claude checks the hook length, then records the voice.', narr: 'Copying your 118 words, exactly as you wrote them.', took: '0:22', proof: '118 words, your words exactly.' },
+  { k: 'Voice', head: 'Script ready. Claude is recording the voice', sub: 'Step 2 of 6', can: 'Read the script. It is your words.', wait: 'Claude builds the chapters next. Nothing needs you until the draft.', narr: 'Recording the voice from your script.', took: '1:05', proof: '0:41 of voice, no retakes needed.' },
+  { k: 'Build', head: 'Claude is building the chapters', sub: 'Step 3 of 6', can: 'Nothing to do. You can leave; the Line shows the progress.', wait: 'Claude mixes the music, then renders a quick draft for you.', narr: 'Building chapter 6 of 9, the part about the window light.', took: '2:10', proof: '9 chapters, music mixed under the voice.' },
+  { k: 'Draft', head: 'Rendering a quick draft', sub: 'Step 4 of 6 · small and fast, so you can check it early', can: 'Nothing to do.', wait: 'The draft plays here, then the final render starts by itself.', narr: 'Rendering a small draft you can watch soon.', took: '0:48', proof: 'Draft played back clean, 0:41 long.' },
+  { k: 'Final', head: 'Rendering the final video', sub: 'Step 5 of 6', can: 'Watch the draft. Feedback can go in now; Claude reads it after the final.', wait: 'When the render is done, Claude checks it and reviews it.', narr: 'Rendering the full size video for Instagram.', took: 'now', proof: 'Still rendering.' },
+  { k: 'Review', head: 'Final video ready. Claude is reviewing it', sub: 'Step 6 of 6', can: 'Watch the final. Claude may fix small things and render again.', wait: 'Claude writes the caption and hands the reel to you.', narr: 'Watching the final once through and writing the caption.', took: '', proof: 'Not started.' },
+];
+const USUAL = 180;
+const FRESH = () => ({
+  page: 'desk', dir: 0, pick: 'normal',
+  states: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'normal', cook: 'running', okpost: 'normal' },
+  askQ: true, run: { step: 0, el: 22, title: 'Light on a $20 budget' },
+  pull: { n: 0 }, lens: 'funnel', trail: null, waitDraft: false, notes: [], draft: '', connected: true,
+  changes: [
+    { kind: 'Drop', day: 'Tue', t: '5 tools worth installing', why: 'No comment word, and your last 3 list reels sat under your usual views.', on: true },
+    { kind: 'Move', day: 'Wed', t: 'Hooks in one picture', why: 'Moves to its own comment word, so its repost counts by itself.', on: true },
+    { kind: 'Add', day: 'Thu', t: 'From 0 to 2 orders', why: '22 days without a reel that sells.', on: true },
+    { kind: 'Add', day: 'Fri', t: '3 lighting mistakes', why: 'Mistake reels get the most comments on your channel.', on: true },
+  ],
+  plan: [
+    { day: 'Mon', t: 'Why my hooks die at 0:03', w: 'HOOK', st: 'Posted', tone: 'ok' },
+    { day: 'Tue', t: 'Stop cutting on the beat', w: 'BEAT', st: 'Waits for you', tone: 'need' },
+    { day: 'Wed', t: 'Light on a $20 budget', w: 'LIGHT', st: 'Cooking', tone: '' },
+    { day: 'Thu', t: 'The B-roll rule', w: 'BROLL', st: 'Script ready', tone: '', cook: true },
+    { day: 'Fri' }, { day: 'Sat', t: 'Week in numbers', w: '', st: 'Idea', tone: '' }, { day: 'Sun' },
+  ],
+  beads: { 'The B-roll rule': 'plan', 'Next week': 'okplan', 'Light on a $20 budget': 'cook', 'Stop cutting on the beat': 'okpost' },
+  posted: false, screen: false, settings: false, takeover: false, backup: false,
+});
+let S = FRESH();
+const bus = window.MascotBus = { rider: { expr: 'normal', pose: 'floating' }, hero: { expr: 'normal', pose: 'floating' }, dark: false, frames: 0, bounce: false };
+
+/* ---------- timers: every delayed effect goes through after(), so a walkthrough can jump instantly ---------- */
+let INSTANT = false, TOUR = false, timers = [];
+function after(ms, fn) { if (INSTANT) return fn(); const id = setTimeout(() => { timers = timers.filter(t => t !== id); fn(); }, ms); timers.push(id); }
+function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+
+/* ---------- derived ---------- */
+const openErrors = () => ['cook', 'pull', 'insight', 'plan', 'okplan', 'okpost'].filter(k => S.states[k] === 'error');
+function asks() {
+  const list = [];
+  openErrors().forEach(k => list.push({ type: 'err', st: k }));
+  if (S.askQ && S.states.cook === 'running') list.push({ type: 'q' });
+  if (S.states.okpost === 'normal') list.push({ type: 'post' });
+  if (S.states.okplan === 'normal') list.push({ type: 'plan' });
+  return list;
+}
+const allEmpty = () => Object.values(S.states).every(v => v === 'empty');
+function nodeClass(id) {
+  const st = S.states[id], you = STATIONS.find(s => s.id === id).you;
+  if (id === 'cook' && st === 'running' && S.askQ) return 'need';
+  if (st === 'running' || st === 'long') return 'run';
+  if (st === 'error') return 'err';
+  if (st === 'limited') return 'lim';
+  if (st === 'empty') return 'empty';
+  return you ? 'need' : 'ok';
+}
+function pose(state) {
+  return {
+    run: ['working', 'focused'], long: ['thinking', 'thinking'], err: ['floating', 'surprised'], lim: ['floating', 'sleeping'],
+    need: ['greeting', 'happy'], empty: ['finding', 'curious'], ok: ['floating', 'normal'], done: ['cheering', 'celebrating'], hello: ['greeting', 'happy'], idle: ['floating', 'sleeping'],
+  }[state];
+}
+function riderAt() {
+  const order = ['cook', 'okpost', 'okplan', 'pull', 'insight', 'plan'];
+  for (const want of ['err', 'need', 'run', 'lim']) for (const id of order) if (nodeClass(id) === want) return { id, tone: want === 'run' && S.states[id] === 'long' ? 'long' : want };
+  return { id: 'okpost', tone: S.posted ? 'done' : allEmpty() ? 'hello' : 'idle', rest: true };
+}
+
+/* ---------- small pieces ---------- */
+const mascot = (size, tone) => `<div class="m-slot blob ${size}" data-mascot="${tone}"></div>`;
+const btn = (a, label, cls = '', extra = '') => `<button class="btn ${cls}" data-a="${a}" ${extra}>${label}</button>`;
+function card({ tone = '', head, sub, note, acts = '', can, wait, m }) {
+  return `<div class="card ${tone}" data-tone="${tone}"><div class="row1">${m ? mascot('m-small', m) : '<span class="dot"></span>'}<div style="min-width:0;flex:1"><h3>${head}</h3>${sub ? `<p class="sub small num">${sub}</p>` : ''}${note ? `<p class="note">${note}</p>` : ''}${acts ? `<div class="acts">${acts}</div>` : ''}</div></div>
+  ${can || wait ? `<div class="rows">${can ? `<div><span class="label">You can</span><span>${can}</span></div>` : ''}${wait ? `<div><span class="label">If you wait</span><span>${wait}</span></div>` : ''}</div>` : ''}</div>`;
+}
+const emptyView = (tone, head, body, acts = '') => `<div class="emptyview">${mascot('m-mid', tone)}<h2>${head}</h2><p class="mute">${body}</p>${acts ? `<div class="acts">${acts}</div>` : ''}</div>`;
+const heads = (title, sub, right = '') => `<div class="head"><div><h1>${title}</h1>${sub ? `<p class="mute">${sub}</p>` : ''}</div>${right}</div>`;
+const words = s => `<span class="narr">${s.split(' ').map((w, i) => `<span style="animation-delay:${i * 28}ms">${w}</span>`).join(' ')}</span>`;
+const reel = (cap, tag, big, t2) => `<div class="reel has ${big ? 'big' : 'mini'} ${t2 ? 't2' : ''} ${tag === 'Draft' ? 'draft' : ''}"><span class="tag">${tag}</span><span class="cap">${cap}</span><span class="bar"><i></i></span></div>`;
+const segs = (step, kind = 'c') => `<div class="segs">${COOK_STEPS.map((_, i) => `<i class="${i < step ? 'd' : i === step ? kind : ''}"></i>`).join('')}</div>`;
+
+/* ---------- the Desk: everything here is derived from the stations ---------- */
+function forecast() {
+  if (S.states.cook === 'limited') return 'Claude is resting until 15:20. Nothing needs you before then.';
+  if (S.states.cook === 'long') return 'The next thing for you comes later than usual, about 14:50.';
+  if (S.states.cook === 'running' && S.waitDraft) return 'Nothing needs you until about 14:20, when the draft is ready.';
+  if (S.states.cook === 'running') return 'Nothing needs you until about 14:40, when the reel is ready to approve.';
+  return 'Nothing is running, so nothing will ask you.';
+}
+function askCard(a, i, n) {
+  if (a.type === 'q') return `<div class="box ask need-q" data-ask="q"><span class="label">Claude is stuck on this</span><h2>Your hook runs 4.1 s. Cut it to 3 s?</h2><p class="mute">"Light on a $20 budget." Your best reels hook in under 3 s. Cutting it drops the words "and honestly".</p><div class="acts">${btn('answerCut', 'Cut to 3 s', 'y')}${btn('answerKeep', 'Keep 4.1 s')}${btn('goCook', 'Open the reel', 'q')}</div><div class="rows"><div><span class="label">If you wait</span><span>Claude waits here. Nothing else on this reel runs until you answer.</span></div></div></div>`;
+  if (a.type === 'post') return `<div class="box ask" data-ask="post"><div class="ask-grid"><div><span class="label">Approve post · can't be undone</span><h2>Post "Stop cutting on the beat" today at 18:00?</h2><p class="mute">5 of 5 checks passed. Claude watched it through and wrote the caption.</p><div class="acts">${btn('postNow', 'Post at 18:00', 'y')}${btn('goOkpost', 'Watch it first')}</div></div>${reel('Stop cutting on the beat', 'Final', false, true)}</div><div class="rows"><div><span class="label">If you wait</span><span>Nothing posts. The 18:00 slot stays held until you answer.</span></div></div></div>`;
+  if (a.type === 'plan') { const c = S.changes.filter(x => x.on).length; return `<div class="box ask" data-ask="plan"><span class="label">Approve plan</span><h2>Claude wants ${plural(c, 'change')} to next week</h2><p class="mute">Drop 1 reel, move 1, add 2. Your rivals' mistake reels are pulling the most comments.</p><div class="acts">${btn('goOkplan', 'Review the changes', 'y')}</div><div class="rows"><div><span class="label">If you wait</span><span>This week's plan stays in use. Nothing changes.</span></div></div></div>`; }
+  const E = ERR_ASK[a.st];
+  return `<div class="box ask" data-ask="err-${a.st}">${card({ tone: 'err', head: E.head, sub: E.sub, acts: E.acts, can: E.can, wait: E.wait })}</div>`.replace('class="box ask"', 'class="ask"');
+}
+const ERR_ASK = {
+  cook: { head: 'The final render stopped', sub: '"Light on a $20 budget." 4 of 6 steps are done and kept. The final starts again (about 3 min).', acts: btn('resume', 'Resume cook', 'p') + btn('goCook', 'Open the reel', 'q'), can: 'Resume. Lead Studio starts Claude again here, and it skips the done steps.', wait: 'Nothing runs. Plan shows this reel as paused.' },
+  pull: { head: '3 rivals have new numbers. The other 10 keep their older numbers', sub: 'Instagram stopped answering at rival 4.', acts: btn('pullRest', 'Pull the rest (10)', 'p'), can: 'Pull the rest. The 3 that worked are not pulled again.', wait: 'Nothing runs. The older numbers stay, marked with their date.' },
+  insight: { head: 'Claude stopped reading after 2 of 3', sub: 'Your funnel and channel are read and kept. Rivals was not.', acts: btn('readRest', 'Read rivals again', 'p'), can: 'Read rivals again. The other two stay as they are.', wait: 'Nothing runs. Rivals keeps yesterday\'s read.' },
+  plan: { head: 'Claude could not finish next week\'s plan', sub: '3 of 5 days are drafted and kept.', acts: btn('draftRest', 'Draft the other 2 days', 'p'), can: 'Draft the other 2. The 3 finished days stay.', wait: 'Nothing changes. This week\'s plan stays in use.' },
+  okplan: { head: 'The plan changed while you were reviewing', sub: 'Your 4 switches are kept. One new change came in.', acts: btn('recheck', 'See the new change', 'p'), can: 'Look at the one new change, then approve.', wait: 'Nothing changes until you approve.' },
+  okpost: { head: 'Instagram refused the video. Nothing was posted', sub: 'Your video, caption and cover are kept.', acts: btn('retryPost', 'Try again', 'p') + btn('sendBack', 'Send back to Claude'), can: 'Try again, or send it back and Claude shortens it. Instagram said the file is over its limit.', wait: 'Nothing posts. The 18:00 slot stays held.' },
+};
+function pageDesk() {
+  if (allEmpty()) return `<div class="emptyview" style="padding-top:44px">${mascot('m-big', 'hello')}<h1>Hi Kai. I watch the work so you don't have to.</h1><p class="mute" style="max-width:56ch;margin-top:6px">Claude pulls your numbers, plans your week and cooks your reels. I come and get you twice: before the plan changes and before anything posts.</p><div class="acts">${btn('connect', 'Connect Instagram', 'y')}</div><p class="faint small" style="margin-top:10px">About a minute. Claude runs on your own subscription.</p></div>`;
+  const list = asks(), n = list.length;
+  const posted = S.posted ? `<div class="say" style="margin-bottom:18px">${mascot('m-mid', 'done')}<div><h1>Posted.</h1><p class="mute">"Stop cutting on the beat" is live. Its first numbers come in about 48 hours.</p></div></div>` : '';
+  const lim = S.states.cook === 'limited' ? `<div style="margin-bottom:16px">${card({ tone: 'lim', m: 'lim', head: 'Claude has used up its limit until 15:20', sub: '"Light on a $20 budget" is paused. 3 of 6 steps are done and kept.', acts: btn('handCodex', 'Hand it to Codex') + btn('goCook', 'Open the reel', 'q'), wait: 'Nothing runs. At 15:20 this card offers Resume cook.' })}</div>` : '';
+  const main = n
+    ? `<div class="say" style="margin-bottom:18px;gap:10px;flex-wrap:nowrap">${mascot('m-wave', list[0].type === 'err' ? 'err' : 'need')}<div><h1 id="deskH">Welcome back, Kai. ${n === 1 ? '1 thing needs you.' : `${n} things need you.`}</h1><p class="mute" style="margin-top:5px">Most stuck first. After ${n === 1 ? 'this' : 'these'}: ${forecast().charAt(0).toLowerCase() + forecast().slice(1)}</p></div></div>
+       <div id="askbox">${askCard(list[0], 0, n)}</div>${n > 1 ? '<div class="peek"></div>' : ''}${n > 2 ? '<div class="peek"></div>' : ''}`
+    : `${posted}${S.posted ? '' : `<div class="say" style="margin-bottom:6px">${mascot('m-mid', S.states.cook === 'running' ? 'run' : S.states.cook === 'long' ? 'long' : S.states.cook === 'limited' ? 'lim' : 'idle')}<div style="flex:1;min-width:220px"><h1 id="deskH">Nothing needs you.</h1><p class="mute" style="margin-top:5px">${forecast()}</p><p class="faint small" style="margin-top:6px">Close the lid if you like. I'll wave when Claude needs you.</p></div></div>`}`;
+  const run = S.states.cook;
+  const working = run === 'running' || run === 'long'
+    ? `<button class="runrow" data-a="goCook"><h3>${S.run.title}</h3><p class="small mute" style="margin-top:2px">${S.askQ ? 'Waiting for your answer about the hook.' : run === 'long' ? 'Rendering the final video, slower than usual.' : COOK_STEPS[S.run.step].narr}</p>${segs(run === 'long' ? 4 : S.run.step, S.askQ ? 'w' : 'c')}<p class="small faint num" style="margin-top:6px">${run === 'long' ? 'Step 5 of 6 · <span data-clock>7:42</span> so far, usually about 3:00' : `Step ${S.run.step + 1} of 6 · <span data-clock>${mmss(S.run.el)}</span> so far`}</p></button>`
+    : `<p class="small mute">${run === 'error' ? 'Nothing. The reel above is paused.' : run === 'limited' ? 'Nothing. Claude is resting.' : 'Nothing right now.'}</p>`;
+  return `<div class="page-in cols"><div>${lim}${main}</div><div class="side stack" style="gap:22px"><section><h3>Working now</h3>${working}</section>
+    <section><h3>Since you left at 08:12</h3><ul class="log"><li><time>08:31</time><span>Claude rendered "Stop cutting on the beat" and checked it.</span></li><li><time>09:02</time><span>Pulled 13 rivals. All 13 updated.</span></li><li><time>11:40</time><span>Claude proposed changes to next week.</span></li><li><time>13:44</time><span>Claude started "Light on a $20 budget".</span></li></ul></section></div></div>`;
+}
+
+/* ---------- Pull ---------- */
+const SOURCES = [
+  ['Instagram', 'Your 41 reels', 'Today 08:12'], ['Rivals', '13 rivals', 'Today 09:02'], ['Comment replies', '612 replies sent', 'Today 08:12'], ['Site visits', '148 visits', 'Yesterday 19:30'], ['Sales', '2 sales', 'Yesterday 19:30'],
+];
+function pagePull() {
+  const st = S.states.pull;
+  const table = (marks = {}) => `<div class="box" style="padding:6px 14px"><table>${SOURCES.map(([n, g, w]) => `<tr><td class="src-tick">${marks[n] === 'old' ? '<span class="wait">○</span>' : marks[n] === 'off' ? '<span class="cross">×</span>' : '<span class="tick">✓</span>'}</td><td><b style="font-weight:600">${n}</b></td><td class="mute hide-phone">${g}</td><td class="mute num">${marks[n] === 'old' ? 'Older numbers · ' + w : w}</td></tr>`).join('')}</table></div>`;
+  const top = heads('Pull', 'Pulled when you ask, never on a timer.', st === 'normal' ? btn('pullAll', 'Pull everything', 'p') : '');
+  if (st === 'normal') return top + table();
+  if (st === 'running') return top + `<div class="stack">${card({ tone: 'run', head: `Pulling rivals · <span class="num" id="pullN">${S.pull.n}</span> / 13`, sub: `<span data-clock>0:48</span> · <span id="pullU">${S.pull.n}</span> updated · <span id="pullG">${13 - S.pull.n}</span> to go`, acts: btn('stopPull', 'Stop'), can: 'Leave this screen. The pull keeps going.', wait: 'Each rival gets new numbers as it finishes. You keep them even if you stop.' })}${table({ Rivals: 'old' })}</div>`;
+  if (st === 'long') return top + `<div class="stack">${card({ tone: 'run', m: 'long', head: 'Taking longer than usual (2:00)', sub: 'Pulling rivals · 7 / 13 · 7 updated · 6 to go', note: 'Instagram is answering slowly, so Lead Studio waits between rivals to avoid a limit.', acts: btn('stopPull', 'Stop'), can: 'Leave this screen. The pull keeps going.', wait: 'It finishes by itself, usually within 5 minutes at this pace.' })}${table({ Rivals: 'old' })}</div>`;
+  if (st === 'error') { const E = ERR_ASK.pull; return top + `<div class="stack">${card({ tone: 'err', m: 'err', ...E })}${table({ Rivals: 'old' })}</div>`; }
+  if (st === 'empty') return heads('Pull') + emptyView('empty', 'Nothing pulled yet', 'Connect Instagram and Claude brings in your reels. You choose when; it never pulls on a timer.', btn('connect', 'Connect Instagram', 'y'));
+  return top + `<div class="stack">${card({ tone: 'lim', m: 'lim', head: 'Instagram\'s hourly limit is used up', sub: '2 of 13 rivals updated. The official route opens again at 14:00.', acts: btn('turnOn', 'Turn on the second route and pull the rest (11)', 'p'), can: 'Turn on the second route. It uses your own Instagram login, a little slower.', wait: 'Nothing runs. At 14:00 the Pull button comes back.' })}${table({ Rivals: 'old' })}</div>`;
+}
+
+/* ---------- Insight ---------- */
+function lensBody() {
+  if (S.lens === 'funnel') {
+    const rows = [['Reel views', 84210, 100], ['Commented the word', 612, 42], ['Got the DM', 540, 38], ['Visited the page', 148, 19, 1], ['Clicked checkout', 11, 7], ['Bought', 2, 3]];
+    return `<div class="bars">${rows.map(([n, v, w, d]) => `<div class="fb ${d ? 'drop' : ''}"><span>${n}</span><span><i style="width:${w}%"></i></span><span class="val num">${v.toLocaleString('en-US')}</span></div>`).join('')}</div><p class="small mute" style="margin-top:12px">Bars are drawn to compare steps, not to scale. Biggest drop in orange: 73% of DMs don't reach the page. Sample data.</p>`;
+  }
+  if (S.lens === 'channel') return `<svg viewBox="0 0 600 90" style="width:100%;height:90px;display:block" aria-label="Views over 30 days"><polyline fill="none" stroke="currentColor" stroke-width="2" points="0,70 40,66 80,72 120,40 160,48 200,62 240,58 280,30 320,36 360,50 400,44 440,20 480,28 520,38 560,24 600,18"/></svg><p class="small mute" style="margin:8px 0 14px">Views, last 30 days. 1 post beat your usual by 3x.</p><table>${[['Why my hooks die at 0:03', '31,400', '3x your usual'], ['Stop rendering in 4K', '12,800', 'About usual'], ['My $4 tripod', '6,200', 'Under usual']].map(r => `<tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="mute small hide-phone">${r[2]}</td></tr>`).join('')}</table>`;
+  return `<table>${[['Take', '@hookfirst opens on the mistake, not the tip. 8 of their last 10 reels.'], ['Learn', '@reelmath gives the gift in the DM, then sells on the page. 1 word per reel.'], ['Avoid', '@nocut.daily reuses one word on 3 reels, so it can\'t tell which one sold.']].map(r => `<tr><td style="width:64px"><b style="font-weight:600">${r[0]}</b></td><td>${r[1]}</td></tr>`).join('')}</table><div class="steer" style="margin-top:10px"><input placeholder="@handle or channel link" aria-label="Add a rival"><button class="btn" data-a="noop">Add rival</button></div>`;
+}
+function pageInsight() {
+  const st = S.states.insight;
+  const lens = `<div class="seg" role="group" aria-label="View">${[['funnel', 'Funnel'], ['channel', 'My channel'], ['rivals', 'Rivals']].map(([k, l]) => `<button data-a="lens" data-v="${k}" aria-pressed="${S.lens === k}">${l}</button>`).join('')}</div>`;
+  const read = `<div class="box"><span class="label">Claude's read · from today's pull</span><h2 style="margin:5px 0 6px">Your hooks are fine. Your DM is where people leave.</h2><p class="mute">People comment and get the DM, but 73% never open the link. Try the gift inside the DM, like @reelmath does.</p><div class="acts">${btn('toPlan', 'Add a test to the plan', 'p')}${btn('rerun', 'Read again')}</div></div>`;
+  const lensBox = `<div class="box"><div style="margin-bottom:14px">${lens}</div>${lensBody()}</div>`;
+  const top = heads('Insight');
+  if (st === 'normal') return top + `<div class="stack">${read}${lensBox}</div>`;
+  if (st === 'running') return top + `<div class="stack">${card({ tone: 'run', head: 'Claude is reading today\'s pull', sub: `Reel 18 of 41 · <span data-clock>0:21</span> so far, usually about 0:40`, can: 'Leave, or look at the numbers below. They are already new.', wait: 'Claude\'s read appears here. Nothing changes in your plan.' })}${lensBox}</div>`;
+  if (st === 'long') return top + `<div class="stack">${card({ tone: 'run', m: 'long', head: 'Reading slower than usual', sub: `Reel 34 of 41 · <span data-clock>1:40</span> so far, usually about 0:40`, note: 'Claude is alive and writing, only slowly. Your subscription is busy right now.', can: 'Leave it, or stop and keep what it has read.', acts: btn('rerunStop', 'Stop and keep what it read'), wait: 'It keeps reading.' })}${lensBox}</div>`;
+  if (st === 'error') return top + `<div class="stack">${card({ tone: 'err', m: 'err', ...ERR_ASK.insight })}${read}</div>`;
+  if (st === 'empty') return top + emptyView('empty', 'Nothing to read yet', 'Claude reads your numbers after your first pull. Rivals, funnel and your channel all show up here.', btn('goPull', 'Go to Pull', 'p'));
+  return top + `<div class="stack">${card({ tone: 'lim', m: 'lim', head: 'This read stops at page visits', sub: 'Sales isn\'t connected, so Claude can\'t see what bought.', acts: btn('openSettings', 'Connect sales'), wait: 'The read stays useful for views and comments. It says nothing about money.' })}${lensBox}</div>`;
+}
+
+/* ---------- Plan ---------- */
+const weekHtml = () => `<div class="week">${S.plan.map(d => d.t ? `<div class="day"><span class="label">${d.day}</span><h3>${d.t}</h3>${d.w ? `<span class="small faint">Word: ${d.w}</span>` : ''}<span class="chip ${d.tone}" style="align-self:flex-start">${d.st}</span>${d.cook ? btn('cookIt', 'Cook') : ''}</div>` : `<div class="day free"><span class="label">${d.day}</span><span class="small faint">Free</span></div>`).join('')}</div>`;
+function pagePlan() {
+  const st = S.states.plan;
+  const top = heads('Plan', 'This week. Claude proposes; you approve before anything changes.', st === 'normal' ? btn('draftNext', 'Ask Claude for next week', 'p') : '');
+  if (st === 'normal') return top + weekHtml();
+  if (st === 'running') return top + `<div class="stack">${card({ tone: 'run', head: 'Claude is drafting next week', sub: `Day 3 of 5 · <span data-clock>0:34</span> so far, usually about 1:00`, can: 'Nothing to do. You can leave.', wait: 'You get one question when it is done: approve the changes or not. This week stays as it is.' })}${weekHtml()}</div>`;
+  if (st === 'long') return top + `<div class="stack">${card({ tone: 'run', m: 'long', head: 'Drafting is taking longer than usual', sub: `Day 4 of 5 · <span data-clock>2:40</span> so far, usually about 1:00`, can: 'Leave it, or ask Claude why.', wait: 'It keeps drafting. If it stops, this card turns red and keeps the finished days.' })}${weekHtml()}</div>`;
+  if (st === 'error') return top + `<div class="stack">${card({ tone: 'err', m: 'err', ...ERR_ASK.plan })}${weekHtml()}</div>`;
+  if (st === 'empty') return heads('Plan') + emptyView('empty', 'No plan this week', 'Claude can draft 5 reels from your last pull. You see every one before it goes in.', btn('draftNext', 'Ask Claude for a plan', 'p'));
+  return top + `<div class="stack">${card({ tone: 'lim', m: 'lim', head: 'Claude has used up its limit until 15:20', sub: 'Your plan stays as it is. Drafting next week waits.', acts: btn('handCodex', 'Ask Codex instead'), wait: 'Nothing runs. At 15:20 you can ask again.' })}${weekHtml()}</div>`;
+}
+
+/* ---------- Approve plan ---------- */
+function changesHtml(list = S.changes) {
+  return `<div class="box tl" style="padding:4px 20px">${list.map(c => { const i = S.changes.indexOf(c); return `<div class="chg ${c.on ? '' : 'off'}"><span class="chip ${c.kind === 'Drop' ? 'err' : c.kind === 'Add' ? 'ok' : ''}">${c.kind}</span><div style="min-width:0"><h3><span class="faint" style="font-weight:500">${c.day}</span> ${c.t}</h3><p class="small mute">${c.why}</p></div><button role="switch" aria-checked="${c.on}" aria-label="Keep this change: ${c.t}" data-a="toggleChange" data-v="${i}"><span class="sw" style="display:block"></span></button></div>`; }).join('')}</div>`;
+}
+function pageOkplan() {
+  const st = S.states.okplan, n = S.changes.filter(c => c.on).length;
+  const top = heads('Approve plan', 'Switch off any change you do not want. The count follows.');
+  if (st === 'normal') return top + `<div class="stack">${changesHtml()}<div class="box banner"><p class="small mute">This changes next week only. You can change it again later.</p><div class="acts" style="margin:0">${btn('rejectPlan', 'Keep this week\'s plan')}${btn('approvePlan', n ? `Approve plan (${plural(n, 'change')})` : 'Approve plan', 'y', n ? '' : 'disabled')}</div></div></div>`;
+  if (st === 'running') return heads('Approve plan') + card({ tone: 'run', head: 'Saving your plan', sub: 'Usually under 2 s', can: 'Nothing to do.', wait: 'The week updates and Cook picks up the first reel when you say so.' });
+  if (st === 'long') return heads('Approve plan') + card({ tone: 'run', m: 'long', head: 'Claude is still working on the changes', sub: `<span data-clock>2:40</span> so far, usually about 1:00`, can: 'Leave. I\'ll wave when they are ready.', wait: 'You will get one question, not a stream of them.' });
+  if (st === 'error') return top + `<div class="stack">${card({ tone: 'err', m: 'err', ...ERR_ASK.okplan })}${changesHtml()}</div>`;
+  if (st === 'empty') return heads('Approve plan') + emptyView('idle', 'Nothing waits for you here', 'Claude asks here when it wants to change your plan. Until then your week stays exactly as it is.', btn('goPlan', 'See this week'));
+  const ok = S.changes.slice(2);
+  return top + `<div class="stack">${card({ tone: 'lim', head: '2 of 4 changes can\'t go in', sub: 'Their days have already passed. The other 2 are ready.', wait: 'Nothing changes until you approve.' })}${changesHtml(ok)}<div class="box banner"><p class="small mute">Applies to the 2 changes above.</p>${btn('approvePlan', 'Approve plan (2 changes)', 'y')}</div></div>`;
+}
+
+/* ---------- Cook ---------- */
+function steerBox() {
+  const notes = S.notes.map(n => `<div class="receipt" data-note="${n.state}"><span class="chip ${n.state === 'done' ? 'ok' : ''}">${{ sent: 'Sent', read: 'Read', done: 'Done' }[n.state]}</span><span>"${n.t}"<br><span class="mute small">${{ sent: 'Claude reads this after the current step. It keeps working.', read: 'Claude read it and is changing the reel now.', done: n.did }[n.state]}</span></span></div>`).join('');
+  return `<div class="box"><h3 style="margin-bottom:8px">Tell Claude something</h3><form class="steer" data-form="steer"><input id="steer" placeholder="Say it in your words. Claude keeps working." aria-label="Tell Claude something" value="${S.draft.replace(/"/g, '&quot;')}"><button class="btn" data-a="sendNote" type="submit">Send</button></form>${notes}</div>`;
+}
+function trailHtml(step, errAt) {
+  return `<ul class="trail">${COOK_STEPS.map((c, i) => { const done = i < step, cur = i === step; return `<li><button data-a="trail" data-v="${i}" aria-expanded="${S.trail === i}"><span class="${done ? 'tick' : errAt === i ? 'cross' : 'wait'}">${done ? '✓' : errAt === i ? '×' : cur ? '●' : '○'}</span><span style="${done || cur ? '' : 'color:var(--ink3)'}">${c.k}</span><span class="small faint num">${done ? c.took : cur ? 'now' : ''}</span></button>${S.trail === i ? `<div class="proof">${done ? c.proof : cur ? 'Happening now.' : 'Not started.'}</div>` : ''}</li>`; }).join('')}</ul>`;
+}
+function cookShell(step, cardHtml, opts = {}) {
+  const v = opts.video || (step < 3 ? null : step === 3 ? null : 'Draft');
+  const player = v ? reel(S.run.title, v, true) : `<div class="reel big"><span>${step < 3 ? 'The draft shows here at step 4.' : 'The draft is rendering. It shows here in a moment.'}</span></div>`;
+  return heads('Cook', '', `<span class="small mute">Next up: The B-roll rule</span>`) + `<div class="cook"><div>${player}</div><div class="stack"><h2>${S.run.title}</h2>${cardHtml}${opts.noSteer ? '' : steerBox()}
+    ${opts.noDraftToggle ? '' : `<div class="box"><button class="toggle" role="switch" aria-checked="${S.waitDraft}" data-a="waitDraft"><span><h3>Wait for me at the draft</h3><span class="small mute">Off: the final starts by itself. On: Claude stops until you've watched it, which saves a slow render if the draft is wrong.</span></span><span class="sw"></span></button></div>`}
+    <div class="box" style="padding:8px 18px 10px"><div class="banner" style="padding:6px 0 4px"><h3>Trail</h3><button class="btn q" data-a="openScreen" style="min-height:30px;font-size:13px">See Claude's screen</button></div>${trailHtml(step, opts.errAt)}</div></div></div>`;
+}
+function pageCook() {
+  const st = S.states.cook, s = S.run.step, c = COOK_STEPS[s];
+  if (S.takeover) return cookShell(s, card({ tone: 'lim', head: 'Claude is paused. This one is yours', sub: 'Everything finished stays. Nothing runs until you give it back.', acts: btn('openScreen', 'Back to the screen', 'p') + btn('giveBack', 'Give it back to Claude'), wait: 'It stays paused. Nothing is lost.' }), { noSteer: true });
+  if (st === 'running' && S.askQ) return cookShell(s, card({ tone: 'need', head: 'Your hook runs 4.1 s. Cut it to 3 s?', sub: 'Your best reels hook in under 3 s. Cutting it drops the words "and honestly".', acts: btn('answerCut', 'Cut to 3 s', 'y') + btn('answerKeep', 'Keep 4.1 s'), wait: 'Claude waits here. Nothing else runs until you answer.' }));
+  if (st === 'running') return cookShell(s, card({ tone: 'run', head: c.head, sub: `${c.sub} · <span data-clock>${mmss(S.run.el)}</span> so far${s === 4 ? ', usually about 3:00' : ''}`, note: words(c.narr), can: c.can, wait: c.wait }) );
+  if (st === 'long') return cookShell(4, card({ tone: 'run', m: 'long', head: 'Rendering the final video, slower than usual', sub: 'Step 5 of 6 · <span data-clock>7:42</span> so far, usually about 3:00', note: 'The render is alive and moving, so it is working, only slowly.', can: 'Leave it, or ask Claude why.', wait: 'It keeps rendering. If it stops, this card turns red with Resume.' }));
+  if (st === 'error') return cookShell(4, card({ tone: 'err', m: 'err', ...ERR_ASK.cook, acts: btn('resume', 'Resume cook', 'p') }), { errAt: 4 });
+  if (st === 'empty') return heads('Cook') + emptyView('empty', 'Nothing is cooking. Cook a reel from Plan.', 'Pick a reel with a script. Claude does the voice, the edit and the render, and comes to you with the result.', btn('goPlan', 'Go to Plan', 'p'));
+  if (st === 'limited') return cookShell(3, card({ tone: 'lim', m: 'lim', head: 'Claude has used up its limit until 15:20', sub: '3 of 6 steps are done and kept.', acts: btn('handCodex', 'Hand it to Codex'), can: 'Hand the rest to Codex, or do something else.', wait: 'Nothing runs. At 15:20 this card offers Resume cook.' }), { noSteer: true });
+  return cookShell(6, card({ tone: 'ok', head: 'Reel ready. It waits for your approval', sub: 'All 6 steps done. Claude watched it through and wrote the caption.', acts: btn('goOkpost', 'Go to Approve post', 'y'), can: 'Watch it, or tell Claude what to change.', wait: 'Nothing posts until you approve.' }), { video: 'Final', noDraftToggle: true });
+}
+
+/* ---------- Approve post ---------- */
+const CHECKS = ['Video is vertical and under 90 s', 'Caption fits the limit', 'Cover is chosen', 'Comment word BEAT is set up for replies', 'Your Instagram account is connected'];
+function postBody(extra, opts = {}) {
+  return `<div class="cook"><div>${reel('Stop cutting on the beat', 'Final', true, true)}</div><div class="stack">${extra}<div class="box"><h3 style="margin-bottom:8px">Caption</h3><textarea class="caption" aria-label="Caption">Your edit doesn't need to hit every beat. Comment BEAT and I'll send you the 3 cuts I use instead.</textarea><p class="small mute" style="margin-top:8px">Posts today at 18:00. Your audience is most active then.</p></div><div class="box"><h3 style="margin-bottom:8px">Checks</h3><ul class="checks">${CHECKS.map((c, i) => `<li><span class="${opts.bad === i ? 'cross' : 'tick'}">${opts.bad === i ? '×' : '✓'}</span><span>${c}</span></li>`).join('')}</ul></div></div></div>`;
+}
+function pageOkpost() {
+  const st = S.states.okpost;
+  if (S.posted && st === 'empty') return heads('Approve post') + `<div class="emptyview">${mascot('m-big', 'done')}<h1>Posted.</h1><p class="mute">"Stop cutting on the beat" is live. Its first numbers come in about 48 hours.</p><div class="acts">${btn('goInsight', 'Back to Insight', 'p')}</div></div>`;
+  const top = heads('Approve post', 'The one step that can\'t be undone, so it always asks.');
+  if (st === 'normal') return top + postBody(`<div class="box banner"><div><h3>Post "Stop cutting on the beat" today at 18:00?</h3><p class="small mute">5 of 5 checks passed.</p></div><div class="acts" style="margin:0">${btn('sendBack', 'Send back to Claude')}${btn('postNow', 'Post at 18:00', 'y')}</div></div>`);
+  if (st === 'running') return heads('Approve post') + postBody(card({ tone: 'run', head: 'Sending to Instagram', sub: `<span data-clock>0:14</span> so far, usually under 1:00`, can: 'Leave. It keeps going.', wait: 'It goes live at 18:00.' }));
+  if (st === 'long') return heads('Approve post') + postBody(card({ tone: 'run', m: 'long', head: 'Instagram is taking longer than usual (2:10)', sub: 'The post is not live yet.', can: 'Leave. Do not post it again from your phone, or you will get two.', wait: 'Lead Studio keeps asking Instagram. If it refuses, your video stays here.' }));
+  if (st === 'error') return heads('Approve post') + postBody(card({ tone: 'err', m: 'err', ...ERR_ASK.okpost }));
+  if (st === 'empty') return heads('Approve post') + emptyView('idle', 'Nothing waits to post', 'Finished reels come here from Cook. Nothing posts without you pressing the button here.', btn('goCook', 'See what is cooking'));
+  return heads('Approve post') + postBody(card({ tone: 'lim', m: 'lim', head: 'Instagram won\'t take another post today', sub: 'You have reached its daily limit. Your video and caption are kept.', acts: btn('postTomorrow', 'Post tomorrow at 18:00', 'y'), wait: 'Nothing posts. The reel stays here.' }));
+}
+
+/* ---------- render ---------- */
+const PAGES = { desk: pageDesk, pull: pagePull, insight: pageInsight, plan: pagePlan, okplan: pageOkplan, cook: pageCook, okpost: pageOkpost };
+function renderLine() {
+  $('#home').setAttribute('aria-current', S.page === 'desk' ? 'page' : 'false');
+  const n = asks().length;
+  $('#homeCount').hidden = !n; $('#homeCount').textContent = n;
+  STATIONS.forEach(st => { const el = document.getElementById('st-' + st.id); el.className = `st ${st.you ? 'you' : ''} ${nodeClass(st.id)}`; el.setAttribute('aria-current', S.page === st.id ? 'page' : 'false'); el.setAttribute('aria-label', `${st.label}: ${nodeClass(st.id)}`); });
+  const r = riderAt(); $('#rider').style.left = (r.rest ? 100 : stationX(r.id)) + '%';
+  if (r.rest) $('#rider').style.left = stationX(r.id) + '%';
+  [bus.rider.pose, bus.rider.expr] = pose(r.tone);
+  const flowing = stationX(r.id);
+  $('#flow').className = r.tone === 'run' || r.tone === 'long' ? 'on' : '';
+  const si = STATIONS.findIndex(x => x.id === r.id), toPct = x => (x - 8.33) / 83.34 * 100;
+  $('#flow').style.left = `${toPct(si > 0 ? stationX(STATIONS[si - 1].id) : flowing)}%`;
+  $('#flow').style.right = `${100 - toPct(flowing)}%`;
+  $('#beads').innerHTML = allEmpty() ? '' : Object.entries(S.beads).filter(([, st]) => S.states[st] !== 'empty').map(([t, st], i) => `<span class="bead" title="${t}" style="left:calc(${stationX(st)}% + 20px);background:${['#d58a5e', '#3b6a68', '#7a4c52', '#8b7bd8'][i % 4]}"></span>`).join('');
+}
+function render(enter) {
+  const host = $('#page'), main = $('main');
+  const wasFocus = document.activeElement && document.activeElement.id === 'steer';
+  const heroCanvas = $('#heroWrap'); $('#heroHome').append(heroCanvas);
+  host.innerHTML = PAGES[S.page]();
+  if (enter) {
+    main.scrollTop = 0;
+    host.classList.remove('enter', 'pending'); void host.offsetWidth;
+    host.style.setProperty('--dir', S.dir);
+    host.classList.add('enter', 'pending');
+    setTimeout(() => host.classList.remove('pending'), INSTANT ? 0 : 110);
+  }
+  const slot = host.querySelector('[data-mascot]');
+  if (slot) { slot.append(heroCanvas); [bus.hero.pose, bus.hero.expr] = pose(slot.dataset.mascot); }
+  if (wasFocus) { const i = $('#steer'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+  renderLine(); renderDemoState();
+}
+function go(page) {
+  if (page === S.page) return;
+  const order = ['desk', 'pull', 'insight', 'plan', 'okplan', 'cook', 'okpost'];
+  S.dir = Math.sign(order.indexOf(page) - order.indexOf(S.page));
+  S.page = page; S.pick = page === 'desk' ? S.pick : S.states[page];
+  render(true);
+}
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); }
+function setBeads(from, to) { Object.entries(S.beads).forEach(([t, st]) => { if (t === from) { if (to) S.beads[t] = to; else delete S.beads[t]; } }); }
+
+/* ---------- actions: the same handlers serve people and the walkthrough ---------- */
+function advanceCook() {
+  const step = S.run.step;
+  if (step >= 5) { S.states.cook = 'normal'; S.states.okpost = 'normal'; S.beads[S.run.title] = 'okpost'; toast('Reel ready. It needs your approval.'); }
+  else { S.run.step = step + 1; S.run.el = [22, 65, 130, 48, 222, 40][step + 1]; }
+  S.trail = null; render();
+}
+function pullTick() {
+  if (S.states.pull !== 'running') return;
+  S.pull.n = Math.min(13, S.pull.n + 1);
+  const N = $('#pullN'); if (N) { N.textContent = S.pull.n; $('#pullU').textContent = S.pull.n; $('#pullG').textContent = 13 - S.pull.n; }
+  if (S.pull.n >= 13) { S.states.pull = 'normal'; S.states.insight = S.states.insight === 'empty' ? 'running' : S.states.insight; toast('Pulled 13 rivals. Claude is reading them.'); render(); after(1800, finishInsight); return; }
+  if (!TOUR) after(420, pullTick);
+}
+function finishInsight() { if (S.states.insight === 'running') { S.states.insight = 'normal'; if (S.states.plan === 'empty') S.states.plan = 'normal'; render(); } }
+function startPull(from = 0) { S.states.pull = 'running'; S.pull.n = from; S.pick = 'running'; render(); if (!TOUR) after(420, pullTick); }
+function runNoteReceipt(note) {
+  after(TOUR ? 1200 : 2400, () => { note.state = 'read'; render();
+    after(TOUR ? 1400 : 3000, () => { note.state = 'done'; render(); }); });
+}
+function finishAsk(id, fn) {
+  const el = document.querySelector('.ask');
+  if (el && !INSTANT && !matchMedia('(prefers-reduced-motion:reduce)').matches) { el.classList.add('leaving'); setTimeout(() => { fn(); render(); }, 170); } else { fn(); render(); }
+}
+const ACTIONS = {
+  noop() {},
+  goCook() { go('cook'); }, goPlan() { go('plan'); }, goPull() { go('pull'); }, goOkpost() { go('okpost'); }, goOkplan() { go('okplan'); }, goInsight() { S.posted = false; go('insight'); },
+  connect() { S.connected = true; Object.keys(S.states).forEach(k => { S.states[k] = 'empty'; }); S.page = 'pull'; S.dir = 1; startPull(0); render(true); },
+  pullAll() { startPull(0); }, stopPull() { S.states.pull = 'error'; S.pick = 'error'; toast('You stopped the pull. What finished is kept.'); render(); },
+  pullRest() { startPull(3); }, turnOn() { S.backup = true; startPull(2); toast('Second route on.'); },
+  lens(v) { S.lens = v; render(); }, toPlan() { toast('Added a test to next week\'s draft.'); S.states.okplan = 'normal'; render(); },
+  rerun() { S.states.insight = 'running'; S.pick = 'running'; render(); after(2200, finishInsight); }, rerunStop() { S.states.insight = 'normal'; S.pick = 'normal'; toast('Kept what Claude read.'); render(); }, readRest() { ACTIONS.rerun(); },
+  draftNext() { S.states.plan = 'running'; S.pick = 'running'; S.states.okplan = 'empty'; render(); after(2000, () => { S.states.plan = 'normal'; S.states.okplan = 'normal'; S.pick = 'normal'; S.beads['Next week'] = 'okplan'; toast('Claude has a plan for you to approve.'); render(); }); },
+  draftRest() { ACTIONS.draftNext(); }, recheck() { S.states.okplan = 'normal'; S.pick = 'normal'; render(); },
+  cookIt() { const d = S.plan.find(x => x.cook); S.run = { step: 0, el: 4, title: d.t }; d.cook = false; d.st = 'Cooking'; S.states.cook = 'running'; S.askQ = false; S.beads[d.t] = 'cook'; S.notes = []; S.pick = 'running'; go('cook'); render(); },
+  toggleChange(v) { const c = S.changes[+v]; c.on = !c.on; render(); },
+  approvePlan() { const n = S.changes.filter(c => c.on).length; S.states.okplan = 'running'; render(); after(650, () => { S.states.okplan = 'empty'; S.pick = 'empty'; delete S.beads['Next week']; const f = S.plan.find(d => d.day === 'Fri'); f.t = '3 lighting mistakes'; f.w = 'MISTAKE'; f.st = 'New'; f.tone = 'ok'; toast(`Plan saved with ${plural(n, 'change')}.`); go('plan'); render(); }); },
+  rejectPlan() { S.states.okplan = 'empty'; S.pick = 'empty'; delete S.beads['Next week']; toast('This week\'s plan stays.'); render(); },
+  answerCut() { finishAsk('q', () => { S.askQ = false; S.run.step = 1; S.run.el = 3; toast('Claude cut the hook to 3 s and kept going.'); }); },
+  answerKeep() { finishAsk('q', () => { S.askQ = false; S.run.step = 1; S.run.el = 3; toast('Hook stays at 4.1 s. Claude kept going.'); }); },
+  waitDraft() { S.waitDraft = !S.waitDraft; render(); },
+  sendNote() { const t = S.draft.trim(); if (!t) return; const note = { t, state: 'sent', did: 'Claude moved the music down from 0:12 and kept going.' }; S.notes.unshift(note); S.draft = ''; render(); runNoteReceipt(note); },
+  trail(v) { S.trail = S.trail === +v ? null : +v; render(); },
+  resume() { S.states.cook = 'running'; S.pick = 'running'; S.askQ = false; S.run.step = 4; S.run.el = 1; toast('Resumed. The 4 done steps were skipped.'); render(); },
+  handCodex() { S.states.cook = 'running'; S.pick = 'running'; S.askQ = false; S.run.step = 3; S.run.el = 1; toast('Codex took over. The done steps are kept.'); render(); },
+  openScreen() { S.screen = true; renderSheets(); }, closeScreen() { S.screen = false; renderSheets(); },
+  takeOver() { S.takeover = true; renderSheets(); render(); }, giveBack() { S.takeover = false; S.screen = false; S.draft = 'I fixed the cover in chapter 2.'; renderSheets(); render(); toast('Claude is back. Tell it what you changed.'); },
+  postNow() { const fromDesk = S.page === 'desk'; finishAsk('post', () => { S.states.okpost = 'running'; S.pick = 'running'; if (fromDesk) S.page = 'okpost'; }); after(TOUR ? 900 : 1400, () => { S.states.okpost = 'empty'; S.posted = true; S.pick = 'normal'; delete S.beads['Stop cutting on the beat']; const d = S.plan.find(x => x.day === 'Tue'); d.st = 'Posted'; d.tone = 'ok'; render(); bus.bounce = true; }); },
+  retryPost() { ACTIONS.postNow(); }, postTomorrow() { S.states.okpost = 'empty'; S.pick = 'empty'; toast('Set for tomorrow at 18:00.'); render(); },
+  sendBack() { S.states.okpost = 'empty'; S.pick = 'empty'; S.states.cook = 'running'; S.askQ = false; S.run = { step: 2, el: 3, title: 'Stop cutting on the beat' }; S.beads['Stop cutting on the beat'] = 'cook'; toast('Sent back. Claude is fixing it.'); go('cook'); render(); },
+  openSettings() { S.settings = true; renderSheets(); }, closeSettings() { S.settings = false; renderSheets(); },
+  scrim() { S.settings = false; S.screen = false; renderSheets(); },
+};
+function renderSheets() {
+  $('#scrim').classList.toggle('on', S.settings || S.screen);
+  $('#settings').classList.toggle('on', S.settings);
+  $('#screen').classList.toggle('on', S.screen);
+  if (S.screen) $('#screen').innerHTML = `<div class="banner" style="margin-bottom:14px"><h2 style="margin:0">Claude's screen</h2><button class="btn q" data-a="closeScreen">Close</button></div><p class="mute small" style="margin-bottom:12px">${S.takeover ? 'Claude is paused. You are typing here now.' : 'Look only. Claude keeps working while you watch.'}</p><div class="term" id="term"><em>Reel: ${S.run.title}</em>\n\nchapter 5 of 9 written\nmixing music under the voice\nmusic level -18, voice level -6\nchapter 6 of 9 writing...\n${S.takeover ? '\n<em>paused. your turn.</em>\n> _' : ''}</div><div class="acts">${S.takeover ? btn('giveBack', 'Give it back to Claude', 'p') : btn('takeOver', 'Take over')}</div><p class="small faint" style="margin-top:10px">${S.takeover ? 'When you give it back, tell Claude what you changed.' : 'Taking over pauses Claude. Finished steps stay.'}</p>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-a]');
+  if (b) { e.preventDefault(); const f = ACTIONS[b.dataset.a]; if (!f) throw new Error('no action ' + b.dataset.a); f(b.dataset.v); return; }
+  const st = e.target.closest('[data-go]');
+  if (st) go(st.dataset.go);
+});
+document.addEventListener('submit', e => { e.preventDefault(); if (e.target.dataset.form === 'steer') ACTIONS.sendNote(); });
+document.addEventListener('input', e => { if (e.target.id === 'steer') S.draft = e.target.value; });
+addEventListener('keydown', e => {
+  if (e.target.matches('input,textarea,select') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const keys = ['0', '1', '2', '3', '4', '5', '6'], i = keys.indexOf(e.key);
+  if (i >= 0) { go(['desk', 'pull', 'insight', 'plan', 'okplan', 'cook', 'okpost'][i]); $('#page').classList.remove('enter'); }
+  if (e.key === 'Escape') ACTIONS.scrim();
+});
+setInterval(() => {
+  const c = $('[data-clock]'); if (!c) { return; }
+  document.querySelectorAll('[data-clock]').forEach(el => { const [m, s] = el.textContent.split(':').map(Number); el.textContent = mmss(m * 60 + s + 1); });
+  if (S.states.cook === 'running' && !S.askQ && !S.takeover) S.run.el++;
+}, 1000);
+setInterval(() => {
+  if (TOUR || S.takeover || S.states.cook !== 'running' || S.askQ || S.notes.some(n => n.state !== 'done')) return;
+  if (S.waitDraft && S.run.step === 3) return;
+  advanceCook();
+}, 9000);
+
+/* ---------- state picker worlds ---------- */
+const WORLD = {
+  normal: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'normal', cook: 'running', okpost: 'normal', askQ: true, step: 0 },
+  running: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'empty', cook: 'running', okpost: 'empty', askQ: false, step: 2 },
+  long: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'empty', cook: 'long', okpost: 'empty', askQ: false, step: 4 },
+  error: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'empty', cook: 'error', okpost: 'empty', askQ: false, step: 4 },
+  empty: { pull: 'empty', insight: 'empty', plan: 'empty', okplan: 'empty', cook: 'empty', okpost: 'empty', askQ: false, step: 0 },
+  limited: { pull: 'normal', insight: 'normal', plan: 'normal', okplan: 'empty', cook: 'limited', okpost: 'empty', askQ: false, step: 3 },
+};
+function pickState(k) {
+  clearTimers(); S.pick = k; S.posted = false; S.takeover = false;
+  if (S.page === 'desk') { const w = WORLD[k]; for (const key in S.states) S.states[key] = w[key]; S.askQ = w.askQ; S.run.step = w.step; S.run.el = [22, 65, 130, 48, 222, 40][w.step]; }
+  else { S.states[S.page] = k; if (S.page === 'cook') { S.askQ = false; if (k === 'running' && S.run.step < 1) S.run.step = 2; } if (S.page === 'pull' && k === 'running') { S.pull.n = 4; } }
+  render(true);
+}
+function renderDemoState() {
+  document.querySelectorAll('#stateSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.s === S.pick)));
+  $('#stateSel').value = S.pick;
+}
+
+/* ---------- the walkthrough ---------- */
+const JOURNEYS = [
+  { id: 'loop', name: 'Trọn vòng 6 bước', steps: [
+    { cap: 'Mở app là Desk. Hàng trên cùng là cả dây chuyền: vòng tròn tự chạy, hình thoi là chỗ cần anh. Linh vật ngồi đúng chỗ đang có việc.', init: { page: 'desk' }, hold: 4600 },
+    { cap: 'Claude bị kẹt và hỏi ngay tại đây, không bắt anh vào terminal. Chọn một nút là nó chạy tiếp.', at: '[data-a=answerCut]' },
+    { cap: 'Bấm Pull trên dây chuyền. Số liệu chỉ kéo khi anh bấm, không có lịch ngầm.', at: '#st-pull' },
+    { cap: 'Kéo số liệu, chờ ở đây hoặc đi chỗ khác đều được.', at: '[data-a=pullAll]', then() { S.pull.n = 13; pullTick(); finishInsight(); } },
+    { cap: 'Insight: Claude nói kết luận trước, số nằm ngay dưới để anh kiểm tra.', at: '#st-insight' },
+    { cap: 'Plan: tuần này gọn trong một hàng. Nhờ Claude soạn tuần sau.', at: '#st-plan' },
+    { cap: 'Soạn xong, hình thoi Approve plan sáng lên. Anh chỉ bị hỏi đúng một lần.', at: '[data-a=draftNext]', then() { flushSim(); } },
+    { cap: 'Thay đổi viết bằng lời người làm reel, không phải code diff. Tắt một dòng, số trên nút đổi theo.', at: '#st-okplan' },
+    { cap: 'Tắt thay đổi anh không muốn.', at: '[data-a=toggleChange][data-v="0"]' },
+    { cap: 'Duyệt. Việc chạy tiếp, anh không phải canh.', at: '[data-a=approvePlan]', then() { flushSim(); } },
+    { cap: 'Bấm Cook. Từ đây Claude tự làm.', at: '[data-a=cookIt]', pre() { S.states.plan = 'normal'; } },
+    { cap: 'Cook: một câu kể đang làm gì, thời gian so với bình thường, YOU CAN và IF YOU WAIT.', hold: 3600, then() { S.run.step = 3; S.run.el = 48; render(); } },
+    { cap: 'Xong bước nào có bằng chứng của bước đó. Trail mở ra xem, không mở cũng không sao.', at: '[data-a=trail][data-v="2"]', then() { S.run.step = 5; advanceCook(); } },
+    { cap: 'Reel xong, tự chuyển sang Approve post. Đây là bước không hoàn tác được nên luôn hỏi.', at: '#st-okpost' },
+    { cap: 'Đăng. Linh vật ăn mừng, và chỉ ăn mừng ở đúng khoảnh khắc này.', at: '[data-a=postNow]', then() { flushSim(); }, hold: 4200 },
+  ] },
+  { id: 'first', name: 'Lần đầu mở app', steps: [
+    { cap: 'Lần đầu mở: không có bảng trống, không có chữ Orca. Linh vật chào và nói rõ nó làm gì.', init: { world: 'empty', page: 'desk' }, hold: 4600 },
+    { cap: 'Chỉ một nút để bắt đầu.', at: '[data-a=connect]' },
+    { cap: 'App trả lời ngay: đang kéo, kéo được bao nhiêu, còn bao nhiêu.', hold: 3000, then() { S.pull.n = 13; pullTick(); finishInsight(); } },
+    { cap: 'Xong rồi, dây chuyền sáng dần theo từng trạm.', at: '#st-insight', hold: 3200 },
+    { cap: 'Trạm chưa có gì thì nói thẳng thiếu gì và chỉ bước tiếp theo.', at: '#st-okpost', hold: 3400 },
+  ] },
+  { id: 'away', name: 'Đi vắng rồi quay lại', steps: [
+    { cap: 'Desk không có việc: "Nothing needs you", và nói luôn khi nào cần anh. Đây là câu cho phép anh rời máy.', init: { world: 'running', page: 'desk' }, hold: 4600 },
+    { cap: 'Muốn chắc hơn thì bật dừng ở bản nháp. Tin Claude rồi thì tắt.', at: '[data-a=goCook]', hold: 2400 },
+    { cap: 'Bật "Wait for me at the draft": đỡ tốn một lần render nếu bản nháp sai.', at: '[data-a=waitDraft]', hold: 2800 },
+    { cap: 'Anh đi vắng. Quay lại, Desk kể chuyện gì xảy ra lúc anh đi, và việc nào cần anh.', at: '#home', then() { S.states.okpost = 'normal'; S.beads['Stop cutting on the beat'] = 'okpost'; render(); }, hold: 3600 },
+    { cap: 'Trả lời ngay trên Desk. Không phải tìm trong tab nào.', at: '[data-a=goOkpost]', hold: 3000 },
+  ] },
+  { id: 'error', name: 'Lỗi vẫn giữ việc đã xong', steps: [
+    { cap: 'Render chết. Linh vật ngạc nhiên, Desk đưa việc này lên đầu.', init: { world: 'error', page: 'desk' }, hold: 4000 },
+    { cap: 'Câu đầu nói thẳng: 4 trong 6 bước đã xong và được giữ. Một nút để chạy tiếp.', at: '[data-a=resume]' },
+    { cap: 'Không làm lại từ đầu. Cook chạy tiếp từ bước 5.', at: '[data-a=goCook]', hold: 3200 },
+    { cap: 'Lỗi một phần ở Pull: 3 rival có số mới, 10 rival giữ số cũ.', at: '#st-pull', pre() { S.states.pull = 'error'; }, hold: 3600 },
+    { cap: 'Một nút kéo phần còn lại. Ba cái đã xong không bị kéo lại.', at: '[data-a=pullRest]', hold: 3400 },
+  ] },
+  { id: 'wait', name: 'Chờ lâu và bị giới hạn', steps: [
+    { cap: 'Render chậm hơn bình thường. App nói thật số phút, không có phần trăm giả.', init: { world: 'long', page: 'cook' }, hold: 4600 },
+    { cap: 'Pull chậm: nói lý do, và nói anh rời đi được.', at: '#st-pull', pre() { S.states.pull = 'long'; }, hold: 4000 },
+    { cap: 'Hết giới hạn giờ của Instagram: 2 rival xong, còn 11.', at: '#st-insight', pre() { S.states.pull = 'limited'; }, then() { go('pull'); }, hold: 3600 },
+    { cap: 'Một nút: bật đường thứ hai và kéo tiếp 11 rival.', at: '[data-a=turnOn]', hold: 3400 },
+    { cap: 'Claude hết giới hạn: linh vật ngủ, việc đã xong vẫn giữ, có thể đưa cho Codex.', at: '#st-cook', pre() { S.states.cook = 'limited'; }, hold: 4000 },
+  ] },
+  { id: 'steer', name: 'Chỉnh giữa chừng và cầm lái', steps: [
+    { cap: 'Claude đang build. Anh muốn nói gì thì nói, nó không dừng.', init: { world: 'running', page: 'cook' }, hold: 3200 },
+    { cap: 'Gõ một câu bằng lời của anh.', at: '#steer', type: 'Lower the music in chapter 2' },
+    { cap: 'Gửi. Câu đó có biên nhận: đã gửi, đã đọc, rồi Claude đã làm gì.', at: '[data-a=sendNote]', then() { flushSim(); }, hold: 3800 },
+    { cap: 'Muốn nhìn tận nơi thì mở màn hình của Claude. Mặc định nó ẩn, cần mới mở.', at: '[data-a=openScreen]', hold: 2800 },
+    { cap: 'Cầm lái: Claude tạm dừng, các bước đã xong vẫn giữ.', at: '[data-a=takeOver]', hold: 3000 },
+    { cap: 'Trả lại. App nhắc anh báo cho Claude đã đổi gì.', at: '#screen [data-a=giveBack]', hold: 3400 },
+  ] },
+];
+const T = { j: 0, i: -1, playing: false, timer: null, seq: 0 };
+window.__tour = T; window.__tourErrors = [];
+const ci = () => document.getElementById('cursor');
+function flushSim() { if (TOUR) { const was = INSTANT; INSTANT = true; const list = pendingFlush.splice(0); list.forEach(f => f()); INSTANT = was; } }
+const pendingFlush = [];
+const _after = after;
+after = function (ms, fn) { if (TOUR && !INSTANT) { pendingFlush.push(fn); const id = setTimeout(() => { const k = pendingFlush.indexOf(fn); if (k >= 0) { pendingFlush.splice(k, 1); fn(); } }, ms); timers.push(id); return; } return _after(ms, fn); };
+function initWorld(init) {
+  clearTimers(); pendingFlush.length = 0; S = FRESH();
+  if (init.world) { const w = WORLD[init.world]; for (const k in S.states) S.states[k] = w[k]; S.askQ = w.askQ; S.run.step = w.step; S.pick = init.world; }
+  S.page = init.page || 'desk'; S.dir = 0; renderSheets(); render(true);
+}
+function stepEl(st) {
+  if (!st.at) return null;
+  const el = document.querySelector(st.at);
+  if (!el) { const msg = `tour ${JOURNEYS[T.j].id} step: missing ${st.at}`; window.__tourErrors.push(msg); console.error(msg); }
+  return el;
+}
+function applyStep(st, el) { if (st.type && el) { S.draft = st.type; el.value = st.type; } else if (el) el.click(); if (st.then) st.then(); }
+function replayTo(n) {
+  const J = JOURNEYS[T.j]; INSTANT = true;
+  for (let k = 0; k < n; k++) { const st = J.steps[k]; if (st.init) initWorld(st.init); if (st.pre) { st.pre(); render(); } applyStep(st, stepEl(st)); }
+  INSTANT = false;
+}
+function showCap(i) {
+  const J = JOURNEYS[T.j], c = $('#capt');
+  c.innerHTML = `<small>Bước ${i + 1} / ${J.steps.length}</small>${J.steps[i].cap}`; c.classList.add('on');
+  $('#dots').querySelectorAll('button').forEach((d, k) => { d.className = k === i ? 'on' : k < i ? 'past' : ''; });
+}
+function moveCursor(el) { const r = el.getBoundingClientRect(), c = ci(); c.classList.add('on'); c.style.transform = `translate(${r.left + r.width / 2 - 3}px,${r.top + Math.min(r.height / 2, 24) - 3}px)`; return r; }
+function goStep(i, fresh) {
+  const J = JOURNEYS[T.j], seq = ++T.seq;
+  if (i < 0 || i >= J.steps.length) return;
+  clearTimeout(T.timer); TOUR = true;
+  if (fresh || i <= T.i) { const start = J.steps[0]; initWorld(start.init || {}); replayTo(i); }
+  T.i = i; const st = J.steps[i];
+  if (st.init && i === 0 && !fresh) initWorld(st.init);
+  if (st.pre) { st.pre(); render(); }
+  showCap(i);
+  const speed = window.__tourSpeed || 1;
+  const finish = () => {
+    if (seq !== T.seq) return;
+    const hold = (st.hold || Math.max(2600, st.cap.length * 42)) / speed;
+    T.timer = setTimeout(() => {
+      if (seq !== T.seq) return;
+      if (T.playing) { if (i + 1 < J.steps.length) goStep(i + 1); else endTour(); }
+    }, hold);
+  };
+  const el = stepEl(st);
+  if (!el) return finish();
+  el.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const r = moveCursor(el);
+  setTimeout(() => {
+    if (seq !== T.seq) return;
+    ci().classList.add('press');
+    const ring = document.createElement('div'); ring.className = 'ring'; ring.style.left = r.left + r.width / 2 + 'px'; ring.style.top = r.top + Math.min(r.height / 2, 24) + 'px'; document.body.append(ring); setTimeout(() => ring.remove(), 460);
+    setTimeout(() => ci().classList.remove('press'), 130);
+    applyStep(st, el);
+    finish();
+  }, 680 / speed);
+}
+function setPlay(p) { T.playing = p; $('#playTxt').textContent = p ? 'Pause' : T.i < 0 ? 'Play' : T.i >= JOURNEYS[T.j].steps.length - 1 ? 'Replay' : 'Play'; $('#playIcon').innerHTML = p ? '<path d="M2 1h3v10H2zM7 1h3v10H7z" fill="currentColor"/>' : '<path d="M2 1l9 5-9 5z" fill="currentColor"/>'; }
+function endTour() { setPlay(false); TOUR = false; window.__tourDone = JOURNEYS[T.j].id; }
+function pauseTour() { if (!T.playing) return; T.seq++; clearTimeout(T.timer); setPlay(false); }
+function handBack() { pauseTour(); TOUR = false; $('#capt').classList.remove('on'); ci().classList.remove('on'); if (S.states.pull === 'running') after(420, pullTick); }
+function stopTour() { pauseTour(); TOUR = false; T.i = -1; $('#capt').classList.remove('on'); ci().classList.remove('on'); setPlay(false); buildDots(); }
+function buildDots() { const d = $('#dots'); d.innerHTML = ''; JOURNEYS[T.j].steps.forEach((s, k) => { const b = document.createElement('button'); b.setAttribute('aria-label', `Step ${k + 1}`); b.onclick = () => { pauseTour(); goStep(k); }; d.append(b); }); }
+window.__selectJourney = j => { T.j = j; T.i = -1; T.seq++; clearTimeout(T.timer); $('#journey').value = j; setPlay(false); buildDots(); };
+
+/* ---------- boot ---------- */
+$('#line').insertAdjacentHTML('beforeend', STATIONS.map((st, i) => `<button class="st" id="st-${st.id}" data-go="${st.id}" style="left:${i / 6 * 100}%"><span class="node"></span><span class="stl">${st.label}</span></button>`).join(''));
+$('#journey').innerHTML = JOURNEYS.map((J, i) => `<option value="${i}">${J.name}</option>`).join('');
+$('#stateSeg').innerHTML = STATES.map(([k, l]) => `<button data-s="${k}">${l}</button>`).join('');
+$('#stateSel').innerHTML = STATES.map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+$('#stateSeg').onclick = e => { const b = e.target.closest('[data-s]'); if (b) { stopTour(); pickState(b.dataset.s); } };
+$('#stateSel').onchange = e => { stopTour(); pickState(e.target.value); };
+$('#journey').onchange = e => { stopTour(); T.j = +e.target.value; buildDots(); setPlay(true); goStep(0, true); };
+$('#play').onclick = () => { if (T.playing) return pauseTour(); setPlay(true); if (T.i < 0 || T.i >= JOURNEYS[T.j].steps.length - 1) goStep(0, true); else goStep(T.i + 1); };
+$('#prev').onclick = () => { pauseTour(); goStep(Math.max(0, T.i - 1)); };
+$('#next').onclick = () => { pauseTour(); goStep(Math.min(JOURNEYS[T.j].steps.length - 1, T.i + 1)); };
+const prefersDark = matchMedia('(prefers-color-scheme: dark)').matches, Q = new URLSearchParams(location.search);
+function setTheme(dark) { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; bus.dark = dark; }
+setTheme(Q.get('theme') ? Q.get('theme') === 'dark' : prefersDark);
+$('#theme').onclick = () => setTheme(document.documentElement.dataset.theme !== 'dark');
+addEventListener('pointerdown', e => { if (e.isTrusted && TOUR && !e.target.closest('.demo')) handBack(); });
+buildDots(); render(true);
+if (Q.get('page')) { S.page = Q.get('page'); render(true); }
+if (Q.get('state')) pickState(Q.get('state'));
+window.__app = { get S() { return S; }, go, pickState, render, JOURNEYS, STATES, goStep, stopTour };
+</script>
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let REDUCED = mq.matches;
+mq.addEventListener('change', e => { REDUCED = e.matches; });
+const Q = new URLSearchParams(location.search);
+const TAU = Math.PI * 2;
+const STILL = Q.has('still');
+if (STILL) document.documentElement.classList.add('still');
+const lerp = (a, b, k) => a + (b - a) * k;
+const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const v3 = hex => { const n = parseInt(hex.slice(1), 16); return new THREE.Vector3((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255); };
+
+const PALETTES = {
+  peach:    { top:'#ffd69e', mid:'#ffb582', bottom:'#ff8fa5', rim:'#ffe9da', orbTop:'#ffc690', orbBottom:'#ff8a66', blush:'255,110,138', shadow:'#ff9f78' },
+  mint:     { top:'#e6f9a6', mid:'#a6ee9d', bottom:'#5ed79c', rim:'#eefff2', orbTop:'#d2f8a4', orbBottom:'#6fdc8f', blush:'255,130,150', shadow:'#76d6a2' },
+  sky:      { top:'#d3e5ff', mid:'#98bcff', bottom:'#5f86ff', rim:'#eaf2ff', orbTop:'#bcd4ff', orbBottom:'#6a92ff', blush:'255,130,185', shadow:'#7d9cff' },
+  lavender: { top:'#f1d9ff', mid:'#c9a4ff', bottom:'#9b72ff', rim:'#f6ecff', orbTop:'#dfbcff', orbBottom:'#a37bff', blush:'255,125,185', shadow:'#a78aff' },
+  pink:     { top:'#ffd6df', mid:'#ffa9c2', bottom:'#ff7ba3', rim:'#ffecf1', orbTop:'#ffb8cb', orbBottom:'#ff7397', blush:'255,90,135', shadow:'#ff8fb0' },
+};
+const COLOR_META = [['peach','Peach','Main (default)'],['mint','Mint','Calm & focus'],['sky','Sky','Professional'],['lavender','Lavender','Creative'],['pink','Pink','Playful']];
+const EXPRS = [['normal','Normal'],['happy','Happy'],['excited','Excited'],['curious','Curious'],['thinking','Thinking'],['focused','Focused'],['surprised','Surprised'],['sleeping','Sleeping'],['celebrating','Celebrating']];
+const POSES = [['floating','Floating'],['greeting','Greeting'],['thinking','Thinking'],['explaining','Explaining'],['working','Working'],['finding','Finding answers'],['cheering','Cheering']];
+const POSE_EXPR = { floating:'normal', greeting:'happy', thinking:'thinking', explaining:'happy', working:'focused', finding:'curious', cheering:'celebrating' };
+const ANGLES = [['front','Front',0],['three','3/4 view',0.62],['side','Side view',1.25]];
+const STEPS = [
+  { pose:'greeting', expr:'happy',       title:'Greeting',    say:'Hi Kai! Ready to help today?' },
+  { pose:'thinking', expr:'thinking',    title:'Thinking',    say:'Hmm, let me think this through…' },
+  { pose:'working',  expr:'focused',     title:'Working',     say:'Pulling your numbers into a report…' },
+  { pose:'cheering', expr:'celebrating', title:'Celebrating', say:'All set! Great progress!' },
+];
+const STEP_MS = 3200;
+
+// ---------- shared geometry ----------
+const B = 0.86; // distance from body centre to its flat-ish bottom
+function withDir(g) { g.setAttribute('dir', g.attributes.normal.clone()); return g; }
+function blobGeometry() {
+  const g = new THREE.SphereGeometry(1, 112, 80);
+  const p = g.attributes.position, dir = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    dir.set([v.x, v.y, v.z], i * 3);
+    let { x, y, z } = v;
+    const s = 1 + 0.08 * (1 - ss(-0.7, 0.45, y)) - 0.045 * ss(0.1, 1, y);   // narrow top, soft wide bottom
+    x *= s * 1.03; z *= s * 0.94;
+    y = y < 0 ? -0.86 * (-y) * (1.14 - 0.14 * y * y) : 1.0 * y;            // squat, rounded-flat underside
+    x += 0.055 * y;                                                        // top leans right, belly bulges left
+    p.setXYZ(i, x, y, z);
+  }
+  g.setAttribute('dir', new THREE.BufferAttribute(dir, 3));
+  g.computeVertexNormals();
+  return g;
+}
+const GEO = {
+  body: blobGeometry(),
+  nub: withDir(new THREE.SphereGeometry(0.2, 40, 28)),
+  orb: withDir(new THREE.SphereGeometry(0.155, 40, 28)),
+  conf: new THREE.PlaneGeometry(0.05, 0.085),
+  shadow: new THREE.PlaneGeometry(1, 1),
+};
+
+const VS = `
+attribute vec3 dir;
+uniform float uTime, uWobble;
+varying vec3 vDir, vN, vV;
+void main(){
+  vDir = dir;
+  float w = sin(dir.y*3.1 + uTime*1.6) * sin(dir.x*2.3 + uTime*1.1);
+  vec4 mv = modelViewMatrix * vec4(position + normal * w * uWobble, 1.0);
+  vV = -mv.xyz;
+  vN = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+uniform vec3 uTop, uMid, uBottom, uRim;
+uniform sampler2D uFace;
+uniform float uFaceOn, uGlow;
+varying vec3 vDir, vN, vV;
+void main(){
+  vec3 N = normalize(vN), V = normalize(vV);
+  float h = vDir.y;
+  vec3 base = mix(uBottom, uMid, smoothstep(-0.95, 0.05, h));
+  base = mix(base, uTop, smoothstep(0.1, 0.95, h));
+  float wash = smoothstep(0.15, 1.1, -0.55*vDir.x - 0.75*vDir.y + 0.1*vDir.z);
+  base = mix(base, uBottom, 0.42*wash);
+  vec3 L = normalize(vec3(-0.5, 0.8, 0.6));
+  float wrap = clamp((dot(N, L) + 0.8) / 1.8, 0.0, 1.0);
+  vec3 col = base * (0.86 + 0.2 * wrap);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.3);
+  col = mix(col, uRim, fres * (0.5 + 0.3*uGlow));
+  col += uBottom * 0.10 * smoothstep(-0.2, -1.0, N.y);
+  vec3 H = normalize(L + V);
+  float nh = max(dot(N, H), 0.0);
+  vec3 spec = vec3(1.0, 0.98, 0.95) * (pow(nh, 14.0) * 0.06 + pow(nh, 70.0) * 0.08);
+  col += spec;
+  // sample outside any branch so mip selection stays smooth; mask to the front half
+  vec2 uv = vec2(atan(vDir.x, vDir.z) * 0.5 + 0.5, asin(clamp(vDir.y, -1.0, 1.0)) + 0.5);
+  vec4 f = texture2D(uFace, uv) * uFaceOn * smoothstep(0.05, 0.25, vDir.z);
+  col = col * (1.0 - f.a) + f.rgb + spec * 1.6 * f.a;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ---------- shared sprite textures ----------
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const FONT = '"SF Pro Rounded",ui-rounded,"Nunito","Varela Round",system-ui,sans-serif';
+const TEX = {
+  q: canvasTex(128, 128, (x) => { x.fillStyle = '#8b87f3'; x.font = `800 112px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', 64, 70); }),
+  z: canvasTex(128, 128, (x) => { x.fillStyle = '#7f8bf2'; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', 64, 62); }),
+  shadow: canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }),
+};
+const dashTex = {};
+function dash(color) {
+  return dashTex[color] ||= canvasTex(128, 32, (x) => { x.strokeStyle = color; x.lineWidth = 15; x.lineCap = 'round'; x.beginPath(); x.moveTo(14, 16); x.lineTo(114, 16); x.stroke(); });
+}
+
+// ---------- shared prop materials ----------
+const MAT = {
+  lap: new THREE.MeshStandardMaterial({ color: '#626a96', roughness: 0.38, metalness: 0.2 }),
+  lapDark: new THREE.MeshStandardMaterial({ color: '#434a72', roughness: 0.55 }),
+  logo: new THREE.MeshStandardMaterial({ color: '#9aa1cc', roughness: 0.3 }),
+  ring: new THREE.MeshStandardMaterial({ color: '#2d355c', roughness: 0.3, metalness: 0.3 }),
+  glass: new THREE.MeshBasicMaterial({ color: '#e4f2ff', transparent: true, opacity: 0.32, depthWrite: false }),
+  bulb: new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffbe3d', emissiveIntensity: 0.65, roughness: 0.25 }),
+  neck: new THREE.MeshStandardMaterial({ color: '#c9c2d9', roughness: 0.4, metalness: 0.2 }),
+  conf: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+};
+const CONF_COLORS = ['#ff9f6e', '#9b8cf5', '#5ccfa0', '#ffc94d', '#ff7ea1', '#6aa5ff'].map(c => new THREE.Color(c));
+
+function sprite(tex, w, h = w) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  s.scale.set(w, h, 1); return s;
+}
+// little radiating dashes, like the "!" marks on the boards
+function burst(color, cx, cy, pts) {
+  const g = new THREE.Group();
+  for (const [x, y, len = 0.17] of pts) {
+    const s = sprite(dash(color), len, len / 4);
+    s.material.rotation = Math.atan2(y - cy, x - cx);
+    s.position.set(x, y, 0.3); s.userData.base = [x, y, cx, cy]; g.add(s);
+  }
+  return g;
+}
+
+let THEME_DARK = false;
+const allMascots = new Set();
+
+// ---------- the mascot ----------
+class Mascot {
+  constructor({ faceSize = 512, hero = false, faceless = false } = {}) {
+    this.hero = hero; this.faceless = faceless;
+    this.group = new THREE.Group();
+    this.root = new THREE.Group(); this.group.add(this.root);
+    this.squash = new THREE.Group(); this.squash.position.y = -B; this.root.add(this.squash);
+    this.turn = new THREE.Group(); this.turn.position.y = B; this.squash.add(this.turn);
+
+    this.fc = document.createElement('canvas'); this.fc.width = faceSize; this.fc.height = faceSize / 2;
+    this.fx = this.fc.getContext('2d');
+    this.faceTex = new THREE.CanvasTexture(this.fc);
+    this.faceTex.premultiplyAlpha = true; this.faceTex.colorSpace = THREE.NoColorSpace;
+    if (hero) { this.faceTex.generateMipmaps = false; this.faceTex.minFilter = THREE.LinearFilter; }
+    else this.faceTex.anisotropy = 4;
+
+    const U = this.u = {
+      uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uRim: { value: new THREE.Vector3() },
+      uFace: { value: this.faceTex }, uFaceOn: { value: faceless ? 0 : 1 }, uGlow: { value: 0 }, uTime: { value: 0 }, uWobble: { value: 0.012 },
+    };
+    const mat = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS });
+    this.body = new THREE.Mesh(GEO.body, mat(U)); this.turn.add(this.body);
+
+    const nubU = { ...U, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    const nubMat = mat(nubU);
+    this.nubR = new THREE.Mesh(GEO.nub, nubMat); this.nubL = new THREE.Mesh(GEO.nub, nubMat);
+    this.nubR.scale.set(1, 0.86, 0.9); this.nubL.scale.copy(this.nubR.scale);
+    this.turn.add(this.nubR, this.nubL);
+
+    this.ou = { ...U, uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    this.orb = new THREE.Mesh(GEO.orb, mat(this.ou)); this.group.add(this.orb);
+
+    this.shadowMat = new THREE.MeshBasicMaterial({ map: TEX.shadow, transparent: true, depthWrite: false, opacity: 0.5 });
+    this.shadow = new THREE.Mesh(GEO.shadow, this.shadowMat);
+    this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = -B - 0.06; this.group.add(this.shadow);
+
+    this.buildProps();
+    this.buildDecor();
+
+    this.s = { expr: 'normal', pose: 'floating', color: 'peach' };
+    this.yaw = 0; this.yawTarget = 0; this.tilt = 0;
+    this.gaze = { x: 0, y: 0 }; this.gazeTarget = { x: 0, y: 0 };
+    this.seed = Math.random() * 100;
+    this.nextBlink = 1 + Math.random() * 3; this.blinkAt = -9;
+    this.bounceAt = -9; this.popAt = -9; this.happyUntil = -9;
+    this.now = 0; this.faceKey = '';
+    this.setColor('peach');
+    allMascots.add(this);
+  }
+
+  buildProps() {
+    const lap = this.laptop = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.56), MAT.lapDark);
+    const lid = new THREE.Group(); lid.position.set(0, 0.02, 0.28); lid.rotation.x = 0.22;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.035), MAT.lap); panel.position.y = 0.28;
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(0.045, 24), MAT.logo); logo.position.set(0, 0.3, 0.019);
+    lid.add(panel, logo); lap.add(base, lid);
+    lap.position.set(0.34, -0.74, 0.98); lap.rotation.y = -0.38;
+
+    const mag = this.magnifier = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.045, 18, 56), MAT.ring);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.25, 40), MAT.glass);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.36, 18), MAT.ring);
+    const d = new THREE.Vector2(0.5, -0.86).normalize();
+    handle.position.set(d.x * 0.45, d.y * 0.45, 0); handle.rotation.z = -Math.atan2(d.x, d.y) + Math.PI;
+    mag.add(ring, glass, handle);
+    mag.position.set(-1.08, 0.18, 0.42); mag.rotation.y = 0.35;
+
+    const bulb = this.bulb = new THREE.Group();
+    const glassB = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), MAT.bulb);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.11, 20), MAT.neck); neck.position.y = -0.17;
+    bulb.add(glassB, neck, burst('#ffc14d', 0, 0, [[0, 0.3, 0.13], [-0.25, 0.2, 0.13], [0.25, 0.2, 0.13], [-0.32, -0.02, 0.12], [0.32, -0.02, 0.12]]));
+    bulb.position.set(-0.8, 1.12, 0.2);
+    this.turn.add(lap, mag); this.root.add(bulb);
+  }
+
+  buildDecor() {
+    const r = this.root;
+    this.q = sprite(TEX.q, 0.36); this.q.position.set(0.98, 1.08, 0.25);
+    this.z1 = sprite(TEX.z, 0.2); this.z2 = sprite(TEX.z, 0.32);
+    this.sparkR = burst('#ff9f62', 0.62, 0.58, [[0.98, 1.02], [1.16, 0.84], [1.24, 0.6]]);
+    this.sparkV = burst('#9d8df6', 0.6, 0.6, [[0.9, 1.08, 0.15], [1.12, 0.92, 0.15]]);
+    this.sparkL = burst('#ff9f62', -0.62, 0.58, [[-0.98, 1.0], [-1.18, 0.78], [-1.24, 0.55]]);
+    this.wave = burst('#4b5a9e', 0.7, 0.35, [[1.08, 0.72, 0.15], [1.22, 0.52, 0.15]]);
+    r.add(this.q, this.z1, this.z2, this.sparkR, this.sparkV, this.sparkL, this.wave);
+  }
+
+  initConfetti() {
+    const n = 40;
+    this.conf = new THREE.InstancedMesh(GEO.conf, MAT.conf, n);
+    this.cp = [];
+    for (let i = 0; i < n; i++) {
+      this.conf.setColorAt(i, CONF_COLORS[i % CONF_COLORS.length]);
+      const c = { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() };
+      this.spawn(c, true); this.cp.push(c);
+    }
+    this.confDummy = new THREE.Object3D();
+    this.group.add(this.conf);
+  }
+  spawn(c, scatter) {
+    const R = Math.random;
+    if (scatter) c.p.set((R() - 0.5) * 2.8, R() * 1.9 - 0.4, (R() - 0.5) * 0.8 + 0.2);
+    else c.p.set((R() - 0.5) * 0.5, 0.95, 0.2);
+    c.v.set((R() - 0.5) * 2.6, 1.8 + R() * 1.8, (R() - 0.5) * 0.9);
+    c.r.set(R() * TAU, R() * TAU, R() * TAU);
+    c.w.set((R() - 0.5) * 9, (R() - 0.5) * 9, (R() - 0.5) * 9);
+  }
+
+  setColor(name) {
+    const P = PALETTES[name]; this.s.color = name;
+    this.u.uTop.value.copy(v3(P.top)); this.u.uMid.value.copy(v3(P.mid)); this.u.uBottom.value.copy(v3(P.bottom)); this.u.uRim.value.copy(v3(P.rim));
+    this.ou.uTop.value.copy(v3(P.orbTop)); this.ou.uMid.value.copy(v3(P.orbTop)).lerp(v3(P.orbBottom), 0.5); this.ou.uBottom.value.copy(v3(P.orbBottom));
+    this.shadowMat.color.set(P.shadow);
+    this.blush = P.blush; this.faceKey = '';
+  }
+  setExpr(e) { if (e !== this.s.expr) { this.s.expr = e; this.popAt = this.now; } }
+  setPose(p) { if (p !== this.s.pose) { this.s.pose = p; this.popAt = this.now; } }
+  bounce() { this.bounceAt = this.now; this.happyUntil = this.now + 1.2; }
+
+  update(t, dt) {
+    this.now = t;
+    const R = REDUCED, s = this.s;
+    const expr = t < this.happyUntil && !['excited', 'celebrating'].includes(s.expr) ? 'happy' : s.expr;
+    const pose = s.pose;
+    const sleeping = expr === 'sleeping';
+    const ft = R ? 0 : t + this.seed;
+    this.u.uTime.value = ft;
+    this.u.uGlow.value = this.glow ?? (THEME_DARK ? 1 : 0);
+
+    let y = R ? 0 : Math.sin(ft * (sleeping ? 0.8 : 1.5)) * (sleeping ? 0.03 : 0.065);
+    let sy = 1 + (R ? 0 : Math.sin(ft * (sleeping ? 1.1 : 2.2)) * (sleeping ? 0.03 : 0.022));
+    if (!R && (expr === 'excited' || expr === 'celebrating' || pose === 'cheering')) {
+      const hop = Math.abs(Math.sin(ft * 4.2));
+      y += hop * 0.11; sy *= 1 + 0.035 * hop - 0.07 * (1 - ss(0, 0.3, hop));
+    }
+    const bp = (t - this.bounceAt) / 0.9;
+    if (!R && bp >= 0 && bp < 1) {
+      if (bp < 0.15) sy *= 1 - 0.15 * Math.sin(bp / 0.15 * Math.PI / 2);
+      else if (bp < 0.72) { const q = (bp - 0.15) / 0.57; y += Math.sin(q * Math.PI) * 0.42; sy *= 1 + 0.13 * (1 - 2 * q) ** 2; }
+      else { const r = (bp - 0.72) / 0.28; sy *= 1 - 0.14 * Math.sin(r * Math.PI) * (1 - 0.4 * r); }
+    }
+    const pp = (t - this.popAt) / 0.35;
+    if (!R && pp >= 0 && pp < 1) sy *= 1 + 0.07 * Math.sin(pp * Math.PI) * (1 - pp);
+    const sx = 1 / Math.sqrt(sy);
+    this.squash.scale.set(sx, sy, sx);
+    this.root.position.y = y;
+
+    // gaze + turn
+    const gt = expr === 'thinking' ? { x: 0.6, y: 0.75 } : sleeping ? { x: 0, y: -0.2 } : pose === 'finding' ? { x: -0.55, y: 0.05 } : pose === 'working' ? { x: 0.2, y: -0.55 } : this.gazeTarget;
+    const kg = R ? 1 : 1 - Math.exp(-dt * 10);
+    this.gaze.x = lerp(this.gaze.x, gt.x, kg); this.gaze.y = lerp(this.gaze.y, gt.y, kg);
+    const ky = R ? 1 : 1 - Math.exp(-dt * 6);
+    this.yaw = lerp(this.yaw, this.yawTarget + this.gaze.x * 0.26, ky);
+    this.turn.rotation.y = this.yaw;
+    this.turn.rotation.x = lerp(this.turn.rotation.x, -this.gaze.y * 0.12, ky);
+    const tiltT = expr === 'curious' ? 0.13 : expr === 'thinking' ? -0.07 : sleeping ? 0.06 : 0;
+    this.tilt = lerp(this.tilt, tiltT, ky); this.root.rotation.z = this.tilt;
+
+    // blink
+    if (!R && !STILL && t > this.nextBlink) { this.blinkAt = t; this.nextBlink = t + (Math.random() < 0.2 ? 0.25 : 2.4 + Math.random() * 3); }
+    const bt = (t - this.blinkAt) / 0.15;
+    const blink = bt >= 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+
+    if (!this.faceless) {
+      const key = `${expr}|${this.gaze.x.toFixed(2)}|${this.gaze.y.toFixed(2)}|${blink.toFixed(2)}|${this.blush}`;
+      if (key !== this.faceKey) { this.faceKey = key; drawFace(this.fx, this.fc.width, this.fc.height, expr, this.gaze, blink, this.blush); this.faceTex.needsUpdate = true; }
+    }
+
+    // orb companion
+    const fl = this.faceless;
+    this.orb.position.set(fl ? 0.72 : 0.98 + 0.04 * Math.sin(ft * 0.9), (fl ? -0.38 : 0.98) + 0.06 * Math.sin(ft * 1.7 + 1), fl ? 0.75 : 0.15);
+    this.orb.scale.setScalar(fl ? 1.9 : 1);
+    this.orb.visible = fl || !['curious', 'sleeping', 'surprised', 'excited'].includes(expr) && pose !== 'greeting';
+
+    // shadow
+    const sh = 1 - y * 0.55;
+    this.shadow.scale.set(2.0 * sh, 1.25 * sh, 1);
+    this.shadowMat.opacity = (THEME_DARK && !this.glow ? 0.32 : 0.5) * (1 - y * 0.9);
+
+    // props
+    const wave = R ? 0 : Math.sin(ft * 9);
+    this.laptop.visible = pose === 'working';
+    this.magnifier.visible = pose === 'finding';
+    if (this.magnifier.visible) this.magnifier.position.y = 0.18 + (R ? 0 : 0.04 * Math.sin(ft * 1.3));
+    this.bulb.visible = pose === 'explaining';
+    if (this.bulb.visible) this.bulb.position.y = 1.12 + (R ? 0 : 0.04 * Math.sin(ft * 2));
+    this.nubR.visible = pose === 'greeting' || pose === 'thinking' || pose === 'cheering';
+    this.nubL.visible = pose === 'cheering';
+    if (pose === 'greeting') this.nubR.position.set(0.98 + 0.02 * wave, -0.22 + 0.09 * wave, 0.32);
+    if (pose === 'thinking') this.nubR.position.set(0.3, -0.55 + (R ? 0 : 0.015 * Math.sin(ft * 2)), 0.86);
+    if (pose === 'cheering') {
+      const c = R ? 0.5 : (Math.sin(ft * 8.4) + 1) / 2;
+      this.nubR.position.set(0.98, 0.08 + 0.12 * c, 0.26); this.nubL.position.set(-1.0, 0.08 + 0.12 * (1 - c), 0.26);
+    }
+
+    // decor
+    this.q.visible = expr === 'curious';
+    if (this.q.visible) { this.q.position.y = 1.08 + (R ? 0 : 0.05 * Math.sin(ft * 2.2)); this.q.material.rotation = R ? 0.15 : 0.15 + 0.1 * Math.sin(ft * 1.7); }
+    this.z1.visible = this.z2.visible = sleeping;
+    if (sleeping) {
+      [this.z1, this.z2].forEach((z, i) => {
+        const ph = R ? 0.35 + i * 0.3 : (ft * 0.3 + i * 0.5) % 1;
+        z.position.set(0.66 + ph * 0.42 + i * 0.05, 0.78 + ph * 0.55, 0.3);
+        z.material.opacity = R ? 1 : Math.sin(ph * Math.PI);
+        z.material.rotation = -0.2;
+      });
+    }
+    const celebrate = expr === 'celebrating' || pose === 'cheering';
+    this.sparkR.visible = expr === 'excited' || celebrate;
+    this.sparkL.visible = celebrate;
+    this.sparkV.visible = expr === 'surprised';
+    this.wave.visible = pose === 'greeting';
+    const pulse = R ? 1 : 1 + 0.08 * Math.sin(ft * 6);
+    for (const g of [this.sparkR, this.sparkL, this.sparkV, this.wave]) if (g.visible) for (const d of g.children) {
+      const [x, yy, cx, cy] = d.userData.base;
+      d.position.set(cx + (x - cx) * pulse, cy + (yy - cy) * pulse, 0.3);
+    }
+
+    // confetti
+    if (celebrate && !this.conf) this.initConfetti();
+    if (this.conf) {
+      this.conf.visible = celebrate;
+      if (celebrate && !R) {
+        const D = this.confDummy;
+        this.cp.forEach((c, i) => {
+          c.v.y -= 3.4 * dt; c.v.x *= 0.985; c.v.z *= 0.985; if (c.v.y < -0.9) c.v.y = -0.9;
+          c.p.addScaledVector(c.v, dt);
+          c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+          if (c.p.y < -1.0) this.spawn(c, false);
+          D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix);
+        });
+        this.conf.instanceMatrix.needsUpdate = true;
+      } else if (celebrate && !this.confStill) {
+        const D = this.confDummy; this.confStill = true;
+        this.cp.forEach((c, i) => { D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix); });
+        this.conf.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+}
+
+// ---------- the face, painted in angle space (1 canvas px row = same angle both axes) ----------
+const INK = '#1b1520';
+function drawFace(x, W, H, expr, gaze, blink, blush) {
+  const S = W / 2, cx = W / 2, cy = H / 2;
+  const P = (ax, ay) => [cx + ax * S, cy - ay * S];
+  x.clearRect(0, 0, W, H);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+
+  const strong = expr === 'celebrating' || expr === 'excited' || expr === 'happy' || expr === 'sleeping';
+  for (const sd of [-1, 1]) {
+    const [bx, by] = P(sd * 0.56, -0.03), r = 0.15 * S;
+    const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+    g.addColorStop(0, `rgba(${blush},${strong ? 0.62 : 0.54})`); g.addColorStop(0.55, `rgba(${blush},${strong ? 0.3 : 0.25})`); g.addColorStop(1, `rgba(${blush},0)`);
+    x.fillStyle = g; x.beginPath(); x.ellipse(bx, by, r, r * 0.78, 0, 0, TAU); x.fill();
+  }
+
+  const ox = gaze.x * 0.05, oy = gaze.y * 0.035;
+  const rx = 0.088 * S, ry = 0.136 * S, lw = 0.032 * S;
+  x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = lw;
+  for (const sd of [-1, 1]) {
+    const [ex, ey] = P(sd * 0.37 + ox, 0.14 + oy);
+    let k = 1 - blink * 0.94;
+    const big = expr === 'curious' && sd === 1 ? 1.12 : 1;
+    if (expr === 'happy' || expr === 'celebrating') arc(x, ex, ey + ry * 0.2, rx * 1.15, -ry * 0.95);
+    else if (expr === 'sleeping') arc(x, ex, ey - ry * 0.05, rx * 1.15, ry * 0.75);
+    else if (expr === 'excited') {
+      x.beginPath(); x.moveTo(ex + sd * rx * 0.85, ey - ry * 0.62); x.lineTo(ex - sd * rx * 0.75, ey); x.lineTo(ex + sd * rx * 0.85, ey + ry * 0.62); x.stroke();
+    } else if (k < 0.3) arc(x, ex, ey, rx * 1.05, ry * 0.3);
+    else if (expr === 'surprised') eye(x, ex, ey, rx * 1.15, rx * 1.2 * k, 0, null, true);
+    else if (expr === 'focused') eye(x, ex, ey + ry * 0.08, rx, ry * 0.92 * k, 0, sd);
+    else eye(x, ex, ey, rx * big, ry * big * k, sd * 0.08);
+  }
+
+  const m = (ax, ay) => P((ax + ox * 0.6) * 1.25, (ay + oy * 0.5) * 1.25 + 0.02);
+  x.lineWidth = lw * 0.95;
+  x.beginPath();
+  if (expr === 'happy') { x.moveTo(...m(-0.08, -0.02)); x.quadraticCurveTo(...m(0, -0.11), ...m(0.08, -0.02)); x.stroke(); }
+  else if (expr === 'excited' || expr === 'celebrating') {
+    x.moveTo(...m(-0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.005), ...m(0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.15), ...m(-0.085, -0.02)); x.closePath();
+    x.fillStyle = '#3a1a28'; x.fill(); x.save(); x.clip(); x.fillStyle = '#ff7f96'; x.beginPath(); x.ellipse(...m(0, -0.115), 0.06 * S, 0.04 * S, 0, 0, TAU); x.fill(); x.restore();
+    x.fillStyle = INK;
+  } else if (expr === 'surprised') { x.ellipse(...m(0, -0.06), 0.028 * S, 0.036 * S, 0, 0, TAU); x.fillStyle = '#3a1a28'; x.fill(); x.fillStyle = INK; }
+  else if (expr === 'thinking') { x.moveTo(...m(0.0, -0.045)); x.quadraticCurveTo(...m(0.035, -0.06), ...m(0.07, -0.035)); x.stroke(); }
+  else if (expr === 'focused') { x.moveTo(...m(-0.035, -0.05)); x.lineTo(...m(0.035, -0.05)); x.stroke(); }
+  else if (expr === 'sleeping') { x.moveTo(...m(-0.035, -0.04)); x.quadraticCurveTo(...m(0, -0.075), ...m(0.035, -0.04)); x.stroke(); }
+  else if (expr === 'curious') { x.moveTo(...m(-0.055, -0.03)); x.quadraticCurveTo(...m(0, -0.085), ...m(0.05, -0.04)); x.stroke(); }
+  else { x.moveTo(...m(-0.068, -0.025)); x.quadraticCurveTo(...m(0, -0.1), ...m(0.068, -0.025)); x.stroke(); }
+}
+function arc(x, cx, cy, hw, bend) { x.beginPath(); x.moveTo(cx - hw, cy); x.quadraticCurveTo(cx, cy + bend, cx + hw, cy); x.stroke(); }
+function eye(x, cx, cy, rx, ry, rot, lidSide, round) {
+  x.save(); x.translate(cx, cy); x.rotate(rot);
+  if (lidSide) { // determined lids: inner corner lower
+    x.beginPath(); x.moveTo(lidSide * rx * 1.4, -ry * 0.62); x.lineTo(-lidSide * rx * 1.4, -ry * 0.05); x.lineTo(-lidSide * rx * 1.4, ry * 2); x.lineTo(lidSide * rx * 1.4, ry * 2); x.closePath(); x.clip();
+  }
+  const g = x.createRadialGradient(-rx * 0.3, -ry * 0.35, ry * 0.08, 0, 0, Math.max(rx, ry) * 1.1);
+  g.addColorStop(0, '#2c2432'); g.addColorStop(1, '#0d0910');
+  x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.96)';
+  x.beginPath(); x.ellipse(-rx * 0.3, -ry * (round ? 0.38 : 0.42), rx * (round ? 0.3 : 0.34), Math.max(1, ry * (round ? 0.3 : 0.24)), -0.5, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.5)';
+  x.beginPath(); x.ellipse(rx * 0.32, ry * 0.42, rx * 0.13, Math.max(1, ry * 0.09), 0, 0, TAU); x.fill();
+  x.restore(); x.fillStyle = INK;
+}
+
+// ---------- scenes ----------
+function makeScene(m) {
+  const scene = new THREE.Scene();
+  scene.add(m.group, new THREE.HemisphereLight('#fff4ec', '#ead8ff', 1.3));
+  const d = new THREE.DirectionalLight('#ffffff', 1.7); d.position.set(-2, 3, 5); scene.add(d);
+  return scene;
+}
+function makeCam(z = 6.4, ty = 0.14) {
+  const c = new THREE.PerspectiveCamera(30, 1, 0.1, 50); c.position.set(0, 0.42, z); c.lookAt(0, ty, 0); return c;
+}
+
+
+// ---------- Lead Studio: one shared renderer, two characters ----------
+const bus = window.MascotBus;
+const R = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+R.setPixelRatio(1); R.setClearColor(0x000000, 0);
+const cast = [
+  { el: document.getElementById('riderCanvas'), key: 'rider', m: new Mascot({ faceSize: 256 }), every: 2 },
+  { el: document.getElementById('heroCanvas'), key: 'hero', m: new Mascot({ faceSize: 512 }), every: 1 },
+];
+cast.forEach(c => { c.scene = makeScene(c.m); c.cam = makeCam(5.9, 0.16); c.ctx = c.el.getContext('2d'); c.last = 0; });
+let bufW = 1, bufH = 1, last = performance.now(), frame = 0;
+addEventListener('pointermove', e => {
+  cast.forEach(c => { const r = c.el.getBoundingClientRect(); if (!r.width) return; c.m.gazeTarget = { x: Math.max(-1, Math.min(1, (e.clientX - r.left - r.width / 2) / 500)), y: Math.max(-1, Math.min(1, -(e.clientY - r.top - r.height / 2) / 400)) }; });
+});
+document.getElementById('heroCanvas').addEventListener('click', () => cast[1].m.bounce());
+function loop(now) {
+  requestAnimationFrame(loop);
+  const t = now / 1000, dpr = Math.min(devicePixelRatio, 2); last = now; frame++;
+  THEME_DARK = bus.dark;
+  if (bus.bounce) { bus.bounce = false; cast[1].m.bounce(); }
+  for (const c of cast) {
+    if (frame % c.every) continue;
+    const w = Math.round(c.el.clientWidth * dpr), h = Math.round(c.el.clientHeight * dpr);
+    if (!w || !h || !c.el.isConnected || !c.el.offsetParent) continue;
+    if (c.el.width !== w || c.el.height !== h) { c.el.width = w; c.el.height = h; }
+    if (w > bufW || h > bufH) { bufW = Math.max(bufW, w); bufH = Math.max(bufH, h); R.setSize(bufW, bufH, false); }
+    const b = bus[c.key]; c.m.setPose(b.pose); c.m.setExpr(b.expr);
+    c.m.update(t, Math.min(0.1, t - (c.last || t))); c.last = t;
+    c.cam.aspect = w / h; c.cam.updateProjectionMatrix();
+    R.setViewport(0, 0, w, h); R.render(c.scene, c.cam);
+    c.ctx.clearRect(0, 0, w, h);
+    c.ctx.drawImage(R.domElement, 0, bufH - h, w, h, 0, 0, w, h);
+  }
+  bus.frames++;
+  if (bus.frames === 2) document.documentElement.classList.add('gl-on');
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
