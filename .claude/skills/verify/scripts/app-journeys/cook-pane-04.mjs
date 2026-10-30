@@ -7,6 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { logCookState } from "../cook-diagnostics.mjs";
 
 export const dod = ["B6-01"];
 
@@ -127,7 +128,9 @@ export default async function cookPane04({ page, step, snap }) {
   try {
     await step("a fresh Cook of plan-e2e-full, slot tomorrow 19:30, keyword COOKPANE", async () => {
       const fake = path.join(ROOT, "..", "fake-claude.sh");
-      writeFileSync(fake, '#!/bin/sh\necho "fake claude $*"\nexec cat\n');
+      // Why the title: a real Claude sets one. On a shell that keeps its default title (CI), the done hook on a
+      // tab titled "Terminal 1" reads as Claude having left, and Orca clears the tab's launchAgent.
+      writeFileSync(fake, '#!/bin/sh\nprintf "\\033]0;Claude Code\\007"\necho "fake claude $*"\nexec cat\n');
       chmodSync(fake, 0o755);
       await page.evaluate((cmd) => window.__store.getState().updateSettings({ agentCmdOverrides: { claude: cmd } }), fake);
       rmSync(FILM, { recursive: true, force: true });
@@ -287,6 +290,9 @@ export default async function cookPane04({ page, step, snap }) {
       console.log(`gate 2 board shows the reel, waiting for approval; never approved here`);
       await snap("cook-pane-d-26-gate2");
     });
+  } catch (error) {
+    await logCookState(page, key, PLAN).catch((e) => console.log(`diagnostics failed: ${e.message}`));
+    throw error;
   } finally {
     sql(`delete from gate_drafts where tool = 'publish_reel' and json_extract(input, '$.postId') = '${PLAN}' and status = 'pending'`);
     await page.evaluate(() => document.documentElement.classList.remove("dark"));

@@ -80,6 +80,11 @@ jobs:
           sudo apt-get install -y -qq xvfb ffmpeg >/dev/null
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 
+      # The cook journeys write their fixture videos with ffmpeg.
+      - name: Fixture videos
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
       - name: Pick the journeys
         id: pick
         run: echo "journeys=$(node .claude/skills/verify/scripts/ci-journeys.mjs origin/${{ github.base_ref || 'main' }})" >> "$GITHUB_OUTPUT"
