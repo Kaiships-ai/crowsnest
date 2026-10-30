@@ -1,0 +1,1292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Studio Bean</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gabarito:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f6f4f7;--surface:#fff;--soft:#eeebf0;--line:rgba(40,25,55,.1);--line2:rgba(40,25,55,.18);
+  --ink:#231c2c;--muted:#6f6879;--faint:#a29baa;
+  --coral:#d9562e;--coral-soft:#fdeee8;--rose:#bf2f4e;--rose-soft:#fbecef;--amber:#99690f;--amber-soft:#f8f1df;--blue:#4a5fc9;--blue-soft:#eceffb;--green:#2b8259;
+  --floor:linear-gradient(180deg,rgba(255,255,255,0),#fff 42%);--floorm:linear-gradient(180deg,rgba(255,255,255,0),#fff 12%);--glow:rgba(255,170,130,.5);
+  --on-ink:#fff;--shadow:0 1px 2px rgba(40,20,50,.05),0 16px 40px -22px rgba(70,40,70,.3);
+  --display:"Gabarito",ui-sans-serif,-apple-system,system-ui,sans-serif;--sans:"Hanken Grotesk",ui-sans-serif,-apple-system,system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --ease:cubic-bezier(.23,1,.32,1);color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#131118;--surface:#1c1a22;--soft:#26232d;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.16);
+  --ink:#f3f0f6;--muted:#a59eaf;--faint:#726c7c;
+  --coral:#ff9270;--coral-soft:#35221d;--rose:#ff8ba2;--rose-soft:#351d25;--amber:#e6bc66;--amber-soft:#2f2717;--blue:#a6b5ff;--blue-soft:#20233a;--green:#7bd3a7;
+  --floor:linear-gradient(180deg,rgba(19,17,24,0),#1a1820 42%);--floorm:linear-gradient(180deg,rgba(19,17,24,0),#1a1820 12%);--glow:rgba(255,140,100,.2);--on-ink:#17151c;--shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px -22px rgba(0,0,0,.7);color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#131118;--surface:#1c1a22;--soft:#26232d;--line:rgba(255,255,255,.08);--line2:rgba(255,255,255,.16);
+  --ink:#f3f0f6;--muted:#a59eaf;--faint:#726c7c;
+  --coral:#ff9270;--coral-soft:#35221d;--rose:#ff8ba2;--rose-soft:#351d25;--amber:#e6bc66;--amber-soft:#2f2717;--blue:#a6b5ff;--blue-soft:#20233a;--green:#7bd3a7;
+  --floor:linear-gradient(180deg,rgba(19,17,24,0),#1a1820 42%);--floorm:linear-gradient(180deg,rgba(19,17,24,0),#1a1820 12%);--glow:rgba(255,140,100,.2);--on-ink:#17151c;--shadow:0 1px 2px rgba(0,0,0,.3),0 16px 40px -22px rgba(0,0,0,.7);color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow-x:clip}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+button,select,textarea,input{font:inherit;color:inherit}
+button{background:none;border:0;padding:0;cursor:pointer}
+:focus-visible{outline:2px solid var(--coral);outline-offset:2px;border-radius:6px}
+h1{font:600 clamp(25px,3vw,34px)/1.12 var(--display);letter-spacing:-.015em;margin:0;text-wrap:balance}
+h2{font:600 16px/1.3 var(--display);margin:0}
+p{margin:0}
+.lab{font:500 11px/1.4 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.mut{color:var(--muted)}.sm{font-size:13.5px}.num{font-variant-numeric:tabular-nums}
+
+/* prototype bar: not part of the app */
+#pb{flex:none;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 16px;background:var(--soft);border-bottom:1px solid var(--line);font-size:13px;position:relative;z-index:60}
+#pb select{height:28px;border:1px solid var(--line2);border-radius:7px;background:var(--surface);padding:0 6px;max-width:190px}
+.pbtn{height:28px;min-width:28px;border-radius:7px;border:1px solid var(--line2);background:var(--surface);padding:0 8px;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.pbtn:active{transform:scale(.96)}
+.pplay{background:var(--ink);color:var(--on-ink);border-color:var(--ink);font-weight:600;padding:0 11px}
+#dots{display:flex;gap:5px;align-items:center}
+#dots button{width:7px;height:7px;border-radius:9px;background:var(--line2);transition:width .2s var(--ease),background .2s}
+#dots button.on{width:18px;background:var(--coral)}
+#states{display:flex;gap:4px;margin-left:auto;overflow-x:auto;scrollbar-width:none}
+#states button{height:28px;padding:0 10px;border-radius:7px;color:var(--muted);white-space:nowrap}
+#states button:hover{color:var(--ink)}
+#states button[aria-pressed=true]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 0 0 1px var(--line2)}
+#cap{position:fixed;left:50%;top:58px;transform:translate(-50%,-6px);z-index:70;max-width:min(620px,calc(100vw - 32px));width:max-content;background:var(--ink);color:var(--on-ink);padding:9px 16px;border-radius:12px;font-size:14.5px;line-height:1.4;opacity:0;transition:opacity .18s,transform .18s var(--ease);pointer-events:none;text-wrap:pretty}
+#cap.on{opacity:1;transform:translate(-50%,0)}
+#cursor{position:fixed;left:0;top:0;z-index:80;width:22px;height:22px;pointer-events:none;opacity:0;transition:transform .62s cubic-bezier(.45,.05,.2,1),opacity .2s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+#cursor.on{opacity:1}
+#ripple{position:fixed;z-index:79;width:30px;height:30px;margin:-15px;border-radius:50%;border:2px solid var(--coral);pointer-events:none;opacity:0}
+#ripple.go{animation:rip .42s var(--ease)}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
+
+/* the app */
+#app{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+#top{flex:none;display:flex;align-items:center;justify-content:space-between;padding:12px 24px 0;gap:12px}
+.brand{font:600 15px var(--display)}
+.ghost{height:32px;padding:0 11px;border-radius:9px;color:var(--muted);font-size:13.5px}
+.ghost:hover{background:var(--soft);color:var(--ink)}
+#page{position:relative;z-index:16;flex:1;min-height:0;overflow-y:auto;padding:14px 24px 72px;scrollbar-width:thin}
+body.touring #page{padding-top:56px}
+.col{max-width:860px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+.head .sm{margin-top:6px;max-width:62ch}
+.b{position:relative}
+.fill .b::after{content:"";position:absolute;inset:-2px;border-radius:10px;background:var(--soft);pointer-events:none;animation:unveil .24s var(--ease) both;animation-delay:calc(var(--i,0)*28ms + 40ms)}
+@keyframes unveil{to{opacity:0;visibility:hidden}}
+
+.btn{height:38px;padding:0 15px;border-radius:10px;border:1px solid var(--line2);font-weight:500;background:var(--surface);transition:transform .12s var(--ease),background .15s;white-space:nowrap}
+.btn:hover{background:var(--soft)}
+.btn:active{transform:scale(.97)}
+.btn.pri{background:var(--ink);color:var(--on-ink);border-color:var(--ink);font-weight:600}
+.btn.pri:hover{opacity:.9;background:var(--ink)}
+.btn.sm{height:30px;padding:0 10px;font-size:13px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+
+/* the state card. Same shape in every state, every step */
+.card{border:1px solid var(--line);background:var(--surface);border-radius:15px;padding:17px 19px;display:flex;flex-direction:column;gap:11px;box-shadow:var(--shadow)}
+.card[data-k=running],.card[data-k=long]{border-color:color-mix(in srgb,var(--blue) 30%,var(--line))}
+.card[data-k=error]{border-color:color-mix(in srgb,var(--rose) 45%,var(--line))}
+.card[data-k=limited]{border-color:color-mix(in srgb,var(--amber) 40%,var(--line))}
+.card .hd{font:600 17.5px/1.25 var(--display);text-wrap:balance}
+.card dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 14px;font-size:14px}
+.card dt{font:500 11px/1.9 var(--mono);letter-spacing:.06em;color:var(--faint);white-space:nowrap}
+.card dd{margin:0}
+.bar{height:5px;border-radius:5px;background:var(--soft);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:5px;background:var(--blue);width:calc(var(--p,0)*100%);transition:width .3s linear}
+.card[data-k=long] .bar i{background:linear-gradient(90deg,var(--blue),var(--blue) 60%,color-mix(in srgb,var(--blue) 50%,transparent));background-size:200% 100%;animation:drift 2.8s linear infinite}
+@keyframes drift{from{background-position:200% 0}to{background-position:0 0}}
+
+/* empty and first open: Bean comes up off the track */
+.seat{display:flex;flex-direction:column;align-items:center;text-align:center;gap:9px;padding:6px 0 10px;margin-top:clamp(0px,7vh,80px)}
+.seat .spot{width:230px;height:200px}
+.seat.nobean .spot{height:12px}
+.seat .sm{max-width:44ch}
+#first{position:absolute;inset:0;z-index:30;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;text-align:center;padding:24px}
+#first .spot{width:300px;height:290px;flex:none}
+#first p{max-width:46ch;color:var(--muted)}
+#first ul{list-style:none;padding:0;margin:0;font-size:14px;display:flex;flex-direction:column;gap:3px}
+@media (max-height:680px){#first .spot{height:190px}}
+
+/* rows */
+.rows{display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.rw{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;align-items:center;padding:11px 2px;border-bottom:1px solid var(--line);min-height:56px}
+.rw .t{font-weight:600}
+.pill{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted);white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:9px;background:var(--faint)}
+.pill.ok::before{background:var(--green)}.pill.run::before{background:var(--blue);animation:pulse 1.2s infinite}.pill.err::before{background:var(--rose)}.pill.lim::before{background:var(--amber)}.pill.you::before{background:var(--coral)}
+@keyframes pulse{50%{opacity:.35}}
+.seg{display:inline-flex;gap:2px;background:var(--soft);padding:3px;border-radius:10px;align-self:flex-start;max-width:100%}
+.seg button{height:30px;padding:0 13px;border-radius:7px;color:var(--muted);font-size:13.5px;white-space:nowrap}
+.seg button[aria-selected=true]{background:var(--surface);color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+
+/* funnel */
+.fn{display:grid;grid-template-columns:150px minmax(0,1fr) 74px;gap:6px 12px;align-items:center;font-size:14px}
+.fn .tr{height:22px;border-radius:5px;background:var(--soft);overflow:hidden}
+.fn .tr i{display:block;height:100%;min-width:3px;background:color-mix(in srgb,var(--ink) 78%,transparent);border-radius:5px;width:var(--w)}
+.fn .tr.old i{background:var(--faint)}
+.fn .dropnote{grid-column:2/4;font-size:13px;color:var(--coral);font-weight:500;margin:-2px 0 2px}
+.ans{border-left:2px solid var(--coral);padding:2px 0 2px 14px;font-size:14.5px;display:flex;flex-direction:column;gap:5px}
+.chart{width:100%;height:150px;display:block;color:var(--ink)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:13px;background:var(--surface);display:flex;flex-direction:column;gap:6px}
+.thumb{aspect-ratio:9/16;border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:9px;color:#fff;font:600 13px/1.2 var(--display);position:relative;overflow:hidden;background:linear-gradient(165deg,var(--h1,#3b2f55),var(--h2,#7a4560))}
+.rivalrow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+
+/* plan */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+.cal .dh{font-size:12px;color:var(--faint);padding-left:3px}
+.day{min-height:86px;border:1px solid var(--line);border-radius:9px;padding:5px 6px;background:var(--surface);display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--faint);text-align:left}
+.day.today{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.slot{display:block;width:100%;text-align:left;padding:4px 5px;border-radius:6px;font-size:12px;line-height:1.22;color:var(--ink);background:var(--soft);font-weight:500}
+.slot:hover{background:color-mix(in srgb,var(--coral) 16%,var(--soft))}
+.slot[aria-pressed=true]{background:var(--ink);color:var(--on-ink)}
+.slot.ghost-slot{background:none;border:1px dashed var(--line2);color:var(--faint);height:34px;animation:pulse 1.4s infinite}
+.slot.newfill{animation:popin .3s var(--ease)}
+@keyframes popin{from{opacity:0;transform:scale(.96)}}
+.detail{border:1px solid var(--line);border-radius:13px;padding:15px;background:var(--surface);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 16px;align-items:start}
+.planlist{display:none}
+
+/* approve */
+.chg{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:11px 2px;border-bottom:1px solid var(--line);font-size:14.5px}
+.chg s{color:var(--muted)}
+.chg.off{opacity:.45}
+.kept{color:var(--green);font-size:13px;font-weight:500}
+
+/* cook + publish */
+.segs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+.segs div{font-size:12.5px;color:var(--faint);display:flex;flex-direction:column;gap:5px}
+.segs i{height:5px;border-radius:5px;background:var(--soft)}
+.segs .done i{background:var(--ink)}.segs .done{color:var(--ink)}
+.segs .cur i{background:var(--blue)}.segs .cur{color:var(--ink);font-weight:600}
+.segs .wait i{background:var(--amber)}.segs .wait{color:var(--amber);font-weight:600}
+.segs .fail i{background:var(--rose)}.segs .fail{color:var(--rose);font-weight:600}
+.cook{display:grid;grid-template-columns:minmax(0,1fr) 214px;gap:22px;align-items:start}
+.player{aspect-ratio:9/16;border-radius:14px;background:var(--soft);display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;font-size:13px;color:var(--muted);position:relative;overflow:hidden}
+.player.has{background:linear-gradient(170deg,#2c2440,#6b3f58 70%,#c26a55);color:#fff;font:600 17px/1.2 var(--display);align-items:flex-end;justify-content:flex-start;text-align:left}
+.player .tag{position:absolute;left:10px;top:10px;font:500 10px var(--mono);letter-spacing:.06em;background:rgba(0,0,0,.45);padding:3px 7px;border-radius:6px}
+.player .pg{position:absolute;left:0;right:0;bottom:0;height:3px;background:rgba(255,255,255,.2)}
+.player .pg i{display:block;height:100%;background:#fff;animation:pg 9s linear infinite}
+@keyframes pg{from{width:0}to{width:100%}}
+.field{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line2);border-radius:10px;background:var(--surface);padding:9px 11px}
+details.term summary{cursor:pointer;color:var(--muted);font-size:13.5px}
+details.term pre{font:12.5px/1.55 var(--mono);background:var(--soft);padding:11px;border-radius:9px;white-space:pre-wrap;margin:8px 0 0}
+.script{font-size:14.5px;display:grid;grid-template-columns:56px minmax(0,1fr);gap:5px 10px}
+.pub{display:grid;grid-template-columns:214px minmax(0,1fr);gap:24px;align-items:start}
+
+/* the track */
+#dock{flex:none;position:relative;z-index:20;display:grid;grid-template-columns:minmax(230px,330px) minmax(0,1fr);align-items:end;gap:18px;padding:0 24px 10px;height:90px;background:var(--floor)}
+#say{text-align:left;align-self:end;padding:0 0 3px;min-width:0;border-radius:9px}
+#say:hover .a{text-decoration:underline;text-underline-offset:2px}
+#say .a{font-weight:600;font-size:14px;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#say .c{font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#track{display:flex;position:relative;align-items:flex-start;height:50px}
+#track::before{content:"";position:absolute;left:7%;right:7%;top:9px;height:2px;background:var(--line2);border-radius:2px}
+.st{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;color:var(--muted);height:50px;border-radius:9px;min-width:0}
+.st:hover{color:var(--ink)}
+.st .d{width:10px;height:10px;margin-top:5px;border-radius:50%;background:var(--bg);border:2px solid var(--line2);position:relative;z-index:1;transition:transform .15s var(--ease)}
+.st:hover .d{transform:scale(1.25)}
+.st[aria-current=page]{color:var(--ink);font-weight:650}
+.st[aria-current=page] .d{background:var(--ink);border-color:var(--ink)}
+.st .n{position:absolute;top:30px;margin-left:calc(100% - 22%);display:none}
+.st[data-mark] .d{border-color:var(--c);background:var(--c)}
+.st[data-mark=you]{--c:var(--coral)}.st[data-mark=err]{--c:var(--rose)}.st[data-mark=lim]{--c:var(--amber)}.st[data-mark=run]{--c:var(--blue)}
+.st .l{white-space:nowrap}
+#dock.beanoff .st[data-here] .d{box-shadow:0 0 0 4px color-mix(in srgb,var(--coral) 28%,transparent)}
+
+/* Bean. One canvas, always, that travels */
+#bean{position:fixed;left:0;top:0;width:360px;height:360px;z-index:40;transform-origin:0 0;pointer-events:none;will-change:transform}
+#bean canvas{width:360px;height:360px;display:block}
+#bean .blob{position:absolute;left:68px;top:92px;width:224px;height:200px;border-radius:50% 50% 46% 46%;background:linear-gradient(170deg,#ffd69e,#ffb582 50%,#ff8fa5)}
+#beanhit{position:fixed;left:0;top:0;z-index:41;border-radius:50%}
+#beanhit:focus-visible{outline-offset:0}
+#beanglow{position:fixed;left:0;top:0;width:200px;height:80px;margin:-40px 0 0 -100px;border-radius:50%;background:radial-gradient(closest-side,var(--glow),transparent);z-index:15;pointer-events:none}
+body.nogl #beanglow{display:none}
+.hideb #bean,.hideb #beanhit,.hideb #beanglow{display:none}
+
+/* sheets */
+.pop{position:fixed;z-index:50;background:var(--surface);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);opacity:0;transform:translateY(6px) scale(.98);transition:opacity .14s,transform .16s var(--ease);pointer-events:none;transform-origin:bottom center}
+.pop.on{opacity:1;transform:none;pointer-events:auto}
+#sheet{width:min(380px,calc(100vw - 32px));padding:17px 19px;display:flex;flex-direction:column;gap:11px;bottom:134px}
+#sheet dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 14px;font-size:14px}
+#sheet dt{font:500 11px/1.9 var(--mono);letter-spacing:.06em;color:var(--faint)}#sheet dd{margin:0}
+#settings{right:16px;top:96px;width:min(420px,calc(100vw - 32px));max-height:calc(100dvh - 210px);overflow:auto;padding:19px;display:flex;flex-direction:column;gap:16px;transform-origin:top right}
+.opt{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;background:var(--soft);border-radius:10px;padding:3px}
+.opt button{height:32px;border-radius:7px;color:var(--muted);font-size:13.5px}
+.opt button[aria-pressed=true]{background:var(--surface);color:var(--ink);font-weight:600}
+#toast{position:fixed;left:50%;bottom:112px;transform:translate(-50%,6px);background:var(--ink);color:var(--on-ink);padding:8px 8px 8px 14px;border-radius:11px;font-size:14px;display:flex;gap:10px;align-items:center;opacity:0;pointer-events:none;transition:opacity .15s,transform .18s var(--ease);z-index:45;max-width:calc(100vw - 32px)}
+#toast.on{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toast button{color:var(--on-ink);font-weight:600;padding:3px 8px;border-radius:7px;background:rgba(128,128,128,.28)}
+
+@media (max-width:760px){
+  #pb{gap:6px;padding:6px 16px}
+  #pb select{max-width:118px}
+  #states{order:9;width:100%;margin:0}
+  #top{padding:8px 16px 0}
+  #page{padding:8px 16px 54px}
+  #dock{grid-template-columns:minmax(0,1fr);height:130px;gap:0;padding:0 16px 6px;align-content:end;background:var(--floorm)}
+  #say{padding:0 0 46px;align-self:start;margin-top:4px}
+  #say .a{-webkit-line-clamp:1;white-space:normal}
+  #track{height:42px}
+  .st{font-size:11px;gap:5px;height:42px}
+  .tiles{grid-template-columns:1fr}
+  .rivalrow{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cook,.pub{grid-template-columns:minmax(0,1fr)}
+  .cook .player,.pub .player{width:min(190px,60%);margin:0 auto}
+  .cal{display:none}.planlist{display:flex}
+  .detail{grid-template-columns:minmax(0,1fr)}
+  .fn{grid-template-columns:104px minmax(0,1fr) 54px;font-size:13px}
+  .chg{grid-template-columns:minmax(0,1fr) auto}.chg .lab{grid-column:1/3}
+  #sheet{bottom:142px;left:16px!important}
+  #settings{right:16px;top:90px;max-height:calc(100dvh - 240px)}
+  #cap{top:92px}
+  body.touring #page{padding-top:64px}
+  #toast{bottom:140px}
+  .seat .spot{height:150px}
+  .card{padding:14px}
+}
+@media (max-width:360px){#pb select{max-width:84px}#pb{gap:4px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<!-- Hallmark self-check: Philosophy 5, Hierarchy 4, Execution 4, Specificity 5, Restraint 4, Variety 5 -->
+<div id="pb" aria-label="Prototype controls">
+  <select id="jsel" data-testid="journey" aria-label="Journey"></select>
+  <button class="pbtn pplay" id="play" data-testid="play"><span id="playI">▶</span> <span id="playT">Play</span></button>
+  <button class="pbtn" id="prev" data-testid="prev" aria-label="Previous step">‹</button>
+  <div id="dots"></div>
+  <button class="pbtn" id="next" data-testid="next" aria-label="Next step">›</button>
+  <button class="pbtn" id="theme" data-testid="theme" aria-label="Dark or light">◐</button>
+  <div id="states" role="group" aria-label="State of this step"></div>
+</div>
+<div id="cap" role="status"></div>
+<div id="app">
+  <div id="top">
+    <button class="brand" data-testid="brand" data-go="today">Lead Studio</button>
+    <button class="ghost" data-testid="open-settings" data-a="settings">Settings</button>
+  </div>
+  <main id="page" tabindex="-1"></main>
+  <div id="dock">
+    <button id="say" data-testid="say" data-a="sheet" aria-haspopup="dialog"><div class="a" id="sayA"></div><div class="c" id="sayC"></div></button>
+    <nav id="track" aria-label="The 6 steps"></nav>
+  </div>
+  <div id="firstwrap"></div>
+</div>
+<div id="beanglow"></div>
+<div id="bean"></div>
+<button id="beanhit" data-testid="bean" data-a="sheet" aria-haspopup="dialog"></button>
+<div class="pop" id="sheet" role="dialog" aria-label="What Bean is doing"></div>
+<div class="pop" id="settings" role="dialog" aria-label="Settings"></div>
+<div id="toast" role="status"></div>
+<svg id="cursor" viewBox="0 0 24 24"><path d="M4 2l15 11.5-7 1 4 7-3 1.5-4-7.2-5 5z" fill="#fff" stroke="#111" stroke-width="1.4" stroke-linejoin="round"/></svg>
+<div id="ripple"></div>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const Q = new URLSearchParams(location.search);
+
+/* ---------- fake world ---------- */
+const STOPS = [['today','Today'],['pull','Pull'],['insight','Insight'],['plan','Plan'],['approve','Approve'],['cook','Cook'],['publish','Publish']];
+const LOOP = STOPS.slice(1);
+const STATES = ['normal','running','long','error','empty','limited'];
+const REEL = 'Hooks in 30 seconds';
+const FUNNEL = [['Reel views',184200,'Instagram','07:00'],['Keyword comments',1240,'Instagram','07:00'],['Got the DM',610,'ChatbotX','06:58'],['Opened the gift page',212,'Umami','06:58'],['Clicked checkout',18,'Umami','06:58'],['Bought',3,'Polar','06:59']];
+const SOURCES = [['Instagram','Your reels and followers','07:00'],['13 rivals','Reels that beat their usual','Yesterday 22:10'],['ChatbotX','DMs sent after a keyword','06:58'],['Umami','Gift page visits','06:58'],['Polar','Sales','06:59']];
+const SLOTS = {3:[REEL,'HOOK','Cooking'],5:['Three cuts every reel needs','CUTS','Script ready'],7:['The caption nobody reads','READ','Script ready'],10:['Why your first second fails','FIRST','Planned'],12:['Film a week in one hour','BATCH','Planned'],14:['Steal this rival’s opening','OPEN','Planned'],17:['Lighting with one window','LIGHT','Planned'],19:['What 1,000 views taught me','VIEWS','Planned'],24:['My gift page, rebuilt live','GIFT','Planned']};
+const CHANGES = [['Move',`<s>Tue 10</s> <b>Thu 12</b>: Why your first second fails`,'Thursday night had the most active viewers last month.'],['Rewrite',`Hook of <b>${REEL}</b>`,'Old: "Here are my tips." New: "Your hook has 30 seconds of work in it."'],['Add',`<b>Sat 28:</b> Gift page teardown`,'People leave at the gift page. This reel tests a new one.'],['Remove',`<s>Tue 17: Lighting with one window</s>`,'Rivals got little from this topic. Nothing was cooked yet.']];
+const COOK_STEPS = ['Script','Voice','Build','Draft','Final','Review'];
+const COOK_HEAD = ['Claude is copying your script into the reel','Script ready. Claude is recording the voice','Claude is building the chapters','Rendering a quick draft','Draft ready to watch. Final render running','Final video ready. Claude is reviewing it'];
+const COOK_WAIT = ['Claude checks the hook length, then records the voice.','Claude builds the chapters next. Nothing needs you until the draft.','Claude mixes the music, then renders a quick draft for you.','The draft plays here, then the final render starts by itself.','The final replaces the draft in this player.','Claude writes the caption and hands the reel to you.'];
+const fmt = n => n.toLocaleString('en-US');
+const clock = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+const dropPct = Math.round((1 - FUNNEL[4][1]/FUNNEL[3][1]) * 100);
+
+/* ---------- every state of every step. Same fields everywhere: head, sub, YOU CAN, IF YOU WAIT, buttons ---------- */
+const COPY = {
+  today:{
+    running:{head:'Getting today ready',sub:'Reading what you pulled this morning.',can:'Open any step. Nothing is locked.',wait:'Today fills in by itself, usually in a few seconds.',bar:.5},
+    long:{head:'Today is taking longer than usual',sub:'{t} so far. It usually takes 5 seconds.',can:'Open any step. They already have your numbers.',wait:'Today keeps loading. If it stops, you get a Try again button here.',bar:.7,t:48},
+    error:{head:'Polar did not answer',sub:'5 sources have fresh numbers. Bought keeps yesterday’s number.',can:'Keep working. Only the last row of the funnel is old.',wait:'Nothing retries by itself.',acts:[['Pull Polar again','repull',1]]},
+    empty:{head:'Nothing here yet',sub:'Today shows what needs you once you have numbers to look at.',acts:[['Pull your numbers','go:pull',1]]},
+    limited:{head:'Instagram’s hourly limit is used up',sub:'Today shows numbers from 07:00. You can pull again after 15:00.',can:'Everything else still works.',wait:'Nothing pulls by itself. Press Pull after 15:00.',acts:[['See what was pulled','go:pull']]},
+  },
+  pull:{
+    running:{head:'Pulling your numbers',sub:'3 of 5 sources done. Instagram is next.',can:'Leave this. Bean keeps the pull going.',wait:'New numbers land row by row. Old ones stay until then.',bar:.6},
+    long:{head:'Taking longer than usual ({t})',sub:'Instagram is answering slowly today.',can:'You can leave; the pull keeps going.',wait:'It finishes by itself. If it stops, you keep what arrived.',bar:.72,t:120},
+    error:{head:'3 rivals have new numbers. The other 10 keep their older numbers.',sub:'Instagram stopped answering after the third rival.',can:'Keep working. Nothing you already had was lost.',wait:'Nothing retries by itself.',acts:[['Pull the rest (10)','pull-rest',1]]},
+    empty:{head:'Nothing to pull yet',sub:'Connect Instagram and I will fetch your numbers whenever you ask. Never on a timer.',acts:[['Connect Instagram','connect',1],['Use sample numbers','sample']]},
+    limited:{head:'Instagram’s hourly limit is used up',sub:'5 of 13 rivals are pulled. The other 8 wait until 15:00.',can:'Use the 5 now. Insight already has them.',wait:'Bean naps. Nothing pulls by itself. Press the button after 15:00.',acts:[['Pull the rest (8) after 15:00','noop-limit']]},
+  },
+  insight:{
+    running:{head:'Claude is reading your funnel',sub:'Looking at why people leave at the gift page.',can:'Keep reading the numbers below. They are final.',wait:'The answer appears here with where each number came from.',bar:.4},
+    long:{head:'Claude is taking longer than usual',sub:'{t} so far. It usually answers in 20 seconds.',can:'Leave this page. The answer waits for you here.',wait:'Claude keeps reading. If it stops, you get Ask again.',bar:.75,t:95},
+    error:{head:'Polar did not answer, so Bought is yesterday’s number',sub:'The other 5 rows are from this morning.',can:'Read the funnel. The old row is marked grey.',wait:'Nothing retries by itself.',acts:[['Pull Polar again','repull',1]]},
+    empty:{head:'No numbers to read yet',sub:'Pull once and I will lay out where people leave.',acts:[['Pull your numbers','go:pull',1]]},
+    limited:{head:'Polar is not connected, so the funnel stops at checkout',sub:'5 of 6 rows have numbers. Bought stays empty.',can:'Read the other 5, or connect Polar.',wait:'Nothing changes until you connect it.',acts:[['Connect Polar','settings',1]]},
+  },
+  plan:{
+    running:{head:'Claude is writing November',sub:'5 of 9 reels written. Each one lands on its day.',can:'Open a reel that has landed and read it.',wait:'Claude finishes, then the plan goes to Approve. Nothing is live until you say yes.',bar:.55},
+    long:{head:'Claude is taking longer than usual on November',sub:'{t} so far. It usually takes 4 minutes.',can:'Leave this page, or read the 7 reels that landed.',wait:'Claude keeps writing. If it stops, this card offers Write the rest.',bar:.78,t:560},
+    error:{head:'Claude stopped after 5 of 9 reels. Those 5 are saved.',sub:'The terminal closed before reel 6.',can:'Read the 5, or write the other 4.',wait:'Nothing runs. The other 4 days stay open.',acts:[['Write the other 4','write-rest',1]]},
+    empty:{head:'November has no plan yet',sub:'Ask Claude to write one from your numbers. You approve it before anything is real.',acts:[['Ask Claude to write November','write-plan',1]]},
+    limited:{head:'Claude’s usage limit is reached. 5 of 9 reels are saved.',sub:'Your Claude plan resets at 17:00.',can:'Read the 5, or write the rest yourself.',wait:'Bean naps. At 17:00 you press one button and Claude continues.',acts:[['Continue after 17:00','noop-limit']]},
+  },
+  approve:{
+    running:{head:'Saving plan v3',sub:'Moving 4 reels on the calendar.',can:'Nothing to do.',wait:'Plan v3 goes live in a moment. Plan v2 stays until then.',bar:.6},
+    long:{head:'Saving plan v3 is taking longer than usual',sub:'{t} so far. It usually takes 2 seconds.',can:'Leave this page.',wait:'v2 stays live until v3 is fully saved. You never get half a plan.',bar:.8,t:24},
+    error:{head:'Plan v3 did not save. Plan v2 is still live.',sub:'Nothing on your calendar changed, and your 4 choices are kept.',can:'Try again, or look at the plan first.',wait:'Nothing retries by itself.',acts:[['Approve again (4 changes)','approve',1]]},
+    empty:{head:'Nothing waits for your yes',sub:'Plan v2 is live. When Claude proposes changes, they show up here in plain words.',acts:[['See the plan','go:plan',1]]},
+    limited:{head:'2 of 4 changes touch a reel that is cooking',sub:'Those 2 wait until the cook ends. The other 2 can go now.',can:'Approve the 2 that are free.',wait:'The 2 others stay here and nothing is lost.',acts:[['Approve the free ones (2)','approve',1]]},
+  },
+  cook:{
+    running:{head:COOK_HEAD[2],sub:'Step 3 of 6 · {t} so far',can:'Nothing to do. You can leave; the Plan card shows the progress.',wait:COOK_WAIT[2],t:401},
+    long:{head:'Rendering the final video, slower than usual',sub:'Step 5 of 6 · {t} so far · usually 9 minutes',can:'Watch the draft. Leave it, or ask Claude why.',wait:'It keeps rendering. If it stops, this card turns red with Resume.',t:1900},
+    error:{head:'The final render stopped. Script, voice, chapters and draft are kept.',sub:'Stopped at step 5 of 6. The Mac ran out of disk space.',can:'Free some space, then resume. Nothing starts over.',wait:'Nothing runs. The draft stays here to watch.',acts:[['Resume from Final','resume-cook',1],['Ask Claude why','ask-cook']]},
+    empty:{head:'Nothing is cooking',sub:'Cook a reel from Plan.',acts:[['Open Plan','go:plan',1]]},
+    limited:{head:'Claude’s usage limit is reached at Build',sub:'Step 3 of 6 is paused. Script and voice are kept. Your plan resets at 17:00.',can:'Watch nothing yet, read the script, or rest.',wait:'Bean naps. At 17:00 press Resume and Claude picks up at Build.',acts:[['Resume after 17:00','noop-limit']]},
+  },
+  publish:{
+    running:{head:'Sending to Instagram',sub:'Video 80% uploaded. Caption and cover are next.',can:'Nothing to do. You can leave.',wait:'The reel goes live, then the keyword DM turns on.',bar:.8},
+    long:{head:'Instagram is taking longer than usual',sub:'{t} so far. It usually takes 40 seconds.',can:'Leave this page. It keeps going.',wait:'If Instagram refuses, you keep everything and get Try again.',bar:.9,t:190},
+    error:{head:'Instagram refused the upload. Nothing was posted.',sub:'Video, caption and cover are all kept.',can:'Try again, or pick a later time.',wait:'Nothing retries by itself. The reel waits here.',acts:[['Try again','publish',1],['Publish Thu 09:00','schedule']]},
+    empty:{head:'Nothing waits to publish',sub:'The next reel lands here when Claude finishes cooking it.',acts:[['See what is cooking','go:cook',1]]},
+    limited:{head:'Instagram’s daily post limit is reached',sub:`${REEL} is ready and kept. It can go at 09:00 tomorrow.`,can:'Schedule it now, then forget about it.',wait:'Bean naps and nothing is posted.',acts:[['Publish tomorrow 09:00','schedule',1]]},
+  },
+};
+
+/* ---------- app state ---------- */
+const fresh = () => ({view:'today',tab:'funnel',st:Object.fromEntries(STOPS.map(([k])=>[k,'normal'])),job:null,first:false,bean:'on',slot:3,askOpen:false,askDone:false,approved:false,off:{},cookStep:null,cookDone:true,published:false,scheduled:false,celebrate:false,feedback:'',t:0,p:null,sheet:false,settings:false});
+let S = fresh();
+let simTimer = null, tickTimer = null, celebrateTimer = null, toastTimer = null;
+const seen = new Set();
+
+const stateOf = v => S.st[v];
+const slotStatus = d => d!==3 ? SLOTS[d][2] : S.published ? 'Live' : S.scheduled ? 'Scheduled' : !S.cookDone ? 'Cooking' : 'Ready to publish';
+const isJob = k => ['running','long','error','limited'].includes(k);
+function copyFor(v){
+  const k = stateOf(v); const c = COPY[v][k]; if(!c) return null;
+  if(v==='cook' && k==='running' && S.cookStep!=null) return {...c,head:COOK_HEAD[S.cookStep],sub:`Step ${S.cookStep+1} of 6 · {t} so far`,wait:COOK_WAIT[S.cookStep]};
+  return c;
+}
+function needYou(){
+  const a=[]; if(!S.approved && stateOf('approve')==='normal') a.push('approve');
+  if(!S.published && !S.scheduled && S.cookDone && stateOf('publish')==='normal') a.push('publish');
+  return a;
+}
+function setState(v,k){
+  clearSim(); S.st[v]=k; S.t=COPY[v][k]?.t||0; S.p=null;
+  if(isJob(k)) S.job=v; else if(S.job===v) S.job=null;
+  if(v==='cook'){ S.cookStep=null; S.cookDone=k==='normal'; }
+  if(k!=='normal') S.celebrate=false;
+  render();
+}
+function clearSim(){ clearInterval(simTimer); simTimer=null; }
+function sim(v,ms,onStep,done){
+  clearSim(); S.st[v]='running'; S.job=v; S.p=0; S.t=0; const t0=performance.now(); render();
+  simTimer=setInterval(()=>{
+    const p=Math.min(1,(performance.now()-t0)/ms); S.p=p; onStep&&onStep(p); patch();
+    if(p>=1){ clearSim(); S.st[v]='normal'; S.p=null; if(S.job===v) S.job=null; done&&done(); render(); }
+  },90);
+}
+
+/* ---------- actions ---------- */
+function toast(msg,undo){
+  const el=$('#toast'); el.innerHTML=`<span>${msg}</span>`+(undo?`<button data-a="${undo}" data-testid="toast-undo">Undo</button>`:'');
+  el.classList.add('on'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.classList.remove('on'),undo?5200:2800);
+}
+const ACT = {
+  connect(){ S.first=false; S.view='pull'; sim('pull',3200,null,()=>toast('Your numbers are in. Pulled just now.')); },
+  sample(){ S.first=false; S.st.pull='normal'; go('today'); },
+  'pull-all'(){ sim('pull',3200,null,()=>toast('5 sources pulled. Nothing failed.')); },
+  'pull-rest'(){ sim('pull',2600,null,()=>toast('All 13 rivals have new numbers.')); },
+  repull(){ const v=S.view; sim(v,1800,null,()=>toast('Polar answered. Bought is fresh.')); },
+  ask(){ S.askOpen=true; sim('insight',2200,null,()=>{S.askDone=true;}); },
+  'write-plan'(){ sim('plan',3000,null,()=>{S.approved=false;toast('November is written. It waits on Approve.');}); },
+  'write-rest'(){ sim('plan',2200,null,()=>{S.approved=false;toast('All 9 reels are written.');}); },
+  approve(){ sim('approve',1100,null,()=>{S.approved=true;toast('Plan v3 is live.','undo-approve');}); },
+  'undo-approve'(){ S.approved=false; $('#toast').classList.remove('on'); render(); toast('Back to plan v2.'); },
+  cook(){ S.view='cook'; S.published=false; S.scheduled=false; S.cookDone=false; S.cookStep=0; sim('cook',8400,p=>{ const i=Math.min(5,Math.floor(p*6)); S.t=Math.round(p*2640); if(i!==S.cookStep){S.cookStep=i;render();} },()=>{S.cookStep=null;S.cookDone=true;toast(`${REEL} is ready for your yes.`);}); },
+  'resume-cook'(){ S.cookDone=false; S.cookStep=4; sim('cook',3000,p=>{const i=p<.6?4:5; S.t=1900+Math.round(p*300); if(i!==S.cookStep){S.cookStep=i;render();}},()=>{S.cookStep=null;S.cookDone=true;toast('Picked up at Final. Nothing started over.');}); },
+  'ask-cook'(){ toast('Claude says: disk is full. 4 GB of old drafts can go.'); },
+  publish(){ sim('publish',2000,null,()=>{S.published=true;S.celebrate=true;clearTimeout(celebrateTimer);celebrateTimer=setTimeout(()=>{S.celebrate=false;render();},4600);}); },
+  schedule(){ S.scheduled=true; S.st.publish='normal'; if(S.job==='publish')S.job=null; render(); toast('Scheduled. It goes on its own at that time.'); },
+  changes(){ toast('Your note went to Claude. The reel stays here until you approve it.'); },
+  send(){ const f=$('#fb'); if(f&&f.value.trim()){ S.feedback=f.value.trim(); f.value=''; render(); toast('Sent. Claude reads it after this step.'); } },
+  'noop-limit'(){ toast('This button wakes up when the limit resets.'); },
+  sheet(){ S.sheet=!S.sheet; S.settings=false; renderSheets(); bean.m&&bean.m.bounce(); },
+  settings(){ S.settings=!S.settings; S.sheet=false; renderSheets(); },
+  'close-sheets'(){ S.sheet=false; S.settings=false; renderSheets(); },
+};
+function go(v){ S.view=v; S.sheet=false; render(); $('#page').scrollTop=0; }
+function act(a){
+  if(a.startsWith('go:')) return go(a.slice(3));
+  if(a.startsWith('bean:')){ S.bean=a.slice(5); bean.apply(); render(); renderSheets(); return; }
+  if(a.startsWith('tab:')){ S.tab=a.slice(4); render(); return; }
+  if(a.startsWith('slot:')){ S.slot=+a.slice(5); render(); return; }
+  if(a.startsWith('chg:')){ const i=a.slice(4); S.off[i]=!S.off[i]; render(); return; }
+  if(!ACT[a]) { console.error('no action '+a); return; }
+  ACT[a]();
+}
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]'); if(g){go(g.dataset.go);return;}
+  const b=e.target.closest('[data-a]'); if(b){act(b.dataset.a);return;}
+  if(S.sheet||S.settings){ if(!e.target.closest('.pop')){S.sheet=false;S.settings=false;renderSheets();} }
+});
+addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea,select')) return;
+  if(e.key==='Escape'){S.sheet=false;S.settings=false;renderSheets();}
+  const n='0123456'.indexOf(e.key); if(n>=0&&!S.first){go(STOPS[n][0]);}
+});
+
+/* ---------- pieces ---------- */
+const btn=(l,a,pri,id)=>`<button class="btn${pri?' pri':''}" data-a="${a}" data-testid="${id||'act-'+a.replace(':','-')}">${l}</button>`;
+function card(v,c,k){
+  const bar=c.bar!=null?`<div class="bar"><i data-p style="--p:${S.p??c.bar}"></i></div>`:'';
+  return `<section class="card b" data-k="${k}" data-testid="state-card" style="--i:0">
+    <div><div class="hd" data-testid="state-head">${c.head.replace('{t}',`<span data-t>${clock(S.t)}</span>`)}</div>${c.sub?`<p class="mut sm" style="margin-top:3px">${c.sub.replace('{t}',`<span data-t class="num">${clock(S.t)}</span>`)}</p>`:''}</div>
+    ${bar}
+    ${c.can||c.wait?`<dl>${c.can?`<dt>YOU CAN</dt><dd>${c.can}</dd>`:''}${c.wait?`<dt>IF YOU WAIT</dt><dd>${c.wait}</dd>`:''}</dl>`:''}
+    ${c.acts?`<div class="acts">${c.acts.map(([l,a,p])=>btn(l,a,p)).join('')}</div>`:''}
+  </section>`;
+}
+const beanHere=()=>S.bean!=='off'&&beanSpot().seat;
+function seat(c,title){
+  return `<div class="seat${beanHere()?'':' nobean'}" data-testid="empty-seat"><div class="spot" data-spot></div>
+    <h1 data-testid="page-title">${title||c.head}</h1><p class="mut sm">${c.sub}</p>
+    ${c.acts?`<div class="acts" style="justify-content:center;margin-top:5px">${c.acts.map(([l,a,p])=>btn(l,a,p)).join('')}</div>`:''}</div>`;
+}
+const head=(t,s)=>`<div class="head b" style="--i:0"><h1 data-testid="page-title">${t}</h1>${s?`<p class="mut sm">${s}</p>`:''}</div>`;
+const thumb=(t,h1,h2)=>`<div class="thumb" style="--h1:${h1};--h2:${h2}">${t}</div>`;
+
+/* ---------- pages ---------- */
+const PAGES = {
+  today(k,c){
+    if(k==='empty') return seat(c,'Morning. Nothing here yet.');
+    const needs=needYou();
+    const rows=[];
+    if(needs.includes('approve')) rows.push(['Claude proposes 4 changes to November','Takes about a minute to read','Read the changes','go:approve']);
+    if(needs.includes('publish')) rows.push([`${REEL} is ready to publish`,'Video, caption and cover are done','Watch it','go:publish']);
+    const title=k==='normal'?(rows.length===2?'Morning. Two things need you.':rows.length===1?'Morning. One thing needs you.':'Morning. Nothing needs you.'):'Morning.';
+    return `${head(title,'Numbers from 07:00 today. Lead Studio pulls when you ask, never on a timer.')}
+    ${c?card('today',c,k):''}
+    ${rows.length?`<div class="rows b" style="--i:1">${rows.map(r=>`<div class="rw"><div><div class="t">${r[0]}</div><div class="mut sm">${r[1]}</div></div>${btn(r[2],r[3],1,'today-'+r[3].replace(':','-'))}</div>`).join('')}</div>`:''}
+    <div class="b" style="--i:2"><h2>The one number to look at</h2><p class="mut" style="margin-top:3px">${FUNNEL[3][1]} people opened the gift page. ${FUNNEL[4][1]} clicked checkout, so ${dropPct}% leave right there.</p><div class="acts" style="margin-top:9px">${btn('See the funnel','go:insight',0,'today-insight')}</div></div>
+    <div class="b" style="--i:3"><h2>Next up</h2><div class="rows" style="margin-top:8px">${[3,5,7].map(d=>`<div class="rw"><div><span class="t">${SLOTS[d][0]}</span><div class="mut sm">Nov ${d}</div></div><span class="pill ${slotStatus(d)==='Cooking'?'run':slotStatus(d)==='Ready to publish'?'you':slotStatus(d)==='Live'?'ok':''}">${slotStatus(d)}</span></div>`).join('')}</div></div>`;
+  },
+  pull(k,c){
+    if(k==='empty') return seat(c);
+    const done=k==='running'?3:k==='limited'?5:5;
+    const rowState=(i)=>{
+      if(k==='running') return i<3?['ok','Just now']:i===3?['run','Pulling']:['','Waits its turn'];
+      if(k==='long') return i<1?['run','Pulling, slow today']:i===1?['ok','Just now']:['','Waits its turn'];
+      if(k==='error') return i===1?['err','3 of 13 new, 10 older']:['ok',SOURCES[i][2]];
+      if(k==='limited') return i===0||i===1?['lim',i?'5 of 13, rest after 15:00':'Limit reached until 15:00']:['ok',SOURCES[i][2]];
+      return ['ok',SOURCES[i][2]];
+    };
+    return `${head(k==='normal'?'Your numbers are from this morning.':'Your numbers','Pulled when you ask, never on a timer.')}
+    ${c?card('pull',c,k):''}
+    <div class="rows b" style="--i:1">${SOURCES.map((s,i)=>{const r=rowState(i);return `<div class="rw" data-testid="source-row"><div><div class="t">${s[0]}</div><div class="mut sm">${s[1]}</div></div><span class="pill ${r[0]}">${r[1]}</span></div>`;}).join('')}</div>
+    ${k==='normal'?`<div class="acts b" style="--i:2">${btn('Pull everything now','pull-all',1)}</div>`:''}`;
+  },
+  insight(k,c){
+    if(k==='empty') return seat(c);
+    const tabs=`<div class="seg" role="tablist">${[['funnel','Funnel'],['mine','My channel'],['rivals','Rivals']].map(([t,l])=>`<button role="tab" aria-selected="${S.tab===t}" data-a="tab:${t}" data-testid="tab-${t}">${l}</button>`).join('')}</div>`;
+    let body='';
+    if(S.tab==='funnel'){
+      const max=Math.log10(FUNNEL[0][1]);
+      body=`<div class="fn b" style="--i:1">${FUNNEL.map(([n,v,src,at],i)=>{
+        const none=k==='limited'&&i===5, old=k==='error'&&i===5;
+        const note=i===3?`<div></div><div class="dropnote" data-testid="biggest-drop">${dropPct}% leave here, the biggest drop you can fix</div>`:'';
+        return `<div title="${src}, pulled ${at}">${n}</div><div class="tr ${old?'old':''}"><i style="--w:${none?0:Math.log10(v+1)/max*100}%"></i></div><div class="num" style="text-align:right">${none?'none':fmt(v)}</div>${note}`;}).join('')}</div>
+      <p class="mut sm b" style="--i:2">From Instagram, ChatbotX, Umami and Polar. ${k==='error'?'Bought is from yesterday.':'Pulled this morning.'} Bars are squeezed so small numbers stay visible; read the numbers on the right.</p>
+      ${S.askOpen&&S.askDone&&k==='normal'?`<div class="ans" data-testid="ask-answer"><b>Claude: the gift page asks for an email before it shows the gift.</b><span>${FUNNEL[3][1]} opened and ${FUNNEL[4][1]} clicked (Umami, 06:58). The reel "Three cuts" sends people who already know you, and they click twice as often.</span><span class="mut sm">Nothing changed. You decide what to do with this.</span></div>`:(k==='normal'?`<div class="acts b" style="--i:3">${btn('Ask Claude why people leave','ask',1)}</div>`:'')}`;
+    } else if(S.tab==='mine'){
+      const pts=[8,9,7,10,22,18,14,12,16,11,13,12,15,19,21,17,14,15,18,24,31,28,26,29,35,33,30,36,41,39];
+      const X=i=>i*(600/29),Y=v=>140-v*3;
+      body=`<div class="b" style="--i:1"><h2>Views in the last 30 days: ${fmt(FUNNEL[0][1])}</h2><svg class="chart" viewBox="0 0 600 150" preserveAspectRatio="none" role="img" aria-label="Views rise from 8 to 39 thousand a day"><path d="M${pts.map((v,i)=>`${X(i)} ${Y(v)}`).join('L')}L600 150L0 150Z" fill="currentColor" opacity=".08"/><path d="M${pts.map((v,i)=>`${X(i)} ${Y(v)}`).join('L')}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg></div>
+      <div class="rows b" style="--i:2">${[['The caption nobody reads','62,100 views','1 reel per keyword'],['Three cuts every reel needs','41,800 views','Most saved'],['Why your first second fails','22,400 views','Most DMs']].map(r=>`<div class="rw"><div><div class="t">${r[0]}</div><div class="mut sm">${r[2]}</div></div><span class="num sm">${r[1]}</span></div>`).join('')}</div>`;
+    } else {
+      body=`<div class="tiles b" style="--i:1"><div class="tile"><h2>Take</h2><p class="sm mut">Open on the finished result, then rewind. 4 of the top 6 reels this month do this.</p></div><div class="tile"><h2>Learn</h2><p class="sm mut">Keep the keyword on screen for the last 3 seconds. Comments run higher when it stays.</p></div><div class="tile"><h2>Avoid</h2><p class="sm mut">One keyword across several reels. You cannot tell which one sold.</p></div></div>
+      <div class="rivalrow b" style="--i:2">${[['@cutdaily','#2b3a55','#6d7fa8'],['@framefox','#4a2f3c','#b4685f'],['@reelroom','#27423b','#5f9c82'],['@tinyedit','#3f3358','#9a7dc0']].map(r=>thumb(r[0],r[1],r[2])).join('')}</div>`;
+    }
+    return `${head(`Most people leave at the gift page.`,`${FUNNEL[3][1]} opened it, ${FUNNEL[4][1]} clicked checkout.`)}${c?card('insight',c,k):''}${tabs}${body}`;
+  },
+  plan(k,c){
+    if(k==='empty') return seat(c);
+    const shown=k==='running'||k==='error'||k==='limited'?[3,5,7,10,12]:k==='long'?[3,5,7,10,12,14,17]:Object.keys(SLOTS).map(Number);
+    let cells='';
+    for(let d=2;d<=29;d++){
+      const s=SLOTS[d]; let inner='';
+      if(s&&shown.includes(d)) inner=`<button class="slot" aria-pressed="${S.slot===d}" data-a="slot:${d}" data-testid="slot-${d}">${s[0]}</button>`;
+      else if(s&&k!=='error'&&k!=='limited') inner=`<div class="slot ghost-slot"></div>`;
+      cells+=`<div class="day ${d===2?'today':''}">${d}${inner}</div>`;
+    }
+    const sel=SLOTS[S.slot]||SLOTS[3];
+    const list=shown.map(d=>`<div class="rw"><div><button class="t" style="text-align:left" data-a="slot:${d}" data-testid="plist-${d}">${SLOTS[d][0]}</button><div class="mut sm">Nov ${d} · ${slotStatus(d)}</div></div></div>`).join('');
+    const canCook=(k==='normal');
+    return `${head(k==='normal'?'November: 9 reels, 3 with a script.':'November','Keyword and script live on each reel. Click one to read it.')}
+    ${c?card('plan',c,k):''}
+    <div class="cal b" style="--i:1" data-testid="calendar">${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>`<div class="dh">${x}</div>`).join('')}${cells}</div>
+    <div class="rows planlist b" style="--i:1">${list}</div>
+    <div class="detail b" style="--i:2" data-testid="reel-detail"><div><h2>${sel[0]}</h2><p class="mut sm" style="margin-top:2px">Nov ${S.slot} · keyword ${sel[1]} · ${slotStatus(S.slot)}</p><p class="sm" style="margin-top:7px">Hook: "Your hook has 30 seconds of work in it." The rest walks through 3 cuts, then asks for the keyword.</p></div>${canCook?btn(S.slot===3&&S.cookDone?'Cook it again':'Cook this reel','cook',1):''}</div>`;
+  },
+  approve(k,c){
+    if(k==='empty'||(k==='normal'&&S.approved)) return seat(k==='empty'?c:{head:'Plan v3 is live',sub:'Approved just now. You can undo for a few seconds, then go back to any version from Plan.',acts:[['See the plan','go:plan',1]]},k==='empty'?null:'Plan v3 is live');
+    const onCount=CHANGES.filter((_,i)=>!S.off[i]).length;
+    return `${head('Claude proposes 4 changes to November.','Each change says why. Turn off any you don’t want.')}
+    ${c?card('approve',c,k):''}
+    <div class="rows b" style="--i:1">${CHANGES.map((r,i)=>{const lim=k==='limited'&&i<2;return `<div class="chg ${S.off[i]?'off':''}"><span class="lab">${r[0]}</span><div>${r[1]}<div class="mut sm">${lim?'Waits: this reel is cooking.':r[2]}</div></div><button class="btn sm" data-a="chg:${i}" data-testid="chg-${i}" aria-pressed="${!S.off[i]}">${S.off[i]?'Off':'On'}</button></div>`;}).join('')}</div>
+    ${k==='normal'?`<div class="acts b" style="--i:2">${btn(`Approve plan v3 (${onCount} ${onCount===1?'change':'changes'})`,'approve',1)}${btn('Ask Claude to redo','changes',0)}</div>`:''}`;
+  },
+  cook(k,c){
+    if(k==='empty') return seat(c);
+    const idx=k==='normal'?6:k==='long'||k==='error'?4:S.cookStep??2;
+    const segs=COOK_STEPS.map((n,i)=>{const cl=i<idx?'done':i===idx?(k==='error'?'fail':k==='limited'?'wait':'cur'):'';return `<div class="${cl}" data-testid="seg-${n.toLowerCase()}"><i></i>${i<idx?'✓ ':''}${n}</div>`;}).join('');
+    const hasDraft=idx>=4, final=k==='normal';
+    const player=hasDraft?`<div class="player has" data-testid="player"><span class="tag">${final?'FINAL':'DRAFT'}</span>${REEL}<span class="pg"><i></i></span></div>`:`<div class="player" data-testid="player">No video yet. It comes after Build.</div>`;
+    return `${head(REEL,'Nov 3 · keyword HOOK · words are yours, Claude only copies them in.')}
+    ${c?card('cook',c,k):`<section class="card b" data-k="normal" data-testid="state-card"><div class="hd" data-testid="state-head">The reel is ready for your yes.</div><dl><dt>YOU CAN</dt><dd>Watch it, send a note, or take it to Publish.</dd><dt>IF YOU WAIT</dt><dd>It stays here. Nothing is posted without you.</dd></dl><div class="acts">${btn('Take it to Publish','go:publish',1)}</div></section>`}
+    <div class="segs b" style="--i:1" data-testid="segments">${segs}</div>
+    <div class="cook"><div style="display:flex;flex-direction:column;gap:16px">
+      <div class="b" style="--i:2"><h2 style="margin-bottom:7px">Script</h2><div class="script"><span class="lab">Hook</span><span>Your hook has 30 seconds of work in it.</span><span class="lab">1</span><span>Open on the result, then rewind.</span><span class="lab">2</span><span>Cut every breath out of the first line.</span><span class="lab">Ask</span><span>Comment HOOK and I will send the checklist.</span></div></div>
+      <div class="b" style="--i:3"><h2 style="margin-bottom:7px">Note for Claude</h2><textarea class="field" id="fb" data-testid="feedback" placeholder="Make the hook shorter" aria-label="Note for Claude"></textarea>${S.feedback?`<p class="sm mut" data-testid="fb-sent" style="margin-top:4px">Sent: "${S.feedback.replace(/[<>&]/g,'')}"</p>`:''}<div class="acts" style="margin-top:7px">${btn('Send','send',0)}</div></div>
+      <details class="term b" style="--i:4"><summary data-testid="show-terminal">Show Claude’s terminal</summary><pre>Claude is on step ${Math.min(idx+1,6)} of 6.
+Reading your script, word for word.
+Checking the hook: 3.1 seconds, under the limit.
+Mixing music under the voice.</pre></details>
+    </div><div class="b" style="--i:2">${player}</div></div>`;
+  },
+  publish(k,c){
+    if(k==='empty') return seat(c);
+    if(S.celebrate||(k==='normal'&&S.published)) return seat({head:'',sub:`The keyword DM is on. A test comment on HOOK got its DM in 8 seconds, and the funnel starts counting it now.`,acts:[['See the funnel','go:insight',1],['Plan the next reel','go:plan']]},`${REEL} is live.`);
+    if(k==='normal'&&S.scheduled) return seat({head:'',sub:'It goes by itself at that time. You can change your mind until then.',acts:[['See the plan','go:plan',1]]},'Scheduled.');
+    if(k==='normal'&&!S.cookDone) return seat(COPY.publish.empty);
+    const checks=[['Video','Final, 34 seconds','ok'],['Caption','Written by Claude, 2 lines','ok'],['Cover','Frame from the hook','ok'],['Keyword DM','HOOK turns on when it goes live','ok'],['Gift page','Live','ok']];
+    return `${head(k==='normal'?`${REEL} waits for your yes.`:REEL,'Nothing goes out until you press the button.')}
+    ${c?card('publish',c,k):''}
+    <div class="pub"><div class="b" style="--i:1"><div class="player has" data-testid="player"><span class="tag">FINAL</span>${REEL}<span class="pg"><i></i></span></div></div>
+    <div style="display:flex;flex-direction:column;gap:16px"><div class="b" style="--i:2"><h2 style="margin-bottom:5px">Caption</h2><p>Your hook has 30 seconds of work in it. Comment HOOK and I will send the checklist.</p></div>
+      <div class="rows b" style="--i:3">${checks.map(r=>`<div class="rw" style="min-height:46px;padding:7px 2px"><div class="sm"><b>${r[0]}</b> <span class="mut">${r[1]}</span></div><span class="pill ${r[2]}">Ready</span></div>`).join('')}</div>
+      ${k==='normal'?`<div class="acts b" style="--i:4">${btn('Approve and publish now','publish',1)}${btn('Publish Thu 09:00','schedule')}${btn('Ask for changes','changes')}</div>`:''}
+    </div></div>`;
+  },
+};
+
+/* ---------- render ---------- */
+function statusLine(){
+  if(S.job){ const c=copyFor(S.job); if(c) return [c.head.replace('{t}',clock(S.t)),(c.sub||'').replace('{t}',clock(S.t))]; }
+  const n=needYou();
+  if(n.includes('approve')) return ['Plan v3 waits for your yes','Claude proposes 4 changes'];
+  if(n.includes('publish')) return [`${REEL} waits for your yes`,'Ready to publish'];
+  return ['Nothing running','Numbers from 07:00 today'];
+}
+function renderTrack(){
+  const n=needYou(); const here=beanSpot();
+  $('#track').innerHTML=STOPS.map(([k,l])=>{
+    const s=stateOf(k); const mark=s==='error'?'err':s==='limited'?'lim':(s==='running'||s==='long')?'run':n.includes(k)?'you':'';
+    return `<button class="st" data-go="${k}" data-testid="stop-${k}" ${S.view===k?'aria-current="page"':''} ${mark?`data-mark="${mark}"`:''} ${here.stop===k?'data-here':''} aria-label="${l}${mark==='you'?', needs you':mark==='err'?', has a problem':mark==='lim'?', limited':mark==='run'?', running':''}"><span class="d"></span><span class="l">${l}</span></button>`;
+  }).join('');
+}
+function renderStateChips(){
+  const lbl={normal:'Normal',running:'Running',long:'Long-running',error:'Error',empty:'Empty',limited:'Limited'};
+  $('#states').innerHTML=STATES.map(k=>`<button data-testid="state-${k}" aria-pressed="${stateOf(S.view)===k}">${lbl[k]}</button>`).join('');
+}
+function render(){
+  const fb=$('#fb'); const keep=fb?fb.value:'';
+  const v=S.view,k=stateOf(v),c=copyFor(v);
+  const key=`${v}|${k}|${S.tab}`; const firstTime=!seen.has(key); seen.add(key);
+  const page=$('#page');
+  page.innerHTML=`<div class="col ${firstTime?'fill':''}" data-testid="col" data-view="${v}" data-state="${k}">${PAGES[v](k,c)}</div>`;
+  const nf=$('#fb'); if(nf&&keep) nf.value=keep;
+  $('#firstwrap').innerHTML=S.first?`<div id="first" data-testid="first-open"><div class="spot" data-spot></div><h1 data-testid="page-title">Hi. I’m Bean, your runner.</h1><p>I fetch your numbers and carry each reel from plan to published. Claude does the writing. You say yes or no.</p><p class="sm">I stay on the track at the bottom and only talk when you click me.</p><div class="acts">${btn('Connect Instagram','connect',1)}${btn('Look around with sample numbers','sample')}</div></div>`:'';
+  renderTrack(); renderStateChips(); patch(); renderSheets(); bean.place(); document.title='Lead Studio Bean';
+}
+function patch(){
+  const [a,b]=statusLine(); const A=$('#sayA'),C=$('#sayC');
+  if(A.textContent!==a)A.textContent=a; if(C.textContent!==b)C.textContent=b;
+  document.querySelectorAll('[data-t]').forEach(e=>e.textContent=clock(S.t));
+  if(S.p!=null) document.querySelectorAll('[data-p]').forEach(e=>e.style.setProperty('--p',S.p));
+  $('#beanhit').setAttribute('aria-label',`Bean: ${a}. Open details.`);
+}
+function renderSheets(){
+  const sh=$('#sheet'),se=$('#settings');
+  sh.classList.toggle('on',S.sheet); se.classList.toggle('on',S.settings);
+  if(S.sheet){
+    const v=S.job||null; const c=v?copyFor(v):null; const n=needYou();
+    const body=c?`<div><div class="hd" style="font:600 17px/1.25 var(--display)">${c.head.replace('{t}',clock(S.t))}</div><p class="mut sm">${(c.sub||'').replace('{t}',clock(S.t))}</p></div><dl>${c.can?`<dt>YOU CAN</dt><dd>${c.can}</dd>`:''}${c.wait?`<dt>IF YOU WAIT</dt><dd>${c.wait}</dd>`:''}</dl><div class="acts">${(c.acts||[]).map(([l,a,p])=>btn(l,a,p,'sheet-'+a)).join('')}${S.view!==v?btn('Go to '+v[0].toUpperCase()+v.slice(1),'go:'+v,!c.acts,'sheet-go'):''}</div>`
+      :n.length?`<div class="hd" style="font:600 17px/1.25 var(--display)">${n.length===1?'One thing':'Two things'} waiting for you</div><div class="acts">${n.map(x=>btn(x==='approve'?'Read plan v3':'Watch the reel','go:'+x,1,'sheet-'+x)).join('')}</div>`
+      :`<div class="hd" style="font:600 17px/1.25 var(--display)">Nothing running</div><p class="mut sm">Nothing needs you. I’ll be here.</p>`;
+    sh.innerHTML=body;
+    const r=$('#beanhit').getBoundingClientRect();
+    const w=sh.offsetWidth; sh.style.left=Math.max(16,Math.min(innerWidth-w-16,r.left+r.width/2-w/2))+'px';
+  }
+  if(S.settings){
+    se.innerHTML=`<h2 style="font-size:19px">Settings</h2>
+    <div><div style="margin-bottom:6px"><b>Bean</b> <span class="mut sm">Everything Bean shows is also written in words.</span></div><div class="opt">${[['on','On'],['still','Still'],['off','Off']].map(([k,l])=>`<button data-a="bean:${k}" data-testid="bean-${k}" aria-pressed="${S.bean===k}">${l}</button>`).join('')}</div></div>
+    <div><b>Who does the writing</b><p class="mut sm">Claude, on your own plan. Lead Studio never calls a model itself. Codex also works.</p></div>
+    <div><b>Connected</b><div class="rows" style="margin-top:5px">${['Instagram','ChatbotX','Umami','Polar'].map(n=>`<div class="rw" style="min-height:42px;padding:5px 2px"><span class="sm">${n}</span><span class="pill ok">Connected</span></div>`).join('')}</div></div>
+    <div><b>For developers</b><p class="mut sm">Workspace view brings back files, tabs and the terminal. Off by default.</p></div>
+    <div class="acts">${btn('Close','close-sheets',0,'close-settings')}</div>`;
+  }
+}
+
+/* ---------- Bean: a single WebGL canvas that travels the whole window ---------- */
+const POSE = {pull:['finding','focused'],insight:['thinking','thinking'],plan:['explaining','focused'],approve:['working','focused'],cook:['working','focused'],publish:['holding','focused'],today:['thinking','thinking']};
+function beanSpot(){
+  const v=S.view,k=stateOf(v);
+  if(S.first) return {seat:true,scale:.82,stop:null};
+  if(!S.job&&(k==='empty'||(v==='publish'&&(S.celebrate||S.published||S.scheduled||!S.cookDone)&&k==='normal')||(v==='approve'&&k==='normal'&&S.approved))) return {seat:true,scale:.62,stop:null};
+  if(S.job) return {seat:false,stop:S.job};
+  return {seat:false,stop:v};
+}
+function beanMood(){
+  const v=S.view,k=stateOf(v);
+  if(S.first) return ['greeting','happy',1];
+  if(S.celebrate) return ['cheering','celebrating',1];
+  if(S.job){ const js=stateOf(S.job);
+    if(js==='error') return ['hugging','worried',.8];
+    if(js==='limited') return ['floating','sleeping',.8];
+    const p=POSE[S.job]; return [p[0],p[1],js==='long'?.5:1];
+  }
+  if(k==='empty') return ['finding','curious',1];
+  if(v==='publish'&&S.scheduled) return ['floating','happy',1];
+  if(v==='approve'&&S.approved) return ['floating','happy',1];
+  if(needYou().includes(v)) return ['holding','happy',1];
+  return ['floating','normal',1];
+}
+const bean = {
+  el:$('#bean'),hit:$('#beanhit'),glow:$('#beanglow'),m:null,x:0,y:0,s:.3,hop:null,spotKey:'',ready:false,
+  apply(){
+    document.body.classList.toggle('hideb',S.bean==='off');
+    $('#dock').classList.toggle('beanoff',S.bean==='off');
+    if(this.setReduced) this.setReduced(S.bean==='still'||matchMedia('(prefers-reduced-motion:reduce)').matches);
+  },
+  target(){
+    const sp=beanSpot();
+    if(sp.seat){
+      const el=document.querySelector('[data-spot]'); if(!el) return null;
+      const r=el.getBoundingClientRect(); const scale=Math.min(sp.scale,r.height/360/.92);
+      return {x:r.left+r.width/2,y:r.bottom-4,s:scale,key:'seat'+(S.first?'1':'')};
+    }
+    const el=document.querySelector(`[data-testid="stop-${sp.stop}"] .d`); if(!el) return null;
+    const r=el.getBoundingClientRect(); const ph=innerWidth<=760;
+    return {x:r.left+r.width/2,y:r.top+r.height/2,s:ph?.22:.34,key:'stop-'+sp.stop};
+  },
+  place(){
+    const t=this.target(); if(!t) return;
+    if(!this.spotKey){ this.x=t.x;this.y=t.y;this.s=t.s;this.spotKey=t.key; }
+    else if(t.key!==this.spotKey){
+      this.spotKey=t.key;
+      if(S.bean==='on'&&!matchMedia('(prefers-reduced-motion:reduce)').matches){
+        this.hop={x0:this.x,y0:this.y,s0:this.s,t0:performance.now(),ms:Math.min(720,380+Math.hypot(t.x-this.x,t.y-this.y)*.5)};
+        if(this.m&&!['worried','sleeping'].includes(beanMood()[1])) this.m.bounceAt=this.m.now;
+      } else { this.x=t.x;this.y=t.y;this.s=t.s; }
+    }
+    if(this.m){ const [p,e,tempo]=beanMood(); this.m.setPose(p); this.m.setExpr(e); this.m.tempo=tempo; }
+  },
+  frame(now){
+    const t=this.target(); if(!t) return;
+    if(this.hop){
+      const h=this.hop; const u=Math.min(1,(now-h.t0)/h.ms); const e=1-Math.pow(1-u,3);
+      this.x=h.x0+(t.x-h.x0)*e; this.s=h.s0+(t.s-h.s0)*e;
+      this.y=h.y0+(t.y-h.y0)*e-Math.sin(u*Math.PI)*Math.min(80,Math.hypot(t.x-h.x0,t.y-h.y0)*.22+22);
+      if(u>=1) this.hop=null;
+    } else { this.x=t.x;this.y=t.y;this.s=t.s; }
+    const size=360*this.s, left=this.x-size/2, top=this.y-size*.85;
+    this.el.style.transform=`translate(${left}px,${top}px) scale(${this.s})`;
+    const hb=size*.62; this.hit.style.cssText=`width:${hb}px;height:${hb*.9}px;transform:translate(${this.x-hb/2}px,${this.y-hb*.95}px)`;
+    this.glow.style.transform=`translate(${this.x}px,${this.y+2}px) scale(${Math.max(.5,this.s*2.4)})`;
+  },
+};
+function lookAt(cx,cy){
+  if(!bean.m) return; const r=bean.el.getBoundingClientRect(); const c={x:r.left+r.width/2,y:r.top+r.height*.45};
+  bean.m.gazeTarget={x:Math.max(-1,Math.min(1,(cx-c.x)/320)),y:Math.max(-1,Math.min(1,-(cy-c.y)/320))};
+}
+addEventListener('pointermove',e=>lookAt(e.clientX,e.clientY));
+
+function core(THREE,hooks){
+  const mq=matchMedia('(prefers-reduced-motion: reduce)'); let REDUCED=mq.matches; const TAU=Math.PI*2; const STILL=false;
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  const v3 = hex => { const n = parseInt(hex.slice(1), 16); return new THREE.Vector3((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255); };
+  
+  const PALETTES = {
+    peach:    { top:'#ffd69e', mid:'#ffb582', bottom:'#ff8fa5', rim:'#ffe9da', orbTop:'#ffc690', orbBottom:'#ff8a66', blush:'255,110,138', shadow:'#ff9f78' },
+    mint:     { top:'#e6f9a6', mid:'#a6ee9d', bottom:'#5ed79c', rim:'#eefff2', orbTop:'#d2f8a4', orbBottom:'#6fdc8f', blush:'255,130,150', shadow:'#76d6a2' },
+    sky:      { top:'#d3e5ff', mid:'#98bcff', bottom:'#5f86ff', rim:'#eaf2ff', orbTop:'#bcd4ff', orbBottom:'#6a92ff', blush:'255,130,185', shadow:'#7d9cff' },
+    lavender: { top:'#f1d9ff', mid:'#c9a4ff', bottom:'#9b72ff', rim:'#f6ecff', orbTop:'#dfbcff', orbBottom:'#a37bff', blush:'255,125,185', shadow:'#a78aff' },
+    pink:     { top:'#ffd6df', mid:'#ffa9c2', bottom:'#ff7ba3', rim:'#ffecf1', orbTop:'#ffb8cb', orbBottom:'#ff7397', blush:'255,90,135', shadow:'#ff8fb0' },
+  };
+  
+  // ---------- shared geometry ----------
+  const B = 0.86; // distance from body centre to its flat-ish bottom
+  function withDir(g) { g.setAttribute('dir', g.attributes.normal.clone()); return g; }
+  function blobGeometry() {
+    const g = new THREE.SphereGeometry(1, 112, 80);
+    const p = g.attributes.position, dir = new Float32Array(p.count * 3), v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i);
+      dir.set([v.x, v.y, v.z], i * 3);
+      let { x, y, z } = v;
+      const s = 1 + 0.08 * (1 - ss(-0.7, 0.45, y)) - 0.045 * ss(0.1, 1, y);   // narrow top, soft wide bottom
+      x *= s * 1.03; z *= s * 0.94;
+      y = y < 0 ? -0.86 * (-y) * (1.14 - 0.14 * y * y) : 1.0 * y;            // squat, rounded-flat underside
+      x += 0.055 * y;                                                        // top leans right, belly bulges left
+      p.setXYZ(i, x, y, z);
+    }
+    g.setAttribute('dir', new THREE.BufferAttribute(dir, 3));
+    g.computeVertexNormals();
+    return g;
+  }
+  const GEO = {
+    body: blobGeometry(),
+    nub: withDir(new THREE.SphereGeometry(0.2, 40, 28)),
+    orb: withDir(new THREE.SphereGeometry(0.155, 40, 28)),
+    conf: new THREE.PlaneGeometry(0.05, 0.085),
+    shadow: new THREE.PlaneGeometry(1, 1),
+  };
+  
+  const VS = `
+  attribute vec3 dir;
+  uniform float uTime, uWobble;
+  varying vec3 vDir, vN, vV;
+  void main(){
+    vDir = dir;
+    float w = sin(dir.y*3.1 + uTime*1.6) * sin(dir.x*2.3 + uTime*1.1);
+    vec4 mv = modelViewMatrix * vec4(position + normal * w * uWobble, 1.0);
+    vV = -mv.xyz;
+    vN = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * mv;
+  }`;
+  const FS = `
+  uniform vec3 uTop, uMid, uBottom, uRim;
+  uniform sampler2D uFace;
+  uniform float uFaceOn, uGlow;
+  varying vec3 vDir, vN, vV;
+  void main(){
+    vec3 N = normalize(vN), V = normalize(vV);
+    float h = vDir.y;
+    vec3 base = mix(uBottom, uMid, smoothstep(-0.95, 0.05, h));
+    base = mix(base, uTop, smoothstep(0.1, 0.95, h));
+    float wash = smoothstep(0.15, 1.1, -0.55*vDir.x - 0.75*vDir.y + 0.1*vDir.z);
+    base = mix(base, uBottom, 0.42*wash);
+    vec3 L = normalize(vec3(-0.5, 0.8, 0.6));
+    float wrap = clamp((dot(N, L) + 0.8) / 1.8, 0.0, 1.0);
+    vec3 col = base * (0.86 + 0.2 * wrap);
+    float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.3);
+    col = mix(col, uRim, fres * (0.5 + 0.3*uGlow));
+    col += uBottom * 0.10 * smoothstep(-0.2, -1.0, N.y);
+    vec3 H = normalize(L + V);
+    float nh = max(dot(N, H), 0.0);
+    vec3 spec = vec3(1.0, 0.98, 0.95) * (pow(nh, 14.0) * 0.06 + pow(nh, 70.0) * 0.08);
+    col += spec;
+    // sample outside any branch so mip selection stays smooth; mask to the front half
+    vec2 uv = vec2(atan(vDir.x, vDir.z) * 0.5 + 0.5, asin(clamp(vDir.y, -1.0, 1.0)) + 0.5);
+    vec4 f = texture2D(uFace, uv) * uFaceOn * smoothstep(0.05, 0.25, vDir.z);
+    col = col * (1.0 - f.a) + f.rgb + spec * 1.6 * f.a;
+    gl_FragColor = vec4(col, 1.0);
+  }`;
+  
+  // ---------- shared sprite textures ----------
+  function canvasTex(w, h, draw) {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    draw(c.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  }
+  const FONT = '"SF Pro Rounded",ui-rounded,"Nunito","Varela Round",system-ui,sans-serif';
+  const TEX = {
+    q: canvasTex(128, 128, (x) => { x.fillStyle = '#8b87f3'; x.font = `800 112px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', 64, 70); }),
+    z: canvasTex(128, 128, (x) => { x.fillStyle = '#7f8bf2'; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', 64, 62); }),
+    shadow: canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }),
+  };
+  const dashTex = {};
+  function dash(color) {
+    return dashTex[color] ||= canvasTex(128, 32, (x) => { x.strokeStyle = color; x.lineWidth = 15; x.lineCap = 'round'; x.beginPath(); x.moveTo(14, 16); x.lineTo(114, 16); x.stroke(); });
+  }
+  
+  // ---------- shared prop materials ----------
+  const MAT = {
+    lap: new THREE.MeshStandardMaterial({ color: '#626a96', roughness: 0.38, metalness: 0.2 }),
+    lapDark: new THREE.MeshStandardMaterial({ color: '#434a72', roughness: 0.55 }),
+    logo: new THREE.MeshStandardMaterial({ color: '#9aa1cc', roughness: 0.3 }),
+    ring: new THREE.MeshStandardMaterial({ color: '#2d355c', roughness: 0.3, metalness: 0.3 }),
+    glass: new THREE.MeshBasicMaterial({ color: '#e4f2ff', transparent: true, opacity: 0.32, depthWrite: false }),
+    bulb: new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffbe3d', emissiveIntensity: 0.65, roughness: 0.25 }),
+    neck: new THREE.MeshStandardMaterial({ color: '#c9c2d9', roughness: 0.4, metalness: 0.2 }),
+    conf: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+  };
+  const CONF_COLORS = ['#ff9f6e', '#9b8cf5', '#5ccfa0', '#ffc94d', '#ff7ea1', '#6aa5ff'].map(c => new THREE.Color(c));
+  
+  function sprite(tex, w, h = w) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    s.scale.set(w, h, 1); return s;
+  }
+  // little radiating dashes, like the "!" marks on the boards
+  function burst(color, cx, cy, pts) {
+    const g = new THREE.Group();
+    for (const [x, y, len = 0.17] of pts) {
+      const s = sprite(dash(color), len, len / 4);
+      s.material.rotation = Math.atan2(y - cy, x - cx);
+      s.position.set(x, y, 0.3); s.userData.base = [x, y, cx, cy]; g.add(s);
+    }
+    return g;
+  }
+  
+  let THEME_DARK = false;
+  const allMascots = new Set();
+  
+  // ---------- the mascot ----------
+  class Mascot {
+    constructor({ faceSize = 512, hero = false, faceless = false } = {}) {
+      this.hero = hero; this.faceless = faceless;
+      this.group = new THREE.Group();
+      this.root = new THREE.Group(); this.group.add(this.root);
+      this.squash = new THREE.Group(); this.squash.position.y = -B; this.root.add(this.squash);
+      this.turn = new THREE.Group(); this.turn.position.y = B; this.squash.add(this.turn);
+  
+      this.fc = document.createElement('canvas'); this.fc.width = faceSize; this.fc.height = faceSize / 2;
+      this.fx = this.fc.getContext('2d');
+      this.faceTex = new THREE.CanvasTexture(this.fc);
+      this.faceTex.premultiplyAlpha = true; this.faceTex.colorSpace = THREE.NoColorSpace;
+      if (hero) { this.faceTex.generateMipmaps = false; this.faceTex.minFilter = THREE.LinearFilter; }
+      else this.faceTex.anisotropy = 4;
+  
+      const U = this.u = {
+        uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uRim: { value: new THREE.Vector3() },
+        uFace: { value: this.faceTex }, uFaceOn: { value: faceless ? 0 : 1 }, uGlow: { value: 0 }, uTime: { value: 0 }, uWobble: { value: 0.012 },
+      };
+      const mat = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS });
+      this.body = new THREE.Mesh(GEO.body, mat(U)); this.turn.add(this.body);
+  
+      const nubU = { ...U, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+      const nubMat = mat(nubU);
+      this.nubR = new THREE.Mesh(GEO.nub, nubMat); this.nubL = new THREE.Mesh(GEO.nub, nubMat);
+      this.nubR.scale.set(1, 0.86, 0.9); this.nubL.scale.copy(this.nubR.scale);
+      this.turn.add(this.nubR, this.nubL);
+  
+      this.ou = { ...U, uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+      this.orb = new THREE.Mesh(GEO.orb, mat(this.ou)); this.group.add(this.orb);
+  
+      this.shadowMat = new THREE.MeshBasicMaterial({ map: TEX.shadow, transparent: true, depthWrite: false, opacity: 0.5 });
+      this.shadow = new THREE.Mesh(GEO.shadow, this.shadowMat);
+      this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = -B - 0.06; this.group.add(this.shadow);
+  
+      this.buildProps();
+      this.buildDecor();
+  
+      this.s = { expr: 'normal', pose: 'floating', color: 'peach' };
+      this.yaw = 0; this.yawTarget = 0; this.tilt = 0;
+      this.gaze = { x: 0, y: 0 }; this.gazeTarget = { x: 0, y: 0 };
+      this.seed = Math.random() * 100;
+      this.nextBlink = 1 + Math.random() * 3; this.blinkAt = -9;
+      this.bounceAt = -9; this.popAt = -9; this.happyUntil = -9;
+      this.now = 0; this.faceKey = '';
+      this.setColor('peach');
+      allMascots.add(this);
+    }
+  
+    buildProps() {
+      const lap = this.laptop = new THREE.Group();
+      const base = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.56), MAT.lapDark);
+      const lid = new THREE.Group(); lid.position.set(0, 0.02, 0.28); lid.rotation.x = 0.22;
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.035), MAT.lap); panel.position.y = 0.28;
+      const logo = new THREE.Mesh(new THREE.CircleGeometry(0.045, 24), MAT.logo); logo.position.set(0, 0.3, 0.019);
+      lid.add(panel, logo); lap.add(base, lid);
+      lap.position.set(0.34, -0.74, 0.98); lap.rotation.y = -0.38;
+  
+      const mag = this.magnifier = new THREE.Group();
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.045, 18, 56), MAT.ring);
+      const glass = new THREE.Mesh(new THREE.CircleGeometry(0.25, 40), MAT.glass);
+      const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.36, 18), MAT.ring);
+      const d = new THREE.Vector2(0.5, -0.86).normalize();
+      handle.position.set(d.x * 0.45, d.y * 0.45, 0); handle.rotation.z = -Math.atan2(d.x, d.y) + Math.PI;
+      mag.add(ring, glass, handle);
+      mag.position.set(-1.02, 0.18, 0.74); mag.rotation.y = 0.2;
+  
+      const bulb = this.bulb = new THREE.Group();
+      const glassB = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), MAT.bulb);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.11, 20), MAT.neck); neck.position.y = -0.17;
+      bulb.add(glassB, neck, burst('#ffc14d', 0, 0, [[0, 0.3, 0.13], [-0.25, 0.2, 0.13], [0.25, 0.2, 0.13], [-0.32, -0.02, 0.12], [0.32, -0.02, 0.12]]));
+      bulb.position.set(-0.8, 1.12, 0.2);
+      const reel = this.reel = new THREE.Group();
+      const rs = new THREE.Shape(); const w = 0.25, h = 0.42, r = 0.06;
+      rs.moveTo(-w + r, -h); rs.lineTo(w - r, -h); rs.quadraticCurveTo(w, -h, w, -h + r); rs.lineTo(w, h - r); rs.quadraticCurveTo(w, h, w - r, h); rs.lineTo(-w + r, h); rs.quadraticCurveTo(-w, h, -w, h - r); rs.lineTo(-w, -h + r); rs.quadraticCurveTo(-w, -h, -w + r, -h);
+      const slab = new THREE.Mesh(new THREE.ExtrudeGeometry(rs, { depth: 0.035, bevelEnabled: false, curveSegments: 10 }), MAT.lapDark);
+      const tri = new THREE.Shape(); tri.moveTo(-0.07, -0.09); tri.lineTo(0.11, 0); tri.lineTo(-0.07, 0.09); tri.closePath();
+      const play = new THREE.Mesh(new THREE.ShapeGeometry(tri), new THREE.MeshBasicMaterial({ color: '#ffd9b8' })); play.position.z = 0.04;
+      reel.add(slab, play);
+      this.turn.add(lap, mag, reel); this.root.add(bulb);
+    }
+  
+    buildDecor() {
+      const r = this.root;
+      this.q = sprite(TEX.q, 0.36); this.q.position.set(0.98, 1.08, 0.25);
+      this.z1 = sprite(TEX.z, 0.2); this.z2 = sprite(TEX.z, 0.32);
+      this.sparkR = burst('#ff9f62', 0.62, 0.58, [[0.98, 1.02], [1.16, 0.84], [1.24, 0.6]]);
+      this.sparkV = burst('#9d8df6', 0.6, 0.6, [[0.9, 1.08, 0.15], [1.12, 0.92, 0.15]]);
+      this.sparkL = burst('#ff9f62', -0.62, 0.58, [[-0.98, 1.0], [-1.18, 0.78], [-1.24, 0.55]]);
+      this.wave = burst('#4b5a9e', 0.7, 0.35, [[1.08, 0.72, 0.15], [1.22, 0.52, 0.15]]);
+      r.add(this.q, this.z1, this.z2, this.sparkR, this.sparkV, this.sparkL, this.wave);
+    }
+  
+    initConfetti() {
+      const n = 40;
+      this.conf = new THREE.InstancedMesh(GEO.conf, MAT.conf, n);
+      this.cp = [];
+      for (let i = 0; i < n; i++) {
+        this.conf.setColorAt(i, CONF_COLORS[i % CONF_COLORS.length]);
+        const c = { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() };
+        this.spawn(c, true); this.cp.push(c);
+      }
+      this.confDummy = new THREE.Object3D();
+      this.group.add(this.conf);
+    }
+    spawn(c, scatter) {
+      const R = Math.random;
+      if (scatter) c.p.set((R() - 0.5) * 2.8, R() * 1.9 - 0.4, (R() - 0.5) * 0.8 + 0.2);
+      else c.p.set((R() - 0.5) * 0.5, 0.95, 0.2);
+      c.v.set((R() - 0.5) * 2.6, 1.8 + R() * 1.8, (R() - 0.5) * 0.9);
+      c.r.set(R() * TAU, R() * TAU, R() * TAU);
+      c.w.set((R() - 0.5) * 9, (R() - 0.5) * 9, (R() - 0.5) * 9);
+    }
+  
+    setColor(name) {
+      const P = PALETTES[name]; this.s.color = name;
+      this.u.uTop.value.copy(v3(P.top)); this.u.uMid.value.copy(v3(P.mid)); this.u.uBottom.value.copy(v3(P.bottom)); this.u.uRim.value.copy(v3(P.rim));
+      this.ou.uTop.value.copy(v3(P.orbTop)); this.ou.uMid.value.copy(v3(P.orbTop)).lerp(v3(P.orbBottom), 0.5); this.ou.uBottom.value.copy(v3(P.orbBottom));
+      this.shadowMat.color.set(P.shadow);
+      this.blush = P.blush; this.faceKey = '';
+    }
+    setExpr(e) { if (e !== this.s.expr) { this.s.expr = e; this.popAt = this.now; } }
+    setPose(p) { if (p !== this.s.pose) { this.s.pose = p; this.popAt = this.now; } }
+    bounce() { this.bounceAt = this.now; this.happyUntil = this.now + 1.2; }
+  
+    update(t, dt) {
+      this.now = t;
+      const R = REDUCED, s = this.s;
+      const expr = t < this.happyUntil && !['excited', 'celebrating', 'worried', 'sleeping'].includes(s.expr) ? 'happy' : s.expr;
+      const pose = s.pose;
+      const sleeping = expr === 'sleeping';
+      this.clock = (this.clock ?? this.seed) + dt * (this.tempo ?? 1);
+      const ft = R ? 0 : this.clock;
+      this.u.uTime.value = ft;
+      this.u.uGlow.value = this.glow ?? (THEME_DARK ? 1 : 0);
+  
+      let y = R ? 0 : Math.sin(ft * (sleeping ? 0.8 : 1.5)) * (sleeping ? 0.03 : 0.065);
+      let sy = 1 + (R ? 0 : Math.sin(ft * (sleeping ? 1.1 : 2.2)) * (sleeping ? 0.03 : 0.022));
+      if (!R && (expr === 'excited' || expr === 'celebrating' || pose === 'cheering')) {
+        const hop = Math.abs(Math.sin(ft * 4.2));
+        y += hop * 0.11; sy *= 1 + 0.035 * hop - 0.07 * (1 - ss(0, 0.3, hop));
+      }
+      const bp = (t - this.bounceAt) / 0.9;
+      if (!R && bp >= 0 && bp < 1) {
+        if (bp < 0.15) sy *= 1 - 0.15 * Math.sin(bp / 0.15 * Math.PI / 2);
+        else if (bp < 0.72) { const q = (bp - 0.15) / 0.57; y += Math.sin(q * Math.PI) * 0.42; sy *= 1 + 0.13 * (1 - 2 * q) ** 2; }
+        else { const r = (bp - 0.72) / 0.28; sy *= 1 - 0.14 * Math.sin(r * Math.PI) * (1 - 0.4 * r); }
+      }
+      const pp = (t - this.popAt) / 0.35;
+      if (!R && pp >= 0 && pp < 1) sy *= 1 + 0.07 * Math.sin(pp * Math.PI) * (1 - pp);
+      const sx = 1 / Math.sqrt(sy);
+      this.squash.scale.set(sx, sy, sx);
+      this.root.position.y = y;
+  
+      // gaze + turn
+      const gt = expr === 'thinking' ? { x: 0.6, y: 0.75 } : sleeping ? { x: 0, y: -0.2 } : pose === 'finding' ? { x: -0.55, y: 0.05 } : pose === 'working' ? { x: 0.2, y: -0.55 } : this.gazeTarget;
+      const kg = R ? 1 : 1 - Math.exp(-dt * 10);
+      this.gaze.x = lerp(this.gaze.x, gt.x, kg); this.gaze.y = lerp(this.gaze.y, gt.y, kg);
+      const ky = R ? 1 : 1 - Math.exp(-dt * 6);
+      this.yaw = lerp(this.yaw, this.yawTarget + this.gaze.x * 0.26, ky);
+      this.turn.rotation.y = this.yaw;
+      this.turn.rotation.x = lerp(this.turn.rotation.x, -this.gaze.y * 0.12, ky);
+      const tiltT = expr === 'curious' ? 0.13 : expr === 'thinking' ? -0.07 : sleeping ? 0.06 : 0;
+      this.tilt = lerp(this.tilt, tiltT, ky); this.root.rotation.z = this.tilt;
+  
+      // blink
+      if (!R && !STILL && t > this.nextBlink) { this.blinkAt = t; this.nextBlink = t + (Math.random() < 0.2 ? 0.25 : 2.4 + Math.random() * 3); }
+      const bt = (t - this.blinkAt) / 0.15;
+      const blink = bt >= 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+  
+      if (!this.faceless) {
+        const key = `${expr}|${this.gaze.x.toFixed(2)}|${this.gaze.y.toFixed(2)}|${blink.toFixed(2)}|${this.blush}`;
+        if (key !== this.faceKey) { this.faceKey = key; drawFace(this.fx, this.fc.width, this.fc.height, expr, this.gaze, blink, this.blush); this.faceTex.needsUpdate = true; }
+      }
+  
+      // orb companion
+      const fl = this.faceless;
+      this.orb.position.set(fl ? 0.72 : 0.98 + 0.04 * Math.sin(ft * 0.9), (fl ? -0.38 : 0.98) + 0.06 * Math.sin(ft * 1.7 + 1), fl ? 0.75 : 0.15);
+      this.orb.scale.setScalar(fl ? 1.9 : 1);
+      this.orb.visible = fl || !['curious', 'sleeping', 'surprised', 'excited'].includes(expr) && pose !== 'greeting';
+  
+      // shadow
+      const sh = 1 - y * 0.55;
+      this.shadow.scale.set(2.0 * sh, 1.25 * sh, 1);
+      this.shadowMat.opacity = (THEME_DARK && !this.glow ? 0.32 : 0.5) * (1 - y * 0.9);
+  
+      // props
+      const wave = R ? 0 : Math.sin(ft * 9);
+      this.laptop.visible = pose === 'working';
+      this.magnifier.visible = pose === 'finding';
+      if (this.magnifier.visible) this.magnifier.position.y = 0.18 + (R ? 0 : 0.04 * Math.sin(ft * 1.3));
+      this.bulb.visible = pose === 'explaining';
+      if (this.bulb.visible) this.bulb.position.y = 1.12 + (R ? 0 : 0.04 * Math.sin(ft * 2));
+      this.reel.visible = pose === 'holding' || pose === 'hugging';
+      if (pose === 'holding') { this.reel.position.set(0.86, 0.16 + (R ? 0 : 0.025 * Math.sin(ft * 1.6)), 0.7); this.reel.rotation.set(0, -0.4, -0.1); this.nubR.position.set(0.86, -0.32, 0.72); }
+      if (pose === 'hugging') { this.reel.position.set(0, -0.62, 0.98); this.reel.rotation.set(-0.12, 0, 0); this.reel.scale.setScalar(0.8); this.nubR.position.set(0.3, -0.76, 1.0); this.nubL.position.set(-0.3, -0.76, 1.0); }
+      else this.reel.scale.setScalar(1);
+      this.nubR.visible = pose === 'greeting' || pose === 'thinking' || pose === 'cheering' || pose === 'holding' || pose === 'hugging';
+      this.nubL.visible = pose === 'cheering' || pose === 'hugging';
+      if (pose === 'greeting') this.nubR.position.set(0.98 + 0.02 * wave, -0.22 + 0.09 * wave, 0.32);
+      if (pose === 'thinking') this.nubR.position.set(0.3, -0.55 + (R ? 0 : 0.015 * Math.sin(ft * 2)), 0.86);
+      if (pose === 'cheering') {
+        const c = R ? 0.5 : (Math.sin(ft * 8.4) + 1) / 2;
+        this.nubR.position.set(0.98, 0.08 + 0.12 * c, 0.26); this.nubL.position.set(-1.0, 0.08 + 0.12 * (1 - c), 0.26);
+      }
+  
+      // decor
+      this.q.visible = expr === 'curious';
+      if (this.q.visible) { this.q.position.y = 1.08 + (R ? 0 : 0.05 * Math.sin(ft * 2.2)); this.q.material.rotation = R ? 0.15 : 0.15 + 0.1 * Math.sin(ft * 1.7); }
+      this.z1.visible = this.z2.visible = sleeping;
+      if (sleeping) {
+        [this.z1, this.z2].forEach((z, i) => {
+          const ph = R ? 0.35 + i * 0.3 : (ft * 0.3 + i * 0.5) % 1;
+          z.position.set(0.66 + ph * 0.42 + i * 0.05, 0.78 + ph * 0.55, 0.3);
+          z.material.opacity = R ? 1 : Math.sin(ph * Math.PI);
+          z.material.rotation = -0.2;
+        });
+      }
+      const celebrate = expr === 'celebrating' || pose === 'cheering';
+      this.sparkR.visible = expr === 'excited' || celebrate;
+      this.sparkL.visible = celebrate;
+      this.sparkV.visible = expr === 'surprised';
+      this.wave.visible = pose === 'greeting';
+      const pulse = R ? 1 : 1 + 0.08 * Math.sin(ft * 6);
+      for (const g of [this.sparkR, this.sparkL, this.sparkV, this.wave]) if (g.visible) for (const d of g.children) {
+        const [x, yy, cx, cy] = d.userData.base;
+        d.position.set(cx + (x - cx) * pulse, cy + (yy - cy) * pulse, 0.3);
+      }
+  
+      // confetti
+      if (celebrate && !this.conf) this.initConfetti();
+      if (this.conf) {
+        this.conf.visible = celebrate;
+        if (celebrate && !R) {
+          const D = this.confDummy;
+          this.cp.forEach((c, i) => {
+            c.v.y -= 3.4 * dt; c.v.x *= 0.985; c.v.z *= 0.985; if (c.v.y < -0.9) c.v.y = -0.9;
+            c.p.addScaledVector(c.v, dt);
+            c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+            if (c.p.y < -1.0) this.spawn(c, false);
+            D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix);
+          });
+          this.conf.instanceMatrix.needsUpdate = true;
+        } else if (celebrate && !this.confStill) {
+          const D = this.confDummy; this.confStill = true;
+          this.cp.forEach((c, i) => { D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix); });
+          this.conf.instanceMatrix.needsUpdate = true;
+        }
+      }
+    }
+  }
+  
+  // ---------- the face, painted in angle space (1 canvas px row = same angle both axes) ----------
+  const INK = '#1b1520';
+  function drawFace(x, W, H, expr, gaze, blink, blush) {
+    const S = W / 2, cx = W / 2, cy = H / 2;
+    const P = (ax, ay) => [cx + ax * S, cy - ay * S];
+    x.clearRect(0, 0, W, H);
+    x.lineCap = 'round'; x.lineJoin = 'round';
+  
+    const strong = expr === 'celebrating' || expr === 'excited' || expr === 'happy' || expr === 'sleeping';
+    for (const sd of [-1, 1]) {
+      const [bx, by] = P(sd * 0.56, -0.03), r = 0.15 * S;
+      const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+      g.addColorStop(0, `rgba(${blush},${strong ? 0.62 : 0.54})`); g.addColorStop(0.55, `rgba(${blush},${strong ? 0.3 : 0.25})`); g.addColorStop(1, `rgba(${blush},0)`);
+      x.fillStyle = g; x.beginPath(); x.ellipse(bx, by, r, r * 0.78, 0, 0, TAU); x.fill();
+    }
+  
+    const ox = gaze.x * 0.05, oy = gaze.y * 0.035;
+    const rx = 0.088 * S, ry = 0.136 * S, lw = 0.032 * S;
+    x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = lw;
+    for (const sd of [-1, 1]) {
+      const [ex, ey] = P(sd * 0.37 + ox, 0.14 + oy);
+      let k = 1 - blink * 0.94;
+      const big = expr === 'curious' && sd === 1 ? 1.12 : 1;
+      if (expr === 'happy' || expr === 'celebrating') arc(x, ex, ey + ry * 0.2, rx * 1.15, -ry * 0.95);
+      else if (expr === 'sleeping') arc(x, ex, ey - ry * 0.05, rx * 1.15, ry * 0.75);
+      else if (expr === 'excited') {
+        x.beginPath(); x.moveTo(ex + sd * rx * 0.85, ey - ry * 0.62); x.lineTo(ex - sd * rx * 0.75, ey); x.lineTo(ex + sd * rx * 0.85, ey + ry * 0.62); x.stroke();
+      } else if (k < 0.3) arc(x, ex, ey, rx * 1.05, ry * 0.3);
+      else if (expr === 'surprised') eye(x, ex, ey, rx * 1.15, rx * 1.2 * k, 0, null, true);
+      else if (expr === 'focused') eye(x, ex, ey + ry * 0.08, rx, ry * 0.92 * k, 0, sd);
+      else eye(x, ex, ey, rx * big, ry * big * k, sd * 0.08);
+    }
+  
+    if (expr === 'worried') for (const sd of [-1, 1]) {
+      const [a, b] = P(sd * 0.27 + ox, 0.36 + oy), [c, d] = P(sd * 0.47 + ox, 0.3 + oy);
+      x.lineWidth = lw * 0.8; x.beginPath(); x.moveTo(a, b); x.lineTo(c, d); x.stroke();
+    }
+    const m = (ax, ay) => P((ax + ox * 0.6) * 1.25, (ay + oy * 0.5) * 1.25 + 0.02);
+    x.lineWidth = lw * 0.95;
+    x.beginPath();
+    if (expr === 'happy') { x.moveTo(...m(-0.08, -0.02)); x.quadraticCurveTo(...m(0, -0.11), ...m(0.08, -0.02)); x.stroke(); }
+    else if (expr === 'excited' || expr === 'celebrating') {
+      x.moveTo(...m(-0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.005), ...m(0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.15), ...m(-0.085, -0.02)); x.closePath();
+      x.fillStyle = '#3a1a28'; x.fill(); x.save(); x.clip(); x.fillStyle = '#ff7f96'; x.beginPath(); x.ellipse(...m(0, -0.115), 0.06 * S, 0.04 * S, 0, 0, TAU); x.fill(); x.restore();
+      x.fillStyle = INK;
+    } else if (expr === 'surprised') { x.ellipse(...m(0, -0.06), 0.028 * S, 0.036 * S, 0, 0, TAU); x.fillStyle = '#3a1a28'; x.fill(); x.fillStyle = INK; }
+    else if (expr === 'worried') { x.moveTo(...m(-0.045, -0.065)); x.quadraticCurveTo(...m(0, -0.03), ...m(0.045, -0.065)); x.stroke(); }
+    else if (expr === 'thinking') { x.moveTo(...m(0.0, -0.045)); x.quadraticCurveTo(...m(0.035, -0.06), ...m(0.07, -0.035)); x.stroke(); }
+    else if (expr === 'focused') { x.moveTo(...m(-0.035, -0.05)); x.lineTo(...m(0.035, -0.05)); x.stroke(); }
+    else if (expr === 'sleeping') { x.moveTo(...m(-0.035, -0.04)); x.quadraticCurveTo(...m(0, -0.075), ...m(0.035, -0.04)); x.stroke(); }
+    else if (expr === 'curious') { x.moveTo(...m(-0.055, -0.03)); x.quadraticCurveTo(...m(0, -0.085), ...m(0.05, -0.04)); x.stroke(); }
+    else { x.moveTo(...m(-0.068, -0.025)); x.quadraticCurveTo(...m(0, -0.1), ...m(0.068, -0.025)); x.stroke(); }
+  }
+  function arc(x, cx, cy, hw, bend) { x.beginPath(); x.moveTo(cx - hw, cy); x.quadraticCurveTo(cx, cy + bend, cx + hw, cy); x.stroke(); }
+  function eye(x, cx, cy, rx, ry, rot, lidSide, round) {
+    x.save(); x.translate(cx, cy); x.rotate(rot);
+    if (lidSide) { // determined lids: inner corner lower
+      x.beginPath(); x.moveTo(lidSide * rx * 1.4, -ry * 0.62); x.lineTo(-lidSide * rx * 1.4, -ry * 0.05); x.lineTo(-lidSide * rx * 1.4, ry * 2); x.lineTo(lidSide * rx * 1.4, ry * 2); x.closePath(); x.clip();
+    }
+    const g = x.createRadialGradient(-rx * 0.3, -ry * 0.35, ry * 0.08, 0, 0, Math.max(rx, ry) * 1.1);
+    g.addColorStop(0, '#2c2432'); g.addColorStop(1, '#0d0910');
+    x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.96)';
+    x.beginPath(); x.ellipse(-rx * 0.3, -ry * (round ? 0.38 : 0.42), rx * (round ? 0.3 : 0.34), Math.max(1, ry * (round ? 0.3 : 0.24)), -0.5, 0, TAU); x.fill();
+    x.fillStyle = 'rgba(255,255,255,.5)';
+    x.beginPath(); x.ellipse(rx * 0.32, ry * 0.42, rx * 0.13, Math.max(1, ry * 0.09), 0, 0, TAU); x.fill();
+    x.restore(); x.fillStyle = INK;
+  }
+  
+  // ---------- scenes ----------
+  function makeScene(m) {
+    const scene = new THREE.Scene();
+    scene.add(m.group, new THREE.HemisphereLight('#fff4ec', '#ead8ff', 1.3));
+    const d = new THREE.DirectionalLight('#ffffff', 1.7); d.position.set(-2, 3, 5); scene.add(d);
+    return scene;
+  }
+  function makeCam(z = 6.4, ty = 0.14) {
+    const c = new THREE.PerspectiveCamera(30, 1, 0.1, 50); c.position.set(0, 0.42, z); c.lookAt(0, ty, 0); return c;
+  }
+  
+  hooks.setReduced=v=>{REDUCED=v;}; hooks.setDark=v=>{THEME_DARK=v;};
+  return {Mascot,makeScene,makeCam};
+}
+const isDark=()=>{const t=document.documentElement.dataset.theme; return t?t==='dark':matchMedia('(prefers-color-scheme: dark)').matches;};
+(async()=>{
+  try{
+    const THREE=await import('https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js');
+    const hooks={}; const C=core(THREE,hooks);
+    const canvas=document.createElement('canvas'); bean.el.append(canvas);
+    const R=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true}); R.setPixelRatio(Math.min(devicePixelRatio,2)); R.setSize(360,360,false);
+    const m=new C.Mascot({faceSize:512,hero:true}); const scene=C.makeScene(m),cam=C.makeCam(5.7,.2);
+    bean.m=m; bean.setReduced=hooks.setReduced; bean.setDark=hooks.setDark; bean.setDark(isDark()); bean.ready=true; bean.apply(); bean.place();
+    let last=performance.now(),n=0;
+    const loop=now=>{requestAnimationFrame(loop); const dt=Math.min(.05,(now-last)/1000); last=now; bean.frame(now); if(S.bean==='off')return; if(!bean.hop&&(n++&1))return; m.update(now/1000,dt*(bean.hop?1:2)); R.render(scene,cam);};
+    requestAnimationFrame(loop);
+  }catch(err){
+    console.warn('Bean 3D unavailable, using a flat Bean',err.message);
+    document.body.classList.add('nogl'); bean.el.innerHTML='<div class="blob"></div>';
+    const loop=now=>{requestAnimationFrame(loop);bean.frame(now);}; requestAnimationFrame(loop);
+  }
+})();
+addEventListener('resize',()=>{bean.place();renderSheets();});
+
+/* ---------- prototype bar ---------- */
+$('#states').addEventListener('click',e=>{const b=e.target.closest('[data-testid^=state-]'); if(!b)return; pause(); S.first=false; setState(S.view,b.dataset.testid.slice(6));});
+$('#theme').onclick=()=>{const d=!isDark(); document.documentElement.dataset.theme=d?'dark':'light'; bean.setDark&&bean.setDark(d);};
+setInterval(()=>{ if(S.job&&!simTimer&&stateOf(S.job)==='long'||S.job&&!simTimer&&stateOf(S.job)==='running'){S.t++;patch();} },1000);
+
+/* ---------- walkthrough: a fake cursor drives the real UI ---------- */
+const W=o=>({...o});
+const base=o=>{S=fresh();Object.assign(S,o||{});};
+const JOURNEYS=[
+ {name:'Lần đầu mở app',steps:[
+  W({c:'Mở app lần đầu: Bean chào to giữa màn hình, nói rõ nó làm gì. Không có popup, không có bảng tính năng.',s:()=>base({first:true})}),
+  W({c:'Bấm Connect Instagram. Bean bay xuống đường ray ở đáy cửa sổ và đi lấy số, số đổ về từng dòng.',s:()=>base({first:true}),t:'act-connect'}),
+  W({c:'Từ giờ Bean ở dưới đó: đứng ở bước nào là việc đang ở bước đó. Muốn hỏi thì bấm vào nó.',s:()=>{base();S.view='pull';},t:'stop-today'}),
+  W({c:'Hôm nay chỉ nói một câu: có gì cần anh. Không phải 8 ô số.',s:()=>base(),hover:'today-go-approve'}),
+ ]},
+ {name:'Cả vòng 6 bước',steps:[
+  W({c:'Bước 1, Pull: chỉ kéo khi anh bấm, không chạy ngầm theo giờ.',s:()=>{base();S.view='pull';},t:'act-pull-all'}),
+  W({c:'Bước 2, Insight: tiêu đề là câu trả lời luôn. Bấm hỏi Claude chỗ rơi lớn nhất.',s:()=>{base();S.view='insight';},t:'act-ask'}),
+  W({c:'Bước 3, Plan: tháng 11 trên lịch, mỗi reel một thẻ, tên đọc được hết. Bấm một reel để đọc.',s:()=>{base();S.view='plan';},t:'slot-5'}),
+  W({c:'Bước 4, Approve: không còn diff kiểu code. Mỗi thay đổi nói bằng lời kèm lý do. Duyệt một nút.',s:()=>{base();S.view='approve';},t:'act-approve'}),
+  W({c:'Bước 5, Cook: bấm Cook trên reel. Bean bê laptop, 6 đoạn sáng dần, terminal giấu đi.',s:()=>{base({approved:true});S.view='plan';S.slot=3;},t:'act-cook'}),
+  W({c:'Gõ góp ý ngay lúc đang nấu. Claude đọc sau bước này.',s:()=>{base({approved:true,cookDone:false});S.view='cook';setStateQuiet('cook','running');},type:['feedback','Make the hook shorter'],t:'act-send'}),
+  W({c:'Bước 6, Publish: Bean cầm reel đưa anh, chờ anh nói có. Bấm duyệt.',s:()=>{base({approved:true});S.view='publish';},t:'act-publish'}),
+  W({c:'Lần duy nhất có confetti: reel lên sóng. Việc hiếm thì mới được vui.',s:()=>{base({approved:true,published:true,celebrate:true});S.view='publish';}}),
+ ]},
+ {name:'Chờ lâu',steps:[
+  W({c:'Render chậm hơn thường lệ. Câu chữ nói thật: đã bao lâu, thường bao lâu. Bean chậm lại nhưng vẫn làm.',s:()=>{base({approved:true});S.view='cook';setStateQuiet('cook','long');}}),
+  W({c:'Anh rời đi xem Plan. Trang đổi ngay, Bean vẫn ở lại Cook, chỉ liếc theo.',s:()=>{base({approved:true});S.view='cook';setStateQuiet('cook','long');},t:'stop-plan'}),
+  W({c:'Muốn biết thì bấm Bean. Đây là lần duy nhất Bean nói, và là do anh hỏi.',s:()=>{base({approved:true});S.view='plan';setStateQuiet('cook','long');},t:'bean'}),
+  W({c:'Vẫn đủ YOU CAN và IF YOU WAIT. Một nút quay lại Cook.',s:()=>{base({approved:true,sheet:true});S.view='plan';setStateQuiet('cook','long');},t:'sheet-go'}),
+ ]},
+ {name:'Lỗi vẫn giữ thành quả',steps:[
+  W({c:'Pull lỗi giữa chừng. Không cười, không đùa. Bean ôm thứ đã lấy được, 3 rival vẫn có số mới.',s:()=>{base();S.view='pull';setStateQuiet('pull','error');}}),
+  W({c:'Một nút kéo phần còn lại.',s:()=>{base();S.view='pull';setStateQuiet('pull','error');},t:'act-pull-rest'}),
+  W({c:'Render cuối dừng: Bean ôm reel. Script, giọng, chapter, draft đều còn, đoạn đỏ chỉ đúng chỗ dừng.',s:()=>{base({approved:true});S.view='cook';setStateQuiet('cook','error');}}),
+  W({c:'Resume từ đúng bước Final. Không nấu lại từ đầu.',s:()=>{base({approved:true});S.view='cook';setStateQuiet('cook','error');},t:'act-resume-cook'}),
+ ]},
+ {name:'Trống và giới hạn',steps:[
+  W({c:'Bước trống: Bean rời đường ray, lên giữa trang cầm kính lúp. Một câu, một nút. Không trách móc.',s:()=>{base();S.view='pull';setStateQuiet('pull','empty');}}),
+  W({c:'Cook trống: giữ nguyên câu hay nhất của app hiện tại. Bấm mở Plan.',s:()=>{base();S.view='cook';setStateQuiet('cook','empty');},t:'act-go-plan'}),
+  W({c:'Hết giới hạn: Bean ngủ, vì lúc này đúng là chỉ chờ thôi. 5 reel đã lưu, 17:00 bấm một nút.',s:()=>{base();S.view='plan';setStateQuiet('plan','limited');}}),
+  W({c:'Giới hạn đăng của Instagram: reel vẫn nguyên, hẹn giờ một nút rồi quên đi.',s:()=>{base();S.view='publish';setStateQuiet('publish','limited');},t:'act-schedule'}),
+ ]},
+ {name:'Không thích Bean thì tắt',steps:[
+  W({c:'Bài học từ Clippy: phải tắt được. Mở Settings.',s:()=>{base({approved:true});S.view='cook';setStateQuiet('cook','running');},t:'open-settings'}),
+  W({c:'Still: Bean đứng yên, không nhảy, chỉ đổi dáng.',s:()=>{base({approved:true,settings:true});S.view='cook';setStateQuiet('cook','running');},t:'bean-still'}),
+  W({c:'Off: chỉ còn chấm tròn trên đường ray. Mọi thông tin vẫn được viết ra đủ. Không mất gì.',s:()=>{base({approved:true,settings:true,bean:'still'});S.view='cook';setStateQuiet('cook','running');},t:'bean-off'}),
+ ]},
+];
+function setStateQuiet(v,k){ S.st[v]=k; S.t=COPY[v][k]?.t||0; if(isJob(k))S.job=v; if(v==='cook'){S.cookDone=k==='normal';} }
+const T={j:0,i:0,playing:false,run:0,timer:null};
+const tid=s=>document.querySelector(`[data-testid="${s}"]`);
+const wait=ms=>new Promise(r=>{T.timer=setTimeout(r,ms);});
+function moveCursor(el){ const r=el.getBoundingClientRect(); const x=r.left+Math.min(r.width/2,60),y=r.top+r.height/2; $('#cursor').style.transform=`translate(${x-3}px,${y-2}px)`; $('#cursor').classList.add('on'); lookAt(x,y); return [x,y]; }
+function ripple(x,y){ const r=$('#ripple'); r.style.left=x+'px'; r.style.top=y+'px'; r.classList.remove('go'); void r.offsetWidth; r.classList.add('go'); }
+function setupStep(){
+  clearSim(); clearTimeout(celebrateTimer); $('#toast').classList.remove('on'); document.activeElement?.blur?.();
+  const st=JOURNEYS[T.j].steps[T.i]; st.s(); bean.apply(); render(); renderSheets();
+  $('#cap').textContent=st.c; $('#cap').classList.add('on'); document.body.classList.add('touring');
+  [...$('#dots').children].forEach((d,i)=>{d.classList.toggle('on',i===T.i);d.setAttribute('aria-current',i===T.i?'step':'false');});
+}
+async function perform(run){
+  const st=JOURNEYS[T.j].steps[T.i];
+  const fail=(sel)=>{console.error(`walkthrough: "${sel}" not found on step ${T.i+1} of ${JOURNEYS[T.j].name}`); $('#cap').textContent='Bước này lỗi: không tìm thấy '+sel;};
+  await wait(700); if(run!==T.run)return;
+  if(st.hover){const e=tid(st.hover); if(!e)return fail(st.hover); moveCursor(e); await wait(700);}
+  if(st.type){const e=tid(st.type[0]); if(!e)return fail(st.type[0]); moveCursor(e); await wait(680); if(run!==T.run)return; e.focus(); for(const ch of st.type[1]){e.value+=ch; await wait(38); if(run!==T.run)return;} await wait(300);}
+  if(st.t){const e=tid(st.t); if(!e)return fail(st.t); const [x,y]=moveCursor(e); await wait(680); if(run!==T.run)return; ripple(x,y); e.click();}
+}
+async function runStep(auto){
+  const run=++T.run; setupStep(); const st=JOURNEYS[T.j].steps[T.i];
+  await perform(run); if(run!==T.run)return;
+  if(!auto) return;
+  await wait(Math.max(2600,st.c.length*42)); if(run!==T.run||!T.playing)return;
+  if(T.i<JOURNEYS[T.j].steps.length-1){T.i++;runStep(true);} else pause(true);
+}
+function setPlay(){ $('#playI').textContent=T.playing?'❚❚':'▶'; $('#playT').textContent=T.playing?'Pause':'Play'; }
+function pause(end){ T.playing=false; T.run++; clearTimeout(T.timer); setPlay(); if(end===true){$('#cursor').classList.remove('on');} }
+function stopTour(){ $('#cap').classList.remove('on'); document.body.classList.remove('touring'); $('#cursor').classList.remove('on'); }
+function buildDots(){ const d=$('#dots'); d.innerHTML=''; JOURNEYS[T.j].steps.forEach((_,i)=>{const b=document.createElement('button');b.setAttribute('aria-label','Step '+(i+1));b.dataset.testid='dot-'+i;b.onclick=()=>{pause();T.i=i;runStep(false);};d.append(b);}); }
+JOURNEYS.forEach((j,i)=>$('#jsel').insertAdjacentHTML('beforeend',`<option value="${i}">${j.name}</option>`));
+$('#jsel').onchange=e=>{pause();T.j=+e.target.value;T.i=0;buildDots();T.playing=true;setPlay();runStep(true);};
+$('#play').onclick=()=>{ if(T.playing)return pause(); T.playing=true; setPlay(); if(T.i>=JOURNEYS[T.j].steps.length-1&&$('#cap').classList.contains('on'))T.i=0; runStep(true); };
+$('#prev').onclick=()=>{pause();T.i=Math.max(0,T.i-1);runStep(false);};
+$('#next').onclick=()=>{pause();T.i=Math.min(JOURNEYS[T.j].steps.length-1,T.i+1);runStep(false);};
+buildDots();
+
+/* ---------- start ---------- */
+if(Q.get('theme')) document.documentElement.dataset.theme=Q.get('theme');
+if(Q.get('view')) S.view=Q.get('view');
+if(Q.get('state')) setStateQuiet(S.view,Q.get('state'));
+S.first=Q.has('first')||(!Q.get('view')&&!Q.has('home'));
+bean.apply(); render();
+window.__ls={get S(){return S;},JOURNEYS,T,stopTour,COPY,STOPS,STATES,mood:()=>beanMood(),spot:()=>beanSpot(),ready:()=>bean.ready,pos:()=>({x:bean.x,y:bean.y,s:bean.s,hop:!!bean.hop}),pose:()=>bean.m&&({expr:bean.m.s.expr,pose:bean.m.s.pose})};
+</script>
+</body>
+</html>
