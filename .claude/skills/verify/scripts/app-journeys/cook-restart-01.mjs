@@ -2,7 +2,7 @@
 // project group, which has no parent folder; the profile loader dropped such workspaces, so every
 // restart lost it (and the hydration purge then closed its tabs). Dev mode only: the journey restarts
 // main the way a main edit does, by touching src/main/index.ts, and reconnects over CDP.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -75,7 +75,8 @@ export default async function cookRestart01({ page, step, snap }) {
       }
       await new Promise((r) => setTimeout(r, 2_000));
       if (cdpBindFailures() === failures) break;
-      console.log(`restart ${attempt}: the new Electron could not bind the CDP port`);
+      const holder = spawnSync("sh", ["-c", `for p in $(lsof -nP -t -iTCP:${cdpPort} -sTCP:LISTEN); do ps -o pid=,ppid=,etime=,args= -p $p; done`], { encoding: "utf8" }).stdout.slice(0, 600);
+      console.log(`restart ${attempt}: the new Electron could not bind the CDP port; holder: ${holder.trim() || "none now"}`);
       if (attempt === 3) throw new Error("the CDP port stayed taken after 3 restarts");
     }
     let browser;

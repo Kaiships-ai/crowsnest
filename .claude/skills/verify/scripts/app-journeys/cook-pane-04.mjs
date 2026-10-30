@@ -128,7 +128,9 @@ export default async function cookPane04({ page, step, snap }) {
   try {
     await step("a fresh Cook of plan-e2e-full, slot tomorrow 19:30, keyword COOKPANE", async () => {
       const fake = path.join(ROOT, "..", "fake-claude.sh");
-      writeFileSync(fake, '#!/bin/sh\necho "fake claude $*"\nexec cat\n');
+      // Why the title: a real Claude sets one. On a shell that keeps its default title (CI), the done hook on a
+      // tab titled "Terminal 1" reads as Claude having left, and Orca clears the tab's launchAgent.
+      writeFileSync(fake, '#!/bin/sh\nprintf "\\033]0;Claude Code\\007"\necho "fake claude $*"\nexec cat\n');
       chmodSync(fake, 0o755);
       await page.evaluate((cmd) => window.__store.getState().updateSettings({ agentCmdOverrides: { claude: cmd } }), fake);
       rmSync(FILM, { recursive: true, force: true });
