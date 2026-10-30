@@ -1,0 +1,1458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Studio Daily</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..700&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400..600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f2f2f0; --surface:#fff; --sunk:#e9e9e6; --ink:#17171a; --mid:#5c5c66; --faint:#8d8d97;
+  --line:rgba(20,20,30,.09); --line2:rgba(20,20,30,.16);
+  --you:#d9502a; --you-soft:rgba(217,80,42,.1); --run:#3f5bd0; --run-soft:rgba(63,91,208,.12);
+  --bad:#c22f53; --bad-soft:rgba(194,47,83,.1); --lim:#96640f; --lim-soft:rgba(150,100,15,.12); --ok:#23805a;
+  --clip:#d9d9d5; --clip-ink:#3a3a42;
+  --shadow:0 1px 2px rgba(20,20,30,.05),0 12px 32px -18px rgba(20,20,30,.22);
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --text:"Instrument Sans",ui-sans-serif,system-ui,sans-serif;
+  --mono:"DM Mono",ui-monospace,Menlo,monospace;
+  --out:cubic-bezier(.2,.8,.2,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e0f11; --surface:#17181b; --sunk:#1e1f23; --ink:#f2f2f4; --mid:#a3a4ae; --faint:#73747f;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --you:#ff8a66; --you-soft:rgba(255,138,102,.14); --run:#93a9ff; --run-soft:rgba(147,169,255,.15);
+  --bad:#ff8ca4; --bad-soft:rgba(255,140,164,.13); --lim:#efbb62; --lim-soft:rgba(239,187,98,.13); --ok:#7fd8aa;
+  --clip:#2b2c31; --clip-ink:#c8c8d0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.7);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0e0f11; --surface:#17181b; --sunk:#1e1f23; --ink:#f2f2f4; --mid:#a3a4ae; --faint:#73747f;
+  --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --you:#ff8a66; --you-soft:rgba(255,138,102,.14); --run:#93a9ff; --run-soft:rgba(147,169,255,.15);
+  --bad:#ff8ca4; --bad-soft:rgba(255,140,164,.13); --lim:#efbb62; --lim-soft:rgba(239,187,98,.13); --ok:#7fd8aa;
+  --clip:#2b2c31; --clip-ink:#c8c8d0;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 14px 34px -18px rgba(0,0,0,.7);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:clip}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--text);word-spacing:.05em;-webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input{font:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid var(--run);outline-offset:2px}
+h1,h2,h3,p{margin:0}
+.time{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+
+/* prototype strip: not part of the app */
+#proto{flex:none;background:var(--ink);color:var(--bg);font-size:13px;padding:7px 14px;display:flex;flex-direction:column;gap:5px;z-index:30}
+.p-row{display:flex;align-items:center;gap:10px;flex-wrap:nowrap}
+.p-row>*{flex:none}
+.p-row>.p-menu{flex:0 1 auto}
+#proto button{border-radius:7px;padding:3px 9px;transition:background .12s}
+#proto button:hover{background:color-mix(in srgb,var(--bg) 16%,transparent)}
+#proto button:active{transform:scale(.97)}
+#proto .on{background:color-mix(in srgb,var(--bg) 22%,transparent)}
+.p-play{font-weight:600;background:var(--bg)!important;color:var(--ink);min-width:78px}
+.p-name{opacity:.62;margin-right:4px}
+.p-j{display:flex;gap:2px}
+.p-j button{white-space:nowrap}
+.p-dots{display:flex;gap:4px;align-items:center;flex-wrap:wrap;max-width:320px}
+#proto .p-dots button{width:8px;height:8px;border-radius:9px;padding:0;background:color-mix(in srgb,var(--bg) 30%,transparent)}
+#proto .p-dots button.on{background:var(--bg);width:18px}
+.p-row>.p-sp{flex:1 1 0}
+.p-menu{font-family:var(--mono);font-size:12px;opacity:.8;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#cap{font-size:14.5px;line-height:1.35;min-height:20px}
+#cap:empty{display:none}
+#states{position:fixed;left:12px;bottom:54px;background:var(--surface);color:var(--ink);border:1px solid var(--line2);border-radius:12px;padding:12px;box-shadow:var(--shadow);z-index:40;font-size:12.5px;display:none;max-width:calc(100vw - 24px);overflow:auto}
+#states.open{display:block}
+#states table{border-collapse:collapse}
+#states th{font-weight:500;color:var(--mid);padding:3px 7px;text-align:left}
+#states td{padding:1px}
+#states td button{width:26px;height:22px;border-radius:5px;background:var(--sunk)}
+#states td button:hover{background:var(--line2)}
+#states td button.on{background:var(--ink)}
+
+/* app frame */
+#app{flex:1;min-height:0;display:flex;flex-direction:column;position:relative}
+#top{flex:none;display:flex;align-items:center;gap:4px;padding:9px 16px 0}
+.nav{padding:4px 10px;border-radius:7px;color:var(--faint);font-weight:500;transition:color .12s}
+.nav:hover{color:var(--mid)}
+.nav.on{color:var(--ink)}
+.top-sp{flex:1}
+.find{display:flex;align-items:center;gap:7px;color:var(--faint);padding:4px 8px;border-radius:7px;font-size:13px;transition:color .12s}
+.find:hover{color:var(--ink)}
+kbd{font:500 11px var(--mono);border:1px solid var(--line2);border-radius:4px;padding:0 4px;min-width:18px;display:inline-block;text-align:center;color:inherit;opacity:.85}
+
+/* the day track */
+#track{flex:none;padding:8px 16px 10px;display:flex;gap:10px;align-items:stretch;border-bottom:1px solid var(--line)}
+.clips{flex:1;display:flex;gap:3px;min-width:0;position:relative}
+.clip{position:relative;height:40px;border-radius:6px;overflow:hidden;text-align:left;padding:4px 8px;min-width:0;display:flex;flex-direction:column;justify-content:center;line-height:1.2;transition:flex-grow .35s var(--out),background .2s,box-shadow .2s;background:transparent;box-shadow:inset 0 0 0 1px var(--line2)}
+.clip:hover{box-shadow:inset 0 0 0 1px var(--mid)}
+.clip:active{transform:scale(.99)}
+.clip b{position:relative;font-weight:550;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.clip small{position:relative;font:400 10.5px var(--mono);white-space:nowrap;overflow:hidden;opacity:.72}
+.clip i{position:absolute;inset:0 auto 0 0;display:block;transition:width .3s linear}
+.clip.ahead{box-shadow:inset 0 0 0 1px var(--line2);border:0;color:var(--faint);background-image:repeating-linear-gradient(90deg,var(--line) 0 1px,transparent 1px 7px);background-size:100% 5px;background-repeat:no-repeat;background-position:0 100%}
+.clip.done{background:var(--clip);color:var(--clip-ink);box-shadow:none}
+.clip.you{box-shadow:inset 0 0 0 1.5px var(--you);color:var(--you);background:var(--you-soft)}
+.clip.run{box-shadow:inset 0 0 0 1px var(--run);color:var(--run)}
+.clip.run i{background:var(--run-soft)}
+.clip.run i::after,.clip.long i::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 8px,color-mix(in srgb,currentColor 9%,transparent) 8px 12px);background-size:200% 100%;animation:slide 1.3s linear infinite}
+@keyframes slide{to{background-position:-26px 0}}
+.clip.long{box-shadow:inset 0 0 0 1px var(--lim);color:var(--lim)}
+.clip.long i{background:var(--lim-soft);width:100%!important}
+.clip .usual{position:absolute;top:0;bottom:0;left:62%;width:0;border-left:1.5px dashed var(--lim)}
+.clip.bad{color:var(--bad);box-shadow:inset 0 0 0 1px var(--bad);background:repeating-linear-gradient(115deg,transparent 0 5px,var(--bad-soft) 5px 9px)}
+.clip.bad i{background:var(--clip)}
+.clip.bad b,.clip.bad small{color:var(--bad)}
+.clip.lim{color:var(--lim);box-shadow:inset 0 0 0 1px var(--lim);background:repeating-linear-gradient(90deg,transparent 0 4px,var(--lim-soft) 4px 6px)}
+.clip.lim i{background:var(--clip)}
+.clip.ghost{color:var(--mid);box-shadow:none;border:1.5px dashed var(--line2)}
+.playhead{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);border-radius:2px;transition:left .35s var(--out);pointer-events:none;z-index:2}
+.playhead::before{content:"";position:absolute;top:-1px;left:-3px;width:8px;height:6px;background:var(--ink);clip-path:polygon(0 0,100% 0,50% 100%)}
+.anchor{flex:none;width:134px;border-radius:6px;background:var(--ink);color:var(--bg);padding:4px 10px;display:flex;flex-direction:column;justify-content:center;line-height:1.2;text-align:left}
+.anchor:active{transform:scale(.98)}
+.anchor b{font-weight:550;font-size:12.5px}
+.anchor small{font:400 10.5px var(--mono);opacity:.75}
+
+/* main */
+#main{flex:1;min-height:0;overflow:auto;position:relative;overflow-x:clip;scrollbar-width:thin}
+#view{min-height:100%}
+.page{max-width:780px;margin:0 auto;padding:30px 24px 48px;animation:viewin .16s var(--out)}
+.page.wide{max-width:1000px}
+@keyframes viewin{from{opacity:0;transform:translateY(4px)}}
+#mascot{position:absolute;left:0;top:0;width:360px;height:360px;pointer-events:none;transform-origin:0 0;z-index:3;transition:transform .5s cubic-bezier(.3,1.25,.5,1)}
+#mascot canvas{width:360px;height:360px;display:block}
+#mascot.nogl::before{content:"";position:absolute;inset:60px;border-radius:50%;background:radial-gradient(circle at 40% 30%,#ffd69e,#ff8fa5)}
+.slot{display:block;flex:none;border-radius:50%;cursor:pointer;background:none}
+.head{display:flex;gap:22px;align-items:center;margin-bottom:22px}
+h1{font:520 clamp(26px,3.4vw,38px)/1.1 var(--display);letter-spacing:-.022em;text-wrap:balance;font-variation-settings:"opsz" 60}
+h1.small{font-size:24px}
+h1[data-k]{animation:titlein .22s var(--out)}
+.sub{color:var(--mid);margin-top:4px}
+
+/* the one card */
+.card{background:var(--surface);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow);border:1px solid var(--line);margin-bottom:26px}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:550;margin-bottom:6px}
+.tag::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.k-you .tag{color:var(--you)} .k-run .tag{color:var(--run)} .k-long .tag{color:var(--lim)} .k-bad .tag{color:var(--bad)} .k-lim .tag{color:var(--lim)} .k-ghost .tag{color:var(--mid)} .k-rest .tag{color:var(--ok)}
+.k-run .tag::before{animation:breathe 1.4s ease-in-out infinite}
+.k-you .tag::before{animation:breathe 2.2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.35;transform:scale(.8)}}
+.card h2{font:520 22px/1.2 var(--display);letter-spacing:-.012em;animation:titlein .22s var(--out)}
+@keyframes titlein{from{opacity:0;transform:translateY(3px)}}
+.card p{color:var(--mid);margin-top:5px;max-width:58ch}
+.meta{margin-top:6px;color:var(--mid);display:block}
+.rows{display:grid;grid-template-columns:96px 1fr;gap:5px 10px;margin-top:12px;font-size:14px}
+.rows dt{font:500 11px/1.9 var(--mono);letter-spacing:.05em;color:var(--faint)}
+.rows dd{margin:0}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+.btn{height:36px;padding:0 14px;border-radius:9px;font-weight:550;display:inline-flex;align-items:center;gap:8px;transition:transform .1s var(--out),background .12s,border-color .12s;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn.primary:hover{background:color-mix(in srgb,var(--ink) 84%,var(--bg))}
+.btn.primary kbd{border-color:color-mix(in srgb,var(--bg) 40%,transparent)}
+.btn.quiet{color:var(--mid);box-shadow:inset 0 0 0 1px var(--line2)}
+.btn.quiet:hover{color:var(--ink);background:var(--sunk)}
+.btn.sm{height:28px;padding:0 10px;font-size:13px;border-radius:7px}
+.segs{display:flex;gap:3px;margin-top:13px}
+.segs span{flex:1;height:4px;border-radius:4px;background:var(--sunk);position:relative;overflow:hidden;transition:background .25s}
+.segs .d{background:var(--ink)}
+.segs .c{background:var(--run-soft)}
+.segs .c::after{content:"";position:absolute;inset:0;width:40%;background:var(--run);border-radius:4px;animation:go 1.5s ease-in-out infinite alternate}
+.segs .x{background:var(--bad)}
+@keyframes go{to{transform:translateX(150%)}}
+.bar{height:4px;border-radius:4px;background:var(--sunk);margin-top:13px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--run);transition:width .25s linear;border-radius:4px}
+
+/* day list */
+.sec{font-size:13px;font-weight:550;color:var(--faint);margin:0 0 4px}
+.list{margin-bottom:22px}
+.row{display:flex;align-items:baseline;gap:12px;padding:8px 0;border-top:1px solid var(--line);width:100%;text-align:left}
+.row:first-of-type{border-top:0}
+.row .t{flex:none;width:44px;color:var(--faint)}
+.row .w{flex:1;min-width:0}
+.row .r{flex:none;color:var(--faint);font-size:13px}
+.row.dim .w{color:var(--faint)}
+button.row:hover .w{color:var(--ink)}
+.chk{color:var(--ok)}
+
+/* week */
+.day{border-top:1px solid var(--line);transition:background .12s}
+.day:first-child{border-top:0}
+.dayh{display:flex;align-items:center;gap:12px;padding:11px 8px;width:100%;text-align:left;border-radius:8px}
+.dayh:hover{background:var(--sunk)}
+.dayh .d{flex:none;width:92px;color:var(--mid)}
+.dayh .w{flex:1;min-width:0;font-weight:500}
+.dayh .w.none{color:var(--faint);font-weight:400}
+.st{flex:none;font-size:12.5px;color:var(--mid)}
+.st.miss{color:var(--you)} .st.cook{color:var(--run)} .st.keep{color:var(--ok)}
+.dayb{padding:2px 8px 14px 112px;display:grid;grid-template-columns:90px 1fr;gap:3px 10px;font-size:14px;animation:titlein .18s var(--out)}
+.dayb dt{color:var(--faint)} .dayb dd{margin:0}
+.sk{display:inline-block;height:.8em;border-radius:4px;background:var(--sunk);vertical-align:baseline;animation:fade 1.2s ease-in-out infinite alternate}
+@keyframes fade{to{opacity:.5}}
+.fill{animation:titlein .3s var(--out)}
+
+/* numbers */
+.num-sec{margin-bottom:34px}
+.num-sec h2{font:520 19px/1.2 var(--display);margin-bottom:2px}
+.num-sec>p{color:var(--mid);font-size:14px;margin-bottom:10px}
+.fun{display:grid;grid-template-columns:150px 74px 1fr 136px;gap:6px 12px;align-items:center;font-size:14px}
+.fun .n{text-align:right;font-weight:550;font-variant-numeric:tabular-nums}
+.fun .b{height:8px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.fun .b i{display:block;height:100%;background:var(--ink);border-radius:3px;transition:width .4s var(--out)}
+.fun .s{color:var(--faint);font-size:11px;font-family:var(--mono)}
+table.t{width:100%;border-collapse:collapse;font-size:14px;margin-top:14px;font-variant-numeric:tabular-nums}
+table.t th{text-align:right;font-weight:500;color:var(--faint);padding:4px 8px;font-size:12.5px}
+table.t td{text-align:right;padding:6px 8px;border-top:1px solid var(--line)}
+table.t th:first-child,table.t td:first-child{text-align:left}
+.tri{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.tri div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 13px;font-size:14px}
+.tri b{display:block;font-weight:550;margin-bottom:2px}
+.tri span{color:var(--mid)}
+.rv{display:flex;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--line);font-size:14px}
+.rv .h{flex:1;min-width:0}
+.pill{font-size:12px;padding:0 7px;border-radius:9px;background:var(--sunk);color:var(--mid);white-space:nowrap}
+.pill.new{background:var(--run-soft);color:var(--run)}
+.pill.old{background:var(--lim-soft);color:var(--lim)}
+.add{display:flex;gap:8px;margin-top:10px}
+.field{flex:1;min-width:0;height:36px;border-radius:9px;background:var(--surface);border:1px solid var(--line2);padding:0 11px}
+.field::placeholder{color:var(--faint)}
+.bars{display:flex;align-items:flex-end;gap:3px;height:74px;margin-top:8px}
+.bars i{flex:1;background:var(--clip);border-radius:2px 2px 0 0;min-height:2px;transition:height .3s var(--out)}
+.bars i.hi{background:var(--you)}
+
+/* review */
+.chg{display:flex;gap:11px;padding:11px 0;border-top:1px solid var(--line);width:100%;text-align:left}
+.chg:first-of-type{border-top:0}
+.box{flex:none;width:18px;height:18px;border-radius:5px;box-shadow:inset 0 0 0 1.5px var(--line2);margin-top:2px;display:grid;place-items:center;font-size:12px;line-height:1;transition:background .1s}
+.chg.on .box{background:var(--ink);color:var(--bg);box-shadow:none}
+.chg.held{opacity:.6;cursor:default}
+.old{color:var(--faint);text-decoration:line-through;text-decoration-thickness:1px}
+
+/* cook and watch */
+.split{display:grid;grid-template-columns:minmax(0,1fr) 248px;gap:26px;align-items:start}
+.reel{position:relative;aspect-ratio:9/16;border-radius:12px;overflow:hidden;background:var(--sunk);display:grid;place-items:center;color:var(--faint);text-align:center;font-size:13.5px;padding:18px}
+.reel.ready{background:#faf8f1;color:#25222b;padding:0;animation:titlein .3s var(--out)}
+.reel svg{position:absolute;inset:0;width:100%;height:100%}
+.reel .cc{position:absolute;left:10%;right:10%;bottom:16%;text-align:center;font:600 18px/1.15 var(--display);color:#25222b}
+.reel .cc span{position:absolute;inset:0 0 auto;opacity:0;animation:cc 8s steps(1) infinite}
+.reel .cc span:nth-child(2){animation-delay:2s}.reel .cc span:nth-child(3){animation-delay:4s}.reel .cc span:nth-child(4){animation-delay:6s}
+@keyframes cc{0%{opacity:1}25%{opacity:0}}
+.reel .arm{animation:arm .5s ease-in-out infinite alternate;transform-origin:50% 48%}
+@keyframes arm{to{transform:rotate(-7deg)}}
+.reel.paused *{animation-play-state:paused}
+.reel .vtag{position:absolute;top:8px;left:8px;font:500 11px var(--mono);background:rgba(30,25,40,.8);color:#fff;border-radius:5px;padding:1px 6px}
+.cs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;margin-bottom:22px}
+.cs div{font-size:12.5px;color:var(--faint);padding-top:6px;border-top:3px solid var(--sunk);transition:color .2s,border-color .2s}
+.cs .d{color:var(--ink);border-color:var(--ink)}
+.cs .c{color:var(--run);border-color:var(--run)}
+.cs .x{color:var(--bad);border-color:var(--bad)}
+details.work{margin-top:18px;font-size:14px}
+details.work summary{cursor:pointer;color:var(--mid);width:max-content}
+details.work pre{font:12px/1.6 var(--mono);background:var(--sunk);border-radius:8px;padding:10px 12px;margin:8px 0;overflow:auto;white-space:pre-wrap}
+.chips{display:flex;gap:4px;margin-top:6px}
+.chips span{flex:1;font-size:11.5px;text-align:center;padding:3px 0;border-radius:4px;background:var(--sunk);color:var(--mid)}
+.ck{display:flex;gap:7px;font-size:14px;padding:3px 0}
+.ck i{font-style:normal;color:var(--ok)}
+.quote{background:var(--sunk);padding:10px 12px;border-radius:9px;font-size:14px;margin:6px 0 14px}
+
+/* settings */
+.set{display:flex;gap:12px;align-items:baseline;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.set .w{flex:1;min-width:0}
+.set small{display:block;color:var(--mid);font-size:13px}
+.sw{width:32px;height:19px;border-radius:19px;background:var(--line2);position:relative;transition:background .15s;flex:none;align-self:center}
+.sw::after{content:"";position:absolute;width:15px;height:15px;left:2px;top:2px;border-radius:50%;background:#fff;transition:transform .15s var(--out)}
+.sw.on{background:var(--ink)}.sw.on::after{transform:translateX(13px)}
+
+/* welcome */
+.hello{max-width:560px;margin:0 auto;padding:6vh 24px 30px;text-align:center;display:flex;flex-direction:column;align-items:center;animation:viewin .2s var(--out)}
+.hello h1{font-size:clamp(30px,4.2vw,44px);margin-top:6px}
+.hello p{color:var(--mid);margin:10px 0 18px;max-width:42ch}
+.hello .add{width:min(100%,420px);margin:0}
+.link{color:var(--mid);text-decoration:underline;text-underline-offset:3px;margin-top:12px;font-size:14px}
+.link:hover{color:var(--ink)}
+
+/* action bar */
+#bar{flex:none;height:46px;border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 16px;font-size:13px;background:var(--bg);position:relative;z-index:5}
+.b-st{color:var(--mid);min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.toast{display:flex;gap:10px;align-items:center;color:var(--ink);font-weight:500;animation:titlein .18s var(--out);flex:1;min-width:0}
+.toast span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toast button{font-weight:550;text-decoration:underline;text-underline-offset:3px}
+.b-k{display:flex;align-items:center;gap:6px;color:var(--faint)}
+#bar .btn{height:30px;font-size:13px;padding:0 10px}
+
+/* find anything */
+#cmd{position:fixed;inset:0;z-index:20;background:rgba(10,10,14,.28);display:flex;justify-content:center;align-items:flex-start;padding:14vh 16px 0;animation:fadein .09s linear}
+@keyframes fadein{from{opacity:0}}
+.cmdbox{width:min(560px,100%);background:var(--surface);border-radius:13px;box-shadow:0 24px 60px -18px rgba(0,0,0,.5);border:1px solid var(--line2);overflow:hidden;animation:cmdin .13s var(--out)}
+@keyframes cmdin{from{transform:translateY(-6px) scale(.985);opacity:0}}
+.cmdbox input{width:100%;height:48px;border:0;background:none;padding:0 16px;font-size:16px;outline:none;border-bottom:1px solid var(--line)}
+.cmdlist{max-height:320px;overflow:auto;padding:5px}
+.cmdlist button{display:flex;width:100%;justify-content:space-between;padding:7px 11px;border-radius:7px;text-align:left}
+.cmdlist button.sel{background:var(--sunk)}
+.cmdlist small{color:var(--faint)}
+.cmdlist p{padding:14px 11px;color:var(--mid)}
+
+/* fake cursor */
+#cursor{position:fixed;left:0;top:0;width:22px;height:22px;z-index:50;pointer-events:none;opacity:0;transition:transform .55s cubic-bezier(.45,.05,.2,1),opacity .2s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+#cursor.on{opacity:1}
+#cursor.fast{transition:opacity .2s}
+.ripple{position:fixed;width:32px;height:32px;border-radius:50%;margin:-16px;border:2px solid var(--you);z-index:49;pointer-events:none;animation:rip .42s var(--out) forwards}
+@keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.2);opacity:0}}
+
+@media (max-width:720px){
+  .p-name,.p-menu,.p-row>.p-sp{display:none}
+  .p-row{gap:4px;flex-wrap:wrap}
+  .p-row>.p-j{order:9;width:100%;flex:none;overflow-x:auto;scrollbar-width:none}
+  .p-j button{white-space:nowrap}
+  .p-row>.p-dots{flex:1 1 0;min-width:0;gap:3px}
+  #proto .p-dots button{width:5px;height:5px}
+  #proto .p-dots button.on{width:11px}
+  #states{left:6px;right:6px}
+  #top{padding:7px 10px 0}.find span{display:none}
+  #track{flex-direction:column;padding:6px 10px 8px;gap:4px}
+  .clip{height:34px;padding:2px 4px}
+  .clip small{display:none}
+  .clip b{font-size:10.5px}
+  .anchor{width:100%;flex-direction:row;justify-content:space-between;align-items:center;padding:3px 10px}
+  .page{padding:18px 16px 36px}
+  .head{gap:14px;margin-bottom:14px}
+  .slot.big{width:84px!important;height:84px!important}
+  h1{font-size:25px}
+  .fun{grid-template-columns:minmax(0,1fr) 64px;gap:2px 10px}
+  .fun .b,.fun .s{grid-column:1/-1}
+  .fun .s{margin-bottom:8px}
+  .tri,.split{grid-template-columns:minmax(0,1fr)}
+  .split .reel{max-width:210px;margin:0 auto}
+  .dayb{padding-left:8px}
+  .dayh .d{width:58px}
+  .rows{grid-template-columns:82px 1fr;font-size:13.5px}
+  .card{padding:15px}
+  .card h2{font-size:19px}
+  .b-st,.b-k{display:none}
+  .toast{font-size:12.5px}
+  #bar{justify-content:flex-end}
+  .cs div{font-size:11px}
+  table.t th,table.t td{padding:5px 3px;font-size:12.5px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="proto">
+  <div class="p-row">
+    <span class="p-name">Prototype</span>
+    <button class="p-play" id="play" data-testid="tour-play">▶ Play</button>
+    <button id="prev" data-testid="tour-prev" aria-label="Previous step">‹</button>
+    <div class="p-dots" id="dots"></div>
+    <button id="next" data-testid="tour-next" aria-label="Next step">›</button>
+    <div class="p-j" id="journeys"></div>
+    <span class="p-sp"></span>
+    <span class="p-menu" id="menubar" title="What the Mac menu bar item shows"></span>
+    <button id="stBtn" data-testid="states-open">States</button>
+    <button id="themeBtn" data-testid="theme" aria-label="Switch light and dark">◐</button>
+  </div>
+  <div id="cap" aria-live="polite"></div>
+</div>
+<div id="states"></div>
+
+<div id="app">
+  <header id="top"></header>
+  <div id="track"></div>
+  <main id="main"><div id="view"></div><div id="mascot" aria-hidden="true"></div></main>
+  <footer id="bar"></footer>
+</div>
+<div id="over"></div>
+<svg id="cursor" viewBox="0 0 22 22"><path d="M3 2l15 9.5-6.6 1.3L8 19.5z" fill="#17171a" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>
+
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js';
+
+// ---------- mascot: reused line for line from documents/brand/mascot/index.html ----------
+const mq = matchMedia('(prefers-reduced-motion: reduce)');
+let REDUCED = mq.matches;
+mq.addEventListener('change', e => { REDUCED = e.matches; });
+const Q = new URLSearchParams(location.search);
+const TAU = Math.PI * 2;
+const STILL = Q.has('still');
+if (STILL) document.documentElement.classList.add('still');
+const lerp = (a, b, k) => a + (b - a) * k;
+const ss = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+const v3 = hex => { const n = parseInt(hex.slice(1), 16); return new THREE.Vector3((n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255); };
+
+const PALETTES = {
+  peach:    { top:'#ffd69e', mid:'#ffb582', bottom:'#ff8fa5', rim:'#ffe9da', orbTop:'#ffc690', orbBottom:'#ff8a66', blush:'255,110,138', shadow:'#ff9f78' },
+  mint:     { top:'#e6f9a6', mid:'#a6ee9d', bottom:'#5ed79c', rim:'#eefff2', orbTop:'#d2f8a4', orbBottom:'#6fdc8f', blush:'255,130,150', shadow:'#76d6a2' },
+  sky:      { top:'#d3e5ff', mid:'#98bcff', bottom:'#5f86ff', rim:'#eaf2ff', orbTop:'#bcd4ff', orbBottom:'#6a92ff', blush:'255,130,185', shadow:'#7d9cff' },
+  lavender: { top:'#f1d9ff', mid:'#c9a4ff', bottom:'#9b72ff', rim:'#f6ecff', orbTop:'#dfbcff', orbBottom:'#a37bff', blush:'255,125,185', shadow:'#a78aff' },
+  pink:     { top:'#ffd6df', mid:'#ffa9c2', bottom:'#ff7ba3', rim:'#ffecf1', orbTop:'#ffb8cb', orbBottom:'#ff7397', blush:'255,90,135', shadow:'#ff8fb0' },
+};
+const COLOR_META = [['peach','Peach','Main (default)'],['mint','Mint','Calm & focus'],['sky','Sky','Professional'],['lavender','Lavender','Creative'],['pink','Pink','Playful']];
+const EXPRS = [['normal','Normal'],['happy','Happy'],['excited','Excited'],['curious','Curious'],['thinking','Thinking'],['focused','Focused'],['surprised','Surprised'],['sleeping','Sleeping'],['celebrating','Celebrating']];
+const POSES = [['floating','Floating'],['greeting','Greeting'],['thinking','Thinking'],['explaining','Explaining'],['working','Working'],['finding','Finding answers'],['cheering','Cheering']];
+const POSE_EXPR = { floating:'normal', greeting:'happy', thinking:'thinking', explaining:'happy', working:'focused', finding:'curious', cheering:'celebrating' };
+const ANGLES = [['front','Front',0],['three','3/4 view',0.62],['side','Side view',1.25]];
+const STEPS = [
+  { pose:'greeting', expr:'happy',       title:'Greeting',    say:'Hi Kai! Ready to help today?' },
+  { pose:'thinking', expr:'thinking',    title:'Thinking',    say:'Hmm, let me think this through…' },
+  { pose:'working',  expr:'focused',     title:'Working',     say:'Pulling your numbers into a report…' },
+  { pose:'cheering', expr:'celebrating', title:'Celebrating', say:'All set! Great progress!' },
+];
+const STEP_MS = 3200;
+
+// ---------- shared geometry ----------
+const B = 0.86; // distance from body centre to its flat-ish bottom
+function withDir(g) { g.setAttribute('dir', g.attributes.normal.clone()); return g; }
+function blobGeometry() {
+  const g = new THREE.SphereGeometry(1, 112, 80);
+  const p = g.attributes.position, dir = new Float32Array(p.count * 3), v = new THREE.Vector3();
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    dir.set([v.x, v.y, v.z], i * 3);
+    let { x, y, z } = v;
+    const s = 1 + 0.08 * (1 - ss(-0.7, 0.45, y)) - 0.045 * ss(0.1, 1, y);   // narrow top, soft wide bottom
+    x *= s * 1.03; z *= s * 0.94;
+    y = y < 0 ? -0.86 * (-y) * (1.14 - 0.14 * y * y) : 1.0 * y;            // squat, rounded-flat underside
+    x += 0.055 * y;                                                        // top leans right, belly bulges left
+    p.setXYZ(i, x, y, z);
+  }
+  g.setAttribute('dir', new THREE.BufferAttribute(dir, 3));
+  g.computeVertexNormals();
+  return g;
+}
+const GEO = {
+  body: blobGeometry(),
+  nub: withDir(new THREE.SphereGeometry(0.2, 40, 28)),
+  orb: withDir(new THREE.SphereGeometry(0.155, 40, 28)),
+  conf: new THREE.PlaneGeometry(0.05, 0.085),
+  shadow: new THREE.PlaneGeometry(1, 1),
+};
+
+const VS = `
+attribute vec3 dir;
+uniform float uTime, uWobble;
+varying vec3 vDir, vN, vV;
+void main(){
+  vDir = dir;
+  float w = sin(dir.y*3.1 + uTime*1.6) * sin(dir.x*2.3 + uTime*1.1);
+  vec4 mv = modelViewMatrix * vec4(position + normal * w * uWobble, 1.0);
+  vV = -mv.xyz;
+  vN = normalize(normalMatrix * normal);
+  gl_Position = projectionMatrix * mv;
+}`;
+const FS = `
+uniform vec3 uTop, uMid, uBottom, uRim;
+uniform sampler2D uFace;
+uniform float uFaceOn, uGlow;
+varying vec3 vDir, vN, vV;
+void main(){
+  vec3 N = normalize(vN), V = normalize(vV);
+  float h = vDir.y;
+  vec3 base = mix(uBottom, uMid, smoothstep(-0.95, 0.05, h));
+  base = mix(base, uTop, smoothstep(0.1, 0.95, h));
+  float wash = smoothstep(0.15, 1.1, -0.55*vDir.x - 0.75*vDir.y + 0.1*vDir.z);
+  base = mix(base, uBottom, 0.42*wash);
+  vec3 L = normalize(vec3(-0.5, 0.8, 0.6));
+  float wrap = clamp((dot(N, L) + 0.8) / 1.8, 0.0, 1.0);
+  vec3 col = base * (0.86 + 0.2 * wrap);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.3);
+  col = mix(col, uRim, fres * (0.5 + 0.3*uGlow));
+  col += uBottom * 0.10 * smoothstep(-0.2, -1.0, N.y);
+  vec3 H = normalize(L + V);
+  float nh = max(dot(N, H), 0.0);
+  vec3 spec = vec3(1.0, 0.98, 0.95) * (pow(nh, 14.0) * 0.06 + pow(nh, 70.0) * 0.08);
+  col += spec;
+  // sample outside any branch so mip selection stays smooth; mask to the front half
+  vec2 uv = vec2(atan(vDir.x, vDir.z) * 0.5 + 0.5, asin(clamp(vDir.y, -1.0, 1.0)) + 0.5);
+  vec4 f = texture2D(uFace, uv) * uFaceOn * smoothstep(0.05, 0.25, vDir.z);
+  col = col * (1.0 - f.a) + f.rgb + spec * 1.6 * f.a;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ---------- shared sprite textures ----------
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  draw(c.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const FONT = '"SF Pro Rounded",ui-rounded,"Nunito","Varela Round",system-ui,sans-serif';
+const TEX = {
+  q: canvasTex(128, 128, (x) => { x.fillStyle = '#8b87f3'; x.font = `800 112px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('?', 64, 70); }),
+  z: canvasTex(128, 128, (x) => { x.fillStyle = '#7f8bf2'; x.font = `800 104px ${FONT}`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', 64, 62); }),
+  shadow: canvasTex(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(.45, 'rgba(255,255,255,.55)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }),
+};
+const dashTex = {};
+function dash(color) {
+  return dashTex[color] ||= canvasTex(128, 32, (x) => { x.strokeStyle = color; x.lineWidth = 15; x.lineCap = 'round'; x.beginPath(); x.moveTo(14, 16); x.lineTo(114, 16); x.stroke(); });
+}
+
+// ---------- shared prop materials ----------
+const MAT = {
+  lap: new THREE.MeshStandardMaterial({ color: '#626a96', roughness: 0.38, metalness: 0.2 }),
+  lapDark: new THREE.MeshStandardMaterial({ color: '#434a72', roughness: 0.55 }),
+  logo: new THREE.MeshStandardMaterial({ color: '#9aa1cc', roughness: 0.3 }),
+  ring: new THREE.MeshStandardMaterial({ color: '#2d355c', roughness: 0.3, metalness: 0.3 }),
+  glass: new THREE.MeshBasicMaterial({ color: '#e4f2ff', transparent: true, opacity: 0.32, depthWrite: false }),
+  bulb: new THREE.MeshStandardMaterial({ color: '#ffe08a', emissive: '#ffbe3d', emissiveIntensity: 0.65, roughness: 0.25 }),
+  neck: new THREE.MeshStandardMaterial({ color: '#c9c2d9', roughness: 0.4, metalness: 0.2 }),
+  conf: new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }),
+};
+const CONF_COLORS = ['#ff9f6e', '#9b8cf5', '#5ccfa0', '#ffc94d', '#ff7ea1', '#6aa5ff'].map(c => new THREE.Color(c));
+
+function sprite(tex, w, h = w) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+  s.scale.set(w, h, 1); return s;
+}
+// little radiating dashes, like the "!" marks on the boards
+function burst(color, cx, cy, pts) {
+  const g = new THREE.Group();
+  for (const [x, y, len = 0.17] of pts) {
+    const s = sprite(dash(color), len, len / 4);
+    s.material.rotation = Math.atan2(y - cy, x - cx);
+    s.position.set(x, y, 0.3); s.userData.base = [x, y, cx, cy]; g.add(s);
+  }
+  return g;
+}
+
+let THEME_DARK = false;
+const allMascots = new Set();
+
+// ---------- the mascot ----------
+class Mascot {
+  constructor({ faceSize = 512, hero = false, faceless = false } = {}) {
+    this.hero = hero; this.faceless = faceless;
+    this.group = new THREE.Group();
+    this.root = new THREE.Group(); this.group.add(this.root);
+    this.squash = new THREE.Group(); this.squash.position.y = -B; this.root.add(this.squash);
+    this.turn = new THREE.Group(); this.turn.position.y = B; this.squash.add(this.turn);
+
+    this.fc = document.createElement('canvas'); this.fc.width = faceSize; this.fc.height = faceSize / 2;
+    this.fx = this.fc.getContext('2d');
+    this.faceTex = new THREE.CanvasTexture(this.fc);
+    this.faceTex.premultiplyAlpha = true; this.faceTex.colorSpace = THREE.NoColorSpace;
+    if (hero) { this.faceTex.generateMipmaps = false; this.faceTex.minFilter = THREE.LinearFilter; }
+    else this.faceTex.anisotropy = 4;
+
+    const U = this.u = {
+      uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uRim: { value: new THREE.Vector3() },
+      uFace: { value: this.faceTex }, uFaceOn: { value: faceless ? 0 : 1 }, uGlow: { value: 0 }, uTime: { value: 0 }, uWobble: { value: 0.012 },
+    };
+    const mat = u => new THREE.ShaderMaterial({ uniforms: u, vertexShader: VS, fragmentShader: FS });
+    this.body = new THREE.Mesh(GEO.body, mat(U)); this.turn.add(this.body);
+
+    const nubU = { ...U, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    const nubMat = mat(nubU);
+    this.nubR = new THREE.Mesh(GEO.nub, nubMat); this.nubL = new THREE.Mesh(GEO.nub, nubMat);
+    this.nubR.scale.set(1, 0.86, 0.9); this.nubL.scale.copy(this.nubR.scale);
+    this.turn.add(this.nubR, this.nubL);
+
+    this.ou = { ...U, uTop: { value: new THREE.Vector3() }, uMid: { value: new THREE.Vector3() }, uBottom: { value: new THREE.Vector3() }, uFace: { value: null }, uFaceOn: { value: 0 }, uWobble: { value: 0 } };
+    this.orb = new THREE.Mesh(GEO.orb, mat(this.ou)); this.group.add(this.orb);
+
+    this.shadowMat = new THREE.MeshBasicMaterial({ map: TEX.shadow, transparent: true, depthWrite: false, opacity: 0.5 });
+    this.shadow = new THREE.Mesh(GEO.shadow, this.shadowMat);
+    this.shadow.rotation.x = -Math.PI / 2; this.shadow.position.y = -B - 0.06; this.group.add(this.shadow);
+
+    this.buildProps();
+    this.buildDecor();
+
+    this.s = { expr: 'normal', pose: 'floating', color: 'peach' };
+    this.yaw = 0; this.yawTarget = 0; this.tilt = 0;
+    this.gaze = { x: 0, y: 0 }; this.gazeTarget = { x: 0, y: 0 };
+    this.seed = Math.random() * 100;
+    this.nextBlink = 1 + Math.random() * 3; this.blinkAt = -9;
+    this.bounceAt = -9; this.popAt = -9; this.happyUntil = -9;
+    this.now = 0; this.faceKey = '';
+    this.setColor('peach');
+    allMascots.add(this);
+  }
+
+  buildProps() {
+    const lap = this.laptop = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.045, 0.56), MAT.lapDark);
+    const lid = new THREE.Group(); lid.position.set(0, 0.02, 0.28); lid.rotation.x = 0.22;
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(0.86, 0.56, 0.035), MAT.lap); panel.position.y = 0.28;
+    const logo = new THREE.Mesh(new THREE.CircleGeometry(0.045, 24), MAT.logo); logo.position.set(0, 0.3, 0.019);
+    lid.add(panel, logo); lap.add(base, lid);
+    lap.position.set(0.34, -0.74, 0.98); lap.rotation.y = -0.38;
+
+    const mag = this.magnifier = new THREE.Group();
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.045, 18, 56), MAT.ring);
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.25, 40), MAT.glass);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.048, 0.36, 18), MAT.ring);
+    const d = new THREE.Vector2(0.5, -0.86).normalize();
+    handle.position.set(d.x * 0.45, d.y * 0.45, 0); handle.rotation.z = -Math.atan2(d.x, d.y) + Math.PI;
+    mag.add(ring, glass, handle);
+    mag.position.set(-1.08, 0.18, 0.42); mag.rotation.y = 0.35;
+
+    const bulb = this.bulb = new THREE.Group();
+    const glassB = new THREE.Mesh(new THREE.SphereGeometry(0.15, 32, 24), MAT.bulb);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.062, 0.07, 0.11, 20), MAT.neck); neck.position.y = -0.17;
+    bulb.add(glassB, neck, burst('#ffc14d', 0, 0, [[0, 0.3, 0.13], [-0.25, 0.2, 0.13], [0.25, 0.2, 0.13], [-0.32, -0.02, 0.12], [0.32, -0.02, 0.12]]));
+    bulb.position.set(-0.8, 1.12, 0.2);
+    this.turn.add(lap, mag); this.root.add(bulb);
+  }
+
+  buildDecor() {
+    const r = this.root;
+    this.q = sprite(TEX.q, 0.36); this.q.position.set(0.98, 1.08, 0.25);
+    this.z1 = sprite(TEX.z, 0.2); this.z2 = sprite(TEX.z, 0.32);
+    this.sparkR = burst('#ff9f62', 0.62, 0.58, [[0.98, 1.02], [1.16, 0.84], [1.24, 0.6]]);
+    this.sparkV = burst('#9d8df6', 0.6, 0.6, [[0.9, 1.08, 0.15], [1.12, 0.92, 0.15]]);
+    this.sparkL = burst('#ff9f62', -0.62, 0.58, [[-0.98, 1.0], [-1.18, 0.78], [-1.24, 0.55]]);
+    this.wave = burst('#4b5a9e', 0.7, 0.35, [[1.08, 0.72, 0.15], [1.22, 0.52, 0.15]]);
+    r.add(this.q, this.z1, this.z2, this.sparkR, this.sparkV, this.sparkL, this.wave);
+  }
+
+  initConfetti() {
+    const n = 40;
+    this.conf = new THREE.InstancedMesh(GEO.conf, MAT.conf, n);
+    this.cp = [];
+    for (let i = 0; i < n; i++) {
+      this.conf.setColorAt(i, CONF_COLORS[i % CONF_COLORS.length]);
+      const c = { p: new THREE.Vector3(), v: new THREE.Vector3(), r: new THREE.Euler(), w: new THREE.Vector3() };
+      this.spawn(c, true); this.cp.push(c);
+    }
+    this.confDummy = new THREE.Object3D();
+    this.group.add(this.conf);
+  }
+  spawn(c, scatter) {
+    const R = Math.random;
+    if (scatter) c.p.set((R() - 0.5) * 2.8, R() * 1.9 - 0.4, (R() - 0.5) * 0.8 + 0.2);
+    else c.p.set((R() - 0.5) * 0.5, 0.95, 0.2);
+    c.v.set((R() - 0.5) * 2.6, 1.8 + R() * 1.8, (R() - 0.5) * 0.9);
+    c.r.set(R() * TAU, R() * TAU, R() * TAU);
+    c.w.set((R() - 0.5) * 9, (R() - 0.5) * 9, (R() - 0.5) * 9);
+  }
+
+  setColor(name) {
+    const P = PALETTES[name]; this.s.color = name;
+    this.u.uTop.value.copy(v3(P.top)); this.u.uMid.value.copy(v3(P.mid)); this.u.uBottom.value.copy(v3(P.bottom)); this.u.uRim.value.copy(v3(P.rim));
+    this.ou.uTop.value.copy(v3(P.orbTop)); this.ou.uMid.value.copy(v3(P.orbTop)).lerp(v3(P.orbBottom), 0.5); this.ou.uBottom.value.copy(v3(P.orbBottom));
+    this.shadowMat.color.set(P.shadow);
+    this.blush = P.blush; this.faceKey = '';
+  }
+  setExpr(e) { if (e !== this.s.expr) { this.s.expr = e; this.popAt = this.now; } }
+  setPose(p) { if (p !== this.s.pose) { this.s.pose = p; this.popAt = this.now; } }
+  bounce() { this.bounceAt = this.now; this.happyUntil = this.now + 1.2; }
+
+  update(t, dt) {
+    this.now = t;
+    const R = REDUCED, s = this.s;
+    const expr = t < this.happyUntil && !['excited', 'celebrating'].includes(s.expr) ? 'happy' : s.expr;
+    const pose = s.pose;
+    const sleeping = expr === 'sleeping';
+    const ft = R ? 0 : t + this.seed;
+    this.u.uTime.value = ft;
+    this.u.uGlow.value = this.glow ?? (THEME_DARK ? 1 : 0);
+
+    let y = R ? 0 : Math.sin(ft * (sleeping ? 0.8 : 1.5)) * (sleeping ? 0.03 : 0.065);
+    let sy = 1 + (R ? 0 : Math.sin(ft * (sleeping ? 1.1 : 2.2)) * (sleeping ? 0.03 : 0.022));
+    if (!R && (expr === 'excited' || expr === 'celebrating' || pose === 'cheering')) {
+      const hop = Math.abs(Math.sin(ft * 4.2));
+      y += hop * 0.11; sy *= 1 + 0.035 * hop - 0.07 * (1 - ss(0, 0.3, hop));
+    }
+    const bp = (t - this.bounceAt) / 0.9;
+    if (!R && bp >= 0 && bp < 1) {
+      if (bp < 0.15) sy *= 1 - 0.15 * Math.sin(bp / 0.15 * Math.PI / 2);
+      else if (bp < 0.72) { const q = (bp - 0.15) / 0.57; y += Math.sin(q * Math.PI) * 0.42; sy *= 1 + 0.13 * (1 - 2 * q) ** 2; }
+      else { const r = (bp - 0.72) / 0.28; sy *= 1 - 0.14 * Math.sin(r * Math.PI) * (1 - 0.4 * r); }
+    }
+    const pp = (t - this.popAt) / 0.35;
+    if (!R && pp >= 0 && pp < 1) sy *= 1 + 0.07 * Math.sin(pp * Math.PI) * (1 - pp);
+    const sx = 1 / Math.sqrt(sy);
+    this.squash.scale.set(sx, sy, sx);
+    this.root.position.y = y;
+
+    // gaze + turn
+    const gt = expr === 'thinking' ? { x: 0.6, y: 0.75 } : sleeping ? { x: 0, y: -0.2 } : pose === 'finding' ? { x: -0.55, y: 0.05 } : pose === 'working' ? { x: 0.2, y: -0.55 } : this.gazeTarget;
+    const kg = R ? 1 : 1 - Math.exp(-dt * 10);
+    this.gaze.x = lerp(this.gaze.x, gt.x, kg); this.gaze.y = lerp(this.gaze.y, gt.y, kg);
+    const ky = R ? 1 : 1 - Math.exp(-dt * 6);
+    this.yaw = lerp(this.yaw, this.yawTarget + this.gaze.x * 0.26, ky);
+    this.turn.rotation.y = this.yaw;
+    this.turn.rotation.x = lerp(this.turn.rotation.x, -this.gaze.y * 0.12, ky);
+    const tiltT = expr === 'curious' ? 0.13 : expr === 'thinking' ? -0.07 : sleeping ? 0.06 : 0;
+    this.tilt = lerp(this.tilt, tiltT, ky); this.root.rotation.z = this.tilt;
+
+    // blink
+    if (!R && !STILL && t > this.nextBlink) { this.blinkAt = t; this.nextBlink = t + (Math.random() < 0.2 ? 0.25 : 2.4 + Math.random() * 3); }
+    const bt = (t - this.blinkAt) / 0.15;
+    const blink = bt >= 0 && bt < 1 ? Math.sin(bt * Math.PI) : 0;
+
+    if (!this.faceless) {
+      const key = `${expr}|${this.gaze.x.toFixed(2)}|${this.gaze.y.toFixed(2)}|${blink.toFixed(2)}|${this.blush}`;
+      if (key !== this.faceKey) { this.faceKey = key; drawFace(this.fx, this.fc.width, this.fc.height, expr, this.gaze, blink, this.blush); this.faceTex.needsUpdate = true; }
+    }
+
+    // orb companion
+    const fl = this.faceless;
+    this.orb.position.set(fl ? 0.72 : 0.98 + 0.04 * Math.sin(ft * 0.9), (fl ? -0.38 : 0.98) + 0.06 * Math.sin(ft * 1.7 + 1), fl ? 0.75 : 0.15);
+    this.orb.scale.setScalar(fl ? 1.9 : 1);
+    this.orb.visible = fl || !['curious', 'sleeping', 'surprised', 'excited'].includes(expr) && pose !== 'greeting';
+
+    // shadow
+    const sh = 1 - y * 0.55;
+    this.shadow.scale.set(2.0 * sh, 1.25 * sh, 1);
+    this.shadowMat.opacity = (THEME_DARK && !this.glow ? 0.32 : 0.5) * (1 - y * 0.9);
+
+    // props
+    const wave = R ? 0 : Math.sin(ft * 9);
+    this.laptop.visible = pose === 'working';
+    this.magnifier.visible = pose === 'finding';
+    if (this.magnifier.visible) this.magnifier.position.y = 0.18 + (R ? 0 : 0.04 * Math.sin(ft * 1.3));
+    this.bulb.visible = pose === 'explaining';
+    if (this.bulb.visible) this.bulb.position.y = 1.12 + (R ? 0 : 0.04 * Math.sin(ft * 2));
+    this.nubR.visible = pose === 'greeting' || pose === 'thinking' || pose === 'cheering';
+    this.nubL.visible = pose === 'cheering';
+    if (pose === 'greeting') this.nubR.position.set(0.98 + 0.02 * wave, -0.22 + 0.09 * wave, 0.32);
+    if (pose === 'thinking') this.nubR.position.set(0.3, -0.55 + (R ? 0 : 0.015 * Math.sin(ft * 2)), 0.86);
+    if (pose === 'cheering') {
+      const c = R ? 0.5 : (Math.sin(ft * 8.4) + 1) / 2;
+      this.nubR.position.set(0.98, 0.08 + 0.12 * c, 0.26); this.nubL.position.set(-1.0, 0.08 + 0.12 * (1 - c), 0.26);
+    }
+
+    // decor
+    this.q.visible = expr === 'curious';
+    if (this.q.visible) { this.q.position.y = 1.08 + (R ? 0 : 0.05 * Math.sin(ft * 2.2)); this.q.material.rotation = R ? 0.15 : 0.15 + 0.1 * Math.sin(ft * 1.7); }
+    this.z1.visible = this.z2.visible = sleeping;
+    if (sleeping) {
+      [this.z1, this.z2].forEach((z, i) => {
+        const ph = R ? 0.35 + i * 0.3 : (ft * 0.3 + i * 0.5) % 1;
+        z.position.set(0.66 + ph * 0.42 + i * 0.05, 0.78 + ph * 0.55, 0.3);
+        z.material.opacity = R ? 1 : Math.sin(ph * Math.PI);
+        z.material.rotation = -0.2;
+      });
+    }
+    const celebrate = expr === 'celebrating' || pose === 'cheering';
+    this.sparkR.visible = expr === 'excited' || celebrate;
+    this.sparkL.visible = celebrate;
+    this.sparkV.visible = expr === 'surprised';
+    this.wave.visible = pose === 'greeting';
+    const pulse = R ? 1 : 1 + 0.08 * Math.sin(ft * 6);
+    for (const g of [this.sparkR, this.sparkL, this.sparkV, this.wave]) if (g.visible) for (const d of g.children) {
+      const [x, yy, cx, cy] = d.userData.base;
+      d.position.set(cx + (x - cx) * pulse, cy + (yy - cy) * pulse, 0.3);
+    }
+
+    // confetti
+    if (celebrate && !this.conf) this.initConfetti();
+    if (this.conf) {
+      this.conf.visible = celebrate;
+      if (celebrate && !R) {
+        const D = this.confDummy;
+        this.cp.forEach((c, i) => {
+          c.v.y -= 3.4 * dt; c.v.x *= 0.985; c.v.z *= 0.985; if (c.v.y < -0.9) c.v.y = -0.9;
+          c.p.addScaledVector(c.v, dt);
+          c.r.x += c.w.x * dt; c.r.y += c.w.y * dt; c.r.z += c.w.z * dt;
+          if (c.p.y < -1.0) this.spawn(c, false);
+          D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix);
+        });
+        this.conf.instanceMatrix.needsUpdate = true;
+      } else if (celebrate && !this.confStill) {
+        const D = this.confDummy; this.confStill = true;
+        this.cp.forEach((c, i) => { D.position.copy(c.p); D.rotation.copy(c.r); D.updateMatrix(); this.conf.setMatrixAt(i, D.matrix); });
+        this.conf.instanceMatrix.needsUpdate = true;
+      }
+    }
+  }
+}
+
+// ---------- the face, painted in angle space (1 canvas px row = same angle both axes) ----------
+const INK = '#1b1520';
+function drawFace(x, W, H, expr, gaze, blink, blush) {
+  const S = W / 2, cx = W / 2, cy = H / 2;
+  const P = (ax, ay) => [cx + ax * S, cy - ay * S];
+  x.clearRect(0, 0, W, H);
+  x.lineCap = 'round'; x.lineJoin = 'round';
+
+  const strong = expr === 'celebrating' || expr === 'excited' || expr === 'happy' || expr === 'sleeping';
+  for (const sd of [-1, 1]) {
+    const [bx, by] = P(sd * 0.56, -0.03), r = 0.15 * S;
+    const g = x.createRadialGradient(bx, by, 0, bx, by, r);
+    g.addColorStop(0, `rgba(${blush},${strong ? 0.62 : 0.54})`); g.addColorStop(0.55, `rgba(${blush},${strong ? 0.3 : 0.25})`); g.addColorStop(1, `rgba(${blush},0)`);
+    x.fillStyle = g; x.beginPath(); x.ellipse(bx, by, r, r * 0.78, 0, 0, TAU); x.fill();
+  }
+
+  const ox = gaze.x * 0.05, oy = gaze.y * 0.035;
+  const rx = 0.088 * S, ry = 0.136 * S, lw = 0.032 * S;
+  x.strokeStyle = INK; x.fillStyle = INK; x.lineWidth = lw;
+  for (const sd of [-1, 1]) {
+    const [ex, ey] = P(sd * 0.37 + ox, 0.14 + oy);
+    let k = 1 - blink * 0.94;
+    const big = expr === 'curious' && sd === 1 ? 1.12 : 1;
+    if (expr === 'happy' || expr === 'celebrating') arc(x, ex, ey + ry * 0.2, rx * 1.15, -ry * 0.95);
+    else if (expr === 'sleeping') arc(x, ex, ey - ry * 0.05, rx * 1.15, ry * 0.75);
+    else if (expr === 'excited') {
+      x.beginPath(); x.moveTo(ex + sd * rx * 0.85, ey - ry * 0.62); x.lineTo(ex - sd * rx * 0.75, ey); x.lineTo(ex + sd * rx * 0.85, ey + ry * 0.62); x.stroke();
+    } else if (k < 0.3) arc(x, ex, ey, rx * 1.05, ry * 0.3);
+    else if (expr === 'surprised') eye(x, ex, ey, rx * 1.15, rx * 1.2 * k, 0, null, true);
+    else if (expr === 'focused') eye(x, ex, ey + ry * 0.08, rx, ry * 0.92 * k, 0, sd);
+    else eye(x, ex, ey, rx * big, ry * big * k, sd * 0.08);
+  }
+
+  const m = (ax, ay) => P((ax + ox * 0.6) * 1.25, (ay + oy * 0.5) * 1.25 + 0.02);
+  x.lineWidth = lw * 0.95;
+  x.beginPath();
+  if (expr === 'happy') { x.moveTo(...m(-0.08, -0.02)); x.quadraticCurveTo(...m(0, -0.11), ...m(0.08, -0.02)); x.stroke(); }
+  else if (expr === 'excited' || expr === 'celebrating') {
+    x.moveTo(...m(-0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.005), ...m(0.085, -0.02)); x.quadraticCurveTo(...m(0, -0.15), ...m(-0.085, -0.02)); x.closePath();
+    x.fillStyle = '#3a1a28'; x.fill(); x.save(); x.clip(); x.fillStyle = '#ff7f96'; x.beginPath(); x.ellipse(...m(0, -0.115), 0.06 * S, 0.04 * S, 0, 0, TAU); x.fill(); x.restore();
+    x.fillStyle = INK;
+  } else if (expr === 'surprised') { x.ellipse(...m(0, -0.06), 0.028 * S, 0.036 * S, 0, 0, TAU); x.fillStyle = '#3a1a28'; x.fill(); x.fillStyle = INK; }
+  else if (expr === 'thinking') { x.moveTo(...m(0.0, -0.045)); x.quadraticCurveTo(...m(0.035, -0.06), ...m(0.07, -0.035)); x.stroke(); }
+  else if (expr === 'focused') { x.moveTo(...m(-0.035, -0.05)); x.lineTo(...m(0.035, -0.05)); x.stroke(); }
+  else if (expr === 'sleeping') { x.moveTo(...m(-0.035, -0.04)); x.quadraticCurveTo(...m(0, -0.075), ...m(0.035, -0.04)); x.stroke(); }
+  else if (expr === 'curious') { x.moveTo(...m(-0.055, -0.03)); x.quadraticCurveTo(...m(0, -0.085), ...m(0.05, -0.04)); x.stroke(); }
+  else { x.moveTo(...m(-0.068, -0.025)); x.quadraticCurveTo(...m(0, -0.1), ...m(0.068, -0.025)); x.stroke(); }
+}
+function arc(x, cx, cy, hw, bend) { x.beginPath(); x.moveTo(cx - hw, cy); x.quadraticCurveTo(cx, cy + bend, cx + hw, cy); x.stroke(); }
+function eye(x, cx, cy, rx, ry, rot, lidSide, round) {
+  x.save(); x.translate(cx, cy); x.rotate(rot);
+  if (lidSide) { // determined lids: inner corner lower
+    x.beginPath(); x.moveTo(lidSide * rx * 1.4, -ry * 0.62); x.lineTo(-lidSide * rx * 1.4, -ry * 0.05); x.lineTo(-lidSide * rx * 1.4, ry * 2); x.lineTo(lidSide * rx * 1.4, ry * 2); x.closePath(); x.clip();
+  }
+  const g = x.createRadialGradient(-rx * 0.3, -ry * 0.35, ry * 0.08, 0, 0, Math.max(rx, ry) * 1.1);
+  g.addColorStop(0, '#2c2432'); g.addColorStop(1, '#0d0910');
+  x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, rx, ry, 0, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.96)';
+  x.beginPath(); x.ellipse(-rx * 0.3, -ry * (round ? 0.38 : 0.42), rx * (round ? 0.3 : 0.34), Math.max(1, ry * (round ? 0.3 : 0.24)), -0.5, 0, TAU); x.fill();
+  x.fillStyle = 'rgba(255,255,255,.5)';
+  x.beginPath(); x.ellipse(rx * 0.32, ry * 0.42, rx * 0.13, Math.max(1, ry * 0.09), 0, 0, TAU); x.fill();
+  x.restore(); x.fillStyle = INK;
+}
+
+// ---------- scenes ----------
+function makeScene(m) {
+  const scene = new THREE.Scene();
+  scene.add(m.group, new THREE.HemisphereLight('#fff4ec', '#ead8ff', 1.3));
+  const d = new THREE.DirectionalLight('#ffffff', 1.7); d.position.set(-2, 3, 5); scene.add(d);
+  return scene;
+}
+function makeCam(z = 6.4, ty = 0.14) {
+  const c = new THREE.PerspectiveCamera(30, 1, 0.1, 50); c.position.set(0, 0.42, z); c.lookAt(0, ty, 0); return c;
+}
+
+// ---------- the mascot in the app: one model, one canvas, it moves between places ----------
+const mascotEl = document.getElementById('mascot');
+let lead = null, leadR = null, leadScene = null, leadCam = null;
+try {
+  const cv = document.createElement('canvas'); mascotEl.append(cv);
+  leadR = new THREE.WebGLRenderer({ canvas: cv, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  leadR.setPixelRatio(Math.min(devicePixelRatio, 2)); leadR.setSize(360, 360, false);
+  lead = new Mascot({ faceSize: 1024, hero: true });
+  leadScene = makeScene(lead); leadCam = makeCam(5.7, 0.2);
+} catch (e) { mascotEl.classList.add('nogl'); mascotEl.innerHTML = ''; lead = null; }
+let lastT = performance.now();
+function leadLoop(now) {
+  const t = now / 1000, dt = Math.min(0.1, (now - lastT) / 1000); lastT = now;
+  if (lead) { lead.update(t, dt); leadR.render(leadScene, leadCam); }
+  requestAnimationFrame(leadLoop);
+}
+requestAnimationFrame(leadLoop);
+addEventListener('pointermove', e => {
+  if (!lead) return;
+  const r = mascotEl.getBoundingClientRect();
+  lead.gazeTarget = { x: Math.max(-1, Math.min(1, (e.clientX - r.left - r.width / 2) / 420)), y: Math.max(-1, Math.min(1, -(e.clientY - r.top - r.height / 2) / 320)) };
+});
+function placeMascot() {
+  const slot = document.querySelector('#view .slot'), main = document.getElementById('main');
+  if (!slot) { mascotEl.style.visibility = 'hidden'; return; }
+  mascotEl.style.visibility = '';
+  const a = slot.getBoundingClientRect(), m = main.getBoundingClientRect();
+  const size = a.width * 1.3, s = size / 360;
+  const x = a.left - m.left + main.scrollLeft + a.width / 2 - size / 2, y = a.top - m.top + main.scrollTop + a.height / 2 - size / 2;
+  mascotEl.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${s.toFixed(3)})`;
+}
+function mood(expr, pose) { if (lead) { lead.setExpr(expr); lead.setPose(pose); } }
+
+// ---------- the loop ----------
+const LOOP = [
+  { k: 'pull', name: 'Pull', w: 1.05, at: '07:02', view: 'numbers', did: 'Pulled your numbers', then: 'Pull your numbers', r: 'about 2 min' },
+  { k: 'learn', name: 'Learn', w: .95, at: '07:12', view: 'numbers', did: 'Claude read the numbers', then: 'Claude reads the numbers', r: 'about 1 min' },
+  { k: 'plan', name: 'Plan', w: 1.05, at: '07:20', view: 'week', did: 'Claude drafted next week', then: 'Claude drafts next week', r: 'about 2 min' },
+  { k: 'approve', name: 'Approve', w: 1, at: '07:48', view: 'review', did: 'You approved the plan', then: 'You approve the plan', r: 'needs you' },
+  { k: 'cook', name: 'Cook', w: 2.1, at: '08:05', view: 'cook', did: 'Tonight\'s reel cooked', then: 'Claude cooks tonight\'s reel', r: 'about 12 min' },
+  { k: 'post', name: 'Post', w: 1.15, at: '08:52', view: 'watch', did: 'You approved the reel', then: 'You watch the draft and approve it', r: 'needs you' },
+];
+const STATES = ['normal', 'running', 'long', 'error', 'empty', 'limited'];
+const idx = k => LOOP.findIndex(l => l.k === k);
+const REEL = 'One-take edit in 4 minutes';
+const COOK = ['Script', 'Voice', 'Build', 'Draft', 'Final', 'Review'];
+const COOK_T = ['Claude is copying your script into the reel', 'Claude is cleaning up the voice', 'Claude is building the chapters', 'Claude is rendering a quick draft', 'Claude is rendering the final video', 'Claude is checking the reel against your plan'];
+const COOK_W = ['Claude cleans up the voice next.', 'Claude builds the chapters next.', 'Claude mixes the music, then renders a quick draft for you.', 'The draft lands on the left. The final render follows.', 'The draft stays playable. The final lands here.', 'You get the reel to watch, with its caption and cover.'];
+const n = (c, w) => `${c} ${w}${c === 1 ? '' : 's'}`;
+const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const nothing = 'Nothing to do. You can leave; Today shows the progress.';
+
+/* every state of every step. a=primary, b=second: [label, action]. m=[expression, pose] */
+const C = {
+  pull: {
+    normal: { kind: 'you', tag: 'Needs you', say: 'Morning. Yesterday\'s numbers are waiting.', title: 'Pull today\'s numbers', body: 'Instagram, site visits, sales and 13 rivals. About 2 minutes.', a: ['Pull now', 'pull.start'], b: ['Use yesterday\'s', 'pull.skip'], m: ['happy', 'greeting'] },
+    running: { kind: 'run', tag: 'Working', say: 'Pulling your numbers. You can look away.', title: 'Pulling rivals', meta: p => { const d = Math.round(p * 13); return `${n(d, 'rival')} of 13 · ${d} updated · ${13 - d} to go`; }, can: 'Nothing to do. You can leave; the pull keeps going.', wait: 'Numbers land in Numbers, then Claude reads them.', a: ['Stop', 'pull.stop'], b: ['See the numbers', 'go:numbers'], m: ['focused', 'working'], base: 120 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'Instagram is slow this morning. Nothing is wrong.', title: 'Taking longer than usual (2:00)', body: 'Instagram is answering slowly, so Lead Studio waits between rivals.', metaL: t => `7 rivals of 13 · ${mmss(134 + t)} so far · usually about 2:00`, can: 'You can leave; the pull keeps going.', wait: 'It finishes by itself. Finished rivals are already saved.', a: ['Stop', 'pull.stop'], m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: '3 rivals came through. The other 10 keep their older numbers.', title: 'The pull stopped at 3 of 13', body: '3 rivals have new numbers. The other 10 keep their older numbers from 22:40.', a: ['Pull the rest (10)', 'pull.rest'], b: ['Use what\'s here', 'pull.skip'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'No numbers yet. Let\'s get your first ones.', title: 'Connect Instagram to start', body: 'It\'s the only source you need today. The others can wait.', a: ['Connect Instagram', 'pull.start'], b: ['See all sources', 'go:settings'], m: ['curious', 'floating'] },
+    limited: { kind: 'lim', tag: 'At the limit', say: 'Instagram\'s hourly limit is used up. 11 rivals are left.', title: '2 of 13 rivals pulled', body: 'The limit resets at 08:00. Browser pull is off, and it could finish the rest now.', can: 'Turn on browser pull, or keep working. The 2 new numbers are saved.', wait: 'Lead Studio pulls the other 11 at 08:00.', a: ['Turn on and pull the rest (11)', 'pull.rest'], b: ['Wait until 08:00', 'pull.wait'], m: ['sleeping', 'floating'] },
+  },
+  learn: {
+    normal: { kind: 'you', tag: 'Today\'s finding', say: 'Fresh numbers. One thing stands out.', title: 'How-to hooks sold 3 times more than lists', body: '12 sales from 4 how-to reels, 4 sales from 5 lists, last 30 days.', metaS: 'Instagram and Polar · pulled 07:12', a: ['Plan next week around it', 'plan.start'], b: ['See the numbers', 'go:numbers'], m: ['happy', 'explaining'] },
+    running: { kind: 'run', tag: 'Working', say: 'Claude is reading your numbers.', title: 'Claude is comparing this week with last', meta: p => `${Math.max(1, Math.round(p * 4))} of 4 reads`, can: nothing, wait: 'You get one finding here, with where it came from.', b: ['See the numbers', 'go:numbers'], m: ['thinking', 'thinking'], base: 60 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'Still reading. There\'s more than usual this week.', title: 'Taking longer than usual (1:30)', body: '9 reels went up this week, so there is more to compare.', metaL: t => `3 of 4 reads · ${mmss(102 + t)} so far · usually about 1:00`, can: nothing, wait: 'One finding lands here. Finished reads are kept.', m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: 'Claude stopped partway. 2 reads are kept.', title: '2 of 4 reads are done and kept', body: 'Claude lost its connection on the rivals read. Your funnel and channel reads are saved.', a: ['Finish the last 2', 'learn.resume'], b: ['Plan without them', 'plan.start'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'Not enough to read yet.', title: 'Claude needs 3 posted reels to compare', body: 'You have 1 posted reel. Numbers still show up as they come in.', a: ['Plan without it', 'plan.start'], m: ['curious', 'floating'] },
+    limited: { kind: 'lim', tag: 'At the limit', say: 'Your Claude plan is used up until 11:20.', title: 'The read waits until 11:20', body: 'Codex is also on this Mac and can do it now.', can: 'Use Codex now, or keep working.', wait: 'Claude starts the read at 11:20.', a: ['Use Codex instead', 'learn.resume'], b: ['Wait until 11:20', 'wait:Claude starts the read at 11:20.'], m: ['sleeping', 'floating'] },
+  },
+  plan: {
+    normal: { kind: 'you', tag: 'Needs you', say: 'Next week\'s draft is ready for your eyes.', title: '5 reels planned, 3 changed', body: 'Monday to Friday, built around how-to hooks. Nothing changes until you approve.', a: ['Review the plan', 'review'], b: ['See the week', 'go:week'], m: ['happy', 'explaining'] },
+    running: { kind: 'run', tag: 'Working', say: 'Claude is drafting next week.', title: 'Claude is writing the week', meta: p => `Day ${Math.min(5, Math.max(1, Math.ceil(p * 5)))} of 5`, can: 'Nothing to do. Days appear in Week as they\'re written.', wait: 'You review it before anything changes.', b: ['See the week', 'go:week'], m: ['focused', 'working'], base: 120 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'Still drafting. Slower than usual, still moving.', title: 'Taking longer than usual (3:00)', body: 'Claude is checking each hook against your last 30 days.', metaL: t => `Day 4 of 5 · ${mmss(206 + t)} so far · usually about 2:00`, can: nothing, wait: 'The last day lands in Week, then you review it.', b: ['See the week', 'go:week'], m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: 'Claude stopped at Thursday. 3 days are kept.', title: '3 of 5 days are written and kept', body: 'Claude\'s connection closed while writing Thursday. Monday to Wednesday are saved.', a: ['Write the last 2 days', 'plan.resume'], b: ['Review the 3 days', 'review'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'Next week is empty.', title: 'No reels planned yet', body: 'Claude can draft it from this morning\'s finding, or you can add a reel yourself.', a: ['Ask Claude to draft', 'plan.start'], b: ['Add a reel myself', 'go:week'], m: ['curious', 'floating'] },
+    limited: { kind: 'lim', tag: 'At the limit', say: 'Your Claude plan ran out after 3 days.', title: '3 of 5 days drafted', body: 'Your Claude plan resets at 11:20. Codex can write the other 2 now.', can: 'Finish with Codex, or review what\'s here.', wait: 'Claude writes the last 2 days at 11:20.', a: ['Finish with Codex', 'plan.resume'], b: ['Review the 3 days', 'review'], m: ['sleeping', 'floating'] },
+  },
+  approve: {
+    normal: { kind: 'you', tag: 'Needs you', say: 'One okay from you, then Claude can cook.', title: 'Approve next week\'s plan', body: 'Nothing runs until you say so.', a: ['APPROVE', 'approve.do'], b: ['Look first', 'go:review'], m: ['curious', 'floating'] },
+    running: { kind: 'run', tag: 'Working', say: 'Saving your okay.', title: 'Saving the new plan', metaS: 'Usually under 5 s', can: 'Nothing to do.', wait: 'Tonight\'s reel is next.', m: ['focused', 'working'], base: 5 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'Saving is slower than usual. Your okay is recorded.', title: 'Taking longer than usual (0:30)', body: 'The old plan keeps running until this finishes.', metaL: t => `${mmss(38 + t)} so far · usually under 5 s`, can: 'Nothing to do. You can leave.', wait: 'The new plan takes over by itself.', m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: 'The new plan didn\'t save. The old one still runs.', title: 'Your okay is kept, the save failed', body: 'The plan was busy in another window. Nothing was lost.', a: ['Save it again', 'approve.do'], b: ['Look first', 'go:review'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'Nothing needs your okay.', title: 'No plan waiting', body: 'When Claude drafts a week, it shows up here.', a: ['Go to Week', 'go:week'], m: ['normal', 'floating'] },
+    limited: { kind: 'lim', tag: 'Partly ready', say: 'Tuesday can\'t go yet. The other 2 changes can.', title: 'Approve 2, hold Tuesday', body: 'Tuesday\'s reel has no comment keyword. It stays as it was until it has one.', can: 'Approve the 2 ready changes, or add the keyword first.', wait: 'Tuesday stays on the old plan.', a: ['Approve 2 changes', 'approve.do'], b: ['Add the keyword', 'go:week'], m: ['curious', 'floating'] },
+  },
+  cook: {
+    normal: { kind: 'you', tag: 'Needs you', say: 'Plan approved. Tonight\'s reel is ready to cook.', title: `Cook "${REEL}"`, body: 'The script is done. About 12 minutes, and you can walk away.', a: ['Cook', 'cook.start'], b: ['See the script', 'go:cook'], m: ['excited', 'floating'] },
+    running: { kind: 'run', tag: 'Working', say: 'Tonight\'s reel is cooking. You can walk away.', title: p => COOK_T[cookI(p)], meta: (p, t) => `Step ${cookI(p) + 1} of 6 · ${mmss(t)} so far`, can: nothing, wait: p => COOK_W[cookI(p)], a: ['Watch it cook', 'go:cook'], m: ['focused', 'working'], base: 720 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'The final render is slow, but still moving.', title: 'Claude is rendering the final video', metaL: t => `Step 5 of 6 · ${mmss(462 + t)} so far, usually about 3:00`, can: 'Leave it running. Keep the Mac awake.', wait: 'The draft stays playable. The final lands here.', a: ['Watch it cook', 'go:cook'], m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: 'The render stopped. 4 of 6 steps are done and kept.', title: 'Claude stopped at the final render', body: 'Script, voice, chapters and draft are safe. Nothing needs redoing.', a: ['Resume cook', 'cook.resume'], b: ['Show the work', 'work'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'Nothing is cooking. Cook a reel from Week.', title: 'Pick a reel to cook', body: 'Any reel with a finished script can cook.', a: ['Go to Week', 'go:week'], m: ['normal', 'floating'] },
+    limited: { kind: 'lim', tag: 'At the limit', say: 'Claude hit its plan limit at step 3. It picks up at 11:20.', title: 'Paused until 11:20', body: '2 steps are done and kept. Your Claude plan resets at 11:20.', can: 'Use Codex now, or leave it.', wait: 'The cook picks up by itself at 11:20.', a: ['Use Codex now', 'cook.resume'], b: ['Wait until 11:20', 'wait:The cook picks up by itself at 11:20.'], m: ['sleeping', 'floating'] },
+  },
+  post: {
+    normal: { kind: 'you', tag: 'Needs you', say: 'The draft is ready. Watch it, then it posts at 19:30.', title: `Watch "${REEL}"`, body: '41 seconds. Caption, cover and keyword are filled in.', a: ['Watch', 'go:watch'], m: ['excited', 'floating'] },
+    running: { kind: 'run', tag: 'Working', say: 'Sending the reel to Instagram.', title: 'Sending the video', meta: p => `${Math.round(p * 64)} MB of 64 MB`, can: 'Nothing to do.', wait: 'It sits with Instagram until 19:30.', m: ['focused', 'working'], base: 40 },
+    long: { kind: 'long', tag: 'Slower than usual', say: 'Instagram is taking its time with the upload.', title: 'Taking longer than usual (2:00)', body: 'Your video is safe on this Mac the whole time.', metaL: t => `38 MB of 64 MB · ${mmss(128 + t)} so far · usually under 1:00`, can: 'You can leave; the upload keeps going.', wait: 'If it hasn\'t gone by 19:15, Lead Studio tells you.', m: ['thinking', 'thinking'] },
+    error: { kind: 'bad', tag: 'Stopped', say: 'Instagram closed the upload. Your video is safe.', title: 'The upload stopped at 38 of 64 MB', body: 'The video, caption and cover are all kept. You have until 19:30.', a: ['Send it again', 'post.ok'], b: ['Back to the draft', 'go:watch'], m: ['surprised', 'finding'] },
+    empty: { kind: 'ghost', tag: 'Nothing yet', say: 'Nothing to watch yet.', title: 'No draft waiting', body: 'A draft lands here when a cook finishes.', a: ['Go to Week', 'go:week'], m: ['normal', 'floating'] },
+    limited: { kind: 'lim', tag: 'At the limit', say: 'Instagram\'s daily post limit is used up.', title: 'This reel can\'t post before tomorrow 07:00', body: 'The reel is finished. Only the post time moves.', can: 'Pick tomorrow\'s slot, or keep it as a draft.', wait: 'It stays here as a draft, ready to go.', a: ['Post tomorrow at 19:30', 'post.ok'], b: ['Keep as draft', 'wait:It stays here as a draft, ready to go.'], m: ['sleeping', 'floating'] },
+  },
+};
+const REST = { kind: 'rest', tag: 'Done', say: 'That\'s today. The reel posts itself at 19:30.', title: 'Nothing needs you', body: 'Tomorrow morning you\'ll see how it did.', m: ['celebrating', 'cheering'] };
+const cookI = p => Math.min(5, Math.floor(p * 6));
+
+// ---------- state ----------
+const init = () => ({ view: 'today', step: 'pull', st: 'normal', sim: null, clock: 0, hold: false, toast: null, cmd: false, cmdQ: '', cmdI: 0, open: -1, added: [], chg: [1, 1, 1], ver: 1, note: '', draft: '', handle: '', rival: '', rivals: 0, browser: false, playing: true, rested: 0 });
+let S = init();
+const DUR = { pull: 7, learn: 4, plan: 5, approve: 1, cook: 12, post: 3 };
+const HOLD_P = { pull: .31, learn: .5, plan: .5, approve: .5, cook: .45, post: .6 };
+const isRest = () => S.step === 'rest';
+const prog = () => S.sim ? Math.min(1, S.sim.t / S.sim.dur) : (S.st === 'running' ? HOLD_P[S.step] : 0);
+const cell = () => isRest() ? REST : C[S.step][S.st];
+const ph = k => { if (isRest()) return 'done'; const a = idx(k), b = idx(S.step); return a < b ? 'done' : a === b ? 'now' : 'ahead'; };
+
+function card() {
+  const c = cell(), p = prog(), t = S.sim ? S.sim.t / S.sim.dur * (c.base || 60) : (c.base || 60) * p + S.clock;
+  const out = { ...c };
+  out.title = typeof c.title === 'function' ? c.title(p) : c.title;
+  out.wait = typeof c.wait === 'function' ? c.wait(p) : c.wait;
+  out.meta = c.meta ? c.meta(p, t) : c.metaL ? c.metaL(S.clock) : c.metaS;
+  const count = S.chg.filter(Boolean).length;
+  if (out.a && out.a[0] === 'APPROVE') out.a = [count ? `Approve ${n(count, 'change')}` : 'Pick a change', 'approve.do'];
+  if (S.view === 'watch' && S.step === 'post' && S.st === 'normal') { out.a = ['Approve and post at 19:30', 'post.ok']; out.body = S.ver > 1 ? `Version ${S.ver}. Your change is in.` : out.body; }
+  if (S.view === 'cook' && S.step === 'cook' && (S.st === 'running' || S.st === 'long')) out.a = ['Stop', 'cook.stop'];
+  if (S.view === 'review' && S.step === 'plan') { out.a = ['Approve what\'s here', 'approve.do']; out.b = null; }
+  return out;
+}
+const kindOf = () => cell().kind;
+
+// ---------- actions ----------
+function start(k, t = 0) { S.step = k; S.st = 'running'; S.sim = { t, dur: DUR[k] }; S.clock = 0; S.hold = false; }
+function simDone() {
+  const k = S.step; S.sim = null;
+  if (k === 'pull') return start('learn');
+  if (k === 'learn') return setCell('learn', 'normal');
+  if (k === 'plan') return setCell('plan', 'normal');
+  if (k === 'approve') return setCell('cook', 'normal');
+  if (k === 'cook') return setCell('post', 'normal');
+  if (k === 'post') { S.step = 'rest'; S.st = 'normal'; S.rested = 1; S.view = 'today'; if (lead) lead.bounce(); say('Scheduled for 19:30.'); }
+}
+function setCell(k, st) { S.step = k; S.st = st; S.sim = null; S.clock = 0; }
+function say(msg, undo) { S.toast = { msg, undo, at: performance.now() }; }
+const ACT = {
+  'pull.start': () => start('pull'),
+  'pull.again': () => { if (S.step === 'pull') start('pull'); else say('Pulling again. Your day stays where it is.'); },
+  'pull.stop': () => { setCell('pull', 'error'); },
+  'pull.rest': () => { if (S.st === 'limited') S.browser = true; start('pull', DUR.pull * .3); },
+  'pull.skip': () => start('learn'),
+  'pull.wait': () => say('Lead Studio pulls the other 11 at 08:00.'),
+  'learn.resume': () => start('learn', DUR.learn * .5),
+  'plan.start': () => { start('plan'); },
+  'plan.resume': () => start('plan', DUR.plan * .6),
+  review: () => { setCell('approve', 'normal'); S.view = 'review'; },
+  'approve.do': () => { if (!S.chg.some(Boolean)) return say('Pick at least one change.'); start('approve'); S.view = 'today'; if (lead) lead.bounce(); say('Plan approved.', 'approve'); },
+  'cook.start': () => start('cook'),
+  'cook.stop': () => setCell('cook', 'error'),
+  'cook.resume': () => start('cook', DUR.cook * .66),
+  'post.ok': () => { start('post'); if (lead) lead.bounce(); },
+  'change.send': () => { const note = S.draft.trim(); if (!note) return; S.note = note; S.draft = ''; S.ver++; start('cook', DUR.cook * .8); say(`Claude is making your change: ${note}`); },
+  undo: () => { if (S.toast?.undo === 'approve') { setCell('approve', 'normal'); S.view = 'review'; S.toast = null; } },
+  bounce: () => lead && lead.bounce(),
+  theme: () => setTheme(!THEME_DARK),
+  'open.cmd': () => { S.cmd = true; S.cmdQ = ''; S.cmdI = 0; },
+  'close.cmd': () => { S.cmd = false; },
+  'first.connect': () => { S.view = 'today'; start('pull'); },
+  'first.skip': () => { S.view = 'today'; setCell('pull', 'empty'); },
+  'sw.browser': () => { S.browser = !S.browser; },
+  work: () => { S.work = true; S.view = 'cook'; },
+  workspace: () => say('Opens the full workspace: terminal, files and agents.'),
+  'reel.add': () => { const t = S.draft.trim(); if (t) { S.added.push(t); S.draft = ''; say(`${t} added to next week.`); } },
+  'rival.add': () => { if (S.rival.trim()) { S.rivals++; say(`${S.rival.trim()} added. Pulled next time you pull.`); S.rival = ''; } },
+  'reel.toggle': () => { S.playing = !S.playing; },
+};
+function run(a) {
+  if (!a) return;
+  if (ACT[a] && !['undo', 'bounce', 'theme', 'open.cmd', 'close.cmd', 'reel.toggle'].includes(a)) S.toast = null;
+  if (a.startsWith('go:')) { S.view = a.slice(3); S.cmd = false; }
+  else if (a.startsWith('wait:')) say(a.slice(5));
+  else if (a.startsWith('chg:')) { const i = +a.slice(4); if (!(S.step === 'approve' && S.st === 'limited' && i === 1)) S.chg[i] = S.chg[i] ? 0 : 1; }
+  else if (a.startsWith('day:')) { const i = +a.slice(4); S.open = S.open === i ? -1 : i; }
+  else ACT[a]?.();
+  render();
+}
+
+// ---------- rendering ----------
+function morph(a, b) {
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName || (a.dataset && a.dataset.k !== b.dataset?.k)) { a.replaceWith(b); return; }
+  if (a.nodeType === 3) { if (a.data !== b.data) a.data = b.data; return; }
+  if (a.nodeType !== 1) return;
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name) && !(a.nodeName === 'DETAILS' && name === 'open')) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) if (a.getAttribute(name) !== value) a.setAttribute(name, value);
+  if (a.nodeName === 'INPUT' && a.value !== b.getAttribute('value') && document.activeElement !== a) a.value = b.getAttribute('value') ?? '';
+  const keyed = new Map(); for (const c of a.childNodes) if (c.dataset?.k) keyed.set(c.dataset.k, c);
+  const want = [...b.childNodes];
+  want.forEach((w, i) => {
+    const at = a.childNodes[i], key = w.dataset?.k;
+    if (key && keyed.has(key) && keyed.get(key) !== at) a.insertBefore(keyed.get(key), at || null);
+    else if (key && !keyed.has(key)) { a.insertBefore(w.cloneNode(true), at || null); return; }
+    const cur = a.childNodes[i];
+    if (!cur) a.append(w.cloneNode(true)); else morph(cur, w.cloneNode(true));
+  });
+  while (a.childNodes.length > want.length) a.lastChild.remove();
+}
+function paint(id, html) {
+  const el = document.getElementById(id), w = document.createElement('div');
+  w.innerHTML = html; w.id = id; for (const { name, value } of [...el.attributes]) w.setAttribute(name, value);
+  morph(el, w);
+}
+const btn = (l, a, cls = 'quiet', extra = '') => `<button class="btn ${cls}" data-act="${esc(a)}" ${extra}>${l}</button>`;
+const slot = (size, cls = '') => `<button class="slot ${cls}" data-act="bounce" data-testid="mascot-slot" style="width:${size}px;height:${size}px" aria-label="Lead Studio's mascot"></button>`;
+
+function topHtml() {
+  if (S.view === 'welcome') return '';
+  const nav = [['today', 'Today'], ['week', 'Week'], ['numbers', 'Numbers']];
+  const on = ({ review: 'week', cook: 'today', watch: 'today' })[S.view] || S.view;
+  return nav.map(([v, l], i) => `<button class="nav ${on === v ? 'on' : ''}" data-act="go:${v}" data-testid="nav-${v}" title="${i + 1}">${l}</button>`).join('') +
+    `<span class="top-sp"></span><button class="find" data-act="open.cmd" data-testid="find"><span>Find anything</span><kbd>⌘K</kbd></button>` +
+    `<button class="find" data-act="go:settings" data-testid="nav-settings" aria-label="Settings" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>`;
+}
+function trackHtml() {
+  if (S.view === 'welcome') return '';
+  const p = prog(), now = !isRest() ? idx(S.step) : LOOP.length, tot = LOOP.reduce((a, l) => a + l.w, 0);
+  const clips = LOOP.map((l, i) => {
+    const phase = ph(l.k); let cls = 'ahead', fill = '', small = l.at;
+    if (i < now) { cls = 'done'; small = `✓ ${l.at}`; }
+    if (i === now) {
+      const k = kindOf();
+      cls = ({ you: 'you', run: 'run', long: 'long', bad: 'bad', lim: 'lim', ghost: 'ghost' })[k];
+      const w = k === 'run' ? p * 100 : k === 'bad' ? 55 : k === 'lim' ? 35 : 0;
+      fill = `<i style="width:${w.toFixed(1)}%"></i>` + (k === 'long' ? '<span class="usual"></span>' : '');
+      small = ({ you: 'needs you', run: 'working', long: 'past usual', bad: 'stopped', lim: 'limit', ghost: 'empty' })[k];
+    }
+    return `<button class="clip ${cls}" style="flex:${l.w} 1 0" data-act="go:${l.view}" data-testid="clip-${l.k}" data-state="${phase}" aria-label="${l.name}: ${small}">${fill}<b>${l.name}</b><small>${small}</small></button>`;
+  });
+  const widthsBefore = LOOP.slice(0, Math.min(now, LOOP.length)).reduce((a, l) => a + l.w, 0);
+  const curW = now < LOOP.length ? LOOP[now].w : 0;
+  const local = isRest() ? 0 : kindOf() === 'run' ? p : kindOf() === 'long' ? .94 : kindOf() === 'bad' ? .55 : kindOf() === 'lim' ? .35 : .02;
+  const pct = (widthsBefore + curW * local) / tot * 100;
+  const countdown = isRest() ? 'scheduled' : ({ pull: 'in 12 h 28 min', learn: 'in 12 h 18 min', plan: 'in 12 h 10 min', approve: 'in 11 h 42 min', cook: 'in 11 h 25 min', post: 'in 10 h 38 min' })[S.step];
+  return `<div class="clips" data-testid="day-track">${clips.join('')}<span class="playhead" data-testid="playhead" style="left:${pct.toFixed(2)}%"></span></div>` +
+    `<button class="anchor" data-act="go:watch" data-testid="anchor"><b>Posts 19:30</b><small>${countdown}</small></button>`;
+}
+function stateCard() {
+  const c = card(), kind = c.kind;
+  const segs = S.step === 'cook' && ['running', 'long', 'error', 'limited'].includes(S.st) ? cookSegs() : '';
+  const pct = kind === 'run' && S.step !== 'cook' ? `<div class="bar"><i style="width:${(prog() * 100).toFixed(1)}%"></i></div>` : '';
+  const rows = c.can || c.wait ? `<dl class="rows"><dt>YOU CAN</dt><dd>${c.can || ''}</dd>${c.wait ? `<dt>IF YOU WAIT</dt><dd>${c.wait}</dd>` : ''}</dl>` : '';
+  const acts = (c.a || c.b) ? `<div class="acts">${c.a ? btn(`${c.a[0]} <kbd>↵</kbd>`, c.a[1], 'primary', 'data-testid="primary"') : ''}${c.b ? btn(c.b[0], c.b[1], 'quiet', 'data-testid="secondary"') : ''}</div>` : '';
+  return `<section class="card k-${kind}" data-testid="next-card" data-kind="${kind}"><span class="tag">${c.tag}</span>` +
+    `<h2 data-k="${esc(c.title)}">${c.title}</h2>${c.body ? `<p>${c.body}</p>` : ''}${c.meta ? `<span class="meta time" data-testid="meta">${c.meta}</span>` : ''}${segs}${pct}${rows}${acts}</section>`;
+}
+function cookSegs() {
+  const i = S.st === 'running' ? cookI(prog()) : S.st === 'long' ? 4 : S.st === 'error' ? 4 : 2;
+  return `<div class="segs">${COOK.map((_, j) => `<span class="${j < i ? 'd' : j === i ? (S.st === 'error' ? 'x' : S.st === 'limited' ? '' : 'c') : ''}"></span>`).join('')}</div>`;
+}
+function todayHtml() {
+  const c = cell(), now = isRest() ? 6 : idx(S.step);
+  const then = LOOP.slice(now + 1).map(l => `<button class="row" data-k="t-${l.k}" data-act="go:${l.view}"><span class="w">${l.then}</span><span class="r">${l.r}</span></button>`).join('');
+  const done = LOOP.slice(0, now).map(l => `<button class="row dim" data-k="d-${l.k}" data-act="go:${l.view}"><span class="t time">${l.at}</span><span class="w">${l.did}</span><span class="chk">✓</span></button>`).join('');
+  const tonight = `<div class="row" data-k="tonight"><span class="t time">19:30</span><span class="w">${REEL}</span><span class="r">${isRest() ? 'Scheduled' : S.step === 'post' ? 'Draft ready' : idx(S.step) >= idx('cook') ? 'Cooking' : 'Script done'}</span></div>`;
+  return `<div class="page" data-k="today" data-view="today"><div class="head">${slot(132, 'big')}<h1 data-testid="say" data-k="${esc(c.say)}">${c.say}</h1></div>${stateCard()}` +
+    (then ? `<div class="list"><h3 class="sec">Then</h3>${then}</div>` : '') +
+    `<div class="list"><h3 class="sec">Tonight</h3>${tonight}</div>` +
+    (done ? `<div class="list"><h3 class="sec">Done today</h3>${done}</div>` : '') + '</div>';
+}
+function head(title, sub) { return `<div class="head">${slot(64)}<div><h1 class="small" data-testid="say">${title}</h1>${sub ? `<p class="sub">${sub}</p>` : ''}</div></div>`; }
+const DAYS = [
+  ['Mon 2 Nov', 'Keyboard only for a week', 'How-to', 'keyboard', 'Shortcut sheet', 'Planned'],
+  ['Tue 3 Nov', 'Why I cut every intro', 'How-to', '', 'Hook list', 'Missing keyword'],
+  ['Wed 4 Nov', 'One light, three looks', 'Story', 'light', 'Lighting card', 'Planned'],
+  ['Thu 5 Nov', 'Captions people read', 'How-to', 'caption', 'Caption template', 'Planned'],
+  ['Fri 6 Nov', 'What flopped in October', 'Story', 'flop', 'Teardown note', 'Planned'],
+];
+function weekHtml() {
+  const inPlan = S.step === 'plan', st = S.st;
+  const written = !inPlan ? 5 : st === 'running' ? (S.sim ? Math.floor(prog() * 5) : 2) : st === 'long' ? 3 : st === 'error' || st === 'limited' ? 3 : st === 'empty' ? 0 : 5;
+  const ahead = idx(S.step) < idx('plan') && !isRest();
+  const n2 = ahead ? 0 : written;
+  const busy = inPlan && (st === 'running' || st === 'long');
+  const rows = DAYS.map((d, i) => {
+    const has = i < n2, nextUp = busy && i === n2;
+    const status = !has ? (nextUp ? 'Writing' : '') : d[5];
+    const open = has && S.open === i;
+    return `<div class="day" data-k="day${i}"><button class="dayh" data-act="day:${i}" data-testid="day-${i}"><span class="d time">${d[0]}</span>` +
+      (has ? `<span class="w fill" data-k="w${i}">${d[1]}</span>` : nextUp ? `<span class="w"><span class="sk" style="width:${48 - i * 4}%"></span></span>` : '<span class="w none">Nothing yet</span>') +
+      `<span class="st ${status === 'Missing keyword' ? 'miss' : ''}">${status}</span></button>` +
+      (open ? `<dl class="dayb" data-k="b${i}"><dt>Type</dt><dd>${d[2]}</dd><dt>Keyword</dt><dd>${d[3] || 'None yet'}</dd><dt>Gift</dt><dd>${d[4]}</dd><dt>Time</dt><dd>19:30</dd></dl>` : '') + '</div>';
+  }).join('');
+  const blank = n2 === 0 && !busy;
+  return `<div class="page" data-k="week" data-view="week">${head(inPlan ? cell().say : 'Next week', inPlan ? '' : ahead ? 'Claude drafts this after reading your numbers.' : '5 reels, Monday to Friday')}` +
+    (inPlan ? stateCard() : '') + `<div class="list" data-testid="week-list">${rows}</div>` +
+    (blank && !inPlan ? `<p class="sub">Nothing is planned yet. It fills in after this morning's pull.</p>` : '') +
+    S.added.map((t, i) => `<div class="row" data-k="a${i}"><span class="w">${esc(t)}</span><span class="r">Added by you</span></div>`).join('') + `<div class="add"><input class="field" placeholder="Add a reel yourself: a title is enough" data-model="draft" value="${esc(S.draft)}" aria-label="Add a reel" data-testid="week-add">${btn('Add', 'reel.add', 'quiet', 'data-testid="week-add-btn"')}</div></div>`;
+}
+const FUN = [['Reel views', 184200, 'Instagram · 07:12'], ['Keyword comments', 1240, 'Instagram · 07:12'], ['Gift DMs sent', 610, 'ChatbotX · 07:12'], ['Gift page visits', 233, 'Umami · 07:12'], ['Checkout clicks', 19, 'Umami · 07:12'], ['Sales', 3, 'Polar · 07:12']];
+const RIV = [['@reelcraft.lab', '41k'], ['@cutdaily', '18k'], ['@framefirst', '12k'], ['@oneminute.edit', '9.4k'], ['@hookschool', '7.1k']];
+function numbersHtml() {
+  const isP = S.step === 'pull', st = S.st, none = isP && st === 'empty';
+  const pulled = isP && st === 'running' ? (S.sim ? Math.round(prog() * 5) : 2) : isP && st === 'long' ? 3 : isP && st === 'error' ? 3 : isP && st === 'limited' ? 1 : isP && st === 'normal' ? 0 : 5;
+  const stale = isP && st !== 'empty';
+  const fun = FUN.map(([l, v, s], i) => `<span>${l}</span><span class="n">${none ? '<span class="sk" style="width:44px"></span>' : v.toLocaleString('en-US')}</span><span class="b"><i style="width:${none ? 0 : Math.max(1.2, Math.pow(v / FUN[0][1], .28) * 100).toFixed(1)}%"></i></span><span class="s">${none ? 'not pulled yet' : stale ? s.replace('07:12', 'yesterday') : s}</span>`).join('');
+  const kw = [['keyboard', 3, '84,100', 610, 96, 8], ['shortcut', 2, '46,300', 340, 62, 3], ['caption', 1, '21,800', 180, 41, 1]];
+  const bars = [18, 24, 16, 30, 22, 28, 66, 44, 26, 20, 38, 30, 52, 34];
+  const inLearn = S.step === 'learn';
+  const rv = RIV.map(([h, f], i) => `<div class="rv" data-k="r${i}"><span class="h">${h}</span><span class="time">${f}</span><span class="pill ${none ? '' : i < pulled ? 'new' : stale ? 'old' : ''}">${none ? 'waiting' : i < pulled ? 'updated' : stale ? 'older, 22:40' : 'updated'}</span></div>`).join('');
+  return `<div class="page wide" data-k="numbers" data-view="numbers">${head(isP || inLearn ? cell().say : 'Your numbers', isP || inLearn ? '' : 'Every number names its source and pull time.')}${isP || inLearn ? stateCard() : `<div class="acts" style="margin:-8px 0 22px">${btn('Pull again', 'pull.again', 'quiet sm', 'data-testid="pull-again"')}</div>`}` +
+    `<section class="num-sec" data-testid="funnel"><h2>From view to sale</h2><p>Last 30 days. Each line feeds the next.</p><div class="fun">${fun}</div>` +
+    (none ? '' : `<table class="t"><tr><th>Keyword</th><th>Reels</th><th>Views</th><th>Comments</th><th>Visits</th><th>Sales</th></tr>${kw.map(r => `<tr><td>${r[0]}</td>${r.slice(1).map(x => `<td>${x}</td>`).join('')}</tr>`).join('')}</table>`) + '</section>' +
+    `<section class="num-sec" data-testid="channel"><h2>Your channel</h2><p>${none ? 'Your reels show up here after the first pull.' : 'Views per day, last 14 days. "Why I switched editors" was the peak.'}</p><div class="bars">${bars.map((b, i) => `<i class="${i === 6 && !none ? 'hi' : ''}" style="height:${none ? 4 : b}%"></i>`).join('')}</div></section>` +
+    `<section class="num-sec" data-testid="rivals"><h2>Rivals</h2><p>${none ? 'Add a rival and Lead Studio reads what works for them.' : `What works for the ${13 + S.rivals} you follow. Pulled when you ask, never on a timer.`}</p>` +
+    (none ? '' : `<div class="tri"><div><b>Take</b><span>Start with the finished result, then rewind.</span></div><div><b>Learn</b><span>Their best 3 reels all show the keyboard in frame one.</span></div><div><b>Avoid</b><span>Long intros. Their 2 slowest openers lost most viewers by second 3.</span></div></div>${rv}`) +
+    `<div class="add"><input class="field" placeholder="@handle or channel link" data-model="rival" value="${esc(S.rival)}" aria-label="Add a rival" data-testid="rival-input">${btn('Add rival', 'rival.add')}</div></section></div>`;
+}
+const CHG = [['Monday', 'Five tools I use', 'Keyboard only for a week', 'How-to hooks sold 3 times more than lists.'], ['Tuesday', 'My desk setup', 'Why I cut every intro', 'Rivals lose most viewers on long intros.'], ['Thursday', '18:00', '19:30', 'Your last 4 posts did best after 19:00.']];
+function reviewHtml() {
+  const hasPlan = S.step === 'approve' && S.st !== 'empty' || S.step === 'plan' && (S.st === 'normal' || S.st === 'error' || S.st === 'limited');
+  const limited = S.step === 'approve' && S.st === 'limited';
+  const items = hasPlan ? CHG.map((c, i) => {
+    const held = limited && i === 1;
+    const on = !held && S.chg[i];
+    return `<button class="chg ${on ? 'on' : ''} ${held ? 'held' : ''}" data-act="chg:${i}" data-k="c${i}" data-testid="change-${i}" ${held ? 'aria-disabled="true"' : ''}><span class="box">${on ? '✓' : ''}</span><span><b>${c[0]}</b> <span class="old">${c[1]}</span> ${c[2]}<br><small class="sub">${held ? 'Held: no comment keyword yet.' : c[3]}</small></span></button>`;
+  }).join('') : '';
+  const showCard = S.step === 'approve' || S.step === 'plan';
+  const after = idx(S.step) > idx('approve') || isRest();
+  return `<div class="page" data-k="review" data-view="review">${head(showCard ? cell().say : after ? 'You approved this plan' : 'Nothing to approve yet', after ? 'Version 3 runs now. Version 2 is kept.' : '')}${showCard ? stateCard() : ''}` +
+    (items ? `<div class="list" data-testid="changes"><h3 class="sec">What changes</h3>${items}</div>` : '') +
+    (after ? `<div class="list">${CHG.map(c => `<div class="row"><span class="w"><b>${c[0]}</b> <span class="old">${c[1]}</span> ${c[2]}</span><span class="chk">✓</span></div>`).join('')}</div>` : '') + '</div>';
+}
+function reelHtml(tag) {
+  return `<div class="reel ready ${S.playing ? '' : 'paused'}" data-k="reel" data-act="reel.toggle" data-testid="reel" role="button" aria-label="Play or pause the draft"><svg viewBox="0 0 180 320" fill="none" stroke="#25222b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="90" cy="96" r="24"/><path d="M82 92v1M98 92v1M84 104q6 5 12 0"/><path d="M90 120v52M90 172l-20 40M90 172l20 40"/><path class="arm" d="M90 134l-34 22M90 134l34 22"/><rect x="42" y="152" width="96" height="16" rx="3"/><path d="M50 160h6M62 160h6M74 160h6M86 160h6M98 160h6M110 160h6M122 160h6" stroke-width="2"/></svg><div class="cc"><span>One take.</span><span>Four minutes.</span><span>No timeline.</span><span>Comment EDIT.</span></div><span class="vtag">${tag}</span></div>`;
+}
+function cookHtml() {
+  const k = S.step === 'cook', after = idx(S.step) > idx('cook') || isRest(), before = !k && !after;
+  const i = k ? (S.st === 'running' ? cookI(prog()) : S.st === 'long' || S.st === 'error' ? 4 : S.st === 'limited' ? 2 : -1) : after ? 6 : -1;
+  const steps = COOK.map((c, j) => `<div class="${j < i ? 'd' : j === i ? (S.st === 'error' ? 'x' : S.st === 'limited' ? '' : 'c') : ''}">${j < i ? '✓ ' : ''}${c}</div>`).join('');
+  const draft = i >= 4 || after;
+  const log = ['$ Script copied, 14 lines', '$ Voice cleaned, 41 s', '$ 5 chapters built', '$ Draft rendered, 8 fps', '$ Final render running', '$ Checked against your plan'].slice(0, Math.max(1, Math.min(6, i + 1))).join('\n');
+  return `<div class="page wide" data-k="cook" data-view="cook">${head(k ? cell().say : after ? `"${REEL}" is cooked` : 'Nothing is cooking. Cook a reel from Week.', '')}` +
+    `<div class="split"><div>${k ? stateCard() : ''}` +
+    (before ? '' : `<div class="cs" data-testid="cook-steps">${steps}</div>`) +
+    `<h3 class="sec">Script</h3><div class="quote">Stop dragging clips. Do it in one take, and let the cuts find themselves.</div>` +
+    `<details class="work" data-testid="show-work" ${S.work ? 'open' : ''}><summary>Show the work</summary><pre>${log}</pre>${btn('Open the full workspace', 'workspace', 'quiet sm', 'data-testid="workspace"')}</details></div>` +
+    `<div>${draft ? reelHtml(S.ver > 1 ? `Draft v${S.ver}` : 'Draft') : `<div class="reel" data-k="reel-empty" data-testid="reel-reserved">The draft appears here after Build.</div>`}</div></div></div>`;
+}
+function watchHtml() {
+  const isP = S.step === 'post', after = isRest(), none = isP && S.st === 'empty', before = !isP && !after;
+  const noDraft = none || before;
+  return `<div class="page wide" data-k="watch" data-view="watch">${head(isP ? cell().say : after ? 'Scheduled for 19:30' : 'Nothing to watch yet.', '')}` +
+    `<div class="split"><div>${isP ? stateCard() : ''}` +
+    (noDraft ? `<p class="sub">A draft lands here when a cook finishes.</p>` :
+      `<h3 class="sec">Caption</h3><div class="quote">I stopped dragging clips. One take, four minutes, no timeline. Comment EDIT and I'll send the sheet.</div>` +
+      `<div class="list"><div class="ck"><i>✓</i>Cover picked</div><div class="ck"><i>✓</i>Keyword: EDIT</div><div class="ck"><i>✓</i>Gift: Shortcut sheet</div><div class="ck"><i>✓</i>Posts tonight at 19:30</div></div>` +
+      `<h3 class="sec">Ask for a change</h3><div class="add"><input class="field" placeholder="Make the hook faster" data-model="draft" value="${esc(S.draft)}" data-testid="change-input" aria-label="Ask for a change">${btn('Send', 'change.send', 'quiet', 'data-testid="change-send"')}</div>${S.note ? `<p class="sub" style="margin-top:8px">Your last note: ${esc(S.note)}</p>` : ''}`) +
+    `</div><div>${noDraft ? '<div class="reel" data-k="reel-empty">The draft appears here.</div>' : `${reelHtml(S.ver > 1 ? `Draft v${S.ver}` : 'Draft')}<div class="chips"><span>Hook</span><span>Cut 2</span><span>Cut 3</span><span>Ask</span></div>`}</div></div></div>`;
+}
+function settingsHtml() {
+  const src = [['Instagram', 'Views, comments, followers', '07:12'], ['ChatbotX', 'Gift DMs', '07:12'], ['Umami', 'Gift page visits and checkout clicks', '07:12'], ['Polar', 'Sales', '07:12']];
+  const ag = [['Claude', 'Your Claude plan', 'Default'], ['Codex', 'Your ChatGPT plan', 'Backup'], ['Gemini', 'Your Google plan', 'Found']];
+  return `<div class="page" data-k="settings" data-view="settings">${head('Settings', 'Set once, then forget.')}` +
+    `<section class="num-sec"><h2>Sources</h2><p>Pulled when you ask, never on a timer.</p>${src.map(s => `<div class="set"><span class="w">${s[0]}<small>${s[1]}</small></span><span class="time">${s[2]}</span><span class="chk">✓</span></div>`).join('')}` +
+    `<div class="set"><span class="w">Browser pull<small>Reads rivals through your logged-in browser when Instagram's limit runs out.</small></span><button class="sw ${S.browser ? 'on' : ''}" data-act="sw.browser" data-testid="sw-browser" role="switch" aria-checked="${!!S.browser}" aria-label="Browser pull"></button></div></section>` +
+    `<section class="num-sec"><h2>Helpers on this Mac</h2><p>Lead Studio never calls a model itself. It asks the helpers you already pay for.</p>${ag.map(s => `<div class="set"><span class="w">${s[0]}<small>${s[1]}</small></span><span class="st">${s[2]}</span></div>`).join('')}</section>` +
+    `<section class="num-sec"><h2>Workspace</h2><p>Terminal, files, split panes and agents. Everything is still here, one door away.</p>${btn('Open the full workspace', 'workspace', 'quiet', 'data-testid="workspace"')}</section></div>`;
+}
+function welcomeHtml() {
+  return `<div class="hello" data-k="welcome" data-view="welcome">${slot(250)}<h1 data-testid="say">Hi. I'll keep your reel day in one place.</h1><p>Every morning you get one sentence and one next step. Claude does the rest on your own plan.</p>` +
+    `<div class="add"><input class="field" placeholder="@yourchannel" data-model="handle" value="${esc(S.handle)}" data-testid="handle" aria-label="Your Instagram handle">${btn('Connect and pull <kbd>↵</kbd>', 'first.connect', 'primary', 'data-testid="primary"')}</div>` +
+    `<button class="link" data-act="first.skip" data-testid="secondary">Look around first</button></div>`;
+}
+const VIEWS = { today: todayHtml, week: weekHtml, numbers: numbersHtml, review: reviewHtml, cook: cookHtml, watch: watchHtml, settings: settingsHtml, welcome: welcomeHtml };
+function barHtml() {
+  if (S.view === 'welcome') return '<span class="b-st">Your numbers stay on this Mac.</span>';
+  const c = card();
+  const left = S.toast ? `<div class="toast" data-testid="toast" data-k="${esc(S.toast.msg)}"><span>${esc(S.toast.msg)}</span>${S.toast.undo ? `<button data-act="undo" data-testid="undo">Undo</button>` : ''}</div>` :
+    `<span class="b-st" data-testid="bar-status">${isRest() ? 'Done for today' : `${LOOP[idx(S.step)].name}: ${c.tag.toLowerCase()}`}${c.meta ? ` · ${c.meta}` : ''}</span>`;
+  return left + `<span class="b-k"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> pages</span>` +
+    (c.a ? btn(`${c.a[0]} <kbd>↵</kbd>`, c.a[1], 'primary', 'data-testid="bar-primary"') : '');
+}
+const CMDS = [
+  ['Go to Today', 'go:today', 'Page'], ['Go to Week', 'go:week', 'Page'], ['Go to Numbers', 'go:numbers', 'Page'], ['Go to Settings', 'go:settings', 'Page'],
+  ['Pull numbers now', 'pull.again', 'Do'], ['See the plan to approve', 'go:review', 'Do'], ['Watch it cook', 'go:cook', 'Do'], ['Watch the draft', 'go:watch', 'Do'],
+  ['Open the full workspace', 'workspace', 'Do'], ['Switch light and dark', 'theme', 'Do'],
+];
+const cmdHits = () => CMDS.filter(c => c[0].toLowerCase().includes(S.cmdQ.trim().toLowerCase()));
+function overHtml() {
+  if (!S.cmd) return '';
+  const hits = cmdHits();
+  return `<div id="cmd" data-act="close.cmd" data-k="cmd"><div class="cmdbox" data-stop="1"><input id="cmdq" placeholder="Find anything" data-model="cmdQ" value="${esc(S.cmdQ)}" data-testid="cmd-input" aria-label="Find anything"><div class="cmdlist">${hits.length ? hits.map((h, i) => `<button class="${i === S.cmdI ? 'sel' : ''}" data-act="${h[1]}" data-close="1" data-testid="cmd-item"><span>${h[0]}</span><small>${h[2]}</small></button>`).join('') : `<p>Nothing by that name.</p>`}</div></div></div>`;
+}
+function menubar() {
+  const c = cell();
+  if (isRest()) return 'Mac menu bar: posts 19:30';
+  const lab = S.step === 'cook' && S.st === 'running' ? `Cook ${cookI(prog()) + 1} of 6` : `${LOOP[idx(S.step)].name}: ${c.tag.toLowerCase()}`;
+  return `Mac menu bar: ${lab} · posts 19:30`;
+}
+let lastMood = '', lastView = '';
+function render() {
+  if (S.view !== lastView) { lastView = S.view; document.getElementById('main').scrollTop = 0; }
+  paint('top', topHtml()); paint('track', trackHtml());
+  paint('view', VIEWS[S.view]()); paint('bar', barHtml()); paint('over', overHtml());
+  document.getElementById('track').style.display = S.view === 'welcome' ? 'none' : '';
+  document.getElementById('top').style.display = S.view === 'welcome' ? 'none' : '';
+  document.getElementById('menubar').textContent = menubar();
+  let m = S.view === 'welcome' ? ['happy', 'greeting'] : cell().m;
+  if (isRest() && S.rested === 2) m = ['sleeping', 'floating'];
+  const key = m.join();
+  if (key !== lastMood) { lastMood = key; mood(m[0], m[1]); }
+  renderStates();
+  placeMascot();
+  document.documentElement.dataset.step = S.step; document.documentElement.dataset.st = S.st; document.documentElement.dataset.view = S.view;
+  if (S.cmd) { const q = document.getElementById('cmdq'); if (q && document.activeElement !== q) q.focus(); }
+}
+function renderStates() {
+  const el = document.getElementById('states');
+  if (!el.classList.contains('open')) return;
+  el.innerHTML = `<table><tr><th></th>${STATES.map(s => `<th>${s}</th>`).join('')}</tr>${LOOP.map(l => `<tr><th>${l.name}</th>${STATES.map(s => `<td><button class="${S.step === l.k && S.st === s ? 'on' : ''}" data-cell="${l.k}:${s}" data-testid="state-${l.k}-${s}" aria-label="${l.name} ${s}"></button></td>`).join('')}</tr>`).join('')}</table>`;
+}
+// ---------- the clock: only runs when no walkthrough is driving ----------
+let auto = true, lastTick = performance.now();
+setInterval(() => {
+  const dt = Math.min(.5, (performance.now() - lastTick) / 1000); lastTick = performance.now();
+  if (!auto) return;
+  if (S.toast && performance.now() - S.toast.at > 6000) { S.toast = null; render(); }
+  if (isRest() && S.rested === 1) { if ((S.restT = (S.restT || 0) + dt) > 4.5) { S.rested = 2; render(); } }
+  tick(dt);
+}, 100);
+function tick(dt) {
+  if (S.sim) { S.sim.t += dt; if (S.sim.t >= S.sim.dur) simDone(); render(); return; }
+  if (S.st === 'running' || S.st === 'long') { const a = Math.floor(S.clock); S.clock += dt; if (Math.floor(S.clock) !== a) render(); }
+}
+function setTheme(dark) { document.documentElement.dataset.theme = dark ? 'dark' : 'light'; THEME_DARK = dark; }
+if (Q.get('theme')) setTheme(Q.get('theme') === 'dark');
+
+// ---------- input ----------
+document.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('summary')) return;
+  const cellB = t.closest('[data-cell]');
+  if (cellB) { const [k, st] = cellB.dataset.cell.split(':'); pauseTour(); auto = true; setCell(k, st); S.hold = true; if (S.view !== LOOP[idx(k)].view) S.view = 'today'; S.toast = null; render(); return; }
+  const el = t.closest('[data-act]');
+  if (!el) return;
+  if (el.id === 'cmd' && t.closest('[data-stop]')) return;
+  if (!tourClick) { pauseTour(); auto = true; }
+  if (el.dataset.close) S.cmd = false;
+  run(el.dataset.act);
+});
+document.addEventListener('input', e => {
+  const m = e.target.dataset?.model;
+  if (!m) return;
+  S[m] = e.target.value;
+  if (m === 'cmdQ') { S.cmdI = 0; paint('over', overHtml()); }
+});
+document.addEventListener('keydown', e => {
+  const inField = e.target.matches?.('input');
+  if (playing) pauseTour();
+  if (stepI >= 0) auto = true;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); run(S.cmd ? 'close.cmd' : 'open.cmd'); return; }
+  if (S.cmd) {
+    const hits = cmdHits();
+    if (e.key === 'Escape') return run('close.cmd');
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); S.cmdI = (S.cmdI + (e.key === 'ArrowDown' ? 1 : -1) + hits.length) % Math.max(1, hits.length); paint('over', overHtml()); return; }
+    if (e.key === 'Enter' && hits[S.cmdI]) { S.cmd = false; return run(hits[S.cmdI][1]); }
+    return;
+  }
+  if (e.key === 'Enter') {
+    if (inField) { if (e.target.dataset.model === 'rival') run('rival.add'); else if (e.target.dataset.model === 'draft') run(S.view === 'watch' ? 'change.send' : 'reel.add'); else if (e.target.dataset.model === 'handle') run('first.connect'); return; }
+    if (e.target.closest?.('button,summary')) return;
+    if (S.view === 'welcome') return run('first.connect');
+    const c = card(); if (c.a) run(c.a[1]);
+    return;
+  }
+  if (inField) return;
+  if (e.key === 'Escape' && S.view !== 'today') return run('go:today');
+  if (e.key === '1') run('go:today'); if (e.key === '2') run('go:week'); if (e.key === '3') run('go:numbers');
+});
+addEventListener('resize', placeMascot);
+document.fonts?.ready.then(placeMascot);
+document.getElementById('stBtn').onclick = () => { document.getElementById('states').classList.toggle('open'); document.getElementById('stBtn').classList.toggle('on'); renderStates(); };
+document.getElementById('themeBtn').onclick = () => setTheme(!THEME_DARK);
+
+// ---------- walkthrough ----------
+const sel = id => `[data-testid="${id}"]`;
+const P = sel('primary');
+const JOURNEYS = [
+  { id: 'day', name: 'Trọn một ngày', steps: [
+    { cap: 'Sáng mở app: một câu, một việc. Trên cùng là cả ngày, dựng như một timeline. Vạch dọc là bây giờ, ô đen là giờ đăng tối nay.', acts: [['wait', 500]], want: 'Pull today\'s numbers' },
+    { cap: 'Bấm Pull now (hoặc Enter). Clip Pull bắt đầu đầy ngay, con vật mở laptop làm việc.', acts: [['click', P], ['sim', 3]], want: 'Pulling rivals' },
+    { cap: 'Kéo xong, Claude tự đọc số. Anh không phải làm gì, câu trên đầu đổi theo.', acts: [['sim', 7]], want: 'Claude is' },
+    { cap: 'Một phát hiện duy nhất, có ghi nguồn và giờ kéo. Không phải bảng số.', acts: [['sim', 4]], want: 'How-to hooks sold 3 times' },
+    { cap: 'Bấm một nút: Claude viết tuần tới quanh phát hiện đó.', acts: [['click', P], ['sim', 5.2]], want: 'Next week\'s draft' },
+    { cap: 'Mở bản kế hoạch: mỗi thay đổi viết bằng chữ thường, kèm lý do. Không còn diff kiểu code.', acts: [['click', P]], want: 'What changes' },
+    { cap: 'Bỏ tick một dòng, số trên nút giảm theo ngay: 3 xuống 2.', acts: [['click', sel('change-2')]], want: 'Approve 2 changes' },
+    { cap: 'Tick lại đủ 3 rồi duyệt. App về Today ngay, dưới đáy có Undo nếu anh đổi ý.', acts: [['click', sel('change-2')], ['click', P], ['wait', 500]], want: 'Undo' },
+    { cap: 'Kế hoạch đã lưu. Reel tối nay sẵn sàng để cook.', acts: [['sim', 1.2]], want: 'ready to cook' },
+    { cap: 'Bấm Cook. Tiêu đề đổi theo việc Claude đang làm. YOU CAN cho biết anh được đi chỗ khác.', acts: [['click', P], ['sim', 5]], want: 'YOU CAN' },
+    { cap: 'Mở trang Cook để xem: 6 bước, ô video giữ sẵn chỗ. Bản nháp tự lấp vào khi tới bước Draft.', acts: [['click', P], ['sim', 2]], want: 'Script' },
+    { cap: 'Cook xong, về Today để xem bước kế: xem bản nháp.', acts: [['sim', 5.2], ['click', sel('nav-today')]], want: 'Watch' },
+    { cap: 'Xem reel. Muốn sửa thì gõ một câu, Claude làm lại đúng phần đó và ra bản 2.', acts: [['click', P], ['type', sel('change-input'), 'Make the hook faster'], ['click', sel('change-send')], ['sim', 3]], want: 'Your last note' },
+    { cap: 'Duyệt và hẹn đăng 19:30. Con vật ăn mừng. Hôm nay xong việc.', acts: [['click', P], ['sim', 3.2], ['wait', 1200]], want: 'That\'s today' },
+    { cap: 'Hết việc thì con vật đi ngủ. Reel tự đăng lúc 19:30, anh đi làm việc khác.', acts: [['nap']], want: 'Nothing needs you' },
+  ] },
+  { id: 'first', name: 'Lần mở đầu', steps: [
+    { cap: 'Lần đầu mở app: con vật chào, chỉ hỏi đúng một thứ là tên kênh Instagram.', acts: [['view', 'welcome'], ['wait', 900]], want: 'Hi. I\'ll keep' },
+    { cap: 'Gõ handle rồi Enter. Con vật bay lên góc, ngày bắt đầu ngay.', acts: [['type', sel('handle'), '@yourchannel'], ['click', P], ['sim', 2]], want: 'Pulling rivals' },
+    { cap: 'Nếu chọn "Look around first": trạng thái trống vẫn có một câu và một nút, không phải 8 ô gạch ngang.', acts: [['view', 'welcome'], ['click', sel('secondary')]], want: 'Connect Instagram' },
+    { cap: 'Trang Numbers lúc trống giữ sẵn hình dạng, số sẽ lấp đúng vào chỗ đó.', acts: [['click', sel('nav-numbers')]], want: 'not pulled yet' },
+  ] },
+  { id: 'slow', name: 'Cook lâu rồi lỗi', steps: [
+    { cap: 'Đang cook bình thường. Clip đầy dần, không có phần trăm giả.', acts: [['cell', 'cook', 'running'], ['wait', 900]], want: 'so far' },
+    { cap: 'Quá giờ thường lệ: clip chạy vượt vạch "usual", con vật ngồi nghĩ. Câu nói thật: chậm, nhưng vẫn chạy.', acts: [['cell', 'cook', 'long'], ['wait', 900]], want: 'usually about 3:00' },
+    { cap: 'Nếu lỗi: phần đã xong vẫn đặc trên clip, phần còn lại gạch chéo. Câu đầu tiên nói phần nào còn giữ.', acts: [['cell', 'cook', 'error'], ['wait', 900]], want: 'done and kept' },
+    { cap: 'Một nút Resume cook, chạy tiếp từ chỗ dừng chứ không làm lại từ đầu.', acts: [['click', P], ['sim', 2]], want: 'so far' },
+    { cap: '"Show the work" là cánh cửa duy nhất tới phần kỹ thuật. Mặc định đóng lại.', acts: [['view', 'cook'], ['open', sel('show-work')]], want: 'Open the full workspace' },
+  ] },
+  { id: 'limit', name: 'Bị giới hạn', steps: [
+    { cap: 'Đang kéo: đếm từng rival, 4 đã xong, 9 còn lại. Có nút Stop thật.', acts: [['click', P], ['sim', 2.2]], want: 'to go', from: ['pull', 'normal'] },
+    { cap: 'Bấm Stop: chỉ dừng phần còn lại. 3 rival mới vẫn giữ, 10 rival kia giữ số cũ.', acts: [['click', P]], want: 'keep their older numbers' },
+    { cap: 'Một nút kéo phần còn lại, đúng số đếm: 10.', acts: [['click', P], ['sim', 1]], want: 'Pulling rivals' },
+    { cap: 'Hết hạn mức Instagram: con vật ngủ chờ 08:00. Hai hàng YOU CAN và IF YOU WAIT nói rõ hai đường.', acts: [['cell', 'pull', 'limited'], ['wait', 900]], want: 'IF YOU WAIT' },
+    { cap: 'Một nút làm hai việc: bật browser pull và kéo nốt 11 rival.', acts: [['click', P], ['sim', 1.5]], want: 'Pulling rivals' },
+  ] },
+  { id: 'find', name: 'Trống và ⌘K', steps: [
+    { cap: 'Không có gì đang cook: vẫn giữ câu trống hay nhất của Lead, kèm một nút.', acts: [['cell', 'cook', 'empty'], ['wait', 800]], want: 'Nothing is cooking' },
+    { cap: 'Nút dẫn sang Week, nơi anh chọn reel. Bấm một dòng để mở chi tiết.', acts: [['click', P], ['click', sel('day-3')]], want: 'Caption template' },
+    { cap: '⌘K mở ra ngay. Mọi thứ khác nằm ở đây, gồm cả workspace cũ.', acts: [['click', sel('find')], ['type', sel('cmd-input'), 'work']], want: 'Open the full workspace' },
+    { cap: 'Enter là chạy. Bàn phím và chuột làm được như nhau.', acts: [['click', sel('cmd-item')]], want: 'Opens the full workspace' },
+  ] },
+];
+const capEl = document.getElementById('cap'), dotsEl = document.getElementById('dots'), cursor = document.getElementById('cursor');
+let J = JOURNEYS[0], stepI = -1, playing = false, token = 0, tourClick = false;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const need = q => { const el = document.querySelector(q); if (!el) throw new Error(`walkthrough: no element for ${q} in ${J.id} step ${stepI + 1}`); return el; };
+async function moveTo(el) {
+  el.scrollIntoView({ block: 'nearest' });
+  const r = el.getBoundingClientRect(), x = r.left + Math.min(r.width / 2, 60), y = r.top + r.height / 2;
+  cursor.classList.add('on'); cursor.style.transform = `translate(${x}px,${y}px)`;
+  await sleep(600); return [x, y];
+}
+function doClick(el) { tourClick = true; el.click(); tourClick = false; }
+async function act(a, anim, my) {
+  const [op, x, y] = a;
+  if (op === 'wait') { if (anim) await sleep(x); return; }
+  if (op === 'nap') { S.rested = 2; render(); return; }
+  if (op === 'cell') { setCell(x, y); S.hold = true; S.toast = null; render(); return; }
+  if (op === 'view') { S.view = x; if (x === 'welcome') { setCell('pull', 'normal'); S.handle = ''; } render(); return; }
+  if (op === 'sim') {
+    if (!anim) { let left = x; while (left > 0) { tick(.1); left -= .1; } render(); return; }
+    const end = performance.now() + x * 450;
+    let left = x;
+    while (left > 0) { if (my !== token) return; tick(.1); left -= .1; await sleep(Math.max(8, (end - performance.now()) / Math.max(1, left * 10))); }
+    return;
+  }
+  const el = need(x);
+  if (op === 'open') { if (anim) { await moveTo(el.querySelector('summary')); } el.open = true; return; }
+  if (op === 'click') {
+    if (anim) { const [cx, cy] = await moveTo(el); if (my !== token) return; const rp = document.createElement('i'); rp.className = 'ripple'; rp.style.left = cx + 'px'; rp.style.top = cy + 'px'; document.body.append(rp); setTimeout(() => rp.remove(), 450); await sleep(70); }
+    doClick(el); return;
+  }
+  if (op === 'type') {
+    if (anim) await moveTo(el);
+    el.focus();
+    if (anim) { for (let i = 1; i <= y.length; i++) { if (my !== token) return; el.value = y.slice(0, i); el.dispatchEvent(new Event('input', { bubbles: true })); await sleep(36); } }
+    else { el.value = y; el.dispatchEvent(new Event('input', { bubbles: true })); }
+    el.blur(); return;
+  }
+}
+async function rebuild(i) { S = init(); if (J.id === 'first') S.view = 'welcome'; lastMood = ''; render(); for (let k = 0; k < i; k++) for (const a of J.steps[k].acts) await act(a, false); render(); }
+function drawDots() {
+  dotsEl.innerHTML = J.steps.map((_, i) => `<button class="${i === stepI ? 'on' : ''}" data-dot="${i}" aria-label="Step ${i + 1}"></button>`).join('');
+  document.getElementById('play').textContent = playing ? '❚❚ Pause' : '▶ Play';
+  document.getElementById('journeys').innerHTML = JOURNEYS.map(j => `<button class="${j.id === J.id ? 'on' : ''}" data-j="${j.id}" data-testid="journey-${j.id}">${j.name}</button>`).join('');
+}
+async function goStep(i, anim = true) {
+  const my = ++token;
+  auto = false; stepI = i;
+  document.getElementById('cursor').classList.toggle('fast', !anim);
+  await rebuild(i);
+  drawDots();
+  const st = J.steps[i];
+  capEl.textContent = st.cap;
+  if (anim) cursor.classList.add('on');
+  for (const a of st.acts) { await act(a, anim, my); if (my !== token) return false; }
+  render();
+  window.__tour = { journey: J.id, step: i, want: st.want };
+  return true;
+}
+async function playFrom(i) {
+  playing = true; drawDots();
+  for (let k = i; k < J.steps.length; k++) {
+    const ok = await goStep(k); if (!ok || !playing) return;
+    const my = token;
+    await sleep(1300 + J.steps[k].cap.length * 32);
+    if (my !== token || !playing) return;
+  }
+  playing = false; auto = true; cursor.classList.remove('on'); drawDots();
+}
+function pauseTour() { if (!playing) return; playing = false; token++; drawDots(); }
+document.getElementById('play').onclick = () => { if (playing) pauseTour(); else playFrom(stepI < 0 || stepI >= J.steps.length - 1 ? 0 : stepI); };
+document.getElementById('next').onclick = () => { pauseTour(); goStep(Math.min(J.steps.length - 1, stepI + 1)); };
+document.getElementById('prev').onclick = () => { pauseTour(); goStep(Math.max(0, stepI - 1)); };
+dotsEl.onclick = e => { const d = e.target.dataset.dot; if (d != null) { pauseTour(); goStep(+d); } };
+document.getElementById('journeys').onclick = e => { const id = e.target.dataset.j; if (!id) return; pauseTour(); J = JOURNEYS.find(j => j.id === id); stepI = -1; playFrom(0); };
+
+// test hooks: scripted click-through reads these
+window.__proto = { JOURNEYS, C, LOOP, STATES, state: () => S, goStep: (j, i, anim = false) => { pauseTour(); J = JOURNEYS.find(x => x.id === j); return goStep(i, anim); }, leave: () => { pauseTour(); auto = true; cursor.classList.remove('on'); }, reset: (v = 'today') => { S = init(); S.view = v; auto = true; lastMood = ''; render(); }, set: (k, st, v = 'today') => { S = init(); setCell(k, st); S.view = v; S.hold = true; lastMood = ''; render(); }, lead: () => lead };
+
+// ---------- start ----------
+if (Q.get('j')) { J = JOURNEYS.find(j => j.id === Q.get('j')) || J; }
+S.view = Q.get('view') || 'welcome';
+render(); drawDots();
+capEl.textContent = '';
+</script>
+</body>
+</html>
