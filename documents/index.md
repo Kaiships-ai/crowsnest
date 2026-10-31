@@ -44,7 +44,7 @@ The Lead Studio mascot is a live 3D page: [brand/mascot/index.html](brand/mascot
 - Plans still being worked on: `plans/`, flat, one file per plan. Frontmatter carries
   status and components. Shipped plans are deleted.
 - Decisions still in force: [0001](decisions/0001-personal-tool-first.md), [0002](decisions/0002-data-and-action-brain.md).
-- Running plans: `plans/2026-10-14-ig-sync-split-sync-engine.md`, `plans/connector-redesign.md` (plans are not rendered in the site).
+- Running plans: `plans/2026-10-14-ig-sync-split-sync-engine.md`, `plans/connector-redesign.md`, `plans/polish-study.md` (plans are not rendered in the site).
 - Backlog items are GitHub issues labeled `backlog` and `area:<part>`.
 - Lessons that no single doc owns: [learnings](learnings.md).
 
