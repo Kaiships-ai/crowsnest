@@ -49,6 +49,10 @@ Run the maintained coverage gate:
 pnpm run verify:localization-coverage
 ```
 
+The pre-commit hook runs the same check on staged files only
+(`config/scripts/check-staged-localization.mjs`). Catalog and extraction failures
+still only show in CI.
+
 Sync catalog keys after adding or removing `translate(...)` calls:
 
 ```sh

@@ -1,6 +1,12 @@
+import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
 import { collectLocalizationCandidates, isSkippedFile } from './audit-localization-coverage.mjs'
+import { checkStagedLocalization } from './check-staged-localization.mjs'
 
 const ROOT = process.cwd()
 
@@ -124,5 +130,41 @@ describe('localization coverage file skipping', () => {
     expect(skipped('src/renderer/src/components/browser-pane/fixture-picker.tsx')).toBe(false)
     expect(skipped('src/renderer/src/components/settings/fixtures-panel.tsx')).toBe(false)
     expect(skipped('src/renderer/src/components/browser-pane/BrowserPane.tsx')).toBe(false)
+  })
+})
+
+describe('staged localization check', () => {
+  it('judges the index against the allowlist, not the working tree', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'localization-staged-'))
+    const git = (...args) => execFileSync('git', args, { cwd: root })
+    const file = path.join(root, 'src/renderer/src/Sample.tsx')
+    const stage = (copy) => {
+      fs.writeFileSync(file, `export const view = <p>${copy}</p>\n`)
+      git('add', '.')
+    }
+    git('init', '-q')
+    fs.mkdirSync(path.dirname(file), { recursive: true })
+    fs.mkdirSync(path.join(root, 'config'))
+    fs.writeFileSync(
+      path.join(root, 'config/localization-coverage-allowlist.json'),
+      JSON.stringify([
+        {
+          filePath: 'src/renderer/src/Sample.tsx',
+          kind: 'jsx-text',
+          text: 'Old copy',
+          dynamic: false,
+          count: 1
+        }
+      ])
+    )
+
+    stage('Old copy')
+    expect(await checkStagedLocalization(root)).toBe(0)
+
+    stage('New copy')
+    fs.writeFileSync(file, 'export const view = null\n')
+    expect(await checkStagedLocalization(root)).toBe(1)
+
+    fs.rmSync(root, { recursive: true, force: true })
   })
 })

@@ -7,7 +7,7 @@ import process from 'node:process'
 import ts from 'typescript-api'
 import { isTestOnlySourcePath } from './test-only-source-path.mjs'
 
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
+export const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.cts'])
 const SKIP_PATH_PARTS = new Set(['.git', 'dist', 'node_modules', 'out', '__snapshots__', 'assets'])
 const LOCALIZATION_CALL_NAMES = new Set(['t', 'translate'])
 const CLASS_PROPERTY_NAMES = new Set(['className', 'classNames'])
@@ -556,13 +556,13 @@ function countBySignature(reports) {
   return counts
 }
 
-async function readAllowlist(root, allowlistPath) {
+export async function readAllowlist(root, allowlistPath) {
   const absolutePath = path.resolve(root, allowlistPath)
   const raw = await fs.readFile(absolutePath, 'utf8')
   return JSON.parse(raw)
 }
 
-function findNewCandidates(reports, allowlist) {
+export function findNewCandidates(reports, allowlist) {
   const allowedCounts = new Map(
     allowlist.map((entry) => [
       JSON.stringify({
@@ -590,6 +590,15 @@ function findNewCandidates(reports, allowlist) {
   return newCandidates
 }
 
+export function printNewCandidates(root, newCandidates) {
+  console.error('New unlocalized renderer strings were found.')
+  console.error(
+    "Wrap each in translate('area.key', 'English text') and add the key to src/renderer/src/i18n/locales/en.json, or add a reviewed exclusion to config/localization-coverage-allowlist.json."
+  )
+  console.error('')
+  console.error(formatReports(root, newCandidates))
+}
+
 export async function main(root = process.cwd(), argv = process.argv.slice(2)) {
   const options = parseArgs(argv)
   const absoluteSourceRoot = path.resolve(root, options.sourceRoot)
@@ -605,10 +614,7 @@ export async function main(root = process.cwd(), argv = process.argv.slice(2)) {
     const allowlist = await readAllowlist(root, options.allowlistPath)
     const newCandidates = findNewCandidates(reports, allowlist)
     if (newCandidates.length > 0) {
-      console.error('New unlocalized renderer strings were found.')
-      console.error('Localize them or add a reviewed exclusion to the localization allowlist.')
-      console.error('')
-      console.error(formatReports(root, newCandidates))
+      printNewCandidates(root, newCandidates)
       return 1
     }
     console.log(`Localization coverage check passed with ${reports.length} allowlisted candidates.`)

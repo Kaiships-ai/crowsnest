@@ -1,2 +1,3 @@
 #!/usr/bin/env sh
+git diff --cached --quiet -- src/renderer/src || node config/scripts/check-staged-localization.mjs
 pnpm exec lint-staged
