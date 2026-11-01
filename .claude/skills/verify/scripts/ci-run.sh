@@ -23,6 +23,7 @@ rc=0
 if "$S/boards-lane.sh" >"$OUT/lane-boards.out" 2>&1; then
   for j in "$@"; do
     if "$S/app-drive.sh" "$j" "$RUN" >"$OUT/$j.out" 2>&1; then r=ok; else r=FAIL; rc=1; fi
+    [ "$r" = ok ] && grep -q '^skip: ' "$OUT/$j.out" && r="skipped: $(sed -n 's/^skip: //p' "$OUT/$j.out")"
     echo "| \`$j\` | $r |" >>"$OUT/summary.md"
     echo "ci: $j $r"
   done

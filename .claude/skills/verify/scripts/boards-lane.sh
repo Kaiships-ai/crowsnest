@@ -9,6 +9,8 @@ echo $! >"$DIR/fake-sidecar.pid"
 for _ in $(seq 1 50); do [ -s "$DIR/fake-sidecar.port" ] && break; sleep 0.1; done
 [ -s "$DIR/fake-sidecar.port" ] || { echo "boards: fake sidecar did not start, see $DIR/fake-sidecar.log" >&2; exit 1; }
 export IG_SERVICE_URL="http://127.0.0.1:$(cat "$DIR/fake-sidecar.port")"
+# The fake sidecar checks no token; a set one spares the app the secret store, which Linux CI does not have.
+export IG_SERVICE_TOKEN=boards-lane-fake
 echo "boards: sidecar at $IG_SERVICE_URL"
 rm -f "$DIR/fake-umami.port"
 node .claude/skills/verify/scripts/fake-umami.mjs >"$DIR/fake-umami.log" 2>&1 &
