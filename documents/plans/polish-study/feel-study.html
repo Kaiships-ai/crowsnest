@@ -1,0 +1,895 @@
+<title>Lead Studio feel study</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@100..125,500..700&family=Be+Vietnam+Pro:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Contact-sheet editorial: each moment is a numbered band, two big real screenshots side by side, three short readings under them. */
+:root{
+  --bg:#f3f4f6;--surface:#ffffff;--sunk:#e8eaee;--ink:#15181d;--muted:#525a66;--faint:#7c8592;--line:#dde1e7;--ring:#cdd2da;
+  --accent:#2f4fc4;--on-accent:#ffffff;
+  --keep:#1b7a52;--cut:#b4362e;--merge:#93600f;--on-sem:#ffffff;
+  --scrim:rgba(12,14,18,.82);--on-scrim:#e9ecf1;
+  --display:"Archivo","Be Vietnam Pro",system-ui,sans-serif;
+  --body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1013;--surface:#16191e;--sunk:#1c1f25;--ink:#e7eaef;--muted:#a3abb7;--faint:#737c89;--line:#272c34;--ring:#343a45;
+  --accent:#9db0ff;--on-accent:#0e1013;--keep:#56c690;--cut:#f28c82;--merge:#e3b55e;--on-sem:#0e1013;
+  --scrim:rgba(0,0,0,.86);--on-scrim:#e9ecf1;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1013;--surface:#16191e;--sunk:#1c1f25;--ink:#e7eaef;--muted:#a3abb7;--faint:#737c89;--line:#272c34;--ring:#343a45;
+  --accent:#9db0ff;--on-accent:#0e1013;--keep:#56c690;--cut:#f28c82;--merge:#e3b55e;--on-sem:#0e1013;
+  --scrim:rgba(0,0,0,.86);--on-scrim:#e9ecf1;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.page{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:44px 72px}
+.wrap{max-width:1320px;margin-inline:auto;padding-inline:clamp(0px,2.4vw,28px)}
+a{color:var(--accent);text-underline-offset:3px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+h1,h2,h3{text-wrap:balance}
+p{margin:0}
+.label{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+
+/* hero */
+.hero{display:grid;gap:18px;padding-bottom:36px}
+.hero h1{font-family:var(--display);font-stretch:112%;font-weight:650;font-size:clamp(30px,4.4vw,54px);line-height:1.06;letter-spacing:-.015em;margin:0}
+.hero h1 span{display:block}
+.lede{font-size:17px;color:var(--muted);max-width:68ch}
+.thesis{font-size:clamp(18px,1.9vw,21px);line-height:1.5;max-width:62ch;color:var(--ink)}
+.method{font-size:13.5px;color:var(--muted);max-width:96ch}
+.legend{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:13px;color:var(--muted)}
+.legend .lens,.legend .kw{margin-right:2px}
+.toc{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:14px;padding-top:4px}
+.toc a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line);padding-bottom:1px}
+.toc a:hover{border-color:var(--accent)}
+.toc .n{font-family:var(--mono);font-size:11px;color:var(--accent);margin-right:6px}
+
+/* moment band */
+.moment{border-top:1px solid var(--line);padding-block:52px 8px;display:grid;gap:26px}
+.m-head{display:grid;grid-template-columns:auto 1fr;align-items:end;gap:4px 20px}
+.m-num{grid-row:span 2;font-family:var(--display);font-stretch:125%;font-weight:700;font-size:clamp(46px,6vw,78px);line-height:.82;color:var(--accent);letter-spacing:-.02em}
+.m-head h2{font-family:var(--display);font-stretch:110%;font-weight:620;font-size:clamp(22px,2.6vw,32px);line-height:1.1;margin:0}
+.m-head .sub{color:var(--muted);font-size:15px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.shot{margin:0;display:grid;gap:8px;min-width:0;align-content:start}
+.side{font-family:var(--mono);font-size:11px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.shot img,.shot video{display:block;width:100%;height:auto;border:1px solid var(--ring);border-radius:8px;background:var(--sunk)}
+.shot img.z{cursor:zoom-in}
+.shot figcaption{font-family:var(--mono);font-size:11.5px;color:var(--faint);overflow-wrap:anywhere;line-height:1.45}
+.shot figcaption span{font-family:var(--body);color:var(--muted)}
+.quad{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.read{display:grid;grid-template-columns:1fr .9fr 1.25fr;gap:28px}
+.col{min-width:0;border-top:2px solid var(--line);padding-top:12px}
+.col.c{border-color:var(--ink)}
+.col.w{border-color:var(--faint)}
+.col.l{border-color:var(--accent)}
+.col h3{font-size:15px;font-weight:600;margin:0 0 10px}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.col li{font-size:15px;line-height:1.58}
+.tags{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:2px 8px;margin-left:4px}
+.lens{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.kw{font-size:12px;font-weight:600;color:var(--accent)}
+.good{color:var(--keep);font-weight:600}
+.note{font-size:13.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:12px;max-width:92ch}
+.more summary{cursor:pointer;font-size:14px;font-weight:500;color:var(--accent);width:max-content;max-width:100%;list-style:none}
+.more summary::-webkit-details-marker{display:none}
+.more summary::before{content:"+ ";font-family:var(--mono)}
+.more[open] summary::before{content:"\2212  ";font-family:var(--mono)}
+.strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:20px;margin-top:16px}
+.strip .shot figcaption{font-size:11px}
+.vset{display:grid;gap:30px}
+.vpair{display:grid;gap:10px}
+.vpair h3{font-size:15px;font-weight:600;margin:0}
+
+/* sections after the moments */
+.sect{border-top:1px solid var(--line);padding-block:56px 8px;display:grid;gap:20px}
+.sect h2{font-family:var(--display);font-stretch:112%;font-weight:650;font-size:clamp(24px,3vw,36px);line-height:1.1;margin:0}
+.sect .intro{max-width:74ch;color:var(--muted)}
+
+/* boards */
+.copybar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.btn{font:600 14px var(--body);background:var(--accent);color:var(--on-accent);border:0;border-radius:999px;padding:9px 18px;cursor:pointer}
+.status{font-size:13.5px;color:var(--muted)}
+#picks-text{width:100%;min-height:240px;font:12.5px/1.5 var(--mono);background:var(--surface);color:var(--ink);border:1px solid var(--ring);border-radius:8px;padding:12px}
+.boards{display:grid;border-top:1px solid var(--line)}
+.board{display:grid;grid-template-columns:minmax(200px,300px) 1fr;gap:24px;padding-block:28px;border-bottom:1px solid var(--line)}
+.board .shot{align-self:start}
+.b-body{display:grid;gap:10px;min-width:0;align-content:start}
+.b-name{font-family:var(--display);font-stretch:110%;font-weight:620;font-size:21px;line-height:1.2;margin:0}
+.b-line{font-size:15px}
+.b-line .label{margin-right:8px}
+.ev{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:4px}
+.ev div{min-width:0;font-size:14px;line-height:1.55}
+.ev .label{display:block;margin-bottom:4px}
+.ev .k .label{color:var(--keep)}
+.ev .x .label{color:var(--cut)}
+.ev .m .label{color:var(--merge)}
+.pick{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.pick button{font:600 13px var(--body);border:1px solid var(--ring);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 15px;cursor:pointer}
+.pick button:hover{border-color:var(--faint)}
+.pick button[data-pick="keep"][aria-pressed="true"]{background:var(--keep);border-color:var(--keep);color:var(--on-sem)}
+.pick button[data-pick="cut"][aria-pressed="true"]{background:var(--cut);border-color:var(--cut);color:var(--on-sem)}
+.pick button[data-pick="merge"][aria-pressed="true"]{background:var(--merge);border-color:var(--merge);color:var(--on-sem)}
+.target{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);max-width:100%}
+.target select{font:500 13px var(--body);padding:5px 8px;border-radius:8px;border:1px solid var(--ring);background:var(--surface);color:var(--ink);max-width:100%;min-width:0}
+
+/* ideas */
+.ideas{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.idea{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;display:grid;gap:14px;align-content:start;min-width:0}
+.idea h3{font-family:var(--display);font-stretch:112%;font-weight:640;font-size:22px;line-height:1.15;margin:0}
+.idea .para{font-size:15px}
+.idea .ev2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.idea dl{margin:0;display:grid;gap:10px}
+.idea dt{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.idea dd{margin:2px 0 0;font-size:14px}
+
+/* lead wins, gaps */
+.wins{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:24px}
+.win{display:grid;gap:8px;min-width:0;align-content:start}
+.win h3{font-size:16px;font-weight:600;margin:0}
+.win p{font-size:14.5px;color:var(--muted)}
+.gaps{margin:0;padding-left:18px;columns:2 340px;column-gap:44px}
+.gaps li{break-inside:avoid;margin-bottom:10px;font-size:14.5px}
+.fixes{font-size:14px;color:var(--muted)}
+.fixes ul{margin:12px 0 0;padding-left:18px;display:grid;gap:8px}
+footer{border-top:1px solid var(--line);margin-top:56px;padding-top:20px;font-size:13px;color:var(--muted);display:grid;gap:6px}
+footer code{font-family:var(--mono);font-size:12px}
+
+/* zoom */
+dialog#zoom{border:0;padding:0;background:transparent;width:100%;max-width:min(96vw,1600px);color:var(--on-scrim)}
+dialog#zoom::backdrop{background:var(--scrim)}
+#zoom figure{margin:0;display:grid;gap:10px;justify-items:center}
+#zoom img{max-width:100%;max-height:84vh;width:auto;height:auto;border-radius:8px;background:var(--sunk)}
+#zoom figcaption{font-family:var(--mono);font-size:12px;color:var(--on-scrim);display:flex;gap:16px;align-items:center;flex-wrap:wrap;justify-content:center}
+#zoom button{font:600 13px var(--body);background:transparent;color:var(--on-scrim);border:1px solid var(--on-scrim);border-radius:999px;padding:5px 14px;cursor:pointer}
+
+@media (max-width:1000px){.ideas{grid-template-columns:1fr}.read{grid-template-columns:1fr 1fr}.read .col.l{grid-column:1/-1}}
+@media (max-width:760px){
+  .pair{grid-template-columns:1fr}.read{grid-template-columns:1fr}.board{grid-template-columns:1fr}.ev{grid-template-columns:1fr}
+  .m-head{grid-template-columns:1fr}.m-num{grid-row:auto}.moment{padding-block:40px 4px}.sect{padding-block:44px 4px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+</style>
+
+<div class="page"><div class="wrap">
+
+<header class="hero">
+  <p class="label">Nghiên cứu cảm giác · chụp ngày 29/10/2026 · 8 khoảnh khắc · 4 góc nhìn</p>
+  <h1><span>Claude&nbsp;Desktop thấy xịn ở đâu.</span> <span>Lead&nbsp;Studio học được gì.</span></h1>
+  <p class="lede">Em so Claude Desktop với Lead Studio qua 8 khoảnh khắc giống nhau ở cả hai app: mở lần đầu, màn trống, việc chính, việc chạy lâu, lỗi, cài đặt, điều hướng và chuyển động nhỏ. Mọi hình là ảnh chụp và video thật. Bốn reader đọc chúng theo bốn góc: chuyển động, bố cục, chữ và trạng thái. Em mở lại từng ảnh trước khi đưa một ý lên trang này, và sửa chỗ reader nói quá.</p>
+  <p class="thesis">Claude thấy xịn vì mỗi màn chỉ có một việc chính, mọi thao tác được đáp lại ngay chỗ mắt đang nhìn, và chữ nói bằng lời của người dùng. Lead Studio đã hơn Claude lúc chờ lâu và lúc lỗi. Lead trông như một bản Orca vì lớp vỏ còn sót lại. Đó là chữ ORCA, cột file bên phải, menu "+" toàn công cụ lập trình, và tên nội bộ lọt ra màn hình.</p>
+  <p class="method"><span class="label">Cách chụp</span> Claude Desktop 4.29 chặn CDP, nên em chụp bằng screencapture của macOS và điều khiển bằng chuột, phím thật. Cửa sổ Claude là 1710×1074 và không đổi cỡ được. Lead Studio chạy bản dev, ẩn cửa sổ, chụp qua CDP ở 1440×900, trên DB mẫu với sidecar giả và Claude giả. Video của Lead ghép từ khung CDP, nên số thời gian của Lead là số yếu. Codex chưa cài nên không có trong bài. PublishSheet chưa chụp được. Hai app khác cỡ cửa sổ, nên mật độ chỉ so theo tỉ lệ.</p>
+  <p class="legend"><span><span class="lens">motion</span> <span class="lens">layout</span> <span class="lens">copy</span> <span class="lens">states</span> là góc nhìn của reader</span><span><span class="kw">Great · Creative · Smooth · Quick · Fast · Clean</span> là chữ của anh mà ý đó chạm tới</span><span>Chữ "đo" nghĩa là số đo được. Còn lại là nhìn bằng mắt.</span></p>
+  <nav class="toc" aria-label="Mục lục">
+    <a href="#m01"><span class="n">01</span>Mở lần đầu</a>
+    <a href="#m02"><span class="n">02</span>Màn trống</a>
+    <a href="#m03"><span class="n">03</span>Việc chính</a>
+    <a href="#m04"><span class="n">04</span>Chạy lâu</a>
+    <a href="#m05"><span class="n">05</span>Lỗi</a>
+    <a href="#m06"><span class="n">06</span>Cài đặt</a>
+    <a href="#m07"><span class="n">07</span>Điều hướng</a>
+    <a href="#m08"><span class="n">08</span>Chuyển động nhỏ</a>
+    <a href="#boards">Các bảng: Keep, Cut, Merge</a>
+    <a href="#ideas">3 ý tưởng nên lấy trước</a>
+    <a href="#wins">Lead đang hơn</a>
+    <a href="#gaps">Lỗ hổng bằng chứng</a>
+  </nav>
+</header>
+
+<!-- 01 -->
+<section class="moment" id="m01">
+  <div class="m-head"><span class="m-num">01</span><h2>Mở app lần đầu</h2><p class="sub">First open. Mở app, chưa làm gì.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/claude/01-first-open.webp" width="1440" height="904" decoding="async" alt="Claude Desktop lúc mở: sidebar bên trái, lời chào Moonlit chat? và ô soạn ở giữa; bản nháp của Kai đã che" data-file="claude/01-first-open.png"><figcaption>claude/01-first-open.png <span>· bản nháp của anh đã che</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/01-first-open.webp" width="1440" height="900" decoding="async" alt="Lead Studio lúc mở khi chưa có dự án: logo và chữ ORCA giữa màn, sidebar 8 bảng, cột phải trống" data-file="lead/01-first-open.png"><figcaption>lead/01-first-open.png <span>· chưa có dự án</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Cửa sổ lên trong khoảng 1 s (capture-notes). Màn đầu chỉ có lời chào "Moonlit chat?" và ô soạn. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>Sidebar là chữ một từ: New, Search, Projects, Artifacts, Scheduled, Design, Customize. <span class="tags"><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Canvas giữ đúng một thứ, nên không phải chọn gì trước khi gõ. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>Lời chào là một câu hỏi có giọng người, nên mời gõ ngay. <span class="tags"><span class="lens">copy</span><span class="kw">Great</span><span class="kw">Creative</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li>Thanh trên ghi "Lead Studio", còn giữa màn là logo và chữ "ORCA", "Add a project to get started.", hai nút, ba dòng phím tắt và "Open GitHub". <span class="tags"><span class="lens">copy</span><span class="lens">layout</span><span class="kw">Great</span><span class="kw">Clean</span></span></li>
+      <li>8 bảng vẫn sáng ở sidebar khi chưa có dự án. Cột phải ghi "Select a workspace to browse files". <span class="tags"><span class="lens">layout</span><span class="lens">states</span><span class="kw">Clean</span></span></li>
+      <li>Bấm Today thì app tự tạo workspace. Khung giữa trống, toast "Folder added" hiện ra, rồi chữ "Loading editor..." của Orca, rồi mới tới Today. Cả quá trình trong clip 3,8 s, và toast còn nguyên tới hết clip. <span class="tags"><span class="lens">motion</span><span class="kw">Quick</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+  </div>
+  <p class="note">Thời gian mở không so được. Lead mất 11 s tới "app: ready", nhưng đó là bản dev chạy ẩn. Không rõ bản đóng gói có còn màn ORCA khi chưa có dự án hay không.</p>
+  <details class="more"><summary>Thêm 2 ảnh và 1 video</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/lead/01-first-open-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Today mở trong workspace mới, toast Folder added ở góc dưới phải" data-file="lead/01-first-open-b.png"><figcaption>lead/01-first-open-b.png <span>· Today và toast "Folder added"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-01-first-open-nav/f06.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Khung giữa chỉ có chữ Loading editor..." data-file="frames/lead-01-first-open-nav/f06.png"><figcaption>frames/lead-01-first-open-nav/f06.png <span>· "Loading editor..."</span></figcaption></figure>
+    <figure class="shot"><video src="web/video/lead-01-first-open-nav.mp4" poster="web/frames/lead-01-first-open-nav/f06.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-01-first-open-nav.mp4 <span>· 3,8 s, bấm Today khi chưa có dự án</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 02 -->
+<section class="moment" id="m02">
+  <div class="m-head"><span class="m-num">02</span><h2>Màn trống</h2><p class="sub">Empty state. Chưa có dữ liệu, màn hình nói gì và mời làm gì.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/claude/02-empty-state.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Chat mới của Claude: ô soạn trống và hàng Recent artifacts có 3 thẻ" data-file="claude/02-empty-state.png"><figcaption>claude/02-empty-state.png <span>· chat mới, ô soạn trống</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/02-empty-state.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Today của Lead trên DB trống: mọi ô số là dấu gạch với nhãn no data yet" data-file="lead/02-empty-state.png"><figcaption>lead/02-empty-state.png <span>· Today trên DB trống</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Màn trống chính là màn thường: ô soạn "How can I help you today?" và một hàng 3 "Recent artifacts" có ảnh, có giờ ("22m ago"). <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>Trang trống trong Settings có hình vẽ nhỏ, một câu, một hai nút. "No servers added" đi cùng "Edit config" và "Developer docs". <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Quick</span></span></li>
+      <li>Scheduled trống ghi "No scheduled tasks yet.", có nút "Set up manually" và 6 mẫu dựng sẵn như "Content ideas", "Monitor a topic". <span class="tags"><span class="lens">states</span><span class="kw">Creative</span><span class="kw">Quick</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Trang trống nói thiếu gì, rồi đặt bước tiếp theo ngay cạnh. <span class="tags"><span class="lens">states</span><span class="kw">Quick</span></span></li>
+      <li>Mẫu dựng sẵn cho thấy tính năng dùng để làm gì, nên người mới không phải đoán. <span class="tags"><span class="lens">copy</span><span class="kw">Creative</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li>Today trên DB trống vẫn là bảng đầy đủ: 8 ô số chỉ có dấu gạch, 7 nhãn "no data yet", 5 nguồn "never pulled", và không có nút nào. <span class="tags"><span class="lens">layout</span><span class="lens">states</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>"Checkout clicks" và "Purchases" hiện hai lần trên cùng trang, một lần ở hàng offer và một lần ở hàng Funnel. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span></span></li>
+      <li>Funnel và Rivals bảo người dùng nhờ agent bằng tên lệnh "crowsnest_save_funnel", "crowsnest_save_analysis". My channel ghi "Connect Instagram in Sources" nhưng chữ Sources không bấm được, và trang không có tiêu đề. <span class="tags"><span class="lens">copy</span><span class="lens">states</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li><span class="good">Điểm sáng.</span> Rivals trống tự giải thích từng mục và có sẵn ô "@handle or channel link" với nút "Add rival". Studio có câu trống hay nhất app: "Nothing is cooking. Cook a reel from Plan." <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Great</span></span></li>
+    </ul></div>
+  </div>
+  <p class="note">Các reader đếm lệch nhau ("no data yet" x5, x6, "13+"). Em đếm lại trên ảnh: 8 ô dấu gạch, 7 nhãn "no data yet", tổng cộng 13 chip và pill.</p>
+  <details class="more"><summary>Thêm 6 ảnh</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/claude/02-empty-state-c.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Settings Developer của Claude: hình vẽ, No servers added, hai nút" data-file="claude/02-empty-state-c.png"><figcaption>claude/02-empty-state-c.png <span>· "No servers added" và 2 nút</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/claude/07-navigation-c.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Scheduled tasks trống của Claude với nút Set up manually và 6 mẫu" data-file="claude/07-navigation-c.png"><figcaption>claude/07-navigation-c.png <span>· Scheduled trống, 6 mẫu</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/02-empty-state-funnel.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Funnel trống của Lead: một câu nhắc tên lệnh crowsnest_save_funnel" data-file="lead/02-empty-state-funnel.png"><figcaption>lead/02-empty-state-funnel.png <span>· một câu, không nút</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/02-empty-state-own.webp" width="1440" height="900" loading="lazy" decoding="async" alt="My channel trống của Lead: một câu, không tiêu đề, không nút" data-file="lead/02-empty-state-own.png"><figcaption>lead/02-empty-state-own.png <span>· không tiêu đề, Sources không bấm được</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/02-empty-state-rivals.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Rivals trống của Lead: ba mục tự giải thích và ô Add rival" data-file="lead/02-empty-state-rivals.png"><figcaption>lead/02-empty-state-rivals.png <span>· trang trống tốt nhất của Lead</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/02-empty-state-plan.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Plan trống của Lead: lịch tháng, không một câu" data-file="lead/02-empty-state-plan.png"><figcaption>lead/02-empty-state-plan.png <span>· chỉ có lịch và dấu +</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 03 -->
+<section class="moment" id="m03">
+  <div class="m-head"><span class="m-num">03</span><h2>Việc chính</h2><p class="sub">Main job. Bấm nút chính, app xác nhận ra sao.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/frames/claude-08-type-send-stream/f02.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Ngay sau Enter: câu hỏi thành bong bóng, ô soạn trống, một chấm nhỏ báo đang chờ" data-file="frames/claude-08-type-send-stream/f02.png"><figcaption>frames/claude-08-type-send-stream/f02.png <span>· ngay sau Enter</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/03-main-job-d-cook.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Ngay sau khi bấm Cook: card Starting Claude in this workspace bên trái, terminal bên phải" data-file="lead/03-main-job-d-cook.png"><figcaption>lead/03-main-job-d-cook.png <span>· ngay sau Cook</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Bấm Enter thì câu hỏi thành bong bóng bên phải, ô soạn trống ngay, và một chấm nhỏ báo đang chờ. Chữ đầu tiên tới sau khoảng 1 tới 3 s (capture-notes). Khi chữ chạy, nút gửi thành ô vuông Stop. <span class="tags"><span class="lens">motion</span><span class="kw">Quick</span><span class="kw">Fast</span></span></li>
+      <li>Dưới câu trả lời chỉ có 5 icon nhỏ. Menu model có 3 dòng: "Opus 5.5" với "For complex work and everyday tasks", rồi "Effort", rồi "More models". <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>App xác nhận ngay chỗ mắt đang nhìn, trước khi model trả lời, nên thời gian chờ bị giấu đi. <span class="tags"><span class="lens">motion</span><span class="kw">Quick</span><span class="kw">Fast</span></span></li>
+      <li>Nút nhỏ và nằm ngay dưới thứ nó tác động. Lựa chọn khó duy nhất được tả bằng lời người. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li><span class="good">Điểm sáng.</span> Bấm Cook thì card hiện ngay: "Starting Claude in this workspace", "Usually under 10 s.", cùng hai hàng YOU CAN "Nothing to do." và IF YOU WAIT. Cùng ý với Claude, và nói thật hơn. <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Quick</span><span class="kw">Great</span></span></li>
+      <li>Chung quanh card là phần thô: terminal in lệnh "--dangerously-skip-permissions" (ở đây là Claude giả của bản test), cây file, chữ "/make-reel", và dòng mono "keyword COOKP / ANE" ngắt giữa chữ. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+      <li>Ở Plan Day, 7 hàng "not yet" và 7 chip "Missing" lặp đúng 7 tên đó. "Key", "Gift", "Offer" không có lời giải thích. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span><span class="kw">Fast</span></span></li>
+      <li>Today hiện ra 913 ms sau cú bấm sidebar (đo, lane có dữ liệu). Ở lane trống, các bảng hiện trong 0,1 tới 0,5 s (đo). <span class="tags"><span class="lens">motion</span><span class="kw">Quick</span></span></li>
+    </ul></div>
+  </div>
+  <details class="more"><summary>Thêm 4 ảnh</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/claude/03-main-job.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Chat Greeting của Claude: bong bóng hi, câu trả lời và 5 icon nhỏ" data-file="claude/03-main-job.png"><figcaption>claude/03-main-job.png <span>· câu trả lời và 5 icon</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/claude/08-model-menu.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Menu model của Claude chỉ có 3 dòng" data-file="claude/08-model-menu.png"><figcaption>claude/08-model-menu.png <span>· menu model 3 dòng</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/03-main-job-c.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Plan Day của Lead: 7 hàng not yet và 7 chip Missing" data-file="lead/03-main-job-c.png"><figcaption>lead/03-main-job-c.png <span>· 7 hàng và 7 chip trùng tên</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/03-main-job.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Today của Lead có dữ liệu mẫu, mỗi khối có nhãn nguồn chữ mono" data-file="lead/03-main-job.png"><figcaption>lead/03-main-job.png <span>· Today, nhãn nguồn mono trên mọi khối</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 04 -->
+<section class="moment" id="m04">
+  <div class="m-head"><span class="m-num">04</span><h2>Việc chạy lâu</h2><p class="sub">Long running. Việc mất vài giây tới vài phút.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/claude/04-long-running.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude đang chảy chữ: dòng cuối mờ dần về bên phải, ô soạn có nút Stop vuông" data-file="claude/04-long-running.png"><figcaption>claude/04-long-running.png <span>· đang chảy chữ, dòng cuối mờ</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/04-long-running-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lead kéo số rival quá 2 phút: 4 / 13 rivals, đồng hồ 2:00 và câu Taking longer than usual" data-file="lead/04-long-running-b.png"><figcaption>lead/04-long-running-b.png <span>· kéo rival quá 2 phút</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Câu trả lời chảy xuống từng đoạn. Mấy chữ mới nhất hiện mờ rồi đậm dần. Trang chỉ dài thêm xuống dưới, không giật. Lượt chảy kéo dài khoảng 20 s (capture-notes). <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+      <li>Không đồng hồ, không phần trăm. Lúc còn nghĩ chỉ có một dòng nhỏ "Drafting the lighthouse essay in full". Search đang tải thì có spinner và các hàng xám giữ chỗ. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Kết quả chính là thanh tiến độ, nên không có gì phải đọc hai lần. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span></span></li>
+      <li>Mép chữ mờ giữ mắt ở cuối dòng, nên việc chờ trông như đang chảy. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span><span class="kw">Quick</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li><span class="good">Ở đây Lead nói thật hơn Claude.</span> Thẻ cho biết đang kéo ai, "4 / 13 rivals", đồng hồ, "4 updated", "9 to go" và nút Stop. Quá 2 phút thì hiện: "Taking longer than usual (2:00). Instagram is answering slowly, so Lead Studio waits between rivals to avoid a limit. You can leave Settings; the pull keeps going." <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Great</span><span class="kw">Quick</span></span></li>
+      <li><span class="good">Giữ.</span> Bấm Stop thì có "You stopped the pull at 3/13." và nút "Pull the rest (10)". Cook render ghi "Step 5 of 6 · 7:42 so far, usually about 3:00", không phần trăm. <span class="tags"><span class="lens">states</span><span class="kw">Great</span></span></li>
+      <li>Cái giá: một lần kéo hiện 5 thông tin tiến độ cùng lúc, bên cạnh 2 thẻ nguồn khác với 4 nút. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span></span></li>
+      <li>Thanh tiến độ đứng ở "0 / 13" ít nhất 21 s, chỉ đồng hồ nhảy (0:01 tới 0:22, đọc trên khung f03 tới f06; sidecar giả). <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+      <li>Ô Video ghi "No video yet. It comes after Build." trong khi dải bước đã tick Build và Draft. Đây là bản Claude giả, nên với file thật có thể khác. <span class="tags"><span class="lens">states</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+  </div>
+  <p class="note">Hai reader nói khác nhau về phần trăm. Layout nói Cook không bao giờ dùng phần trăm; motion nói bản nháp có. Ảnh cho thấy motion đúng: bước Draft ghi "60%", chỉ bước Final là không.</p>
+  <details class="more"><summary>Thêm 7 ảnh và 1 video</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/claude/04-long-running-b.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Search của Claude đang tải: spinner và các hàng xám giữ chỗ; phần bản nháp lộ ra bên phải đã che" data-file="claude/04-long-running-b.png"><figcaption>claude/04-long-running-b.png <span>· hàng xám giữ chỗ; phần nháp lộ ra đã che</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/claude-08-stop-generation/f05.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude đang nghĩ: dòng trạng thái Drafting the lighthouse essay in full" data-file="frames/claude-08-stop-generation/f05.png"><figcaption>frames/claude-08-stop-generation/f05.png <span>· một dòng trạng thái nhỏ</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/04-long-running-c-stopped.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lead sau khi Stop: You stopped the pull at 3/13 và nút Pull the rest (10)" data-file="lead/04-long-running-c-stopped.png"><figcaption>lead/04-long-running-c-stopped.png <span>· dừng giữa chừng, giữ 3 kết quả</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/cook/cook-pane-10-long-render.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Cook pane render chậm: Step 5 of 6, 7:42 so far, usually about 3:00" data-file="lead/cook/cook-pane-10-long-render.png"><figcaption>lead/cook/cook-pane-10-long-render.png <span>· so với giờ thường lệ, không %</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/cook/cook-pane-07-draft.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Cook pane bản nháp: 60% và 270×480 at 8 fps" data-file="lead/cook/cook-pane-07-draft.png"><figcaption>lead/cook/cook-pane-07-draft.png <span>· bản nháp có "60%"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-04-sidecar-pull/f03.webp" width="1440" height="812" loading="lazy" decoding="async" alt="Kéo rival: 0 / 13 rivals ở 0:01" data-file="frames/lead-04-sidecar-pull/f03.png"><figcaption>frames/lead-04-sidecar-pull/f03.png <span>· "0 / 13" ở 0:01</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-04-sidecar-pull/f06.webp" width="1440" height="812" loading="lazy" decoding="async" alt="Kéo rival: vẫn 0 / 13 rivals ở 0:22" data-file="frames/lead-04-sidecar-pull/f06.png"><figcaption>frames/lead-04-sidecar-pull/f06.png <span>· vẫn "0 / 13" ở 0:22</span></figcaption></figure>
+    <figure class="shot"><video src="web/video/lead-04-sidecar-pull.mp4" poster="web/frames/lead-04-sidecar-pull/f07.webp" width="1280" height="722" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-04-sidecar-pull.mp4 <span>· 72 s đầu của journey kéo rival</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 05 -->
+<section class="moment" id="m05">
+  <div class="m-head"><span class="m-num">05</span><h2>Lỗi</h2><p class="sub">Error. Có gì đó hỏng hoặc bị dừng.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/claude/05-error.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude sau khi Stop: khung viền mảnh Claude's response was interrupted với Edit prompt và Try again" data-file="claude/05-error.png"><figcaption>claude/05-error.png <span>· sau khi bấm Stop</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/05-error-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lead khi Instagram giới hạn: pill Partial, câu màu hổ phách, từng hàng rival, nút xám Pull the rest (10) after 11:20 PM" data-file="lead/05-error-b.png"><figcaption>lead/05-error-b.png <span>· Instagram giới hạn, kéo được 3/13</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Một khung viền mảnh hiện đúng chỗ chữ đáng lẽ chạy: "Claude's response was interrupted." với "Edit prompt" và "Try again". Câu hỏi cũ vẫn ở trên. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>Không modal, không màu đỏ. <span class="tags"><span class="lens">states</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Lời báo và hai cách sửa nằm trên một hàng, ngay chỗ hỏng. Hai động từ, không đổ lỗi, không mã lỗi. <span class="tags"><span class="lens">copy</span><span class="lens">layout</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li><span class="good">Lỗi của Lead hữu ích hơn.</span> Nó nói phần nào đã giữ và bấm gì tiếp: "3 rivals have new numbers. The other 10 keep their older numbers." Ở Cook: "6 of 10 steps are done and kept" với nút "Resume cook". <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Great</span></span></li>
+      <li><span class="good">Giữ.</span> Lỗi hay nhất có một nút làm hai việc: "Turn on and pull the rest (11)". <span class="tags"><span class="lens">states</span><span class="kw">Quick</span></span></li>
+      <li>Tên nội bộ lọt ra: "session id", "sidecar", "pid 4000007", "frame 0", "Final (render)". <span class="tags"><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+      <li>Một ý nói 2 tới 3 lần: pill "Partial", câu, rồi từng hàng. Giờ "11:20 PM" nằm cả trong câu lẫn trên nút xám. Card Cook đỏ đặc. Card đỏ đếm "6 of 10 steps", còn đầu pane đếm "Step 5 of 6". <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+  </div>
+  <p class="note">Claude không nói lý do vì chính người dùng bấm Stop. Lỗi mạng thật của Claude không chụp được: deep link sai không làm gì cả, nên khung "interrupted" đứng thay.</p>
+  <details class="more"><summary>Thêm 4 ảnh và 1 video</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/lead/05-error-c.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Sidecar dừng giữa chừng: một nút Turn on and pull the rest (11)" data-file="lead/05-error-c.png"><figcaption>lead/05-error-c.png <span>· một nút làm hai việc</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/cook/cook-pane-pid-gone.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Card đỏ The render process stopped, 6 of 10 steps are done and kept, pid 4000007" data-file="lead/cook/cook-pane-pid-gone.png"><figcaption>lead/cook/cook-pane-pid-gone.png <span>· giữ 6 bước, nhưng lộ "pid", "frame 0"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/cook/cook-pane-03-start-failed.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Card đỏ Claude did not start với Retry cook và Show terminal" data-file="lead/cook/cook-pane-03-start-failed.png"><figcaption>lead/cook/cook-pane-03-start-failed.png <span>· "Nothing ran", có Retry cook</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/05-error.webp" width="1440" height="813" loading="lazy" decoding="async" alt="Session hết hạn: chữ đỏ The session id expired và nút Change session id" data-file="lead/05-error.png"><figcaption>lead/05-error.png <span>· "session id" hết hạn</span></figcaption></figure>
+    <figure class="shot"><video src="web/video/lead-04-cook-pane-states.mp4" poster="web/frames/lead-04-cook-pane-states/f04.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-04-cook-pane-states.mp4 <span>· mọi trạng thái của Cook pane, 47 s</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 06 -->
+<section class="moment" id="m06">
+  <div class="m-head"><span class="m-num">06</span><h2>Cài đặt</h2><p class="sub">Settings. Mở cài đặt, đổi trang, đóng lại.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div><img class="z" src="web/claude/06-settings.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Settings của Claude là khung nổi trên app đang mờ, mỗi dòng có tên, một câu và nút bên phải" data-file="claude/06-settings.png"><figcaption>claude/06-settings.png <span>· Cmd+, mở trang System</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><img class="z" src="web/lead/06-settings.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Settings Sources của Lead thay cả app, mỗi nguồn một thẻ có pill và 3 tới 4 nút" data-file="lead/06-settings.png"><figcaption>lead/06-settings.png <span>· Settings, trang Sources</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Cmd+, mở Settings thành khung nổi trên app đang mờ, app phía sau vẫn thấy. Khung hiện trong dưới 0,1 s (đo thô: thay đổi gói trong 2 khung hình liền nhau ở 1,52 s). <span class="tags"><span class="lens">motion</span><span class="lens">layout</span><span class="kw">Quick</span></span></li>
+      <li>Mỗi dòng có tên đậm, một câu xám nói nó làm gì cho bạn ("Message Claude from anywhere on your desktop."), và nút ở bên phải. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+      <li>Connectors "Yours" là bảng 3 cột. Trạng thái là dấu tick. Chỉ dòng cần làm mới có nút "Connect". Tìm không ra thì hiện "No matching settings". <span class="tags"><span class="lens">layout</span><span class="lens">states</span><span class="kw">Clean</span><span class="kw">Fast</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Mọi cài đặt cùng một hình dạng dòng, nên mắt học một lần. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span></span></li>
+      <li>Trạng thái là ký hiệu, chỉ ngoại lệ mới có nút. Mở nhanh mà vẫn giữ ngữ cảnh. <span class="tags"><span class="lens">layout</span><span class="lens">motion</span><span class="kw">Fast</span><span class="kw">Quick</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li>Bấm Sources thì cả app bị thay bằng trang Settings toàn màn. Hai khung trắng trơn, rồi một khung mờ có spinner, rồi mới có nội dung, tổng khoảng 1,2 s (đo yếu, video ghép từ khung CDP). <span class="tags"><span class="lens">motion</span><span class="kw">Quick</span><span class="kw">Smooth</span></span></li>
+      <li>Mỗi nguồn là một thẻ: tên, câu mục đích, pill, câu trạng thái và 3 tới 4 nút. <span class="good">Câu mục đích viết tốt:</span> "Rivals' public numbers for the Rivals board." <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+      <li>Pill "Ready" đi cùng câu "Not tested yet. Press Test connection to check the token.", nên hai tín hiệu cãi nhau. Thân thẻ dùng chữ API: "token", "session id", "200/200 calls left this hour". <span class="tags"><span class="lens">states</span><span class="lens">copy</span><span class="kw">Clean</span></span></li>
+      <li>Sidebar Settings vẫn là nhóm của Orca: Terminal, Browser, Input &amp; Editing, macOS Permissions, AI Provider Accounts. <span class="tags"><span class="lens">copy</span><span class="lens">layout</span><span class="kw">Great</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+  </div>
+  <details class="more"><summary>Thêm 4 ảnh và 1 video</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/claude/06-settings-connectors-yours.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Connectors Yours của Claude: bảng 3 cột với dấu tick, một nút Connect" data-file="claude/06-settings-connectors-yours.png"><figcaption>claude/06-settings-connectors-yours.png <span>· dấu tick, nút chỉ cho ngoại lệ</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/claude/02-empty-state-b.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Tìm trong Settings của Claude không ra: No matching settings" data-file="claude/02-empty-state-b.png"><figcaption>claude/02-empty-state-b.png <span>· "No matching settings"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-06-settings-open/f03.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Khung trắng trơn khi Lead mở Settings" data-file="frames/lead-06-settings-open/f03.png"><figcaption>frames/lead-06-settings-open/f03.png <span>· khung trắng (f02 cũng vậy)</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-06-settings-open/f04.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Settings của Lead hiện mờ với spinner trước khi có nội dung" data-file="frames/lead-06-settings-open/f04.png"><figcaption>frames/lead-06-settings-open/f04.png <span>· khung mờ có spinner</span></figcaption></figure>
+    <figure class="shot"><video src="web/video/lead-06-settings-open.mp4" poster="web/frames/lead-06-settings-open/f05.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-06-settings-open.mp4 <span>· 3,6 s, bấm Sources</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 07 -->
+<section class="moment" id="m07">
+  <div class="m-head"><span class="m-num">07</span><h2>Điều hướng</h2><p class="sub">Navigation. Đi từ trang này sang trang khác.</p></div>
+  <div class="pair">
+    <figure class="shot"><div class="side">Claude Desktop</div>
+      <div class="quad">
+        <img class="z" src="web/frames/claude-07-navigation/f02.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Trang Projects của Claude" data-file="frames/claude-07-navigation/f02.png">
+        <img class="z" src="web/frames/claude-07-navigation/f04.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Trang Artifacts của Claude" data-file="frames/claude-07-navigation/f04.png">
+        <img class="z" src="web/frames/claude-07-navigation/f05.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Trang Scheduled của Claude đang hiện hàng xám giữ chỗ" data-file="frames/claude-07-navigation/f05.png">
+        <img class="z" src="web/frames/claude-07-navigation/f06.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Trang Scheduled của Claude đã có nội dung" data-file="frames/claude-07-navigation/f06.png">
+      </div>
+      <figcaption>frames/claude-07-navigation/f02, f04, f05, f06 <span>· Projects, Artifacts, Scheduled khung xám, Scheduled nội dung. Video gốc có bản nháp của anh ở đầu và cuối nên em không nhúng; đây là 4 khung sạch ở giữa clip.</span></figcaption></figure>
+    <figure class="shot"><div class="side">Lead Studio</div><video src="web/video/lead-07-navigation.mp4" poster="web/frames/lead-07-navigation/f03.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-07-navigation.mp4 <span>· 10 s, bấm Today, Funnel, My channel, Plan, Agents</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Bấm một mục sidebar thì canvas đổi. Sidebar đứng yên, mục đang chọn sáng lên. 7 mục cố định, không có tab. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span><span class="kw">Quick</span></span></li>
+      <li>Scheduled hiện các hàng xám giữ chỗ khoảng 0,4 s rồi nội dung lấp đúng chỗ đó (đo: 7,72 s tới 8,10 s). Artifacts hiện thẻ xám trước, tên tới sau khoảng 1,4 s, ảnh xem trước tới muộn hơn nữa, và thẻ không đổi chỗ. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Mỗi lần chỉ một thứ đổi. Khung xám giữ hình trang, nên nội dung lấp vào chỗ có sẵn. <span class="tags"><span class="lens">motion</span><span class="lens">layout</span><span class="kw">Smooth</span><span class="kw">Clean</span></span></li>
+      <li>Claude cũng có chỗ chưa mượt: ở 5,5 s banner của Artifacts thêm một dòng và đẩy hàng thẻ xuống một chút. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li>Mỗi cú bấm sidebar mở hoặc chọn một tab. Sau 9 bảng, dải tab toàn tên cụt: "Fu...", "M...", "Ri...", "Ga...", "Ga...". <span class="tags"><span class="lens">layout</span><span class="kw">Quick</span><span class="kw">Clean</span></span></li>
+      <li>Nút "+" kể lại 9 bảng, thêm New Terminal, New Browser Tab, New Markdown, New Mobile Emulator, mẹo iOS simulator có "Keep / Hide", và 9 app agent từ Claude tới Hermes. <span class="tags"><span class="lens">layout</span><span class="lens">copy</span><span class="kw">Clean</span><span class="kw">Great</span></span></li>
+      <li>Gate 1 và Gate 2 có tab và có trong "+", nhưng không có trong sidebar. Một bảng tới được bằng 3 đường: sidebar, "+" và dải tab. <span class="tags"><span class="lens">layout</span><span class="kw">Quick</span></span></li>
+      <li>Cột file bên phải ("README.md") đứng y nguyên ở mọi bảng. <span class="tags"><span class="lens">layout</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+  </div>
+  <details class="more"><summary>Thêm 3 ảnh</summary><div class="strip">
+    <figure class="shot"><img class="z" src="web/lead/07-navigation-a.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Plan của Lead với dải tab đầy tên bị cắt" data-file="lead/07-navigation-a.png"><figcaption>lead/07-navigation-a.png <span>· dải tab toàn tên cụt</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/lead/07-navigation-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Menu dấu cộng của Lead: công cụ dev, 9 bảng, mẹo iOS và 9 app agent" data-file="lead/07-navigation-b.png"><figcaption>lead/07-navigation-b.png <span>· menu "+"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/claude/07-navigation-a.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Projects của Claude: danh sách 2 cột, mỗi dòng một tên và một ngày" data-file="claude/07-navigation-a.png"><figcaption>claude/07-navigation-a.png <span>· 14 dự án, mỗi dòng tên và ngày</span></figcaption></figure>
+  </div></details>
+</section>
+
+<!-- 08 -->
+<section class="moment" id="m08">
+  <div class="m-head"><span class="m-num">08</span><h2>Chuyển động nhỏ</h2><p class="sub">Animations. Rê chuột, mở menu, đổi màn. Ba cặp video, cùng một việc ở hai app.</p></div>
+  <div class="vset">
+    <div class="vpair"><h3>Rê chuột và menu</h3><div class="pair">
+      <figure class="shot"><div class="side">Claude Desktop</div><video src="web/video/claude-08-hover-actions-model-menu.mp4" poster="web/frames/claude-08-hover-actions-model-menu/f05.webp" width="1280" height="804" muted loop playsinline controls preload="metadata"></video><figcaption>video/claude-08-hover-actions-model-menu.mov <span>· rê lên tin nhắn và từng icon</span></figcaption></figure>
+      <figure class="shot"><div class="side">Lead Studio</div><video src="web/video/lead-08-new-tab-menu-open-board.mp4" poster="web/frames/lead-08-new-tab-menu-open-board/f02.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-08-new-tab-menu-open-board.mp4 <span>· mở menu "+", chọn Studio</span></figcaption></figure>
+    </div></div>
+    <div class="vpair"><h3>Tiến độ</h3><div class="pair">
+      <figure class="shot"><div class="side">Claude Desktop</div><video src="web/video/claude-08-stop-generation.mp4" poster="web/frames/claude-08-stop-generation/f07.webp" width="1280" height="804" muted loop playsinline controls preload="metadata"></video><figcaption>video/claude-08-stop-generation.mov <span>· gửi, chờ, bấm Stop</span></figcaption></figure>
+      <figure class="shot"><div class="side">Lead Studio</div><video src="web/video/lead-08-cook-pane-open.mp4" poster="web/frames/lead-08-cook-pane-open/f06.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-08-cook-pane-open.mp4 <span>· Cook, card đổi theo từng bước</span></figcaption></figure>
+    </div></div>
+    <div class="vpair"><h3>Đổi màn</h3><div class="pair">
+      <figure class="shot"><div class="side">Claude Desktop</div><video src="web/video/claude-08-exit-incognito.mp4" poster="web/frames/claude-08-exit-incognito/f04.webp" width="1280" height="804" muted loop playsinline controls preload="metadata"></video><figcaption>video/claude-08-exit-incognito.mov <span>· thoát incognito về chat mới</span></figcaption></figure>
+      <figure class="shot"><div class="side">Lead Studio</div><video src="web/video/lead-08-switch-tabs.mp4" poster="web/frames/lead-08-switch-tabs/f03.webp" width="1280" height="800" muted loop playsinline controls preload="metadata"></video><figcaption>video/lead-08-switch-tabs.mp4 <span>· bấm qua các tab</span></figcaption></figure>
+    </div></div>
+  </div>
+  <div class="strip">
+    <figure class="shot"><img class="z" src="web/frames/claude-08-hover-actions-model-menu/f05.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Rê lên icon thích: nhãn Good response hiện trên icon" data-file="frames/claude-08-hover-actions-model-menu/f05.png"><figcaption>frames/claude-08-hover-actions-model-menu/f05.png <span>· nhãn "Good response"</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/claude-08-type-send-stream/f05.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude đang chảy chữ, các chữ cuối dòng còn mờ" data-file="frames/claude-08-type-send-stream/f05.png"><figcaption>frames/claude-08-type-send-stream/f05.png <span>· mép chữ mờ</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-08-cook-pane-open/f02.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Menu dấu cộng của Lead hiện mờ giữa lúc mở hoặc đóng" data-file="frames/lead-08-cook-pane-open/f02.png"><figcaption>frames/lead-08-cook-pane-open/f02.png <span>· menu "+" đang mờ dần</span></figcaption></figure>
+    <figure class="shot"><img class="z" src="web/frames/lead-08-cook-pane-open/f04.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Cook pane: Claude is copying your script into the reel, Step 1 of 6" data-file="frames/lead-08-cook-pane-open/f04.png"><figcaption>frames/lead-08-cook-pane-open/f04.png <span>· tiêu đề đổi theo việc</span></figcaption></figure>
+  </div>
+  <div class="read">
+    <div class="col c"><h3>Claude làm gì</h3><ul>
+      <li>Rê lên tin nhắn thì ngày "Sep 30" hiện ra, và mỗi icon có nhãn riêng: "Read aloud", "Good response", "Bad response", "Retry". <span class="tags"><span class="lens">motion</span><span class="lens">copy</span><span class="kw">Great</span><span class="kw">Clean</span></span></li>
+      <li>Rê lên một dòng sidebar thì có nền xám nhẹ, nút "...", và thẻ tên "Greeting / Sep 30" (claude/03-main-job.png). <span class="tags"><span class="lens">motion</span><span class="kw">Great</span></span></li>
+      <li>Thoát incognito về chat mới: khung app đứng yên, chỉ ảnh xem trước trong "Recent artifacts" tô vào sau. Bấm Stop: ô vuông, rồi khung "interrupted". <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col w"><h3>Vì sao nó hiệu quả</h3><ul>
+      <li>Mỗi lần rê chuột có một phản hồi nhỏ, đúng chỗ, và có tên hành động. <span class="tags"><span class="lens">motion</span><span class="kw">Great</span><span class="kw">Clean</span></span></li>
+      <li>Chuyển động nhỏ và nằm sát thứ người dùng đang nhìn, nên app thấy nhanh mà không ồn. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+    </ul></div>
+    <div class="col l"><h3>Lead Studio làm gì thay vào đó</h3><ul>
+      <li>Chuyển động phần lớn là của Orca: menu "+" mờ dần khi mở hoặc đóng, toast "Folder added" ở lại hết clip, gạch chân chạy theo tab. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+      <li>Plan đổi Week sang Day phắt một cái, không có bước chuyển. <span class="tags"><span class="lens">motion</span><span class="kw">Smooth</span></span></li>
+      <li><span class="good">Chất riêng của Lead.</span> Cook pane có dải 6 bước tô dần, tiêu đề đổi theo việc ("Claude is copying your script into the reel", "Claude is building the chapters"), và đồng hồ chạy. <span class="tags"><span class="lens">motion</span><span class="lens">copy</span><span class="kw">Creative</span><span class="kw">Smooth</span></span></li>
+      <li>Chưa thấy nhãn khi rê chuột trong Lead. Screencast không vẽ con trỏ, nên chưa chắc là không có. <span class="tags"><span class="lens">motion</span><span class="kw">Clean</span></span></li>
+    </ul></div>
+  </div>
+  <p class="note">Ba video Claude khác (sidebar thu gọn, mở Search, mở và đóng Settings) có bản nháp của anh trong khung hình, nên em không nhúng. Video type-send-stream cũng vậy ở khung đầu; trang chỉ dùng các khung sạch của nó.</p>
+</section>
+
+<!-- boards -->
+<section class="sect" id="boards">
+  <h2>Mỗi bảng của Lead Studio: Keep, Cut hay Merge</h2>
+  <p class="intro">Mỗi hàng là một bảng: ảnh thật, bảng đó cho thấy gì, nó trùng với bảng nào, và bằng chứng cho cả ba hướng. Em không chọn. Anh bấm Keep, Cut hoặc Merge, và chọn bảng đích khi Merge. Lựa chọn được nhớ trong trình duyệt này. Bấm "Copy my picks" để lấy danh sách dạng chữ.</p>
+  <div class="copybar">
+    <button class="btn" id="copy-picks" type="button">Copy my picks</button>
+    <span class="status" id="picks-count">0 / 11 bảng đã chọn</span>
+    <span class="status" id="copy-status" aria-live="polite"></span>
+  </div>
+  <textarea id="picks-text" readonly hidden aria-label="Danh sách lựa chọn"></textarea>
+  <div class="boards">
+
+    <article class="board" data-id="today" data-target="">
+      <figure class="shot"><img class="z" src="web/lead/boards/today.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Today" data-file="lead/boards/today.png"><figcaption>lead/boards/today.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Today</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Offer, dải Funnel 6 bước, việc chờ duyệt (Gate 1, Gate 2), Last pulls và workspace đang chạy.</p>
+        <p class="b-line"><span class="label">Trùng</span>Dải Funnel giống bảng Funnel (12,400 · 82 · 18). "Checkout clicks" và "Purchases" hiện hai lần trên trang. Số Gate trùng Gate 1, Gate 2. Last pulls trùng Sources.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Chỗ duy nhất gom việc chờ anh duyệt. Câu mở đầu rõ: "Numbers to the offer, what waits for your approval, and what ran overnight."</div>
+          <div class="x"><span class="label">Cut</span>Dải Funnel lặp bảng Funnel. 5 hàng "never pulled" lặp Sources. Lúc trống có 8 ô dấu gạch mà không có nút nào.</div>
+          <div class="m"><span class="label">Merge</span>Ít lý do gộp Today vào bảng khác. Chiều ngược lại có bằng chứng: Gate 1, Gate 2 có thể vào khối duyệt của Today.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Today">
+          <button type="button" id="pick-today-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-today-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-today-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-today"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="funnel" data-target="own">
+      <figure class="shot"><img class="z" src="web/lead/boards/funnel.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Funnel" data-file="lead/boards/funnel.png"><figcaption>lead/boards/funnel.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Funnel</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>6 bước có thanh, số, tỉ lệ so với bước trước và mục tiêu. Bảng By keyword. Mục "How far we can link".</p>
+        <p class="b-line"><span class="label">Trùng</span>Cùng 6 số với dải Funnel trên Today. Hàng OWN01 (52 DM, 18 lượt) chính là "After the reel" ở My channel.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Phụ đề là một lời hứa: "6 steps from viewer to buyer. Every number names its source and pull time." Bảng duy nhất tách theo keyword.</div>
+          <div class="x"><span class="label">Cut</span>Cột Target ghi "no target set" ở cả 6 hàng. Lỗi số nhiều "missing 1 keywords". Lúc trống nhắc tên lệnh "crowsnest_save_funnel".</div>
+          <div class="m"><span class="label">Merge</span>Vào My channel. Hai bảng cùng kể chuyện sau một reel, và "After the reel" đã link sang Funnel.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Funnel">
+          <button type="button" id="pick-funnel-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-funnel-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-funnel-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-funnel"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="own" data-target="funnel">
+      <figure class="shot"><img class="z" src="web/lead/boards/own.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng My channel" data-file="lead/boards/own.png"><figcaption>lead/boards/own.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">My channel</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>4 tab, 3 số (21,600 lượt xem kèm "Instagram pull failed", 3,245 follower, +145), biểu đồ lượt xem, khối "After the reel".</p>
+        <p class="b-line"><span class="label">Trùng</span>"After the reel" (52 · 18) là hàng OWN01 của Funnel. Đỉnh biểu đồ 12,400 bằng Reel views trên Today.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Chỉ bảng này cho thấy kênh của anh. Pill đỏ "Instagram pull failed" nói thẳng.</div>
+          <div class="x"><span class="label">Cut</span>3 tab Performance, Content, Audience chưa chụp nên chưa rõ có gì. Lỗi "1 posts kept old numbers". Lúc trống không có tiêu đề, không có nút.</div>
+          <div class="m"><span class="label">Merge</span>Vào Funnel, hoặc giữ My channel và đưa Funnel vào trong (layout reader gợi ý cách sau).</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho My channel">
+          <button type="button" id="pick-own-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-own-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-own-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-own"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="rivals" data-target="">
+      <figure class="shot"><img class="z" src="web/lead/boards/rivals.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Rivals" data-file="lead/boards/rivals.png"><figcaption>lead/boards/rivals.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Rivals</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Cột Take, Learn, Avoid. Not sorted. Outliers 30 ngày. Channels you follow. Ô Add rival.</p>
+        <p class="b-line"><span class="label">Trùng</span>Hàng Outlier 4.1× · 32,800 chính là thẻ Take. Nút "Pull rivals" cho bảng này lại nằm ở Sources.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Ba câu giải nghĩa cột rất gọn: "Moves worth copying", "Lessons to adapt", "Mistakes to steer clear of". Trang trống tốt nhất app.</div>
+          <div class="x"><span class="label">Cut</span>Bảng Outliers lặp thẻ Take. Phụ đề dài và nói chuyện nội bộ ("filed", "work from"). Nhãn mono "Analysis", "Radar".</div>
+          <div class="m"><span class="label">Merge</span>Gộp ngay trong bảng: Outliers vào thẻ Take. Nút "Pull rivals" có thể dời từ Sources về đây (layout reader, suy luận).</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Rivals">
+          <button type="button" id="pick-rivals-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-rivals-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-rivals-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-rivals"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="plan" data-target="">
+      <figure class="shot"><img class="z" src="web/lead/boards/plan.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Plan" data-file="lead/boards/plan.png"><figcaption>lead/boards/plan.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Plan</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Lịch tháng có chip. Tuần có thẻ. Ngày có 7 trường, chip Missing và nút Cook.</p>
+        <p class="b-line"><span class="label">Trùng</span>Cook bắt đầu ở đây, nên bảng Studio trống. Thẻ ngày hiện tiến độ cook: "Cooking", "Starting Claude in this workspace", "Open workspace".</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Việc chính của app. Thẻ Plan giữ đúng lời hứa trong Cook pane: "the Plan card shows the progress".</div>
+          <div class="x"><span class="label">Cut</span>7 chip Missing lặp 7 hàng "not yet". Chip tháng bị cắt còn vài chữ ("Cursor...", "PLAN..."). Plan trống không có một câu.</div>
+          <div class="m"><span class="label">Merge</span>Plan không có chỗ để gộp vào. Studio có thể gộp vào Plan.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Plan">
+          <button type="button" id="pick-plan-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-plan-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-plan-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-plan"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="studio" data-target="plan">
+      <figure class="shot"><img class="z" src="web/lead/boards/studio.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Studio" data-file="lead/boards/studio.png"><figcaption>lead/boards/studio.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Studio</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Chữ "Studio" và một câu: "Nothing is cooking. Cook a reel from Plan."</p>
+        <p class="b-line"><span class="label">Trùng</span>Cook mở từ Plan, thành tab "Cook" trong workspace "Studio Reel". Ba tên cho một chỗ: Studio, Cook, Studio Reel.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Câu trống hay nhất app. Bảng có thể thành danh sách mọi lần cook kèm trạng thái (layout reader).</div>
+          <div class="x"><span class="label">Cut</span>Trống trong mọi lần chụp. Việc thật diễn ra ở Cook pane.</div>
+          <div class="m"><span class="label">Merge</span>Vào Plan, hoặc vào Cook pane.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Studio">
+          <button type="button" id="pick-studio-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-studio-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-studio-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-studio"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="gate" data-target="approve">
+      <figure class="shot"><img class="z" src="web/lead/boards/gate.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Gate 1" data-file="lead/boards/gate.png"><figcaption>lead/boards/gate.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Gate 1</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>4 hàng thay đổi có công tắc, diff v1 và v2, nút "Approve plan v2 (4 changes)".</p>
+        <p class="b-line"><span class="label">Trùng</span>Số đếm có trên Today. Diff lặp lại 4 hàng phía trên.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Phụ đề dạy đúng một kỹ năng: "Switch off any change you do not want. The diff and the count follow the switches." Nút nói rõ việc sẽ xảy ra, có đếm.</div>
+          <div class="x"><span class="label">Cut</span>Diff là khung code editor (số dòng, con trỏ, thanh minimap). Tên là chữ mã "Gate 1". Không có trong sidebar.</div>
+          <div class="m"><span class="label">Merge</span>Cùng Gate 2 thành một bảng duyệt, hoặc vào khối duyệt của Today.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Gate 1">
+          <button type="button" id="pick-gate-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-gate-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-gate-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-gate"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="gate2" data-target="approve">
+      <figure class="shot"><img class="z" src="web/lead/boards/gate2.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Gate 2" data-file="lead/boards/gate2.png"><figcaption>lead/boards/gate2.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Gate 2</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Trống: "Nothing waits to send. Publish a reel from its card in Plan to send it here."</p>
+        <p class="b-line"><span class="label">Trùng</span>Số đếm có trên Today ("Gate 2 · drafts to send 0"). Không có trong sidebar. PublishSheet chưa chụp được.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Câu trống chỉ đúng chỗ cần đi tiếp.</div>
+          <div class="x"><span class="label">Cut</span>Trang không có tiêu đề khi trống. Mới chỉ thấy lúc trống.</div>
+          <div class="m"><span class="label">Merge</span>Cùng Gate 1 thành một bảng duyệt, hoặc vào Today.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Gate 2">
+          <button type="button" id="pick-gate2-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-gate2-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-gate2-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-gate2"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="agents" data-target="settings">
+      <figure class="shot"><img class="z" src="web/lead/boards/agents.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Agents" data-file="lead/boards/agents.png"><figcaption>lead/boards/agents.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Agents</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Journal (trống, "No agent has called yet.") và bảng MCP tokens (local, Revoke, Create).</p>
+        <p class="b-line"><span class="label">Trùng</span>Settings cũng có mục "Agents". Today có "Running workspaces".</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Câu tạo lòng tin: "Lead Studio never calls a model itself."</div>
+          <div class="x"><span class="label">Cut</span>Chữ của dev: MCP, tokens, Journal. Đây là việc cài đặt, không phải việc hằng ngày.</div>
+          <div class="m"><span class="label">Merge</span>Vào Settings.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Agents">
+          <button type="button" id="pick-agents-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-agents-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-agents-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-agents"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="cook-pane" data-target="">
+      <figure class="shot"><img class="z" src="web/lead/boards/cook-pane.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Cook pane" data-file="lead/boards/cook-pane.png"><figcaption>lead/boards/cook-pane.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Cook pane</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Đầu trang, card trạng thái có YOU CAN và IF YOU WAIT, dải 6 bước, ô Video, Script. Bên cạnh là terminal và cây file.</p>
+        <p class="b-line"><span class="label">Trùng</span>Thẻ Plan hiện cùng tiến độ. Terminal in chữ thô ngay cạnh card.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Chữ và chuyển động tốt nhất app: tên người làm, số bước, giờ so với thường lệ, lời hứa "kept" khi lỗi.</div>
+          <div class="x"><span class="label">Cut</span>Terminal và cây file ở chế độ mặc định (nút "Show terminal" đã có sẵn). Đường dẫn file, "pid", "frame 0". Ô Video ghi "No video yet" khi Draft đã xong.</div>
+          <div class="m"><span class="label">Merge</span>Studio có thể gộp vào đây và thành danh sách các Cook pane.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Cook pane">
+          <button type="button" id="pick-cook-pane-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-cook-pane-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-cook-pane-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-cook-pane"></select></label>
+        </div>
+      </div>
+    </article>
+
+    <article class="board" data-id="sources" data-target="settings">
+      <figure class="shot"><img class="z" src="web/lead/boards/sources.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Bảng Sources trong Settings" data-file="lead/boards/sources.png"><figcaption>lead/boards/sources.png</figcaption></figure>
+      <div class="b-body">
+        <h3 class="b-name">Sources</h3>
+        <p class="b-line"><span class="label">Thấy gì</span>Settings, trang Sources: mỗi dịch vụ một thẻ có pill, câu trạng thái và 3 tới 4 nút.</p>
+        <p class="b-line"><span class="label">Trùng</span>"Last pulls" trên Today lặp mọi trạng thái. Tới được từ sidebar, từ Today và từ các lỗi. Nút "Pull rivals" của bảng Rivals nằm ở đây.</p>
+        <div class="ev">
+          <div class="k"><span class="label">Keep</span>Câu nhóm bình tĩnh và rõ: "Your own channel and the rivals you track, pulled on request, never on a timer." Sự thật thà lúc chờ lâu và lúc lỗi sống ở trang này.</div>
+          <div class="x"><span class="label">Cut</span>Bỏ khỏi sidebar, chỉ giữ trong Settings. Chung quanh nó là các nhóm Settings của Orca.</div>
+          <div class="m"><span class="label">Merge</span>Vào Settings, với trạng thái thành bảng dấu tick như Connectors của Claude.</div>
+        </div>
+        <div class="pick" role="group" aria-label="Chọn cho Sources">
+          <button type="button" id="pick-sources-keep" data-pick="keep" aria-pressed="false">Keep</button>
+          <button type="button" id="pick-sources-cut" data-pick="cut" aria-pressed="false">Cut</button>
+          <button type="button" id="pick-sources-merge" data-pick="merge" aria-pressed="false">Merge</button>
+          <label class="target" hidden>vào <select id="target-sources"></select></label>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ideas -->
+<section class="sect" id="ideas">
+  <h2>3 ý tưởng nên lấy trước</h2>
+  <p class="intro">Ba đề xuất đổi cảm giác nhiều nhất với ít việc nhất, rút từ cả bốn reader. Đây là đề xuất để anh chọn. Cỡ việc là em đoán.</p>
+  <div class="ideas">
+    <article class="idea">
+      <h3>Một màn, một việc</h3>
+      <p class="para">Canvas của Claude luôn chỉ giữ một thứ chính: lời chào với ô soạn, hoặc một cột trả lời. Ở Lead, mọi bảng phải chia chỗ với phần của Orca: cột file "README.md" bên phải, dải 9 tab cụt tên, menu "+" toàn công cụ dev, chữ "ORCA" lúc mở và chữ "Loading editor...". Giấu phần đó khi đang xem bảng là bước lớn nhất để Lead thôi trông như một bản Orca.</p>
+      <div class="ev2">
+        <figure class="shot"><img class="z" src="web/claude/01-first-open.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude lúc mở: một lời chào và một ô soạn" data-file="claude/01-first-open.png"><figcaption>claude/01-first-open.png</figcaption></figure>
+        <figure class="shot"><img class="z" src="web/claude/03-main-job.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude: một cột trả lời, nút nhỏ bên dưới" data-file="claude/03-main-job.png"><figcaption>claude/03-main-job.png</figcaption></figure>
+      </div>
+      <dl>
+        <div><dt>Đổi gì ở Lead Studio</dt><dd>Màn mở đầu (lead/01-first-open.png) chỉ còn một nút mở Today. Ẩn cột file trên mọi bảng (lead/boards/today.png). Menu "+" chỉ còn bảng của Lead (lead/07-navigation-b.png). Bỏ chữ "Loading editor..." (frames/lead-01-first-open-nav/f06.png).</dd></div>
+        <div><dt>Chữ của anh</dt><dd>Clean, Great, Quick</dd></div>
+        <div><dt>Cỡ việc (đoán)</dt><dd>Vừa</dd></div>
+      </dl>
+    </article>
+    <article class="idea">
+      <h3>Đáp ngay, rồi lấp vào chỗ đã giữ</h3>
+      <p class="para">Claude đáp mỗi thao tác ngay chỗ mắt nhìn. Bong bóng và ô soạn trống hiện ngay khi Enter. Hàng xám giữ hình trang trong khoảng 0,4 s. Chữ mới hiện mờ rồi đậm. Settings mở trong dưới 0,1 s. Lead có những lúc chờ tương tự nhưng để lộ ra: hai khung trắng rồi spinner khi mở Settings (khoảng 1,2 s, đo yếu), thanh "0 / 13" đứng yên ít nhất 21 s, chữ trong card Cook đổi phắt. Phần lớn việc này nằm ở giao diện. Backend giữ nguyên tốc độ.</p>
+      <div class="ev2">
+        <figure class="shot"><img class="z" src="web/claude/04-long-running.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude đang chảy chữ với mép chữ mờ" data-file="claude/04-long-running.png"><figcaption>claude/04-long-running.png</figcaption></figure>
+        <figure class="shot"><img class="z" src="web/frames/claude-07-navigation/f05.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Scheduled của Claude với hàng xám giữ chỗ" data-file="frames/claude-07-navigation/f05.png"><figcaption>frames/claude-07-navigation/f05.png</figcaption></figure>
+      </div>
+      <dl>
+        <div><dt>Đổi gì ở Lead Studio</dt><dd>Mở Settings (frames/lead-06-settings-open/f02 tới f04). Lần đầu mở Today ("Loading editor...", 913 ms). Thanh kéo ở Sources (frames/lead-04-sidecar-pull/f03 tới f06). Dòng mới trong card Cook (lead/boards/cook-pane.png). Plan đổi Week sang Day.</dd></div>
+        <div><dt>Chữ của anh</dt><dd>Smooth, Quick, Fast</dd></div>
+        <div><dt>Cỡ việc (đoán)</dt><dd>Nhỏ tới vừa</dd></div>
+      </dl>
+    </article>
+    <article class="idea">
+      <h3>Nói bằng lời của người làm reel</h3>
+      <p class="para">Claude gọi mọi thứ bằng tên người dùng nhận ra ("Claude's response was interrupted.", "For complex work and everyday tasks") và rào chữ kỹ thuật vào mục Developer. Những câu hay nhất của Lead đã làm vậy: "Nothing is cooking. Cook a reel from Plan.", YOU CAN và IF YOU WAIT, "pulled on request, never on a timer." Phần còn lại lộ tên mã: "crowsnest_save_funnel", "Gate 1", "sidecar", "session id", "pid 4000007", "frame 0", "vo/script.json", cùng lỗi số nhiều "missing 1 keywords", "1 posts". Một lượt sửa chữ: lời thường, mỗi lỗi một câu với một hai động từ, một lời chào riêng của Lead trên Today, và thêm hàng YOU CAN cho Sources và Gate.</p>
+      <div class="ev2">
+        <figure class="shot"><img class="z" src="web/claude/05-error.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude: lỗi một dòng với hai động từ" data-file="claude/05-error.png"><figcaption>claude/05-error.png</figcaption></figure>
+        <figure class="shot"><img class="z" src="web/claude/08-model-menu.webp" width="1440" height="904" loading="lazy" decoding="async" alt="Claude: menu model tả bằng lời người" data-file="claude/08-model-menu.png"><figcaption>claude/08-model-menu.png</figcaption></figure>
+      </div>
+      <dl>
+        <div><dt>Đổi gì ở Lead Studio</dt><dd>Màn trống Funnel, Rivals, My channel (lead/02-empty-state-funnel.png). Thẻ Sources (lead/06-settings.png). Lỗi Cook (lead/cook/cook-pane-pid-gone.png). Tên Gate 1, Gate 2. Nhãn "Key", "Gift", "Offer" ở Plan Day (lead/03-main-job-c.png).</dd></div>
+        <div><dt>Chữ của anh</dt><dd>Great, Creative, Clean</dd></div>
+        <div><dt>Cỡ việc (đoán)</dt><dd>Nhỏ</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<!-- lead wins -->
+<section class="sect" id="wins">
+  <h2>Chỗ Lead Studio đang hơn Claude</h2>
+  <p class="intro">Những điểm này Claude không có. Nên giữ khi đổi giao diện.</p>
+  <div class="wins">
+    <div class="win"><figure class="shot"><img class="z" src="web/lead/04-long-running-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lead nói thật khi chờ lâu" data-file="lead/04-long-running-b.png"><figcaption>lead/04-long-running-b.png</figcaption></figure><h3>Nói thật khi chờ lâu</h3><p>"Taking longer than usual (2:00)... You can leave Settings; the pull keeps going." Claude không có đồng hồ, không nói lý do.</p></div>
+    <div class="win"><figure class="shot"><img class="z" src="web/lead/05-error-b.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lead giữ kết quả khi lỗi" data-file="lead/05-error-b.png"><figcaption>lead/05-error-b.png</figcaption></figure><h3>Lỗi giữ lại việc đã làm</h3><p>"3 rivals have new numbers. The other 10 keep their older numbers." Ở Cook: "6 of 10 steps are done and kept".</p></div>
+    <div class="win"><figure class="shot"><img class="z" src="web/lead/05-error-c.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Một nút làm hai việc" data-file="lead/05-error-c.png"><figcaption>lead/05-error-c.png</figcaption></figure><h3>Một nút làm hai việc</h3><p>"Turn on and pull the rest (11)". Sau khi Stop thì có "Pull the rest (10)" (lead/04-long-running-c-stopped.png).</p></div>
+    <div class="win"><figure class="shot"><img class="z" src="web/lead/boards/cook-pane.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Giọng của Cook pane" data-file="lead/boards/cook-pane.png"><figcaption>lead/boards/cook-pane.png</figcaption></figure><h3>Giọng của Cook pane</h3><p>"Claude is building the chapters", cùng hai hàng YOU CAN "Nothing to do. You can leave; the Plan card shows the progress." và IF YOU WAIT. Mỗi bước có tiêu đề riêng.</p></div>
+    <div class="win"><figure class="shot"><img class="z" src="web/frames/lead-04-cook-pane-states/f06.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Plan Day ở nền tối: thẻ PLAN01 full script ghi Cooking, Starting Claude in this workspace, Open workspace" data-file="frames/lead-04-cook-pane-states/f06.png"><figcaption>frames/lead-04-cook-pane-states/f06.png</figcaption></figure><h3>Lời hứa được giữ</h3><p>Rời Cook pane thì thẻ Plan vẫn hiện tiến độ: "Cooking", "Starting Claude in this workspace", "Open workspace".</p></div>
+    <div class="win"><figure class="shot"><img class="z" src="web/lead/boards/agents.webp" width="1440" height="900" loading="lazy" decoding="async" alt="Lời hứa tin cậy trên bảng Agents" data-file="lead/boards/agents.png"><figcaption>lead/boards/agents.png</figcaption></figure><h3>Lời hứa tạo lòng tin</h3><p>"Lead Studio never calls a model itself." và "pulled on request, never on a timer." Nhóm sidebar INSIGHT, CREATE, SYSTEM cũng ngắn và đúng giọng Lead.</p></div>
+  </div>
+</section>
+
+<!-- gaps -->
+<section class="sect" id="gaps">
+  <h2>Lỗ hổng bằng chứng</h2>
+  <ul class="gaps">
+    <li>Codex chưa cài, nên không có trong bài.</li>
+    <li>PublishSheet chưa chụp. Nút Publish chỉ hiện khi reel đã có video gắn qua MCP.</li>
+    <li>Claude chặn CDP, nên không có số đo từ DOM. Thời gian của Claude lấy từ quay màn hình (khoảng 16,6 khung/s) và phát hiện cảnh. Không có đường cong easing.</li>
+    <li>Video của Lead ghép từ khung CDP, nên mọi số thời gian của Lead là số yếu. Lead chạy bản dev, ẩn cửa sổ; 11 s khởi động không so được với khoảng 1 s của Claude.</li>
+    <li>Lead chạy trên DB mẫu với sidecar giả và Claude giả. Tốc độ kéo và ô Video có thể khác khi chạy dữ liệu thật.</li>
+    <li>Lỗi mạng thật của Claude không chụp được. Khung "interrupted" sau Stop đứng thay.</li>
+    <li>Cỡ cửa sổ khác nhau (Claude 1710×1074, Lead 1440×900). Các con số đếm là đếm bằng mắt, có thể lệch khoảng 2.</li>
+    <li>Sidebar của Claude là lịch sử thật của anh (khoảng 20 dòng), nặng hơn máy của người mới.</li>
+    <li>3 tab còn lại của My channel chưa chụp. Studio, Gate 2 và Agents mới chỉ thấy lúc trống.</li>
+    <li>Screencast của Lead không vẽ con trỏ, nên không thấy được hover và nhãn khi rê chuột của Lead.</li>
+    <li>5 trên 8 video Claude có bản nháp của anh trong khung hình: claude-07-navigation, claude-08-search-newchat-switch, claude-08-settings-open-close, claude-08-sidebar-toggle-hover, claude-08-type-send-stream. Em không nhúng chúng, và dùng khung hình sạch thay vào.</li>
+    <li>Lời chào "Moonlit chat?" có đổi theo giờ hay không thì chưa chứng minh. Mới thấy nó một lần.</li>
+  </ul>
+  <details class="more fixes"><summary>Em đã sửa gì so với các reader</summary>
+    <ul>
+      <li>Bỏ: "Settings của Lead chớp từ tối sang sáng" (motion). Hai khung đó cách nhau khoảng 9 s và ở hai bước khác nhau của journey.</li>
+      <li>Bỏ: "menu '+' mờ nửa ở new-tab f02" (motion). Khung f02 rõ hẳn. Menu mờ có thật, nhưng ở cook-pane-open f02.</li>
+      <li>Sửa: "các khung Day tối trong clip new-tab" (motion). Các khung đó là bảng Studio sáng. Khung Day tối nằm ở cook-pane-states f06 tới f08.</li>
+      <li>Sửa: "skeleton Scheduled khoảng 0,5 s ở 5,5 tới 6,0 s" (motion). Đoạn đó là thẻ Artifacts lấp vào. Skeleton Scheduled kéo dài từ 7,72 s tới 8,10 s.</li>
+      <li>Sửa: "spinner Settings ở f03" (motion). f02 và f03 trắng trơn, spinner ở f04, nội dung từ f05.</li>
+      <li>Thu hẹp: "Stop hiện ngay khi gửi" (motion). Lúc chờ ở f02 ô soạn còn mũi tên. Stop hiện khi chữ bắt đầu chạy, ở f03.</li>
+      <li>Sửa: số khung trong cook-pane-states (motion) bị lệch. Trang dẫn ảnh tĩnh thay vào.</li>
+      <li>Sửa: "Cook không bao giờ dùng phần trăm" (layout). Bước Draft ghi "60%".</li>
+      <li>Sửa: số "no data yet" (layout x5, copy x6, states "13+"). Đếm lại được 7 nhãn và 8 ô dấu gạch.</li>
+      <li>Sửa: "After the reel lặp Funnel" (layout). Nó khớp hàng OWN01 trong By keyword (52 · 18). Tổng của Funnel là 82 DM.</li>
+      <li>Sửa: "Plan trống chỉ có dấu + ở hôm nay" (states). Dấu + có ở mọi ngày từ hôm nay trở đi.</li>
+      <li>Thêm (em thấy trên ảnh): "Checkout clicks", "Purchases" hiện hai lần trên Today; "1 posts"; "COOKP / ANE" ngắt giữa chữ; ô Video sai cả ở bước 5; "6 of 10" và "5 of 6"; chip tháng bị cắt; diff của Gate 1 là code editor; Claude cũng xê dịch một chút ở Artifacts; thẻ Plan hiện tiến độ cook.</li>
+    </ul>
+  </details>
+</section>
+
+<footer>
+  <p>Nguồn: <code>readers/motion.md</code> · <code>readers/layout.md</code> · <code>readers/copy.md</code> · <code>readers/states.md</code> · <code>manifest.json</code> · <code>capture-notes.md</code></p>
+  <p>Ngày chụp 29/10/2026. Claude Desktop 4.29.0. Lead Studio bản dev tại origin/main 59911c7f82. Ảnh và video nằm trong <code>web/</code>.</p>
+</footer>
+
+</div></div>
+
+<dialog id="zoom" aria-label="Ảnh phóng to">
+  <figure><img id="zoom-img" alt=""><figcaption><span id="zoom-cap"></span><button type="button" data-close>Đóng</button></figcaption></figure>
+</dialog>
+
+<script>
+(function () {
+  var dlg = document.getElementById('zoom');
+  var zImg = document.getElementById('zoom-img');
+  var zCap = document.getElementById('zoom-cap');
+  document.addEventListener('click', function (e) {
+    var img = e.target.closest && e.target.closest('img.z');
+    if (!img || !dlg || typeof dlg.showModal !== 'function') return;
+    zImg.src = img.currentSrc || img.src;
+    zImg.alt = img.alt;
+    zCap.textContent = img.getAttribute('data-file') || '';
+    dlg.showModal();
+  });
+  if (dlg) dlg.addEventListener('click', function (e) {
+    if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
+  });
+
+  var BOARDS = [['today', 'Today'], ['funnel', 'Funnel'], ['own', 'My channel'], ['rivals', 'Rivals'], ['plan', 'Plan'], ['studio', 'Studio'], ['gate', 'Gate 1'], ['gate2', 'Gate 2'], ['agents', 'Agents'], ['cook-pane', 'Cook pane'], ['sources', 'Sources']];
+  var TARGETS = BOARDS.concat([['approve', 'Bảng duyệt mới (Gate 1 + Gate 2)'], ['settings', 'Settings']]);
+  var NAME = {};
+  TARGETS.forEach(function (t) { NAME[t[0]] = t[1]; });
+  var KEY = 'lead-feel-study-picks-v1';
+  var picks = {};
+  try { picks = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { picks = {}; }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch (_) {} }
+
+  var rows = [].slice.call(document.querySelectorAll('.board[data-id]'));
+  var countEl = document.getElementById('picks-count');
+  function tally() {
+    var n = rows.filter(function (r) { var p = picks[r.dataset.id]; return p && p.pick; }).length;
+    if (countEl) countEl.textContent = n + ' / ' + rows.length + ' bảng đã chọn';
+  }
+  rows.forEach(function (row) {
+    var id = row.dataset.id;
+    var sel = row.querySelector('select');
+    var wrap = row.querySelector('.target');
+    TARGETS.forEach(function (t, i) {
+      if (i === 0) sel.add(new Option('chọn bảng', ''));
+      if (t[0] !== id) sel.add(new Option(t[1], t[0]));
+    });
+    function render() {
+      var p = picks[id] || {};
+      row.querySelectorAll('[data-pick]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.pick === p.pick)); });
+      wrap.hidden = p.pick !== 'merge';
+      sel.value = p.target || row.dataset.target || '';
+    }
+    row.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-pick]');
+      if (!b) return;
+      var cur = picks[id] || {};
+      if (cur.pick === b.dataset.pick) delete picks[id];
+      else picks[id] = { pick: b.dataset.pick, target: cur.target || sel.value || row.dataset.target || '' };
+      save(); render(); tally();
+    });
+    sel.addEventListener('change', function () {
+      var cur = picks[id] || { pick: 'merge' };
+      cur.target = sel.value;
+      picks[id] = cur;
+      save();
+    });
+    render();
+  });
+  tally();
+
+  function picksText() {
+    var lines = ['Lead Studio boards, my picks'];
+    BOARDS.forEach(function (b) {
+      var p = picks[b[0]];
+      var v = 'not picked';
+      if (p && p.pick === 'keep') v = 'Keep';
+      else if (p && p.pick === 'cut') v = 'Cut';
+      else if (p && p.pick === 'merge') v = 'Merge into ' + (NAME[p.target] || '(no target)');
+      lines.push(b[1] + ': ' + v);
+    });
+    return lines.join('\n');
+  }
+  var btn = document.getElementById('copy-picks');
+  var ta = document.getElementById('picks-text');
+  var st = document.getElementById('copy-status');
+  btn.addEventListener('click', function () {
+    var t = picksText();
+    function fallback() {
+      ta.hidden = false;
+      ta.value = t;
+      ta.focus();
+      ta.select();
+      st.textContent = 'Không chép tự động được. Chữ đã chọn sẵn trong ô dưới, anh bấm Cmd+C.';
+    }
+    try {
+      navigator.clipboard.writeText(t).then(function () { st.textContent = 'Đã chép danh sách.'; ta.hidden = true; }, fallback);
+    } catch (_) { fallback(); }
+  });
+})();
+</script>
